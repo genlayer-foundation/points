@@ -28,4 +28,45 @@ body {
   .input {
     @apply px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
   }
+
+  /* Custom tooltip styles */
+  .tooltip {
+    @apply relative;
+    position: relative;
+  }
+  
+  /* We're using JavaScript to handle tooltips now, so we don't need the CSS pseudoelements */
+  .tooltip:hover:before,
+  .tooltip:hover:after {
+    display: none;
+  }
+  
+  /* Custom tooltip element styles (created in JavaScript) */
+  #custom-tooltip {
+    position: fixed;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    z-index: 9999;
+    font-weight: normal;
+    font-size: 0.75rem;
+    pointer-events: none;
+    max-width: 300px;
+    text-align: center;
+    white-space: normal;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+  }
+  
+  #custom-tooltip-arrow {
+    position: fixed;
+    border-width: 5px;
+    border-style: solid;
+    border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+  }
 }

@@ -4,6 +4,7 @@
   import { format } from 'date-fns';
   import ContributionsList from '../components/ContributionsList.svelte';
   import StatCard from '../components/StatCard.svelte';
+  import BadgeList from '../components/BadgeList.svelte';
   import { usersAPI, contributionsAPI, statsAPI } from '../lib/api';
   
   // Import route params from svelte-spa-router
@@ -12,6 +13,7 @@
   // State management
   let participant = $state(null);
   let contributions = $state([]);
+  let badges = $state([]);
   let contributionStats = $state({
     totalContributions: 0,
     totalPoints: 0,
@@ -23,6 +25,8 @@
   let error = $state(null);
   let contributionsLoading = $state(true);
   let contributionsError = $state(null);
+  let badgesLoading = $state(true);
+  let badgesError = $state(null);
   let statsError = $state(null);
   
   $effect(() => {
@@ -79,6 +83,55 @@
     } catch (err) {
       contributionsError = err.message || 'Failed to load contributions';
       contributionsLoading = false;
+    }
+
+    // Fetch participant badges
+    try {
+      badgesLoading = true;
+      badgesError = null;
+      
+      // If we have participant details with badges included
+      if (participant && participant.badges) {
+        // Format the badges data to match our Badge component props
+        badges = participant.badges.map(badge => ({
+          id: badge.id,
+          name: badge.action_name,
+          description: badge.notes || '',
+          points: badge.points,
+          actionId: badge.action,
+          actionName: badge.action_name,
+          evidenceUrl: badge.evidence_url
+        }));
+      } else {
+        // If badges not included in participant data, make a separate API call
+        // This is placeholder until we implement the API endpoint
+        const mockBadges = [
+          { 
+            id: 1, 
+            name: 'Node Runner', 
+            description: 'Successfully ran a validator node', 
+            points: 100,
+            actionId: 1,
+            actionName: 'Node Runner',
+            evidenceUrl: 'https://example.com/evidence/1'
+          },
+          { 
+            id: 2, 
+            name: 'Bug Hunter', 
+            description: 'Found and reported a critical bug', 
+            points: 150,
+            actionId: 2,
+            actionName: 'Bug Hunter',
+            evidenceUrl: 'https://example.com/evidence/2'
+          }
+        ];
+        badges = mockBadges;
+      }
+      
+      badgesLoading = false;
+    } catch (err) {
+      badgesError = err.message || 'Failed to load badges';
+      badgesLoading = false;
     }
   }
   
@@ -218,6 +271,17 @@
       />
     </div>
     
+    <!-- User Badges -->
+    <div class="mb-6">
+      <BadgeList 
+        title="Badges & Achievements" 
+        description="Earned badges and recognition"
+        {badges}
+        loading={badgesLoading}
+        error={badgesError}
+      />
+    </div>
+    
     <!-- Contribution Types Breakdown -->
     {#if contributionStats.contributionTypes && contributionStats.contributionTypes.length > 0}
       <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
@@ -252,9 +316,13 @@
                 {#each contributionStats.contributionTypes as type, i}
                   <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td class="px-6 py-4 whitespace-nowrap">
-                      <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                      <a 
+                        href={`/contribution-type/${type.id}`}
+                        onclick={(e) => { e.preventDefault(); push(`/contribution-type/${type.id}`); }}
+                        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 cursor-pointer hover:bg-green-200"
+                      >
                         {type.name}
-                      </span>
+                      </a>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {type.count}

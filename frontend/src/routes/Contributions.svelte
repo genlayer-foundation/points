@@ -3,6 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import ContributionTypeStats from '../components/ContributionTypeStats.svelte';
+  import Badge from '../components/Badge.svelte';
   import { contributionsAPI, usersAPI } from '../lib/api';
   
   // State management
@@ -248,9 +249,19 @@
                   </td>
                 {/if}
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                    {contribution.contribution_type_name || (contribution.contribution_type?.name) || 'Unknown Type'}
-                  </span>
+                  <Badge
+                    badge={{
+                      id: contribution.contribution_type?.id || contribution.contribution_type,
+                      name: contribution.contribution_type_name || (contribution.contribution_type?.name) || 'Unknown Type',
+                      description: contribution.contribution_type_description || contribution.contribution_type?.description || '',
+                      points: 0,
+                      actionId: contribution.contribution_type?.id || contribution.contribution_type,
+                      actionName: contribution.contribution_type_name || (contribution.contribution_type?.name) || 'Unknown Type',
+                      evidenceUrl: ''
+                    }}
+                    color="green"
+                    clickable={true}
+                  />
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {formatDate(contribution.contribution_date)}

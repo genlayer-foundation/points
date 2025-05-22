@@ -16,7 +16,7 @@ class ContributionTypeViewSet(viewsets.ModelViewSet):
     """
     queryset = ContributionType.objects.all()
     serializer_class = ContributionTypeSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]  # Allow read-only access without authentication
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
@@ -33,7 +33,7 @@ class ContributionTypeViewSet(viewsets.ModelViewSet):
             notes="Automatically created when contribution type was added"
         )
         
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def statistics(self, request):
         """
         Get aggregated statistics for each contribution type.
@@ -70,7 +70,7 @@ class ContributionViewSet(viewsets.ModelViewSet):
     """
     queryset = Contribution.objects.all().order_by('-contribution_date')
     serializer_class = ContributionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]  # Allow read-only access without authentication
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['user', 'contribution_type']
     search_fields = ['notes', 'user__email', 'user__name', 'contribution_type__name']
@@ -78,6 +78,9 @@ class ContributionViewSet(viewsets.ModelViewSet):
     ordering = ['-contribution_date']
     
     def get_queryset(self):
+        # If user is not authenticated, show all contributions (read-only)
+        if not self.request.user.is_authenticated:
+            return Contribution.objects.all().order_by('-contribution_date')
         # If user is staff, show all contributions. Otherwise, show only their own.
         if self.request.user.is_staff:
             return Contribution.objects.all().order_by('-contribution_date')

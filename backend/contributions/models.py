@@ -1,7 +1,10 @@
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
 from utils.models import BaseModel
+import decimal
 
 
 class ContributionType(BaseModel):
@@ -85,7 +88,30 @@ class Contribution(BaseModel):
             self.clean()
             
             # Calculate frozen_global_points
-            if self.multiplier_at_creation:
-                self.frozen_global_points = int(self.points * float(self.multiplier_at_creation))
-            
+            try:
+                if self.multiplier_at_creation:
+                    self.frozen_global_points = int(self.points * float(self.multiplier_at_creation))
+            except (decimal.InvalidOperation, TypeError, ValueError):
+                # Handle corrupted data by resetting the multiplier
+                self.multiplier_at_creation = 1.0
+                self.frozen_global_points = self.points
+                
         super().save(*args, **kwargs)
+
+
+# Signal to validate multiplier_at_creation before save
+@receiver(pre_save, sender=Contribution)
+def validate_multiplier_at_creation(sender, instance, **kwargs):
+    """
+    Signal to validate multiplier_at_creation before saving a Contribution.
+    This helps prevent corrupted decimal values.
+    """
+    if instance.multiplier_at_creation:
+        try:
+            # Test if we can convert the decimal value
+            float(instance.multiplier_at_creation)
+        except (decimal.InvalidOperation, TypeError, ValueError):
+            # If conversion fails, reset the multiplier to 1.0
+            print(f"WARNING: Fixing corrupted multiplier_at_creation value for contribution {instance.id}")
+            instance.multiplier_at_creation = 1.0
+            instance.frozen_global_points = instance.points

@@ -13,7 +13,7 @@ class GlobalLeaderboardMultiplierViewSet(viewsets.ModelViewSet):
     """
     queryset = GlobalLeaderboardMultiplier.objects.all()
     serializer_class = GlobalLeaderboardMultiplierSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]  # Allow read-only access without authentication
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['contribution_type']
     search_fields = ['contribution_type__name', 'notes', 'description']
@@ -43,7 +43,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = LeaderboardEntry.objects.all()
     serializer_class = LeaderboardEntrySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]  # Allow access without authentication
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['user__email', 'user__name']
     ordering_fields = ['rank', 'total_points', 'updated_at']
