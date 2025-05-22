@@ -20,14 +20,15 @@ class ContributionInline(admin.TabularInline):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('email', 'name', 'is_staff', 'is_active')
-    list_filter = ('is_staff', 'is_active')
+    list_display = ('email', 'name', 'is_staff', 'is_active', 'visible')
+    list_filter = ('is_staff', 'is_active', 'visible')
     search_fields = ('email', 'name', 'address')
     ordering = ('email',)
     
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
         (_('Personal info'), {'fields': ('name', 'address')}),
+        (_('Visibility'), {'fields': ('visible',)}),
         (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         (_('Important dates'), {'fields': ('last_login', 'date_joined', 'created_at', 'updated_at')}),
     )
@@ -36,7 +37,7 @@ class UserAdmin(BaseUserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'password1', 'password2', 'name', 'address'),
+            'fields': ('email', 'password1', 'password2', 'name', 'address', 'visible'),
         }),
     )
     

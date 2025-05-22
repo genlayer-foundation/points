@@ -47,6 +47,7 @@ class User(AbstractUser, BaseModel):
     # Additional fields
     name = models.CharField(max_length=255, blank=True)
     address = models.TextField(blank=True)
+    visible = models.BooleanField(default=True, help_text="Whether this user should be visible in API responses.")
 
     # Use email as the username field
     USERNAME_FIELD = 'email'

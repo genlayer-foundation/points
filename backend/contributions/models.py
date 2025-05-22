@@ -46,13 +46,21 @@ class Contribution(BaseModel):
     
     def clean(self):
         """
-        Validate that there is an active multiplier for this contribution type.
+        Validate that there is an active multiplier for this contribution type
+        and that the user is visible.
         """
         super().clean()
         
         # Import here to avoid circular imports
         from django.utils import timezone
         from leaderboard.models import GlobalLeaderboardMultiplier
+        
+        # Check if the user is visible
+        if not self.user.visible:
+            raise ValidationError(
+                f"Cannot add contributions for user '{self.user.email}' as they are marked as not visible. "
+                "Only visible users can have contributions."
+            )
         
         # Set contribution_date to now if not provided
         if not self.contribution_date:

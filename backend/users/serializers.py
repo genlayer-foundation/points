@@ -27,12 +27,16 @@ class UserCreateSerializer(serializers.ModelSerializer):
         # Remove password_confirm as it's not needed anymore
         validated_data.pop('password_confirm')
         
+        # Get the visible field from the context if provided
+        visible = self.context.get('visible', True)
+        
         # Create user
         user = User.objects.create_user(
             email=validated_data['email'],
             password=validated_data['password'],
             name=validated_data.get('name', ''),
-            address=validated_data.get('address', '')
+            address=validated_data.get('address', ''),
+            visible=visible
         )
         
         return user
