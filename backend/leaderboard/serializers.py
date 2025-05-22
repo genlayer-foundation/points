@@ -1,16 +1,16 @@
 from rest_framework import serializers
-from .models import ContributionTypeMultiplier, LeaderboardEntry
+from .models import GlobalLeaderboardMultiplier, LeaderboardEntry
 from contributions.serializers import ContributionTypeSerializer
 from users.serializers import UserSerializer
 
 
-class ContributionTypeMultiplierSerializer(serializers.ModelSerializer):
+class GlobalLeaderboardMultiplierSerializer(serializers.ModelSerializer):
     contribution_type_details = ContributionTypeSerializer(source='contribution_type', read_only=True)
     
     class Meta:
-        model = ContributionTypeMultiplier
-        fields = ['id', 'contribution_type', 'contribution_type_details', 'multiplier', 
-                  'is_active', 'notes', 'created_at', 'updated_at']
+        model = GlobalLeaderboardMultiplier
+        fields = ['id', 'contribution_type', 'contribution_type_details', 'multiplier_value', 
+                  'valid_from', 'description', 'notes', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 

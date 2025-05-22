@@ -1,29 +1,37 @@
 from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import ContributionTypeMultiplier, LeaderboardEntry, update_all_ranks
-from .serializers import ContributionTypeMultiplierSerializer, LeaderboardEntrySerializer
+from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ranks
+from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
 
 
-class ContributionTypeMultiplierViewSet(viewsets.ModelViewSet):
+class GlobalLeaderboardMultiplierViewSet(viewsets.ModelViewSet):
     """
-    API endpoint that allows contribution type multipliers to be viewed or edited.
+    API endpoint that allows global leaderboard multipliers to be viewed or edited.
     """
-    queryset = ContributionTypeMultiplier.objects.all()
-    serializer_class = ContributionTypeMultiplierSerializer
+    queryset = GlobalLeaderboardMultiplier.objects.all()
+    serializer_class = GlobalLeaderboardMultiplierSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['contribution_type', 'is_active']
-    search_fields = ['contribution_type__name', 'notes']
-    ordering_fields = ['created_at', 'multiplier']
+    filterset_fields = ['contribution_type']
+    search_fields = ['contribution_type__name', 'notes', 'description']
+    ordering_fields = ['created_at', 'valid_from', 'multiplier_value']
     
     @action(detail=False, methods=['get'])
     def active(self, request):
         """
         Get all currently active multipliers.
         """
-        active_multipliers = ContributionTypeMultiplier.objects.filter(is_active=True)
+        now = timezone.now()
+        # Get the most recent multiplier for each contribution type
+        contribution_types = {}
+        for multiplier in GlobalLeaderboardMultiplier.objects.filter(valid_from__lte=now).order_by('contribution_type', '-valid_from'):
+            if multiplier.contribution_type_id not in contribution_types:
+                contribution_types[multiplier.contribution_type_id] = multiplier
+        
+        active_multipliers = list(contribution_types.values())
         serializer = self.get_serializer(active_multipliers, many=True)
         return Response(serializer.data)
 

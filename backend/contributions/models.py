@@ -49,7 +49,7 @@ class Contribution(BaseModel):
         
         # Import here to avoid circular imports
         from django.utils import timezone
-        from leaderboard.models import ContributionTypeMultiplier
+        from leaderboard.models import GlobalLeaderboardMultiplier
         
         # Set contribution_date to now if not provided
         if not self.contribution_date:
@@ -57,17 +57,17 @@ class Contribution(BaseModel):
         
         try:
             # Check if there's an active multiplier for this contribution type on the contribution date
-            # The method now returns a tuple of (multiplier_config, multiplier_value)
-            _, multiplier_value = ContributionTypeMultiplier.get_active_for_type(
+            # The method returns a tuple of (multiplier_obj, multiplier_value)
+            _, multiplier_value = GlobalLeaderboardMultiplier.get_active_for_type(
                 self.contribution_type, 
                 at_date=self.contribution_date
             )
             self.multiplier_at_creation = multiplier_value
-        except ContributionTypeMultiplier.DoesNotExist as e:
+        except GlobalLeaderboardMultiplier.DoesNotExist as e:
             raise ValidationError(
                 f"No active multiplier exists for contribution type '{self.contribution_type}' "
                 f"on {self.contribution_date.strftime('%Y-%m-%d %H:%M')}. "
-                "Please set a multiplier period that covers this date before adding contributions."
+                "Please set a multiplier that covers this date before adding contributions."
             ) from e
     
     def save(self, *args, **kwargs):

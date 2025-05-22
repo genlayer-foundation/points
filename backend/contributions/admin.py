@@ -1,11 +1,32 @@
 from django.contrib import admin
 from .models import ContributionType, Contribution
+from leaderboard.models import GlobalLeaderboardMultiplier
+
+
+class GlobalLeaderboardMultiplierInline(admin.TabularInline):
+    model = GlobalLeaderboardMultiplier
+    extra = 1
+    fields = ('multiplier_value', 'valid_from', 'description')
 
 
 @admin.register(ContributionType)
 class ContributionTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'description', 'created_at')
+    list_display = ('name', 'get_current_multiplier', 'description', 'created_at')
     search_fields = ('name', 'description')
+    readonly_fields = ('created_at', 'updated_at')
+    inlines = [GlobalLeaderboardMultiplierInline]
+    
+    def get_current_multiplier(self, obj):
+        from leaderboard.models import GlobalLeaderboardMultiplier
+        return f"{GlobalLeaderboardMultiplier.get_current_multiplier_value(obj)}x"
+    get_current_multiplier.short_description = "Current Multiplier"
+
+
+@admin.register(GlobalLeaderboardMultiplier)
+class GlobalLeaderboardMultiplierAdmin(admin.ModelAdmin):
+    list_display = ('contribution_type', 'multiplier_value', 'valid_from', 'description', 'created_at')
+    list_filter = ('contribution_type', 'valid_from')
+    search_fields = ('contribution_type__name', 'description', 'notes')
     readonly_fields = ('created_at', 'updated_at')
 
 

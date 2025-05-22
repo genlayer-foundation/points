@@ -2,97 +2,38 @@ from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.conf import settings
+from django.utils import timezone
+from django.core.exceptions import ValidationError
 from utils.models import BaseModel
 from contributions.models import ContributionType, Contribution
 
 
-class ContributionTypeMultiplier(BaseModel):
+class GlobalLeaderboardMultiplier(BaseModel):
     """
-    Defines multiplier configurations for different contribution types.
-    The actual multiplier values are stored in MultiplierPeriod for historical tracking.
-    """
-    contribution_type = models.ForeignKey(
-        ContributionType, 
-        on_delete=models.CASCADE, 
-        related_name='multipliers'
-    )
-    notes = models.TextField(blank=True)
-    
-    def __str__(self):
-        return f"{self.contribution_type.name} Multiplier Config"
-    
-    def get_current_multiplier_value(self):
-        """
-        Get the current multiplier value for this contribution type.
-        Returns the value of the most recent period, or 1.0 if none exists.
-        """
-        latest_period = self.periods.order_by('-valid_from').first()
-        if latest_period:
-            return latest_period.multiplier_value
-        return 1.0
-    
-    @classmethod
-    def get_active_for_type(cls, contribution_type, at_date=None):
-        """
-        Get the active multiplier for a given contribution type at a specific date.
-        If no date is provided, uses the current date/time.
-        
-        Returns a tuple of (multiplier_config, multiplier_value)
-        Raises DoesNotExist if no multiplier exists for the contribution type or
-        if no period exists for the given date.
-        """
-        from django.utils import timezone
-        
-        at_date = at_date or timezone.now()
-        
-        # Get or create multiplier config for this type
-        try:
-            multiplier_config = cls.objects.get(contribution_type=contribution_type)
-        except cls.DoesNotExist:
-            raise cls.DoesNotExist(f"No multiplier configuration exists for contribution type '{contribution_type}'")
-        
-        # Find the multiplier period that is valid at the given date
-        # (the most recent period that started before or at the given date)
-        period = MultiplierPeriod.objects.filter(
-            multiplier=multiplier_config,
-            valid_from__lte=at_date
-        ).order_by('-valid_from').first()
-            
-        if not period:
-            raise cls.DoesNotExist(
-                f"No multiplier period exists for contribution type '{contribution_type}' at {at_date}"
-            )
-            
-        return multiplier_config, period.multiplier_value
-
-
-class MultiplierPeriod(BaseModel):
-    """
-    Tracks the history of multiplier values over time.
+    Tracks the history of multiplier values over time for contribution types.
     
     Each contribution type can have multiple multiplier values over time,
     and this model keeps track of when each value became active.
     """
-    multiplier = models.ForeignKey(
-        ContributionTypeMultiplier,
+    contribution_type = models.ForeignKey(
+        ContributionType,
         on_delete=models.CASCADE,
-        related_name='periods'
+        related_name='multipliers'
     )
     multiplier_value = models.DecimalField(max_digits=5, decimal_places=2, default=1.0)
     valid_from = models.DateTimeField()
     description = models.CharField(max_length=255, blank=True, help_text="Reason for this multiplier value")
+    notes = models.TextField(blank=True)
     
     class Meta:
         ordering = ['-valid_from']
         get_latest_by = 'valid_from'
     
     def __str__(self):
-        return f"{self.multiplier.contribution_type.name}: {self.multiplier_value}x (from {self.valid_from.strftime('%Y-%m-%d %H:%M')})"
+        return f"{self.contribution_type.name}: {self.multiplier_value}x (from {self.valid_from.strftime('%Y-%m-%d %H:%M')})"
     
     def clean(self):
-        """Validate the period data."""
-        from django.core.exceptions import ValidationError
-        
+        """Validate the multiplier data."""
         super().clean()
         
         # Ensure multiplier_value is positive
@@ -101,10 +42,50 @@ class MultiplierPeriod(BaseModel):
             
     def save(self, *args, **kwargs):
         """
-        Override save to validate the period.
+        Override save to validate the multiplier.
         """
         self.clean()
         super().save(*args, **kwargs)
+    
+    @classmethod
+    def get_current_multiplier_value(cls, contribution_type):
+        """
+        Get the current multiplier value for this contribution type.
+        Returns the value of the most recent period, or 1.0 if none exists.
+        """
+        latest_multiplier = cls.objects.filter(
+            contribution_type=contribution_type
+        ).order_by('-valid_from').first()
+        
+        if latest_multiplier:
+            return latest_multiplier.multiplier_value
+        return 1.0
+    
+    @classmethod
+    def get_active_for_type(cls, contribution_type, at_date=None):
+        """
+        Get the active multiplier for a given contribution type at a specific date.
+        If no date is provided, uses the current date/time.
+        
+        Returns a tuple of (multiplier_obj, multiplier_value)
+        Raises DoesNotExist if no multiplier exists for the contribution type or
+        if no period exists for the given date.
+        """
+        at_date = at_date or timezone.now()
+        
+        # Find the multiplier that is valid at the given date
+        # (the most recent multiplier that started before or at the given date)
+        multiplier = cls.objects.filter(
+            contribution_type=contribution_type,
+            valid_from__lte=at_date
+        ).order_by('-valid_from').first()
+            
+        if not multiplier:
+            raise cls.DoesNotExist(
+                f"No multiplier exists for contribution type '{contribution_type}' at {at_date}"
+            )
+            
+        return multiplier, multiplier.multiplier_value
 
 
 class LeaderboardEntry(BaseModel):
@@ -128,13 +109,13 @@ class LeaderboardEntry(BaseModel):
 
 
 # Signals to update leaderboard entries
-@receiver(post_save, sender=MultiplierPeriod)
-def log_multiplier_period_creation(sender, instance, created, **kwargs):
+@receiver(post_save, sender=GlobalLeaderboardMultiplier)
+def log_multiplier_creation(sender, instance, created, **kwargs):
     """
-    When a new multiplier period is created, log it for debugging purposes.
+    When a new multiplier is created, log it for debugging purposes.
     """
     if created:
-        print(f"New multiplier period: {instance.multiplier.contribution_type.name} - "
+        print(f"New global multiplier: {instance.contribution_type.name} - "
               f"{instance.multiplier_value}x valid from {instance.valid_from.strftime('%Y-%m-%d %H:%M')}")
 
 

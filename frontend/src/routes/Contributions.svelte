@@ -15,7 +15,7 @@
   let page = $state(1);
   let limit = $state(20);
   let selectedType = $state('');
-  let sortOrder = $state('-created_at');
+  let sortOrder = $state('-contribution_date');
   
   $effect(() => {
     fetchContributions();
@@ -142,8 +142,8 @@
           value={sortOrder}
           onchange={handleSortChange}
         >
-          <option value="-created_at">Newest First</option>
-          <option value="created_at">Oldest First</option>
+          <option value="-contribution_date">Newest First</option>
+          <option value="contribution_date">Oldest First</option>
           <option value="-points">Highest Points</option>
           <option value="points">Lowest Points</option>
           <option value="-frozen_global_points">Highest Global Points</option>

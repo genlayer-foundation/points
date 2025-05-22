@@ -88,7 +88,7 @@
                 </span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {formatDate(contribution.contribution_date || contribution.created_at)}
+                {formatDate(contribution.contribution_date)}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                 {contribution.points}

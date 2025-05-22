@@ -3,6 +3,19 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
 
 from .models import User
+from contributions.models import Contribution
+
+
+class ContributionInline(admin.TabularInline):
+    model = Contribution
+    extra = 0  # Don't show empty rows
+    fields = ('contribution_type', 'points', 'contribution_date', 'evidence_url', 'multiplier_at_creation', 'frozen_global_points')
+    readonly_fields = ('multiplier_at_creation', 'frozen_global_points')
+    can_delete = True
+    show_change_link = True
+    verbose_name = "Contribution"
+    verbose_name_plural = "Contributions"
+    ordering = ('-contribution_date',)  # Most recent contributions first
 
 
 @admin.register(User)
@@ -26,3 +39,5 @@ class UserAdmin(BaseUserAdmin):
             'fields': ('email', 'password1', 'password2', 'name', 'address'),
         }),
     )
+    
+    inlines = [ContributionInline]
