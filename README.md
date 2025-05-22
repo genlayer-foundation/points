@@ -25,6 +25,36 @@ eventually be part of the Deepthought DAO.
 - **Backend**: Python-based Django REST API
 - **Frontend**: Svelte 5
 
+## Data Model
+
+### Users App
+- **User**: Custom user model with email as the unique identifier. Extends Django's AbstractUser with additional fields for name and address.
+
+### Contributions App
+- **ContributionType**: Represents different types of contributions participants can make (e.g., Node Runner, Uptime, Asimov, Blog Post).
+- **Contribution**: Records specific contributions made by users, with points, evidence, and notes. Tracks a frozen point value that includes the multiplier at the time of creation.
+
+### Leaderboard App
+- **GlobalLeaderboardMultiplier**: Tracks multiplier values over time for each contribution type. Each multiplier has a valid_from date that determines when it becomes active.
+- **LeaderboardEntry**: Represents a user's position on the leaderboard with their total points and rank.
+
+### API App
+- **Action**: Defines different types of actions participants can perform.
+- **Participant**: Extends the User model with additional profile fields.
+- **Badge**: Represents badges awarded to participants for completing actions.
+- **Leaderboard**: Stores historical snapshots of the global leaderboard.
+- **LeaderboardEntry**: Records a participant's position on a historical leaderboard snapshot.
+
+### Utils App
+- **BaseModel**: Abstract model providing created_at and updated_at fields for all models.
+
+## Point Calculation System
+1. Users make contributions of various types
+2. Each contribution has base points
+3. Contributions are multiplied by the active multiplier at the time of creation
+4. The resulting "global points" are frozen and used for leaderboard rankings
+5. Multipliers can change over time, but this doesn't affect previously awarded points
+
 ## Getting Started
 
 ### Prerequisites
@@ -109,16 +139,23 @@ The following API endpoints will be available:
 - `/api/users/` - User management
 - `/api/auth/` - Authentication (login, refresh token)
 - `/api/contributions/` - Contribution management
+- `/api/contributions/types/` - Contribution types
 - `/api/leaderboard/` - Leaderboard data
+- `/api/leaderboard/multipliers/` - Manage contribution type multipliers
+- `/api/participants/` - Participant profiles
+- `/api/actions/` - Available actions
+- `/api/badges/` - User badges
 
 ### Frontend Development
 
 The frontend is built with Svelte 5 and will include:
 
-- User dashboard
-- Contribution submission forms
-- Global leaderboard
+- User dashboard with personal stats
+- Contribution submission forms and history
+- Global leaderboard with real-time rankings
 - Badge collection display
+- Participant profile pages
+- Admin interfaces for managing contribution types and multipliers
 
 ## Contributing
 

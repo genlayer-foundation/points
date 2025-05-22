@@ -20,7 +20,7 @@ class GlobalLeaderboardMultiplier(BaseModel):
         on_delete=models.CASCADE,
         related_name='multipliers'
     )
-    multiplier_value = models.DecimalField(max_digits=5, decimal_places=2, default=1.0)
+    multiplier_value = models.DecimalField(max_digits=10, decimal_places=2, default=1.0)
     valid_from = models.DateTimeField()
     description = models.CharField(max_length=255, blank=True, help_text="Reason for this multiplier value")
     notes = models.TextField(blank=True)

@@ -1,6 +1,10 @@
 from rest_framework import viewsets, permissions, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
+from django.db.models import Count, Max, F
+from django.db.models.functions import Coalesce
 from .models import ContributionType, Contribution
 from .serializers import ContributionTypeSerializer, ContributionSerializer
 from leaderboard.models import GlobalLeaderboardMultiplier
@@ -28,6 +32,36 @@ class ContributionTypeViewSet(viewsets.ModelViewSet):
             description="Initial multiplier",
             notes="Automatically created when contribution type was added"
         )
+        
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        """
+        Get aggregated statistics for each contribution type.
+        Returns:
+            - count of each contribution type
+            - current points multiplier
+            - number of participants with each type
+            - last date someone earned each type
+        """
+        types_with_stats = ContributionType.objects.annotate(
+            count=Count('contributions'),
+            participants_count=Count('contributions__user', distinct=True),
+            last_earned=Coalesce(Max('contributions__contribution_date'), timezone.now())
+        ).values('id', 'name', 'description', 'count', 'participants_count', 'last_earned')
+        
+        # Add current multiplier for each type
+        result = []
+        for type_data in types_with_stats:
+            try:
+                contribution_type = ContributionType.objects.get(id=type_data['id'])
+                multiplier_value = GlobalLeaderboardMultiplier.get_current_multiplier_value(contribution_type)
+                type_data['current_multiplier'] = multiplier_value
+            except Exception:
+                type_data['current_multiplier'] = 1.0
+            
+            result.append(type_data)
+            
+        return Response(result)
 
 
 class ContributionViewSet(viewsets.ModelViewSet):
