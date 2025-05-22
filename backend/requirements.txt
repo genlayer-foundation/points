@@ -1,0 +1,11 @@
+Django>=4.2.0
+djangorestframework>=3.14.0
+django-cors-headers>=4.1.0
+dj-rest-auth>=4.0.1
+djangorestframework-simplejwt>=5.2.2
+django-filter>=23.2
+psycopg2-binary>=2.9.7
+pytest-django>=4.5.2
+coverage>=7.2.7
+drf-yasg>=1.21.7
+nodeenv>=1.8.0

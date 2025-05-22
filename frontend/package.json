@@ -1,0 +1,38 @@
+{
+  "name": "tally-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for Tally - GenLayer contribution tracking system",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "chart.js": "^4.4.0",
+    "date-fns": "^2.30.0",
+    "svelte": "5.32.1",
+    "svelte-spa-router": "^4.0.0"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-auto": "^3.0.0",
+    "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6",
+    "@tsconfig/svelte": "^5.0.4",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.31",
+    "svelte-check": "^3.6.2",
+    "tailwindcss": "^3.3.5",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0"
+  },
+  "keywords": [
+    "svelte",
+    "tally",
+    "genlayer",
+    "dashboard"
+  ],
+  "author": "",
+  "license": "ISC"
+}
