@@ -76,7 +76,7 @@
                   Type
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">
-                  Points Multiplier
+                  Points
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">
                   Opportunity
@@ -106,7 +106,17 @@
                     </div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-bold text-blue-900">{stats.current_multiplier}x</div>
+                    <div class="text-sm font-bold text-blue-900">
+                      {#if stats.min_points != null && stats.max_points != null && stats.current_multiplier != null}
+                        {#if stats.min_points === stats.max_points}
+                          {Math.round(stats.min_points * stats.current_multiplier)}
+                        {:else}
+                          {Math.round(stats.min_points * stats.current_multiplier)} - {Math.round(stats.max_points * stats.current_multiplier)}
+                        {/if}
+                      {:else}
+                        0
+                      {/if}
+                    </div>
                   </td>
                   <td class="px-6 py-4">
                     <div class="text-sm font-medium text-blue-800">
@@ -165,7 +175,7 @@
                 Count
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Points Multiplier
+                Points
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Participants
@@ -201,7 +211,15 @@
                   {stats.count}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {stats.current_multiplier}x
+                  {#if stats.min_points != null && stats.max_points != null && stats.current_multiplier != null}
+                    {#if stats.min_points === stats.max_points}
+                      {Math.round(stats.min_points * stats.current_multiplier)}
+                    {:else}
+                      {Math.round(stats.min_points * stats.current_multiplier)} - {Math.round(stats.max_points * stats.current_multiplier)}
+                    {/if}
+                  {:else}
+                    0
+                  {/if}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {stats.participants_count}

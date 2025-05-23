@@ -5,9 +5,10 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Count, Max, F
 from django.db.models.functions import Coalesce
-from .models import ContributionType, Contribution
-from .serializers import ContributionTypeSerializer, ContributionSerializer
+from .models import ContributionType, Contribution, Evidence
+from .serializers import ContributionTypeSerializer, ContributionSerializer, EvidenceSerializer
 from leaderboard.models import GlobalLeaderboardMultiplier
+from rest_framework.parsers import MultiPartParser, FormParser
 
 
 class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
@@ -35,7 +36,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             count=Count('contributions'),
             participants_count=Count('contributions__user', distinct=True),
             last_earned=Coalesce(Max('contributions__contribution_date'), timezone.now())
-        ).values('id', 'name', 'description', 'count', 'participants_count', 'last_earned')
+        ).values('id', 'name', 'description', 'min_points', 'max_points', 'count', 'participants_count', 'last_earned')
         
         # Add current multiplier for each type
         result = []
@@ -74,3 +75,18 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(user__address=user_address)
             
         return queryset
+
+
+class EvidenceViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API endpoint that allows evidence to be viewed.
+    """
+    queryset = Evidence.objects.all().order_by('-created_at')
+    serializer_class = EvidenceSerializer
+    permission_classes = [permissions.AllowAny]  # Allow read-only access without authentication
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['contribution', 'contribution__user']
+    search_fields = ['description', 'url']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+    parser_classes = [MultiPartParser, FormParser]

@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from users.views import UserViewSet
-from contributions.views import ContributionTypeViewSet, ContributionViewSet
+from contributions.views import ContributionTypeViewSet, ContributionViewSet, EvidenceViewSet
 from leaderboard.views import GlobalLeaderboardMultiplierViewSet, LeaderboardViewSet
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 
@@ -10,6 +10,7 @@ router = DefaultRouter()
 router.register(r'users', UserViewSet)
 router.register(r'contribution-types', ContributionTypeViewSet)
 router.register(r'contributions', ContributionViewSet)
+router.register(r'evidence', EvidenceViewSet)
 router.register(r'multipliers', GlobalLeaderboardMultiplierViewSet)
 router.register(r'leaderboard', LeaderboardViewSet)
 

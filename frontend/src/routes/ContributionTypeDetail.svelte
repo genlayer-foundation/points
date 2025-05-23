@@ -122,8 +122,12 @@
         color="bg-green-500"
       />
       <StatCard 
-        title="Current Multiplier" 
-        value={`${statistics.current_multiplier || 1.0}x`}
+        title="Points" 
+        value={statistics.min_points != null && statistics.max_points != null && statistics.current_multiplier != null
+          ? (statistics.min_points === statistics.max_points 
+              ? `${Math.round(statistics.min_points * statistics.current_multiplier)}` 
+              : `${Math.round(statistics.min_points * statistics.current_multiplier)} - ${Math.round(statistics.max_points * statistics.current_multiplier)}`)
+          : "0"}
         icon="✨"
         color="bg-purple-500"
       />

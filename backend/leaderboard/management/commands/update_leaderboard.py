@@ -47,7 +47,7 @@ class Command(BaseCommand):
             
             # Update the multiplier and recalculate frozen points
             contribution.multiplier_at_creation = multiplier_value
-            contribution.frozen_global_points = int(contribution.points * float(multiplier_value))
+            contribution.frozen_global_points = round(contribution.points * float(multiplier_value))
             
             # Save without triggering signals to avoid multiple leaderboard updates
             Contribution.objects.filter(pk=contribution.pk).update(

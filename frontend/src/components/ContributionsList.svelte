@@ -56,13 +56,7 @@
               Date
             </th>
             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Base Points
-            </th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Point Range/Multiplier
-            </th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Global Points
+              Points
             </th>
             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
               Evidence
@@ -101,25 +95,42 @@
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {formatDate(contribution.contribution_date)}
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {contribution.points}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {#if contribution.contribution_type?.min_points === contribution.contribution_type?.max_points}
-                  {contribution.multiplier_at_creation}x
-                {:else}
-                  {Math.round(contribution.contribution_type?.min_points * contribution.multiplier_at_creation)}-
-                  {Math.round(contribution.contribution_type?.max_points * contribution.multiplier_at_creation)}
-                {/if}
-              </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{contribution.frozen_global_points}</div>
+                <div class="text-sm font-medium text-gray-900">
+                  {contribution.frozen_global_points != null ? contribution.frozen_global_points : 0}
+                </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                {#if contribution.evidence_url}
-                  <a href={contribution.evidence_url} target="_blank" rel="noopener noreferrer" class="text-primary-600 hover:text-primary-900">
-                    View
-                  </a>
+                {#if contribution.evidence_items && contribution.evidence_items.length > 0}
+                  <div class="flex flex-col items-end gap-1">
+                    {#each contribution.evidence_items as evidence}
+                      <div class="flex items-center gap-2">
+                        {#if evidence.description}
+                          <span class="text-xs text-gray-500 max-w-xs truncate text-right" title={evidence.description}>
+                            {evidence.description}
+                          </span>
+                        {/if}
+                        
+                        {#if evidence.url}
+                          <a href={evidence.url} target="_blank" rel="noopener noreferrer" 
+                             class="inline-flex items-center text-primary-600 hover:text-primary-900">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                        {/if}
+                        
+                        {#if evidence.file_url}
+                          <a href={evidence.file_url} target="_blank" rel="noopener noreferrer" 
+                             class="inline-flex items-center text-primary-600 hover:text-primary-900">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          </a>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
                 {:else}
                   <span class="text-gray-400">None</span>
                 {/if}

@@ -5,6 +5,14 @@ from django.db.models.signals import pre_save
 from django.dispatch import receiver
 from utils.models import BaseModel
 import decimal
+import os
+
+def evidence_file_path(instance, filename):
+    """Generate a unique file path for evidence files."""
+    # Generate a unique path for each file based on user and timestamp
+    user_id = instance.contribution.user.id if instance.contribution else 'unassigned'
+    folder = f"evidence/{user_id}/{instance.id}"
+    return os.path.join(folder, filename)
 
 
 class ContributionType(BaseModel):
@@ -48,7 +56,6 @@ class Contribution(BaseModel):
     frozen_global_points = models.PositiveIntegerField(default=0)
     multiplier_at_creation = models.DecimalField(max_digits=5, decimal_places=2, null=True)
     contribution_date = models.DateTimeField(null=True, blank=True, help_text="Date when the contribution was made. Defaults to creation time if not specified.")
-    evidence_url = models.URLField(blank=True)
     notes = models.TextField(blank=True)
 
     def __str__(self):
@@ -115,7 +122,7 @@ class Contribution(BaseModel):
             # Calculate frozen_global_points
             try:
                 if self.multiplier_at_creation:
-                    self.frozen_global_points = int(self.points * float(self.multiplier_at_creation))
+                    self.frozen_global_points = round(self.points * float(self.multiplier_at_creation))
             except (decimal.InvalidOperation, TypeError, ValueError):
                 # Handle corrupted data by resetting the multiplier
                 self.multiplier_at_creation = 1.0
@@ -140,3 +147,32 @@ def validate_multiplier_at_creation(sender, instance, **kwargs):
             print(f"WARNING: Fixing corrupted multiplier_at_creation value for contribution {instance.id}")
             instance.multiplier_at_creation = 1.0
             instance.frozen_global_points = instance.points
+
+
+class Evidence(BaseModel):
+    """
+    Represents evidence for a contribution.
+    Can be text, a URL, or a file upload.
+    """
+    contribution = models.ForeignKey(
+        'Contribution',
+        on_delete=models.CASCADE,
+        related_name='evidence_items'
+    )
+    description = models.TextField(blank=True, help_text="Description of the evidence")
+    url = models.URLField(blank=True, help_text="Link to external evidence")
+    file = models.FileField(upload_to=evidence_file_path, blank=True, null=True, help_text="Upload file as evidence")
+    
+    def __str__(self):
+        return f"Evidence for {self.contribution}"
+    
+    def clean(self):
+        """Validate that at least one of description, url, or file is provided."""
+        super().clean()
+        
+        if not self.description and not self.url and not self.file:
+            raise ValidationError("At least one of description, URL, or file must be provided for evidence.")
+        
+    class Meta:
+        verbose_name = "Evidence"
+        verbose_name_plural = "Evidence Items"

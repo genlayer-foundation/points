@@ -9,13 +9,29 @@ from contributions.models import Contribution
 class ContributionInline(admin.TabularInline):
     model = Contribution
     extra = 0  # Don't show empty rows
-    fields = ('contribution_type', 'points', 'contribution_date', 'evidence_url', 'multiplier_at_creation', 'frozen_global_points')
-    readonly_fields = ('multiplier_at_creation', 'frozen_global_points')
+    fields = ('contribution_type', 'points', 'contribution_date', 'evidence_link', 'multiplier_at_creation', 'frozen_global_points')
+    readonly_fields = ('multiplier_at_creation', 'frozen_global_points', 'evidence_link')
     can_delete = True
     show_change_link = True
     verbose_name = "Contribution"
     verbose_name_plural = "Contributions"
-    ordering = ('-contribution_date',)  # Most recent contributions first
+    ordering = ('-created_at', '-contribution_date')  # Most recent contributions first, based on creation date
+    
+    def evidence_link(self, obj):
+        """Display a link to add/edit evidence for this contribution."""
+        from django.utils.html import format_html
+        from django.urls import reverse
+        
+        if obj and obj.id:
+            change_url = reverse('admin:contributions_contribution_change', args=[obj.id])
+            count = obj.evidence_items.count()
+            if count > 0:
+                return format_html('<a href="{}#evidence_items-group">View/Edit {} Evidence Item{}</a>', 
+                               change_url, count, 's' if count > 1 else '')
+            else:
+                return format_html('<a href="{}#evidence_items-group">Add Evidence</a>', change_url)
+        return '-'
+    evidence_link.short_description = 'Evidence'
 
 
 @admin.register(User)

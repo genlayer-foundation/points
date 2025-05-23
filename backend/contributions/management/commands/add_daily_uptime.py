@@ -146,7 +146,7 @@ class Command(BaseCommand):
                         continue
                 
                 # Calculate the global points
-                frozen_global_points = int(points * float(multiplier_value))
+                frozen_global_points = round(points * float(multiplier_value))
                 
                 if verbose:
                     self.stdout.write(
