@@ -14,9 +14,19 @@ class ContributionType(BaseModel):
     """
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
+    min_points = models.PositiveIntegerField(default=0, help_text="Minimum points allowed for this contribution type")
+    max_points = models.PositiveIntegerField(default=100, help_text="Maximum points allowed for this contribution type")
 
     def __str__(self):
         return self.name
+        
+    def clean(self):
+        """Validate the contribution type data."""
+        super().clean()
+        
+        # Ensure max_points is greater than or equal to min_points
+        if self.max_points < self.min_points:
+            raise ValidationError("Maximum points must be greater than or equal to minimum points")
 
 
 class Contribution(BaseModel):
@@ -46,8 +56,8 @@ class Contribution(BaseModel):
     
     def clean(self):
         """
-        Validate that there is an active multiplier for this contribution type
-        and that the user is visible.
+        Validate that there is an active multiplier for this contribution type,
+        that the user is visible, and that the points are within the allowed range.
         """
         super().clean()
         
@@ -65,6 +75,13 @@ class Contribution(BaseModel):
         # Set contribution_date to now if not provided
         if not self.contribution_date:
             self.contribution_date = timezone.now()
+        
+        # Validate points are within the allowed range for this contribution type
+        if self.points < self.contribution_type.min_points or self.points > self.contribution_type.max_points:
+            raise ValidationError(
+                f"Points must be between {self.contribution_type.min_points} and {self.contribution_type.max_points} "
+                f"for contribution type '{self.contribution_type}'."
+            )
         
         try:
             # Check if there's an active multiplier for this contribution type on the contribution date

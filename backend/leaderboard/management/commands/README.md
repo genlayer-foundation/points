@@ -7,13 +7,8 @@ Updates all frozen_global_points for contributions and recreates the leaderboard
 ### Usage
 
 ```bash
-python manage.py update_leaderboard [options]
+python manage.py update_leaderboard
 ```
-
-### Options
-
-- `--verbose`: Increase output verbosity
-- `--dry-run`: Simulate the update without making changes
 
 ### What it does
 
@@ -23,13 +18,14 @@ python manage.py update_leaderboard [options]
 
 2. Recreates all leaderboard entries:
    - Calculates total points for each user from their contributions
-   - Updates or creates leaderboard entries with correct point totals
+   - Creates new leaderboard entries with correct point totals
    - Updates ranks for all users
 
 This command is useful when:
 - Multiplier values have been updated
 - Contribution dates have been changed
 - The leaderboard needs to be rebuilt from scratch
+- You suspect points calculations are incorrect
 
 ## fix_invalid_multipliers
 

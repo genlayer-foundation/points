@@ -59,7 +59,7 @@
               Base Points
             </th>
             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Multiplier
+              Point Range/Multiplier
             </th>
             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Global Points
@@ -105,7 +105,12 @@
                 {contribution.points}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {contribution.multiplier_at_creation}x
+                {#if contribution.contribution_type?.min_points === contribution.contribution_type?.max_points}
+                  {contribution.multiplier_at_creation}x
+                {:else}
+                  {Math.round(contribution.contribution_type?.min_points * contribution.multiplier_at_creation)}-
+                  {Math.round(contribution.contribution_type?.max_points * contribution.multiplier_at_creation)}
+                {/if}
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm font-medium text-gray-900">{contribution.frozen_global_points}</div>
