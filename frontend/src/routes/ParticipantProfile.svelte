@@ -33,30 +33,31 @@
     const currentParams = $params;
     console.log("ParticipantProfile params:", currentParams);
     
-    if (currentParams && currentParams.id) {
-      console.log("Using params.id:", currentParams.id);
-      fetchParticipantData(currentParams.id);
+    if (currentParams && currentParams.address) {
+      console.log("Using params.address:", currentParams.address);
+      fetchParticipantData(currentParams.address);
     } else {
-      console.log("No valid ID found, using default ID: 1");
-      fetchParticipantData("1");
+      console.log("No valid address found");
+      error = "No valid wallet address provided";
+      loading = false;
     }
   });
   
-  async function fetchParticipantData(participantId) {
+  async function fetchParticipantData(participantAddress) {
     try {
       loading = true;
       error = null;
       
-      console.log("Fetching participant data for ID:", participantId);
+      console.log("Fetching participant data for address:", participantAddress);
       
       // Fetch participant details
-      const res = await usersAPI.getUser(participantId);
+      const res = await usersAPI.getUserByAddress(participantAddress);
       console.log("Participant data received:", res.data);
       participant = res.data;
       
       // Fetch participant stats
       try {
-        const statsRes = await statsAPI.getUserStats(participantId);
+        const statsRes = await statsAPI.getUserStats(participantAddress);
         if (statsRes.data) {
           contributionStats = statsRes.data;
         }
@@ -76,7 +77,7 @@
       contributionsLoading = true;
       contributionsError = null;
       
-      const res = await contributionsAPI.getContributionsByUser(participantId);
+      const res = await contributionsAPI.getContributionsByUser(participantAddress);
       contributions = res.data.results || [];
       
       contributionsLoading = false;

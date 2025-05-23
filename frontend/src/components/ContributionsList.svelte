@@ -76,7 +76,7 @@
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center">
                     <div class="text-sm font-medium text-gray-900">
-                      <a href={`/participant/${contribution.user_details?.id || contribution.user?.id || contribution.user || 1}`} onclick={(e) => { e.preventDefault(); push(`/participant/${contribution.user_details?.id || contribution.user?.id || contribution.user || 1}`); }}>
+                      <a href={`/participant/${contribution.user_details?.address || contribution.user?.address || contribution.address || ''}`} onclick={(e) => { e.preventDefault(); push(`/participant/${contribution.user_details?.address || contribution.user?.address || contribution.address || ''}`); }}>
                         {contribution.user_details?.name || contribution.user.name || contribution.user_details?.email || contribution.user.email}
                       </a>
                     </div>

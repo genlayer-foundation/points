@@ -10,11 +10,18 @@
     "check": "svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
+    "@wagmi/connectors": "^5.8.3",
+    "@wagmi/core": "^2.17.2",
     "axios": "^1.6.2",
+    "buffer": "^6.0.3",
     "chart.js": "^4.4.0",
     "date-fns": "^2.30.0",
+    "ethers": "^6.14.1",
+    "process": "^0.11.10",
     "svelte": "5.32.1",
-    "svelte-spa-router": "^4.0.0"
+    "svelte-spa-router": "^4.0.0",
+    "viem": "^2.30.0",
+    "wagmi": "^2.15.4"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^3.0.0",

@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'users',
     'contributions',
     'leaderboard',
+    'ethereum_auth',
 ]
 
 MIDDLEWARE = [
@@ -141,10 +142,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'ethereum_auth.authentication.EthereumAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+        'rest_framework.permissions.AllowAny',  # Changed to AllowAny since all views are read-only
     ],
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
@@ -163,7 +166,18 @@ SIMPLE_JWT = {
 
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True  # For development only, set to specific origins in production
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_CREDENTIALS = True  # Important for cookie-based authentication
+
+# Session settings
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'  # 'None' if using cross-site cookies, but requires HTTPS
+SESSION_COOKIE_AGE = 86400 * 14  # 14 days in seconds
+
+# Ethereum authentication settings
+ETHEREUM_AUTH = {
+    'SIWE_DOMAIN': 'localhost',  # Your application domain
+    'NONCE_EXPIRY_MINUTES': 5,  # Nonce expiration time in minutes
+}
 
 # Custom user model
 AUTH_USER_MODEL = 'users.User'

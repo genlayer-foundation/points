@@ -11,5 +11,23 @@ export default defineConfig({
         changeOrigin: true,
       }
     }
+  },
+  define: {
+    global: 'globalThis',
+    'process.env': {},
+  },
+  resolve: {
+    alias: {
+      buffer: 'buffer',
+      process: 'process/browser',
+      stream: 'stream-browserify',
+    },
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      define: {
+        global: 'globalThis'
+      }
+    }
   }
 });

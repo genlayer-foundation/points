@@ -1,19 +1,21 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
 from .models import User
 from .serializers import UserSerializer, UserCreateSerializer
 
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    API endpoint that allows users to be viewed or edited.
+    API endpoint that allows users to be viewed.
     Users with visible=False are excluded from the queryset,
     except for the authenticated user viewing their own profile.
     """
     queryset = User.objects.filter(visible=True)
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]  # Allow read-only access without authentication
+    permission_classes = [permissions.AllowAny]  # Allow read-only access without authentication
+    lookup_field = 'address'  # Change default lookup field from 'pk' to 'address'
     
     def get_object(self):
         """
@@ -28,6 +30,15 @@ class UserViewSet(viewsets.ModelViewSet):
         if not obj.visible:
             self.permission_denied(self.request, message="User not found.")
         return obj
+        
+    @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)')
+    def by_address(self, request, address=None):
+        """
+        Get a user by their Ethereum wallet address
+        """
+        user = get_object_or_404(User.objects.filter(visible=True), address=address)
+        serializer = self.get_serializer(user)
+        return Response(serializer.data)
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -49,14 +60,4 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
-    def register(self, request):
-        """
-        Register a new user.
-        """
-        visible = request.data.get('visible', True)
-        serializer = UserCreateSerializer(data=request.data, context={'visible': visible})
-        if serializer.is_valid():
-            serializer.save()
-            return Response(UserSerializer(serializer.instance).data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    # Registration will be handled by MetaMask authentication

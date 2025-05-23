@@ -46,8 +46,18 @@ class User(AbstractUser, BaseModel):
 
     # Additional fields
     name = models.CharField(max_length=255, blank=True)
-    address = models.TextField(blank=True)
+    address = models.CharField(max_length=42, blank=True, null=True,
+                              help_text="Ethereum wallet address associated with this user")
     visible = models.BooleanField(default=True, help_text="Whether this user should be visible in API responses.")
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['address'],
+                condition=models.Q(address__isnull=False),
+                name='unique_address_when_not_null'
+            )
+        ]
 
     # Use email as the username field
     USERNAME_FIELD = 'email'

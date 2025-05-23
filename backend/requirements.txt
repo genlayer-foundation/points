@@ -9,3 +9,6 @@ pytest-django>=4.5.2
 coverage>=7.2.7
 drf-yasg>=1.21.7
 nodeenv>=1.8.0
+siwe>=2.2.0
+eth-account>=0.11.0
+web3>=6.13.0

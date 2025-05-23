@@ -20,7 +20,7 @@ class ContributionInline(admin.TabularInline):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('email', 'name', 'is_staff', 'is_active', 'visible')
+    list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'address')
     list_filter = ('is_staff', 'is_active', 'visible')
     search_fields = ('email', 'name', 'address')
     ordering = ('email',)

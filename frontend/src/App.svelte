@@ -16,7 +16,7 @@
     '/': Dashboard,
     '/contributions': Contributions,
     '/leaderboard': Dashboard, // For now, just redirect to Dashboard which contains the leaderboard
-    '/participant/:id': ParticipantProfile,
+    '/participant/:address': ParticipantProfile,
     '/contribution-type/:id': ContributionTypeDetail,
     '/badge/:id': BadgeDetail,
     '*': NotFound
@@ -159,14 +159,14 @@
 
 <div class="min-h-screen bg-gray-50">
   <Navbar />
-  <div class="container mx-auto px-4 py-8 flex">
-    <Sidebar />
-    <main class="flex-1 ml-0 md:ml-64">
-      <Router 
-        {routes} 
-        on:conditionsFailed={hideTooltips}
-        on:routeLoaded={hideTooltips}
-      />
-    </main>
+    <div class="container mx-auto px-4 py-8 flex">
+      <Sidebar />
+      <main class="flex-1 ml-0 md:ml-64">
+        <Router 
+          {routes} 
+          on:conditionsFailed={hideTooltips}
+          on:routeLoaded={hideTooltips}
+        />
+      </main>
+    </div>
   </div>
-</div>

@@ -84,7 +84,7 @@
                 <div class="text-sm text-gray-900 font-medium">{entry.total_points}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <a href={`/participant/${entry.user_details?.id || entry.user?.id || entry.user || 1}`} onclick={(e) => { e.preventDefault(); push(`/participant/${entry.user_details?.id || entry.user?.id || entry.user || 1}`); }} class="text-primary-600 hover:text-primary-900">View Profile</a>
+                <a href={`/participant/${entry.user_details?.address || entry.user?.address || entry.address || ''}`} onclick={(e) => { e.preventDefault(); push(`/participant/${entry.user_details?.address || entry.user?.address || entry.address || ''}`); }} class="text-primary-600 hover:text-primary-900">View Profile</a>
               </td>
             </tr>
           {/each}

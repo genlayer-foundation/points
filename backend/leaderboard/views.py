@@ -7,13 +7,13 @@ from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ra
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
 
 
-class GlobalLeaderboardMultiplierViewSet(viewsets.ModelViewSet):
+class GlobalLeaderboardMultiplierViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    API endpoint that allows global leaderboard multipliers to be viewed or edited.
+    API endpoint that allows global leaderboard multipliers to be viewed.
     """
     queryset = GlobalLeaderboardMultiplier.objects.all()
     serializer_class = GlobalLeaderboardMultiplierSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]  # Allow read-only access without authentication
+    permission_classes = [permissions.AllowAny]  # Allow read-only access without authentication
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['contribution_type']
     search_fields = ['contribution_type__name', 'notes', 'description']
@@ -96,19 +96,12 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             'total_points': total_points,
         })
         
-    @action(detail=False, methods=['get'], url_path='user/(?P<user_id>[^/.]+)')
-    def user_stats(self, request, user_id=None):
+    def _get_user_stats(self, user):
         """
-        Get statistics for a specific user.
+        Helper method to get statistics for a user.
         """
         from django.db.models import Sum, Count
         from contributions.models import Contribution
-        from users.models import User
-        
-        try:
-            user = User.objects.get(pk=user_id)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=404)
         
         # Get user's contributions
         contributions = Contribution.objects.filter(user=user)
@@ -144,9 +137,39 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 'percentage': percentage,
             })
         
-        return Response({
+        return {
             'totalContributions': contribution_count,
             'totalPoints': total_points,
             'averagePoints': avg_points,
             'contributionTypes': contribution_types,
-        })
+        }
+        
+    @action(detail=False, methods=['get'], url_path='user/(?P<user_id>[^/.]+)')
+    def user_stats(self, request, user_id=None):
+        """
+        Get statistics for a specific user by ID.
+        """
+        from users.models import User
+        
+        try:
+            user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+            
+        stats = self._get_user_stats(user)
+        return Response(stats)
+            
+    @action(detail=False, methods=['get'], url_path='user_stats/by-address/(?P<address>[^/.]+)')
+    def user_stats_by_address(self, request, address=None):
+        """
+        Get statistics for a specific user by wallet address.
+        """
+        from users.models import User
+        
+        try:
+            user = User.objects.get(address=address)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+            
+        stats = self._get_user_stats(user)
+        return Response(stats)
