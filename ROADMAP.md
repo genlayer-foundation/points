@@ -14,3 +14,4 @@ Deploy
 Allow users to propose contributions
 On-chain recognition of contributions
 Automated contribution verification
+Invite member

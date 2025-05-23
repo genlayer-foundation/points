@@ -4,7 +4,6 @@
   import { format } from 'date-fns';
   import ContributionsList from '../components/ContributionsList.svelte';
   import StatCard from '../components/StatCard.svelte';
-  import BadgeList from '../components/BadgeList.svelte';
   import { usersAPI, contributionsAPI, statsAPI } from '../lib/api';
   
   // Import route params from svelte-spa-router
@@ -13,7 +12,6 @@
   // State management
   let participant = $state(null);
   let contributions = $state([]);
-  let badges = $state([]);
   let contributionStats = $state({
     totalContributions: 0,
     totalPoints: 0,
@@ -25,8 +23,6 @@
   let error = $state(null);
   let contributionsLoading = $state(true);
   let contributionsError = $state(null);
-  let badgesLoading = $state(true);
-  let badgesError = $state(null);
   let statsError = $state(null);
   
   $effect(() => {
@@ -84,55 +80,6 @@
     } catch (err) {
       contributionsError = err.message || 'Failed to load contributions';
       contributionsLoading = false;
-    }
-
-    // Fetch participant badges
-    try {
-      badgesLoading = true;
-      badgesError = null;
-      
-      // If we have participant details with badges included
-      if (participant && participant.badges) {
-        // Format the badges data to match our Badge component props
-        badges = participant.badges.map(badge => ({
-          id: badge.id,
-          name: badge.action_name,
-          description: badge.notes || '',
-          points: badge.points,
-          actionId: badge.action,
-          actionName: badge.action_name,
-          evidenceUrl: badge.evidence_url
-        }));
-      } else {
-        // If badges not included in participant data, make a separate API call
-        // This is placeholder until we implement the API endpoint
-        const mockBadges = [
-          { 
-            id: 1, 
-            name: 'Node Runner', 
-            description: 'Successfully ran a validator node', 
-            points: 100,
-            actionId: 1,
-            actionName: 'Node Runner',
-            evidenceUrl: 'https://example.com/evidence/1'
-          },
-          { 
-            id: 2, 
-            name: 'Bug Hunter', 
-            description: 'Found and reported a critical bug', 
-            points: 150,
-            actionId: 2,
-            actionName: 'Bug Hunter',
-            evidenceUrl: 'https://example.com/evidence/2'
-          }
-        ];
-        badges = mockBadges;
-      }
-      
-      badgesLoading = false;
-    } catch (err) {
-      badgesError = err.message || 'Failed to load badges';
-      badgesLoading = false;
     }
   }
   
@@ -193,7 +140,7 @@
             Participant Profile
           </h3>
           <p class="mt-1 max-w-2xl text-sm text-gray-500">
-            Personal details and contributions
+            Wallet details and contributions
           </p>
         </div>
         <div class="text-right">
@@ -204,22 +151,26 @@
       </div>
       <div class="border-t border-gray-200">
         <dl>
-          <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">
-              Name
-            </dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-              {participant.name || 'Not provided'}
-            </dd>
-          </div>
-          <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">
-              Email
-            </dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-              {participant.email}
-            </dd>
-          </div>
+          {#if participant.name}
+            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">
+                Name
+              </dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {participant.name}
+              </dd>
+            </div>
+          {/if}
+          {#if participant.email}
+            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">
+                Email
+              </dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {participant.email}
+              </dd>
+            </div>
+          {/if}
           {#if participant.address}
             <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
               <dt class="text-sm font-medium text-gray-500">
@@ -272,16 +223,6 @@
       />
     </div>
     
-    <!-- User Badges -->
-    <div class="mb-6">
-      <BadgeList 
-        title="Badges & Achievements" 
-        description="Earned badges and recognition"
-        {badges}
-        loading={badgesLoading}
-        error={badgesError}
-      />
-    </div>
     
     <!-- Contribution Types Breakdown -->
     {#if contributionStats.contributionTypes && contributionStats.contributionTypes.length > 0}

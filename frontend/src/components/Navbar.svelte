@@ -1,10 +1,7 @@
 <script>
   import { push, location } from 'svelte-spa-router';
-  import WalletConnect from './WalletConnect.svelte';
+  import AuthButton from './AuthButton.svelte';
   
-  // Props passed from App.svelte via WalletProvider
-  let isConnected = false;
-  let address = '';
   
   let isMenuOpen = $state(false);
   
@@ -49,7 +46,7 @@
           Contributions
         </a>
         <div class="ml-4 flex items-center space-x-4">
-          <WalletConnect />
+          <AuthButton />
         </div>
       </div>
       
@@ -90,7 +87,7 @@
           Contributions
         </a>
         <div class="px-3 py-2">
-          <WalletConnect />
+          <AuthButton />
         </div>
       </div>
     </div>

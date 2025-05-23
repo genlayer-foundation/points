@@ -124,7 +124,7 @@ def login(request):
             defaults={
                 'username': ethereum_address[:10],  # Use first 10 chars as username
                 'email': f'{ethereum_address[:8]}@ethereum.address',  # Generate a dummy email
-                'name': f'Ethereum User {ethereum_address[:6]}'  # Generate a dummy name
+                # No name set by default for wallet-based users
             }
         )
         
