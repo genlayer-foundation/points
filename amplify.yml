@@ -1,0 +1,26 @@
+version: 1
+applications:
+  - appRoot: frontend
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - npm ci
+        build:
+          commands:
+            - npm run build
+      artifacts:
+        baseDirectory: dist
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+      buildSettings:
+        env:
+          variables:
+            # Add your API endpoint here after App Runner deployment
+            VITE_API_URL: https://your-app-runner-url.amazonaws.com
+            VITE_APP_NAME: Tally
+    # Backend is handled by App Runner, not Amplify
+    # This configuration is for frontend-only deployment

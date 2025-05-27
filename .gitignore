@@ -176,3 +176,9 @@ cython_debug/
 **/.claude/settings.local.json
 
 **/node_modules
+
+# amplify
+node_modules
+.amplify
+amplify_outputs*
+amplifyconfiguration*

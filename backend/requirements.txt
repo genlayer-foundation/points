@@ -12,3 +12,7 @@ nodeenv>=1.8.0
 siwe>=2.2.0
 eth-account>=0.11.0
 web3>=6.13.0
+python-dotenv>=1.0.0
+whitenoise>=6.5.0
+gunicorn>=21.2.0
+dj-database-url>=2.1.0

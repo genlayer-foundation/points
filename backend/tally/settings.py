@@ -25,12 +25,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-@_ex6(dv$u9em=)livy@0op7m(d-=*ici-z$ccd6s9h3iqpu1m'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-@_ex6(dv$u9em=)livy@0op7m(d-=*ici-z$ccd6s9h3iqpu1m')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -63,6 +63,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -95,12 +96,21 @@ WSGI_APPLICATION = 'tally.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Database configuration for RDS
+if os.environ.get('DATABASE_URL'):
+    # Production database (RDS)
+    import dj_database_url
+    DATABASES = {
+        'default': dj_database_url.parse(os.environ.get('DATABASE_URL'))
     }
-}
+else:
+    # Development database (SQLite)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -175,8 +185,13 @@ SIMPLE_JWT = {
 }
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = True  # For development only, set to specific origins in production
-CORS_ALLOW_CREDENTIALS = True  # Important for cookie-based authentication
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    CORS_ALLOWED_ORIGINS = [
+        os.environ.get('FRONTEND_URL', 'https://main.amplifyapp.com'),
+    ]
+CORS_ALLOW_CREDENTIALS = True
 
 # Session settings
 SESSION_COOKIE_HTTPONLY = True
@@ -185,8 +200,8 @@ SESSION_COOKIE_AGE = 86400 * 14  # 14 days in seconds
 
 # Ethereum authentication settings
 ETHEREUM_AUTH = {
-    'SIWE_DOMAIN': 'localhost',  # Your application domain
-    'NONCE_EXPIRY_MINUTES': 5,  # Nonce expiration time in minutes
+    'SIWE_DOMAIN': os.environ.get('SIWE_DOMAIN', 'localhost'),
+    'NONCE_EXPIRY_MINUTES': 5,
 }
 
 # Custom user model

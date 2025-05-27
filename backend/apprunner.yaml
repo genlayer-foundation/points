@@ -1,0 +1,22 @@
+version: 1.0
+runtime: python3
+build:
+  commands:
+    build:
+      - echo "Installing dependencies"
+      - pip install -r requirements.txt
+      - echo "Collecting static files"
+      - python manage.py collectstatic --noinput
+      - echo "Running migrations"
+      - python manage.py migrate --noinput
+run:
+  runtime-version: 3.11
+  command: gunicorn --bind 0.0.0.0:8000 tally.wsgi:application
+  network:
+    port: 8000
+    env: PORT
+  env:
+    - name: PYTHONPATH
+      value: /app
+    - name: DJANGO_SETTINGS_MODULE
+      value: tally.settings
