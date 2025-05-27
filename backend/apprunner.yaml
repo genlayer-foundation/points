@@ -10,7 +10,7 @@ build:
       - echo "Running migrations"
       - python manage.py migrate --noinput
 run:
-  runtime-version: 3.11
+  runtime-version: python311
   command: gunicorn --bind 0.0.0.0:8000 tally.wsgi:application
   network:
     port: 8000
