@@ -64,31 +64,52 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     
     # Registration will be handled by MetaMask authentication
     
+    def _get_web3_contract(self):
+        """
+        Helper method to create a Web3 contract instance
+        """
+        # Connect to the blockchain using environment variables
+        w3 = Web3(Web3.HTTPProvider(settings.VALIDATOR_RPC_URL))
+        
+        # Contract address from environment variables
+        contract_address = settings.VALIDATOR_CONTRACT_ADDRESS
+        
+        # Minimal ABI for the validators functions
+        abi = [
+            {
+                'inputs': [],
+                'name': 'getValidatorsAtCurrentEpoch',
+                'outputs': [{'type': 'address[]', 'name': ''}],
+                'stateMutability': 'view',
+                'type': 'function'
+            },
+            {
+                'inputs': [],
+                'name': 'getValidatorBansCount',
+                'outputs': [{'type': 'uint256', 'name': ''}],
+                'stateMutability': 'view',
+                'type': 'function'
+            },
+            {
+                'inputs': [{'type': 'uint256', 'name': 'index'}],
+                'name': 'validatorsBanned',
+                'outputs': [{'type': 'address', 'name': ''}],
+                'stateMutability': 'view',
+                'type': 'function'
+            }
+        ]
+        
+        # Create contract instance
+        return w3.eth.contract(address=contract_address, abi=abi)
+    
     @action(detail=False, methods=['get'])
     def validators(self, request):
         """
         Get the list of active validators from the GenLayer contract
         """
         try:
-            # Connect to the blockchain using environment variables
-            w3 = Web3(Web3.HTTPProvider(settings.VALIDATOR_RPC_URL))
-            
-            # Contract address from environment variables
-            contract_address = settings.VALIDATOR_CONTRACT_ADDRESS
-            
-            # Minimal ABI for the getValidatorsAtCurrentEpoch function
-            abi = [
-                {
-                    'inputs': [],
-                    'name': 'getValidatorsAtCurrentEpoch',
-                    'outputs': [{'type': 'address[]', 'name': ''}],
-                    'stateMutability': 'view',
-                    'type': 'function'
-                }
-            ]
-            
             # Create contract instance
-            contract = w3.eth.contract(address=contract_address, abi=abi)
+            contract = self._get_web3_contract()
             
             # Call getValidatorsAtCurrentEpoch function
             validators = contract.functions.getValidatorsAtCurrentEpoch().call()
@@ -98,6 +119,36 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             
             # Just return the list of addresses
             return Response(validators_formatted, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+    @action(detail=False, methods=['get'], url_path='banned-validators')
+    def banned_validators(self, request):
+        """
+        Get the list of banned validators from the GenLayer contract
+        
+        This endpoint uses getValidatorBansCount to get the total number of banned validators,
+        then calls validatorsBanned for each index to get the address of each banned validator.
+        """
+        try:
+            # Create contract instance
+            contract = self._get_web3_contract()
+            
+            # Get the count of banned validators
+            ban_count = contract.functions.getValidatorBansCount().call()
+            
+            # Get each banned validator address
+            banned_validators = []
+            for i in range(ban_count):
+                banned_address = contract.functions.validatorsBanned(i).call()
+                if banned_address != '0x0000000000000000000000000000000000000000':
+                    banned_validators.append(banned_address.lower())
+            
+            # Just return the list of addresses
+            return Response(banned_validators, status=status.HTTP_200_OK)
             
         except Exception as e:
             return Response({

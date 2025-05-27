@@ -9,6 +9,7 @@
   import ParticipantProfile from './routes/ParticipantProfile.svelte';
   import ContributionTypeDetail from './routes/ContributionTypeDetail.svelte';
   import BadgeDetail from './routes/BadgeDetail.svelte';
+  import Validators from './routes/Validators.svelte';
   import NotFound from './routes/NotFound.svelte';
   
   // Define routes
@@ -16,6 +17,7 @@
     '/': Dashboard,
     '/contributions': Contributions,
     '/leaderboard': Dashboard, // For now, just redirect to Dashboard which contains the leaderboard
+    '/validators': Validators,
     '/participant/:address': ParticipantProfile,
     '/contribution-type/:id': ContributionTypeDetail,
     '/badge/:id': BadgeDetail,

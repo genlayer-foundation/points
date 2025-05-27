@@ -4,6 +4,7 @@
   import { format } from 'date-fns';
   import ContributionsList from '../components/ContributionsList.svelte';
   import StatCard from '../components/StatCard.svelte';
+  import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import { usersAPI, statsAPI } from '../lib/api';
   
   // Import route params from svelte-spa-router
@@ -155,8 +156,9 @@
               <dt class="text-sm font-medium text-gray-500">
                 Wallet Address
               </dt>
-              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 font-mono">
-                {participant.address}
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div class="font-mono mb-2">{participant.address}</div>
+                <ValidatorStatus address={participant.address} />
               </dd>
             </div>
           {/if}
