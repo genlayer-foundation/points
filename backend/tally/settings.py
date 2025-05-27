@@ -11,6 +11,11 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -186,3 +191,7 @@ ETHEREUM_AUTH = {
 
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
+
+# Blockchain settings
+VALIDATOR_CONTRACT_ADDRESS = os.environ.get('VALIDATOR_CONTRACT_ADDRESS', '0x7CceE43964F70CEAEfDED4b8b07410D30d64eC37')
+VALIDATOR_RPC_URL = os.environ.get('VALIDATOR_RPC_URL', 'https://genlayer-testnet.rpc.caldera.xyz/http')

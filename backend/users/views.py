@@ -2,8 +2,10 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.conf import settings
 from .models import User
 from .serializers import UserSerializer, UserCreateSerializer
+from web3 import Web3
 
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
@@ -61,3 +63,43 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
     
     # Registration will be handled by MetaMask authentication
+    
+    @action(detail=False, methods=['get'])
+    def validators(self, request):
+        """
+        Get the list of active validators from the GenLayer contract
+        """
+        try:
+            # Connect to the blockchain using environment variables
+            w3 = Web3(Web3.HTTPProvider(settings.VALIDATOR_RPC_URL))
+            
+            # Contract address from environment variables
+            contract_address = settings.VALIDATOR_CONTRACT_ADDRESS
+            
+            # Minimal ABI for the getValidatorsAtCurrentEpoch function
+            abi = [
+                {
+                    'inputs': [],
+                    'name': 'getValidatorsAtCurrentEpoch',
+                    'outputs': [{'type': 'address[]', 'name': ''}],
+                    'stateMutability': 'view',
+                    'type': 'function'
+                }
+            ]
+            
+            # Create contract instance
+            contract = w3.eth.contract(address=contract_address, abi=abi)
+            
+            # Call getValidatorsAtCurrentEpoch function
+            validators = contract.functions.getValidatorsAtCurrentEpoch().call()
+            
+            # Format the validators addresses
+            validators_formatted = [addr.lower() for addr in validators]
+            
+            # Just return the list of addresses
+            return Response(validators_formatted, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
