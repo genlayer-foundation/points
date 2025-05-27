@@ -1,5 +1,31 @@
 # Tally: GenLayer Testnet Program Tracking System
 
+## Environment Setup
+
+### Frontend Development
+When working with the frontend, always activate the Node.js environment before using npm commands:
+
+```bash
+# Activate the environment before using npm
+cd [..]/tally/frontend
+source ../backend/env/bin/activate
+# Then run npm commands
+npm install
+npm run dev
+npm test
+```
+
+### Backend Development
+For backend development, activate the Python virtual environment:
+
+```bash
+# Activate the Python virtual environment
+cd [..]/tally/backend
+source env/bin/activate
+# Then run Python/Django commands
+python manage.py runserver
+```
+
 ## Project Overview
 
 Tally is a points and contribution tracking system specifically designed for the 
