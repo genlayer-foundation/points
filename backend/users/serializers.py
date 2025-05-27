@@ -3,10 +3,27 @@ from .models import User
 
 
 class UserSerializer(serializers.ModelSerializer):
+    leaderboard_entry = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
-        fields = ['id', 'email', 'name', 'address', 'created_at', 'updated_at']
+        fields = ['id', 'email', 'name', 'address', 'leaderboard_entry', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_leaderboard_entry(self, obj):
+        """
+        Get the leaderboard entry for this user.
+        Returns rank and total_points if the entry exists, otherwise returns None.
+        """
+        try:
+            if hasattr(obj, 'leaderboard_entry'):
+                return {
+                    'rank': obj.leaderboard_entry.rank,
+                    'total_points': obj.leaderboard_entry.total_points
+                }
+        except:
+            pass
+        return None
 
 
 class UserCreateSerializer(serializers.ModelSerializer):

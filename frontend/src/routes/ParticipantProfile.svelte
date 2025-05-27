@@ -4,14 +4,13 @@
   import { format } from 'date-fns';
   import ContributionsList from '../components/ContributionsList.svelte';
   import StatCard from '../components/StatCard.svelte';
-  import { usersAPI, contributionsAPI, statsAPI } from '../lib/api';
+  import { usersAPI, statsAPI } from '../lib/api';
   
   // Import route params from svelte-spa-router
   import { params } from 'svelte-spa-router';
   
   // State management
   let participant = $state(null);
-  let contributions = $state([]);
   let contributionStats = $state({
     totalContributions: 0,
     totalPoints: 0,
@@ -21,8 +20,6 @@
   
   let loading = $state(true);
   let error = $state(null);
-  let contributionsLoading = $state(true);
-  let contributionsError = $state(null);
   let statsError = $state(null);
   
   $effect(() => {
@@ -49,13 +46,29 @@
       // Fetch participant details
       const res = await usersAPI.getUserByAddress(participantAddress);
       console.log("Participant data received:", res.data);
+      console.log("Leaderboard entry data:", res.data.leaderboard_entry);
       participant = res.data;
+      
+      // Also try to fetch the leaderboard entry directly
+      try {
+        const leaderboardRes = await leaderboardAPI.getLeaderboardEntry(participantAddress);
+        console.log("Leaderboard data received:", leaderboardRes.data);
+        
+        // If the leaderboard entry isn't included in the user data, add it
+        if (!participant.leaderboard_entry && leaderboardRes.data.results && leaderboardRes.data.results.length > 0) {
+          participant.leaderboard_entry = leaderboardRes.data.results[0];
+          console.log("Added leaderboard entry from separate request:", participant.leaderboard_entry);
+        }
+      } catch (leaderboardError) {
+        console.warn('Leaderboard API error:', leaderboardError);
+      }
       
       // Fetch participant stats
       try {
         const statsRes = await statsAPI.getUserStats(participantAddress);
         if (statsRes.data) {
           contributionStats = statsRes.data;
+          console.log("Stats data received:", statsRes.data);
         }
       } catch (statsError) {
         console.warn('Stats API error, will use basic data:', statsError);
@@ -68,19 +81,8 @@
       loading = false;
     }
     
-    // Fetch participant contributions
-    try {
-      contributionsLoading = true;
-      contributionsError = null;
-      
-      const res = await contributionsAPI.getContributionsByUser(participantAddress);
-      contributions = res.data.results || [];
-      
-      contributionsLoading = false;
-    } catch (err) {
-      contributionsError = err.message || 'Failed to load contributions';
-      contributionsLoading = false;
-    }
+    // We've moved the contributions loading to the ContributionsList component
+    // so we don't need to fetch them here anymore
   }
   
   function formatDate(dateString) {
@@ -107,7 +109,7 @@
   </div>
   
   <!-- Connection error message if needed -->
-  {#if error || statsError || contributionsError}
+  {#if error || statsError}
     <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
       <div class="flex">
         <div class="flex-shrink-0">
@@ -133,44 +135,21 @@
       {error}
     </div>
   {:else if participant}
+    <div class="mb-6">
+      <h1 class="text-3xl font-bold text-gray-900 flex items-center">
+        {participant.name || 'Participant'} 
+        <span class="ml-3 inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
+          Rank #{participant.leaderboard_entry?.rank || 'N/A'}
+        </span>
+      </h1>
+      <p class="mt-1 text-sm text-gray-500">
+        Wallet details and contributions
+      </p>
+    </div>
+    
     <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
-      <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
-        <div>
-          <h3 class="text-lg leading-6 font-medium text-gray-900">
-            Participant Profile
-          </h3>
-          <p class="mt-1 max-w-2xl text-sm text-gray-500">
-            Wallet details and contributions
-          </p>
-        </div>
-        <div class="text-right">
-          <span class="inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
-            Rank #{participant.leaderboard_entry?.rank || 'N/A'}
-          </span>
-        </div>
-      </div>
       <div class="border-t border-gray-200">
         <dl>
-          {#if participant.name}
-            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt class="text-sm font-medium text-gray-500">
-                Name
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {participant.name}
-              </dd>
-            </div>
-          {/if}
-          {#if participant.email}
-            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt class="text-sm font-medium text-gray-500">
-                Email
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {participant.email}
-              </dd>
-            </div>
-          {/if}
           {#if participant.address}
             <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
               <dt class="text-sm font-medium text-gray-500">
@@ -291,11 +270,9 @@
     
     <!-- Contributions -->
     <div>
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">Contributions History</h2>
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">{participant.name || 'Participant'}'s Contributions</h2>
       <ContributionsList
-        {contributions}
-        loading={contributionsLoading}
-        error={contributionsError}
+        userAddress={participant.address}
         showUser={false}
       />
     </div>

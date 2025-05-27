@@ -2,11 +2,66 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import Badge from './Badge.svelte';
+  import Pagination from './Pagination.svelte';
+  import { contributionsAPI } from '../lib/api';
   
-  export let contributions = [];
-  export let loading = false;
-  export let error = null;
-  export let showUser = true;
+  const { contributions = [], loading: externalLoading = false, error: externalError = null, showUser = true, userAddress = null } = $props();
+  
+  
+  // Local state
+  let page = $state(1);
+  let limit = $state(10);
+  let totalCount = $state(0);
+  let localContributions = $state(contributions || []);
+  let localLoading = $state(externalLoading);
+  let localError = $state(externalError);
+  
+  // Watch for external prop changes
+  $effect(() => {
+    localContributions = contributions || [];
+  });
+  
+  $effect(() => {
+    localLoading = externalLoading;
+  });
+  
+  $effect(() => {
+    localError = externalError;
+  });
+  
+  // Fetch data when userAddress is provided
+  $effect(() => {
+    if (userAddress) {
+      fetchContributions();
+    }
+  });
+  
+  async function fetchContributions() {
+    if (!userAddress) return;
+    
+    try {
+      localLoading = true;
+      localError = null;
+      
+      const params = {
+        page,
+        limit,
+        user_address: userAddress
+      };
+      
+      const res = await contributionsAPI.getContributions(params);
+      totalCount = res.data.count || 0;
+      localContributions = res.data.results || [];
+      localLoading = false;
+    } catch (err) {
+      localError = err.message || 'Failed to load contributions';
+      localLoading = false;
+    }
+  }
+  
+  function handlePageChange(event) {
+    page = event.detail;
+  }
   
   function formatDate(dateString) {
     try {
@@ -27,15 +82,15 @@
     </p>
   </div>
   
-  {#if loading}
+  {#if localLoading}
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
     </div>
-  {:else if error}
+  {:else if localError}
     <div class="p-6 text-center text-red-500">
-      Failed to load contributions: {error}
+      Failed to load contributions: {localError}
     </div>
-  {:else if contributions.length === 0}
+  {:else if localContributions.length === 0}
     <div class="p-6 text-center text-gray-500">
       No contributions found.
     </div>
@@ -64,7 +119,7 @@
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
-          {#each contributions as contribution, i}
+          {#each localContributions as contribution, i}
             <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
               {#if showUser}
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -140,5 +195,13 @@
         </tbody>
       </table>
     </div>
+    
+    <!-- Pagination -->
+    <Pagination 
+      page={page} 
+      limit={limit} 
+      totalCount={totalCount} 
+      on:pageChange={handlePageChange} 
+    />
   {/if}
 </div>
