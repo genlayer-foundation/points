@@ -1,16 +1,14 @@
 version: 1.0
 runtime: python311
-build:
-  commands:
-    build:
-      - echo "Installing dependencies"
-      - pip3 install -r requirements.txt
-      - echo "Collecting static files"
-      - python3 manage.py collectstatic --noinput
-      - echo "Running migrations"
-      - python3 manage.py migrate --noinput
 run:
   runtime-version: 3.11
+  pre-run:
+    - echo "Installing dependencies"
+    - pip3 install -r requirements.txt
+    - echo "Collecting static files"
+    - python3 manage.py collectstatic --noinput
+    - echo "Running migrations"
+    - python3 manage.py migrate --noinput
   command: python3 -m gunicorn --bind 0.0.0.0:8000 tally.wsgi:application --log-file -
   network:
     port: 8000
