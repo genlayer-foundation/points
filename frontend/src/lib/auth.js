@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import api from './api.js';
+import axios from 'axios';
 import { writable } from 'svelte/store';
 
 // Create a Svelte store for authentication state
@@ -80,13 +80,14 @@ const createAuthStore = () => {
 
 const authState = createAuthStore();
 
-// Authentication API endpoints (relative to api base)
+// Authentication API endpoints (relative to base URL, not api/v1)
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_ENDPOINTS = {
-  NONCE: '/auth/nonce/',
-  LOGIN: '/auth/login/',
-  VERIFY: '/auth/verify/',
-  LOGOUT: '/auth/logout/',
-  REFRESH: '/auth/refresh/'
+  NONCE: `${API_BASE_URL}/api/auth/nonce/`,
+  LOGIN: `${API_BASE_URL}/api/auth/login/`,
+  VERIFY: `${API_BASE_URL}/api/auth/verify/`,
+  LOGOUT: `${API_BASE_URL}/api/auth/logout/`,
+  REFRESH: `${API_BASE_URL}/api/auth/refresh/`
 };
 
 /**
@@ -127,7 +128,7 @@ export async function connectWallet() {
  */
 export async function getNonce() {
   try {
-    const response = await api.get(API_ENDPOINTS.NONCE);
+    const response = await axios.get(API_ENDPOINTS.NONCE);
     return response.data.nonce;
   } catch (error) {
     // Use a specific error message for this case
@@ -188,7 +189,7 @@ export async function signInWithEthereum() {
     const { message, signature } = await createAndSignMessage(address, nonce);
     
     // Send to backend for verification
-    const response = await api.post(API_ENDPOINTS.LOGIN, {
+    const response = await axios.post(API_ENDPOINTS.LOGIN, {
       message,
       signature
     });
@@ -212,7 +213,7 @@ export async function signInWithEthereum() {
  */
 export async function verifyAuth() {
   try {
-    const response = await api.get(API_ENDPOINTS.VERIFY);
+    const response = await axios.get(API_ENDPOINTS.VERIFY);
     const isAuthenticated = response.data.authenticated;
     const address = response.data.address || null;
     
@@ -232,7 +233,7 @@ export async function verifyAuth() {
  */
 export async function logout() {
   try {
-    await api.post(API_ENDPOINTS.LOGOUT);
+    await axios.post(API_ENDPOINTS.LOGOUT);
   } catch (error) {
     console.error('Logout error:', error);
   } finally {
@@ -247,7 +248,7 @@ export async function logout() {
  */
 export async function refreshSession() {
   try {
-    await api.post(API_ENDPOINTS.REFRESH);
+    await axios.post(API_ENDPOINTS.REFRESH);
     return true;
   } catch (error) {
     // If refresh fails, verify auth state again
