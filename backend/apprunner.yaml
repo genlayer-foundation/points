@@ -1,15 +1,43 @@
 version: 1.0
 runtime: python311
+build:
+  commands:
+    build:
+      - pip install pipenv
+      - pipenv install 
+  env:
+    - name: PYTHONPATH
+      value: /app
+    - name: DJANGO_SETTINGS_MODULE
+      value: tally.settings
+  secrets:
+    - name: DEBUG
+      value-from: /tally/prod/debug
+    - name: SECRET_KEY
+      value-from: /tally/prod/secret_key
+    - name: DATABASE_URL
+      value-from: /tally/prod/database_url
+    - name: ALLOWED_HOSTS
+      value-from: /tally/prod/allowed_hosts
+    - name: FRONTEND_URL
+      value-from: /tally/prod/frontend_url
+    - name: SIWE_DOMAIN
+      value-from: /tally/prod/siwe_domain
+    - name: VALIDATOR_CONTRACT_ADDRESS
+      value-from: /tally/prod/validator_contract_address
+    - name: VALIDATOR_RPC_URL
+      value-from: /tally/prod/validator_rpc_url
 run:
   runtime-version: 3.11
   pre-run:
+    - pip3 install pipenv
     - echo "Installing dependencies"
-    - pip3 install -r requirements.txt
+    - pipenv install -r requirements.txt
     - echo "Collecting static files"
-    - python3 manage.py collectstatic --noinput
+    - pipenv run python3 manage.py collectstatic --noinput
     - echo "Running migrations"
-    - python3 manage.py migrate --noinput
-  command: python3 -m gunicorn --bind 0.0.0.0:8000 tally.wsgi:application --log-file -
+    - pipenv run python3 manage.py migrate --noinput
+  command: pipenv run gunicorn --bind 0.0.0.0:8000 tally.wsgi:application --log-file -
   network:
     port: 8000
     env: PORT
