@@ -9,9 +9,9 @@ build:
       - pipenv install -r requirements.txt
       - pipenv install gunicorn
       - echo "Collecting static files"
-      - python3 manage.py collectstatic --noinput
+      - pipenv run python3 manage.py collectstatic --noinput
       - echo "Running migrations"
-      - python3 manage.py migrate --noinput
+      - pipenv run python3 manage.py migrate --noinput
 run:
   runtime-version: 3.11
   command: pipenv run gunicorn --bind 0.0.0.0:8000 tally.wsgi:application --log-file -
