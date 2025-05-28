@@ -3,7 +3,7 @@ runtime: python311
 build:
   commands:
     build:
-      - pip install pipenv
+      - pip3 install pipenv
       - pipenv install 
   env:
     - name: PYTHONPATH
