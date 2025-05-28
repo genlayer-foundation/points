@@ -29,4 +29,4 @@ RUN python manage.py collectstatic --noinput
 EXPOSE 8000
 
 # Run gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "tally.wsgi:application"]
+CMD ["python3", "-m", "gunicorn", "--bind", "0.0.0.0:8000", "tally.wsgi:application"]

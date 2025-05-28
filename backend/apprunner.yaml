@@ -7,6 +7,7 @@ build:
       - pip3 install --upgrade pip
       - pip3 install pipenv
       - pipenv install -r requirements.txt
+      - pipenv install gunicorn
       - echo "Collecting static files"
       - python3 manage.py collectstatic --noinput
       - echo "Running migrations"
