@@ -10,23 +10,6 @@ build:
       value: /app
     - name: DJANGO_SETTINGS_MODULE
       value: tally.settings
-  secrets:
-    - name: DEBUG
-      value-from: /tally/prod/debug
-    - name: SECRET_KEY
-      value-from: /tally/prod/secret_key
-    - name: DATABASE_URL
-      value-from: /tally/prod/database_url
-    - name: ALLOWED_HOSTS
-      value-from: /tally/prod/allowed_hosts
-    - name: FRONTEND_URL
-      value-from: /tally/prod/frontend_url
-    - name: SIWE_DOMAIN
-      value-from: /tally/prod/siwe_domain
-    - name: VALIDATOR_CONTRACT_ADDRESS
-      value-from: /tally/prod/validator_contract_address
-    - name: VALIDATOR_RPC_URL
-      value-from: /tally/prod/validator_rpc_url
 run:
   runtime-version: 3.11
   pre-run:
