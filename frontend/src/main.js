@@ -1,4 +1,4 @@
-import './lib/polyfills'; // Import polyfills first
+import './lib/polyfills.js'; // Import polyfills first
 import { mount } from 'svelte';
 import App from './App.svelte';
 import './styles.css';
