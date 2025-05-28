@@ -46,3 +46,5 @@ run:
       value-from: /tally/prod/validator_contract_address
     - name: VALIDATOR_RPC_URL
       value-from: /tally/prod/validator_rpc_url
+    - name: CSRF_TRUSTED_ORIGINS
+      value-from: /tally/prod/csrf_trusted_origins
