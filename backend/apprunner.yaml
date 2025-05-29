@@ -16,7 +16,7 @@ run:
     - pip3 install pipenv
     - pipenv install -r requirements.txt
   # command: pipenv run python3 manage.py collectstatic --noinput && pipenv run python3 manage.py migrate --noinput && pipenv run gunicorn --bind 0.0.0.0:8000 tally.wsgi:application --log-file -
-  command: pipenv run python3 manage.py collectstatic --noinput && pipenv run gunicorn --bind 0.0.0.0:8000 tally.wsgi:application --log-file -
+  command: pipenv run gunicorn --bind 0.0.0.0:8000 tally.wsgi:application --log-file -
   network:
     port: 8000
     env: PORT
