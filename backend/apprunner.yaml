@@ -29,7 +29,6 @@ run:
       value: /app
     - name: DJANGO_SETTINGS_MODULE
       value: tally.settings
-  secrets:
     - name: DEBUG
       value-from: /tally/prod/debug
     - name: SECRET_KEY
