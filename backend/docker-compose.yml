@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: tally_db
+      POSTGRES_USER: tally_user
+      POSTGRES_PASSWORD: tally_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=your-development-secret-key
+      - DATABASE_URL=postgresql://tally_user:tally_password@db:5432/tally_db
+      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+      - FRONTEND_URL=http://localhost:5173
+      - SIWE_DOMAIN=localhost
+      - CSRF_TRUSTED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+
+volumes:
+  postgres_data:

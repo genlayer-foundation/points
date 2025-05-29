@@ -20,7 +20,7 @@ applications:
         env:
           variables:
             # Add your API endpoint here after App Runner deployment
-            VITE_API_URL: https://your-app-runner-url.amazonaws.com
+            VITE_API_URL: https://tally-backend.33qpgck0g28d0.us-east-1.cs.amazonlightsail.com
             VITE_APP_NAME: Tally
     # Backend is handled by App Runner, not Amplify
     # This configuration is for frontend-only deployment

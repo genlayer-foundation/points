@@ -21,6 +21,16 @@ from drf_yasg import openapi
 from rest_framework import permissions
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
+
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from django.views import View
+
+@csrf_exempt
+def health_check(request):
+    """Simple health check endpoint that bypasses host validation"""
+    return JsonResponse({"status": "healthy", "service": "tally-backend"})
 
 # Schema view for Swagger documentation
 schema_view = get_schema_view(
@@ -38,6 +48,9 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    
+    # Health check endpoint
+    path('health/', health_check, name='health_check'),
     
     # API endpoints
     path('api/v1/', include('api.urls')),
