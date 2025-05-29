@@ -21,16 +21,24 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def get_required_env(key):
+    """Get required environment variable or raise error if not found."""
+    value = os.environ.get(key)
+    if value is None:
+        raise ValueError(f"Required environment variable '{key}' is not set")
+    return value
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-@_ex6(dv$u9em=)livy@0op7m(d-=*ici-z$ccd6s9h3iqpu1m')
+SECRET_KEY = get_required_env('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
+DEBUG = get_required_env('DEBUG').lower() == 'true'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = get_required_env('ALLOWED_HOSTS').split(',')
 
 
 # Application definition
@@ -96,12 +104,13 @@ WSGI_APPLICATION = 'tally.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Database configuration for RDS
-if os.environ.get('DATABASE_URL'):
+# Database configuration
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
     # Production database (RDS)
     import dj_database_url
     DATABASES = {
-        'default': dj_database_url.parse(os.environ.get('DATABASE_URL'))
+        'default': dj_database_url.parse(DATABASE_URL)
     }
 else:
     # Development database (SQLite)
@@ -188,13 +197,11 @@ SIMPLE_JWT = {
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 else:
-    CORS_ALLOWED_ORIGINS = [
-        os.environ.get('FRONTEND_URL', 'https://main.amplifyapp.com'),
-    ]
+    CORS_ALLOWED_ORIGINS = get_required_env('CORS_ALLOWED_ORIGINS').split(',')
 CORS_ALLOW_CREDENTIALS = True
 
 # CSRF settings
-CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if os.environ.get('CSRF_TRUSTED_ORIGINS') else []
+CSRF_TRUSTED_ORIGINS = get_required_env('CSRF_TRUSTED_ORIGINS').split(',')
 
 # Session settings
 SESSION_COOKIE_HTTPONLY = True
@@ -203,7 +210,7 @@ SESSION_COOKIE_AGE = 86400 * 14  # 14 days in seconds
 
 # Ethereum authentication settings
 ETHEREUM_AUTH = {
-    'SIWE_DOMAIN': os.environ.get('SIWE_DOMAIN', 'localhost'),
+    'SIWE_DOMAIN': get_required_env('SIWE_DOMAIN'),
     'NONCE_EXPIRY_MINUTES': 5,
 }
 
@@ -211,5 +218,5 @@ ETHEREUM_AUTH = {
 AUTH_USER_MODEL = 'users.User'
 
 # Blockchain settings
-VALIDATOR_CONTRACT_ADDRESS = os.environ.get('VALIDATOR_CONTRACT_ADDRESS', '0x7CceE43964F70CEAEfDED4b8b07410D30d64eC37')
-VALIDATOR_RPC_URL = os.environ.get('VALIDATOR_RPC_URL', 'https://genlayer-testnet.rpc.caldera.xyz/http')
+VALIDATOR_CONTRACT_ADDRESS = get_required_env('VALIDATOR_CONTRACT_ADDRESS')
+VALIDATOR_RPC_URL = get_required_env('VALIDATOR_RPC_URL')
