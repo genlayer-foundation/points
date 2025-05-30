@@ -195,7 +195,8 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "CSRF_TRUSTED_ORIGINS": "/tally/prod/csrf_trusted_origins",
           "SIWE_DOMAIN": "/tally/prod/siwe_domain",
           "VALIDATOR_CONTRACT_ADDRESS": "/tally/prod/validator_contract_address",
-          "VALIDATOR_RPC_URL": "/tally/prod/validator_rpc_url"
+          "VALIDATOR_RPC_URL": "/tally/prod/validator_rpc_url",
+          "ALLOWED_CIDR_NETS": "/tally/prod/allowed_cidr_nets"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
@@ -265,7 +266,8 @@ else
           "CSRF_TRUSTED_ORIGINS": "/tally/prod/csrf_trusted_origins",
           "SIWE_DOMAIN": "/tally/prod/siwe_domain",
           "VALIDATOR_CONTRACT_ADDRESS": "/tally/prod/validator_contract_address",
-          "VALIDATOR_RPC_URL": "/tally/prod/validator_rpc_url"
+          "VALIDATOR_RPC_URL": "/tally/prod/validator_rpc_url",
+          "ALLOWED_CIDR_NETS": "/tally/prod/allowed_cidr_nets"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },

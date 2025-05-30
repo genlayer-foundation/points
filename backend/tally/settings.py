@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'drf_yasg',
     'django_filters',
+    'allow_cidr',
     
     # Local apps
     'api',
@@ -74,6 +75,7 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'allow_cidr.middleware.AllowCIDRMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -220,3 +222,7 @@ AUTH_USER_MODEL = 'users.User'
 # Blockchain settings
 VALIDATOR_CONTRACT_ADDRESS = get_required_env('VALIDATOR_CONTRACT_ADDRESS')
 VALIDATOR_RPC_URL = get_required_env('VALIDATOR_RPC_URL')
+
+# AWS Health Check IPs - Allow these IPs to bypass ALLOWED_HOSTS
+# Required environment variable with AWS internal/metadata service IPs
+ALLOWED_CIDR_NETS = get_required_env('ALLOWED_CIDR_NETS').split(',')
