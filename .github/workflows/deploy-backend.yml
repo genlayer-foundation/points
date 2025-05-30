@@ -1,0 +1,46 @@
+name: Deploy Backend to App Runner
+
+on:
+  push:
+    branches: [ main ]
+    paths: 
+      - 'backend/**'
+  workflow_dispatch: # Allow manual triggering
+
+env:
+  AWS_REGION: us-east-1
+  SERVICE_NAME: tally-backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # Required for OIDC
+      contents: read    # Required to checkout code
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Deploy to App Runner
+      working-directory: ./backend
+      run: |
+        # Make the script executable
+        chmod +x deploy-apprunner.sh
+        
+        # Run deployment (will auto-detect existing VPC connector)
+        ./deploy-apprunner.sh ${{ env.SERVICE_NAME }}
+
+    - name: Deployment Summary
+      run: |
+        echo "🎉 Backend deployment initiated successfully!"
+        echo "Monitor progress in AWS App Runner console"
