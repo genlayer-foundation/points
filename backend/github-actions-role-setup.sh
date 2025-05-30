@@ -35,7 +35,7 @@ cat > github-actions-trust-policy.json << EOF
             "Principal": {
                 "Federated": "arn:aws:iam::$ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
             },
-            "Action": "sts:AssumeRole",
+            "Action": "sts:AssumeRoleWithWebIdentity",
             "Condition": {
                 "StringEquals": {
                     "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
@@ -95,7 +95,8 @@ cat > github-actions-policy.json << EOF
                 "iam:GetRole",
                 "iam:CreateRole",
                 "iam:AttachRolePolicy",
-                "iam:PutRolePolicy"
+                "iam:PutRolePolicy",
+                "iam:PassRole"
             ],
             "Resource": [
                 "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerInstanceRole",

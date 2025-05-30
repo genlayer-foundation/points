@@ -23,16 +23,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Debug AWS Role ARN
-      run: |
-        if [ -z "${{ secrets.AWS_ROLE_ARN }}" ]; then
-          echo "❌ AWS_ROLE_ARN secret is not set or empty"
-          exit 1
-        else
-          echo "✅ AWS_ROLE_ARN secret is set"
-          echo "Role ARN: ${{ secrets.AWS_ROLE_ARN }}"
-        fi
-
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
