@@ -2,7 +2,30 @@
 
 ## Prerequisites
 - AWS CLI configured with appropriate permissions
-- Docker installed (for local testing)
+- Docker installed and running
+- Environment variables configured in AWS Systems Manager Parameter Store
+
+## Quick Deployment
+
+### Using the deployment script:
+
+**With VPC Connector (Recommended for Production):**
+```bash
+./deploy-apprunner.sh tally-backend arn:aws:apprunner:us-east-1:123456789012:vpcconnector/my-connector
+```
+
+**Without VPC Connector (uses external networking):**
+```bash
+./deploy-apprunner.sh tally-backend
+```
+
+**To update an existing deployment:**
+```bash
+./deploy-apprunner.sh tally-backend
+```
+The script will automatically detect and update the existing service, preserving the current VPC connector configuration.
+
+## Manual Setup Guide
 
 ## 1. Create RDS Database
 
@@ -36,70 +59,111 @@ aws rds create-db-instance \
 5. Configure VPC and security groups
 6. Enable backup retention
 
-## 2. Deploy Django Backend with App Runner
+## 2. Create VPC Connector (Recommended for Production)
 
-### Step 1: Push code to GitHub
+A VPC connector allows App Runner to securely access resources in your VPC without exposing your database to the internet.
+
+### Create VPC Connector:
 ```bash
-git add .
-git commit -m "Add AWS deployment configuration"
-git push origin main
+aws apprunner create-vpc-connector \
+    --vpc-connector-name tally-vpc-connector \
+    --subnets subnet-xxxxxx subnet-yyyyyy \
+    --security-groups sg-xxxxxxxx
 ```
 
-### Step 2: Create App Runner service
-1. Go to AWS App Runner → Create service
-2. Source: Repository → GitHub
-3. Connect your GitHub account
-4. Select your repository and branch
-5. Build settings: Use apprunner.yaml
-6. Service name: tally-backend
-7. Set environment variables:
-   - `DEBUG=False`
-   - `SECRET_KEY=your-production-secret-key`
-   - `DATABASE_URL=postgresql://username:password@your-rds-endpoint:5432/database_name`
-   - `ALLOWED_HOSTS=your-app-runner-url.amazonaws.com`
-   - `FRONTEND_URL=https://your-amplify-domain.amplifyapp.com`
-   - `SIWE_DOMAIN=your-amplify-domain.amplifyapp.com`
+### Or using AWS Console:
+1. Go to App Runner → VPC connectors → Create VPC connector
+2. Name: tally-vpc-connector
+3. Select your VPC
+4. Choose private subnets (where your RDS is located)
+5. Select security group that can access your RDS
 
-### Using AWS CLI:
+## 3. Configure Environment Variables
+
+Store sensitive configuration in AWS Systems Manager Parameter Store:
+
+```bash
+# Required parameters
+aws ssm put-parameter --name "/tally/prod/secret_key" --value "your-production-secret-key" --type "SecureString"
+aws ssm put-parameter --name "/tally/prod/debug" --value "False" --type "String"
+aws ssm put-parameter --name "/tally/prod/database_url" --value "postgresql://username:password@your-rds-endpoint:5432/database_name" --type "SecureString"
+aws ssm put-parameter --name "/tally/prod/allowed_hosts" --value "your-domain.com,your-app-runner-url.amazonaws.com" --type "String"
+aws ssm put-parameter --name "/tally/prod/csrf_trusted_origins" --value "https://your-domain.com" --type "String"
+aws ssm put-parameter --name "/tally/prod/siwe_domain" --value "your-domain.com" --type "String"
+aws ssm put-parameter --name "/tally/prod/validator_contract_address" --value "0x7CceE43964F70CEAEfDED4b8b07410D30d64eC37" --type "String"
+aws ssm put-parameter --name "/tally/prod/validator_rpc_url" --value "https://genlayer-testnet.rpc.caldera.xyz/http" --type "String"
+```
+
+## 4. Deploy Django Backend with App Runner
+
+### Using the deployment script (Recommended):
+The `deploy-apprunner.sh` script automates the entire deployment process.
+
+### Manual deployment using AWS CLI:
 ```bash
 aws apprunner create-service \
     --service-name tally-backend \
     --source-configuration file://apprunner-source-config.json
 ```
 
-## 3. Environment Variables for App Runner
+## 5. Security Group Configuration
 
-Required environment variables:
-- `DEBUG=False`
-- `SECRET_KEY=your-production-secret-key`
-- `DATABASE_URL=postgresql://username:password@endpoint:5432/dbname`
-- `ALLOWED_HOSTS=your-domain.com,your-app-runner-url.amazonaws.com`
-- `FRONTEND_URL=https://your-amplify-domain.amplifyapp.com`
-- `SIWE_DOMAIN=your-amplify-domain.amplifyapp.com`
-- `VALIDATOR_CONTRACT_ADDRESS=0x7CceE43964F70CEAEfDED4b8b07410D30d64eC37`
-- `VALIDATOR_RPC_URL=https://genlayer-testnet.rpc.caldera.xyz/http`
-
-## 4. Security Group Configuration
-
-### RDS Security Group:
-- Inbound: PostgreSQL (5432) from App Runner security group
+### With VPC Connector (Recommended):
+**RDS Security Group:**
+- Inbound: PostgreSQL (5432) from VPC connector security group or subnets
 - Outbound: All traffic
 
-### App Runner Security Group:
-- Inbound: HTTP (80), HTTPS (443) from anywhere
+**VPC Connector Security Group:**
+- Inbound: All traffic from App Runner (managed automatically)
+- Outbound: PostgreSQL (5432) to RDS security group
+
+### Without VPC Connector:
+**RDS Security Group:**
+- Inbound: PostgreSQL (5432) from App Runner's external IP ranges or 0.0.0.0/0
 - Outbound: All traffic
 
-## 5. Database Setup
+**Note:** When using VPC connector, App Runner accesses your RDS through the VPC's private network. Without VPC connector, App Runner uses external networking to reach your database.
 
-After App Runner deployment, the migrations will run automatically via apprunner.yaml.
+## 6. Database Setup
+
+After App Runner deployment, the migrations will run automatically via the startup script.
 If you need to run additional commands:
 
 ```bash
-# Connect to your App Runner service via AWS console logs or SSH
+# Connect to your App Runner service via AWS console logs
 python manage.py createsuperuser
 ```
 
-## 6. Custom Domain (Optional)
+## 7. Updating Your Deployment
+
+To update your App Runner service with new code or configuration:
+
+1. **Using the deployment script:**
+   ```bash
+   # Simple update (preserves existing VPC connector)
+   ./deploy-apprunner.sh tally-backend
+   
+   # Or specify a new/different VPC connector
+   ./deploy-apprunner.sh tally-backend arn:aws:apprunner:us-east-1:123456789012:vpcconnector/new-connector
+   ```
+
+2. **The script will automatically:**
+   - Build and push a new Docker image
+   - Detect the existing service and its current VPC connector (if any)
+   - Update the service with the new image
+   - Preserve existing VPC connector unless a new one is specified
+   - Wait for the deployment to complete
+
+3. **To update environment variables:**
+   ```bash
+   # Update the parameter in SSM
+   aws ssm put-parameter --name "/tally/prod/allowed_hosts" --value "new-domain.com,app-runner-url.amazonaws.com" --overwrite
+   
+   # Then redeploy to pick up the new values
+   ./deploy-apprunner.sh tally-backend arn:aws:apprunner:us-east-1:123456789012:vpcconnector/my-connector
+   ```
+
+## 8. Custom Domain (Optional)
 
 1. In App Runner console, go to your service
 2. Click "Custom domains"

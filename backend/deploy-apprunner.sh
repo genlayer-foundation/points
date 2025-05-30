@@ -1,13 +1,44 @@
 #!/bin/bash
 set -e
 
-# AWS App Runner Deployment Script (Simple - no VPC connector)
-# Usage: ./deploy-apprunner.sh [service-name]
+# AWS App Runner Deployment Script with VPC Connector Support
+# 
+# Usage: 
+#   ./deploy-apprunner.sh [service-name] [vpc-connector-arn]
+#
+# Examples:
+#   # Deploy with VPC connector (recommended for production):
+#   ./deploy-apprunner.sh tally-backend arn:aws:apprunner:us-east-1:123456789012:vpcconnector/my-connector
+#
+#   # Deploy without VPC connector (uses external networking):
+#   ./deploy-apprunner.sh tally-backend
+#
+#   # Update existing deployment (automatically uses existing VPC connector if any):
+#   ./deploy-apprunner.sh tally-backend
+#
+#   # Update and change VPC connector:
+#   ./deploy-apprunner.sh tally-backend arn:aws:apprunner:us-east-1:123456789012:vpcconnector/new-connector
+#
+# Note: This script always forces a new deployment by using timestamped image tags
+#
+# Prerequisites:
+# 1. AWS CLI configured with appropriate permissions
+# 2. Docker installed and running
+# 3. If using VPC connector: VPC connector must already exist
+# 4. Database security group configured to allow App Runner access
+# 5. SSM parameters configured for environment variables
 
 SERVICE_NAME=${1:-tally-backend}
+VPC_CONNECTOR_ARN=${2:-}
 REGION=${AWS_DEFAULT_REGION:-us-east-1}
 
-echo "Deploying to AWS App Runner: $SERVICE_NAME (no VPC connector)"
+if [ -n "$VPC_CONNECTOR_ARN" ]; then
+    echo "Deploying to AWS App Runner: $SERVICE_NAME (with VPC connector)"
+    echo "VPC Connector: $VPC_CONNECTOR_ARN"
+else
+    echo "Deploying to AWS App Runner: $SERVICE_NAME (no VPC connector)"
+    echo "Note: Database connectivity will use App Runner's external networking"
+fi
 
 # Get AWS account ID
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -116,20 +147,39 @@ fi
 # Login to ECR
 aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_REPO
 
-# Tag and push to ECR
+# Tag and push to ECR with timestamp to force new deployment
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 docker tag $SERVICE_NAME:latest $ECR_REPO:latest
+docker tag $SERVICE_NAME:latest $ECR_REPO:$TIMESTAMP
 docker push $ECR_REPO:latest
+docker push $ECR_REPO:$TIMESTAMP
+
+echo "Pushed new image with tag: $TIMESTAMP"
 
 # Create or update App Runner service
 if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/$SERVICE_NAME --region $REGION >/dev/null 2>&1; then
     echo "Updating existing App Runner service..."
+    
+    # If no VPC connector provided, try to get it from existing service
+    if [ -z "$VPC_CONNECTOR_ARN" ]; then
+        EXISTING_VPC_CONNECTOR=$(aws apprunner describe-service \
+            --service-arn arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/$SERVICE_NAME \
+            --region $REGION \
+            --query 'Service.NetworkConfiguration.EgressConfiguration.VpcConnectorArn' \
+            --output text 2>/dev/null)
+        
+        if [ "$EXISTING_VPC_CONNECTOR" != "None" ] && [ -n "$EXISTING_VPC_CONNECTOR" ]; then
+            VPC_CONNECTOR_ARN="$EXISTING_VPC_CONNECTOR"
+            echo "Using existing VPC connector: $VPC_CONNECTOR_ARN"
+        fi
+    fi
     
     # Create update configuration (different structure)
     cat > apprunner-update-config.json << EOF
 {
   "SourceConfiguration": {
     "ImageRepository": {
-      "ImageIdentifier": "$ECR_REPO:latest",
+      "ImageIdentifier": "$ECR_REPO:$TIMESTAMP",
       "ImageConfiguration": {
         "Port": "8000",
         "RuntimeEnvironmentVariables": {
@@ -168,14 +218,26 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
     "Timeout": 5,
     "HealthyThreshold": 1,
     "UnhealthyThreshold": 5
-  }
+  }$(if [ -n "$VPC_CONNECTOR_ARN" ]; then echo ',
+  "NetworkConfiguration": {
+    "EgressConfiguration": {
+      "EgressType": "VPC",
+      "VpcConnectorArn": "'$VPC_CONNECTOR_ARN'"
+    }
+  }'; fi)
 }
 EOF
     
-    aws apprunner update-service \
+    UPDATE_RESULT=$(aws apprunner update-service \
         --region $REGION \
         --service-arn arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/$SERVICE_NAME \
-        --cli-input-json file://apprunner-update-config.json
+        --cli-input-json file://apprunner-update-config.json)
+    
+    echo "$UPDATE_RESULT"
+    
+    # Check if deployment started
+    UPDATE_STATUS=$(echo "$UPDATE_RESULT" | jq -r '.Service.Status')
+    echo "Deployment status: $UPDATE_STATUS"
         
     rm -f apprunner-update-config.json
 else
@@ -187,7 +249,7 @@ else
   "ServiceName": "$SERVICE_NAME",
   "SourceConfiguration": {
     "ImageRepository": {
-      "ImageIdentifier": "$ECR_REPO:latest",
+      "ImageIdentifier": "$ECR_REPO:$TIMESTAMP",
       "ImageConfiguration": {
         "Port": "8000",
         "RuntimeEnvironmentVariables": {
@@ -226,7 +288,13 @@ else
     "Timeout": 5,
     "HealthyThreshold": 1,
     "UnhealthyThreshold": 5
-  }
+  }$(if [ -n "$VPC_CONNECTOR_ARN" ]; then echo ',
+  "NetworkConfiguration": {
+    "EgressConfiguration": {
+      "EgressType": "VPC",
+      "VpcConnectorArn": "'$VPC_CONNECTOR_ARN'"
+    }
+  }'; fi)
 }
 EOF
     
@@ -238,36 +306,25 @@ EOF
 fi
 
 
-# Wait for App Runner service to be ready
-echo "Waiting for App Runner service to be ready..."
-while true; do
-    STATUS=$(aws apprunner describe-service \
-        --service-arn arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/$SERVICE_NAME \
-        --region $REGION \
-        --query 'Service.Status' \
-        --output text 2>/dev/null || echo "NOT_FOUND")
-    
-    if [ "$STATUS" = "RUNNING" ]; then
-        SERVICE_URL=$(aws apprunner describe-service \
-            --service-arn arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/$SERVICE_NAME \
-            --region $REGION \
-            --query 'Service.ServiceUrl' \
-            --output text)
-        echo "App Runner service is ready!"
-        echo "Service URL: https://$SERVICE_URL"
-        break
-    elif [ "$STATUS" = "CREATE_FAILED" ] || [ "$STATUS" = "DELETE_FAILED" ]; then
-        echo "App Runner service creation failed with status: $STATUS"
-        exit 1
-    else
-        echo "App Runner service status: $STATUS. Waiting..."
-        sleep 15
-    fi
-done
+# Get service URL for output
+SERVICE_URL=$(aws apprunner describe-service \
+    --service-arn arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/$SERVICE_NAME \
+    --region $REGION \
+    --query 'Service.ServiceUrl' \
+    --output text)
 
 echo ""
-echo "Next steps:"
-echo "1. Add App Runner IP ranges to your RDS security group"
-echo "2. Test the connection: curl https://$SERVICE_URL/health/"
+echo "🎉 Deployment initiated successfully!"
+echo "Service URL: https://$SERVICE_URL"
 echo ""
-echo "Deployment completed successfully!"
+if [ -n "$VPC_CONNECTOR_ARN" ]; then
+    echo "✅ Using VPC connector: $VPC_CONNECTOR_ARN"
+else
+    echo "ℹ️  No VPC connector (using App Runner's external networking)"
+fi
+echo ""
+echo "⏳ Deployment is in progress. Monitor in AWS Console or check status with:"
+echo "   aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/$SERVICE_NAME"
+echo ""
+echo "Test when ready: curl https://$SERVICE_URL/health/"
+echo "See aws-deployment-guide.md for detailed configuration and update instructions."
