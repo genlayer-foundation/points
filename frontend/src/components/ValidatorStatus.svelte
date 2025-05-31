@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import axios from 'axios';
+  import api from '../lib/api';
   
   // Props using Svelte 5 runes
   const { address = '' } = $props();
@@ -29,11 +29,11 @@
       const normalizedAddress = address.toLowerCase();
       
       // Fetch all active validators
-      const activeRes = await axios.get('/api/v1/users/validators/');
+      const activeRes = await api.get('/users/validators/');
       const activeValidators = activeRes.data;
       
       // Fetch all banned validators
-      const bannedRes = await axios.get('/api/v1/users/banned-validators/');
+      const bannedRes = await api.get('/users/banned-validators/');
       const bannedValidators = bannedRes.data;
       
       // Check if this address is in either list

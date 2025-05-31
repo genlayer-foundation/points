@@ -6,6 +6,8 @@ from django.conf import settings
 from .models import User
 from .serializers import UserSerializer, UserCreateSerializer
 from web3 import Web3
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
@@ -132,6 +134,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         
         This endpoint uses getValidatorBansCount to get the total number of banned validators,
         then calls validatorsBanned for each index to get the address of each banned validator.
+        Uses parallel execution to improve performance.
         """
         try:
             # Create contract instance
@@ -140,12 +143,46 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             # Get the count of banned validators
             ban_count = contract.functions.getValidatorBansCount().call()
             
-            # Get each banned validator address
+            # Track if any errors occurred
+            has_error = False
+            error_message = None
+            
+            # Function to fetch a single banned validator
+            def fetch_banned_validator(index):
+                nonlocal has_error, error_message
+                try:
+                    banned_address = contract.functions.validatorsBanned(index).call()
+                    if banned_address != '0x0000000000000000000000000000000000000000':
+                        return banned_address.lower()
+                except Exception as e:
+                    has_error = True
+                    error_message = f"Error fetching banned validator at index {index}: {str(e)}"
+                    raise  # Re-raise to propagate to the future
+                return None
+            
+            # Use ThreadPoolExecutor to fetch banned validators in parallel
             banned_validators = []
-            for i in range(ban_count):
-                banned_address = contract.functions.validatorsBanned(i).call()
-                if banned_address != '0x0000000000000000000000000000000000000000':
-                    banned_validators.append(banned_address.lower())
+            max_workers = min(50, ban_count) if ban_count > 0 else 1  # Limit concurrent requests
+            
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all tasks
+                future_to_index = {executor.submit(fetch_banned_validator, i): i for i in range(ban_count)}
+                
+                # Collect results as they complete
+                for future in as_completed(future_to_index):
+                    try:
+                        result = future.result()
+                        if result:
+                            banned_validators.append(result)
+                    except Exception:
+                        # Error already handled in fetch_banned_validator
+                        pass
+            
+            # If any error occurred, return 500
+            if has_error:
+                return Response({
+                    'error': error_message or 'Error fetching banned validators'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
             # Just return the list of addresses
             return Response(banned_validators, status=status.HTTP_200_OK)

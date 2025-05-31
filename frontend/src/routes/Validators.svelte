@@ -1,8 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
-  import axios from 'axios';
-  import { usersAPI, leaderboardAPI } from '../lib/api';
+  import api, { usersAPI, leaderboardAPI } from '../lib/api';
   
   // State variables
   let validators = $state([]);
@@ -19,11 +18,11 @@
       error = null;
       
       // Fetch all active validators
-      const activeRes = await axios.get('/api/v1/users/validators/');
+      const activeRes = await api.get('/users/validators/');
       const activeValidators = activeRes.data;
       
       // Fetch all banned validators
-      const bannedRes = await axios.get('/api/v1/users/banned-validators/');
+      const bannedRes = await api.get('/users/banned-validators/');
       const bannedValidators = bannedRes.data;
       
       // Get all unique validator addresses
