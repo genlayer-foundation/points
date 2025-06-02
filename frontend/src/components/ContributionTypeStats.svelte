@@ -11,7 +11,16 @@
   let error = $state(null);
   
   // Derived state to separate opportunities (zero contributions) from active types
-  let opportunityTypes = $derived(typeStats.filter(stats => stats.count === 0));
+  let opportunityTypes = $derived(
+    typeStats
+      .filter(stats => stats.count === 0)
+      .sort((a, b) => {
+        // Sort by max_points descending
+        const aMaxPoints = (a.max_points || 0) * (a.current_multiplier || 1);
+        const bMaxPoints = (b.max_points || 0) * (b.current_multiplier || 1);
+        return bMaxPoints - aMaxPoints;
+      })
+  );
   let activeTypes = $derived(typeStats.filter(stats => stats.count > 0));
   
   onMount(async () => {
@@ -79,7 +88,7 @@
                   Description
                 </th>
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">
-                  Points Available
+                  Points
                 </th>
               </tr>
             </thead>
@@ -121,7 +130,6 @@
                       {:else}
                         0
                       {/if}
-                      <span class="text-xs font-normal ml-1">global points</span>
                     </div>
                   </td>
                 </tr>

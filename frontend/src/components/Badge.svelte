@@ -36,9 +36,9 @@
 
   // Size classes
   const sizeClasses = {
-    sm: 'px-2 py-1 text-xs',
-    md: 'px-3 py-1.5 text-sm',
-    lg: 'px-4 py-2 text-base'
+    sm: 'px-2.5 py-1.5 text-xs',
+    md: 'px-3.5 py-2 text-sm',
+    lg: 'px-4 py-2.5 text-base'
   };
 
   // Color classes for different badge types
@@ -72,11 +72,13 @@
     // Small delay to ensure tooltip is hidden before navigation
     setTimeout(() => navigateToBadgeDetail(), 50);
   }}
-  class="inline-flex items-center font-semibold rounded-full {sizeClasses[size]} {colorClasses[color]} {clickable ? 'cursor-pointer transition-colors' : ''} {badge.description ? 'tooltip' : ''}"
+  class="inline-block font-semibold rounded-lg {sizeClasses[size]} {colorClasses[color]} {clickable ? 'cursor-pointer transition-colors' : ''} {badge.description ? 'tooltip' : ''} whitespace-normal text-left max-w-[300px]"
   title={badge.description || ''}
 >
-  {badge.actionName || badge.name}
-  {#if badge.points > 0}
-    <span class="ml-1 font-normal">({badge.points}pts)</span>
-  {/if}
+  <span class="block">
+    {badge.actionName || badge.name}
+    {#if badge.points > 0}
+      <span class="ml-1 font-normal">({badge.points}pts)</span>
+    {/if}
+  </span>
 </a>

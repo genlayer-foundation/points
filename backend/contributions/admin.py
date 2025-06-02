@@ -12,6 +12,8 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
 @admin.register(ContributionType)
 class ContributionTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'get_current_multiplier', 'description', 'created_at')
+    list_display_links = ('get_current_multiplier',)
+    list_editable = ('name', 'description')
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at')
     inlines = [GlobalLeaderboardMultiplierInline]
