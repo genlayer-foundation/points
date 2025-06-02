@@ -5,10 +5,20 @@ import decimal
 
 
 class ContributionTypeSerializer(serializers.ModelSerializer):
+    current_multiplier = serializers.SerializerMethodField()
+    
     class Meta:
         model = ContributionType
-        fields = ['id', 'name', 'description', 'min_points', 'max_points', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'min_points', 'max_points', 'current_multiplier', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_current_multiplier(self, obj):
+        """Get the current multiplier value for this contribution type."""
+        from leaderboard.models import GlobalLeaderboardMultiplier
+        try:
+            return float(GlobalLeaderboardMultiplier.get_current_multiplier_value(obj))
+        except Exception:
+            return 1.0
 
 
 class ContributionSerializer(serializers.ModelSerializer):

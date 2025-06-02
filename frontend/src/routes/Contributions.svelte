@@ -32,6 +32,7 @@
     try {
       typesError = null;
       const typesRes = await contributionsAPI.getContributionTypes();
+      // Handle paginated response
       contributionTypes = typesRes.data.results || [];
     } catch (err) {
       typesError = err.message || 'Failed to load contribution types';
@@ -182,10 +183,8 @@
           >
             <option value="-contribution_date">Newest First</option>
             <option value="contribution_date">Oldest First</option>
-            <option value="-points">Highest Points</option>
-            <option value="points">Lowest Points</option>
-            <option value="-frozen_global_points">Highest Global Points</option>
-            <option value="frozen_global_points">Lowest Global Points</option>
+            <option value="-frozen_global_points">Highest Points</option>
+            <option value="frozen_global_points">Lowest Points</option>
           </select>
         </div>
       </div>
@@ -222,13 +221,7 @@
                 Date
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Base Points
-              </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Multiplier
-              </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Global Points
+                Points
               </th>
               <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Evidence
@@ -266,12 +259,6 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {formatDate(contribution.contribution_date)}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {contribution.points}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {contribution.multiplier_at_creation}x
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="text-sm font-medium text-gray-900">{contribution.frozen_global_points}</div>

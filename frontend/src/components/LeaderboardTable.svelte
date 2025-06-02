@@ -20,7 +20,7 @@
       Leaderboard
     </h3>
     <p class="mt-1 max-w-2xl text-sm text-gray-500">
-      Top contributors ranked by global points
+      Top contributors ranked by points
     </p>
   </div>
   
