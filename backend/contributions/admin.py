@@ -1,4 +1,9 @@
 from django.contrib import admin
+from django.core.management import call_command
+from django.contrib import messages
+from django.http import HttpResponseRedirect
+from django.urls import reverse, path
+from django.shortcuts import render
 from .models import ContributionType, Contribution, Evidence
 from leaderboard.models import GlobalLeaderboardMultiplier
 
@@ -75,6 +80,36 @@ class ContributionAdmin(admin.ModelAdmin):
             'fields': ('notes', 'created_at', 'updated_at')
         }),
     )
+    
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('run-daily-uptime/', self.admin_site.admin_view(self.run_daily_uptime_view), name='run_daily_uptime'),
+        ]
+        return custom_urls + urls
+    
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['has_run_uptime_permission'] = request.user.is_superuser
+        return super().changelist_view(request, extra_context=extra_context)
+    
+    def run_daily_uptime_view(self, request):
+        if request.method == 'POST':
+            try:
+                # Run the command with default options
+                call_command('add_daily_uptime', '--verbose')
+                messages.success(request, 'Daily uptime update completed successfully!')
+            except Exception as e:
+                messages.error(request, f'Error running daily uptime update: {str(e)}')
+            
+            return HttpResponseRedirect(reverse('admin:contributions_contribution_changelist'))
+        
+        context = {
+            'title': 'Run Daily Uptime Update',
+            'opts': self.model._meta,
+            'has_change_permission': request.user.has_perm('contributions.change_contribution')
+        }
+        return render(request, 'admin/contributions/run_daily_uptime.html', context)
 
 
 @admin.register(Evidence)

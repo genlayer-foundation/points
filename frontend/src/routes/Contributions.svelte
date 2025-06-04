@@ -148,7 +148,7 @@
           All Contributions
         </h3>
         <p class="mt-1 max-w-2xl text-sm text-gray-500">
-          Recent contributions with points and multipliers
+          Recent contributions with points
         </p>
       </div>
       <div class="flex items-center gap-4 mt-2 sm:mt-0">

@@ -1,0 +1,33 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+    &rsaquo; <a href="{% url 'admin:contributions_contribution_changelist' %}">{{ opts.verbose_name_plural }}</a>
+    &rsaquo; {% trans 'Run Daily Uptime Update' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>{% trans 'Run Daily Uptime Update' %}</h1>
+
+<p>{% trans 'This will run the daily uptime update for all users.' %}</p>
+<p>{% trans 'The process will:' %}</p>
+<ul>
+    <li>{% trans 'Find all users with at least one uptime contribution' %}</li>
+    <li>{% trans 'Generate daily uptime entries from their first uptime to today' %}</li>
+    <li>{% trans 'Skip any dates that already have uptime contributions' %}</li>
+    <li>{% trans 'Apply the appropriate multipliers for each date' %}</li>
+    <li>{% trans 'Update the leaderboard rankings' %}</li>
+</ul>
+
+<form method="post">
+    {% csrf_token %}
+    <div class="submit-row">
+        <input type="submit" value="{% trans 'Run Daily Uptime Update' %}" class="default">
+        <a href="{% url 'admin:contributions_contribution_changelist' %}" class="button cancel-link">{% trans 'Cancel' %}</a>
+    </div>
+</form>
+{% endblock %}
