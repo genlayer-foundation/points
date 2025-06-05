@@ -1,0 +1,130 @@
+{% extends 'admin/base_site.html' %}
+{% load static %}
+
+{% block title %}Submission Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1>Submission Management</h1>
+    
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <p class="mb-0">
+                        <strong>Pending submissions:</strong> {{ pending_count }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <form method="get" class="form-inline">
+                <label class="mr-2">Filter by state:</label>
+                <select name="state" class="form-control mr-2" onchange="this.form.submit()">
+                    <option value="">All</option>
+                    {% for value, label in state_choices %}
+                        <option value="{{ value }}" {% if state_filter == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+                {% if state_filter %}
+                    <a href="{% url 'contributions:submission-list' %}" class="btn btn-secondary">Clear filter</a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-12">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Type</th>
+                        <th>Date</th>
+                        <th>State</th>
+                        <th>Evidence</th>
+                        <th>Reviewed By</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for submission in submissions %}
+                    <tr>
+                        <td>{{ submission.user.email }}</td>
+                        <td>{{ submission.contribution_type.name }}</td>
+                        <td>{{ submission.contribution_date|date:"Y-m-d H:i" }}</td>
+                        <td>
+                            <span class="badge badge-{% if submission.state == 'pending' %}warning{% elif submission.state == 'accepted' %}success{% elif submission.state == 'rejected' %}danger{% else %}info{% endif %}">
+                                {{ submission.get_state_display }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if submission.evidence_items.exists %}
+                                <span class="badge badge-secondary">{{ submission.evidence_items.count }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if submission.reviewed_by %}
+                                {{ submission.reviewed_by.email }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'contributions:submission-review' submission.id %}" class="btn btn-sm btn-primary">
+                                Review
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center">No submissions found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    {% if is_paginated %}
+    <div class="row">
+        <div class="col-md-12">
+            <nav aria-label="Page navigation">
+                <ul class="pagination">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if state_filter %}&state={{ state_filter }}{% endif %}">First</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if state_filter %}&state={{ state_filter }}{% endif %}">Previous</a>
+                        </li>
+                    {% endif %}
+                    
+                    <li class="page-item active">
+                        <span class="page-link">
+                            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+                    
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if state_filter %}&state={{ state_filter }}{% endif %}">Next</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if state_filter %}&state={{ state_filter }}{% endif %}">Last</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -104,6 +104,7 @@
     class="auth-button {isAuthenticated ? 'connected' : ''}" 
     on:click={handleAuth}
     disabled={loading || storeLoading}
+    data-auth-button
   >
     {#if loading || storeLoading}
       <span class="loading-spinner"></span>

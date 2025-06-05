@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.humanize',
     
     # Third-party apps
     'rest_framework',
@@ -160,6 +161,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
 
 # Media files (User-uploaded files)
 MEDIA_URL = '/media/'
@@ -209,6 +213,8 @@ CSRF_TRUSTED_ORIGINS = get_required_env('CSRF_TRUSTED_ORIGINS').split(',')
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'  # 'None' if using cross-site cookies, but requires HTTPS
 SESSION_COOKIE_AGE = 86400 * 14  # 14 days in seconds
+SESSION_COOKIE_DOMAIN = None  # Allow cookies on localhost
+SESSION_SAVE_EVERY_REQUEST = True  # Save session on every request to extend expiry
 
 # Ethereum authentication settings
 ETHEREUM_AUTH = {

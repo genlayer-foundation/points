@@ -10,6 +10,38 @@ const api = axios.create({
   withCredentials: true // Enable cookies for session-based auth
 });
 
+// Add request interceptor to ensure credentials are always sent
+api.interceptors.request.use(
+  (config) => {
+    // Ensure withCredentials is always true
+    config.withCredentials = true;
+    
+    // Don't override Content-Type for FormData
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor to handle auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 403 || error.response?.status === 401) {
+      // If we get an auth error, verify auth status
+      import('./auth.js').then(({ verifyAuth }) => {
+        verifyAuth();
+      });
+    }
+    return Promise.reject(error);
+  }
+);
+
 // API endpoints for users
 export const usersAPI = {
   getUsers: (params) => api.get('/users/', { params }),

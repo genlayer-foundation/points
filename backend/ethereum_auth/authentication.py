@@ -14,15 +14,24 @@ class EthereumAuthentication(authentication.BaseAuthentication):
     
     def authenticate(self, request):
         # Check if the session has an authenticated ethereum address
-        if not request.session.get('ethereum_address'):
+        ethereum_address = request.session.get('ethereum_address')
+        authenticated = request.session.get('authenticated', False)
+        
+        # Debug logging
+        print(f"EthereumAuthentication - Session ID: {request.session.session_key}")
+        print(f"EthereumAuthentication - Ethereum Address: {ethereum_address}")
+        print(f"EthereumAuthentication - Authenticated: {authenticated}")
+        
+        if not ethereum_address or not authenticated:
             return None
             
         try:
             # Get user with the authenticated ethereum address
-            ethereum_address = request.session.get('ethereum_address')
             user = User.objects.get(address=ethereum_address)
+            print(f"EthereumAuthentication - User found: {user.email}")
             return (user, None)
         except User.DoesNotExist:
+            print(f"EthereumAuthentication - User not found for address: {ethereum_address}")
             return None
             
 

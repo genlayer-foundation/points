@@ -6,12 +6,33 @@ from django.dispatch import receiver
 from utils.models import BaseModel
 import decimal
 import os
+import uuid
 
 def evidence_file_path(instance, filename):
     """Generate a unique file path for evidence files."""
     # Generate a unique path for each file based on user and timestamp
-    user_id = instance.contribution.user.id if instance.contribution else 'unassigned'
-    folder = f"evidence/{user_id}/{instance.id}"
+    import datetime
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    if instance.contribution:
+        user_id = instance.contribution.user.id
+        folder_type = 'contribution'
+        parent_id = instance.contribution.id
+    elif instance.submitted_contribution:
+        user_id = instance.submitted_contribution.user.id
+        folder_type = 'submission'
+        parent_id = instance.submitted_contribution.id
+    else:
+        user_id = 'unassigned'
+        folder_type = 'unknown'
+        parent_id = 'no_parent'
+    
+    # Use timestamp instead of instance.id since it's not available yet
+    folder = f"evidence/{folder_type}/{user_id}/{parent_id}"
+    # Add timestamp to filename to ensure uniqueness
+    name, ext = os.path.splitext(filename)
+    filename = f"{name}_{timestamp}{ext}"
+    
     return os.path.join(folder, filename)
 
 
@@ -149,27 +170,121 @@ def validate_multiplier_at_creation(sender, instance, **kwargs):
             instance.frozen_global_points = instance.points
 
 
+class SubmittedContribution(BaseModel):
+    """
+    Represents a contribution submission that needs staff review.
+    Once accepted, it will be converted to an actual Contribution.
+    """
+    # Use UUID for public-facing URLs
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Basic fields
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='submitted_contributions'
+    )
+    contribution_type = models.ForeignKey(
+        ContributionType,
+        on_delete=models.CASCADE,
+        related_name='submitted_contributions'
+    )
+    contribution_date = models.DateTimeField(
+        help_text="Date when the contribution was made"
+    )
+    notes = models.TextField(blank=True)
+    
+    # State management
+    STATE_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('more_info_needed', 'More Information Needed')
+    ]
+    state = models.CharField(
+        max_length=20,
+        choices=STATE_CHOICES,
+        default='pending'
+    )
+    
+    # Review fields
+    staff_reply = models.TextField(
+        blank=True,
+        help_text="Response from staff member"
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='reviewed_submissions'
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Link to actual contribution when accepted
+    converted_contribution = models.ForeignKey(
+        'Contribution',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='source_submission'
+    )
+    
+    # Edit tracking
+    last_edited_at = models.DateTimeField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.user} - {self.contribution_type} - {self.state}"
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Submitted Contribution"
+        verbose_name_plural = "Submitted Contributions"
+
+
 class Evidence(BaseModel):
     """
-    Represents evidence for a contribution.
+    Represents evidence for a contribution or submitted contribution.
     Can be text, a URL, or a file upload.
     """
+    # Nullable FKs to both models
     contribution = models.ForeignKey(
         'Contribution',
         on_delete=models.CASCADE,
-        related_name='evidence_items'
+        related_name='evidence_items',
+        null=True,
+        blank=True
     )
+    submitted_contribution = models.ForeignKey(
+        'SubmittedContribution',
+        on_delete=models.CASCADE,
+        related_name='evidence_items',
+        null=True,
+        blank=True
+    )
+    
     description = models.TextField(blank=True, help_text="Description of the evidence")
     url = models.URLField(blank=True, help_text="Link to external evidence")
     file = models.FileField(upload_to=evidence_file_path, blank=True, null=True, help_text="Upload file as evidence")
     
     def __str__(self):
-        return f"Evidence for {self.contribution}"
+        if self.contribution:
+            return f"Evidence for {self.contribution}"
+        elif self.submitted_contribution:
+            return f"Evidence for submitted: {self.submitted_contribution}"
+        return "Evidence (unlinked)"
     
     def clean(self):
         """Validate that at least one of description, url, or file is provided."""
         super().clean()
         
+        # Validate that evidence belongs to exactly one parent
+        if self.contribution and self.submitted_contribution:
+            raise ValidationError("Evidence can only belong to either a contribution or a submitted contribution, not both.")
+        if not self.contribution and not self.submitted_contribution:
+            raise ValidationError("Evidence must belong to either a contribution or a submitted contribution.")
+        
+        # Validate that at least one evidence type is provided
         if not self.description and not self.url and not self.file:
             raise ValidationError("At least one of description, URL, or file must be provided for evidence.")
         

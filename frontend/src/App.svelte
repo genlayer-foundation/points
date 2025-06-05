@@ -10,6 +10,9 @@
   import ContributionTypeDetail from './routes/ContributionTypeDetail.svelte';
   import BadgeDetail from './routes/BadgeDetail.svelte';
   import Validators from './routes/Validators.svelte';
+  import SubmitContribution from './routes/SubmitContribution.svelte';
+  import MySubmissions from './routes/MySubmissions.svelte';
+  import EditSubmission from './routes/EditSubmission.svelte';
   import NotFound from './routes/NotFound.svelte';
   
   // Define routes
@@ -21,6 +24,9 @@
     '/participant/:address': ParticipantProfile,
     '/contribution-type/:id': ContributionTypeDetail,
     '/badge/:id': BadgeDetail,
+    '/submit-contribution': SubmitContribution,
+    '/my-submissions': MySubmissions,
+    '/contributions/:id': EditSubmission,
     '*': NotFound
   };
   

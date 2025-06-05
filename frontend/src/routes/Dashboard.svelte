@@ -4,6 +4,8 @@
   import LeaderboardTable from '../components/LeaderboardTable.svelte';
   import ContributionsList from '../components/ContributionsList.svelte';
   import { leaderboardAPI, contributionsAPI, usersAPI, statsAPI } from '../lib/api';
+  import { authState } from '../lib/auth.js';
+  import { push } from 'svelte-spa-router';
   
   // State management
   let leaderboard = $state([]);
@@ -95,7 +97,20 @@
 </script>
 
 <div class="space-y-6">
-  <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+  <div class="flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+    {#if $authState.isAuthenticated}
+      <button
+        onclick={() => push('/submit-contribution')}
+        class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 flex items-center gap-2"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+        </svg>
+        Submit Contribution
+      </button>
+    {/if}
+  </div>
   
   <!-- Connection error message if needed -->
   {#if statsError || leaderboardError || contributionsError}

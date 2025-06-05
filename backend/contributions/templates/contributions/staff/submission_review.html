@@ -1,0 +1,308 @@
+{% extends 'admin/base_site.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Review Submission{% endblock %}
+
+{% block extrahead %}
+<script>
+    // Store global multipliers data
+    window.globalMultipliers = {{ global_multipliers_json|safe }};
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        const stateSelect = document.getElementById('id_state');
+        const pointsGroup = document.getElementById('points-group');
+        const contributionTypeSelect = document.getElementById('id_contribution_type');
+        
+        function togglePointsField() {
+            if (stateSelect.value === 'accepted') {
+                pointsGroup.style.display = 'block';
+                document.getElementById('id_points').required = true;
+            } else {
+                pointsGroup.style.display = 'none';
+                document.getElementById('id_points').required = false;
+            }
+        }
+        
+        function updateContributionTypeInfo() {
+            const selectedId = contributionTypeSelect.value;
+            if (!selectedId) return;
+            
+            // Find the multiplier info for this type
+            const multiplierInfo = window.globalMultipliers.find(m => m.contribution_type_id == selectedId);
+            if (multiplierInfo) {
+                document.getElementById('current-multiplier').textContent = multiplierInfo.multiplier + 'x';
+                document.getElementById('points-range').textContent = multiplierInfo.min_points + '-' + multiplierInfo.max_points;
+                
+                // Update points field constraints
+                const pointsField = document.getElementById('id_points');
+                if (pointsField) {
+                    pointsField.min = multiplierInfo.min_points;
+                    pointsField.max = multiplierInfo.max_points;
+                    pointsField.placeholder = multiplierInfo.min_points + '-' + multiplierInfo.max_points + ' points';
+                }
+                
+                // Update description if exists
+                const descElem = document.getElementById('type-description');
+                if (descElem) {
+                    if (multiplierInfo.description) {
+                        descElem.innerHTML = '<strong>Description:</strong> ' + multiplierInfo.description;
+                        descElem.style.display = 'block';
+                    } else {
+                        descElem.style.display = 'none';
+                    }
+                }
+            }
+        }
+        
+        stateSelect.addEventListener('change', togglePointsField);
+        contributionTypeSelect.addEventListener('change', updateContributionTypeInfo);
+        
+        togglePointsField();
+        updateContributionTypeInfo();
+        
+        // Format datetime field value
+        const datetimeField = document.getElementById('id_contribution_date');
+        if (datetimeField && datetimeField.value) {
+            // Convert to local datetime format for the input
+            const date = new Date(datetimeField.value);
+            const localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+            datetimeField.value = localDateTime;
+        }
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <a href="{% url 'contributions:submission-list' %}" class="btn btn-secondary">← Back to list</a>
+            {% if next_submission %}
+                <a href="{% url 'contributions:submission-review' next_submission.id %}" class="btn btn-info float-right">
+                    Next pending submission →
+                </a>
+            {% endif %}
+        </div>
+    </div>
+    
+    <h1>Review Submission</h1>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3>Contribution Details</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <dl>
+                                    <dt>User:</dt>
+                                    <dd>{{ submission.user.email }} ({{ submission.user.name|default:"No name" }})</dd>
+                                    
+                                    <dt>Current State:</dt>
+                                    <dd>
+                                        <span class="badge badge-{% if submission.state == 'pending' %}warning{% elif submission.state == 'accepted' %}success{% elif submission.state == 'rejected' %}danger{% else %}info{% endif %}">
+                                            {{ submission.get_state_display }}
+                                        </span>
+                                    </dd>
+                                    
+                                    <dt>Submitted:</dt>
+                                    <dd>{{ submission.created_at|date:"Y-m-d H:i:s" }}</dd>
+                                </dl>
+                            </div>
+                            <div class="col-md-6">
+                                {% if submission.reviewed_by %}
+                                <dl>
+                                    <dt>Reviewed By:</dt>
+                                    <dd>{{ submission.reviewed_by.email }} on {{ submission.reviewed_at|date:"Y-m-d H:i:s" }}</dd>
+                                </dl>
+                                {% endif %}
+                                
+                                {% if submission.last_edited_at %}
+                                <dl>
+                                    <dt>Last Edited:</dt>
+                                    <dd>{{ submission.last_edited_at|date:"Y-m-d H:i:s" }}</dd>
+                                </dl>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.contribution_type.id_for_label }}">{{ form.contribution_type.label }}</label>
+                            {{ form.contribution_type }}
+                            <div class="mt-2 p-2 bg-light rounded">
+                                <small>
+                                    <strong>Points Range:</strong> <span id="points-range">-</span><br>
+                                    <strong>Current Multiplier:</strong> <span id="current-multiplier">-</span><br>
+                                    <span id="type-description" style="display: none;"></span>
+                                </small>
+                            </div>
+                            {% if form.contribution_type.errors %}
+                                <div class="text-danger">{{ form.contribution_type.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.contribution_date.id_for_label }}">{{ form.contribution_date.label }}</label>
+                            {{ form.contribution_date }}
+                            {% if form.contribution_date.errors %}
+                                <div class="text-danger">{{ form.contribution_date.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+                            {{ form.notes }}
+                            {% if form.notes.errors %}
+                                <div class="text-danger">{{ form.notes.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        {% if submission.staff_reply %}
+                        <div class="alert alert-warning">
+                            <h5>Previous Staff Reply</h5>
+                            {{ submission.staff_reply|linebreaks }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3>Review Action</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="{{ form.state.id_for_label }}">{{ form.state.label }}</label>
+                            {{ form.state }}
+                            {% if form.state.help_text %}
+                                <small class="form-text text-muted">{{ form.state.help_text }}</small>
+                            {% endif %}
+                            {% if form.state.errors %}
+                                <div class="text-danger">{{ form.state.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group" id="points-group" style="display: none;">
+                            <label for="{{ form.points.id_for_label }}">{{ form.points.label }}</label>
+                            {{ form.points }}
+                            <small class="form-text text-muted">
+                                Points will be assigned based on the selected contribution type's allowed range
+                            </small>
+                            {% if form.points.errors %}
+                                <div class="text-danger">{{ form.points.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.staff_reply.id_for_label }}">{{ form.staff_reply.label }}</label>
+                            {{ form.staff_reply }}
+                            <small class="form-text text-muted">
+                                Required when rejecting or requesting more information
+                            </small>
+                            {% if form.staff_reply.errors %}
+                                <div class="text-danger">{{ form.staff_reply.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+                        
+                        <button type="submit" name="save" class="btn btn-primary">
+                            Save Review
+                        </button>
+                        
+                        {% if next_submission %}
+                        <button type="submit" name="review_next" class="btn btn-success">
+                            Save & Review Next
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3>Evidence ({{ evidence_items.count }})</h3>
+                </div>
+                <div class="card-body">
+                    {% if evidence_items %}
+                        {% for evidence in evidence_items %}
+                        <div class="border p-3 mb-3">
+                            <div class="row">
+                                <div class="col-md-12">
+                                    {% if evidence.description %}
+                                        <div class="mb-2">
+                                            <strong>Description:</strong><br>
+                                            {{ evidence.description|linebreaks }}
+                                        </div>
+                                    {% endif %}
+                                    {% if evidence.url %}
+                                        <div class="mb-2">
+                                            <strong>URL:</strong><br>
+                                            <a href="{{ evidence.url }}" target="_blank" class="text-primary">{{ evidence.url }}</a>
+                                        </div>
+                                    {% endif %}
+                                    {% if evidence.file %}
+                                        <div class="mb-2">
+                                            <strong>File:</strong><br>
+                                            <a href="{{ evidence.file.url }}" target="_blank" class="btn btn-sm btn-secondary">
+                                                <i class="fas fa-download"></i> Download {{ evidence.file.name|default:"file" }}
+                                            </a>
+                                            <small class="text-muted ml-2">({{ evidence.file.size|filesizeformat }})</small>
+                                        </div>
+                                    {% endif %}
+                                    <div class="text-muted small">
+                                        Uploaded: {{ evidence.created_at|date:"Y-m-d H:i:s" }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No evidence provided for this submission.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Current Global Multipliers</h3>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Points</th>
+                                <th>Multiplier</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for multiplier in global_multipliers %}
+                            <tr {% if multiplier.contribution_type_id == submission.contribution_type.id %}class="table-info"{% endif %}>
+                                <td>{{ multiplier.contribution_type_name }}</td>
+                                <td>{{ multiplier.min_points }}-{{ multiplier.max_points }}</td>
+                                <td>{{ multiplier.multiplier }}x</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

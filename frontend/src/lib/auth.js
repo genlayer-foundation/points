@@ -80,6 +80,14 @@ const createAuthStore = () => {
 
 const authState = createAuthStore();
 
+// Create axios instance for auth endpoints with credentials
+const authAxios = axios.create({
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 // Authentication API endpoints (relative to base URL, not api/v1)
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_ENDPOINTS = {
@@ -128,7 +136,7 @@ export async function connectWallet() {
  */
 export async function getNonce() {
   try {
-    const response = await axios.get(API_ENDPOINTS.NONCE);
+    const response = await authAxios.get(API_ENDPOINTS.NONCE);
     return response.data.nonce;
   } catch (error) {
     // Use a specific error message for this case
@@ -151,7 +159,7 @@ export async function createAndSignMessage(address, nonce) {
   const messageToSign = `${domain} wants you to sign in with your Ethereum account:
 ${address}
 
-Sign in with Ethereum to Tally
+Sign in with Ethereum to GenLayer Testnet Contributions
 
 URI: ${origin}
 Version: 1
@@ -189,13 +197,30 @@ export async function signInWithEthereum() {
     const { message, signature } = await createAndSignMessage(address, nonce);
     
     // Send to backend for verification
-    const response = await axios.post(API_ENDPOINTS.LOGIN, {
+    console.log('Sending login request to:', API_ENDPOINTS.LOGIN);
+    const response = await authAxios.post(API_ENDPOINTS.LOGIN, {
       message,
       signature
     });
+    console.log('Login response:', response.data);
     
     // Update auth state
     authState.setAuthenticated(true, address);
+    
+    // Immediately verify the auth worked
+    setTimeout(() => {
+      verifyAuth();
+    }, 100);
+    
+    // Check for redirect after login
+    const redirectPath = sessionStorage.getItem('redirectAfterLogin');
+    if (redirectPath) {
+      sessionStorage.removeItem('redirectAfterLogin');
+      // Import push dynamically to avoid circular dependencies
+      import('svelte-spa-router').then(({ push }) => {
+        push(redirectPath);
+      });
+    }
     
     return response.data;
   } catch (error) {
@@ -213,7 +238,9 @@ export async function signInWithEthereum() {
  */
 export async function verifyAuth() {
   try {
-    const response = await axios.get(API_ENDPOINTS.VERIFY);
+    console.log('Verifying auth at:', API_ENDPOINTS.VERIFY);
+    const response = await authAxios.get(API_ENDPOINTS.VERIFY);
+    console.log('Auth verification response:', response.data);
     const isAuthenticated = response.data.authenticated;
     const address = response.data.address || null;
     
@@ -222,6 +249,7 @@ export async function verifyAuth() {
     
     return isAuthenticated;
   } catch (error) {
+    console.error('Auth verification failed:', error);
     authState.setAuthenticated(false, null);
     return false;
   }
@@ -233,7 +261,7 @@ export async function verifyAuth() {
  */
 export async function logout() {
   try {
-    await axios.post(API_ENDPOINTS.LOGOUT);
+    await authAxios.post(API_ENDPOINTS.LOGOUT);
   } catch (error) {
     console.error('Logout error:', error);
   } finally {
@@ -248,7 +276,7 @@ export async function logout() {
  */
 export async function refreshSession() {
   try {
-    await axios.post(API_ENDPOINTS.REFRESH);
+    await authAxios.post(API_ENDPOINTS.REFRESH);
     return true;
   } catch (error) {
     // If refresh fails, verify auth state again
@@ -258,6 +286,21 @@ export async function refreshSession() {
 }
 
 // Initialize auth state on page load
-verifyAuth().catch(console.error);
+if (typeof window !== 'undefined') {
+  // Only verify auth in browser environment
+  verifyAuth().catch(console.error);
+  
+  // Set up periodic session refresh to keep user logged in
+  setInterval(async () => {
+    const state = authState.get();
+    if (state.isAuthenticated) {
+      try {
+        await refreshSession();
+      } catch (error) {
+        console.error('Session refresh failed:', error);
+      }
+    }
+  }, 5 * 60 * 1000); // Refresh every 5 minutes
+}
 
 export { authState };

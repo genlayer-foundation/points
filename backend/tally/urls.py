@@ -58,6 +58,9 @@ urlpatterns = [
     # Ethereum Authentication
     path('api/auth/', include('ethereum_auth.urls')),
     
+    # Contributions app (includes both API and staff views)
+    path('contributions/', include('contributions.urls')),
+    
     # API documentation
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),

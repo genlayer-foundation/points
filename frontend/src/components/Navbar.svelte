@@ -1,6 +1,7 @@
 <script>
   import { push, location } from 'svelte-spa-router';
   import AuthButton from './AuthButton.svelte';
+  import { authState } from '../lib/auth.js';
   
   
   let isMenuOpen = $state(false);
@@ -14,6 +15,18 @@
     isMenuOpen = false;
   }
   
+  function handleSubmitContribution() {
+    if ($authState.isAuthenticated) {
+      navigate('/submit-contribution');
+    } else {
+      // Store the intended destination
+      sessionStorage.setItem('redirectAfterLogin', '/submit-contribution');
+      // Trigger login by programmatically clicking the auth button
+      const authButton = document.querySelector('[data-auth-button]');
+      if (authButton) authButton.click();
+    }
+  }
+  
   // Check if a route is active
   function isActive(path) {
     return $location === path;
@@ -25,8 +38,8 @@
     <div class="flex justify-between h-16">
       <div class="flex items-center">
         <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex-shrink-0 flex items-center">
-          <img class="h-8 w-8" src="/assets/logo.svg" alt="Tally Logo" />
-          <span class="ml-2 text-xl font-bold text-primary-700">Tally</span>
+          <img class="h-8 w-8" src="/assets/logo.svg" alt="GenLayer Logo" />
+          <span class="ml-2 text-xl font-bold text-primary-700">GenLayer Testnet Contributions</span>
         </a>
       </div>
       
@@ -45,6 +58,12 @@
         >
           Contributions
         </a>
+        <button 
+          onclick={handleSubmitContribution}
+          class="px-3 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+        >
+          Submit Contribution
+        </button>
         <div class="ml-4 flex items-center space-x-4">
           <AuthButton />
         </div>
@@ -86,6 +105,12 @@
         >
           Contributions
         </a>
+        <button 
+          onclick={handleSubmitContribution}
+          class="block w-full text-left px-3 py-2 rounded-md text-base font-medium bg-primary-600 text-white hover:bg-primary-700"
+        >
+          Submit Contribution
+        </button>
         <div class="px-3 py-2">
           <AuthButton />
         </div>

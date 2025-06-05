@@ -131,13 +131,20 @@ def login(request):
         # Store the ethereum address in the session
         request.session['ethereum_address'] = ethereum_address
         request.session['authenticated'] = True
+        request.session.save()  # Explicitly save the session
+        
+        # Debug logging
+        print(f"Login - Session ID: {request.session.session_key}")
+        print(f"Login - Setting ethereum_address: {ethereum_address}")
+        print(f"Login - Session data: {dict(request.session)}")
         
         # Return the authenticated user
         return Response({
             'authenticated': True,
             'address': ethereum_address,
             'user_id': user.id,
-            'created': created
+            'created': created,
+            'session_key': request.session.session_key  # For debugging
         })
         
     except Exception as e:
@@ -156,13 +163,20 @@ def verify_auth(request):
     ethereum_address = request.session.get('ethereum_address')
     authenticated = request.session.get('authenticated', False)
     
+    # Debug logging
+    print(f"Verify - Session ID: {request.session.session_key}")
+    print(f"Verify - Ethereum Address: {ethereum_address}")
+    print(f"Verify - Authenticated: {authenticated}")
+    print(f"Verify - Session data: {dict(request.session)}")
+    
     if authenticated and ethereum_address:
         try:
             user = User.objects.get(address=ethereum_address)
             return Response({
                 'authenticated': True,
                 'address': ethereum_address,
-                'user_id': user.id
+                'user_id': user.id,
+                'session_key': request.session.session_key  # For debugging
             })
         except User.DoesNotExist:
             pass

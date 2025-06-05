@@ -7,7 +7,7 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['id', 'email', 'name', 'address', 'leaderboard_entry', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'address', 'leaderboard_entry', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_leaderboard_entry(self, obj):

@@ -1,5 +1,20 @@
 # Tally: GenLayer Testnet Program Tracking System
 
+## Svelte 5 Important Notes
+
+### Runes Mode and Props
+The frontend uses Svelte 5 with runes mode enabled. This means:
+- **DO NOT use `export let` for props** - This will cause an error
+- **ALWAYS use `$props()` instead** for component props
+
+```javascript
+// ❌ WRONG - This will cause an error in runes mode
+export let params = {};
+
+// ✅ CORRECT - Use $props() in Svelte 5
+let { params = {} } = $props();
+```
+
 ## Environment Setup
 
 ### Frontend Development
