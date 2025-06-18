@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import api, { usersAPI, leaderboardAPI } from '../lib/api';
+  import { getBannedValidators } from '../lib/blockchain';
   
   // State variables
   let validators = $state([]);
@@ -17,13 +18,13 @@
       loading = true;
       error = null;
       
-      // Fetch all active validators
-      const activeRes = await api.get('/users/validators/');
-      const activeValidators = activeRes.data;
+      // Fetch active validators from backend and banned validators from blockchain in parallel
+      const [activeRes, bannedValidators] = await Promise.all([
+        api.get('/users/validators/'),
+        getBannedValidators()
+      ]);
       
-      // Fetch all banned validators
-      const bannedRes = await api.get('/users/banned-validators/');
-      const bannedValidators = bannedRes.data;
+      const activeValidators = activeRes.data;
       
       // Get all unique validator addresses
       const allAddresses = [...new Set([...activeValidators, ...bannedValidators])];

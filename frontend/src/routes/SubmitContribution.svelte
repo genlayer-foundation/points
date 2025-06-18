@@ -47,12 +47,7 @@
   }
   
   function removeEvidenceSlot(index) {
-    if (evidenceSlots.length > 1) {
-      evidenceSlots = evidenceSlots.filter((_, i) => i !== index);
-    } else {
-      // Reset the last slot instead of removing it
-      evidenceSlots[0] = { id: Date.now(), description: '', url: '', file: null };
-    }
+    evidenceSlots = evidenceSlots.filter((_, i) => i !== index);
   }
   
   function handleFileChange(event, index) {
@@ -211,18 +206,16 @@
               <div class="border border-gray-300 rounded-md p-4 {hasEvidenceInSlot(slot) ? 'bg-green-50 border-green-300' : 'bg-white'}">
                 <div class="flex justify-between items-start mb-3">
                   <h4 class="font-medium text-sm">Evidence #{index + 1}</h4>
-                  {#if evidenceSlots.length > 1 || hasEvidenceInSlot(slot)}
-                    <button
-                      type="button"
-                      onclick={() => removeEvidenceSlot(index)}
-                      class="text-red-600 hover:text-red-800 text-sm"
-                    >
-                      Remove
-                    </button>
-                  {/if}
+                  <button
+                    type="button"
+                    onclick={() => removeEvidenceSlot(index)}
+                    class="text-red-600 hover:text-red-800 text-sm"
+                  >
+                    Remove
+                  </button>
                 </div>
                 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div class="space-y-3">
                   <div>
                     <label for="evidence_description_{slot.id}" class="block text-sm text-gray-700 mb-1">
                       Description
@@ -236,32 +229,34 @@
                     />
                   </div>
                   
-                  <div>
-                    <label for="evidence_url_{slot.id}" class="block text-sm text-gray-700 mb-1">
-                      URL
-                    </label>
-                    <input
-                      type="url"
-                      id="evidence_url_{slot.id}"
-                      bind:value={slot.url}
-                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="https://example.com"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label for="evidence_file_{slot.id}" class="block text-sm text-gray-700 mb-1">
-                      File
-                    </label>
-                    <input
-                      type="file"
-                      id="evidence_file_{slot.id}"
-                      onchange={(e) => handleFileChange(e, index)}
-                      class="w-full text-sm"
-                    />
-                    {#if slot.file}
-                      <p class="text-xs text-gray-600 mt-1">{slot.file.name}</p>
-                    {/if}
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label for="evidence_url_{slot.id}" class="block text-sm text-gray-700 mb-1">
+                        URL
+                      </label>
+                      <input
+                        type="url"
+                        id="evidence_url_{slot.id}"
+                        bind:value={slot.url}
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        placeholder="https://example.com"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label for="evidence_file_{slot.id}" class="block text-sm text-gray-700 mb-1">
+                        File
+                      </label>
+                      <input
+                        type="file"
+                        id="evidence_file_{slot.id}"
+                        onchange={(e) => handleFileChange(e, index)}
+                        class="w-full text-sm"
+                      />
+                      {#if slot.file}
+                        <p class="text-xs text-gray-600 mt-1">{slot.file.name}</p>
+                      {/if}
+                    </div>
                   </div>
                 </div>
               </div>
