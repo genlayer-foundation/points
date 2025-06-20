@@ -6,6 +6,7 @@
   import Sidebar from './components/Sidebar.svelte';
   import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
+  import Leaderboard from './routes/Leaderboard.svelte';
   import ParticipantProfile from './routes/ParticipantProfile.svelte';
   import ContributionTypeDetail from './routes/ContributionTypeDetail.svelte';
   import BadgeDetail from './routes/BadgeDetail.svelte';
@@ -19,7 +20,7 @@
   const routes = {
     '/': Dashboard,
     '/contributions': Contributions,
-    '/leaderboard': Dashboard, // For now, just redirect to Dashboard which contains the leaderboard
+    '/leaderboard': Leaderboard,
     '/validators': Validators,
     '/participant/:address': ParticipantProfile,
     '/contribution-type/:id': ContributionTypeDetail,

@@ -158,19 +158,14 @@ def update_user_leaderboard_entry(user):
 def update_all_ranks():
     """
     Update the ranks for all leaderboard entries.
+    
+    Users with the same points will have consecutive ranks.
+    For example: if two users have 100 points, they will be ranked 1 and 2,
+    not both as rank 1.
     """
-    entries = LeaderboardEntry.objects.all().order_by('-total_points')
-    rank = 1
+    entries = LeaderboardEntry.objects.all().order_by('-total_points', 'user__name')
     
     for i, entry in enumerate(entries):
-        # If this entry has the same points as the previous one, give it the same rank
-        if i > 0 and entry.total_points == entries[i-1].total_points:
-            entry.rank = entries[i-1].rank
-        else:
-            entry.rank = rank
-        
+        # Simple consecutive ranking: each user gets i+1 as their rank
+        entry.rank = i + 1
         entry.save(update_fields=['rank'])
-        
-        # Only increment rank if the next entry will have a different rank
-        if i < len(entries) - 1 and entry.total_points != entries[i+1].total_points:
-            rank += 1

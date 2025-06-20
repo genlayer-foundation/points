@@ -48,6 +48,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['user__email', 'user__name']
     ordering_fields = ['rank', 'total_points', 'updated_at']
     ordering = ['rank']
+    pagination_class = None  # Disable pagination to return all entries
     
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAdminUser])
     def recalculate(self, request):

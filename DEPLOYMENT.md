@@ -60,6 +60,8 @@ VALIDATOR_RPC_URL=https://genlayer-testnet.rpc.caldera.xyz/http
 ```
 VITE_API_URL=https://your-apprunner-url.amazonaws.com
 VITE_APP_NAME=Tally
+VITE_VALIDATOR_RPC_URL=https://genlayer-testnet.rpc.caldera.xyz/http
+VITE_VALIDATOR_CONTRACT_ADDRESS=0x143d20974FA35f72B8103f54D8A47F2991940d99
 ```
 
 ### 4. Update CORS Settings

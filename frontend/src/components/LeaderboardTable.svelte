@@ -1,9 +1,14 @@
 <script>
   import { push } from 'svelte-spa-router';
   
-  export let entries = [];
-  export let loading = false;
-  export let error = null;
+  let { 
+    entries = [],
+    loading = false,
+    error = null,
+    showHeader = true,
+    title = 'Leaderboard',
+    subtitle = 'Top contributors ranked by points'
+  } = $props();
   
   // Helper for rank styling
   function getRankClass(rank) {
@@ -15,14 +20,16 @@
 </script>
 
 <div class="bg-white shadow overflow-hidden rounded-lg">
-  <div class="px-4 py-5 sm:px-6">
-    <h3 class="text-lg leading-6 font-medium text-gray-900">
-      Leaderboard
-    </h3>
-    <p class="mt-1 max-w-2xl text-sm text-gray-500">
-      Top contributors ranked by points
-    </p>
-  </div>
+  {#if showHeader}
+    <div class="px-4 py-5 sm:px-6">
+      <h3 class="text-lg leading-6 font-medium text-gray-900">
+        {title}
+      </h3>
+      <p class="mt-1 max-w-2xl text-sm text-gray-500">
+        {subtitle}
+      </p>
+    </div>
+  {/if}
   
   {#if loading}
     <div class="flex justify-center items-center p-8">

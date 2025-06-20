@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import api from '../lib/api';
+  import { getBannedValidators } from '../lib/blockchain';
   
   // Props using Svelte 5 runes
   const { address = '' } = $props();
@@ -28,13 +29,12 @@
       // Normalize the address
       const normalizedAddress = address.toLowerCase();
       
-      // Fetch all active validators
+      // Fetch all active validators from the API (still using backend for this)
       const activeRes = await api.get('/users/validators/');
       const activeValidators = activeRes.data;
       
-      // Fetch all banned validators
-      const bannedRes = await api.get('/users/banned-validators/');
-      const bannedValidators = bannedRes.data;
+      // Fetch banned validators directly from the blockchain
+      const bannedValidators = await getBannedValidators();
       
       // Check if this address is in either list
       isActive = activeValidators.includes(normalizedAddress);

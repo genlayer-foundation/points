@@ -22,5 +22,7 @@ applications:
             # Add your API endpoint here after App Runner deployment
             VITE_API_URL: https://tally-backend.33qpgck0g28d0.us-east-1.cs.amazonlightsail.com
             VITE_APP_NAME: Tally
+            VITE_VALIDATOR_RPC_URL: https://genlayer-testnet.rpc.caldera.xyz/http
+            VITE_VALIDATOR_CONTRACT_ADDRESS: 0x143d20974FA35f72B8103f54D8A47F2991940d99
     # Backend is handled by App Runner, not Amplify
     # This configuration is for frontend-only deployment

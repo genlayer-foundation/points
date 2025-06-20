@@ -24,13 +24,17 @@
   let contributionsError = $state(null);
   let statsError = $state(null);
   
+  // Tab state
+  let activeTab = $state('leaderboard');
+  
   // Fetch data
   onMount(async () => {
     try {
       // Fetch leaderboard
       leaderboardLoading = true;
       const leaderboardRes = await leaderboardAPI.getLeaderboard();
-      leaderboard = leaderboardRes.data.results || [];
+      // API now returns unpaginated data, so it's directly in data
+      leaderboard = leaderboardRes.data || [];
       leaderboardLoading = false;
     } catch (error) {
       leaderboardError = error.message || 'Failed to load leaderboard';
@@ -152,21 +156,82 @@
     />
   </div>
   
-  <!-- Leaderboard Section -->
-  <LeaderboardTable
-    entries={(leaderboard || []).slice(0, 10)} 
-    loading={leaderboardLoading}
-    error={leaderboardError}
-  />
+  <!-- Tab Navigation (Transparent) -->
+  <div class="border-b border-gray-200">
+    <nav class="-mb-px flex space-x-4 sm:space-x-8" aria-label="Tabs">
+      <button
+        onclick={() => activeTab = 'leaderboard'}
+        class="
+          {activeTab === 'leaderboard' 
+            ? 'border-primary-500 text-primary-600' 
+            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} 
+          whitespace-nowrap py-3 sm:py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex-1 sm:flex-initial
+        "
+      >
+        <div class="flex items-center justify-center sm:justify-start gap-1 sm:gap-2">
+          <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+          </svg>
+          <span class="text-xs sm:text-sm">Leaderboard</span>
+        </div>
+      </button>
+      
+      <button
+        onclick={() => activeTab = 'contributions'}
+        class="
+          {activeTab === 'contributions' 
+            ? 'border-primary-500 text-primary-600' 
+            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} 
+          whitespace-nowrap py-3 sm:py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex-1 sm:flex-initial
+        "
+      >
+        <div class="flex items-center justify-center sm:justify-start gap-1 sm:gap-2">
+          <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <span class="text-xs sm:text-sm">Recent</span>
+        </div>
+      </button>
+    </nav>
+  </div>
   
-  <!-- Recent Contributions Section -->
-  <div>
-    <h2 class="text-xl font-semibold text-gray-900 mb-4">Recent Contributions</h2>
-    <ContributionsList
-      contributions={contributions || []}
-      loading={contributionsLoading}
-      error={contributionsError}
-      showUser={true}
-    />
+  <!-- Tab Content -->
+  <div class="mt-6">
+    {#if activeTab === 'leaderboard'}
+      <div class="space-y-4">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+          <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Top Contributors</h2>
+          <button
+            onclick={() => push('/leaderboard')}
+            class="text-sm text-primary-600 hover:text-primary-700 font-medium self-start sm:self-auto"
+          >
+            View All →
+          </button>
+        </div>
+        <LeaderboardTable
+          entries={(leaderboard || []).slice(0, 10)} 
+          loading={leaderboardLoading}
+          error={leaderboardError}
+        />
+      </div>
+    {:else if activeTab === 'contributions'}
+      <div class="space-y-4">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+          <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Recent Contributions</h2>
+          <button
+            onclick={() => push('/contributions')}
+            class="text-sm text-primary-600 hover:text-primary-700 font-medium self-start sm:self-auto"
+          >
+            View All →
+          </button>
+        </div>
+        <ContributionsList
+          contributions={contributions || []}
+          loading={contributionsLoading}
+          error={contributionsError}
+          showUser={true}
+        />
+      </div>
+    {/if}
   </div>
 </div>
