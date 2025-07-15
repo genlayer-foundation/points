@@ -32,6 +32,9 @@ SERVICE_NAME=${1:-tally-backend}
 VPC_CONNECTOR_ARN=${2:-}
 REGION=${AWS_DEFAULT_REGION:-us-east-1}
 
+# Extract SSM parameter prefix from service name (remove -backend suffix)
+SSM_PREFIX="/${SERVICE_NAME%-backend}"
+
 if [ -n "$VPC_CONNECTOR_ARN" ]; then
     echo "Deploying to AWS App Runner: $SERVICE_NAME (with VPC connector)"
     echo "VPC Connector: $VPC_CONNECTOR_ARN"
@@ -39,6 +42,7 @@ else
     echo "Deploying to AWS App Runner: $SERVICE_NAME (no VPC connector)"
     echo "Note: Database connectivity will use App Runner's external networking"
 fi
+echo "Using SSM parameter prefix: $SSM_PREFIX"
 
 # Get AWS account ID
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -88,7 +92,7 @@ EOF
                 "ssm:GetParameters",
                 "ssm:GetParametersByPath"
             ],
-            "Resource": "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter/tally/*"
+            "Resource": "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter$SSM_PREFIX/*"
         }
     ]
 }
@@ -187,16 +191,16 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "DJANGO_SETTINGS_MODULE": "tally.settings"
         },
         "RuntimeEnvironmentSecrets": {
-          "SECRET_KEY": "/tally/prod/secret_key",
-          "DEBUG": "/tally/prod/debug",
-          "ALLOWED_HOSTS": "/tally/prod/allowed_hosts",
-          "DATABASE_URL": "/tally/prod/database_url",
-          "CORS_ALLOWED_ORIGINS": "/tally/prod/csrf_trusted_origins",
-          "CSRF_TRUSTED_ORIGINS": "/tally/prod/csrf_trusted_origins",
-          "SIWE_DOMAIN": "/tally/prod/siwe_domain",
-          "VALIDATOR_CONTRACT_ADDRESS": "/tally/prod/validator_contract_address",
-          "VALIDATOR_RPC_URL": "/tally/prod/validator_rpc_url",
-          "ALLOWED_CIDR_NETS": "/tally/prod/allowed_cidr_nets"
+          "SECRET_KEY": "$SSM_PREFIX/prod/secret_key",
+          "DEBUG": "$SSM_PREFIX/prod/debug",
+          "ALLOWED_HOSTS": "$SSM_PREFIX/prod/allowed_hosts",
+          "DATABASE_URL": "$SSM_PREFIX/prod/database_url",
+          "CORS_ALLOWED_ORIGINS": "$SSM_PREFIX/prod/csrf_trusted_origins",
+          "CSRF_TRUSTED_ORIGINS": "$SSM_PREFIX/prod/csrf_trusted_origins",
+          "SIWE_DOMAIN": "$SSM_PREFIX/prod/siwe_domain",
+          "VALIDATOR_CONTRACT_ADDRESS": "$SSM_PREFIX/prod/validator_contract_address",
+          "VALIDATOR_RPC_URL": "$SSM_PREFIX/prod/validator_rpc_url",
+          "ALLOWED_CIDR_NETS": "$SSM_PREFIX/prod/allowed_cidr_nets"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
@@ -258,16 +262,16 @@ else
           "DJANGO_SETTINGS_MODULE": "tally.settings"
         },
         "RuntimeEnvironmentSecrets": {
-          "SECRET_KEY": "/tally/prod/secret_key",
-          "DEBUG": "/tally/prod/debug",
-          "ALLOWED_HOSTS": "/tally/prod/allowed_hosts",
-          "DATABASE_URL": "/tally/prod/database_url",
-          "CORS_ALLOWED_ORIGINS": "/tally/prod/csrf_trusted_origins",
-          "CSRF_TRUSTED_ORIGINS": "/tally/prod/csrf_trusted_origins",
-          "SIWE_DOMAIN": "/tally/prod/siwe_domain",
-          "VALIDATOR_CONTRACT_ADDRESS": "/tally/prod/validator_contract_address",
-          "VALIDATOR_RPC_URL": "/tally/prod/validator_rpc_url",
-          "ALLOWED_CIDR_NETS": "/tally/prod/allowed_cidr_nets"
+          "SECRET_KEY": "$SSM_PREFIX/prod/secret_key",
+          "DEBUG": "$SSM_PREFIX/prod/debug",
+          "ALLOWED_HOSTS": "$SSM_PREFIX/prod/allowed_hosts",
+          "DATABASE_URL": "$SSM_PREFIX/prod/database_url",
+          "CORS_ALLOWED_ORIGINS": "$SSM_PREFIX/prod/csrf_trusted_origins",
+          "CSRF_TRUSTED_ORIGINS": "$SSM_PREFIX/prod/csrf_trusted_origins",
+          "SIWE_DOMAIN": "$SSM_PREFIX/prod/siwe_domain",
+          "VALIDATOR_CONTRACT_ADDRESS": "$SSM_PREFIX/prod/validator_contract_address",
+          "VALIDATOR_RPC_URL": "$SSM_PREFIX/prod/validator_rpc_url",
+          "ALLOWED_CIDR_NETS": "$SSM_PREFIX/prod/allowed_cidr_nets"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
