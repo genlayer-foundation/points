@@ -82,6 +82,13 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             },
             {
                 'inputs': [],
+                'name': 'getAllBannedValidators',
+                'outputs': [{'type': 'address[]', 'name': ''}],
+                'stateMutability': 'view',
+                'type': 'function'
+            },
+            {
+                'inputs': [],
                 'name': 'getValidatorBansCount',
                 'outputs': [{'type': 'uint256', 'name': ''}],
                 'stateMutability': 'view',

@@ -20,6 +20,13 @@ const VALIDATOR_CONTRACT_ABI = [
   },
   {
     inputs: [],
+    name: 'getAllBannedValidators',
+    outputs: [{ type: 'address[]', name: '' }],
+    stateMutability: 'view',
+    type: 'function'
+  },
+  {
+    inputs: [],
     name: 'getValidatorBansCount',
     outputs: [{ type: 'uint256', name: '' }],
     stateMutability: 'view',
@@ -40,31 +47,12 @@ const VALIDATOR_CONTRACT_ABI = [
  */
 export async function getBannedValidators() {
   try {
-    // Get the count of banned validators
-    const banCount = await publicClient.readContract({
+    // Get all banned validators in a single call
+    const bannedAddresses = await publicClient.readContract({
       address: CONTRACT_ADDRESS,
       abi: VALIDATOR_CONTRACT_ABI,
-      functionName: 'getValidatorBansCount',
+      functionName: 'getAllBannedValidators',
     });
-
-    if (banCount === 0n) {
-      return [];
-    }
-
-    // Fetch all banned validators in parallel
-    const bannedPromises = [];
-    for (let i = 0n; i < banCount; i++) {
-      bannedPromises.push(
-        publicClient.readContract({
-          address: CONTRACT_ADDRESS,
-          abi: VALIDATOR_CONTRACT_ABI,
-          functionName: 'validatorsBanned',
-          args: [i],
-        })
-      );
-    }
-
-    const bannedAddresses = await Promise.all(bannedPromises);
     
     // Filter out zero addresses and convert to lowercase
     return bannedAddresses
