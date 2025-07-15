@@ -41,7 +41,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     API endpoint that allows viewing the leaderboard.
     Read-only because entries are automatically created and updated.
     """
-    queryset = LeaderboardEntry.objects.all()
+    queryset = LeaderboardEntry.objects.filter(user__visible=True)
     serializer_class = LeaderboardEntrySerializer
     permission_classes = [permissions.AllowAny]  # Allow access without authentication
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -65,7 +65,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Get the top 10 users on the leaderboard.
         """
-        top_entries = LeaderboardEntry.objects.all().order_by('rank')[:10]
+        top_entries = LeaderboardEntry.objects.filter(user__visible=True).order_by('rank')[:10]
         serializer = self.get_serializer(top_entries, many=True)
         return Response(serializer.data)
         
@@ -78,9 +78,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         from contributions.models import Contribution
         from users.models import User
         
-        # Get total participants
+        # Get total participants (only visible users)
         participant_count = User.objects.filter(
-            contributions__isnull=False
+            contributions__isnull=False,
+            visible=True
         ).distinct().count()
         
         # Get total contributions

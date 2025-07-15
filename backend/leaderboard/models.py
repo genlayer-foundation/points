@@ -162,8 +162,14 @@ def update_all_ranks():
     Users with the same points will have consecutive ranks.
     For example: if two users have 100 points, they will be ranked 1 and 2,
     not both as rank 1.
+    
+    Only visible users are ranked. Non-visible users get null rank.
     """
-    entries = LeaderboardEntry.objects.all().order_by('-total_points', 'user__name')
+    # First, set all non-visible users' ranks to null
+    LeaderboardEntry.objects.filter(user__visible=False).update(rank=None)
+    
+    # Then rank only visible users
+    entries = LeaderboardEntry.objects.filter(user__visible=True).order_by('-total_points', 'user__name')
     
     for i, entry in enumerate(entries):
         # Simple consecutive ranking: each user gets i+1 as their rank

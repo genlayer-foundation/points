@@ -5,7 +5,7 @@
   import ContributionsList from '../components/ContributionsList.svelte';
   import StatCard from '../components/StatCard.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
-  import { usersAPI, statsAPI } from '../lib/api';
+  import { usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
   
   // Import route params from svelte-spa-router
   import { params } from 'svelte-spa-router';
@@ -18,6 +18,7 @@
     averagePoints: 0,
     contributionTypes: []
   });
+  let isValidatorOnly = $state(false); // Track if this is just a validator without user account
   
   let loading = $state(true);
   let error = $state(null);
@@ -78,8 +79,25 @@
       
       loading = false;
     } catch (err) {
-      error = err.message || 'Failed to load participant data';
-      loading = false;
+      // Check if it's a 404 (user not found) - for validators without accounts
+      if (err.response && err.response.status === 404) {
+        // Create a minimal participant object for validators without accounts
+        participant = {
+          address: participantAddress,
+          name: null,
+          leaderboard_entry: {
+            total_points: 0,
+            rank: null
+          },
+          created_at: null
+        };
+        isValidatorOnly = true;
+        loading = false;
+        error = null; // Clear the error since this is a valid state
+      } else {
+        error = err.message || 'Failed to load participant data';
+        loading = false;
+      }
     }
     
     // We've moved the contributions loading to the ContributionsList component
@@ -138,13 +156,21 @@
   {:else if participant}
     <div class="mb-6">
       <h1 class="text-3xl font-bold text-gray-900 flex items-center">
-        {participant.name || 'Participant'} 
-        <span class="ml-3 inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
-          Rank #{participant.leaderboard_entry?.rank || 'N/A'}
-        </span>
+        {participant.name || (isValidatorOnly ? 'Validator' : 'Participant')} 
+        {#if !isValidatorOnly && participant.visible !== false}
+          <span class="ml-3 inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
+            Rank #{participant.leaderboard_entry?.rank || 'N/A'}
+          </span>
+        {/if}
       </h1>
       <p class="mt-1 text-sm text-gray-500">
-        Wallet details and contributions
+        {#if isValidatorOnly}
+          This validator has not created an account yet
+        {:else if participant.visible === false}
+          This participant is not currently listed on the leaderboard
+        {:else}
+          Wallet details and contributions
+        {/if}
       </p>
     </div>
     
@@ -162,51 +188,65 @@
               </dd>
             </div>
           {/if}
-          <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">
-              Total Points
-            </dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-              {participant.leaderboard_entry?.total_points || 0}
-            </dd>
-          </div>
-          <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">
-              Joined
-            </dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-              {formatDate(participant.created_at)}
-            </dd>
-          </div>
+          {#if !isValidatorOnly}
+            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">
+                Total Points
+              </dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {participant.leaderboard_entry?.total_points || 0}
+              </dd>
+            </div>
+            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">
+                Joined
+              </dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {formatDate(participant.created_at)}
+              </dd>
+            </div>
+          {/if}
         </dl>
       </div>
     </div>
     
-    <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
-      <StatCard 
-        title="Total Contributions" 
-        value={contributionStats.totalContributions || contributions.length} 
-        icon={icons.contributions}
-        color="green"
-      />
-      <StatCard 
-        title="Total Points" 
-        value={participant.leaderboard_entry?.total_points || 0} 
-        icon={icons.points}
-        color="purple"
-      />
-      <StatCard 
-        title="Current Rank" 
-        value={participant.leaderboard_entry?.rank || 'N/A'} 
-        icon={icons.rank}
-        color="blue"
-      />
-    </div>
+    {#if !isValidatorOnly}
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+        <StatCard 
+          title="Total Contributions" 
+          value={contributionStats.totalContributions || 0} 
+          icon={icons.contributions}
+          color="green"
+        />
+        <StatCard 
+          title="Total Points" 
+          value={participant.leaderboard_entry?.total_points || 0} 
+          icon={icons.points}
+          color="purple"
+        />
+        <StatCard 
+          title="Current Rank" 
+          value={participant.leaderboard_entry?.rank || 'N/A'} 
+          icon={icons.rank}
+          color="blue"
+        />
+      </div>
+    {:else}
+      <!-- Simple message for validators without accounts -->
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6 text-center">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">No Account Found</h3>
+        <p class="mt-1 text-sm text-gray-500">This validator has not created an account yet.</p>
+      </div>
+    {/if}
+    
     
     
     <!-- Contribution Types Breakdown -->
-    {#if contributionStats.contributionTypes && contributionStats.contributionTypes.length > 0}
+    {#if !isValidatorOnly && contributionStats.contributionTypes && contributionStats.contributionTypes.length > 0}
       <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
         <div class="px-4 py-5 sm:px-6">
           <h3 class="text-lg leading-6 font-medium text-gray-900">
@@ -271,13 +311,15 @@
     {/if}
     
     <!-- Contributions -->
-    <div>
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">{participant.name || 'Participant'}'s Contributions</h2>
-      <ContributionsList
-        userAddress={participant.address}
-        showUser={false}
-      />
-    </div>
+    {#if !isValidatorOnly}
+      <div>
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">{participant.name || 'Participant'}'s Contributions</h2>
+        <ContributionsList
+          userAddress={participant.address}
+          showUser={false}
+        />
+      </div>
+    {/if}
   {:else}
     <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded">
       Participant not found

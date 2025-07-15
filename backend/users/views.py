@@ -14,7 +14,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     Users with visible=False are excluded from the queryset,
     except for the authenticated user viewing their own profile.
     """
-    queryset = User.objects.filter(visible=True)
+    queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]  # Allow read-only access without authentication
     lookup_field = 'address'  # Change default lookup field from 'pk' to 'address'
@@ -28,9 +28,6 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         # If the user is accessing their own profile, allow it
         if self.request.user.is_authenticated and obj.id == self.request.user.id:
             return obj
-        # Otherwise, enforce visibility rules
-        if not obj.visible:
-            self.permission_denied(self.request, message="User not found.")
         return obj
         
     @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)')
@@ -38,7 +35,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Get a user by their Ethereum wallet address
         """
-        user = get_object_or_404(User.objects.filter(visible=True), address=address)
+        user = get_object_or_404(User, address=address)
         serializer = self.get_serializer(user)
         return Response(serializer.data)
     

@@ -39,12 +39,12 @@
       }));
       
       // Get user data for validators
-      const usersRes = await usersAPI.getUsers({ limit: 100 });
+      const usersRes = await usersAPI.getUsers();
       const users = usersRes.data.results || [];
       
       // Get leaderboard data
-      const leaderboardRes = await leaderboardAPI.getLeaderboard({ limit: 100 });
-      const leaderboardEntries = leaderboardRes.data.results || [];
+      const leaderboardRes = await leaderboardAPI.getLeaderboard();
+      const leaderboardEntries = leaderboardRes.data || [];
       
       // Merge data
       validatorsWithStatus.forEach(validator => {
@@ -55,9 +55,11 @@
         }
         
         // Find leaderboard entry
-        const leaderboardEntry = leaderboardEntries.find(entry => 
-          entry.user && entry.user.address && entry.user.address.toLowerCase() === validator.address.toLowerCase()
-        );
+        const leaderboardEntry = leaderboardEntries.find(entry => {
+          // The leaderboard entry has user_details object with the address
+          const userAddress = entry.user_details?.address || entry.user?.address;
+          return userAddress && userAddress.toLowerCase() === validator.address.toLowerCase();
+        });
         if (leaderboardEntry) {
           validator.score = leaderboardEntry.total_points;
           validator.rank = leaderboardEntry.rank;
@@ -192,7 +194,11 @@
                   {/if}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">
-                  {validator.score || 0}
+                  {#if validator.user}
+                    {validator.score || 0}
+                  {:else}
+                    <span class="text-gray-400">—</span>
+                  {/if}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   {#if validator.rank}
