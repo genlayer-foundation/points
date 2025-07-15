@@ -77,7 +77,7 @@ def login(request):
         # Issued At: 2023-...
 
         message_lines = message.strip().split('\n')
-        ethereum_address = message_lines[1].lower()
+        ethereum_address = message_lines[1]
         
         # Find the nonce line and extract the value
         nonce_line = next((line for line in message_lines if line.startswith('Nonce:')), None)
@@ -107,7 +107,7 @@ def login(request):
         message_hash = encode_defunct(text=message)
         recovered_address = Account.recover_message(message_hash, signature=signature)
         
-        if recovered_address.lower() != ethereum_address:
+        if recovered_address != ethereum_address:
             return Response(
                 {'error': 'Invalid signature: address mismatch'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -117,7 +117,6 @@ def login(request):
         nonce.mark_as_used()
         
         # Get or create the user
-        ethereum_address = ethereum_address.lower()
         
         user, created = User.objects.get_or_create(
             address=ethereum_address,

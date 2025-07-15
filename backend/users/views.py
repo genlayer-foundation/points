@@ -114,11 +114,8 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             # Call getValidatorsAtCurrentEpoch function
             validators = contract.functions.getValidatorsAtCurrentEpoch().call()
             
-            # Format the validators addresses
-            validators_formatted = [addr.lower() for addr in validators]
-            
-            # Just return the list of addresses
-            return Response(validators_formatted, status=status.HTTP_200_OK)
+            # Just return the list of addresses without case conversion
+            return Response(validators, status=status.HTTP_200_OK)
             
         except Exception as e:
             return Response({
