@@ -54,10 +54,10 @@ export async function getBannedValidators() {
       functionName: 'getAllBannedValidators',
     });
     
-    // Filter out zero addresses and convert to lowercase
+    // Convert to lowercase and filter out any zero addresses
     return bannedAddresses
-      .filter(addr => addr !== '0x0000000000000000000000000000000000000000')
-      .map(addr => addr.toLowerCase());
+      .map(addr => addr.toLowerCase())
+      .filter(addr => addr !== '0x0000000000000000000000000000000000000000');
   } catch (error) {
     console.error('Error fetching banned validators:', error);
     throw error;
@@ -76,7 +76,10 @@ export async function getActiveValidators() {
       functionName: 'getValidatorsAtCurrentEpoch',
     });
 
-    return validators.map(addr => addr.toLowerCase());
+    // Convert to lowercase and filter out any zero addresses
+    return validators
+      .map(addr => addr.toLowerCase())
+      .filter(addr => addr !== '0x0000000000000000000000000000000000000000');
   } catch (error) {
     console.error('Error fetching active validators:', error);
     throw error;
