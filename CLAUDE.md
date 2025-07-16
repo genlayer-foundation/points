@@ -15,6 +15,15 @@ export let params = {};
 let { params = {} } = $props();
 ```
 
+## Git Commit Guidelines
+
+### No Attribution in Commits
+When creating git commits, **DO NOT** include Claude attribution lines such as:
+- 🤖 Generated with [Claude Code](https://claude.ai/code)
+- Co-Authored-By: Claude <noreply@anthropic.com>
+
+Keep commit messages clean and focused on the changes made.
+
 ## Environment Setup
 
 ### Frontend Development
