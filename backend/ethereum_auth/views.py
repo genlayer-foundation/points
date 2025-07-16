@@ -77,7 +77,7 @@ def login(request):
         # Issued At: 2023-...
 
         message_lines = message.strip().split('\n')
-        ethereum_address = message_lines[1]
+        ethereum_address = message_lines[1].lower()
         
         # Find the nonce line and extract the value
         nonce_line = next((line for line in message_lines if line.startswith('Nonce:')), None)
@@ -107,7 +107,7 @@ def login(request):
         message_hash = encode_defunct(text=message)
         recovered_address = Account.recover_message(message_hash, signature=signature)
         
-        if recovered_address != ethereum_address:
+        if recovered_address.lower() != ethereum_address:
             return Response(
                 {'error': 'Invalid signature: address mismatch'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -119,8 +119,9 @@ def login(request):
         # Get or create the user
         
         user, created = User.objects.get_or_create(
-            address=ethereum_address,
+            address__iexact=ethereum_address,
             defaults={
+                'address': ethereum_address,
                 'username': ethereum_address[:10],  # Use first 10 chars as username
                 'email': f'{ethereum_address[:8]}@ethereum.address',  # Generate a dummy email
                 # No name set by default for wallet-based users
@@ -170,7 +171,7 @@ def verify_auth(request):
     
     if authenticated and ethereum_address:
         try:
-            user = User.objects.get(address=ethereum_address)
+            user = User.objects.get(address__iexact=ethereum_address)
             return Response({
                 'authenticated': True,
                 'address': ethereum_address,

@@ -81,7 +81,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         # Filter by user address if provided
         user_address = self.request.query_params.get('user_address')
         if user_address:
-            queryset = queryset.filter(user__address=user_address)
+            queryset = queryset.filter(user__address__iexact=user_address)
             
         return queryset
 

@@ -169,7 +169,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         from users.models import User
         
         try:
-            user = User.objects.get(address=address)
+            user = User.objects.get(address__iexact=address)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=404)
             

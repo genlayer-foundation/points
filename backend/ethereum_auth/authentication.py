@@ -27,7 +27,7 @@ class EthereumAuthentication(authentication.BaseAuthentication):
             
         try:
             # Get user with the authenticated ethereum address
-            user = User.objects.get(address=ethereum_address)
+            user = User.objects.get(address__iexact=ethereum_address)
             print(f"EthereumAuthentication - User found: {user.email}")
             return (user, None)
         except User.DoesNotExist:

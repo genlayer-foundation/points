@@ -35,7 +35,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Get a user by their Ethereum wallet address
         """
-        user = get_object_or_404(User, address=address)
+        user = get_object_or_404(User, address__iexact=address)
         serializer = self.get_serializer(user)
         return Response(serializer.data)
     

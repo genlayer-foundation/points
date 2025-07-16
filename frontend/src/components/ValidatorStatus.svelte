@@ -26,8 +26,7 @@
       loading = true;
       error = null;
       
-      // Normalize the address
-      const normalizedAddress = address.toLowerCase();
+      // Keep original case for display
       
       // Fetch all active validators from the API (still using backend for this)
       const activeRes = await api.get('/users/validators/');
@@ -36,9 +35,9 @@
       // Fetch banned validators directly from the blockchain
       const bannedValidators = await getBannedValidators();
       
-      // Check if this address is in either list
-      isActive = activeValidators.includes(normalizedAddress);
-      isBanned = bannedValidators.includes(normalizedAddress);
+      // Check if this address is in either list (case insensitive)
+      isActive = activeValidators.some(addr => addr.toLowerCase() === address.toLowerCase());
+      isBanned = bannedValidators.some(addr => addr.toLowerCase() === address.toLowerCase());
       
       loading = false;
     } catch (err) {
