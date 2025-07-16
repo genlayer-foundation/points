@@ -4,6 +4,7 @@ from users.views import UserViewSet
 from contributions.views import ContributionTypeViewSet, ContributionViewSet, EvidenceViewSet, SubmittedContributionViewSet
 from leaderboard.views import GlobalLeaderboardMultiplierViewSet, LeaderboardViewSet
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
+from .metrics_views import ActiveValidatorsView, ContributionTypesStatsView
 
 # Create a router and register our viewsets with it
 router = DefaultRouter()
@@ -23,4 +24,8 @@ urlpatterns = [
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    
+    # Metrics endpoints
+    path('metrics/active-validators/', ActiveValidatorsView.as_view(), name='active-validators'),
+    path('metrics/contribution-types/', ContributionTypesStatsView.as_view(), name='contribution-types-stats'),
 ]

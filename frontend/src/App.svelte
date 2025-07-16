@@ -14,6 +14,7 @@
   import SubmitContribution from './routes/SubmitContribution.svelte';
   import MySubmissions from './routes/MySubmissions.svelte';
   import EditSubmission from './routes/EditSubmission.svelte';
+  import Metrics from './routes/Metrics.svelte';
   import NotFound from './routes/NotFound.svelte';
   
   // Define routes
@@ -28,6 +29,7 @@
     '/submit-contribution': SubmitContribution,
     '/my-submissions': MySubmissions,
     '/contributions/:id': EditSubmission,
+    '/metrics': Metrics,
     '*': NotFound
   };
   
