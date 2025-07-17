@@ -31,8 +31,20 @@
             // Find the multiplier info for this type
             const multiplierInfo = window.globalMultipliers.find(m => m.contribution_type_id == selectedId);
             if (multiplierInfo) {
+                // Update all display elements
                 document.getElementById('current-multiplier').textContent = multiplierInfo.multiplier + 'x';
                 document.getElementById('points-range').textContent = multiplierInfo.min_points + '-' + multiplierInfo.max_points;
+                
+                // Update points guide box
+                document.getElementById('type-name-display').textContent = multiplierInfo.contribution_type_name || '-';
+                document.getElementById('points-range-display').textContent = multiplierInfo.min_points + '-' + multiplierInfo.max_points;
+                document.getElementById('multiplier-display').textContent = multiplierInfo.multiplier + 'x';
+                document.getElementById('max-global-points').textContent = (multiplierInfo.max_points * multiplierInfo.multiplier).toFixed(0);
+                
+                // Update help text
+                document.getElementById('min-points-text').textContent = multiplierInfo.min_points;
+                document.getElementById('max-points-text').textContent = multiplierInfo.max_points;
+                document.getElementById('type-name-text').textContent = multiplierInfo.contribution_type_name || '-';
                 
                 // Update points field constraints
                 const pointsField = document.getElementById('id_points');
@@ -40,6 +52,26 @@
                     pointsField.min = multiplierInfo.min_points;
                     pointsField.max = multiplierInfo.max_points;
                     pointsField.placeholder = multiplierInfo.min_points + '-' + multiplierInfo.max_points + ' points';
+                    
+                    // Clear any existing validation errors and re-validate
+                    const currentValue = parseInt(pointsField.value);
+                    const errorDiv = document.getElementById('points-error-dynamic');
+                    const originalError = document.getElementById('points-error-original');
+                    
+                    if (originalError) {
+                        originalError.style.display = 'none';
+                    }
+                    
+                    if (!isNaN(currentValue)) {
+                        if (currentValue < multiplierInfo.min_points || currentValue > multiplierInfo.max_points) {
+                            errorDiv.textContent = `Points must be between ${multiplierInfo.min_points} and ${multiplierInfo.max_points} for ${multiplierInfo.contribution_type_name}.`;
+                            errorDiv.style.display = 'block';
+                        } else {
+                            errorDiv.style.display = 'none';
+                        }
+                    } else {
+                        errorDiv.style.display = 'none';
+                    }
                 }
                 
                 // Update description if exists
@@ -57,6 +89,37 @@
         
         stateSelect.addEventListener('change', togglePointsField);
         contributionTypeSelect.addEventListener('change', updateContributionTypeInfo);
+        
+        // Add real-time validation for points field
+        const pointsField = document.getElementById('id_points');
+        if (pointsField) {
+            pointsField.addEventListener('input', function() {
+                const selectedId = contributionTypeSelect.value;
+                if (!selectedId) return;
+                
+                const multiplierInfo = window.globalMultipliers.find(m => m.contribution_type_id == selectedId);
+                if (multiplierInfo) {
+                    const currentValue = parseInt(this.value);
+                    const errorDiv = document.getElementById('points-error-dynamic');
+                    const originalError = document.getElementById('points-error-original');
+                    
+                    if (originalError) {
+                        originalError.style.display = 'none';
+                    }
+                    
+                    if (!isNaN(currentValue)) {
+                        if (currentValue < multiplierInfo.min_points || currentValue > multiplierInfo.max_points) {
+                            errorDiv.textContent = `Points must be between ${multiplierInfo.min_points} and ${multiplierInfo.max_points} for ${multiplierInfo.contribution_type_name}.`;
+                            errorDiv.style.display = 'block';
+                        } else {
+                            errorDiv.style.display = 'none';
+                        }
+                    } else {
+                        errorDiv.style.display = 'none';
+                    }
+                }
+            });
+        }
         
         togglePointsField();
         updateContributionTypeInfo();
@@ -192,13 +255,33 @@
                         
                         <div class="form-group" id="points-group" style="display: none;">
                             <label for="{{ form.points.id_for_label }}">{{ form.points.label }}</label>
-                            {{ form.points }}
-                            <small class="form-text text-muted">
-                                Points will be assigned based on the selected contribution type's allowed range
+                            <div class="d-flex align-items-start">
+                                {{ form.points }}
+                                <div class="ml-3 bg-info text-white rounded p-3" style="min-width: 250px;">
+                                    <h6 class="mb-2 font-weight-bold">Points Guide for <span id="type-name-display">-</span></h6>
+                                    <div class="small">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span>Valid Range:</span>
+                                            <span class="font-weight-bold" id="points-range-display">-</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span>Current Multiplier:</span>
+                                            <span class="font-weight-bold" id="multiplier-display">-</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span>Max Global Points:</span>
+                                            <span class="font-weight-bold" id="max-global-points">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted" id="points-help-text">
+                                Points must be between <span id="min-points-text">-</span> and <span id="max-points-text">-</span> for <span id="type-name-text">-</span>
                             </small>
                             {% if form.points.errors %}
-                                <div class="text-danger">{{ form.points.errors }}</div>
+                                <div class="text-danger" id="points-error-original">{{ form.points.errors }}</div>
                             {% endif %}
+                            <div class="text-danger" id="points-error-dynamic" style="display: none;"></div>
                         </div>
                         
                         <div class="form-group">

@@ -10,7 +10,7 @@ class SubmissionReviewForm(forms.ModelForm):
         required=False,
         min_value=0,
         help_text="Required when accepting the submission",
-        widget=forms.NumberInput(attrs={'class': 'form-control'})
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 150px;'})
     )
     
     class Meta:
