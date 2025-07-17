@@ -86,7 +86,7 @@
           address: participantAddress,
           name: null,
           leaderboard_entry: {
-            total_points: 0,
+            total_points: null,
             rank: null
           },
           created_at: null
@@ -194,7 +194,7 @@
                 Total Points
               </dt>
               <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {participant.leaderboard_entry?.total_points || 0}
+                {participant.leaderboard_entry?.total_points ?? '—'}
               </dd>
             </div>
             <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
@@ -221,7 +221,7 @@
         />
         <StatCard 
           title="Total Points" 
-          value={participant.leaderboard_entry?.total_points || 0} 
+          value={participant.leaderboard_entry?.total_points ?? '—'} 
           icon={icons.points}
           color="purple"
         />

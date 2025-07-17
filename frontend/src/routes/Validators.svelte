@@ -35,7 +35,7 @@
         isActive: activeValidators.includes(address),
         isBanned: bannedValidators.includes(address),
         user: null,
-        score: 0
+        score: null
       }));
       
       // Get user data for validators
@@ -195,7 +195,7 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">
                   {#if validator.user}
-                    {validator.score || 0}
+                    {validator.score || '—'}
                   {:else}
                     <span class="text-gray-400">—</span>
                   {/if}
