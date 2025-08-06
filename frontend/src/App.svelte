@@ -15,6 +15,7 @@
   import MySubmissions from './routes/MySubmissions.svelte';
   import EditSubmission from './routes/EditSubmission.svelte';
   import Metrics from './routes/Metrics.svelte';
+  import Profile from './routes/Profile.svelte';
   import NotFound from './routes/NotFound.svelte';
   
   // Define routes
@@ -30,6 +31,7 @@
     '/my-submissions': MySubmissions,
     '/contributions/:id': EditSubmission,
     '/metrics': Metrics,
+    '/profile': Profile,
     '*': NotFound
   };
   
@@ -170,7 +172,7 @@
 
 <div class="min-h-screen bg-gray-50">
   <Navbar />
-    <div class="container mx-auto px-4 py-8 flex">
+    <div class="container mx-auto px-4 py-4 md:py-6 lg:py-8 flex">
       <Sidebar />
       <main class="flex-1 ml-0 md:ml-64">
         <Router 

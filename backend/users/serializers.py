@@ -2,6 +2,16 @@ from rest_framework import serializers
 from .models import User
 
 
+class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating user profile.
+    Only allows updating the name field.
+    """
+    class Meta:
+        model = User
+        fields = ['name']
+        
+
 class UserSerializer(serializers.ModelSerializer):
     leaderboard_entry = serializers.SerializerMethodField()
     
