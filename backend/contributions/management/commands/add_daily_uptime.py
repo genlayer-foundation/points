@@ -3,7 +3,7 @@ from django.utils import timezone
 from django.db import transaction
 from django.contrib.auth import get_user_model
 from contributions.models import Contribution, ContributionType
-from leaderboard.models import GlobalLeaderboardMultiplier, update_all_ranks
+from leaderboard.models import GlobalLeaderboardMultiplier, update_all_ranks, LeaderboardEntry
 from datetime import datetime, timedelta
 import pytz
 import decimal
@@ -60,6 +60,7 @@ class Command(BaseCommand):
         users_with_uptime = 0
         total_new_contributions = 0
         multiplier_errors = 0
+        users_to_update_leaderboard = []  # Track users who got new contributions
         
         # Get all users
         users = User.objects.all()
@@ -177,6 +178,9 @@ class Command(BaseCommand):
                         # Save contributions directly with all fields pre-populated
                         Contribution.objects.bulk_create(new_contributions)
                         
+                        # Track this user for leaderboard update
+                        users_to_update_leaderboard.append(user)
+                        
                         if verbose:
                             self.stdout.write(f'Added {len(new_contributions)} new contributions for {user}')
                 except Exception as e:
@@ -184,8 +188,20 @@ class Command(BaseCommand):
                         self.style.ERROR(f'Error saving contributions for {user}: {str(e)}')
                     )
         
-        # Update leaderboard ranks if we made changes
-        if total_new_contributions > 0 and not dry_run:
+        # Update leaderboard entries for all affected users
+        if users_to_update_leaderboard and not dry_run:
+            self.stdout.write('Updating leaderboard entries...')
+            for user in users_to_update_leaderboard:
+                # Get or create the leaderboard entry for this user
+                leaderboard_entry, created = LeaderboardEntry.objects.get_or_create(user=user)
+                
+                # Use the instance method to update points without updating ranks
+                total_points = leaderboard_entry.update_points_without_ranking()
+                
+                if verbose:
+                    self.stdout.write(f'Updated leaderboard for {user}: {total_points} total points')
+            
+            # Now update all ranks once, after all users have been processed
             self.stdout.write('Updating leaderboard ranks...')
             update_all_ranks()
         
