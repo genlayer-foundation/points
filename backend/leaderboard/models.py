@@ -106,6 +106,20 @@ class LeaderboardEntry(BaseModel):
     
     def __str__(self):
         return f"{self.user} - {self.total_points} points - Rank: {self.rank or 'Not ranked'}"
+    
+    def update_points_without_ranking(self):
+        """
+        Update this leaderboard entry's total points based on the user's contributions.
+        This method does NOT update ranks - useful for batch operations where ranks 
+        should be updated once at the end.
+        """
+        from contributions.models import Contribution
+        
+        total_points = Contribution.objects.filter(user=self.user).values_list('frozen_global_points', flat=True)
+        self.total_points = sum(total_points)
+        self.save(update_fields=['total_points'])
+        
+        return self.total_points
 
 
 # Signals to update leaderboard entries
@@ -153,6 +167,7 @@ def update_user_leaderboard_entry(user):
     
     # Recompute all ranks
     update_all_ranks()
+
 
 
 def update_all_ranks():
