@@ -37,14 +37,16 @@ backend/
 ### User Management
 - **Models**: `users/models.py`
   - User model with email auth, name, address fields
+  - Validator model with node_version field (OneToOne with User)
   - Custom UserManager for email-based auth
 - **Views**: `users/views.py`
-  - `/api/v1/users/me/` - GET/PATCH current user profile (only name editable)
+  - `/api/v1/users/me/` - GET/PATCH current user profile (name and node_version editable)
   - `/api/v1/users/by-address/{address}/` - Get user by wallet address
   - `/api/v1/users/validators/` - Get validator list from blockchain
 - **Serializers**: `users/serializers.py`
-  - UserSerializer - Full user data
-  - UserProfileUpdateSerializer - Only allows name updates
+  - UserSerializer - Full user data including validator info
+  - ValidatorSerializer - Validator node version and target matching
+  - UserProfileUpdateSerializer - Allows name and node_version updates
   - UserCreateSerializer - Registration
 
 ### Authentication
@@ -61,8 +63,15 @@ backend/
 ### Contributions
 - **Models**: `contributions/models.py`
   - Contribution - Individual contribution records
-  - ContributionType - Categories (Node Running, Blog Posts, etc.)
+  - ContributionType - Categories with slug field (Node Running, Blog Posts, etc.)
   - ContributionTypeMultiplier - Dynamic point multipliers
+  - Evidence - Evidence items for contributions
+
+### Node Upgrade (Sub-app)
+- **Models**: `contributions/node_upgrade/models.py`
+  - TargetNodeVersion - Active target version for node upgrades
+- **Admin**: `contributions/node_upgrade/admin.py`
+  - TargetNodeVersion admin interface
 - **Views**: `contributions/views.py`
   - `/api/v1/contributions/` - CRUD for contributions
   - `/api/v1/contribution-types/` - Contribution type management

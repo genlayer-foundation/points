@@ -1,23 +1,72 @@
 from rest_framework import serializers
-from .models import User
+from .models import User, Validator
+from contributions.node_upgrade.models import TargetNodeVersion
+
+
+class ValidatorSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Validator model.
+    """
+    matches_target = serializers.SerializerMethodField()
+    target_version = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Validator
+        fields = ['node_version', 'matches_target', 'target_version', 'updated_at']
+        read_only_fields = ['updated_at']
+    
+    def get_matches_target(self, obj):
+        """
+        Check if the validator's version matches or is higher than the target.
+        """
+        target = TargetNodeVersion.get_active()
+        if target and obj.node_version:
+            return obj.version_matches_or_higher(target.version)
+        return False
+    
+    def get_target_version(self, obj):
+        """
+        Get the current target version.
+        """
+        target = TargetNodeVersion.get_active()
+        return target.version if target else None
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     """
     Serializer for updating user profile.
-    Only allows updating the name field.
+    Allows updating name and validator node_version.
     """
+    node_version = serializers.CharField(required=False, allow_blank=True, allow_null=True, source='validator.node_version')
+    
     class Meta:
         model = User
-        fields = ['name']
+        fields = ['name', 'node_version']
+    
+    def update(self, instance, validated_data):
+        # Handle validator data if present
+        validator_data = validated_data.pop('validator', {})
+        
+        # Update user fields
+        instance.name = validated_data.get('name', instance.name)
+        instance.save()
+        
+        # Update or create validator if node_version is provided
+        if 'node_version' in validator_data:
+            validator, created = Validator.objects.get_or_create(user=instance)
+            validator.node_version = validator_data['node_version']
+            validator.save()
+        
+        return instance
         
 
 class UserSerializer(serializers.ModelSerializer):
     leaderboard_entry = serializers.SerializerMethodField()
+    validator = ValidatorSerializer(read_only=True)
     
     class Meta:
         model = User
-        fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_leaderboard_entry(self, obj):
