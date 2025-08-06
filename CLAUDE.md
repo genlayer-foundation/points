@@ -1,5 +1,12 @@
 # Tally: GenLayer Testnet Program Tracking System
 
+## 📚 Quick Reference Documentation
+**Important**: This project has detailed documentation for faster development:
+- **Backend Documentation**: See `backend/CLAUDE.md` for Django structure, API endpoints, models, and patterns
+- **Frontend Documentation**: See `frontend/CLAUDE.md` for Svelte 5 structure, routes, components, and API integration
+
+⚠️ **Keep documentation updated**: When making changes to the codebase, update the relevant CLAUDE.md file to help future development sessions.
+
 ## Svelte 5 Important Notes
 
 ### Runes Mode and Props

@@ -6,6 +6,7 @@
   import StatCard from '../components/StatCard.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import { usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
+  import { authState } from '../lib/auth';
   
   // Import route params from svelte-spa-router
   import { params } from 'svelte-spa-router';
@@ -23,10 +24,29 @@
   let loading = $state(true);
   let error = $state(null);
   let statsError = $state(null);
+  let successMessage = $state(null);
+  
+  // Check if this is the current user's profile
+  let isOwnProfile = $derived(
+    $authState.isAuthenticated && 
+    participant?.address && 
+    $authState.address?.toLowerCase() === participant.address.toLowerCase()
+  );
   
   $effect(() => {
     const currentParams = $params;
     console.log("ParticipantProfile params:", currentParams);
+    
+    // Check for success message from profile update
+    const savedMessage = sessionStorage.getItem('profileUpdateSuccess');
+    if (savedMessage) {
+      successMessage = savedMessage;
+      sessionStorage.removeItem('profileUpdateSuccess');
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => {
+        successMessage = null;
+      }, 3000);
+    }
     
     if (currentParams && currentParams.address) {
       console.log("Using params.address:", currentParams.address);
@@ -127,6 +147,24 @@
     </a>
   </div>
   
+  <!-- Success message -->
+  {#if successMessage}
+    <div class="bg-green-50 border-l-4 border-green-400 p-4 mb-6">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <p class="text-sm text-green-700">
+            {successMessage}
+          </p>
+        </div>
+      </div>
+    </div>
+  {/if}
+  
   <!-- Connection error message if needed -->
   {#if error || statsError}
     <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
@@ -155,23 +193,38 @@
     </div>
   {:else if participant}
     <div class="mb-6">
-      <h1 class="text-3xl font-bold text-gray-900 flex items-center">
-        {participant.name || (isValidatorOnly ? 'Validator' : 'Participant')} 
-        {#if !isValidatorOnly && participant.visible !== false}
-          <span class="ml-3 inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
-            Rank #{participant.leaderboard_entry?.rank || 'N/A'}
-          </span>
+      <div class="flex justify-between items-start">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900 flex items-center">
+            {participant.name || (isValidatorOnly ? 'Validator' : 'Participant')} 
+            {#if !isValidatorOnly && participant.visible !== false}
+              <span class="ml-3 inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
+                Rank #{participant.leaderboard_entry?.rank || 'N/A'}
+              </span>
+            {/if}
+          </h1>
+          <p class="mt-1 text-sm text-gray-500">
+            {#if isValidatorOnly}
+              This validator has not created an account yet
+            {:else if participant.visible === false}
+              This participant is not currently listed on the leaderboard
+            {:else}
+              Wallet details and contributions
+            {/if}
+          </p>
+        </div>
+        {#if isOwnProfile}
+          <button
+            onclick={() => push('/profile')}
+            class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 flex items-center"
+          >
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+            </svg>
+            Edit Profile
+          </button>
         {/if}
-      </h1>
-      <p class="mt-1 text-sm text-gray-500">
-        {#if isValidatorOnly}
-          This validator has not created an account yet
-        {:else if participant.visible === false}
-          This participant is not currently listed on the leaderboard
-        {:else}
-          Wallet details and contributions
-        {/if}
-      </p>
+      </div>
     </div>
     
     <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">

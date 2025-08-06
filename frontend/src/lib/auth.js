@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import axios from 'axios';
 import { writable } from 'svelte/store';
+import { userStore } from './userStore';
 
 // Create a Svelte store for authentication state
 const createAuthStore = () => {
@@ -207,6 +208,13 @@ export async function signInWithEthereum() {
     // Update auth state
     authState.setAuthenticated(true, address);
     
+    // Load user data into the store
+    try {
+      await userStore.loadUser();
+    } catch (err) {
+      console.error('Failed to load user data after login:', err);
+    }
+    
     // Immediately verify the auth worked
     setTimeout(() => {
       verifyAuth();
@@ -247,6 +255,15 @@ export async function verifyAuth() {
     // Update auth state with verification result
     authState.setAuthenticated(isAuthenticated, address);
     
+    // Load user data if authenticated
+    if (isAuthenticated) {
+      try {
+        await userStore.loadUser();
+      } catch (err) {
+        console.error('Failed to load user data during auth verification:', err);
+      }
+    }
+    
     return isAuthenticated;
   } catch (error) {
     console.error('Auth verification failed:', error);
@@ -267,6 +284,8 @@ export async function logout() {
   } finally {
     // Clear auth state using our store method
     authState.setAuthenticated(false, null);
+    // Clear user data from store
+    userStore.clearUser();
   }
 }
 

@@ -124,7 +124,9 @@ vi.mock('../lib/api', () => {
       getUser: vi.fn().mockResolvedValue(mockUserData),
       getUserByAddress: vi.fn().mockResolvedValue(mockUserData),
       getUserCount: vi.fn().mockResolvedValue({ data: { count: 10 } }),
-      getParticipantCount: vi.fn().mockResolvedValue({ data: { count: 10 } })
+      getParticipantCount: vi.fn().mockResolvedValue({ data: { count: 10 } }),
+      getCurrentUser: vi.fn().mockResolvedValue(mockUserData.data),
+      updateUserProfile: vi.fn().mockResolvedValue(mockUserData.data)
     },
     contributionsAPI: {
       getContributions: vi.fn().mockResolvedValue(mockContributionsData),
@@ -144,6 +146,9 @@ vi.mock('../lib/api', () => {
     statsAPI: {
       getDashboardStats: vi.fn().mockResolvedValue(mockStatsData),
       getUserStats: vi.fn().mockResolvedValue(mockUserStats)
-    }
+    },
+    // Add convenience exports for the new functions
+    getCurrentUser: vi.fn().mockResolvedValue(mockUserData.data),
+    updateUserProfile: vi.fn().mockResolvedValue(mockUserData.data)
   };
 });

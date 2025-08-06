@@ -52,7 +52,9 @@ export const usersAPI = {
   })),
   getParticipantCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.participant_count }
-  }))
+  })),
+  getCurrentUser: () => api.get('/users/me/'),
+  updateUserProfile: (data) => api.patch('/users/me/', data)
 };
 
 // API endpoints for contributions
@@ -81,6 +83,17 @@ export const leaderboardAPI = {
 export const statsAPI = {
   getDashboardStats: () => api.get('/leaderboard/stats/'),
   getUserStats: (address) => api.get(`/leaderboard/user_stats/by-address/${address}/`)
+};
+
+// Convenience exports for profile functions
+export const getCurrentUser = async () => {
+  const response = await usersAPI.getCurrentUser();
+  return response.data;
+};
+
+export const updateUserProfile = async (data) => {
+  const response = await usersAPI.updateUserProfile(data);
+  return response.data;
 };
 
 export default api;

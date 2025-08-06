@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from .models import User
-from .serializers import UserSerializer, UserCreateSerializer
+from .serializers import UserSerializer, UserCreateSerializer, UserProfileUpdateSerializer
 from web3 import Web3
 
 
@@ -50,14 +50,24 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             context['visible'] = self.request.data.get('visible')
         return context
     
-    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=False, methods=['get', 'patch'], permission_classes=[permissions.IsAuthenticated])
     def me(self, request):
         """
-        Get the authenticated user's profile.
+        Get or update the authenticated user's profile.
         Users can always see their own profile regardless of visibility setting.
+        For PATCH requests, only the name field can be updated.
         """
-        serializer = self.get_serializer(request.user)
-        return Response(serializer.data)
+        if request.method == 'GET':
+            serializer = self.get_serializer(request.user)
+            return Response(serializer.data)
+        elif request.method == 'PATCH':
+            serializer = UserProfileUpdateSerializer(request.user, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                # Return the full user data after update
+                full_serializer = self.get_serializer(request.user)
+                return Response(full_serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     # Registration will be handled by MetaMask authentication
     
