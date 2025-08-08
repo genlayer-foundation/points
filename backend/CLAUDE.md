@@ -174,9 +174,15 @@ python manage.py collectstatic
 - Addresses are stored lowercase but compared case-insensitively
 
 ## Testing
-- Test files: `{app}/tests.py` or `{app}/tests/`
+- **Test Organization Best Practice**: Use `{app}/tests/` folder structure for better organization
+  - Create `{app}/tests/__init__.py` to make it a Python package
+  - Separate test files by functionality: `test_models.py`, `test_views.py`, `test_forms.py`, etc.
+  - Example: `contributions/tests/test_validator_creation.py`
 - Run specific app tests: `python manage.py test {app}`
+- Run specific test file: `python manage.py test {app}.tests.test_filename`
+- Run specific test class: `python manage.py test {app}.tests.test_filename.TestClassName`
 - Test database is created/destroyed automatically
+- **Important**: Add 'testserver' to ALLOWED_HOSTS in .env for tests to work properly
 
 ## Admin Panel
 - URL: `/admin/`

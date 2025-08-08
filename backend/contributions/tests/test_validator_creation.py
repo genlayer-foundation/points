@@ -15,9 +15,9 @@ class ValidatorCreationTestCase(TestCase):
         """Set up test data."""
         # Create a superuser for admin access
         self.admin_user = User.objects.create_superuser(
-            username='admin',
             email='admin@test.com',
-            password='testpass123'
+            password='testpass123',
+            username='admin'
         )
         
         # Create contribution types
@@ -45,30 +45,31 @@ class ValidatorCreationTestCase(TestCase):
             is_default=False  # Not default
         )
         
-        # Create multipliers for contribution types
+        # Create multipliers for contribution types (set valid_from to yesterday to ensure they're active)
+        yesterday = timezone.now() - timezone.timedelta(days=1)
         GlobalLeaderboardMultiplier.objects.create(
             contribution_type=self.contrib_type1,
             multiplier_value=1.5,
-            valid_from=timezone.now(),
+            valid_from=yesterday,
             description='Node running multiplier'
         )
         
         GlobalLeaderboardMultiplier.objects.create(
             contribution_type=self.contrib_type2,
             multiplier_value=2.0,
-            valid_from=timezone.now(),
+            valid_from=yesterday,
             description='Uptime multiplier'
         )
         
         GlobalLeaderboardMultiplier.objects.create(
             contribution_type=self.contrib_type3,
             multiplier_value=1.0,
-            valid_from=timezone.now(),
+            valid_from=yesterday,
             description='Bug report multiplier'
         )
         
         self.client = Client()
-        self.client.login(username='admin', password='testpass123')
+        self.client.login(email='admin@test.com', password='testpass123')
     
     def test_form_initialization(self):
         """Test that the form initializes with correct default contribution types."""
@@ -222,11 +223,11 @@ class ValidatorCreationTestCase(TestCase):
         from contributions.admin import ContributionAdmin
         from django.test import RequestFactory
         
-        # Create an existing user
+        # Create an existing user with valid address format
         existing_user = User.objects.create(
             username='existing',
             email='existing@test.com',
-            address='0xexisting123456789012345678901234567890',
+            address='0x1234567890123456789012345678901234567890',
             first_name='Old',
             last_name='Name',
             visible=True
@@ -243,7 +244,7 @@ class ValidatorCreationTestCase(TestCase):
         # Create form with the existing user's address
         form_data = {
             'name': 'Updated Name',
-            'address': '0xexisting123456789012345678901234567890',
+            'address': '0x1234567890123456789012345678901234567890',
             'contribution_date': date.today(),
             f'include_{self.contrib_type1.id}': True,
             f'points_{self.contrib_type1.id}': 60,
@@ -273,11 +274,11 @@ class ValidatorCreationTestCase(TestCase):
         from django.test import RequestFactory
         from django.core.exceptions import ValidationError
         
-        # Create a user with an existing contribution
+        # Create a user with an existing contribution (valid address format)
         user = User.objects.create(
             username='validator',
             email='validator@test.com',
-            address='0xvalidator1234567890123456789012345678901',
+            address='0x1234567890123456789012345678901234567891',
             visible=True
         )
         
@@ -300,7 +301,7 @@ class ValidatorCreationTestCase(TestCase):
         # Try to create duplicate contribution
         form_data = {
             'name': 'Validator Name',
-            'address': '0xvalidator1234567890123456789012345678901',
+            'address': '0x1234567890123456789012345678901234567891',
             'contribution_date': date.today(),
             f'include_{self.contrib_type1.id}': True,
             f'points_{self.contrib_type1.id}': 75,
@@ -317,22 +318,29 @@ class ValidatorCreationTestCase(TestCase):
     
     def test_admin_view_access(self):
         """Test that the admin view is accessible to superusers."""
+        # Ensure we're logged in
+        self.assertTrue(self.client.login(email='admin@test.com', password='testpass123'))
+        
         url = reverse('admin:contributions_create_validator')
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Create Validator')
+        self.assertContains(response, 'Create Validator')  # Check for page title
+        self.assertContains(response, 'Default Contributions')  # Check for contributions section
         self.assertContains(response, 'Node Running')  # Default contribution type
         self.assertContains(response, 'Uptime')  # Default contribution type
         self.assertNotContains(response, 'Bug Report')  # Non-default contribution type
     
     def test_admin_view_post_success(self):
         """Test successful validator creation through admin view."""
+        # Ensure we're logged in
+        self.assertTrue(self.client.login(email='admin@test.com', password='testpass123'))
+        
         url = reverse('admin:contributions_create_validator')
         
         form_data = {
             'name': 'Test Admin Validator',
-            'address': '0xadmin1234567890123456789012345678901234',
+            'address': '0xABCDEF1234567890123456789012345678901234',  # Use uppercase to test normalization
             'contribution_date': date.today().strftime('%Y-%m-%d'),
             f'include_{self.contrib_type1.id}': 'on',
             f'points_{self.contrib_type1.id}': '80',
@@ -340,13 +348,13 @@ class ValidatorCreationTestCase(TestCase):
             f'points_{self.contrib_type2.id}': '30',
         }
         
-        response = self.client.post(url, form_data)
+        response = self.client.post(url, form_data, follow=False)
         
-        # Should redirect to user detail page
+        # Should redirect to user detail page  
         self.assertEqual(response.status_code, 302)
         
-        # Check user was created
-        user = User.objects.get(address='0xadmin1234567890123456789012345678901234')
+        # Check user was created (address should be normalized to lowercase)
+        user = User.objects.get(address='0xabcdef1234567890123456789012345678901234')
         self.assertEqual(user.first_name, 'Test')
         self.assertEqual(user.last_name, 'Admin Validator')
         

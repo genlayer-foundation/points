@@ -160,7 +160,7 @@ class ContributionAdmin(admin.ModelAdmin):
             if form.is_valid():
                 try:
                     user = self._process_validator_creation(form)
-                    messages.success(request, f'Validator {user.email} created successfully with contributions.')
+                    messages.success(request, f'Validator {user.address or user.email} created successfully with contributions.')
                     # Redirect to user detail page
                     return redirect(reverse('admin:users_user_change', args=[user.id]))
                 except ValidationError as e:
@@ -197,7 +197,7 @@ class ContributionAdmin(admin.ModelAdmin):
         user, created = User.objects.get_or_create(
             address=address,
             defaults={
-                'email': address,  # Use address as email initially
+                'email': f'{address}@validator.local',  # Generate a valid email from address
                 'username': address,
                 'visible': True,
             }
