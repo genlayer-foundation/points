@@ -4,8 +4,24 @@
 **Important**: This project has detailed documentation for faster development:
 - **Backend Documentation**: See `backend/CLAUDE.md` for Django structure, API endpoints, models, and patterns
 - **Frontend Documentation**: See `frontend/CLAUDE.md` for Svelte 5 structure, routes, components, and API integration
+- **Session Management**: See `TALLY_SESSIONS.md` for the Git worktree-based development session system
 
 ⚠️ **Keep documentation updated**: When making changes to the codebase, update the relevant CLAUDE.md file to help future development sessions.
+
+## Development Sessions & Worktrees
+This project uses a custom session management system with Git worktrees. See `TALLY_SESSIONS.md` for complete documentation on:
+- Creating and managing parallel development sessions
+- Port allocation and tmux window management
+- Claude Code session persistence across worktrees
+- Troubleshooting common issues
+
+Quick commands:
+```bash
+./tally-session add <name>     # Create new session
+./tally-session list            # Show all sessions
+./tally-session resume [name]   # Resume after restart
+./tally-session remove <name>   # Remove session
+```
 
 ## Svelte 5 Important Notes
 
