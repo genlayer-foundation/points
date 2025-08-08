@@ -1,0 +1,172 @@
+{% extends "admin/base_site.html" %}
+{% load static i18n %}
+
+{% block title %}Create Validator{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+{{ media }}
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+&rsaquo; Create Validator
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content" class="colM">
+    <div id="content-main">
+        <form method="post" id="validator_form" novalidate>
+            {% csrf_token %}
+            <div>
+                {% if form.non_field_errors %}
+                <p class="errornote">
+                    {% for error in form.non_field_errors %}
+                    {{ error }}
+                    {% endfor %}
+                </p>
+                {% endif %}
+                
+                <fieldset class="module aligned">
+                    <div class="form-row field-name">
+                        <div>
+                            <div class="flex-container">
+                                <label for="id_name" class="required">Name:</label>
+                                {{ form.name }}
+                            </div>
+                            {% if form.name.help_text %}
+                            <div class="help">{{ form.name.help_text }}</div>
+                            {% endif %}
+                            {% if form.name.errors %}
+                            {{ form.name.errors }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="form-row field-address">
+                        <div>
+                            <div class="flex-container">
+                                <label for="id_address" class="required">Blockchain Address:</label>
+                                {{ form.address }}
+                            </div>
+                            {% if form.address.help_text %}
+                            <div class="help">{{ form.address.help_text }}</div>
+                            {% endif %}
+                            {% if form.address.errors %}
+                            {{ form.address.errors }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="form-row field-contribution_date">
+                        <div>
+                            <div class="flex-container">
+                                <label for="id_contribution_date" class="required">Contribution Date:</label>
+                                {{ form.contribution_date }}
+                            </div>
+                            {% if form.contribution_date.help_text %}
+                            <div class="help">{{ form.contribution_date.help_text }}</div>
+                            {% endif %}
+                            {% if form.contribution_date.errors %}
+                            {{ form.contribution_date.errors }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </fieldset>
+                
+                {% if default_types %}
+                <fieldset class="module aligned">
+                    <h2>Default Contributions</h2>
+                    {% for field in form %}
+                        {% if field.name|slice:":8" == "include_" %}
+                            {% with contrib_id=field.name|slice:"8:" %}
+                            <div class="form-row field-{{ field.name }}">
+                                <div>
+                                    <div class="flex-container">
+                                        <label for="id_{{ field.name }}">{{ field.label }}:</label>
+                                        {{ field }}&nbsp;
+                                        {% with points_field_name="points_"|add:contrib_id %}
+                                            {% for points_field in form %}
+                                                {% if points_field.name == points_field_name %}
+                                                    {{ points_field }}
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endwith %}
+                                    </div>
+                                    {% with points_field_name="points_"|add:contrib_id %}
+                                        {% for points_field in form %}
+                                            {% if points_field.name == points_field_name %}
+                                                {% if points_field.help_text %}
+                                                <div class="help">{{ points_field.help_text }}</div>
+                                                {% endif %}
+                                                {% if points_field.errors %}
+                                                {{ points_field.errors }}
+                                                {% endif %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endwith %}
+                                </div>
+                            </div>
+                            {% endwith %}
+                        {% endif %}
+                    {% endfor %}
+                </fieldset>
+                {% else %}
+                <fieldset class="module aligned">
+                    <h2>Default Contributions</h2>
+                    <div class="form-row">
+                        <p style="padding: 10px;">
+                            No default contribution types have been configured. Please mark some contribution types as default in the admin panel.
+                        </p>
+                    </div>
+                </fieldset>
+                {% endif %}
+            </div>
+            
+            <div class="submit-row">
+                <input type="submit" value="Save" class="default" name="_save">
+            </div>
+        </form>
+    </div>
+    
+    <br class="clear">
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-disable points input when checkbox is unchecked
+    const checkboxes = document.querySelectorAll('input[type="checkbox"][name^="include_"]');
+    
+    checkboxes.forEach(checkbox => {
+        const contribId = checkbox.name.replace('include_', '');
+        const pointsInput = document.querySelector(`[name="points_${contribId}"]`);
+        
+        if (pointsInput) {
+            // Set initial state
+            pointsInput.disabled = !checkbox.checked;
+            
+            // Update on change
+            checkbox.addEventListener('change', function() {
+                pointsInput.disabled = !this.checked;
+                if (!this.checked) {
+                    pointsInput.value = '';
+                } else {
+                    // Restore default value
+                    const minValue = pointsInput.getAttribute('min');
+                    if (minValue && !pointsInput.value) {
+                        pointsInput.value = minValue;
+                    }
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

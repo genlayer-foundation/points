@@ -3,11 +3,18 @@ from django.core.management import call_command
 from django.contrib import messages
 from django.http import HttpResponseRedirect, JsonResponse
 from django.urls import reverse, path
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.utils.html import format_html
+from django.db import transaction
+from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
+from datetime import datetime
 from .models import ContributionType, Contribution, SubmittedContribution, Evidence
+from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
+
+User = get_user_model()
 
 
 class GlobalLeaderboardMultiplierInline(admin.TabularInline):
@@ -18,11 +25,12 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
 
 @admin.register(ContributionType)
 class ContributionTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
+    list_display = ('name', 'is_default', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
     list_display_links = ('get_current_multiplier',)
-    list_editable = ('name', 'description')
+    list_editable = ('name', 'is_default', 'description')
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at')
+    list_filter = ('is_default',)
     inlines = [GlobalLeaderboardMultiplierInline]
     
     def get_current_multiplier(self, obj):
@@ -133,6 +141,7 @@ class ContributionAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
+            path('create-validator/', self.admin_site.admin_view(self.create_validator_view), name='contributions_create_validator'),
             path('run-daily-uptime/', self.admin_site.admin_view(self.run_daily_uptime_view), name='run_daily_uptime'),
             path('contribution-type-info/<int:pk>/', self.admin_site.admin_view(self.contribution_type_info_view), name='contribution_type_info'),
         ]
@@ -141,7 +150,102 @@ class ContributionAdmin(admin.ModelAdmin):
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
         extra_context['has_run_uptime_permission'] = request.user.is_superuser
+        extra_context['has_create_validator_permission'] = request.user.is_superuser
         return super().changelist_view(request, extra_context=extra_context)
+    
+    def create_validator_view(self, request):
+        """View for creating a new validator."""
+        if request.method == 'POST':
+            form = CreateValidatorForm(request.POST)
+            if form.is_valid():
+                try:
+                    user = self._process_validator_creation(form)
+                    messages.success(request, f'Validator {user.email} created successfully with contributions.')
+                    # Redirect to user detail page
+                    return redirect(reverse('admin:users_user_change', args=[user.id]))
+                except ValidationError as e:
+                    messages.error(request, str(e))
+                except Exception as e:
+                    messages.error(request, f'Error creating validator: {str(e)}')
+        else:
+            form = CreateValidatorForm()
+        
+        # Get contribution types for display
+        default_types = ContributionType.objects.filter(is_default=True).order_by('name')
+        
+        context = {
+            'form': form,
+            'title': 'Create Validator',
+            'default_types': default_types,
+            'opts': self.model._meta,
+            'has_view_permission': True,
+            'has_add_permission': True,
+            'has_change_permission': True,
+            'has_delete_permission': True,
+        }
+        
+        return render(request, 'admin/contributions/create_validator.html', context)
+    
+    @transaction.atomic
+    def _process_validator_creation(self, form):
+        """Process the validator creation with contributions."""
+        name = form.cleaned_data['name']
+        address = form.cleaned_data['address']
+        contribution_date = form.cleaned_data['contribution_date']
+        
+        # Look up or create user
+        user, created = User.objects.get_or_create(
+            address=address,
+            defaults={
+                'email': address,  # Use address as email initially
+                'username': address,
+                'visible': True,
+            }
+        )
+        
+        # Update name if provided (and different)
+        if name and user.get_full_name() != name:
+            # Split name into first and last
+            name_parts = name.split(' ', 1)
+            user.first_name = name_parts[0]
+            user.last_name = name_parts[1] if len(name_parts) > 1 else ''
+            user.save()
+        
+        # Get selected contributions
+        contributions_data = form.get_selected_contributions()
+        
+        # Convert date to datetime
+        contribution_datetime = datetime.combine(contribution_date, datetime.min.time())
+        contribution_datetime = timezone.make_aware(contribution_datetime)
+        
+        # Create contributions
+        created_contributions = []
+        for contrib_data in contributions_data:
+            contribution_type = ContributionType.objects.get(id=contrib_data['contribution_type_id'])
+            
+            # Check for duplicates
+            existing = Contribution.objects.filter(
+                user=user,
+                contribution_type=contribution_type,
+                contribution_date__date=contribution_date
+            ).exists()
+            
+            if existing:
+                raise ValidationError(
+                    f'Contribution of type "{contribution_type.name}" already exists for user {user.email} on {contribution_date}'
+                )
+            
+            # Create the contribution
+            contribution = Contribution.objects.create(
+                user=user,
+                contribution_type=contribution_type,
+                points=contrib_data['points'],
+                contribution_date=contribution_datetime,
+                notes=f'Created via validator creation on {timezone.now().strftime("%Y-%m-%d %H:%M")}'
+            )
+            created_contributions.append(contribution)
+        
+        return user
     
     def run_daily_uptime_view(self, request):
         if request.method == 'POST':
