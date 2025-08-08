@@ -45,6 +45,7 @@ class ContributionType(BaseModel):
     description = models.TextField(blank=True)
     min_points = models.PositiveIntegerField(default=0, help_text="Minimum points allowed for this contribution type")
     max_points = models.PositiveIntegerField(default=100, help_text="Maximum points allowed for this contribution type")
+    is_default = models.BooleanField(default=False, help_text="Include this contribution type by default when creating validators")
 
     def __str__(self):
         return self.name

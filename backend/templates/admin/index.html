@@ -1,0 +1,40 @@
+{% extends "admin/index.html" %}
+{% load i18n static %}
+
+{% block content %}
+{% if user.is_superuser %}
+<div id="content-main">
+    <div class="module">
+        <table>
+            <caption>
+                <a href="#" class="section" title="{% trans 'Quick Actions' %}">
+                    ⚡ {% trans 'Quick Actions' %}
+                </a>
+            </caption>
+            <tbody>
+                <tr>
+                    <th scope="row">
+                        <a href="{% url 'admin:contributions_create_validator' %}">
+                            ➕ {% trans 'Create Validator' %}
+                        </a>
+                    </th>
+                    <td></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <a href="{% url 'admin:run_daily_uptime' %}">
+                            🔄 {% trans 'Run Daily Uptime Update' %}
+                        </a>
+                    </th>
+                    <td></td>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{{ block.super }}
+{% endblock %}

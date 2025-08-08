@@ -3,6 +3,13 @@
 
 {% block object-tools-items %}
     {{ block.super }}
+    {% if has_create_validator_permission %}
+    <li>
+        <a href="{% url 'admin:contributions_create_validator' %}" class="addlink">
+            {% trans 'Create Validator' %}
+        </a>
+    </li>
+    {% endif %}
     {% if has_run_uptime_permission %}
     <li>
         <a href="{% url 'admin:run_daily_uptime' %}" class="addlink">
