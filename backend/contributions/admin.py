@@ -204,11 +204,8 @@ class ContributionAdmin(admin.ModelAdmin):
         )
         
         # Update name if provided (and different)
-        if name and user.get_full_name() != name:
-            # Split name into first and last
-            name_parts = name.split(' ', 1)
-            user.first_name = name_parts[0]
-            user.last_name = name_parts[1] if len(name_parts) > 1 else ''
+        if name and user.name != name:
+            user.name = name
             user.save()
         
         # Get selected contributions
