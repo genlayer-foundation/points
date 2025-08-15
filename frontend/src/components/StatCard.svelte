@@ -18,24 +18,22 @@
   const iconBgClass = colorClasses[color] || colorClasses.blue;
 </script>
 
-<div class="bg-white overflow-hidden shadow rounded-lg {className}">
-  <div class="p-5">
-    <div class="flex items-center">
-      {#if icon}
-        <div class={`flex-shrink-0 rounded-md p-3 ${iconBgClass}`}>
-          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={icon} />
-          </svg>
-        </div>
-      {/if}
-      <div class={icon ? 'ml-5' : ''}>
-        <p class="text-sm font-medium text-gray-500 truncate">
-          {title}
-        </p>
-        <p class="mt-1 text-3xl font-semibold text-gray-900">
-          {value}
-        </p>
+<div class="bg-white shadow rounded-lg p-4 {className}">
+  <div class="flex items-center">
+    {#if icon}
+      <div class={`flex-shrink-0 p-3 rounded-lg mr-4 ${iconBgClass}`}>
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={icon} />
+        </svg>
       </div>
+    {/if}
+    <div>
+      <p class="text-sm text-gray-500">
+        {title}
+      </p>
+      <p class="text-2xl font-bold text-gray-900">
+        {value}
+      </p>
     </div>
   </div>
 </div>

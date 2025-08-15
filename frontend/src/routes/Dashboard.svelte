@@ -179,10 +179,21 @@
     <TopLeaderboard />
     
     <!-- Featured Highlights -->
-    <FeaturedContributions 
-      title="Featured Contributions"
-      showHeader={false}
-    />
+    <div class="space-y-4">
+      <div class="flex justify-between items-center">
+        <h2 class="text-lg font-semibold text-gray-900">Featured Contributions</h2>
+        <button
+          onclick={() => push('/highlights')}
+          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+        >
+          View All →
+        </button>
+      </div>
+      <FeaturedContributions 
+        showHeader={false}
+        showViewAll={false}
+      />
+    </div>
   </div>
   
   <!-- Second Row: Newest Validators and Recent Contributions -->

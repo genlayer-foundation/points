@@ -356,7 +356,6 @@
         userId={participant.address}
         limit={5}
         title="Featured Contributions"
-        subtitle="Notable achievements and contributions"
         cardStyle="highlight"
         showViewAll={false}
         className="mb-6"
