@@ -26,6 +26,32 @@
     return Math.floor(diff / (1000 * 60 * 60 * 24));
   });
   
+  // Humanize time since target was set
+  function humanizeTimeSince(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now - date;
+    
+    const minutes = Math.floor(diff / (1000 * 60));
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (minutes < 60) {
+      return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`;
+    } else if (hours < 24) {
+      return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+    } else if (days < 7) {
+      return days === 1 ? '1 day ago' : `${days} days ago`;
+    } else if (days < 30) {
+      const weeks = Math.floor(days / 7);
+      return weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
+    } else {
+      const months = Math.floor(days / 30);
+      return months === 1 ? '1 month ago' : `${months} months ago`;
+    }
+  }
+  
   // Format date nicely
   function formatDate(dateStr) {
     if (!dateStr) return '';
@@ -35,6 +61,14 @@
       month: 'short', 
       day: 'numeric' 
     });
+  }
+  
+  // Get points for current day
+  function getPointsForDay(day) {
+    if (day <= 0) return 4;
+    if (day === 1) return 3;
+    if (day === 2) return 2;
+    return 1;
   }
   
   onMount(async () => {
@@ -148,11 +182,19 @@
                       <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
                     </svg>
                   </div>
-                  <div class="ml-3">
+                  <div class="ml-3 flex-1">
                     <h3 class="text-sm font-bold text-red-800">Update overdue!</h3>
                     <p class="text-xs text-red-700 mt-1">
-                      You're {daysSinceTarget()} days late. Update now to get 1 point.
+                      Update requested: {humanizeTimeSince(user.validator.target_created_at)}
                     </p>
+                  </div>
+                  <div class="relative group">
+                    <span class="text-lg text-red-600 cursor-help">①*</span>
+                    <div class="absolute right-0 top-6 w-48 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                      <p class="font-semibold mb-1">Node Upgrade Contribution</p>
+                      <p>You'll receive 1 point (10x multiplier = 10 global points)</p>
+                      <a href="/contribution-type/node-upgrade" class="text-blue-300 underline mt-1 inline-block pointer-events-auto">View details →</a>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -164,11 +206,21 @@
                       <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
                     </svg>
                   </div>
-                  <div class="ml-3">
+                  <div class="ml-3 flex-1">
                     <h3 class="text-sm font-bold text-yellow-800">Update needed</h3>
                     <p class="text-xs text-yellow-700 mt-1">
-                      Target version {user.validator.target_version} is available - Day {daysSinceTarget() + 1}
+                      Update requested: {humanizeTimeSince(user.validator.target_created_at)}
                     </p>
+                  </div>
+                  <div class="relative group">
+                    <span class="text-lg text-yellow-600 cursor-help">
+                      {#if daysSinceTarget() === 0}④{:else if daysSinceTarget() === 1}③{:else if daysSinceTarget() === 2}②{:else}①{/if}*
+                    </span>
+                    <div class="absolute right-0 top-6 w-48 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                      <p class="font-semibold mb-1">Node Upgrade Contribution</p>
+                      <p>You'll receive {getPointsForDay(daysSinceTarget())} points ({getPointsForDay(daysSinceTarget()) * 10} global points with 10x multiplier)</p>
+                      <a href="/contribution-type/node-upgrade" class="text-blue-300 underline mt-1 inline-block pointer-events-auto">View details →</a>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -182,9 +234,6 @@
                   </p>
                   <p class="text-xs text-blue-700 mt-1">
                     Set on {formatDate(user.validator.target_created_at)}
-                    {#if user.validator.target_date}
-                      • Due by {formatDate(user.validator.target_date)}
-                    {/if}
                   </p>
                 </div>
               </div>
