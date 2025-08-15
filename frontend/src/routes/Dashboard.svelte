@@ -176,17 +176,50 @@
   <!-- First Row: Leaderboard and Highlights -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Top Validators -->
-    <TopLeaderboard />
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-purple-100 rounded-lg">
+            <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-900">Top Validators</h2>
+        </div>
+        <button
+          onclick={() => push('/leaderboard')}
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
+        >
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
+        </button>
+      </div>
+      <TopLeaderboard 
+        showHeader={false}
+      />
+    </div>
     
     <!-- Featured Highlights -->
     <div class="space-y-4">
-      <div class="flex items-center gap-2">
-        <h2 class="text-lg font-semibold text-gray-900">Featured Contributions</h2>
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-yellow-100 rounded-lg">
+            <svg class="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-900">Featured Contributions</h2>
+        </div>
         <button
           onclick={() => push('/highlights')}
-          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
-          View All →
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
         </button>
       </div>
       <FeaturedContributions 
@@ -200,13 +233,23 @@
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Newest Validators -->
     <div class="space-y-4">
-      <div class="flex items-center gap-2">
-        <h2 class="text-lg font-semibold text-gray-900">Newest Validators</h2>
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-blue-100 rounded-lg">
+            <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-900">Newest Validators</h2>
+        </div>
         <button
           onclick={() => push('/validators')}
-          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
-          View All →
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
         </button>
       </div>
       
@@ -257,6 +300,29 @@
     </div>
     
     <!-- Recent Contributions -->
-    <RecentContributions />
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-green-100 rounded-lg">
+            <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-900">Recent Contributions</h2>
+        </div>
+        <button
+          onclick={() => push('/contributions')}
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
+        >
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
+        </button>
+      </div>
+      <RecentContributions 
+        showHeader={false}
+      />
+    </div>
   </div>
 </div>

@@ -10,6 +10,7 @@
     limit = 5,
     contributionTypeId = null,
     userId = null,
+    showHeader = true,
     showViewAll = true,
     viewAllPath = '/contributions',
     viewAllText = 'View All →',
@@ -48,18 +49,20 @@
   });
 </script>
 
-<div class="space-y-4 {className}">
-  <div class="flex items-center gap-2">
-    <h2 class="text-lg font-semibold text-gray-900">{title}</h2>
-    {#if showViewAll}
-      <button
-        onclick={() => push(viewAllPath)}
-        class="text-sm text-primary-600 hover:text-primary-700 font-medium"
-      >
-        {viewAllText}
-      </button>
-    {/if}
-  </div>
+<div class="{showHeader ? 'space-y-4' : ''} {className}">
+  {#if showHeader}
+    <div class="flex items-center gap-2">
+      <h2 class="text-lg font-semibold text-gray-900">{title}</h2>
+      {#if showViewAll}
+        <button
+          onclick={() => push(viewAllPath)}
+          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+        >
+          {viewAllText}
+        </button>
+      {/if}
+    </div>
+  {/if}
   
   <ContributionsList
     {contributions}
