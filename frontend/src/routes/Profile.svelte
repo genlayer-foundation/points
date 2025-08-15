@@ -189,7 +189,7 @@
                     </p>
                   </div>
                   <div class="relative group">
-                    <a href="/contribution-type/node-upgrade" class="text-lg text-red-600 hover:text-red-700 hover:underline cursor-pointer">①*</a>
+                    <a href="#/contribution-type/3" class="text-lg text-red-600 hover:text-red-700 hover:underline cursor-pointer">①*</a>
                     <div class="absolute right-0 top-6 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap">
                       Node Upgrade
                     </div>
@@ -211,7 +211,7 @@
                     </p>
                   </div>
                   <div class="relative group">
-                    <a href="/contribution-type/node-upgrade" class="text-lg text-yellow-600 hover:text-yellow-700 hover:underline cursor-pointer">
+                    <a href="#/contribution-type/3" class="text-lg text-yellow-600 hover:text-yellow-700 hover:underline cursor-pointer">
                       {#if daysSinceTarget() === 0}④{:else if daysSinceTarget() === 1}③{:else if daysSinceTarget() === 2}②{:else}①{/if}*
                     </a>
                     <div class="absolute right-0 top-6 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap">
