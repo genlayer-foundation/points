@@ -256,6 +256,45 @@
               </dd>
             </div>
           {/if}
+          {#if participant.validator?.node_version || participant.validator?.target_version}
+            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">
+                Node Version
+              </dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {#if participant.validator?.node_version}
+                  <div class="flex items-center justify-between">
+                    <span class="font-mono text-base font-semibold">{participant.validator.node_version}</span>
+                    {#if participant.validator.matches_target}
+                      <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
+                        <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        Up to date
+                      </span>
+                    {:else}
+                      <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                        <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                        Outdated
+                      </span>
+                    {/if}
+                  </div>
+                  {#if participant.validator.target_version && !participant.validator.matches_target}
+                    <p class="mt-2 text-xs text-gray-600 bg-amber-50 rounded px-2 py-1 inline-block">
+                      📍 Target: {participant.validator.target_version}
+                    </p>
+                  {/if}
+                {:else if participant.validator?.target_version}
+                  <div class="text-gray-500 italic">
+                    Not set
+                    <span class="ml-2 text-xs text-gray-400">(Target: {participant.validator.target_version})</span>
+                  </div>
+                {/if}
+              </dd>
+            </div>
+          {/if}
           {#if !isValidatorOnly}
             <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
               <dt class="text-sm font-medium text-gray-500">

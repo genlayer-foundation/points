@@ -42,6 +42,7 @@ class ContributionType(BaseModel):
     Examples: Node Runner, Uptime, Asimov, Blog Post, etc.
     """
     name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=100, unique=True, null=True, blank=True, help_text="Unique identifier for this contribution type")
     description = models.TextField(blank=True)
     min_points = models.PositiveIntegerField(default=0, help_text="Minimum points allowed for this contribution type")
     max_points = models.PositiveIntegerField(default=100, help_text="Maximum points allowed for this contribution type")

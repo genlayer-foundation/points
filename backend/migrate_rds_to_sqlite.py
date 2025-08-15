@@ -9,7 +9,7 @@ Requirements (.env file):
     or
     RDS_SECRET_NAME: Secrets Manager secret name containing database URL
     
-    RESET_PASSWORD: New password for all users (optional, defaults to 'testpassword123')
+    RESET_PASSWORD: New password for all users (optional, defaults to 'pass')
 
 Usage:
     python migrate_rds_to_sqlite.py
@@ -157,7 +157,7 @@ def clean_and_process_data(json_file):
     print("CLEANING AND PROCESSING DATA")
     print("=" * 60)
     
-    reset_password = os.getenv('RESET_PASSWORD', 'testpassword123')
+    reset_password = os.getenv('RESET_PASSWORD', 'pass')
     
     with open(json_file, 'r') as f:
         data = json.load(f)
@@ -317,7 +317,7 @@ def main():
         print(f"\nFiles created:")
         print(f"  - RDS dump: {json_file}")
         print(f"  - Cleaned data: {clean_file}")
-        print(f"\n⚠️ All user passwords have been reset to: {os.getenv('RESET_PASSWORD', 'testpassword123')}")
+        print(f"\n⚠️ All user passwords have been reset to: {os.getenv('RESET_PASSWORD', 'pass')}")
         
     except Exception as e:
         print(f"\n✗ Migration failed with error: {e}")

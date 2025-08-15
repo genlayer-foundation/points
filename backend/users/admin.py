@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
 
-from .models import User
+from .models import User, Validator
 from contributions.models import Contribution
 
 
@@ -34,6 +34,16 @@ class ContributionInline(admin.TabularInline):
     evidence_link.short_description = 'Evidence'
 
 
+class ValidatorInline(admin.StackedInline):
+    model = Validator
+    extra = 0  # Don't show empty rows
+    max_num = 1  # Only one validator per user
+    fields = ('node_version',)
+    verbose_name = "Validator Information"
+    verbose_name_plural = "Validator Information"
+    can_delete = False  # Don't allow deletion through inline
+
+
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'address')
@@ -57,4 +67,4 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
     
-    inlines = [ContributionInline]
+    inlines = [ValidatorInline, ContributionInline]
