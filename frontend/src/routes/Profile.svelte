@@ -233,41 +233,6 @@
                   </p>
                 </div>
               </div>
-              
-              <div class="mt-3 pt-3 border-t border-blue-200">
-                <p class="text-xs font-medium text-blue-900 mb-1">Points are assigned based on upgrade speed:</p>
-                <div class="grid grid-cols-4 gap-2 text-xs">
-                  <div class="text-center">
-                    <div class="font-medium text-blue-900">Day 1</div>
-                    <div class="text-blue-700">④ points</div>
-                  </div>
-                  <div class="text-center">
-                    <div class="font-medium text-blue-900">Day 2</div>
-                    <div class="text-blue-700">③ points</div>
-                  </div>
-                  <div class="text-center">
-                    <div class="font-medium text-blue-900">Day 3</div>
-                    <div class="text-blue-700">② points</div>
-                  </div>
-                  <div class="text-center">
-                    <div class="font-medium text-blue-900">Day 4+</div>
-                    <div class="text-blue-700">① point</div>
-                  </div>
-                </div>
-                {#if daysSinceTarget() !== null}
-                  <p class="text-xs text-blue-600 mt-2 text-center italic">
-                    {#if daysSinceTarget() === 0}
-                      <strong>Upgrade now for maximum points!</strong>
-                    {:else if daysSinceTarget() === 1}
-                      You'll receive ③ points if you upgrade today
-                    {:else if daysSinceTarget() === 2}
-                      You'll receive ② points if you upgrade today
-                    {:else}
-                      You'll receive ① point if you upgrade today
-                    {/if}
-                  </p>
-                {/if}
-              </div>
             </div>
           {/if}
           
