@@ -7,6 +7,7 @@
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import { usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
   import { authState } from '../lib/auth';
+  import { getValidatorBalance } from '../lib/blockchain';
   
   // Import route params from svelte-spa-router
   import { params } from 'svelte-spa-router';
@@ -26,6 +27,8 @@
   let error = $state(null);
   let statsError = $state(null);
   let successMessage = $state(null);
+  let balance = $state(null);
+  let loadingBalance = $state(false);
   
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
@@ -71,6 +74,19 @@
       console.log("Participant data received:", res.data);
       console.log("Leaderboard entry data:", res.data.leaderboard_entry);
       participant = res.data;
+      
+      // Fetch validator balance
+      if (participant.address) {
+        loadingBalance = true;
+        try {
+          balance = await getValidatorBalance(participant.address);
+        } catch (err) {
+          console.error('Failed to fetch balance:', err);
+          // Don't show error, just leave balance as null
+        } finally {
+          loadingBalance = false;
+        }
+      }
       
       // Also try to fetch the leaderboard entry directly
       try {
@@ -267,6 +283,20 @@
               </dt>
               <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 font-mono">
                 {participant.address}
+              </dd>
+            </div>
+            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">
+                Balance
+              </dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {#if loadingBalance}
+                  <span class="text-gray-500">Loading balance...</span>
+                {:else if balance}
+                  <span class="font-mono">{balance.formatted} GEN</span>
+                {:else}
+                  <span class="text-gray-500">Unable to fetch balance</span>
+                {/if}
               </dd>
             </div>
           {/if}
