@@ -243,7 +243,7 @@
       <div class="flex justify-between items-center">
         <h2 class="text-lg font-semibold text-gray-900">Featured Contributions</h2>
         <button
-          onclick={() => push('/contributions')}
+          onclick={() => push('/highlights')}
           class="text-sm text-primary-600 hover:text-primary-700 font-medium"
         >
           View All →

@@ -16,12 +16,14 @@
   import EditSubmission from './routes/EditSubmission.svelte';
   import Metrics from './routes/Metrics.svelte';
   import Profile from './routes/Profile.svelte';
+  import Highlights from './routes/Highlights.svelte';
   import NotFound from './routes/NotFound.svelte';
   
   // Define routes
   const routes = {
     '/': Dashboard,
     '/contributions': Contributions,
+    '/highlights': Highlights,
     '/leaderboard': Leaderboard,
     '/validators': Validators,
     '/participant/:address': ParticipantProfile,
