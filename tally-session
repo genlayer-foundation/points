@@ -1,0 +1,360 @@
+#!/bin/bash
+
+# Tally session manager - manages git worktrees and tmux sessions
+# Usage: ./tally-session add <name> | remove <name> | list
+
+TALLY_ROOT="$HOME/Dev/tally"
+SESSIONS_FILE="$TALLY_ROOT/.tally-sessions"
+BACKEND_PORT_START=8000
+FRONTEND_PORT_START=5000
+
+# Initialize sessions file if it doesn't exist
+if [ ! -f "$SESSIONS_FILE" ]; then
+    echo "{}" > "$SESSIONS_FILE"
+fi
+
+# Function to find next available ports
+find_available_ports() {
+    # Get all used backend ports
+    used_backend_ports=$(python3 -c "
+import json
+try:
+    with open('$SESSIONS_FILE', 'r') as f:
+        sessions = json.load(f)
+    for session in sessions.values():
+        print(session.get('backend_port', 0))
+except:
+    pass
+" | sort -n)
+    
+    # Get all used frontend ports  
+    used_frontend_ports=$(python3 -c "
+import json
+try:
+    with open('$SESSIONS_FILE', 'r') as f:
+        sessions = json.load(f)
+    for session in sessions.values():
+        print(session.get('frontend_port', 0))
+except:
+    pass
+" | sort -n)
+    
+    # Find next available backend port
+    backend_port=$BACKEND_PORT_START
+    while echo "$used_backend_ports" | grep -q "^${backend_port}$"; do
+        backend_port=$((backend_port + 1))
+    done
+    
+    # Find next available frontend port
+    frontend_port=$FRONTEND_PORT_START
+    while echo "$used_frontend_ports" | grep -q "^${frontend_port}$"; do
+        frontend_port=$((frontend_port + 1))
+    done
+    
+    echo "$backend_port $frontend_port"
+}
+
+# Function to add a new session
+add_session() {
+    local name=$1
+    
+    if [ -z "$name" ]; then
+        echo "Error: Session name required"
+        echo "Usage: $0 add <name>"
+        exit 1
+    fi
+    
+    # Check if session already exists
+    if cat "$SESSIONS_FILE" | grep -q "\"$name\":"; then
+        echo "Error: Session '$name' already exists"
+        exit 1
+    fi
+    
+    # Check if tmux session exists
+    if tmux has-session -t "tally-$name" 2>/dev/null; then
+        echo "Error: tmux session 'tally-$name' already exists"
+        exit 1
+    fi
+    
+    # Get available ports
+    read backend_port frontend_port <<< $(find_available_ports)
+    
+    echo "Creating session '$name' with:"
+    echo "  Backend port:  $backend_port"
+    echo "  Frontend port: $frontend_port"
+    
+    # Create git worktree
+    echo "Creating git worktree..."
+    cd "$TALLY_ROOT"
+    git worktree add -b "$name" "../tally-$name" main
+    
+    # Create symlink for node_modules
+    echo "Creating symlink for node_modules..."
+    ln -s "$TALLY_ROOT/frontend/node_modules" "$HOME/Dev/tally-$name/frontend/node_modules"
+    
+    # Create symlink for database
+    echo "Creating symlink for database..."
+    ln -s "$TALLY_ROOT/backend/db.sqlite3" "$HOME/Dev/tally-$name/backend/db.sqlite3"
+    
+    # Copy backend .env if it exists
+    if [ -f "$TALLY_ROOT/backend/.env" ]; then
+        echo "Copying backend .env..."
+        cp "$TALLY_ROOT/backend/.env" "$HOME/Dev/tally-$name/backend/.env"
+    fi
+    
+    # Copy frontend .env if it exists
+    if [ -f "$TALLY_ROOT/frontend/.env" ]; then
+        echo "Copying frontend .env..."
+        cp "$TALLY_ROOT/frontend/.env" "$HOME/Dev/tally-$name/frontend/.env"
+    fi
+    
+    # Save session info to file (using python for JSON handling)
+    python3 -c "
+import json
+with open('$SESSIONS_FILE', 'r') as f:
+    sessions = json.load(f)
+sessions['$name'] = {
+    'backend_port': $backend_port,
+    'frontend_port': $frontend_port,
+    'worktree': '$HOME/Dev/tally-$name',
+    'branch': '$name'
+}
+with open('$SESSIONS_FILE', 'w') as f:
+    json.dump(sessions, f, indent=2)
+"
+    
+    # Create tmux session with 3 windows
+    echo "Creating tmux session..."
+    tmux new-session -d -s "tally-$name" -c "$HOME/Dev/tally-$name/backend" -n backend
+    tmux send-keys -t "tally-$name:backend" "workon tally && cd $HOME/Dev/tally-$name/backend && python manage.py runserver $backend_port" C-m
+    
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name/frontend" -n frontend
+    tmux send-keys -t "tally-$name:frontend" "workon tally && cd $HOME/Dev/tally-$name/frontend && npm run dev -- --port $frontend_port" C-m
+    
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name" -n claude
+    tmux send-keys -t "tally-$name:claude" "workon tally && cd $HOME/Dev/tally-$name && claude tally-$name" C-m
+    
+    echo ""
+    echo "Session '$name' created successfully!"
+    echo "Attach with: tmux attach -t tally-$name"
+    echo "Backend URL: http://localhost:$backend_port"
+    echo "Frontend URL: http://localhost:$frontend_port"
+}
+
+# Function to remove a session
+remove_session() {
+    local name=$1
+    
+    if [ -z "$name" ]; then
+        echo "Error: Session name required"
+        echo "Usage: $0 remove <name>"
+        exit 1
+    fi
+    
+    # Check if session exists
+    if ! cat "$SESSIONS_FILE" | grep -q "\"$name\":"; then
+        echo "Error: Session '$name' not found"
+        exit 1
+    fi
+    
+    echo "Removing session '$name'..."
+    
+    # Kill tmux session
+    if tmux has-session -t "tally-$name" 2>/dev/null; then
+        echo "Killing tmux session..."
+        tmux kill-session -t "tally-$name"
+    fi
+    
+    # Remove git worktree
+    if [ -d "$HOME/Dev/tally-$name" ]; then
+        echo "Removing git worktree..."
+        cd "$TALLY_ROOT"
+        git worktree remove "../tally-$name" --force
+    fi
+    
+    # Remove branch if it exists
+    if git show-ref --verify --quiet "refs/heads/$name"; then
+        echo "Removing git branch..."
+        git branch -D "$name"
+    fi
+    
+    # Remove from sessions file
+    python3 -c "
+import json
+with open('$SESSIONS_FILE', 'r') as f:
+    sessions = json.load(f)
+if '$name' in sessions:
+    del sessions['$name']
+with open('$SESSIONS_FILE', 'w') as f:
+    json.dump(sessions, f, indent=2)
+"
+    
+    echo "Session '$name' removed successfully!"
+}
+
+# Function to resume an existing session (recreate tmux)
+resume_session() {
+    local name=$1
+    
+    if [ -z "$name" ]; then
+        echo "Error: Session name required"
+        echo "Usage: $0 resume <name>"
+        exit 1
+    fi
+    
+    # Check if session exists in config
+    if ! cat "$SESSIONS_FILE" | grep -q "\"$name\":"; then
+        echo "Error: Session '$name' not found in config"
+        echo "Run '$0 list' to see available sessions"
+        exit 1
+    fi
+    
+    # Check if tmux session already exists
+    if tmux has-session -t "tally-$name" 2>/dev/null; then
+        echo "Session 'tally-$name' is already running"
+        echo "Attach with: tmux attach -t tally-$name"
+        exit 0
+    fi
+    
+    # Get session info from file
+    backend_port=$(python3 -c "
+import json
+with open('$SESSIONS_FILE', 'r') as f:
+    sessions = json.load(f)
+    print(sessions['$name']['backend_port'])
+")
+    
+    frontend_port=$(python3 -c "
+import json
+with open('$SESSIONS_FILE', 'r') as f:
+    sessions = json.load(f)
+    print(sessions['$name']['frontend_port'])
+")
+    
+    echo "Resuming session '$name' with:"
+    echo "  Backend port:  $backend_port"
+    echo "  Frontend port: $frontend_port"
+    
+    # Recreate tmux session
+    echo "Creating tmux session..."
+    tmux new-session -d -s "tally-$name" -c "$HOME/Dev/tally-$name/backend" -n backend
+    tmux send-keys -t "tally-$name:backend" "workon tally && cd $HOME/Dev/tally-$name/backend && python manage.py runserver $backend_port" C-m
+    
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name/frontend" -n frontend
+    tmux send-keys -t "tally-$name:frontend" "workon tally && cd $HOME/Dev/tally-$name/frontend && npm run dev -- --port $frontend_port" C-m
+    
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name" -n claude
+    tmux send-keys -t "tally-$name:claude" "workon tally && cd $HOME/Dev/tally-$name && claude tally-$name --resume" C-m
+    
+    echo ""
+    echo "Session '$name' resumed successfully!"
+    echo "Attach with: tmux attach -t tally-$name"
+    echo "Backend URL: http://localhost:$backend_port"
+    echo "Frontend URL: http://localhost:$frontend_port"
+}
+
+# Function to resume all sessions
+resume_all() {
+    echo "Resuming all sessions..."
+    
+    # Get all session names
+    names=$(python3 -c "
+import json
+try:
+    with open('$SESSIONS_FILE', 'r') as f:
+        sessions = json.load(f)
+    for name in sessions.keys():
+        print(name)
+except:
+    pass
+")
+    
+    if [ -z "$names" ]; then
+        echo "No sessions to resume"
+        exit 0
+    fi
+    
+    # Resume each session
+    for name in $names; do
+        # Check if tmux session already exists
+        if tmux has-session -t "tally-$name" 2>/dev/null; then
+            echo "Session 'tally-$name' is already running, skipping..."
+        else
+            echo ""
+            echo "Resuming '$name'..."
+            resume_session "$name"
+        fi
+    done
+    
+    echo ""
+    echo "All sessions resumed!"
+    ./tally-session list
+}
+
+# Function to list all sessions
+list_sessions() {
+    echo "Active Tally Sessions:"
+    echo "======================"
+    
+    python3 -c "
+import json
+try:
+    with open('$SESSIONS_FILE', 'r') as f:
+        sessions = json.load(f)
+    if not sessions:
+        print('No active sessions')
+    else:
+        for name, info in sessions.items():
+            print(f\"\\n{name}:\")
+            print(f\"  Backend:  http://localhost:{info['backend_port']}\")
+            print(f\"  Frontend: http://localhost:{info['frontend_port']}\")
+            print(f\"  Worktree: {info['worktree']}\")
+            print(f\"  Branch:   {info['branch']}\")
+            print(f\"  Attach:   tmux attach -t tally-{name}\")
+except:
+    print('No active sessions')
+"
+    
+    echo ""
+    echo "======================"
+    echo "tmux sessions:"
+    tmux ls 2>/dev/null | grep "^tally-" || echo "  None running"
+}
+
+# Main command handler
+case "$1" in
+    add)
+        add_session "$2"
+        ;;
+    remove|rm)
+        remove_session "$2"
+        ;;
+    resume)
+        if [ -z "$2" ]; then
+            resume_all
+        else
+            resume_session "$2"
+        fi
+        ;;
+    list|ls)
+        list_sessions
+        ;;
+    *)
+        echo "Tally Session Manager"
+        echo "===================="
+        echo "Usage: $0 <command> [args]"
+        echo ""
+        echo "Commands:"
+        echo "  add <name>     Create a new session with git worktree and tmux"
+        echo "  remove <name>  Remove a session and its worktree"
+        echo "  resume [name]  Resume a session (or all sessions if no name given)"
+        echo "  list           List all active sessions"
+        echo ""
+        echo "Examples:"
+        echo "  $0 add feature-auth      # Create new session"
+        echo "  $0 resume feature-auth    # Resume specific session after restart"
+        echo "  $0 resume                 # Resume all sessions after restart"
+        echo "  $0 remove feature-auth    # Remove session completely"
+        echo "  $0 list                   # Show all sessions"
+        ;;
+esac
