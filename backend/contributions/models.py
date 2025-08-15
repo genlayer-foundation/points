@@ -3,6 +3,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
+from django.utils import timezone
 from utils.models import BaseModel
 import decimal
 import os
@@ -292,3 +293,55 @@ class Evidence(BaseModel):
     class Meta:
         verbose_name = "Evidence"
         verbose_name_plural = "Evidence Items"
+
+
+class ContributionHighlight(BaseModel):
+    """
+    Represents a highlighted contribution to be featured on the dashboard and contribution type pages.
+    Staff can select specific contributions to highlight with custom descriptions.
+    """
+    contribution = models.ForeignKey(
+        'Contribution',
+        on_delete=models.CASCADE,
+        related_name='highlights'
+    )
+    title = models.CharField(
+        max_length=200,
+        help_text="Short title for the highlight"
+    )
+    description = models.TextField(
+        help_text="Detailed description of why this contribution is noteworthy"
+    )
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Contribution Highlight"
+        verbose_name_plural = "Contribution Highlights"
+    
+    def __str__(self):
+        return f"{self.title} - {self.contribution.user.name or self.contribution.user.address[:8]}"
+    
+    @classmethod
+    def get_active_highlights(cls, contribution_type=None, limit=5):
+        """
+        Get highlights, optionally filtered by contribution type.
+        Ordered by creation date (newest first).
+        
+        Args:
+            contribution_type: Optional ContributionType to filter by
+            limit: Maximum number of highlights to return (default 5)
+        """
+        queryset = cls.objects.all()
+        
+        # Filter by contribution type if provided
+        if contribution_type:
+            queryset = queryset.filter(contribution__contribution_type=contribution_type)
+        
+        # Select related for optimization
+        queryset = queryset.select_related(
+            'contribution',
+            'contribution__user',
+            'contribution__contribution_type'
+        )
+        
+        return queryset[:limit]

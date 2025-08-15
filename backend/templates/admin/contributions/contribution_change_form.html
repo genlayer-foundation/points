@@ -1,0 +1,87 @@
+{% extends "admin/change_form.html" %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    {% if object_id %}
+        <li>
+            <a href="#highlights-group" class="addlink">
+                ✨ Create Highlight
+            </a>
+        </li>
+    {% endif %}
+{% endblock %}
+
+{% block submit_buttons_bottom %}
+    {{ block.super }}
+    <style>
+        /* Highlight the highlights section when navigated to */
+        #highlights-group:target {
+            background: #fffbeb;
+            padding: 10px;
+            border-radius: 4px;
+            animation: highlight-flash 1s ease-in-out;
+        }
+        
+        @keyframes highlight-flash {
+            0% { background: #fbbf24; }
+            100% { background: #fffbeb; }
+        }
+        
+        /* Style the inline highlight form header */
+        #highlights-group h2 {
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            color: white !important;
+            padding: 8px 10px !important;
+        }
+        
+        /* Add star icon to highlight inline */
+        #highlights-group h2:before {
+            content: "⭐ ";
+        }
+    </style>
+    
+    <script>
+        // Auto-scroll to highlights section when clicking the button
+        document.addEventListener('DOMContentLoaded', function() {
+            const highlightBtn = document.querySelector('a[href="#highlights-group"]');
+            if (highlightBtn) {
+                highlightBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    // Try multiple possible IDs for the highlights section
+                    let highlightsSection = document.querySelector('#highlights-group');
+                    if (!highlightsSection) {
+                        highlightsSection = document.querySelector('[id*="highlights"]');
+                    }
+                    if (!highlightsSection) {
+                        // Find by heading text
+                        const headings = document.querySelectorAll('.inline-group h2');
+                        for (let h of headings) {
+                            if (h.textContent.includes('Highlight')) {
+                                highlightsSection = h.closest('.inline-group');
+                                // Add the ID for future reference
+                                highlightsSection.id = 'highlights-group';
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (highlightsSection) {
+                        highlightsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        highlightsSection.style.background = '#fffbeb';
+                        highlightsSection.style.borderRadius = '4px';
+                        highlightsSection.style.padding = '10px';
+                        setTimeout(() => {
+                            highlightsSection.style.background = '';
+                        }, 2000);
+                        
+                        // Focus on the first input field in the highlights section
+                        const firstInput = highlightsSection.querySelector('input[name*="title"]:not([readonly])');
+                        if (firstInput) {
+                            setTimeout(() => firstInput.focus(), 500);
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+{% endblock %}

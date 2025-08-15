@@ -10,10 +10,10 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.generic import ListView
 from django.utils.decorators import method_decorator
-from .models import ContributionType, Contribution, Evidence, SubmittedContribution
+from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight
 from .serializers import (ContributionTypeSerializer, ContributionSerializer, 
                          EvidenceSerializer, SubmittedContributionSerializer,
-                         SubmittedEvidenceSerializer)
+                         SubmittedEvidenceSerializer, ContributionHighlightSerializer)
 from .forms import SubmissionReviewForm
 from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -110,6 +110,34 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         ).order_by('-contribution_date')[:10]
         
         serializer = ContributionSerializer(recent_contributions, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def highlights(self, request, pk=None):
+        """
+        Get active highlights for a specific contribution type.
+        """
+        contribution_type = self.get_object()
+        limit = int(request.query_params.get('limit', 5))
+        
+        highlights = ContributionHighlight.get_active_highlights(
+            contribution_type=contribution_type,
+            limit=limit
+        )
+        
+        serializer = ContributionHighlightSerializer(highlights, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    def all_highlights(self, request):
+        """
+        Get all active highlights across all contribution types.
+        """
+        limit = int(request.query_params.get('limit', 5))
+        
+        highlights = ContributionHighlight.get_active_highlights(limit=limit)
+        
+        serializer = ContributionHighlightSerializer(highlights, many=True)
         return Response(serializer.data)
 
 
