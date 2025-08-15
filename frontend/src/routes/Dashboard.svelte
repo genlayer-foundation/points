@@ -12,6 +12,7 @@
   let leaderboard = $state([]);
   let contributions = $state([]);
   let highlights = $state([]);
+  let newestValidators = $state([]);
   let stats = $state({
     totalParticipants: 0,
     totalContributions: 0,
@@ -22,10 +23,12 @@
   let leaderboardLoading = $state(true);
   let contributionsLoading = $state(true);
   let highlightsLoading = $state(true);
+  let newestValidatorsLoading = $state(true);
   let statsLoading = $state(true);
   let leaderboardError = $state(null);
   let contributionsError = $state(null);
   let highlightsError = $state(null);
+  let newestValidatorsError = $state(null);
   let statsError = $state(null);
   
   // Format date helper
@@ -71,6 +74,17 @@
     } catch (error) {
       contributionsError = error.message || 'Failed to load contributions';
       contributionsLoading = false;
+    }
+    
+    try {
+      // Fetch newest validators
+      newestValidatorsLoading = true;
+      const validatorsRes = await usersAPI.getUsers({ limit: 5, ordering: '-created_at' });
+      newestValidators = validatorsRes.data.results || [];
+      newestValidatorsLoading = false;
+    } catch (error) {
+      newestValidatorsError = error.message || 'Failed to load newest validators';
+      newestValidatorsLoading = false;
     }
     
     try {
@@ -177,11 +191,11 @@
     />
   </div>
   
-  <!-- Leaderboard on Left, Highlights and Recent on Right -->
+  <!-- First Row: Leaderboard and Highlights -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <!-- Leaderboard Section (Left Column) -->
-    <div class="space-y-4">
-      <div class="flex justify-between items-center">
+    <!-- Top Validators -->
+    <div class="bg-white shadow rounded-lg p-6">
+      <div class="flex justify-between items-center mb-4">
         <h2 class="text-lg font-semibold text-gray-900">Top Validators</h2>
         <button
           onclick={() => push('/leaderboard')}
@@ -192,99 +206,149 @@
       </div>
       
       <LeaderboardTable
-        entries={(leaderboard || []).slice(0, 10)} 
+        entries={(leaderboard || []).slice(0, 5)} 
         loading={leaderboardLoading}
         error={leaderboardError}
         compact={true}
         hideAddress={true}
+        showHeader={false}
       />
     </div>
     
-    <!-- Right Column: Highlights and Recent Contributions -->
-    <div class="space-y-6">
-      <!-- Highlights Section -->
-      <div class="space-y-4">
-        <div class="flex justify-between items-center">
-          <h2 class="text-lg font-semibold text-gray-900">Featured Contributions</h2>
-          <button
-            onclick={() => push('/contributions')}
-            class="text-sm text-primary-600 hover:text-primary-700 font-medium"
-          >
-            View All →
-          </button>
+    <!-- Featured Highlights -->
+    <div class="bg-white shadow rounded-lg p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-semibold text-gray-900">Featured Contributions</h2>
+        <button
+          onclick={() => push('/contributions')}
+          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+        >
+          View All →
+        </button>
+      </div>
+      
+      {#if highlightsLoading}
+        <div class="flex justify-center items-center p-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
-        
-        {#if highlightsLoading}
-          <div class="flex justify-center items-center p-8">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-          </div>
-        {:else if highlightsError}
-          <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            <p>{highlightsError}</p>
-          </div>
-        {:else if highlights.length === 0}
-          <div class="bg-gray-50 rounded-lg p-6 text-center">
-            <p class="text-gray-500">No highlighted contributions yet.</p>
-          </div>
-        {:else}
-          <div class="space-y-3">
-            {#each highlights.slice(0, 5) as highlight}
-              <div class="bg-white shadow rounded-lg p-4 hover:shadow-lg transition-shadow">
-                <div class="flex items-start justify-between">
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-2">
-                      <svg class="w-4 h-4 text-yellow-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-                      </svg>
-                      <h3 class="text-base font-semibold text-gray-900 truncate">{highlight.title}</h3>
-                    </div>
-                    
-                    <p class="text-sm text-gray-600 mb-2 line-clamp-2">{highlight.description}</p>
-                    
-                    <div class="flex items-center gap-3 text-xs">
-                      <button 
-                        class="text-primary-600 hover:text-primary-700 font-medium truncate"
-                        onclick={() => push(`/participant/${highlight.user_address}`)}
-                      >
-                        {highlight.user_name || `${highlight.user_address.slice(0, 6)}...${highlight.user_address.slice(-4)}`}
-                      </button>
-                      
-                      <span class="text-gray-400">•</span>
-                      <span class="text-gray-500">{formatDate(highlight.contribution_date)}</span>
-                    </div>
+      {:else if highlightsError}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <p>{highlightsError}</p>
+        </div>
+      {:else if highlights.length === 0}
+        <div class="bg-gray-50 rounded-lg p-6 text-center">
+          <p class="text-gray-500">No highlighted contributions yet.</p>
+        </div>
+      {:else}
+        <div class="space-y-3">
+          {#each highlights.slice(0, 3) as highlight}
+            <div class="border-l-4 border-yellow-400 pl-4 py-2">
+              <div class="flex items-start justify-between">
+                <div class="flex-1 min-w-0">
+                  <h3 class="text-sm font-semibold text-gray-900 truncate">{highlight.title}</h3>
+                  <p class="text-xs text-gray-600 mt-1 line-clamp-2">{highlight.description}</p>
+                  <div class="flex items-center gap-2 mt-2 text-xs">
+                    <button 
+                      class="text-primary-600 hover:text-primary-700 font-medium"
+                      onclick={() => push(`/participant/${highlight.user_address}`)}
+                    >
+                      {highlight.user_name || `${highlight.user_address.slice(0, 6)}...`}
+                    </button>
+                    <span class="text-gray-400">•</span>
+                    <span class="text-gray-500">{formatDate(highlight.contribution_date)}</span>
                   </div>
-                  
-                  <div class="ml-3 flex-shrink-0">
-                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                      {highlight.contribution_points} pts
-                    </span>
+                </div>
+                <div class="ml-3 flex-shrink-0">
+                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    {highlight.contribution_points} pts
+                  </span>
+                </div>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  </div>
+  
+  <!-- Second Row: Recent Contributions and Newest Validators -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Recent Contributions -->
+    <div class="bg-white shadow rounded-lg p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-semibold text-gray-900">Recent Contributions</h2>
+        <button
+          onclick={() => push('/contributions')}
+          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+        >
+          View All →
+        </button>
+      </div>
+      
+      <ContributionsList
+        contributions={contributions || []}
+        loading={contributionsLoading}
+        error={contributionsError}
+        showUser={true}
+      />
+    </div>
+    
+    <!-- Newest Validators -->
+    <div class="bg-white shadow rounded-lg p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-semibold text-gray-900">Newest Validators</h2>
+        <button
+          onclick={() => push('/validators')}
+          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+        >
+          View All →
+        </button>
+      </div>
+      
+      {#if newestValidatorsLoading}
+        <div class="flex justify-center items-center p-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        </div>
+      {:else if newestValidatorsError}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <p>{newestValidatorsError}</p>
+        </div>
+      {:else if newestValidators.length === 0}
+        <div class="bg-gray-50 rounded-lg p-6 text-center">
+          <p class="text-gray-500">No new validators yet.</p>
+        </div>
+      {:else}
+        <div class="space-y-3">
+          {#each newestValidators as validator}
+            <div class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
+                  <span class="text-sm font-bold text-blue-600">
+                    {validator.name ? validator.name.charAt(0).toUpperCase() : '#'}
+                  </span>
+                </div>
+                <div>
+                  <button
+                    class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors"
+                    onclick={() => push(`/participant/${validator.address}`)}
+                  >
+                    {validator.name || `${validator.address.slice(0, 6)}...${validator.address.slice(-4)}`}
+                  </button>
+                  <div class="text-xs text-gray-500">
+                    Joined {formatDate(validator.created_at)}
                   </div>
                 </div>
               </div>
-            {/each}
-          </div>
-        {/if}
-      </div>
-      
-      <!-- Recent Contributions Section -->
-      <div class="space-y-4">
-        <div class="flex justify-between items-center">
-          <h2 class="text-lg font-semibold text-gray-900">Recent Contributions</h2>
-          <button
-            onclick={() => push('/contributions')}
-            class="text-sm text-primary-600 hover:text-primary-700 font-medium"
-          >
-            View All →
-          </button>
+              <button
+                onclick={() => push(`/participant/${validator.address}`)}
+                class="text-xs text-primary-600 hover:text-primary-700 font-medium"
+              >
+                View →
+              </button>
+            </div>
+          {/each}
         </div>
-        
-        <ContributionsList
-          contributions={contributions || []}
-          loading={contributionsLoading}
-          error={contributionsError}
-          showUser={true}
-        />
-      </div>
+      {/if}
     </div>
   </div>
 </div>
