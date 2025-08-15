@@ -1,8 +1,11 @@
 <script>
-  export let title;
-  export let value;
-  export let icon = null;
-  export let color = 'blue';
+  let { 
+    title, 
+    value, 
+    icon = null, 
+    color = 'blue',
+    className = ''
+  } = $props();
   
   const colorClasses = {
     blue: 'bg-blue-50 text-blue-500',
@@ -15,7 +18,7 @@
   const iconBgClass = colorClasses[color] || colorClasses.blue;
 </script>
 
-<div class="bg-white overflow-hidden shadow rounded-lg">
+<div class="bg-white overflow-hidden shadow rounded-lg {className}">
   <div class="p-5">
     <div class="flex items-center">
       {#if icon}

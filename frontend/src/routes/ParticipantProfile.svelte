@@ -3,6 +3,7 @@
   import { push, querystring } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import UserContributions from '../components/UserContributions.svelte';
+  import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import StatCard from '../components/StatCard.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import { usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
@@ -19,7 +20,6 @@
     averagePoints: 0,
     contributionTypes: []
   });
-  let highlights = $state([]);
   let isValidatorOnly = $state(false); // Track if this is just a validator without user account
   
   let loading = $state(true);
@@ -96,19 +96,6 @@
       } catch (statsError) {
         console.warn('Stats API error, will use basic data:', statsError);
         statsError = statsError.message || 'Failed to load participant statistics';
-      }
-      
-      // Fetch user highlights (if not validator only)
-      if (!isValidatorOnly) {
-        try {
-          const highlightsRes = await usersAPI.getUserHighlights(participantAddress, { limit: 5 });
-          if (highlightsRes.data) {
-            highlights = highlightsRes.data;
-            console.log("User highlights received:", highlightsRes.data);
-          }
-        } catch (highlightsError) {
-          console.warn('Failed to load user highlights:', highlightsError);
-        }
       }
       
       loading = false;
@@ -365,39 +352,27 @@
       </div>
       
       <!-- Highlights Section -->
-      {#if highlights && highlights.length > 0}
-        <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
-          <div class="px-4 py-5 sm:px-6">
-            <h3 class="text-lg leading-6 font-medium text-gray-900">
-              Featured Contributions
-            </h3>
-            <p class="mt-1 max-w-2xl text-sm text-gray-500">
-              Notable achievements and contributions
-            </p>
-          </div>
-          <div class="border-t border-gray-200">
-            <div class="space-y-4 p-4">
-              {#each highlights as highlight}
-                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                  <div class="flex justify-between items-start">
-                    <div class="flex-1">
-                      <h4 class="text-lg font-semibold text-gray-900">{highlight.title}</h4>
-                      <p class="mt-2 text-sm text-gray-700">{highlight.description}</p>
-                      <div class="mt-3 flex items-center gap-4 text-xs text-gray-600">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
-                          {highlight.contribution.contribution_type_name}
-                        </span>
-                        <span>{highlight.contribution.points} points</span>
-                        <span>{new Date(highlight.contribution.contribution_date).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              {/each}
-            </div>
+      <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+        <div class="px-4 py-5 sm:px-6">
+          <h3 class="text-lg leading-6 font-medium text-gray-900">
+            Featured Contributions
+          </h3>
+          <p class="mt-1 max-w-2xl text-sm text-gray-500">
+            Notable achievements and contributions
+          </p>
+        </div>
+        <div class="border-t border-gray-200">
+          <div class="p-4">
+            <FeaturedContributions
+              userId={participant.address}
+              limit={5}
+              showHeader={false}
+              cardStyle="highlight"
+              showViewAll={false}
+            />
           </div>
         </div>
-      {/if}
+      </div>
     {:else}
       <!-- Simple message for validators without accounts -->
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6 text-center">
