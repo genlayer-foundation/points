@@ -227,6 +227,22 @@
       </div>
     </div>
     
+    <!-- Explorer Button - Standalone -->
+    <div class="mb-6">
+      <a 
+        href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${participant.address}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+      >
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+        </svg>
+        View in Testnet Asimov Explorer
+      </a>
+    </div>
+    
+    <!-- Main Information -->
     <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
       <div class="border-t border-gray-200">
         <dl>
@@ -235,9 +251,8 @@
               <dt class="text-sm font-medium text-gray-500">
                 Wallet Address
               </dt>
-              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                <div class="font-mono mb-2">{participant.address}</div>
-                <ValidatorStatus address={participant.address} />
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 font-mono">
+                {participant.address}
               </dd>
             </div>
           {/if}
@@ -283,18 +298,28 @@
           {#if !isValidatorOnly}
             <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
               <dt class="text-sm font-medium text-gray-500">
+                Joined
+              </dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {formatDate(participant.created_at)}
+              </dd>
+            </div>
+            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">
                 Total Points
               </dt>
               <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
                 {participant.leaderboard_entry?.total_points ?? '—'}
               </dd>
             </div>
-            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+          {/if}
+          {#if participant.address}
+            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
               <dt class="text-sm font-medium text-gray-500">
-                Joined
+                Validator Status
               </dt>
               <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {formatDate(participant.created_at)}
+                <ValidatorStatus address={participant.address} />
               </dd>
             </div>
           {/if}
