@@ -37,7 +37,7 @@
 </script>
 
 <div class="space-y-4 {className}">
-  <div class="flex justify-between items-center">
+  <div class="flex items-center gap-2">
     <h2 class="text-lg font-semibold text-gray-900">{title}</h2>
     {#if showViewAll}
       <button

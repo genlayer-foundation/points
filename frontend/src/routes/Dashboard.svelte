@@ -180,7 +180,7 @@
     
     <!-- Featured Highlights -->
     <div class="space-y-4">
-      <div class="flex justify-between items-center">
+      <div class="flex items-center gap-2">
         <h2 class="text-lg font-semibold text-gray-900">Featured Contributions</h2>
         <button
           onclick={() => push('/highlights')}
@@ -200,7 +200,7 @@
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Newest Validators -->
     <div class="space-y-4">
-      <div class="flex justify-between items-center">
+      <div class="flex items-center gap-2">
         <h2 class="text-lg font-semibold text-gray-900">Newest Validators</h2>
         <button
           onclick={() => push('/validators')}
