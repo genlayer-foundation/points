@@ -51,16 +51,24 @@ class ValidatorModelTestCase(TestCase):
         """Test version parsing logic"""
         validator = Validator.objects.create(user=self.user)
         
-        # Test valid versions
+        # Test valid versions - full X.Y.Z
         self.assertEqual(validator.clean_version('1.2.3'), (1, 2, 3))
         self.assertEqual(validator.clean_version('v1.2.3'), (1, 2, 3))
         self.assertEqual(validator.clean_version('1.2.3-rc1'), (1, 2, 3))
         self.assertEqual(validator.clean_version('v1.2.3-beta'), (1, 2, 3))
         
+        # Test valid versions - X.Y format
+        self.assertEqual(validator.clean_version('1.2'), (1, 2, 0))
+        self.assertEqual(validator.clean_version('0.4'), (0, 4, 0))
+        self.assertEqual(validator.clean_version('v0.3'), (0, 3, 0))
+        
+        # Test valid versions - X format
+        self.assertEqual(validator.clean_version('1'), (1, 0, 0))
+        self.assertEqual(validator.clean_version('v2'), (2, 0, 0))
+        
         # Test invalid versions
         self.assertIsNone(validator.clean_version(''))
         self.assertIsNone(validator.clean_version('invalid'))
-        self.assertIsNone(validator.clean_version('1.2'))
         
     def test_version_comparison(self):
         """Test version matching logic"""

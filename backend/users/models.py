@@ -103,9 +103,23 @@ class Validator(BaseModel):
             return None
             
         # Remove common prefixes and extract version numbers
+        # First try to match X.Y.Z format
         match = re.match(r'v?(\d+)\.(\d+)\.(\d+)', version_str)
         if match:
             return tuple(map(int, match.groups()))
+        
+        # Then try X.Y format (assume patch version 0)
+        match = re.match(r'v?(\d+)\.(\d+)', version_str)
+        if match:
+            major, minor = map(int, match.groups())
+            return (major, minor, 0)
+        
+        # Finally try just X format (assume minor and patch 0)
+        match = re.match(r'v?(\d+)', version_str)
+        if match:
+            major = int(match.group(1))
+            return (major, 0, 0)
+            
         return None
     
     def version_matches_or_higher(self, target_version):
