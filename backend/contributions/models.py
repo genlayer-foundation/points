@@ -322,13 +322,14 @@ class ContributionHighlight(BaseModel):
         return f"{self.title} - {self.contribution.user.name or self.contribution.user.address[:8]}"
     
     @classmethod
-    def get_active_highlights(cls, contribution_type=None, limit=5):
+    def get_active_highlights(cls, contribution_type=None, user=None, limit=5):
         """
-        Get highlights, optionally filtered by contribution type.
+        Get highlights, optionally filtered by contribution type or user.
         Ordered by creation date (newest first).
         
         Args:
             contribution_type: Optional ContributionType to filter by
+            user: Optional User to filter by
             limit: Maximum number of highlights to return (default 5)
         """
         queryset = cls.objects.all()
@@ -336,6 +337,10 @@ class ContributionHighlight(BaseModel):
         # Filter by contribution type if provided
         if contribution_type:
             queryset = queryset.filter(contribution__contribution_type=contribution_type)
+        
+        # Filter by user if provided
+        if user:
+            queryset = queryset.filter(contribution__user=user)
         
         # Select related for optimization
         queryset = queryset.select_related(

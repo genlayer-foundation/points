@@ -47,6 +47,7 @@ export const usersAPI = {
   getUsers: (params) => api.get('/users/', { params }),
   getUser: (address) => api.get(`/users/${address}/`),
   getUserByAddress: (address) => api.get(`/users/by-address/${address}/`),
+  getUserHighlights: (address, params) => api.get(`/users/by-address/${address}/highlights/`, { params }),
   getUserCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.participant_count }
   })),
