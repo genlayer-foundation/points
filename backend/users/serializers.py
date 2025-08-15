@@ -9,10 +9,12 @@ class ValidatorSerializer(serializers.ModelSerializer):
     """
     matches_target = serializers.SerializerMethodField()
     target_version = serializers.SerializerMethodField()
+    target_date = serializers.SerializerMethodField()
+    target_created_at = serializers.SerializerMethodField()
     
     class Meta:
         model = Validator
-        fields = ['node_version', 'matches_target', 'target_version', 'updated_at']
+        fields = ['node_version', 'matches_target', 'target_version', 'target_date', 'target_created_at', 'updated_at']
         read_only_fields = ['updated_at']
     
     def get_matches_target(self, obj):
@@ -30,6 +32,20 @@ class ValidatorSerializer(serializers.ModelSerializer):
         """
         target = TargetNodeVersion.get_active()
         return target.version if target else None
+    
+    def get_target_date(self, obj):
+        """
+        Get the target date.
+        """
+        target = TargetNodeVersion.get_active()
+        return target.target_date if target else None
+    
+    def get_target_created_at(self, obj):
+        """
+        Get when the target was created (for points calculation).
+        """
+        target = TargetNodeVersion.get_active()
+        return target.created_at if target else None
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
