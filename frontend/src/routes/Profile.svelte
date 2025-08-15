@@ -190,10 +190,8 @@
                   </div>
                   <div class="relative group">
                     <span class="text-lg text-red-600 cursor-help">①*</span>
-                    <div class="absolute right-0 top-6 w-48 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                      <p class="font-semibold mb-1">Node Upgrade Contribution</p>
-                      <p>You'll receive 1 point (10x multiplier = 10 global points)</p>
-                      <a href="/contribution-type/node-upgrade" class="text-blue-300 underline mt-1 inline-block pointer-events-auto">View details →</a>
+                    <div class="absolute right-0 top-6 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap">
+                      Node Upgrade
                     </div>
                   </div>
                 </div>
@@ -216,10 +214,8 @@
                     <span class="text-lg text-yellow-600 cursor-help">
                       {#if daysSinceTarget() === 0}④{:else if daysSinceTarget() === 1}③{:else if daysSinceTarget() === 2}②{:else}①{/if}*
                     </span>
-                    <div class="absolute right-0 top-6 w-48 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                      <p class="font-semibold mb-1">Node Upgrade Contribution</p>
-                      <p>You'll receive {getPointsForDay(daysSinceTarget())} points ({getPointsForDay(daysSinceTarget()) * 10} global points with 10x multiplier)</p>
-                      <a href="/contribution-type/node-upgrade" class="text-blue-300 underline mt-1 inline-block pointer-events-auto">View details →</a>
+                    <div class="absolute right-0 top-6 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap">
+                      Node Upgrade
                     </div>
                   </div>
                 </div>
@@ -239,35 +235,35 @@
               </div>
               
               <div class="mt-3 pt-3 border-t border-blue-200">
-                <p class="text-xs font-medium text-blue-900 mb-1">Points for upgrading:</p>
+                <p class="text-xs font-medium text-blue-900 mb-1">Points are assigned based on upgrade speed:</p>
                 <div class="grid grid-cols-4 gap-2 text-xs">
                   <div class="text-center">
                     <div class="font-medium text-blue-900">Day 1</div>
-                    <div class="text-blue-700">4 points</div>
+                    <div class="text-blue-700">④ points</div>
                   </div>
                   <div class="text-center">
                     <div class="font-medium text-blue-900">Day 2</div>
-                    <div class="text-blue-700">3 points</div>
+                    <div class="text-blue-700">③ points</div>
                   </div>
                   <div class="text-center">
                     <div class="font-medium text-blue-900">Day 3</div>
-                    <div class="text-blue-700">2 points</div>
+                    <div class="text-blue-700">② points</div>
                   </div>
                   <div class="text-center">
                     <div class="font-medium text-blue-900">Day 4+</div>
-                    <div class="text-blue-700">1 point</div>
+                    <div class="text-blue-700">① point</div>
                   </div>
                 </div>
                 {#if daysSinceTarget() !== null}
-                  <p class="text-xs text-blue-600 mt-2 text-center">
+                  <p class="text-xs text-blue-600 mt-2 text-center italic">
                     {#if daysSinceTarget() === 0}
-                      <strong>Today is day 1 - Upgrade now for maximum points!</strong>
+                      <strong>Upgrade now for maximum points!</strong>
                     {:else if daysSinceTarget() === 1}
-                      Day {daysSinceTarget() + 1} - You'll get 3 points
+                      You'll receive ③ points if you upgrade today
                     {:else if daysSinceTarget() === 2}
-                      Day {daysSinceTarget() + 1} - You'll get 2 points
+                      You'll receive ② points if you upgrade today
                     {:else}
-                      Day {daysSinceTarget() + 1} - You'll get 1 point
+                      You'll receive ① point if you upgrade today
                     {/if}
                   </p>
                 {/if}
