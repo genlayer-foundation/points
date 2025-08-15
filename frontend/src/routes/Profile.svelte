@@ -4,12 +4,15 @@
   import { getCurrentUser, updateUserProfile } from '../lib/api';
   import { authState } from '../lib/auth';
   import { userStore } from '../lib/userStore';
+  import { getValidatorBalance } from '../lib/blockchain';
   
   let user = $state(null);
   let name = $state('');
   let nodeVersion = $state('');
   let isSaving = $state(false);
   let error = $state('');
+  let balance = $state(null);
+  let loadingBalance = $state(false);
   
   // Track if any field has changed
   let hasChanges = $derived(user && (
@@ -77,6 +80,19 @@
       user = userData;
       name = userData.name || '';
       nodeVersion = userData.validator?.node_version || '';
+      
+      // Fetch validator balance if user has an address
+      if (userData.address) {
+        loadingBalance = true;
+        try {
+          balance = await getValidatorBalance(userData.address);
+        } catch (err) {
+          console.error('Failed to fetch balance:', err);
+          // Don't show error, just leave balance as null
+        } finally {
+          loadingBalance = false;
+        }
+      }
     } catch (err) {
       error = 'Failed to load profile';
       console.error('Error loading profile:', err);
@@ -137,6 +153,19 @@
           <label class="block text-sm font-medium text-gray-700 mb-1">Wallet Address</label>
           <p class="text-gray-900 font-mono text-sm">{user.address || 'Not connected'}</p>
         </div>
+        
+        {#if user.address}
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Balance</label>
+          {#if loadingBalance}
+            <p class="text-gray-500">Loading balance...</p>
+          {:else if balance}
+            <p class="text-gray-900 font-mono text-sm">{balance.formatted} GEN</p>
+          {:else}
+            <p class="text-gray-500">Unable to fetch balance</p>
+          {/if}
+        </div>
+        {/if}
         
         <div>
           <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
