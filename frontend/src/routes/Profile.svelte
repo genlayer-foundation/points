@@ -7,17 +7,22 @@
   
   let user = $state(null);
   let name = $state('');
+  let nodeVersion = $state('');
   let isSaving = $state(false);
   let error = $state('');
   
-  // Track if name has changed
-  let hasChanges = $derived(user && name !== (user.name || ''));
+  // Track if any field has changed
+  let hasChanges = $derived(user && (
+    name !== (user.name || '') || 
+    nodeVersion !== (user.validator?.node_version || '')
+  ));
   
   onMount(async () => {
     try {
       const userData = await getCurrentUser();
       user = userData;
       name = userData.name || '';
+      nodeVersion = userData.validator?.node_version || '';
     } catch (err) {
       error = 'Failed to load profile';
       console.error('Error loading profile:', err);
@@ -31,9 +36,21 @@
     isSaving = true;
     
     try {
-      const updatedUser = await updateUserProfile({ name });
+      const updateData = { name };
+      // Only include node_version if it has changed
+      if (nodeVersion !== (user.validator?.node_version || '')) {
+        updateData.node_version = nodeVersion;
+      }
+      
+      const updatedUser = await updateUserProfile(updateData);
       // Update the user store with new data
-      userStore.updateUser({ name });
+      userStore.updateUser({ 
+        name,
+        validator: { 
+          ...user.validator,
+          node_version: nodeVersion 
+        }
+      });
       // Store success message in sessionStorage to show on profile page
       sessionStorage.setItem('profileUpdateSuccess', 'Profile updated successfully!');
       // Redirect to public profile
@@ -78,6 +95,29 @@
             disabled={isSaving}
           />
           <p class="mt-1 text-sm text-gray-500">This name will be displayed on your public profile</p>
+        </div>
+        
+        <div>
+          <label for="nodeVersion" class="block text-sm font-medium text-gray-700 mb-1">
+            Node Version
+            {#if user?.validator?.target_version}
+              <span class="text-xs text-gray-500 ml-2">(Target: {user.validator.target_version})</span>
+            {/if}
+          </label>
+          <input
+            id="nodeVersion"
+            type="text"
+            bind:value={nodeVersion}
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="e.g., 1.2.3"
+            disabled={isSaving}
+          />
+          <p class="mt-1 text-sm text-gray-500">
+            Your current GenLayer node version
+            {#if user?.validator?.matches_target}
+              <span class="text-green-600 font-medium ml-1">✓ Matches target</span>
+            {/if}
+          </p>
         </div>
       </div>
       
