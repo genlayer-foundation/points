@@ -200,14 +200,14 @@ class UserProfileSerializerTestCase(TestCase):
             address='0x1234567890abcdef'
         )
         
-    def test_serializer_only_includes_name_field(self):
-        """Test that serializer only exposes name field"""
+    def test_serializer_includes_expected_fields(self):
+        """Test that serializer exposes name and node_version fields"""
         from users.serializers import UserProfileUpdateSerializer
         
         serializer = UserProfileUpdateSerializer(instance=self.user)
         
-        # Should only have 'name' field
-        self.assertEqual(list(serializer.fields.keys()), ['name'])
+        # Should have 'name' and 'node_version' fields
+        self.assertEqual(sorted(list(serializer.fields.keys())), ['name', 'node_version'])
         
     def test_serializer_validates_name_length(self):
         """Test that serializer validates name length"""
