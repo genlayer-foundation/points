@@ -212,3 +212,37 @@ class ValidatorModelTestCase(TestCase):
         
         # No contribution should be created
         self.assertEqual(Contribution.objects.count(), 0)
+    
+    def test_invisible_user_no_contribution(self):
+        """Test that invisible users don't get contributions created"""
+        # Create target version
+        target = TargetNodeVersion.objects.create(
+            version='2.0.0',
+            target_date=timezone.now() + timedelta(days=7),
+            is_active=True
+        )
+        
+        # Make user invisible
+        self.user.visible = False
+        self.user.save()
+        
+        # Create validator and update to target version
+        validator = Validator.objects.create(user=self.user)
+        validator.node_version = '2.0.0'
+        validator.save()
+        
+        # No contribution should be created for invisible user
+        self.assertEqual(Contribution.objects.count(), 0)
+        
+        # Make user visible and update version again
+        self.user.visible = True
+        self.user.save()
+        
+        # Trigger save by changing and resetting version
+        validator.node_version = '1.9.9'
+        validator.save()
+        validator.node_version = '2.0.0'
+        validator.save()
+        
+        # Now contribution should be created
+        self.assertEqual(Contribution.objects.count(), 1)

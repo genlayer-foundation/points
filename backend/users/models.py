@@ -157,7 +157,8 @@ class Validator(BaseModel):
         super().save(*args, **kwargs)
         
         # Check if version changed and matches target
-        if old_version != self.node_version and self.node_version:
+        # Only create contribution if user is visible
+        if old_version != self.node_version and self.node_version and self.user.visible:
             from contributions.node_upgrade.models import TargetNodeVersion
             from contributions.models import Contribution, ContributionType, Evidence
             from leaderboard.models import GlobalLeaderboardMultiplier
