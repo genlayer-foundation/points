@@ -40,12 +40,16 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             - current points multiplier
             - number of participants with each type
             - last date someone earned each type
+            - total points given for each type
         """
+        from django.db.models import Sum
+        
         types_with_stats = ContributionType.objects.annotate(
             count=Count('contributions'),
             participants_count=Count('contributions__user', distinct=True),
-            last_earned=Coalesce(Max('contributions__contribution_date'), timezone.now())
-        ).values('id', 'name', 'description', 'min_points', 'max_points', 'count', 'participants_count', 'last_earned')
+            last_earned=Coalesce(Max('contributions__contribution_date'), timezone.now()),
+            total_points_given=Coalesce(Sum('contributions__frozen_global_points'), 0)
+        ).values('id', 'name', 'description', 'min_points', 'max_points', 'count', 'participants_count', 'last_earned', 'total_points_given')
         
         # Add current multiplier for each type
         result = []
@@ -60,6 +64,53 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             result.append(type_data)
             
         return Response(result)
+    
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def top_contributors(self, request, pk=None):
+        """
+        Get top 10 contributors for a specific contribution type.
+        Returns users with the most points for this contribution type.
+        """
+        from django.db.models import Sum
+        from users.serializers import UserSerializer
+        
+        contribution_type = self.get_object()
+        
+        # Get top contributors by summing their frozen global points for this type
+        top_contributors = Contribution.objects.filter(
+            contribution_type=contribution_type
+        ).values('user').annotate(
+            total_points=Sum('frozen_global_points'),
+            contribution_count=Count('id')
+        ).order_by('-total_points')[:10]
+        
+        # Get user objects and add the aggregated data
+        result = []
+        for contributor in top_contributors:
+            user = contribution_type.contributions.filter(
+                user_id=contributor['user']
+            ).first().user
+            
+            user_data = UserSerializer(user).data
+            user_data['total_points'] = contributor['total_points']
+            user_data['contribution_count'] = contributor['contribution_count']
+            result.append(user_data)
+        
+        return Response(result)
+    
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def recent_contributions(self, request, pk=None):
+        """
+        Get the last 10 contributions for a specific contribution type.
+        """
+        contribution_type = self.get_object()
+        
+        recent_contributions = Contribution.objects.filter(
+            contribution_type=contribution_type
+        ).order_by('-contribution_date')[:10]
+        
+        serializer = ContributionSerializer(recent_contributions, many=True)
+        return Response(serializer.data)
 
 
 class ContributionViewSet(viewsets.ReadOnlyModelViewSet):

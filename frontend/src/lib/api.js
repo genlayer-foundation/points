@@ -65,6 +65,8 @@ export const contributionsAPI = {
   getContributionTypes: () => api.get('/contribution-types/'),
   getContributionType: (id) => api.get(`/contribution-types/${id}/`),
   getContributionTypeStatistics: () => api.get('/contribution-types/statistics/'),
+  getContributionTypeTopContributors: (id) => api.get(`/contribution-types/${id}/top_contributors/`),
+  getContributionTypeRecentContributions: (id) => api.get(`/contribution-types/${id}/recent_contributions/`),
   getContributionCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.contribution_count }
   }))
