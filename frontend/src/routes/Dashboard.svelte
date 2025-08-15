@@ -77,10 +77,33 @@
     }
     
     try {
-      // Fetch newest validators
+      // Fetch newest validators (ordered by first uptime contribution)
       newestValidatorsLoading = true;
-      const validatorsRes = await usersAPI.getUsers({ limit: 5, ordering: '-created_at' });
-      newestValidators = validatorsRes.data.results || [];
+      // Get recent uptime contributions to find newest validators
+      const uptimeRes = await contributionsAPI.getContributions({ 
+        limit: 20, 
+        ordering: '-contribution_date',
+        contribution_type_name: 'Uptime'
+      });
+      
+      // Extract unique users from uptime contributions
+      const seenUsers = new Set();
+      const uniqueValidators = [];
+      
+      if (uptimeRes.data && uptimeRes.data.results) {
+        for (const contribution of uptimeRes.data.results) {
+          if (contribution.user_details && !seenUsers.has(contribution.user_details.address)) {
+            seenUsers.add(contribution.user_details.address);
+            uniqueValidators.push({
+              ...contribution.user_details,
+              first_uptime_date: contribution.contribution_date
+            });
+            if (uniqueValidators.length >= 5) break;
+          }
+        }
+      }
+      
+      newestValidators = uniqueValidators;
       newestValidatorsLoading = false;
     } catch (error) {
       newestValidatorsError = error.message || 'Failed to load newest validators';
@@ -335,7 +358,7 @@
                     {validator.name || `${validator.address.slice(0, 6)}...${validator.address.slice(-4)}`}
                   </button>
                   <div class="text-xs text-gray-500">
-                    Joined {formatDate(validator.created_at)}
+                    First uptime: {formatDate(validator.first_uptime_date || validator.created_at)}
                   </div>
                 </div>
               </div>

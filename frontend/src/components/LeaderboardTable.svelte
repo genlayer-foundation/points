@@ -59,9 +59,6 @@
             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Points
             </th>
-            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Actions
-            </th>
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -82,9 +79,12 @@
                     </div>
                   {/if}
                   <div class={compact ? '' : 'ml-4'}>
-                    <div class="text-sm font-medium text-gray-900">
+                    <button
+                      onclick={() => push(`/participant/${entry.user_details?.address || ''}`)}
+                      class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors"
+                    >
                       {entry.user_details?.name || 'N/A'}
-                    </div>
+                    </button>
                     {#if !hideAddress}
                       <div class="text-sm text-gray-500">
                         {entry.user_details?.address || ''}
@@ -95,9 +95,6 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-900 font-medium">{entry.total_points}</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <a href={`/participant/${entry.user_details?.address || ''}`} onclick={(e) => { e.preventDefault(); push(`/participant/${entry.user_details?.address || ''}`); }} class="text-primary-600 hover:text-primary-900">View Profile</a>
               </td>
             </tr>
           {/each}
