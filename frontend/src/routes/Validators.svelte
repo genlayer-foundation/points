@@ -26,14 +26,24 @@
       
       const activeValidators = activeRes.data;
       
-      // Get all unique validator addresses
-      const allAddresses = [...new Set([...activeValidators, ...bannedValidators])];
+      // Filter out 0x000 addresses and get all unique validator addresses
+      const isValidAddress = (addr) => {
+        return addr && 
+               addr.toLowerCase() !== '0x0000000000000000000000000000000000000000' &&
+               addr.toLowerCase() !== '0x000' &&
+               addr !== '0x0';
+      };
+      
+      const filteredActiveValidators = activeValidators.filter(isValidAddress);
+      const filteredBannedValidators = bannedValidators.filter(isValidAddress);
+      
+      const allAddresses = [...new Set([...filteredActiveValidators, ...filteredBannedValidators])];
       
       // Prepare validators with status
       const validatorsWithStatus = allAddresses.map(address => ({
         address,
-        isActive: activeValidators.includes(address),
-        isBanned: bannedValidators.includes(address),
+        isActive: filteredActiveValidators.includes(address),
+        isBanned: filteredBannedValidators.includes(address),
         user: null,
         score: null
       }));
@@ -143,7 +153,8 @@
           </h3>
           <p class="mt-1 max-w-2xl text-sm text-gray-500">
             Active: {validators.filter(v => v.isActive).length} | 
-            Banned: {validators.filter(v => v.isBanned).length}
+            Banned: {validators.filter(v => v.isBanned).length} | 
+            Inactive: {validators.filter(v => !v.isActive && !v.isBanned).length}
           </p>
         </div>
       </div>
