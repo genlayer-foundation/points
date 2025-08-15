@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { push, querystring } from 'svelte-spa-router';
   import { format } from 'date-fns';
-  import ContributionsList from '../components/ContributionsList.svelte';
+  import UserContributions from '../components/UserContributions.svelte';
   import StatCard from '../components/StatCard.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import { usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
@@ -478,13 +478,10 @@
     
     <!-- Contributions -->
     {#if !isValidatorOnly}
-      <div>
-        <h2 class="text-xl font-semibold text-gray-900 mb-4">{participant.name || 'Participant'}'s Contributions</h2>
-        <ContributionsList
-          userAddress={participant.address}
-          showUser={false}
-        />
-      </div>
+      <UserContributions
+        userAddress={participant.address}
+        userName={participant.name || 'Participant'}
+      />
     {/if}
   {:else}
     <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded">

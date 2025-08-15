@@ -3,14 +3,13 @@
   import { format } from 'date-fns';
   import StatCard from '../components/StatCard.svelte';
   import LeaderboardTable from '../components/LeaderboardTable.svelte';
-  import ContributionsList from '../components/ContributionsList.svelte';
+  import RecentContributions from '../components/RecentContributions.svelte';
   import { leaderboardAPI, contributionsAPI, usersAPI, statsAPI } from '../lib/api';
   import { authState } from '../lib/auth.js';
   import { push } from 'svelte-spa-router';
   
   // State management
   let leaderboard = $state([]);
-  let contributions = $state([]);
   let highlights = $state([]);
   let newestValidators = $state([]);
   let stats = $state({
@@ -21,12 +20,10 @@
   });
   
   let leaderboardLoading = $state(true);
-  let contributionsLoading = $state(true);
   let highlightsLoading = $state(true);
   let newestValidatorsLoading = $state(true);
   let statsLoading = $state(true);
   let leaderboardError = $state(null);
-  let contributionsError = $state(null);
   let highlightsError = $state(null);
   let newestValidatorsError = $state(null);
   let statsError = $state(null);
@@ -65,16 +62,6 @@
       leaderboardLoading = false;
     }
     
-    try {
-      // Fetch recent contributions
-      contributionsLoading = true;
-      const contributionsRes = await contributionsAPI.getContributions({ limit: 5, ordering: '-created_at' });
-      contributions = contributionsRes.data.results || [];
-      contributionsLoading = false;
-    } catch (error) {
-      contributionsError = error.message || 'Failed to load contributions';
-      contributionsLoading = false;
-    }
     
     try {
       // Fetch newest validators (ordered by first uptime contribution)
@@ -175,7 +162,7 @@
   </div>
   
   <!-- Connection error message if needed -->
-  {#if statsError || leaderboardError || contributionsError}
+  {#if statsError || leaderboardError}
     <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
       <div class="flex">
         <div class="flex-shrink-0">
@@ -360,23 +347,6 @@
     </div>
     
     <!-- Recent Contributions -->
-    <div class="space-y-4">
-      <div class="flex justify-between items-center">
-        <h2 class="text-lg font-semibold text-gray-900">Recent Contributions</h2>
-        <button
-          onclick={() => push('/contributions')}
-          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
-        >
-          View All →
-        </button>
-      </div>
-      
-      <ContributionsList
-        contributions={contributions || []}
-        loading={contributionsLoading}
-        error={contributionsError}
-        showUser={true}
-      />
-    </div>
+    <RecentContributions />
   </div>
 </div>

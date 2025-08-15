@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { format } from 'date-fns';
-  import ContributionsList from '../components/ContributionsList.svelte';
+  import RecentContributions from '../components/RecentContributions.svelte';
   import StatCard from '../components/StatCard.svelte';
   import { contributionsAPI } from '../lib/api';
   import { push } from 'svelte-spa-router';
@@ -13,7 +13,6 @@
   let contributions = [];
   let statistics = {};
   let topContributors = [];
-  let recentContributions = [];
   let highlights = [];
   let loading = true;
   let error = null;
@@ -64,16 +63,6 @@
     }
   };
 
-  // Get recent contributions for this type
-  const fetchRecentContributions = async () => {
-    try {
-      const response = await contributionsAPI.getContributionTypeRecentContributions(params.id);
-      return response.data || [];
-    } catch (err) {
-      console.error('Error fetching recent contributions:', err);
-      return [];
-    }
-  };
   
   // Get highlights for this type
   const fetchHighlights = async () => {
@@ -101,12 +90,11 @@
 
     try {
       // Fetch all data in parallel
-      const [typeData, statsData, contributionsData, topContributorsData, recentContributionsData, highlightsData] = await Promise.all([
+      const [typeData, statsData, contributionsData, topContributorsData, highlightsData] = await Promise.all([
         fetchContributionType(),
         fetchStatistics(),
         fetchContributions(),
         fetchTopContributors(),
-        fetchRecentContributions(),
         fetchHighlights()
       ]);
 
@@ -114,7 +102,6 @@
       statistics = statsData || {};
       contributions = contributionsData.results || [];
       topContributors = topContributorsData;
-      recentContributions = recentContributionsData;
       highlights = highlightsData;
     } catch (err) {
       error = err.message;
@@ -323,39 +310,11 @@
 
         <!-- Recent Contributions -->
         <div class="bg-white shadow rounded-lg p-6">
-          <div class="flex items-center mb-4">
-            <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <h2 class="text-lg font-semibold text-gray-900">Recent Contributions</h2>
-          </div>
-          {#if recentContributions.length > 0}
-            <div class="space-y-3">
-              {#each recentContributions as contribution}
-                <div class="p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                  <div class="flex justify-between items-start">
-                    <div class="flex-1">
-                      <p class="text-sm font-medium text-gray-900 cursor-pointer hover:text-purple-600"
-                         onclick={() => push(`/participant/${contribution.user_details?.address || ''}`)}>
-                        {contribution.user_details?.name || (contribution.user_details?.address ? `${contribution.user_details.address.slice(0, 6)}...${contribution.user_details.address.slice(-4)}` : 'Unknown')}
-                      </p>
-                      {#if contribution.notes}
-                        <p class="text-xs text-gray-600 mt-1">{contribution.notes}</p>
-                      {/if}
-                      <p class="text-xs text-gray-500 mt-1">{formatDate(contribution.contribution_date)}</p>
-                    </div>
-                    <div class="ml-4">
-                      <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800">
-                        {contribution.frozen_global_points} pts
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <p class="text-gray-500 text-sm">No recent contributions</p>
-          {/if}
+          <RecentContributions 
+            contributionTypeId={params.id}
+            limit={10}
+            showViewAll={false}
+          />
         </div>
       </div>
     {/if}
