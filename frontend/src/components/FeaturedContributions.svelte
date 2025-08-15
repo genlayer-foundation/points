@@ -6,7 +6,7 @@
 
   let {
     title = 'Featured Contributions',
-    subtitle = 'Notable achievements and contributions',
+    subtitle = null,
     limit = 3,
     userId = null,
     contributionTypeId = null,
