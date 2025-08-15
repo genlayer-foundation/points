@@ -299,28 +299,8 @@
     </div>
   </div>
   
-  <!-- Second Row: Recent Contributions and Newest Validators -->
+  <!-- Second Row: Newest Validators and Recent Contributions -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <!-- Recent Contributions -->
-    <div class="space-y-4">
-      <div class="flex justify-between items-center">
-        <h2 class="text-lg font-semibold text-gray-900">Recent Contributions</h2>
-        <button
-          onclick={() => push('/contributions')}
-          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
-        >
-          View All →
-        </button>
-      </div>
-      
-      <ContributionsList
-        contributions={contributions || []}
-        loading={contributionsLoading}
-        error={contributionsError}
-        showUser={true}
-      />
-    </div>
-    
     <!-- Newest Validators -->
     <div class="space-y-4">
       <div class="flex justify-between items-center">
@@ -363,7 +343,7 @@
                     {validator.name || `${validator.address.slice(0, 6)}...${validator.address.slice(-4)}`}
                   </button>
                   <div class="text-xs text-gray-500">
-                    First uptime: {formatDate(validator.first_uptime_date || validator.created_at)}
+                    {formatDate(validator.first_uptime_date || validator.created_at)}
                   </div>
                 </div>
               </div>
@@ -377,6 +357,26 @@
           {/each}
         </div>
       {/if}
+    </div>
+    
+    <!-- Recent Contributions -->
+    <div class="space-y-4">
+      <div class="flex justify-between items-center">
+        <h2 class="text-lg font-semibold text-gray-900">Recent Contributions</h2>
+        <button
+          onclick={() => push('/contributions')}
+          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+        >
+          View All →
+        </button>
+      </div>
+      
+      <ContributionsList
+        contributions={contributions || []}
+        loading={contributionsLoading}
+        error={contributionsError}
+        showUser={true}
+      />
     </div>
   </div>
 </div>
