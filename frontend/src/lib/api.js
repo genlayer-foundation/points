@@ -47,6 +47,7 @@ export const usersAPI = {
   getUsers: (params) => api.get('/users/', { params }),
   getUser: (address) => api.get(`/users/${address}/`),
   getUserByAddress: (address) => api.get(`/users/by-address/${address}/`),
+  getUserHighlights: (address, params) => api.get(`/users/by-address/${address}/highlights/`, { params }),
   getUserCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.participant_count }
   })),
@@ -67,6 +68,8 @@ export const contributionsAPI = {
   getContributionTypeStatistics: () => api.get('/contribution-types/statistics/'),
   getContributionTypeTopContributors: (id) => api.get(`/contribution-types/${id}/top_contributors/`),
   getContributionTypeRecentContributions: (id) => api.get(`/contribution-types/${id}/recent_contributions/`),
+  getContributionTypeHighlights: (id) => api.get(`/contribution-types/${id}/highlights/`),
+  getAllHighlights: () => api.get('/contribution-types/all_highlights/'),
   getContributionCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.contribution_count }
   }))

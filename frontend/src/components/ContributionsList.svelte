@@ -1,7 +1,6 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
-  import Badge from './Badge.svelte';
   import Pagination from './Pagination.svelte';
   import { contributionsAPI } from '../lib/api';
   
@@ -72,16 +71,7 @@
   }
 </script>
 
-<div class="bg-white shadow overflow-hidden rounded-lg">
-  <div class="px-4 py-5 sm:px-6">
-    <h3 class="text-lg leading-6 font-medium text-gray-900">
-      Contributions
-    </h3>
-    <p class="mt-1 max-w-2xl text-sm text-gray-500">
-      Recent contributions with points
-    </p>
-  </div>
-  
+<div>
   {#if localLoading}
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -95,113 +85,61 @@
       No contributions found.
     </div>
   {:else}
-    <div class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            {#if showUser}
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Contributor
-              </th>
-            {/if}
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Type
-            </th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Date
-            </th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Points
-            </th>
-            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Evidence
-            </th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-          {#each localContributions as contribution, i}
-            <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-              {#if showUser}
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="flex items-center">
-                    <div class="text-sm font-medium text-gray-900">
-                      <a href={`/participant/${contribution.user_details?.address || ''}`} onclick={(e) => { e.preventDefault(); push(`/participant/${contribution.user_details?.address || ''}`); }}>
-                        {contribution.user_details?.name || contribution.user_details?.address || 'N/A'}
-                      </a>
-                    </div>
-                  </div>
-                </td>
-              {/if}
-              <td class="px-6 py-4 whitespace-nowrap">
-                <Badge
-                  badge={{
-                    id: contribution.contribution_type?.id || contribution.contribution_type,
-                    name: contribution.contribution_type_name || (contribution.contribution_type?.name) || 'Unknown Type',
-                    description: contribution.contribution_type_description || contribution.contribution_type?.description || '',
-                    points: 0,
-                    actionId: contribution.contribution_type?.id || contribution.contribution_type,
-                    actionName: contribution.contribution_type_name || (contribution.contribution_type?.name) || 'Unknown Type',
-                    evidenceUrl: ''
-                  }}
-                  color="green"
-                  clickable={true}
-                />
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {formatDate(contribution.contribution_date)}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">
-                  {contribution.frozen_global_points != null ? contribution.frozen_global_points : 0}
+    <div class="space-y-3">
+      {#each localContributions as contribution}
+        <div class="bg-white shadow rounded-lg p-4 hover:shadow-lg transition-shadow">
+          <div class="flex items-start justify-between">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-2">
+                <div class="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
+                  </svg>
                 </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                {#if contribution.evidence_items && contribution.evidence_items.length > 0}
-                  <div class="flex flex-col items-end gap-1">
-                    {#each contribution.evidence_items as evidence}
-                      <div class="flex items-center gap-2">
-                        {#if evidence.description}
-                          <span class="text-xs text-gray-500 max-w-xs truncate text-right" title={evidence.description}>
-                            {evidence.description}
-                          </span>
-                        {/if}
-                        
-                        {#if evidence.url}
-                          <a href={evidence.url} target="_blank" rel="noopener noreferrer" 
-                             class="inline-flex items-center text-primary-600 hover:text-primary-900">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                          </a>
-                        {/if}
-                        
-                        {#if evidence.file_url}
-                          <a href={evidence.file_url} target="_blank" rel="noopener noreferrer" 
-                             class="inline-flex items-center text-primary-600 hover:text-primary-900">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                          </a>
-                        {/if}
-                      </div>
-                    {/each}
-                  </div>
-                {:else}
-                  <span class="text-gray-400">None</span>
+                <h3 class="text-base font-semibold text-gray-900">
+                  <button
+                    class="hover:text-primary-600 transition-colors"
+                    onclick={() => push(`/contribution-type/${contribution.contribution_type?.id || contribution.contribution_type}`)}
+                  >
+                    {contribution.contribution_type_name || (contribution.contribution_type?.name) || 'Unknown Type'}
+                  </button>
+                </h3>
+              </div>
+              
+              <div class="flex items-center gap-3 text-xs">
+                {#if showUser}
+                  <button 
+                    class="text-primary-600 hover:text-primary-700 font-medium"
+                    onclick={() => push(`/participant/${contribution.user_details?.address || ''}`)}
+                  >
+                    {contribution.user_details?.name || `${contribution.user_details?.address?.slice(0, 6)}...${contribution.user_details?.address?.slice(-4)}` || 'Anonymous'}
+                  </button>
+                  <span class="text-gray-400">•</span>
                 {/if}
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+                <span class="text-gray-500">{formatDate(contribution.contribution_date)}</span>
+              </div>
+            </div>
+            
+            <div class="ml-3 flex-shrink-0">
+              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                {contribution.frozen_global_points != null ? contribution.frozen_global_points : 0} pts
+              </span>
+            </div>
+          </div>
+        </div>
+      {/each}
     </div>
     
-    <!-- Pagination -->
-    <Pagination 
-      page={page} 
-      limit={limit} 
-      totalCount={totalCount} 
-      on:pageChange={handlePageChange} 
-    />
+    {#if userAddress}
+      <!-- Pagination -->
+      <div class="mt-4">
+        <Pagination 
+          page={page} 
+          limit={limit} 
+          totalCount={totalCount} 
+          on:pageChange={handlePageChange} 
+        />
+      </div>
+    {/if}
   {/if}
 </div>

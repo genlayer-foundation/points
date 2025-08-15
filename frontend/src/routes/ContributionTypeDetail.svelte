@@ -14,6 +14,7 @@
   let statistics = {};
   let topContributors = [];
   let recentContributions = [];
+  let highlights = [];
   let loading = true;
   let error = null;
 
@@ -73,6 +74,17 @@
       return [];
     }
   };
+  
+  // Get highlights for this type
+  const fetchHighlights = async () => {
+    try {
+      const response = await contributionsAPI.getContributionTypeHighlights(params.id);
+      return response.data || [];
+    } catch (err) {
+      console.error('Error fetching highlights:', err);
+      return [];
+    }
+  };
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -89,12 +101,13 @@
 
     try {
       // Fetch all data in parallel
-      const [typeData, statsData, contributionsData, topContributorsData, recentContributionsData] = await Promise.all([
+      const [typeData, statsData, contributionsData, topContributorsData, recentContributionsData, highlightsData] = await Promise.all([
         fetchContributionType(),
         fetchStatistics(),
         fetchContributions(),
         fetchTopContributors(),
-        fetchRecentContributions()
+        fetchRecentContributions(),
+        fetchHighlights()
       ]);
 
       contributionType = typeData;
@@ -102,6 +115,7 @@
       contributions = contributionsData.results || [];
       topContributors = topContributorsData;
       recentContributions = recentContributionsData;
+      highlights = highlightsData;
     } catch (err) {
       error = err.message;
     } finally {
@@ -200,6 +214,39 @@
       </div>
     </div>
 
+    <!-- Highlights Section -->
+    {#if highlights.length > 0}
+      <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex items-center mb-4">
+          <svg class="w-5 h-5 text-yellow-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+          </svg>
+          <h2 class="text-lg font-semibold text-gray-900">Featured Highlights</h2>
+        </div>
+        
+        <div class="space-y-3">
+          {#each highlights as highlight}
+            <div class="border-l-4 border-yellow-400 pl-4 py-2">
+              <h3 class="font-semibold text-gray-900">{highlight.title}</h3>
+              <p class="text-sm text-gray-600 mt-1">{highlight.description}</p>
+              <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                <button 
+                  class="hover:text-purple-600"
+                  onclick={() => push(`/participant/${highlight.user_address}`)}
+                >
+                  {highlight.user_name || `${highlight.user_address.slice(0, 6)}...${highlight.user_address.slice(-4)}`}
+                </button>
+                <span>•</span>
+                <span>{formatDate(highlight.contribution_date)}</span>
+                <span>•</span>
+                <span class="font-semibold text-purple-600">{highlight.contribution_points} pts</span>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
     <!-- Pioneer Opportunity Alert if no contributions -->
     {#if statistics.count === 0 || contributions.length === 0}
       <div class="bg-blue-50 border border-blue-200 shadow overflow-hidden rounded-lg">
@@ -251,7 +298,7 @@
             <div class="space-y-3">
               {#each topContributors as contributor, index}
                 <div class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
-                     on:click={() => push(`/participant/${contributor.address}`)}>
+                     onclick={() => push(`/participant/${contributor.address}`)}>
                   <div class="flex items-center space-x-3">
                     <div class="flex-shrink-0">
                       <span class="text-lg font-bold text-gray-500">#{index + 1}</span>
@@ -289,7 +336,7 @@
                   <div class="flex justify-between items-start">
                     <div class="flex-1">
                       <p class="text-sm font-medium text-gray-900 cursor-pointer hover:text-purple-600"
-                         on:click={() => push(`/participant/${contribution.user_details?.address || ''}`)}>
+                         onclick={() => push(`/participant/${contribution.user_details?.address || ''}`)}>
                         {contribution.user_details?.name || (contribution.user_details?.address ? `${contribution.user_details.address.slice(0, 6)}...${contribution.user_details.address.slice(-4)}` : 'Unknown')}
                       </p>
                       {#if contribution.notes}
