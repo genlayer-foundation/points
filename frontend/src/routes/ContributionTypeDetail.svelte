@@ -189,14 +189,13 @@
     </div>
 
     <!-- Highlights Section -->
-    <div class="bg-white shadow rounded-lg p-6">
-      <FeaturedContributions
-        contributionTypeId={params.id}
-        title="Featured Highlights"
-        cardStyle="compact"
-        showViewAll={false}
-      />
-    </div>
+    <FeaturedContributions
+      contributionTypeId={params.id}
+      title="Featured Highlights"
+      cardStyle="compact"
+      showViewAll={false}
+      className="mb-6"
+    />
 
     <!-- Pioneer Opportunity Alert if no contributions -->
     {#if statistics.count === 0 || contributions.length === 0}
@@ -273,13 +272,11 @@
         </div>
 
         <!-- Recent Contributions -->
-        <div class="bg-white shadow rounded-lg p-6">
-          <RecentContributions 
-            contributionTypeId={params.id}
-            limit={10}
-            showViewAll={false}
-          />
-        </div>
+        <RecentContributions 
+          contributionTypeId={params.id}
+          limit={10}
+          showViewAll={false}
+        />
       </div>
     {/if}
 

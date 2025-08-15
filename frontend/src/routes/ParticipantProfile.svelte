@@ -352,27 +352,15 @@
       </div>
       
       <!-- Highlights Section -->
-      <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
-        <div class="px-4 py-5 sm:px-6">
-          <h3 class="text-lg leading-6 font-medium text-gray-900">
-            Featured Contributions
-          </h3>
-          <p class="mt-1 max-w-2xl text-sm text-gray-500">
-            Notable achievements and contributions
-          </p>
-        </div>
-        <div class="border-t border-gray-200">
-          <div class="p-4">
-            <FeaturedContributions
-              userId={participant.address}
-              limit={5}
-              showHeader={false}
-              cardStyle="highlight"
-              showViewAll={false}
-            />
-          </div>
-        </div>
-      </div>
+      <FeaturedContributions
+        userId={participant.address}
+        limit={5}
+        title="Featured Contributions"
+        subtitle="Notable achievements and contributions"
+        cardStyle="highlight"
+        showViewAll={false}
+        className="mb-6"
+      />
     {:else}
       <!-- Simple message for validators without accounts -->
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6 text-center">
