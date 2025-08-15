@@ -52,6 +52,12 @@
         const user = users.find(u => u.address && u.address.toLowerCase() === validator.address.toLowerCase());
         if (user) {
           validator.user = user;
+          // Add validator info if present
+          if (user.validator) {
+            validator.nodeVersion = user.validator.node_version;
+            validator.matchesTarget = user.validator.matches_target;
+            validator.targetVersion = user.validator.target_version;
+          }
         }
         
         // Find leaderboard entry
@@ -143,7 +149,8 @@
           </h3>
           <p class="mt-1 max-w-2xl text-sm text-gray-500">
             Active: {validators.filter(v => v.isActive).length} | 
-            Banned: {validators.filter(v => v.isBanned).length}
+            Banned: {validators.filter(v => v.isBanned).length} | 
+            Up to date: {validators.filter(v => v.matchesTarget).length}/{validators.filter(v => v.targetVersion).length}
           </p>
         </div>
       </div>
@@ -160,6 +167,9 @@
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Name
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Node Version
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Score
@@ -189,6 +199,32 @@
                 <td class="px-6 py-4 whitespace-nowrap">
                   {#if validator.user && validator.user.name}
                     <span class="text-gray-900">{validator.user.name}</span>
+                  {:else}
+                    <span class="text-gray-400">—</span>
+                  {/if}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  {#if validator.nodeVersion}
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono text-sm">{validator.nodeVersion}</span>
+                      {#if validator.matchesTarget}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                          </svg>
+                          Current
+                        </span>
+                      {:else if validator.targetVersion}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                          Outdated
+                        </span>
+                      {/if}
+                    </div>
+                  {:else if validator.targetVersion}
+                    <span class="text-gray-400 text-sm">
+                      Not set
+                      <span class="text-xs text-amber-600 ml-1">(Target: {validator.targetVersion})</span>
+                    </span>
                   {:else}
                     <span class="text-gray-400">—</span>
                   {/if}
