@@ -71,13 +71,7 @@
   }
 </script>
 
-<div class="bg-white shadow overflow-hidden rounded-lg">
-  <div class="px-4 py-5 sm:px-6">
-    <h3 class="text-lg leading-6 font-medium text-gray-900">
-      Contributions
-    </h3>
-  </div>
-  
+<div>
   {#if localLoading}
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -91,7 +85,7 @@
       No contributions found.
     </div>
   {:else}
-    <div class="space-y-3 p-4">
+    <div class="space-y-3">
       {#each localContributions as contribution}
         <div class="bg-white shadow rounded-lg p-4 hover:shadow-lg transition-shadow">
           <div class="flex items-start justify-between">
@@ -134,12 +128,16 @@
       {/each}
     </div>
     
-    <!-- Pagination -->
-    <Pagination 
-      page={page} 
-      limit={limit} 
-      totalCount={totalCount} 
-      on:pageChange={handlePageChange} 
-    />
+    {#if userAddress}
+      <!-- Pagination -->
+      <div class="mt-4">
+        <Pagination 
+          page={page} 
+          limit={limit} 
+          totalCount={totalCount} 
+          on:pageChange={handlePageChange} 
+        />
+      </div>
+    {/if}
   {/if}
 </div>
