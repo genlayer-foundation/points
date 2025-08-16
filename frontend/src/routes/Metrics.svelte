@@ -132,8 +132,8 @@
   }
 </script>
 
-<div class="p-6">
-  <h1 class="text-3xl font-bold mb-8">Metrics Dashboard</h1>
+<div class="container mx-auto px-4 py-8">
+  <h1 class="text-2xl font-bold mb-6">Metrics Dashboard</h1>
   
   {#if loading}
     <div class="flex justify-center items-center h-64">

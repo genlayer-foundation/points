@@ -299,7 +299,7 @@
               {#each topContributors as contributor, index}
                 <div class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
                      onclick={() => push(`/participant/${contributor.address}`)}>
-                  <div class="flex items-center space-x-3">
+                  <div class="flex items-center gap-3">
                     <div class="flex-shrink-0">
                       <span class="text-lg font-bold text-gray-500">#{index + 1}</span>
                     </div>

@@ -100,7 +100,7 @@
 </script>
 
 <div class="container mx-auto px-4 py-8">
-  <h1 class="text-3xl font-bold mb-8">Edit Submission</h1>
+  <h1 class="text-2xl font-bold mb-6">Edit Submission</h1>
   
   {#if loading}
     <div class="flex justify-center py-12">
@@ -180,7 +180,7 @@
           <div class="mb-6">
             <h3 class="text-lg font-medium mb-2">Current Evidence</h3>
             <div class="bg-gray-50 p-3 rounded">
-              <ul class="space-y-2">
+              <ul class="space-y-3">
                 {#each submission.evidence_items as evidence}
                   <li class="text-sm">
                     {#if evidence.description}

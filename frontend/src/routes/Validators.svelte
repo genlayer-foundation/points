@@ -140,7 +140,7 @@
     </a>
   </div>
   
-  <h1 class="text-3xl font-bold text-gray-900 mb-5">GenLayer Validators</h1>
+  <h1 class="text-2xl font-bold text-gray-900 mb-6">GenLayer Validators</h1>
   
   {#if loading}
     <div class="flex justify-center items-center p-8">

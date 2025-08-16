@@ -176,7 +176,7 @@
   <Navbar />
     <div class="container mx-auto px-4 py-4 md:py-6 lg:py-8 flex">
       <Sidebar />
-      <main class="flex-1 ml-0 md:ml-64">
+      <main class="flex-1 md:ml-4">
         <Router 
           {routes} 
           on:conditionsFailed={hideTooltips}
