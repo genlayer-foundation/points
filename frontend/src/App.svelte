@@ -29,6 +29,8 @@
   import Highlights from './routes/Highlights.svelte';
   import NotFound from './routes/NotFound.svelte';
   import LoaderShowcase from './routes/LoaderShowcase.svelte';
+  import StewardDashboard from './routes/StewardDashboard.svelte';
+  import StewardSubmissions from './routes/StewardSubmissions.svelte';
   
   // Define routes
   const routes = {
@@ -66,6 +68,11 @@
     '/metrics': Metrics,
     '/profile': Profile,
     '/loader-showcase': LoaderShowcase,
+    
+    // Steward routes
+    '/stewards': StewardDashboard,
+    '/stewards/submissions': StewardSubmissions,
+    
     '*': NotFound
   };
   

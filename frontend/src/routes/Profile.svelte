@@ -339,6 +339,42 @@
               </span>
             {/if}
           </div>
+          
+          <!-- Steward Journey Status -->
+          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/>
+                </svg>
+              </div>
+              <div>
+                <p class="font-medium text-gray-900">Steward</p>
+                <p class="text-sm text-gray-500">
+                  {#if user.steward}
+                    Active Steward
+                  {:else}
+                    Coming Soon
+                  {/if}
+                </p>
+              </div>
+            </div>
+            {#if user.steward}
+              <span class="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm">
+                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Active
+              </span>
+            {:else}
+              <span class="inline-flex items-center px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-sm">
+                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v4a1 1 0 002 0V7zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+                </svg>
+                Coming Soon
+              </span>
+            {/if}
+          </div>
         </div>
       </div>
     {/if}

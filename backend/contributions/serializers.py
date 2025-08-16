@@ -144,3 +144,128 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
                   'user_name', 'user_address', 'contribution_type_name', 'contribution_type_id',
                   'contribution_points', 'contribution_date', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+
+class StewardSubmissionReviewSerializer(serializers.Serializer):
+    """Serializer for steward review actions on submissions."""
+    action = serializers.ChoiceField(choices=['accept', 'reject', 'more_info'])
+    
+    # Fields for acceptance
+    contribution_type = serializers.PrimaryKeyRelatedField(
+        queryset=ContributionType.objects.all(),
+        required=False,
+        help_text="Contribution type (can be changed from original)"
+    )
+    points = serializers.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Points to award (required for accept)"
+    )
+    
+    # Highlight fields (optional for acceptance)
+    create_highlight = serializers.BooleanField(default=False, required=False)
+    highlight_title = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    highlight_description = serializers.CharField(required=False, allow_blank=True)
+    
+    # Staff reply (required for reject/more_info)
+    staff_reply = serializers.CharField(required=False, allow_blank=True)
+    
+    def validate(self, data):
+        """Validate the review action and required fields."""
+        action = data.get('action')
+        
+        if action == 'accept':
+            if not data.get('points'):
+                raise serializers.ValidationError({
+                    'points': 'Points are required when accepting a submission.'
+                })
+            
+            # Validate points are within contribution type limits
+            contribution_type = data.get('contribution_type')
+            if contribution_type:
+                points = data.get('points')
+                if points < contribution_type.min_points or points > contribution_type.max_points:
+                    raise serializers.ValidationError({
+                        'points': f'Points must be between {contribution_type.min_points} and {contribution_type.max_points} for {contribution_type.name}.'
+                    })
+            
+            # Validate highlight fields if creating highlight
+            if data.get('create_highlight'):
+                if not data.get('highlight_title'):
+                    raise serializers.ValidationError({
+                        'highlight_title': 'Title is required when creating a highlight.'
+                    })
+                if not data.get('highlight_description'):
+                    raise serializers.ValidationError({
+                        'highlight_description': 'Description is required when creating a highlight.'
+                    })
+        
+        elif action in ['reject', 'more_info']:
+            if not data.get('staff_reply'):
+                action_text = 'rejecting' if action == 'reject' else 'requesting more information for'
+                raise serializers.ValidationError({
+                    'staff_reply': f'Staff reply is required when {action_text} a submission.'
+                })
+        
+        return data
+
+
+class StewardSubmissionSerializer(serializers.ModelSerializer):
+    """Enhanced serializer for steward view of submissions with all needed data."""
+    user_details = UserSerializer(source='user', read_only=True)
+    contribution_type_details = ContributionTypeSerializer(source='contribution_type', read_only=True)
+    evidence_items = serializers.SerializerMethodField()
+    state_display = serializers.CharField(source='get_state_display', read_only=True)
+    contribution = serializers.SerializerMethodField()
+    
+    # Additional fields for steward context
+    similar_contributions = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SubmittedContribution
+        fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_details',
+                  'contribution_date', 'notes', 'state', 'state_display', 'staff_reply',
+                  'reviewed_by', 'reviewed_at', 'evidence_items', 'similar_contributions',
+                  'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_evidence_items(self, obj):
+        """Returns serialized evidence items for this submission."""
+        evidence_items = obj.evidence_items.all().order_by('-created_at')
+        return EvidenceSerializer(evidence_items, many=True, context=self.context).data
+    
+    def get_similar_contributions(self, obj):
+        """Get recent similar contributions for context."""
+        # Get last 5 accepted contributions of the same type
+        similar = Contribution.objects.filter(
+            contribution_type=obj.contribution_type
+        ).order_by('-contribution_date')[:5].values('points', 'contribution_date')
+        
+        return list(similar)
+    
+    def get_contribution(self, obj):
+        """Get the created contribution if submission was accepted."""
+        if obj.converted_contribution:
+            from .models import ContributionHighlight
+            contribution_data = ContributionSerializer(obj.converted_contribution, context=self.context).data
+            
+            # Add highlight info if exists
+            try:
+                highlight = ContributionHighlight.objects.get(contribution=obj.converted_contribution)
+                contribution_data['is_highlighted'] = True
+                contribution_data['highlight'] = {
+                    'title': highlight.title,
+                    'description': highlight.description
+                }
+            except ContributionHighlight.DoesNotExist:
+                contribution_data['is_highlighted'] = False
+                contribution_data['highlight'] = None
+            
+            # Add contribution type details
+            contribution_data['contribution_type_details'] = ContributionTypeSerializer(
+                obj.converted_contribution.contribution_type, 
+                context=self.context
+            ).data
+            
+            return contribution_data
+        return None
