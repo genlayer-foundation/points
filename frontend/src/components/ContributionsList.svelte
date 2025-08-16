@@ -15,6 +15,84 @@
   let localLoading = $state(externalLoading);
   let localError = $state(externalError);
   
+  // Process contributions - handle both grouped and ungrouped formats
+  function processContributions(contribs) {
+    if (!contribs || contribs.length === 0) return [];
+    
+    // Check if data is already grouped (from backend)
+    if (contribs[0] && contribs[0].grouped_contributions) {
+      // Data is already grouped, just format it for display
+      return contribs.map(group => ({
+        id: group.id,
+        typeId: group.contribution_type.id,
+        typeName: group.contribution_type_name || group.contribution_type.name,
+        count: group.count || group.grouped_contributions.length,
+        totalPoints: group.frozen_global_points,
+        startDate: group.contribution_date,
+        endDate: group.end_date || group.contribution_date,
+        users: group.users || (group.user_details ? [group.user_details] : []),
+        userDetails: group.user_details  // For single-user groups
+      }));
+    }
+    
+    // Data is not grouped (fallback for old API or when group_consecutive=false)
+    // Group consecutive contributions of the same type
+    const grouped = [];
+    let currentGroup = null;
+    
+    for (const contrib of contribs) {
+      const typeId = contrib.contribution_type?.id || contrib.contribution_type;
+      const typeName = contrib.contribution_type_name || contrib.contribution_type?.name || 'Unknown Type';
+      
+      if (!currentGroup || currentGroup.typeId !== typeId) {
+        // Start a new group
+        currentGroup = {
+          id: `group_${contrib.id}`,
+          typeId,
+          typeName,
+          count: 1,
+          totalPoints: contrib.frozen_global_points || 0,
+          startDate: contrib.contribution_date,
+          endDate: contrib.contribution_date,
+          users: [],
+          userDetails: contrib.user_details
+        };
+        
+        if (contrib.user_details) {
+          currentGroup.users = [{
+            address: contrib.user_details.address,
+            name: contrib.user_details.name
+          }];
+        }
+        
+        grouped.push(currentGroup);
+      } else {
+        // Add to existing group
+        currentGroup.count++;
+        currentGroup.totalPoints += (contrib.frozen_global_points || 0);
+        currentGroup.endDate = contrib.contribution_date;
+        
+        // Add unique user
+        if (contrib.user_details) {
+          const userExists = currentGroup.users.some(u => 
+            u.address === contrib.user_details.address
+          );
+          if (!userExists) {
+            currentGroup.users.push({
+              address: contrib.user_details.address,
+              name: contrib.user_details.name
+            });
+          }
+        }
+      }
+    }
+    
+    return grouped;
+  }
+  
+  // Process contributions for display
+  let processedContributions = $derived(processContributions(localContributions));
+  
   // Watch for external prop changes
   $effect(() => {
     localContributions = contributions || [];
@@ -86,7 +164,7 @@
     </div>
   {:else}
     <div class="space-y-3">
-      {#each localContributions as contribution}
+      {#each processedContributions as group}
         <div class="bg-white shadow rounded-lg p-4 hover:shadow-lg transition-shadow">
           <div class="flex items-start justify-between">
             <div class="flex-1 min-w-0">
@@ -96,33 +174,57 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
                   </svg>
                 </div>
-                <h3 class="text-base font-semibold text-gray-900">
+                <h3 class="text-base font-semibold text-gray-900 flex items-center gap-2">
                   <button
                     class="hover:text-primary-600 transition-colors"
-                    onclick={() => push(`/contribution-type/${contribution.contribution_type?.id || contribution.contribution_type}`)}
+                    onclick={() => push(`/contribution-type/${group.typeId}`)}
                   >
-                    {contribution.contribution_type_name || (contribution.contribution_type?.name) || 'Unknown Type'}
+                    {group.typeName}
                   </button>
+                  {#if group.count > 1}
+                    <span class="text-sm font-normal text-gray-500">
+                      × {group.count}
+                    </span>
+                  {/if}
                 </h3>
               </div>
               
               <div class="flex items-center gap-3 text-xs">
                 {#if showUser}
-                  <button 
-                    class="text-primary-600 hover:text-primary-700 font-medium"
-                    onclick={() => push(`/participant/${contribution.user_details?.address || ''}`)}
-                  >
-                    {contribution.user_details?.name || `${contribution.user_details?.address?.slice(0, 6)}...${contribution.user_details?.address?.slice(-4)}` || 'Anonymous'}
-                  </button>
+                  {#if group.users.length === 1}
+                    <button 
+                      class="text-primary-600 hover:text-primary-700 font-medium"
+                      onclick={() => push(`/participant/${group.users[0].address || ''}`)}
+                    >
+                      {group.users[0].name || `${group.users[0].address?.slice(0, 6)}...${group.users[0].address?.slice(-4)}` || 'Anonymous'}
+                    </button>
+                  {:else if group.users.length > 1}
+                    <span class="text-primary-600 font-medium">
+                      {group.users.length} participants
+                    </span>
+                  {:else if group.userDetails}
+                    <button 
+                      class="text-primary-600 hover:text-primary-700 font-medium"
+                      onclick={() => push(`/participant/${group.userDetails.address || ''}`)}
+                    >
+                      {group.userDetails.name || `${group.userDetails.address?.slice(0, 6)}...${group.userDetails.address?.slice(-4)}` || 'Anonymous'}
+                    </button>
+                  {/if}
                   <span class="text-gray-400">•</span>
                 {/if}
-                <span class="text-gray-500">{formatDate(contribution.contribution_date)}</span>
+                <span class="text-gray-500">
+                  {#if group.count === 1}
+                    {formatDate(group.startDate)}
+                  {:else}
+                    {formatDate(group.startDate)} - {formatDate(group.endDate)}
+                  {/if}
+                </span>
               </div>
             </div>
             
             <div class="ml-3 flex-shrink-0">
               <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                {contribution.frozen_global_points != null ? contribution.frozen_global_points : 0} pts
+                {group.totalPoints} pts
               </span>
             </div>
           </div>
