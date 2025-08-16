@@ -43,7 +43,7 @@
         <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex-shrink-0 flex items-center">
           <Icon name="genlayer" size="lg" className="text-black" />
           <span class="ml-3 text-sm sm:text-xl font-bold {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">
-            <span class="hidden sm:inline">GenLayer Testnet Contributions</span>
+            <span class="hidden sm:inline">GenLayer Points</span>
             <span class="sm:hidden">GenLayer</span>
           </span>
         </a>
@@ -62,7 +62,13 @@
       <div class="flex items-center md:hidden gap-2">
         <AuthButton />
         <button 
-          onclick={toggleSidebar} 
+          onclick={() => {
+            if (toggleSidebar) {
+              toggleSidebar();
+            } else {
+              console.error('toggleSidebar function not provided to Navbar');
+            }
+          }} 
           class="p-2 rounded-md text-gray-700 hover:bg-gray-100"
           aria-label="Open menu"
         >

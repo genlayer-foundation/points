@@ -135,7 +135,7 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="space-y-6 sm:space-y-8">
   <!-- Title -->
   <div>
     <h1 class="text-2xl font-bold text-gray-900">Testnet Asimov</h1>
@@ -156,7 +156,7 @@
       </div>
       
       <!-- Column Content -->
-      <div class="p-4 space-y-8">
+      <div class="p-4 space-y-6 sm:space-y-8">
       
       <!-- Total Validators Stat -->
       <div class="flex items-center">
@@ -200,7 +200,7 @@
       </div>
       
       <!-- Featured Validators Contributions -->
-      <div class="space-y-4 mt-10">
+      <div class="space-y-4 mt-6 sm:mt-10">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <div class="p-1.5 bg-yellow-100 rounded-lg">
@@ -230,7 +230,7 @@
       </div>
       
       <!-- Newest Validators -->
-      <div class="space-y-4 mt-10">
+      <div class="space-y-4 mt-6 sm:mt-10">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <div class="p-1.5 bg-blue-100 rounded-lg">
@@ -308,7 +308,7 @@
       </div>
       
       <!-- Column Content -->
-      <div class="p-4 space-y-8">
+      <div class="p-4 space-y-6 sm:space-y-8">
       
       <!-- Total Builders Stat -->
       <div class="flex items-center">
@@ -352,7 +352,7 @@
       </div>
       
       <!-- Featured Builders Contributions -->
-      <div class="space-y-4 mt-10">
+      <div class="space-y-4 mt-6 sm:mt-10">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <div class="p-1.5 bg-yellow-100 rounded-lg">
@@ -382,7 +382,7 @@
       </div>
       
       <!-- Newest Builders -->
-      <div class="space-y-4 mt-10">
+      <div class="space-y-4 mt-6 sm:mt-10">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <div class="p-1.5 bg-blue-100 rounded-lg">

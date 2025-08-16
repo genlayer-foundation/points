@@ -70,10 +70,10 @@
   };
   
   // Automatically update category based on current route
-  $: {
+  $effect(() => {
     const category = detectCategoryFromRoute($location);
     currentCategory.set(category);
-  }
+  });
   
   // Function to hide tooltips - used for route changes
   function hideTooltips() {
