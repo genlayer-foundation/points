@@ -2,16 +2,14 @@
   import { onMount } from 'svelte';
   import { format } from 'date-fns';
   import StatCard from '../components/StatCard.svelte';
-  import LeaderboardTable from '../components/LeaderboardTable.svelte';
-  import ContributionsList from '../components/ContributionsList.svelte';
-  import { leaderboardAPI, contributionsAPI, usersAPI, statsAPI } from '../lib/api';
+  import TopLeaderboard from '../components/TopLeaderboard.svelte';
+  import FeaturedContributions from '../components/FeaturedContributions.svelte';
+  import RecentContributions from '../components/RecentContributions.svelte';
+  import { contributionsAPI, usersAPI, statsAPI } from '../lib/api';
   import { authState } from '../lib/auth.js';
   import { push } from 'svelte-spa-router';
   
   // State management
-  let leaderboard = $state([]);
-  let contributions = $state([]);
-  let highlights = $state([]);
   let newestValidators = $state([]);
   let stats = $state({
     totalParticipants: 0,
@@ -20,14 +18,8 @@
     lastUpdated: null
   });
   
-  let leaderboardLoading = $state(true);
-  let contributionsLoading = $state(true);
-  let highlightsLoading = $state(true);
   let newestValidatorsLoading = $state(true);
   let statsLoading = $state(true);
-  let leaderboardError = $state(null);
-  let contributionsError = $state(null);
-  let highlightsError = $state(null);
   let newestValidatorsError = $state(null);
   let statsError = $state(null);
   
@@ -42,39 +34,6 @@
   
   // Fetch data
   onMount(async () => {
-    // Fetch highlights
-    try {
-      highlightsLoading = true;
-      const highlightsRes = await contributionsAPI.getAllHighlights();
-      highlights = highlightsRes.data || [];
-      highlightsLoading = false;
-    } catch (error) {
-      highlightsError = error.message || 'Failed to load highlights';
-      highlightsLoading = false;
-    }
-    
-    try {
-      // Fetch leaderboard
-      leaderboardLoading = true;
-      const leaderboardRes = await leaderboardAPI.getLeaderboard();
-      // API now returns unpaginated data, so it's directly in data
-      leaderboard = leaderboardRes.data || [];
-      leaderboardLoading = false;
-    } catch (error) {
-      leaderboardError = error.message || 'Failed to load leaderboard';
-      leaderboardLoading = false;
-    }
-    
-    try {
-      // Fetch recent contributions
-      contributionsLoading = true;
-      const contributionsRes = await contributionsAPI.getContributions({ limit: 5, ordering: '-created_at' });
-      contributions = contributionsRes.data.results || [];
-      contributionsLoading = false;
-    } catch (error) {
-      contributionsError = error.message || 'Failed to load contributions';
-      contributionsLoading = false;
-    }
     
     try {
       // Fetch newest validators (ordered by first uptime contribution)
@@ -158,7 +117,7 @@
   };
 </script>
 
-<div class="space-y-6">
+<div class="space-y-4">
   <div class="flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
     {#if $authState.isAuthenticated}
@@ -175,8 +134,8 @@
   </div>
   
   <!-- Connection error message if needed -->
-  {#if statsError || leaderboardError || contributionsError}
-    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+  {#if statsError}
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
       <div class="flex">
         <div class="flex-shrink-0">
           <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -193,7 +152,7 @@
   {/if}
 
   <!-- Stats Section -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
     <StatCard 
       title="Total Participants" 
       value={statsLoading ? '...' : (stats.totalParticipants || 0)} 
@@ -215,101 +174,82 @@
   </div>
   
   <!-- First Row: Leaderboard and Highlights -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <!-- Top Validators -->
     <div class="space-y-4">
-      <div class="flex justify-between items-center">
-        <h2 class="text-lg font-semibold text-gray-900">Top Validators</h2>
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-purple-100 rounded-lg">
+            <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-900">Top Validators</h2>
+        </div>
         <button
           onclick={() => push('/leaderboard')}
-          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
-          View All →
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
         </button>
       </div>
-      
-      <LeaderboardTable
-        entries={(leaderboard || []).slice(0, 5)} 
-        loading={leaderboardLoading}
-        error={leaderboardError}
-        compact={true}
-        hideAddress={true}
+      <TopLeaderboard 
         showHeader={false}
       />
     </div>
     
     <!-- Featured Highlights -->
     <div class="space-y-4">
-      <div class="flex justify-between items-center">
-        <h2 class="text-lg font-semibold text-gray-900">Featured Contributions</h2>
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-yellow-100 rounded-lg">
+            <svg class="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-900">Featured Contributions</h2>
+        </div>
         <button
           onclick={() => push('/highlights')}
-          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
-          View All →
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
         </button>
       </div>
-      
-      {#if highlightsLoading}
-        <div class="flex justify-center items-center p-8">
-          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-        </div>
-      {:else if highlightsError}
-        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          <p>{highlightsError}</p>
-        </div>
-      {:else if highlights.length === 0}
-        <div class="bg-gray-50 rounded-lg p-6 text-center">
-          <p class="text-gray-500">No highlighted contributions yet.</p>
-        </div>
-      {:else}
-        <div class="space-y-3">
-          {#each highlights.slice(0, 3) as highlight}
-            <div class="bg-white shadow rounded-lg p-4 hover:shadow-lg transition-shadow">
-              <div class="flex items-start justify-between">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2 mb-2">
-                    <svg class="w-4 h-4 text-yellow-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-                    </svg>
-                    <h3 class="text-base font-semibold text-gray-900 truncate">{highlight.title}</h3>
-                  </div>
-                  <p class="text-sm text-gray-600 mb-2 line-clamp-2">{highlight.description}</p>
-                  <div class="flex items-center gap-3 text-xs">
-                    <button 
-                      class="text-primary-600 hover:text-primary-700 font-medium"
-                      onclick={() => push(`/participant/${highlight.user_address}`)}
-                    >
-                      {highlight.user_name || `${highlight.user_address.slice(0, 6)}...${highlight.user_address.slice(-4)}`}
-                    </button>
-                    <span class="text-gray-400">•</span>
-                    <span class="text-gray-500">{formatDate(highlight.contribution_date)}</span>
-                  </div>
-                </div>
-                <div class="ml-3 flex-shrink-0">
-                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                    {highlight.contribution_points} pts
-                  </span>
-                </div>
-              </div>
-            </div>
-          {/each}
-        </div>
-      {/if}
+      <FeaturedContributions 
+        showHeader={false}
+        showViewAll={false}
+      />
     </div>
   </div>
   
   <!-- Second Row: Newest Validators and Recent Contributions -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <!-- Newest Validators -->
     <div class="space-y-4">
-      <div class="flex justify-between items-center">
-        <h2 class="text-lg font-semibold text-gray-900">Newest Validators</h2>
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-blue-100 rounded-lg">
+            <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-900">Newest Validators</h2>
+        </div>
         <button
           onclick={() => push('/validators')}
-          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
-          View All →
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
         </button>
       </div>
       
@@ -329,7 +269,7 @@
         <div class="bg-white shadow rounded-lg divide-y divide-gray-200">
           {#each newestValidators as validator}
             <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2">
                 <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center flex-shrink-0">
                   <span class="text-sm font-bold text-blue-600">
                     {validator.name ? validator.name.charAt(0).toUpperCase() : '#'}
@@ -361,21 +301,27 @@
     
     <!-- Recent Contributions -->
     <div class="space-y-4">
-      <div class="flex justify-between items-center">
-        <h2 class="text-lg font-semibold text-gray-900">Recent Contributions</h2>
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-green-100 rounded-lg">
+            <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-900">Recent Contributions</h2>
+        </div>
         <button
           onclick={() => push('/contributions')}
-          class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
-          View All →
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
         </button>
       </div>
-      
-      <ContributionsList
-        contributions={contributions || []}
-        loading={contributionsLoading}
-        error={contributionsError}
-        showUser={true}
+      <RecentContributions 
+        showHeader={false}
       />
     </div>
   </div>
