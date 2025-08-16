@@ -6,7 +6,7 @@
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import RecentContributions from '../components/RecentContributions.svelte';
   import GlobalDashboard from '../components/GlobalDashboard.svelte';
-  import { contributionsAPI, usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
+  import { contributionsAPI, usersAPI, statsAPI, leaderboardAPI, validatorsAPI } from '../lib/api';
   import { push } from 'svelte-spa-router';
   import { currentCategory, categoryTheme } from '../stores/category.js';
   
@@ -40,40 +40,43 @@
       // Fetch newest participants based on category
       newestValidatorsLoading = true;
       
-      // Build params based on category
-      const params = { 
-        limit: 20, 
-        ordering: '-contribution_date'
-      };
-      
-      // For validators, look for Uptime contributions
-      // For other categories, get any recent contributions
       if ($currentCategory === 'validator') {
-        params.contribution_type_name = 'Uptime';
-      } else if ($currentCategory !== 'global') {
-        params.category = $currentCategory;
-      }
-      
-      const uptimeRes = await contributionsAPI.getContributions(params);
-      
-      // Extract unique users from uptime contributions
-      const seenUsers = new Set();
-      const uniqueValidators = [];
-      
-      if (uptimeRes.data && uptimeRes.data.results) {
-        for (const contribution of uptimeRes.data.results) {
-          if (contribution.user_details && !seenUsers.has(contribution.user_details.address)) {
-            seenUsers.add(contribution.user_details.address);
-            uniqueValidators.push({
-              ...contribution.user_details,
-              first_uptime_date: contribution.contribution_date
-            });
-            if (uniqueValidators.length >= 5) break;
+        // For validators, use the specialized endpoint that gets first uptime
+        const validatorsRes = await validatorsAPI.getNewestValidators(5);
+        newestValidators = validatorsRes.data || [];
+      } else {
+        // For other categories, get recent contributions
+        const params = { 
+          limit: 50,
+          ordering: '-contribution_date'
+        };
+        
+        if ($currentCategory !== 'global') {
+          params.category = $currentCategory;
+        }
+        
+        const contributionsRes = await contributionsAPI.getContributions(params);
+        
+        // Extract unique users from contributions
+        const seenUsers = new Set();
+        const uniqueParticipants = [];
+        
+        if (contributionsRes.data && contributionsRes.data.results) {
+          for (const contribution of contributionsRes.data.results) {
+            if (contribution.user_details && !seenUsers.has(contribution.user_details.address)) {
+              seenUsers.add(contribution.user_details.address);
+              uniqueParticipants.push({
+                ...contribution.user_details,
+                first_uptime_date: contribution.contribution_date
+              });
+              if (uniqueParticipants.length >= 5) break;
+            }
           }
         }
+        
+        newestValidators = uniqueParticipants;
       }
       
-      newestValidators = uniqueValidators;
       newestValidatorsLoading = false;
     } catch (error) {
       newestValidatorsError = error.message || `Failed to load newest ${$currentCategory === 'validator' ? 'validators' : $currentCategory === 'builder' ? 'builders' : 'participants'}`;
