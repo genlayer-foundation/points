@@ -1,7 +1,9 @@
 <script>
   import { push, location } from 'svelte-spa-router';
   import AuthButton from './AuthButton.svelte';
+  import Icon from './Icons.svelte';
   import { authState } from '../lib/auth.js';
+  import { categoryTheme, currentCategory } from '../stores/category.js';
   
   
   let isMenuOpen = $state(false);
@@ -38,36 +40,15 @@
     <div class="flex justify-between h-16">
       <div class="flex items-center">
         <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex-shrink-0 flex items-center">
-          <img class="h-8 w-8" src="/assets/logo.svg" alt="GenLayer Logo" />
-          <span class="ml-2 text-xl font-bold text-primary-700">GenLayer Testnet Contributions</span>
+          <Icon name="genlayer" size="lg" className="text-black" />
+          <span class="ml-3 text-xl font-bold {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">GenLayer Testnet Contributions</span>
         </a>
       </div>
       
       <div class="hidden md:flex items-center gap-4">
-        <a 
-          href="/" 
-          onclick={(e) => { e.preventDefault(); navigate('/'); }}
-          class="px-3 py-2 text-gray-700 hover:text-primary-600 {isActive('/') ? 'text-primary-600 font-medium' : ''}"
-        >
-          Dashboard
-        </a>
-        <a 
-          href="/highlights" 
-          onclick={(e) => { e.preventDefault(); navigate('/highlights'); }}
-          class="px-3 py-2 text-gray-700 hover:text-primary-600 {isActive('/highlights') ? 'text-primary-600 font-medium' : ''}"
-        >
-          Highlights
-        </a>
-        <a 
-          href="/contributions" 
-          onclick={(e) => { e.preventDefault(); navigate('/contributions'); }}
-          class="px-3 py-2 text-gray-700 hover:text-primary-600 {isActive('/contributions') ? 'text-primary-600 font-medium' : ''}"
-        >
-          Contributions
-        </a>
         <button 
           onclick={handleSubmitContribution}
-          class="px-3 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+          class="px-3 py-2 {$categoryTheme.button} rounded-md"
         >
           Submit Contribution
         </button>
@@ -98,27 +79,6 @@
   {#if isMenuOpen}
     <div class="md:hidden">
       <div class="px-2 pt-2 pb-3 space-y-1">
-        <a 
-          href="/" 
-          onclick={(e) => { e.preventDefault(); navigate('/'); }}
-          class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 {isActive('/') ? 'bg-gray-50 text-primary-600' : ''}"
-        >
-          Dashboard
-        </a>
-        <a 
-          href="/highlights" 
-          onclick={(e) => { e.preventDefault(); navigate('/highlights'); }}
-          class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 {isActive('/highlights') ? 'bg-gray-50 text-primary-600' : ''}"
-        >
-          Highlights
-        </a>
-        <a 
-          href="/contributions" 
-          onclick={(e) => { e.preventDefault(); navigate('/contributions'); }}
-          class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 {isActive('/contributions') ? 'bg-gray-50 text-primary-600' : ''}"
-        >
-          Contributions
-        </a>
         <button 
           onclick={handleSubmitContribution}
           class="block w-full text-left px-3 py-2 rounded-md text-base font-medium bg-primary-600 text-white hover:bg-primary-700"

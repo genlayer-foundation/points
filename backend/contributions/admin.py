@@ -10,11 +10,19 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from datetime import datetime
-from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight
+from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
 
 User = get_user_model()
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'description', 'created_at')
+    search_fields = ('name', 'slug', 'description')
+    readonly_fields = ('created_at', 'updated_at')
+    prepopulated_fields = {'slug': ('name',)}
 
 
 class GlobalLeaderboardMultiplierInline(admin.TabularInline):
@@ -25,12 +33,12 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
 
 @admin.register(ContributionType)
 class ContributionTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'is_default', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
+    list_display = ('name', 'category', 'is_default', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
     list_display_links = ('get_current_multiplier',)
     list_editable = ('name', 'is_default', 'description')
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at')
-    list_filter = ('is_default',)
+    list_filter = ('category', 'is_default')
     inlines = [GlobalLeaderboardMultiplierInline]
     
     def get_current_multiplier(self, obj):
@@ -101,7 +109,7 @@ class ContributionAdmin(admin.ModelAdmin):
     list_display = ('id', 'user_display', 'user_address_short', 'contribution_type', 'points', 
                    'frozen_global_points', 'contribution_date_display', 'has_evidence', 
                    'has_highlight', 'created_at')
-    list_filter = ('contribution_type', 'contribution_date', 'created_at',
+    list_filter = ('contribution_type__category', 'contribution_type', 'contribution_date', 'created_at',
                   ('evidence_items', admin.EmptyFieldListFilter))
     search_fields = ('user__email', 'user__name', 'user__address', 'contribution_type__name', 
                     'notes', 'evidence_items__description', 'evidence_items__url')
@@ -351,7 +359,7 @@ class ContributionAdmin(admin.ModelAdmin):
 class SubmittedContributionAdmin(admin.ModelAdmin):
     list_display = ('user', 'contribution_type', 'state', 'contribution_date', 
                    'created_at', 'reviewed_by')
-    list_filter = ('state', 'contribution_type', 'created_at', 'reviewed_at')
+    list_filter = ('state', 'contribution_type__category', 'contribution_type', 'created_at', 'reviewed_at')
     search_fields = ('user__email', 'user__name', 'notes', 'staff_reply')
     date_hierarchy = 'created_at'
     readonly_fields = ('id', 'created_at', 'updated_at', 'last_edited_at', 

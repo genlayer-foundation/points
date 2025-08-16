@@ -37,6 +37,23 @@
     $authState.address?.toLowerCase() === participant.address.toLowerCase()
   );
   
+  // Determine participant type
+  let participantType = $derived(
+    !participant ? null :
+    participant.validator ? 'validator' :
+    participant.builder ? 'builder' :
+    participant.steward ? 'steward' :
+    'participant'
+  );
+  
+  // Get type-specific color theme
+  let typeColor = $derived(
+    participantType === 'validator' ? 'sky' :
+    participantType === 'builder' ? 'orange' :
+    participantType === 'steward' ? 'green' :
+    'gray'
+  );
+  
   $effect(() => {
     const currentParams = $params;
     console.log("ParticipantProfile params:", currentParams);
@@ -214,6 +231,11 @@
         <div>
           <h1 class="text-2xl font-bold text-gray-900 flex items-center">
             {participant.name || (isValidatorOnly ? 'Validator' : 'Participant')} 
+            {#if participantType && participantType !== 'participant'}
+              <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-{typeColor}-100 text-{typeColor}-800 capitalize">
+                {participantType}
+              </span>
+            {/if}
             {#if !isValidatorOnly && participant.visible !== false}
               <span class="ml-3 inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
                 Rank #{participant.leaderboard_entry?.rank || 'N/A'}

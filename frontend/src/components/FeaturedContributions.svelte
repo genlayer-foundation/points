@@ -3,6 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import { contributionsAPI, usersAPI } from '../lib/api';
+  import { currentCategory } from '../stores/category.js';
 
   let {
     title = 'Featured Contributions',
@@ -10,6 +11,7 @@
     limit = 3,
     userId = null,
     contributionTypeId = null,
+    category = null, // Can be passed in or will use currentCategory
     showViewAll = true,
     viewAllPath = '/highlights',
     viewAllText = 'View All →',
@@ -30,10 +32,13 @@
     }
   };
 
-  onMount(async () => {
+  async function fetchHighlights() {
     try {
       loading = true;
       let response;
+      
+      // Use passed category or current category
+      const filterCategory = category || $currentCategory;
       
       if (userId) {
         // Fetch user-specific highlights
@@ -42,18 +47,42 @@
         // Fetch contribution type specific highlights
         response = await contributionsAPI.getContributionTypeHighlights(contributionTypeId);
       } else {
-        // Fetch all highlights
-        response = await contributionsAPI.getAllHighlights();
+        // Fetch all highlights with category filter
+        const params = { limit: limit || 10 };
+        if (filterCategory && filterCategory !== 'global') {
+          params.category = filterCategory;
+        }
+        response = await contributionsAPI.getAllHighlights(params);
       }
       
       highlights = response.data || [];
-      if (limit && highlights.length > limit) {
-        highlights = highlights.slice(0, limit);
-      }
       loading = false;
     } catch (err) {
       error = err.message || 'Failed to load featured contributions';
       loading = false;
+    }
+  }
+
+  // Compute the correct view all path based on category
+  function getViewAllPath() {
+    const cat = category || $currentCategory;
+    if (cat === 'builder') {
+      return '/builders/contributions/highlights';
+    } else if (cat === 'validator') {
+      return '/validators/contributions/highlights';
+    } else {
+      return '/contributions/highlights';
+    }
+  }
+
+  // Fetch highlights when category changes (including initial mount)
+  let previousCategory = $state(null);
+  
+  $effect(() => {
+    const filterCategory = category || $currentCategory;
+    if (filterCategory && filterCategory !== previousCategory) {
+      previousCategory = filterCategory;
+      fetchHighlights();
     }
   });
 </script>
@@ -69,7 +98,7 @@
       </div>
       {#if showViewAll && highlights.length > 0}
         <button
-          onclick={() => push(viewAllPath)}
+          onclick={() => push(getViewAllPath())}
           class="text-sm text-primary-600 hover:text-primary-700 font-medium"
         >
           {viewAllText}
