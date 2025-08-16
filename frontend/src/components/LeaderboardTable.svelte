@@ -21,31 +21,31 @@
   }
 </script>
 
-<div class="bg-white shadow overflow-hidden rounded-lg">
-  {#if showHeader}
-    <div class="px-4 py-5 sm:px-6">
-      <h3 class="text-lg leading-6 font-medium text-gray-900">
-        {title}
-      </h3>
-      <p class="mt-1 max-w-2xl text-sm text-gray-500">
-        {subtitle}
-      </p>
-    </div>
-  {/if}
-  
-  {#if loading}
-    <div class="flex justify-center items-center p-8">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-    </div>
-  {:else if error}
-    <div class="p-6 text-center text-red-500">
-      Failed to load leaderboard: {error}
-    </div>
-  {:else if entries.length === 0}
-    <div class="p-6 text-center text-gray-500">
-      No entries found on the leaderboard yet.
-    </div>
-  {:else}
+{#if loading}
+  <div class="flex justify-center items-center p-8">
+    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+  </div>
+{:else if error}
+  <div class="p-6 text-center text-red-500">
+    Failed to load leaderboard: {error}
+  </div>
+{:else if entries.length === 0}
+  <div class="bg-gray-50 rounded-lg p-6 text-center">
+    <p class="text-gray-500">No entries found on the leaderboard yet.</p>
+  </div>
+{:else}
+  <div class="bg-white shadow overflow-hidden rounded-lg">
+    {#if showHeader}
+      <div class="px-4 py-5 sm:px-6">
+        <h3 class="text-lg leading-6 font-medium text-gray-900">
+          {title}
+        </h3>
+        <p class="mt-1 max-w-2xl text-sm text-gray-500">
+          {subtitle}
+        </p>
+      </div>
+    {/if}
+    
     <div class="overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
@@ -101,5 +101,5 @@
         </tbody>
       </table>
     </div>
-  {/if}
-</div>
+  </div>
+{/if}
