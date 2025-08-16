@@ -58,26 +58,30 @@ class ValidatorAdmin:
     def _process_validator_creation(self, form):
         """Process the validator creation with contributions."""
         name = form.cleaned_data['name']
-        blockchain_address = form.cleaned_data['blockchain_address']
+        address = form.cleaned_data['address']  # Fixed field name
         contribution_date = form.cleaned_data['contribution_date']
         
         # Look up or create user
         user, created = User.objects.get_or_create(
-            blockchain_address=blockchain_address,
+            address=address,
             defaults={
-                'email': blockchain_address,  # Use address as email initially
-                'username': blockchain_address,
+                'email': f"{address}@validator.local",  # Use address-based email
+                'username': address,
+                'name': name,
                 'visible': True,
             }
         )
         
         # Update name if provided (and different)
-        if name and user.get_full_name() != name:
-            # Split name into first and last
-            name_parts = name.split(' ', 1)
-            user.first_name = name_parts[0]
-            user.last_name = name_parts[1] if len(name_parts) > 1 else ''
+        if name and user.name != name:
+            user.name = name
             user.save()
+        
+        # Create Validator profile if it doesn't exist
+        from validators.models import Validator
+        validator, validator_created = Validator.objects.get_or_create(
+            user=user
+        )
         
         # Get selected contributions
         contributions_data = form.get_selected_contributions()

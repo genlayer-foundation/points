@@ -3,6 +3,7 @@
   import { push } from 'svelte-spa-router';
   import LeaderboardTable from './LeaderboardTable.svelte';
   import { leaderboardAPI } from '../lib/api';
+  import { currentCategory } from '../stores/category.js';
 
   let {
     title = 'Top Validators',
@@ -13,18 +14,40 @@
     compact = true,
     hideAddress = true,
     showHeader = false,
-    className = ''
+    className = '',
+    category = null  // Add optional category prop
   } = $props();
 
   let leaderboard = $state([]);
   let loading = $state(true);
   let error = $state(null);
 
-  onMount(async () => {
+  async function fetchLeaderboard() {
     try {
       loading = true;
-      const response = await leaderboardAPI.getLeaderboard();
-      leaderboard = response.data || [];
+      
+      // Use prop category if provided, otherwise use store category
+      const categoryToUse = category || $currentCategory;
+      
+      let response;
+      if (categoryToUse === 'global') {
+        response = await leaderboardAPI.getLeaderboard();
+        leaderboard = response.data || [];
+      } else {
+        // Use category-specific endpoint
+        response = await leaderboardAPI.getCategoryLeaderboard(categoryToUse);
+        // Transform the entries to match the expected format
+        leaderboard = (response.data.entries || []).map(entry => ({
+          rank: entry.rank,
+          total_points: entry.total_points,
+          user_details: {
+            id: entry.user.id,
+            name: entry.user.name,
+            address: entry.user.address,
+          }
+        }));
+      }
+      
       if (limit && leaderboard.length > limit) {
         leaderboard = leaderboard.slice(0, limit);
       }
@@ -32,6 +55,18 @@
     } catch (err) {
       error = err.message || 'Failed to load leaderboard';
       loading = false;
+    }
+  }
+  
+  // Fetch leaderboard when category changes (including initial mount)
+  let previousCategory = $state(null);
+  
+  $effect(() => {
+    // Use prop category if provided, otherwise use store category
+    const categoryToUse = category || $currentCategory;
+    if (categoryToUse && categoryToUse !== previousCategory) {
+      previousCategory = categoryToUse;
+      fetchLeaderboard();
     }
   });
 </script>

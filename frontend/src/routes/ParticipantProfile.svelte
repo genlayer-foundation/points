@@ -37,6 +37,23 @@
     $authState.address?.toLowerCase() === participant.address.toLowerCase()
   );
   
+  // Determine participant type
+  let participantType = $derived(
+    !participant ? null :
+    participant.validator ? 'validator' :
+    participant.builder ? 'builder' :
+    participant.steward ? 'steward' :
+    'participant'
+  );
+  
+  // Get type-specific color theme
+  let typeColor = $derived(
+    participantType === 'validator' ? 'sky' :
+    participantType === 'builder' ? 'orange' :
+    participantType === 'steward' ? 'green' :
+    'gray'
+  );
+  
   $effect(() => {
     const currentParams = $params;
     console.log("ParticipantProfile params:", currentParams);
@@ -214,21 +231,26 @@
         <div>
           <h1 class="text-2xl font-bold text-gray-900 flex items-center">
             {participant.name || (isValidatorOnly ? 'Validator' : 'Participant')} 
+            {#if participantType && participantType !== 'participant'}
+              <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-{typeColor}-100 text-{typeColor}-800 capitalize">
+                {participantType}
+              </span>
+            {/if}
             {#if !isValidatorOnly && participant.visible !== false}
               <span class="ml-3 inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
                 Rank #{participant.leaderboard_entry?.rank || 'N/A'}
               </span>
             {/if}
           </h1>
-          <p class="mt-1 text-sm text-gray-500">
-            {#if isValidatorOnly}
-              This validator has not created an account yet
-            {:else if participant.visible === false}
-              This participant is not currently listed on the leaderboard
-            {:else}
-              Wallet details and contributions
-            {/if}
-          </p>
+          {#if isValidatorOnly || participant.visible === false}
+            <p class="mt-1 text-sm text-gray-500">
+              {#if isValidatorOnly}
+                This validator has not created an account yet
+              {:else if participant.visible === false}
+                This participant is not currently listed on the leaderboard
+              {/if}
+            </p>
+          {/if}
         </div>
         {#if isOwnProfile}
           <button
@@ -389,6 +411,8 @@
         cardStyle="highlight"
         showViewAll={false}
         className="mb-6"
+        isOwnProfile={isOwnProfile}
+        hideWhenEmpty={!isOwnProfile}
       />
     {:else}
       <!-- Simple message for validators without accounts -->
@@ -403,67 +427,74 @@
     
     
     
-    <!-- Contribution Types Breakdown -->
+    <!-- Contribution Types Breakdown - Visual Cards Style -->
     {#if !isValidatorOnly && contributionStats.contributionTypes && contributionStats.contributionTypes.length > 0}
-      <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
-        <div class="px-4 py-5 sm:px-6">
+      <div class="mb-6">
+        <div class="mb-4">
           <h3 class="text-lg leading-6 font-medium text-gray-900">
             Contribution Breakdown
           </h3>
-          <p class="mt-1 max-w-2xl text-sm text-gray-500">
-            Points by contribution type
+          <p class="mt-1 text-sm text-gray-500">
+            Points distribution across contribution types
           </p>
         </div>
-        <div class="border-t border-gray-200">
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Count
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Points
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    % of Total
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                {#each contributionStats.contributionTypes as type, i}
-                  <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <a 
-                        href={`/contribution-type/${type.id}`}
-                        onclick={(e) => { e.preventDefault(); push(`/contribution-type/${type.id}`); }}
-                        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 cursor-pointer hover:bg-green-200"
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {#each contributionStats.contributionTypes as type}
+            <div class="bg-white shadow rounded-lg p-4 hover:shadow-lg transition-shadow">
+              <div class="flex flex-col h-full">
+                <div class="flex items-start justify-between mb-3">
+                  <div class="flex items-center gap-2 flex-1 min-w-0">
+                    <div class="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
+                      class:bg-purple-500={type.percentage >= 40}
+                      class:bg-blue-500={type.percentage >= 25 && type.percentage < 40}
+                      class:bg-green-500={type.percentage >= 10 && type.percentage < 25}
+                      class:bg-gray-400={type.percentage < 10}
+                    >
+                      <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
+                      </svg>
+                    </div>
+                    <h3 class="text-sm font-semibold text-gray-900 truncate">
+                      <button
+                        class="hover:text-primary-600 transition-colors"
+                        onclick={() => push(`/contribution-type/${type.id}`)}
                       >
                         {type.name}
-                      </a>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {type.count}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                      {type.total_points}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <div class="flex items-center">
-                        <div class="w-full bg-gray-200 rounded-full h-2.5">
-                          <div class="bg-primary-600 h-2.5 rounded-full" style={`width: ${type.percentage}%`}></div>
-                        </div>
-                        <span class="ml-2 text-sm text-gray-600">{type.percentage.toFixed(1)}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
+                      </button>
+                    </h3>
+                  </div>
+                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 ml-2 flex-shrink-0">
+                    {type.total_points} pts
+                  </span>
+                </div>
+                
+                <div class="text-xs text-gray-500 mb-2">
+                  {#if type.count > 1}
+                    × {type.count} contributions
+                  {:else}
+                    × 1 contribution
+                  {/if}
+                </div>
+                
+                <div class="flex items-center gap-2 mt-auto">
+                  <div class="flex-1 bg-gray-200 rounded-full h-2">
+                    <div 
+                      class="h-2 rounded-full transition-all duration-300"
+                      class:bg-purple-500={type.percentage >= 40}
+                      class:bg-blue-500={type.percentage >= 25 && type.percentage < 40}
+                      class:bg-green-500={type.percentage >= 10 && type.percentage < 25}
+                      class:bg-gray-400={type.percentage < 10}
+                      style={`width: ${type.percentage}%`}
+                    ></div>
+                  </div>
+                  <span class="text-xs text-gray-600 font-medium min-w-[2.5rem] text-right">
+                    {type.percentage.toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          {/each}
         </div>
       </div>
     {/if}

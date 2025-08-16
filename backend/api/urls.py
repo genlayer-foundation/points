@@ -20,6 +20,11 @@ router.register(r'submissions', SubmittedContributionViewSet, basename='submissi
 urlpatterns = [
     path('', include(router.urls)),
     
+    # Profile endpoints for each category
+    path('validators/', include('validators.urls')),
+    path('builders/', include('builders.urls')),
+    path('stewards/', include('stewards.urls')),
+    
     # Authentication endpoints
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
