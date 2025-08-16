@@ -105,6 +105,12 @@ export const validatorsAPI = {
   getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } })
 };
 
+// Journey completion API
+export const journeyAPI = {
+  completeValidatorJourney: () => api.post('/users/complete_validator_journey/'),
+  completeBuilderJourney: () => api.post('/users/complete_builder_journey/')
+};
+
 // Steward API
 export const stewardAPI = {
   // Get all submissions for review
