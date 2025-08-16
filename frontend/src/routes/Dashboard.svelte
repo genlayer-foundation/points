@@ -5,6 +5,7 @@
   import TopLeaderboard from '../components/TopLeaderboard.svelte';
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import RecentContributions from '../components/RecentContributions.svelte';
+  import GlobalDashboard from '../components/GlobalDashboard.svelte';
   import { contributionsAPI, usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
   import { push } from 'svelte-spa-router';
   import { currentCategory, categoryTheme } from '../stores/category.js';
@@ -155,15 +156,19 @@
   };
 </script>
 
-<div class="space-y-4">
-  <div>
-    <h1 class="text-2xl font-bold text-gray-900">
-      {$currentCategory === 'global' ? 'Testnet Asimov' : 
-       $currentCategory === 'builder' ? 'Builders' :
-       $currentCategory === 'validator' ? 'Validators' :
-       $currentCategory === 'steward' ? 'Stewards' : 'Dashboard'}
-    </h1>
-  </div>
+{#if $currentCategory === 'global'}
+  <!-- Global Dashboard - Use separate component -->
+  <GlobalDashboard />
+{:else}
+  <!-- Category-specific Dashboard -->
+  <div class="space-y-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">
+        {$currentCategory === 'builder' ? 'Builders' :
+         $currentCategory === 'validator' ? 'Validators' :
+         $currentCategory === 'steward' ? 'Stewards' : 'Dashboard'}
+      </h1>
+    </div>
   
   <!-- Connection error message if needed -->
   {#if statsError}
@@ -365,4 +370,5 @@
       />
     </div>
   </div>
-</div>
+  </div>
+{/if}
