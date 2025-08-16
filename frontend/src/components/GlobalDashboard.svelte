@@ -4,7 +4,7 @@
   import { format } from 'date-fns';
   import TopLeaderboard from './TopLeaderboard.svelte';
   import FeaturedContributions from './FeaturedContributions.svelte';
-  import { contributionsAPI, leaderboardAPI, usersAPI } from '../lib/api';
+  import { contributionsAPI, leaderboardAPI, usersAPI, validatorsAPI } from '../lib/api';
   
   // State management
   let validatorStats = $state({ total: 0, contributions: 0, points: 0 });
@@ -57,36 +57,13 @@
       statsLoading = false;
     }
     
-    // Fetch newest validators
+    // Fetch newest validators using the dedicated endpoint
     try {
       newestValidatorsLoading = true;
       
-      const params = { 
-        limit: 10, 
-        ordering: '-contribution_date',
-        contribution_type_name: 'Uptime'
-      };
+      const validatorsRes = await validatorsAPI.getNewestValidators(5);
+      newestValidators = validatorsRes.data || [];
       
-      const uptimeRes = await contributionsAPI.getContributions(params);
-      
-      // Extract unique users from uptime contributions
-      const seenUsers = new Set();
-      const uniqueValidators = [];
-      
-      if (uptimeRes.data && uptimeRes.data.results) {
-        for (const contribution of uptimeRes.data.results) {
-          if (contribution.user_details && !seenUsers.has(contribution.user_details.address)) {
-            seenUsers.add(contribution.user_details.address);
-            uniqueValidators.push({
-              ...contribution.user_details,
-              first_uptime_date: contribution.contribution_date
-            });
-            if (uniqueValidators.length >= 5) break;
-          }
-        }
-      }
-      
-      newestValidators = uniqueValidators;
       newestValidatorsLoading = false;
     } catch (error) {
       console.error('Error fetching newest validators:', error);

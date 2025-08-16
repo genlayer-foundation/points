@@ -98,6 +98,11 @@ export const statsAPI = {
   getUserStats: (address) => api.get(`/leaderboard/user_stats/by-address/${address}/`)
 };
 
+// Validators API
+export const validatorsAPI = {
+  getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } })
+};
+
 // Convenience exports for profile functions
 export const getCurrentUser = async () => {
   const response = await usersAPI.getCurrentUser();
