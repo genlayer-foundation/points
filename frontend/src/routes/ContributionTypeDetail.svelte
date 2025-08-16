@@ -99,7 +99,7 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="space-y-6 sm:space-y-8">
   {#if loading}
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -110,16 +110,16 @@
       <p>{error}</p>
     </div>
   {:else if contributionType}
-    <div class="bg-white shadow rounded-lg p-6">
-      <h1 class="text-2xl font-bold text-gray-900 mb-2">{contributionType.name}</h1>
+    <div class="bg-white shadow rounded-lg p-4 sm:p-6">
+      <h1 class="text-xl sm:text-2xl font-bold text-gray-900 mb-2">{contributionType.name}</h1>
       {#if contributionType.description}
-        <p class="text-gray-600 mb-3">{contributionType.description}</p>
+        <p class="text-sm sm:text-base text-gray-600 mb-4">{contributionType.description}</p>
       {/if}
-      <div class="flex items-center justify-between border-t pt-3">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 border-t pt-4">
         <p class="text-sm text-gray-500">Added on {formatDate(contributionType.created_at)}</p>
-        <div class="flex items-center">
-          <span class="text-sm text-gray-500 mr-2">Points per contribution:</span>
-          <span class="text-lg font-bold text-purple-600">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+          <span class="text-sm text-gray-500">Points per contribution:</span>
+          <span class="text-xl sm:text-lg font-bold text-purple-600">
             {statistics.min_points != null && statistics.max_points != null && statistics.current_multiplier != null
               ? (statistics.min_points === statistics.max_points 
                   ? `${Math.round(statistics.min_points * statistics.current_multiplier)}` 

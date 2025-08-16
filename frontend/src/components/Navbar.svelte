@@ -5,6 +5,7 @@
   import { authState } from '../lib/auth.js';
   import { categoryTheme, currentCategory } from '../stores/category.js';
   
+  let { toggleSidebar } = $props();
   
   let isMenuOpen = $state(false);
   
@@ -41,54 +42,41 @@
       <div class="flex items-center">
         <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex-shrink-0 flex items-center">
           <Icon name="genlayer" size="lg" className="text-black" />
-          <span class="ml-3 text-xl font-bold {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">GenLayer Testnet Contributions</span>
+          <span class="ml-3 text-sm sm:text-xl font-bold {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">
+            <span class="hidden sm:inline">GenLayer Points</span>
+            <span class="sm:hidden">GenLayer</span>
+          </span>
         </a>
       </div>
       
       <div class="hidden md:flex items-center gap-4">
         <button 
           onclick={handleSubmitContribution}
-          class="px-3 py-2 {$categoryTheme.button} rounded-md"
+          class="px-4 py-2 {$categoryTheme.button} rounded-md font-medium"
         >
           Submit Contribution
         </button>
-        <div class="ml-4 flex items-center gap-4">
-          <AuthButton />
-        </div>
+        <AuthButton />
       </div>
       
-      <div class="flex items-center md:hidden">
+      <div class="flex items-center md:hidden gap-2">
+        <AuthButton />
         <button 
-          onclick={toggleMenu} 
+          onclick={() => {
+            if (toggleSidebar) {
+              toggleSidebar();
+            } else {
+              console.error('toggleSidebar function not provided to Navbar');
+            }
+          }} 
           class="p-2 rounded-md text-gray-700 hover:bg-gray-100"
-          aria-label="Main menu"
+          aria-label="Open menu"
         >
           <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            {#if isMenuOpen}
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            {:else}
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-            {/if}
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
       </div>
     </div>
   </div>
-  
-  <!-- Mobile menu -->
-  {#if isMenuOpen}
-    <div class="md:hidden">
-      <div class="px-2 pt-2 pb-3 space-y-1">
-        <button 
-          onclick={handleSubmitContribution}
-          class="block w-full text-left px-3 py-2 rounded-md text-base font-medium bg-primary-600 text-white hover:bg-primary-700"
-        >
-          Submit Contribution
-        </button>
-        <div class="px-3 py-2">
-          <AuthButton />
-        </div>
-      </div>
-    </div>
-  {/if}
 </header>

@@ -6,6 +6,14 @@
   import Sidebar from './components/Sidebar.svelte';
   import { categoryTheme, currentCategory, detectCategoryFromRoute } from './stores/category.js';
   import { location } from 'svelte-spa-router';
+  
+  // State for sidebar toggle on mobile
+  let sidebarOpen = $state(false);
+  
+  function toggleSidebar() {
+    sidebarOpen = !sidebarOpen;
+  }
+  
   import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
@@ -62,10 +70,10 @@
   };
   
   // Automatically update category based on current route
-  $: {
+  $effect(() => {
     const category = detectCategoryFromRoute($location);
     currentCategory.set(category);
-  }
+  });
   
   // Function to hide tooltips - used for route changes
   function hideTooltips() {
@@ -203,10 +211,10 @@
 </script>
 
 <div class="min-h-screen {$categoryTheme.bg} transition-colors duration-300">
-  <Navbar />
-  <div class="container mx-auto px-4 py-4 md:py-6 lg:py-8 flex">
-    <Sidebar />
-    <main class="flex-1 md:ml-4">
+  <Navbar {toggleSidebar} />
+  <div class="flex">
+    <Sidebar bind:isOpen={sidebarOpen} />
+    <main class="flex-1 container mx-auto px-4 py-4 md:py-6 lg:py-8">
       <Router 
         {routes} 
         on:conditionsFailed={hideTooltips}

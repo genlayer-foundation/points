@@ -57,7 +57,7 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="space-y-6 sm:space-y-8">
   <!-- Header -->
   <div class="flex justify-between items-center">
     <div>
