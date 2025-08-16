@@ -6,7 +6,10 @@
     userName = 'Participant',
     title = null,
     showTitle = true,
-    className = ''
+    className = '',
+    category = null,
+    compact = false,
+    limit = null
   } = $props();
 
   // Derive the title if not provided
@@ -19,6 +22,9 @@
     <ContributionsList
       {userAddress}
       showUser={false}
+      {category}
+      {compact}
+      {limit}
     />
   </div>
 {:else}
@@ -26,6 +32,9 @@
     <ContributionsList
       {userAddress}
       showUser={false}
+      {category}
+      {compact}
+      {limit}
     />
   </div>
 {/if}

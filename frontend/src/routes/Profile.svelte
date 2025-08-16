@@ -208,9 +208,29 @@
             <div class="bg-sky-50 rounded-lg p-4 border-2 border-sky-200">
               <h3 class="text-md font-medium text-sky-900 mb-3 flex items-center">
                 <Icon name="validator" size="sm" className="mr-2 text-sky-600" />
-                Validator Profile
+                Testnet Asimov Validator
               </h3>
-              <div>
+              <div class="space-y-3">
+                <!-- Status Badge -->
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-gray-600">Status</span>
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    Active
+                  </span>
+                </div>
+                
+                <!-- Validator Since -->
+                {#if user.validator?.created_at}
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600">Validator Since</span>
+                    <span class="text-sm font-medium text-gray-900">
+                      {formatDate(user.validator.created_at)}
+                    </span>
+                  </div>
+                {/if}
+                
+                <!-- Node Version Section -->
+                <div class="border-t pt-3">
             <label for="nodeVersion" class="block text-sm font-medium text-gray-700 mb-2">
               Node Version
             </label>
@@ -306,13 +326,14 @@
           <p class="mt-1 text-sm text-gray-500">
             Enter your current GenLayer node version (semantic versioning format)
           </p>
+                </div>
               </div>
             </div>
           {:else if userType === 'validator'}
             <div class="bg-sky-50/50 rounded-lg p-4 border-2 border-sky-200/50">
               <h3 class="text-md font-medium text-sky-600/70 mb-2 flex items-center">
                 <Icon name="validator" size="sm" className="mr-2 text-sky-500/50" />
-                Validator Profile
+                Testnet Asimov Validator
               </h3>
               <p class="text-sm text-sky-600/60">Not a validator yet. Run a node to activate this profile.</p>
             </div>
