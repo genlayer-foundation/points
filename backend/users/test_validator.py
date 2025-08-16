@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.utils import timezone
 from datetime import timedelta
 from users.models import User, Validator
-from contributions.models import ContributionType, Contribution, Evidence
+from contributions.models import ContributionType, Contribution, Evidence, SubmittedContribution
 from contributions.node_upgrade.models import TargetNodeVersion
 from leaderboard.models import GlobalLeaderboardMultiplier
 
@@ -91,8 +91,8 @@ class ValidatorModelTestCase(TestCase):
         self.assertFalse(validator.version_matches_or_higher('1.3.0'))
         self.assertFalse(validator.version_matches_or_higher('2.0.0'))
         
-    def test_automatic_contribution_creation(self):
-        """Test that updating to target version creates contribution"""
+    def test_automatic_submission_creation(self):
+        """Test that updating to target version creates submission for review"""
         # Create target version
         target = TargetNodeVersion.objects.create(
             version='2.0.0',
@@ -107,12 +107,13 @@ class ValidatorModelTestCase(TestCase):
         validator.node_version = '2.0.0'
         validator.save()
         
-        # Check contribution was created
-        self.assertEqual(Contribution.objects.count(), 1)
-        contribution = Contribution.objects.first()
-        self.assertEqual(contribution.user, self.user)
-        self.assertEqual(contribution.contribution_type, self.contribution_type)
-        self.assertEqual(contribution.points, 4)  # Day 1 = 4 points
+        # Check submission was created (not direct contribution)
+        self.assertEqual(SubmittedContribution.objects.count(), 1)
+        submission = SubmittedContribution.objects.first()
+        self.assertEqual(submission.user, self.user)
+        self.assertEqual(submission.contribution_type, self.contribution_type)
+        self.assertEqual(submission.state, 'pending')
+        self.assertIn('Suggested points: 4', submission.notes)  # Day 1 = 4 points
         
         # Check evidence was created
         self.assertEqual(Evidence.objects.count(), 1)
@@ -120,7 +121,7 @@ class ValidatorModelTestCase(TestCase):
         self.assertIn('Target version: 2.0.0', evidence.description)
         
     def test_points_calculation_based_on_time(self):
-        """Test that points decrease over time"""
+        """Test that suggested points decrease over time"""
         # Create target version 2 days ago (to get 2 points)
         target = TargetNodeVersion.objects.create(
             version='2.0.0',
@@ -137,12 +138,12 @@ class ValidatorModelTestCase(TestCase):
         validator.node_version = '2.0.0'
         validator.save()
         
-        # Should get 2 points (day 3 = index 2)
-        contribution = Contribution.objects.first()
-        self.assertEqual(contribution.points, 2)
+        # Should suggest 2 points (day 3 = index 2)
+        submission = SubmittedContribution.objects.first()
+        self.assertIn('Suggested points: 2', submission.notes)
         
-    def test_no_duplicate_contributions(self):
-        """Test that duplicate contributions are not created"""
+    def test_no_duplicate_submissions(self):
+        """Test that duplicate submissions are not created"""
         # Create target version
         target = TargetNodeVersion.objects.create(
             version='2.0.0',
@@ -155,8 +156,8 @@ class ValidatorModelTestCase(TestCase):
         validator.node_version = '2.0.0'
         validator.save()
         
-        # First contribution should be created
-        self.assertEqual(Contribution.objects.count(), 1)
+        # First submission should be created
+        self.assertEqual(SubmittedContribution.objects.count(), 1)
         
         # Change version and change back
         validator.node_version = '1.9.9'
@@ -164,11 +165,11 @@ class ValidatorModelTestCase(TestCase):
         validator.node_version = '2.0.0'
         validator.save()
         
-        # Should still have only one contribution
-        self.assertEqual(Contribution.objects.count(), 1)
+        # Should still have only one submission
+        self.assertEqual(SubmittedContribution.objects.count(), 1)
         
-    def test_higher_version_creates_contribution(self):
-        """Test that higher versions also create contributions"""
+    def test_higher_version_creates_submission(self):
+        """Test that higher versions also create submissions"""
         # Create target version
         target = TargetNodeVersion.objects.create(
             version='2.0.0',
@@ -181,11 +182,11 @@ class ValidatorModelTestCase(TestCase):
         validator.node_version = '2.1.0'
         validator.save()
         
-        # Contribution should be created
-        self.assertEqual(Contribution.objects.count(), 1)
+        # Submission should be created
+        self.assertEqual(SubmittedContribution.objects.count(), 1)
         
-    def test_no_contribution_without_target(self):
-        """Test that no contribution is created without active target"""
+    def test_no_submission_without_target(self):
+        """Test that no submission is created without active target"""
         # No target version exists
         
         # Create validator and set version
@@ -193,11 +194,11 @@ class ValidatorModelTestCase(TestCase):
         validator.node_version = '2.0.0'
         validator.save()
         
-        # No contribution should be created
-        self.assertEqual(Contribution.objects.count(), 0)
+        # No submission should be created
+        self.assertEqual(SubmittedContribution.objects.count(), 0)
         
-    def test_only_active_target_triggers_contribution(self):
-        """Test that only active targets trigger contributions"""
+    def test_only_active_target_triggers_submission(self):
+        """Test that only active targets trigger submissions"""
         # Create inactive target
         target = TargetNodeVersion.objects.create(
             version='2.0.0',
@@ -210,11 +211,11 @@ class ValidatorModelTestCase(TestCase):
         validator.node_version = '2.0.0'
         validator.save()
         
-        # No contribution should be created
-        self.assertEqual(Contribution.objects.count(), 0)
+        # No submission should be created
+        self.assertEqual(SubmittedContribution.objects.count(), 0)
     
-    def test_invisible_user_no_contribution(self):
-        """Test that invisible users don't get contributions created"""
+    def test_invisible_user_no_submission(self):
+        """Test that invisible users don't get submissions created"""
         # Create target version
         target = TargetNodeVersion.objects.create(
             version='2.0.0',
@@ -231,8 +232,8 @@ class ValidatorModelTestCase(TestCase):
         validator.node_version = '2.0.0'
         validator.save()
         
-        # No contribution should be created for invisible user
-        self.assertEqual(Contribution.objects.count(), 0)
+        # No submission should be created for invisible user
+        self.assertEqual(SubmittedContribution.objects.count(), 0)
         
         # Make user visible and update version again
         self.user.visible = True
@@ -244,5 +245,5 @@ class ValidatorModelTestCase(TestCase):
         validator.node_version = '2.0.0'
         validator.save()
         
-        # Now contribution should be created
-        self.assertEqual(Contribution.objects.count(), 1)
+        # Now submission should be created
+        self.assertEqual(SubmittedContribution.objects.count(), 1)

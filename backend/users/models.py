@@ -160,7 +160,7 @@ class Validator(BaseModel):
         # Only create contribution if user is visible
         if old_version != self.node_version and self.node_version and self.user.visible:
             from contributions.node_upgrade.models import TargetNodeVersion
-            from contributions.models import Contribution, ContributionType, Evidence
+            from contributions.models import ContributionType, Evidence, SubmittedContribution
             from leaderboard.models import GlobalLeaderboardMultiplier
             
             # Get active target
@@ -170,15 +170,25 @@ class Validator(BaseModel):
                 contribution_type = ContributionType.objects.filter(slug='node-upgrade').first()
                 
                 if contribution_type:
-                    # Check for existing contribution with this target version as evidence
-                    existing = Contribution.objects.filter(
+                    # Check for existing submission or contribution with this target version as evidence
+                    existing_submission = SubmittedContribution.objects.filter(
+                        user=self.user,
+                        contribution_type=contribution_type,
+                        state__in=['pending', 'accepted', 'more_info_needed']
+                    ).filter(
+                        evidence_items__description__contains=f"Target version: {target.version}"
+                    ).exists()
+                    
+                    # Also check if a contribution was already created (for backward compatibility)
+                    from contributions.models import Contribution
+                    existing_contribution = Contribution.objects.filter(
                         user=self.user,
                         contribution_type=contribution_type
                     ).filter(
                         evidence_items__description__contains=f"Target version: {target.version}"
                     ).exists()
                     
-                    if not existing:
+                    if not existing_submission and not existing_contribution:
                         # Calculate points based on days elapsed
                         days_elapsed = (timezone.now() - target.created_at).days
                         if days_elapsed <= 0:
@@ -190,17 +200,20 @@ class Validator(BaseModel):
                         else:
                             points = 1
                         
-                        # Create the contribution
-                        contribution = Contribution.objects.create(
+                        # Import SubmittedContribution model
+                        from contributions.models import SubmittedContribution
+                        
+                        # Create a submission for review instead of direct contribution
+                        submission = SubmittedContribution.objects.create(
                             user=self.user,
                             contribution_type=contribution_type,
-                            points=points,
                             contribution_date=timezone.now(),
-                            notes=f"Automatic submission for node upgrade to version {target.version}"
+                            notes=f"Automatic submission for node upgrade to version {target.version}. Suggested points: {points} (based on {days_elapsed} days elapsed)",
+                            state='pending'
                         )
                         
-                        # Add evidence
+                        # Add evidence to the submission
                         Evidence.objects.create(
-                            contribution=contribution,
-                            description=f"Target version: {target.version}\nUpgraded on: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}\nDays elapsed: {days_elapsed}"
+                            submitted_contribution=submission,
+                            description=f"Target version: {target.version}\nUpgraded on: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}\nDays elapsed: {days_elapsed}\nSuggested points: {points}"
                         )
