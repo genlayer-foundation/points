@@ -103,6 +103,12 @@ export const validatorsAPI = {
   getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } })
 };
 
+// Journey completion API
+export const journeyAPI = {
+  completeValidatorJourney: () => api.post('/users/complete_validator_journey/'),
+  completeBuilderJourney: () => api.post('/users/complete_builder_journey/')
+};
+
 // Convenience exports for profile functions
 export const getCurrentUser = async () => {
   const response = await usersAPI.getCurrentUser();

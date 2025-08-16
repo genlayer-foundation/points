@@ -5,8 +5,7 @@
   import { authState } from '../lib/auth';
   import { userStore } from '../lib/userStore';
   import { getValidatorBalance } from '../lib/blockchain';
-  import { currentCategory, categoryTheme } from '../stores/category.js';
-  import Icon from '../components/Icons.svelte';
+  import { journeyAPI } from '../lib/api';
   
   let user = $state(null);
   let name = $state('');
@@ -15,83 +14,15 @@
   let error = $state('');
   let balance = $state(null);
   let loadingBalance = $state(false);
-  
-  // Determine user type
-  let userType = $derived(
-    !user ? null :
-    user.validator ? 'validator' :
-    user.builder ? 'builder' :
-    user.steward ? 'steward' :
-    'participant'
-  );
-  
-  // Get type-specific color theme
-  let typeColor = $derived(
-    userType === 'validator' ? 'sky' :
-    userType === 'builder' ? 'orange' :
-    userType === 'steward' ? 'green' :
-    'gray'
-  );
+  let showValidatorJourney = $state(false);
+  let showBuilderJourney = $state(false);
+  let isCompletingJourney = $state(false);
   
   // Track if any field has changed
   let hasChanges = $derived(user && (
     name !== (user.name || '') || 
-    (userType === 'validator' && nodeVersion !== (user.validator?.node_version || ''))
+    (user.validator && nodeVersion !== (user.validator?.node_version || ''))
   ));
-  
-  // Calculate days since target was set
-  let daysSinceTarget = $derived(() => {
-    if (!user?.validator?.target_created_at) return null;
-    const created = new Date(user.validator.target_created_at);
-    const now = new Date();
-    const diff = now - created;
-    return Math.floor(diff / (1000 * 60 * 60 * 24));
-  });
-  
-  // Humanize time since target was set
-  function humanizeTimeSince(dateStr) {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diff = now - date;
-    
-    const minutes = Math.floor(diff / (1000 * 60));
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    
-    if (minutes < 60) {
-      return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`;
-    } else if (hours < 24) {
-      return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
-    } else if (days < 7) {
-      return days === 1 ? '1 day ago' : `${days} days ago`;
-    } else if (days < 30) {
-      const weeks = Math.floor(days / 7);
-      return weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
-    } else {
-      const months = Math.floor(days / 30);
-      return months === 1 ? '1 month ago' : `${months} months ago`;
-    }
-  }
-  
-  // Format date nicely
-  function formatDate(dateStr) {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    });
-  }
-  
-  // Get points for current day
-  function getPointsForDay(day) {
-    if (day <= 0) return 4;
-    if (day === 1) return 3;
-    if (day === 2) return 2;
-    return 1;
-  }
   
   onMount(async () => {
     try {
@@ -107,7 +38,6 @@
           balance = await getValidatorBalance(userData.address);
         } catch (err) {
           console.error('Failed to fetch balance:', err);
-          // Don't show error, just leave balance as null
         } finally {
           loadingBalance = false;
         }
@@ -154,238 +84,372 @@
     // Go back to public profile without saving
     push(`/participant/${$authState.address}`);
   }
+  
+  async function startValidatorJourney() {
+    showValidatorJourney = true;
+  }
+  
+  async function startBuilderJourney() {
+    showBuilderJourney = true;
+  }
+  
+  async function completeValidatorJourney() {
+    error = '';
+    isCompletingJourney = true;
+    
+    try {
+      const response = await journeyAPI.completeValidatorJourney();
+      // Reload user data to get updated badges
+      const userData = await getCurrentUser();
+      user = userData;
+      showValidatorJourney = false;
+      alert('Validator waitlist badge awarded! +20 points earned.');
+    } catch (err) {
+      error = err.response?.data?.error || 'Failed to complete journey';
+    } finally {
+      isCompletingJourney = false;
+    }
+  }
+  
+  async function completeBuilderJourney() {
+    error = '';
+    isCompletingJourney = true;
+    
+    try {
+      const response = await journeyAPI.completeBuilderJourney();
+      // Reload user data to get updated badges
+      const userData = await getCurrentUser();
+      user = userData;
+      showBuilderJourney = false;
+      alert('Builder initiate badge awarded! +20 points earned.');
+    } catch (err) {
+      error = err.response?.data?.error || 'Failed to complete journey';
+    } finally {
+      isCompletingJourney = false;
+    }
+  }
 </script>
 
-<div class="max-w-2xl mx-auto p-6">
-  <h1 class="text-3xl font-bold mb-6">Edit Profile</h1>
-  
+<div class="space-y-6">
+  <!-- Header with title and buttons -->
+  <div class="flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-900">Edit Profile</h1>
+    <div class="flex gap-2">
+      <button
+        onclick={handleSave}
+        disabled={isSaving || !hasChanges}
+        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+      >
+        {isSaving ? 'Saving...' : 'Save Changes'}
+      </button>
+      <button
+        onclick={handleCancel}
+        disabled={isSaving}
+        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+      >
+        Cancel
+      </button>
+    </div>
+  </div>
+
   {#if error}
-    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
       {error}
     </div>
   {/if}
-  
+
   {#if user}
+    <!-- Basic Information -->
     <div class="bg-white shadow rounded-lg p-6">
-      <div class="space-y-4">
+      <h2 class="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Wallet Address</label>
-          <p class="text-gray-900 font-mono text-sm">{user.address || 'Not connected'}</p>
+          <p class="text-gray-900 font-mono text-sm break-all bg-gray-50 px-3 py-2 rounded">{user.address || 'Not connected'}</p>
         </div>
         
         {#if user.address}
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Balance</label>
-          {#if loadingBalance}
-            <p class="text-gray-500">Loading balance...</p>
-          {:else if balance}
-            <p class="text-gray-900 font-mono text-sm">{balance.formatted} GEN</p>
-          {:else}
-            <p class="text-gray-500">Unable to fetch balance</p>
-          {/if}
-        </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Balance</label>
+            {#if loadingBalance}
+              <p class="text-gray-500 bg-gray-50 px-3 py-2 rounded">Loading...</p>
+            {:else if balance}
+              <p class="text-gray-900 font-mono text-sm bg-gray-50 px-3 py-2 rounded">{balance.formatted} GEN</p>
+            {:else}
+              <p class="text-gray-500 bg-gray-50 px-3 py-2 rounded">Unable to fetch</p>
+            {/if}
+          </div>
         {/if}
-        
-        <div>
-          <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
-          <input
-            id="name"
-            type="text"
-            bind:value={name}
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter your display name"
-            disabled={isSaving}
-          />
-          <p class="mt-1 text-sm text-gray-500">This name will be displayed on your public profile</p>
-        </div>
-        
-        <!-- Category-specific sections -->
-        <div class="border-t pt-4 space-y-6">
-          <h2 class="text-lg font-semibold text-gray-900">Category Profiles</h2>
-          
-          <!-- Validator Profile -->
-          {#if user.validator}
-            <div class="bg-sky-50 rounded-lg p-4 border-2 border-sky-200">
-              <h3 class="text-md font-medium text-sky-900 mb-3 flex items-center">
-                <Icon name="validator" size="sm" className="mr-2 text-sky-600" />
-                Validator Profile
-              </h3>
-              <div>
-            <label for="nodeVersion" class="block text-sm font-medium text-gray-700 mb-2">
-              Node Version
-            </label>
+      </div>
+      
+      <div class="mt-4">
+        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
+        <input
+          id="name"
+          type="text"
+          bind:value={name}
+          class="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Enter your display name"
+          disabled={isSaving}
+        />
+        <p class="mt-1 text-xs text-gray-500">This name will be displayed on leaderboards and profiles</p>
+      </div>
+      
+      {#if user.validator && !showValidatorJourney && !showBuilderJourney}
+        <div class="mt-6 pt-6 border-t border-gray-200">
+          <label for="nodeVersion" class="block text-sm font-medium text-gray-700 mb-2">
+            Node Version
+          </label>
           
           {#if user?.validator?.target_version}
-            <!-- Status Banner -->
             {#if user?.validator?.matches_target}
-              <div class="bg-green-50 border-2 border-green-400 rounded-lg p-4 mb-3">
-                <div class="flex items-center">
-                  <div class="flex-shrink-0">
-                    <svg class="h-8 w-8 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                    </svg>
-                  </div>
-                  <div class="ml-3">
-                    <h3 class="text-sm font-bold text-green-800">Your node is up to date!</h3>
-                    <p class="text-xs text-green-700 mt-1">
-                      Version {nodeVersion || 'not set'} meets or exceeds target {user.validator.target_version}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            {:else if daysSinceTarget() > 3}
-              <div class="bg-red-50 border-2 border-red-400 rounded-lg p-4 mb-3">
-                <div class="flex items-center">
-                  <div class="flex-shrink-0">
-                    <svg class="h-8 w-8 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                    </svg>
-                  </div>
-                  <div class="ml-3 flex-1">
-                    <h3 class="text-sm font-bold text-red-800">Update overdue!</h3>
-                    <p class="text-xs text-red-700 mt-1">
-                      Update requested: {humanizeTimeSince(user.validator.target_created_at)}
-                    </p>
-                  </div>
-                  <div class="relative group">
-                    <a href="#/contribution-type/3" class="text-lg text-red-600 hover:text-red-700 hover:underline cursor-pointer">①*</a>
-                    <div class="absolute right-0 top-6 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap">
-                      Node Upgrade
-                    </div>
-                  </div>
-                </div>
+              <div class="bg-green-50 border border-green-200 rounded-md p-2 mb-2 text-sm">
+                <span class="text-green-800">✓ Up to date with target {user.validator.target_version}</span>
               </div>
             {:else}
-              <div class="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mb-3">
-                <div class="flex items-center">
-                  <div class="flex-shrink-0">
-                    <svg class="h-8 w-8 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                    </svg>
-                  </div>
-                  <div class="ml-3 flex-1">
-                    <h3 class="text-sm font-bold text-yellow-800">Update needed</h3>
-                    <p class="text-xs text-yellow-700 mt-1">
-                      Update requested: {humanizeTimeSince(user.validator.target_created_at)}
-                    </p>
-                  </div>
-                  <div class="relative group">
-                    <a href="#/contribution-type/3" class="text-lg text-yellow-600 hover:text-yellow-700 hover:underline cursor-pointer">
-                      {#if daysSinceTarget() === 0}④{:else if daysSinceTarget() === 1}③{:else if daysSinceTarget() === 2}②{:else}①{/if}*
-                    </a>
-                    <div class="absolute right-0 top-6 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap">
-                      Node Upgrade
-                    </div>
-                  </div>
-                </div>
+              <div class="bg-yellow-50 border border-yellow-200 rounded-md p-2 mb-2 text-sm">
+                <span class="text-yellow-800">⚠ Update to {user.validator.target_version}</span>
               </div>
             {/if}
-            
-            <div class="bg-blue-50 border border-blue-200 rounded-md p-3 mb-3">
-              <div class="flex items-start justify-between">
-                <div>
-                  <p class="text-sm font-medium text-blue-900">
-                    Target Version: <span class="font-mono">{user.validator.target_version}</span>
-                  </p>
-                  <p class="text-xs text-blue-700 mt-1">
-                    Set on {formatDate(user.validator.target_created_at)}
-                  </p>
-                </div>
-              </div>
-            </div>
           {/if}
           
           <input
             id="nodeVersion"
             type="text"
             bind:value={nodeVersion}
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="e.g., 0.3.9"
             disabled={isSaving}
           />
-          <p class="mt-1 text-sm text-gray-500">
-            Enter your current GenLayer node version (semantic versioning format)
-          </p>
+          <p class="mt-1 text-xs text-gray-500">Enter your current GenLayer node version</p>
+        </div>
+      {/if}
+      
+      {#if user.leaderboard_entry}
+        <div class="mt-6 pt-6 border-t border-gray-200">
+          <h3 class="text-sm font-medium text-gray-900 mb-3">Global Stats</h3>
+          <div class="grid grid-cols-2 gap-4 max-w-sm">
+            <div class="bg-gray-50 rounded-md p-3">
+              <p class="text-2xl font-bold text-gray-900">{user.leaderboard_entry.total_points || 0}</p>
+              <p class="text-xs text-gray-600">Total Points</p>
+            </div>
+            <div class="bg-gray-50 rounded-md p-3">
+              <p class="text-2xl font-bold text-gray-900">#{user.leaderboard_entry.rank || '—'}</p>
+              <p class="text-xs text-gray-600">Global Rank</p>
+            </div>
+          </div>
+        </div>
+      {/if}
+    </div>
+    
+    <!-- Journey Status Section -->
+    {#if !showValidatorJourney && !showBuilderJourney}
+      <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Journey Status</h2>
+        
+        <div class="space-y-3">
+          <!-- Validator Journey Status -->
+          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-sky-100 rounded-full flex items-center justify-center">
+                <svg class="w-5 h-5 text-sky-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                  <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+                </svg>
+              </div>
+              <div>
+                <p class="font-medium text-gray-900">Validator</p>
+                <p class="text-sm text-gray-500">
+                  {#if user.validator}
+                    Active Validator
+                  {:else if user.has_validator_waitlist}
+                    Journey Started - On Waitlist
+                  {:else}
+                    Not Started
+                  {/if}
+                </p>
               </div>
             </div>
-          {:else if userType === 'validator'}
-            <div class="bg-sky-50/50 rounded-lg p-4 border-2 border-sky-200/50">
-              <h3 class="text-md font-medium text-sky-600/70 mb-2 flex items-center">
-                <Icon name="validator" size="sm" className="mr-2 text-sky-500/50" />
-                Validator Profile
-              </h3>
-              <p class="text-sm text-sky-600/60">Not a validator yet. Run a node to activate this profile.</p>
-            </div>
-          {/if}
+            {#if !user.validator && !user.has_validator_waitlist}
+              <button
+                onclick={startValidatorJourney}
+                class="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors text-sm"
+              >
+                Start Journey
+              </button>
+            {:else if user.has_validator_waitlist && !user.validator}
+              <span class="inline-flex items-center px-3 py-1 rounded-full bg-sky-100 text-sky-800 text-sm">
+                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+                +20 Points Earned
+              </span>
+            {:else}
+              <span class="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm">
+                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Active
+              </span>
+            {/if}
+          </div>
           
-          <!-- Builder Profile -->
-          {#if user.builder}
-            <div class="bg-orange-50 rounded-lg p-4 border-2 border-orange-200">
-              <h3 class="text-md font-medium text-orange-900 mb-3 flex items-center">
-                <Icon name="builder" size="sm" className="mr-2 text-orange-600" />
-                Builder Profile
-              </h3>
-              <div class="text-sm text-orange-800">
-                <p>Total Points: <span class="font-bold text-orange-900">{user.builder.total_points || 0}</span></p>
-                <p>Rank: <span class="font-bold text-orange-900">#{user.builder.rank || 'Unranked'}</span></p>
-                <p class="text-xs text-orange-600 mt-2">Profile created: {formatDate(user.builder.created_at)}</p>
+          <!-- Builder Journey Status -->
+          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                <svg class="w-5 h-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                </svg>
+              </div>
+              <div>
+                <p class="font-medium text-gray-900">Builder</p>
+                <p class="text-sm text-gray-500">
+                  {#if user.builder}
+                    Active Builder
+                  {:else if user.has_builder_initiate}
+                    Journey Started - Initiate Badge Earned
+                  {:else}
+                    Not Started
+                  {/if}
+                </p>
               </div>
             </div>
-          {:else}
-            <div class="bg-orange-50/50 rounded-lg p-4 border-2 border-orange-200/50">
-              <h3 class="text-md font-medium text-orange-600/70 mb-2 flex items-center">
-                <Icon name="builder" size="sm" className="mr-2 text-orange-500/50" />
-                Builder Profile
-              </h3>
-              <p class="text-sm text-orange-600/60">Not a builder yet. Contribute to builder projects to activate this profile.</p>
-            </div>
-          {/if}
-          
-          <!-- Steward Profile -->
-          {#if user.steward}
-            <div class="bg-green-50 rounded-lg p-4 border-2 border-green-200">
-              <h3 class="text-md font-medium text-green-900 mb-3 flex items-center">
-                <Icon name="steward" size="sm" className="mr-2 text-green-600" />
-                Steward Profile
-              </h3>
-              <div class="text-sm text-green-800">
-                <p>Total Points: <span class="font-bold text-green-900">{user.steward.total_points || 0}</span></p>
-                <p>Rank: <span class="font-bold text-green-900">#{user.steward.rank || 'Unranked'}</span></p>
-                <p class="text-xs text-green-600 mt-2">Profile created: {formatDate(user.steward.created_at)}</p>
-              </div>
-            </div>
-          {:else}
-            <div class="bg-green-50/50 rounded-lg p-4 border-2 border-green-200/50">
-              <h3 class="text-md font-medium text-green-600/70 mb-2 flex items-center">
-                <Icon name="steward" size="sm" className="mr-2 text-green-500/50" />
-                Steward Profile
-              </h3>
-              <p class="text-sm text-green-600/60">Not a steward yet. Contribute to community initiatives to activate this profile.</p>
-            </div>
-          {/if}
+            {#if !user.builder && !user.has_builder_initiate}
+              <button
+                onclick={startBuilderJourney}
+                class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors text-sm"
+              >
+                Start Journey
+              </button>
+            {:else if user.has_builder_initiate && !user.builder}
+              <span class="inline-flex items-center px-3 py-1 rounded-full bg-orange-100 text-orange-800 text-sm">
+                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+                +20 Points Earned
+              </span>
+            {:else}
+              <span class="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm">
+                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Active
+              </span>
+            {/if}
+          </div>
         </div>
       </div>
-      
-      <div class="mt-6 flex gap-2">
+    {/if}
+    
+    <!-- Journey Detail Views -->
+    {#if showValidatorJourney}
+      <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">Validator Journey</h2>
+          <button
+            onclick={() => showValidatorJourney = false}
+            class="text-gray-400 hover:text-gray-600"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        
+        <p class="text-gray-600 mb-4">Complete the interest form to join the validator waitlist and earn 20 points!</p>
+        
+        <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 mb-4">
+          <h3 class="font-medium text-sky-900 mb-2">Requirements:</h3>
+          <ul class="space-y-2 text-sm text-sky-700">
+            <li class="flex items-start">
+              <svg class="w-4 h-4 text-sky-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              Complete the validator interest form
+            </li>
+            <li class="flex items-start">
+              <svg class="w-4 h-4 text-sky-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              Provide your technical background
+            </li>
+            <li class="flex items-start">
+              <svg class="w-4 h-4 text-sky-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              Join the validator waitlist
+            </li>
+          </ul>
+        </div>
+        
         <button
-          onclick={handleSave}
-          disabled={isSaving || !hasChanges}
-          class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          onclick={completeValidatorJourney}
+          disabled={isCompletingJourney}
+          class="w-full px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {isSaving ? 'Saving...' : 'Save Changes'}
-        </button>
-        <button
-          onclick={handleCancel}
-          disabled={isSaving}
-          class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Cancel
+          {isCompletingJourney ? 'Processing...' : 'Complete Validator Journey (Demo)'}
         </button>
       </div>
-    </div>
+    {/if}
+    
+    {#if showBuilderJourney}
+      <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">Builder Journey</h2>
+          <button
+            onclick={() => showBuilderJourney = false}
+            class="text-gray-400 hover:text-gray-600"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        
+        <p class="text-gray-600 mb-4">Deploy your first smart contract to earn the Builder Initiate badge and 20 points!</p>
+        
+        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+          <h3 class="font-medium text-orange-900 mb-2">Requirements:</h3>
+          <ul class="space-y-2 text-sm text-orange-700">
+            <li class="flex items-start">
+              <svg class="w-4 h-4 text-orange-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              Deploy a smart contract using GenLayer Studio
+            </li>
+            <li class="flex items-start">
+              <svg class="w-4 h-4 text-orange-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              Complete the builder tutorial
+            </li>
+          </ul>
+        </div>
+        
+        <div class="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4">
+          <p class="text-xs text-yellow-700">
+            <strong>Note:</strong> Builder tools are coming soon. For now, you can manually claim your initiate badge to get started!
+          </p>
+        </div>
+        
+        <button
+          onclick={completeBuilderJourney}
+          disabled={isCompletingJourney}
+          class="w-full px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {isCompletingJourney ? 'Processing...' : 'Claim Builder Initiate Badge (Demo)'}
+        </button>
+      </div>
+    {/if}
+    
   {:else if !error}
-    <div class="text-center py-8">
-      <p class="text-gray-500">Loading profile...</p>
+    <div class="bg-white shadow rounded-lg p-8">
+      <div class="text-center">
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
+        <p class="text-gray-500 mt-4">Loading profile...</p>
+      </div>
     </div>
   {/if}
 </div>

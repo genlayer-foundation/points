@@ -168,10 +168,13 @@ class UserSerializer(serializers.ModelSerializer):
     validator = ValidatorSerializer(read_only=True)
     builder = BuilderSerializer(read_only=True)
     steward = StewardSerializer(read_only=True)
+    has_validator_waitlist = serializers.SerializerMethodField()
+    has_builder_initiate = serializers.SerializerMethodField()
     
     class Meta:
         model = User
-        fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward', 
+                  'has_validator_waitlist', 'has_builder_initiate', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_leaderboard_entry(self, obj):
@@ -190,6 +193,30 @@ class UserSerializer(serializers.ModelSerializer):
         except:
             pass
         return None
+    
+    def get_has_validator_waitlist(self, obj):
+        """
+        Check if user has the validator waitlist badge (contribution).
+        """
+        from contributions.models import Contribution, ContributionType
+        
+        try:
+            waitlist_type = ContributionType.objects.get(slug='validator-waitlist')
+            return Contribution.objects.filter(user=obj, contribution_type=waitlist_type).exists()
+        except ContributionType.DoesNotExist:
+            return False
+    
+    def get_has_builder_initiate(self, obj):
+        """
+        Check if user has the builder initiate badge (contribution).
+        """
+        from contributions.models import Contribution, ContributionType
+        
+        try:
+            initiate_type = ContributionType.objects.get(slug='builder-initiate')
+            return Contribution.objects.filter(user=obj, contribution_type=initiate_type).exists()
+        except ContributionType.DoesNotExist:
+            return False
 
 
 class UserCreateSerializer(serializers.ModelSerializer):

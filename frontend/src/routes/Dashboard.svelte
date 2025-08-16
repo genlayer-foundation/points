@@ -6,6 +6,7 @@
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import RecentContributions from '../components/RecentContributions.svelte';
   import GlobalDashboard from '../components/GlobalDashboard.svelte';
+  import WelcomeNewUser from '../components/WelcomeNewUser.svelte';
   import { contributionsAPI, usersAPI, statsAPI, leaderboardAPI, validatorsAPI } from '../lib/api';
   import { push } from 'svelte-spa-router';
   import { currentCategory, categoryTheme } from '../stores/category.js';
@@ -158,6 +159,9 @@
     points: 'M13 10V3L4 14h7v7l9-11h-7z'
   };
 </script>
+
+<!-- Welcome message for new users -->
+<WelcomeNewUser />
 
 {#if $currentCategory === 'global'}
   <!-- Global Dashboard - Use separate component -->
