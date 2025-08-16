@@ -158,7 +158,11 @@
                         : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                     }`}
                   >
-                    <span class="mr-2 text-gray-400">•</span>
+                    <Icon 
+                      name={item.iconName}
+                      size="sm"
+                      className="mr-2 {isActive(item.path) ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
+                    />
                     {item.name}
                   </a>
                 {/each}
@@ -192,7 +196,11 @@
                   onclick={handleProfileClick}
                   class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
                 >
-                  <span class="mr-2 text-gray-400">•</span>
+                  <Icon 
+                    name={item.iconName}
+                    size="sm"
+                    className="mr-2 text-gray-400 group-hover:text-gray-500"
+                  />
                   {item.name}
                 </button>
               {:else}
@@ -203,7 +211,11 @@
                     isActive(item.path) ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}
                 >
-                  <span class="mr-2 text-gray-400">•</span>
+                  <Icon 
+                    name={item.iconName}
+                    size="sm"
+                    className="mr-2 {isActive(item.path) ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
+                  />
                   {item.name}
                 </a>
               {/if}
