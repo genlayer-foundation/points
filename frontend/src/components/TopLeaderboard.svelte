@@ -24,9 +24,26 @@
   async function fetchLeaderboard() {
     try {
       loading = true;
-      const params = $currentCategory !== 'global' ? { category: $currentCategory } : {};
-      const response = await leaderboardAPI.getLeaderboard(params);
-      leaderboard = response.data || [];
+      
+      let response;
+      if ($currentCategory === 'global') {
+        response = await leaderboardAPI.getLeaderboard();
+        leaderboard = response.data || [];
+      } else {
+        // Use category-specific endpoint
+        response = await leaderboardAPI.getCategoryLeaderboard($currentCategory);
+        // Transform the entries to match the expected format
+        leaderboard = (response.data.entries || []).map(entry => ({
+          rank: entry.rank,
+          total_points: entry.total_points,
+          user_details: {
+            id: entry.user.id,
+            name: entry.user.name,
+            address: entry.user.address,
+          }
+        }));
+      }
+      
       if (limit && leaderboard.length > limit) {
         leaderboard = leaderboard.slice(0, limit);
       }

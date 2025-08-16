@@ -81,33 +81,51 @@
     }
     
     try {
-      // Fetch stats
+      // Fetch stats based on category
       statsLoading = true;
       
-      // Try to get from the stats API first
-      try {
-        const dashboardStats = await statsAPI.getDashboardStats();
-        if (dashboardStats.data) {
+      if ($currentCategory === 'global') {
+        // For global, use the stats API
+        try {
+          const dashboardStats = await statsAPI.getDashboardStats();
+          if (dashboardStats.data) {
+            stats = {
+              totalParticipants: dashboardStats.data.participant_count || 0,
+              totalContributions: dashboardStats.data.contribution_count || 0,
+              totalPoints: dashboardStats.data.total_points || 0,
+              lastUpdated: new Date().toISOString()
+            };
+          }
+        } catch (statsApiError) {
+          console.warn('Stats API failed, falling back to individual requests', statsApiError);
+          
+          // Fallback to individual requests
+          const [participantCountRes, contributionsRes] = await Promise.all([
+            usersAPI.getParticipantCount(),
+            contributionsAPI.getContributions({ limit: 1 })
+          ]);
+          
           stats = {
-            totalParticipants: dashboardStats.data.participant_count || 0,
-            totalContributions: dashboardStats.data.contribution_count || 0,
-            totalPoints: dashboardStats.data.total_points || 0,
+            totalParticipants: participantCountRes.data.count || 0,
+            totalContributions: contributionsRes.data.count || 0,
+            totalPoints: 0,
             lastUpdated: new Date().toISOString()
           };
         }
-      } catch (statsApiError) {
-        console.warn('Stats API failed, falling back to individual requests', statsApiError);
-        
-        // Fallback to individual requests
-        const [participantCountRes, contributionsRes] = await Promise.all([
-          usersAPI.getParticipantCount(),
-          contributionsAPI.getContributions({ limit: 1 }) // Just to get count from the response
+      } else {
+        // For categories, fetch filtered data using category endpoint
+        const [leaderboardRes, contributionsRes] = await Promise.all([
+          leaderboardAPI.getCategoryLeaderboard($currentCategory),
+          contributionsAPI.getContributions({ category: $currentCategory, limit: 1 })
         ]);
         
+        const categoryEntries = leaderboardRes.data.entries || [];
+        const categoryContributions = contributionsRes.data;
+        
         stats = {
-          totalParticipants: participantCountRes.data.count || 0,
-          totalContributions: contributionsRes.data.count || 0,
-          totalPoints: leaderboard.reduce((sum, entry) => sum + entry.total_points, 0),
+          totalParticipants: categoryEntries.length,
+          totalContributions: categoryContributions.count || 0,
+          totalPoints: categoryEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0),
           lastUpdated: new Date().toISOString()
         };
       }

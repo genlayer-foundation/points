@@ -42,7 +42,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     API endpoint that allows viewing the leaderboard.
     Read-only because entries are automatically created and updated.
     """
-    queryset = LeaderboardEntry.objects.filter(user__visible=True, category=None)  # Global leaderboard
+    queryset = LeaderboardEntry.objects.filter(user__visible=True)
     serializer_class = LeaderboardEntrySerializer
     permission_classes = [permissions.AllowAny]  # Allow access without authentication
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -50,6 +50,29 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['rank', 'total_points', 'updated_at']
     ordering = ['rank']
     pagination_class = None  # Disable pagination to return all entries
+    
+    def get_queryset(self):
+        """
+        Filter leaderboard by category if provided in query params.
+        """
+        queryset = super().get_queryset()
+        
+        # Get category from query params
+        category_slug = self.request.query_params.get('category')
+        
+        if category_slug and category_slug != 'global':
+            # Filter by specific category
+            try:
+                category = Category.objects.get(slug=category_slug)
+                queryset = queryset.filter(category=category)
+            except Category.DoesNotExist:
+                # If category doesn't exist, return empty queryset
+                queryset = queryset.none()
+        elif not category_slug or category_slug == 'global':
+            # Default to global leaderboard (category=None)
+            queryset = queryset.filter(category=None)
+        
+        return queryset.order_by('rank')
     
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAdminUser])
     def recalculate(self, request):

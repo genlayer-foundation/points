@@ -86,6 +86,7 @@ export const contributionsAPI = {
 export const leaderboardAPI = {
   getLeaderboard: (params) => api.get('/leaderboard/', { params }),
   getLeaderboardEntry: (address) => api.get(`/leaderboard/?user_address=${address}`),
+  getCategoryLeaderboard: (category) => api.get(`/leaderboard/category/${category}/`),
   getMultipliers: () => api.get('/multipliers/'),
   getMultiplierPeriods: (multiplier_id) => api.get(`/multiplier-periods/?multiplier=${multiplier_id}`),
   getStats: () => api.get('/leaderboard/stats/')
