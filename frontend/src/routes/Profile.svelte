@@ -137,8 +137,8 @@
   }
 </script>
 
-<div class="max-w-2xl mx-auto p-6">
-  <h1 class="text-3xl font-bold mb-6">Edit Profile</h1>
+<div class="max-w-2xl mx-auto px-4 py-8">
+  <h1 class="text-2xl font-bold mb-6">Edit Profile</h1>
   
   {#if error}
     <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -147,7 +147,7 @@
   {/if}
   
   {#if user}
-    <div class="bg-white shadow rounded-lg p-6">
+    <div class="bg-white shadow rounded-lg p-4">
       <div class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Wallet Address</label>

@@ -265,7 +265,7 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   {#if contribution.evidence_items && contribution.evidence_items.length > 0}
-                    <div class="flex flex-col items-end gap-1">
+                    <div class="flex flex-col items-end gap-2">
                       {#each contribution.evidence_items as evidence}
                         <div class="flex items-center gap-2">
                           {#if evidence.description}

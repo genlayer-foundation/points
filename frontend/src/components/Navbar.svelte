@@ -43,7 +43,7 @@
         </a>
       </div>
       
-      <div class="hidden md:flex items-center space-x-4">
+      <div class="hidden md:flex items-center gap-4">
         <a 
           href="/" 
           onclick={(e) => { e.preventDefault(); navigate('/'); }}
@@ -71,7 +71,7 @@
         >
           Submit Contribution
         </button>
-        <div class="ml-4 flex items-center space-x-4">
+        <div class="ml-4 flex items-center gap-4">
           <AuthButton />
         </div>
       </div>

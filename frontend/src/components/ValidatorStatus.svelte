@@ -55,7 +55,7 @@
 {:else if error}
   <span class="text-sm text-red-500">Error: {error}</span>
 {:else if isActive || isBanned}
-  <div class="flex space-x-2">
+  <div class="flex gap-2">
     {#if isActive}
       <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
         <svg class="mr-1 h-3 w-3 text-green-400" fill="currentColor" viewBox="0 0 20 20">
