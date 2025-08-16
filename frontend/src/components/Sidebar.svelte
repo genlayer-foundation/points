@@ -3,6 +3,7 @@
   import { currentCategory, categoryTheme } from '../stores/category.js';
   import Icon from './Icons.svelte';
   import { authState } from '../lib/auth.js';
+  import { userStore } from '../lib/userStore.js';
   
   let { isOpen = $bindable(false) } = $props();
   
@@ -176,6 +177,35 @@
         </div>
       {/each}
       
+      <!-- Stewards - Only show if user is a steward -->
+      {#if $userStore.user?.steward}
+        <div>
+          <div class="border-t border-gray-200 pt-4"></div>
+          <button
+            onclick={() => navigate('/stewards')}
+            class="px-3 text-xs font-semibold text-green-600 uppercase tracking-wider mb-2 hover:text-green-700 transition-colors w-full text-left"
+          >
+            <span class="mr-1">🌱</span> STEWARDS
+          </button>
+          <div class="space-y-0.5">
+            <a
+              href="/stewards/submissions"
+              onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
+              class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+                isActive('/stewards/submissions') ? 'bg-green-100 text-green-800' : 'text-gray-500 hover:bg-green-50 hover:text-green-700'
+              }"
+            >
+              <Icon 
+                name="contributions"
+                size="sm"
+                className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
+              />
+              Review Submissions
+            </a>
+          </div>
+        </div>
+      {/if}
+      
       <!-- Profile links -->
       <div>
         <div class="border-t border-gray-200 pt-4"></div>
@@ -279,6 +309,35 @@
             {/if}
           </div>
         {/each}
+        
+        <!-- Stewards - Only show if user is a steward -->
+        {#if $userStore.user?.steward}
+          <div>
+            <div class="border-t border-gray-200 pt-4"></div>
+            <button
+              onclick={() => navigate('/stewards')}
+              class="px-3 text-xs font-semibold text-green-600 uppercase tracking-wider mb-2 hover:text-green-700 transition-colors w-full text-left"
+            >
+              <span class="mr-1">🌱</span> STEWARDS
+            </button>
+            <div class="space-y-0.5">
+              <a
+                href="/stewards/submissions"
+                onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
+                class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+                  isActive('/stewards/submissions') ? 'bg-green-100 text-green-800' : 'text-gray-500 hover:bg-green-50 hover:text-green-700'
+                }"
+              >
+                <Icon 
+                  name="contributions"
+                  size="sm"
+                  className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
+                />
+                Review Submissions
+              </a>
+            </div>
+          </div>
+        {/if}
         
         <!-- Profile links -->
         <div>

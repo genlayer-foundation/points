@@ -72,6 +72,7 @@ export const contributionsAPI = {
   getContributionsByUser: (address) => api.get(`/contributions/?user_address=${address}&group_consecutive=true`),
   getContributionTypes: (params) => api.get('/contribution-types/', { params }),
   getContributionType: (id) => api.get(`/contribution-types/${id}/`),
+  getContributionTypeMultipliers: (typeId) => api.get(`/contribution-type-multipliers/?contribution_type=${typeId}`),
   getContributionTypeStatistics: (params) => api.get('/contribution-types/statistics/', { params }),
   getContributionTypeTopContributors: (id) => api.get(`/contribution-types/${id}/top_contributors/`),
   getContributionTypeRecentContributions: (id) => api.get(`/contribution-types/${id}/recent_contributions/`),
@@ -88,6 +89,7 @@ export const leaderboardAPI = {
   getLeaderboardEntry: (address) => api.get(`/leaderboard/?user_address=${address}`),
   getCategoryLeaderboard: (category) => api.get(`/leaderboard/category/${category}/`),
   getMultipliers: () => api.get('/multipliers/'),
+  getActiveMultipliers: () => api.get('/multipliers/active/'),
   getMultiplierPeriods: (multiplier_id) => api.get(`/multiplier-periods/?multiplier=${multiplier_id}`),
   getStats: () => api.get('/leaderboard/stats/')
 };
@@ -101,6 +103,21 @@ export const statsAPI = {
 // Validators API
 export const validatorsAPI = {
   getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } })
+};
+
+// Steward API
+export const stewardAPI = {
+  // Get all submissions for review
+  getSubmissions: (params = {}) => api.get('/steward-submissions/', { params }),
+  
+  // Get a single submission
+  getSubmission: (id) => api.get(`/steward-submissions/${id}/`),
+  
+  // Review a submission (accept, reject, or request more info)
+  reviewSubmission: (id, data) => api.post(`/steward-submissions/${id}/review/`, data),
+  
+  // Get steward statistics
+  getStats: () => api.get('/steward-submissions/stats/')
 };
 
 // Convenience exports for profile functions

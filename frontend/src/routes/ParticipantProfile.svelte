@@ -236,7 +236,7 @@
                 {participantType}
               </span>
             {/if}
-            {#if !isValidatorOnly && participant.visible !== false}
+            {#if !isValidatorOnly && participant.visible !== false && participantType !== 'steward'}
               <span class="ml-3 inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
                 Rank #{participant.leaderboard_entry?.rank || 'N/A'}
               </span>
@@ -280,6 +280,100 @@
         View in Testnet Asimov Explorer
       </a>
     </div>
+    
+    <!-- Steward Section - Shows before Main Information -->
+    {#if participantType === 'steward'}
+      <div class="bg-green-50/30 rounded-lg shadow-sm border border-green-100 overflow-hidden mb-6">
+        <!-- Header -->
+        <div class="bg-green-100/50 px-5 py-3 border-b border-green-200">
+          <h2 class="text-lg font-semibold text-green-700 uppercase tracking-wider flex items-center">
+            <span class="mr-2">🌱</span>
+            Ecosystem Steward
+          </h2>
+        </div>
+        
+        <!-- Content -->
+        <div class="p-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Role Stat -->
+            <div class="flex items-center">
+              <div class="p-3 bg-green-100 rounded-lg mr-4">
+                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm text-gray-500">Role</p>
+                <p class="text-2xl font-bold text-gray-900">Admin</p>
+              </div>
+            </div>
+            
+            <!-- Since Date Stat -->
+            {#if participant.steward?.created_at}
+              <div class="flex items-center">
+                <div class="p-3 bg-green-100 rounded-lg mr-4">
+                  <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-500">Steward Since</p>
+                  <p class="text-2xl font-bold text-gray-900">{formatDate(participant.steward.created_at)}</p>
+                </div>
+              </div>
+            {/if}
+          </div>
+        </div>
+      </div>
+    {/if}
+    
+    <!-- Validator Section - Shows before Main Information -->
+    {#if participant.validator}
+      <div class="bg-sky-50/30 rounded-lg shadow-sm border border-sky-100 overflow-hidden mb-6">
+        <!-- Header -->
+        <div class="bg-sky-100/50 px-5 py-3 border-b border-sky-200">
+          <h2 class="text-lg font-semibold text-sky-700 uppercase tracking-wider flex items-center">
+            <svg class="w-5 h-5 mr-2 text-sky-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
+            </svg>
+            Validator
+          </h2>
+        </div>
+        
+        <!-- Content -->
+        <div class="p-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Status -->
+            <div class="flex items-center">
+              <div class="p-3 bg-sky-100 rounded-lg mr-4">
+                <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm text-gray-500">Status</p>
+                <p class="text-2xl font-bold text-gray-900">Active</p>
+              </div>
+            </div>
+            
+            <!-- Validator Since -->
+            {#if participant.validator?.created_at}
+              <div class="flex items-center">
+                <div class="p-3 bg-sky-100 rounded-lg mr-4">
+                  <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-500">Validator Since</p>
+                  <p class="text-2xl font-bold text-gray-900">{formatDate(participant.validator.created_at)}</p>
+                </div>
+              </div>
+            {/if}
+          </div>
+        </div>
+      </div>
+    {/if}
     
     <!-- Main Information -->
     <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
@@ -357,14 +451,16 @@
                 {formatDate(participant.created_at)}
               </dd>
             </div>
-            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt class="text-sm font-medium text-gray-500">
-                Total Points
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {participant.leaderboard_entry?.total_points ?? '—'}
-              </dd>
-            </div>
+            {#if participantType !== 'steward'}
+              <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt class="text-sm font-medium text-gray-500">
+                  Total Points
+                </dt>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  {participant.leaderboard_entry?.total_points ?? '—'}
+                </dd>
+              </div>
+            {/if}
           {/if}
           {#if participant.address}
             <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
@@ -380,7 +476,7 @@
       </div>
     </div>
     
-    {#if !isValidatorOnly}
+    {#if !isValidatorOnly && participantType !== 'steward'}
       <!-- Stats Cards -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <StatCard 
