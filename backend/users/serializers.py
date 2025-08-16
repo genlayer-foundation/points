@@ -1,6 +1,11 @@
 from rest_framework import serializers
-from .models import User, Validator
+from .models import User
+from validators.models import Validator
+from builders.models import Builder
+from stewards.models import Steward
 from contributions.node_upgrade.models import TargetNodeVersion
+from leaderboard.models import LeaderboardEntry
+from contributions.models import Category
 
 
 class ValidatorSerializer(serializers.ModelSerializer):
@@ -11,10 +16,12 @@ class ValidatorSerializer(serializers.ModelSerializer):
     target_version = serializers.SerializerMethodField()
     target_date = serializers.SerializerMethodField()
     target_created_at = serializers.SerializerMethodField()
+    total_points = serializers.SerializerMethodField()
+    rank = serializers.SerializerMethodField()
     
     class Meta:
         model = Validator
-        fields = ['node_version', 'matches_target', 'target_version', 'target_date', 'target_created_at', 'updated_at']
+        fields = ['node_version', 'matches_target', 'target_version', 'target_date', 'target_created_at', 'total_points', 'rank', 'updated_at']
         read_only_fields = ['updated_at']
     
     def get_matches_target(self, obj):
@@ -46,6 +53,24 @@ class ValidatorSerializer(serializers.ModelSerializer):
         """
         target = TargetNodeVersion.get_active()
         return target.created_at if target else None
+    
+    def get_total_points(self, obj):
+        """Get total points for validator category."""
+        try:
+            category = Category.objects.get(slug='validator')
+            leaderboard = LeaderboardEntry.objects.filter(user=obj.user, category=category).first()
+            return leaderboard.total_points if leaderboard else 0
+        except Category.DoesNotExist:
+            return 0
+    
+    def get_rank(self, obj):
+        """Get rank in validator category."""
+        try:
+            category = Category.objects.get(slug='validator')
+            leaderboard = LeaderboardEntry.objects.filter(user=obj.user, category=category).first()
+            return leaderboard.rank if leaderboard else None
+        except Category.DoesNotExist:
+            return None
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
@@ -76,25 +101,91 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
         return instance
         
 
+class BuilderSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Builder profile.
+    """
+    total_points = serializers.SerializerMethodField()
+    rank = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Builder
+        fields = ['total_points', 'rank', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
+    
+    def get_total_points(self, obj):
+        """Get total points for builder category."""
+        try:
+            category = Category.objects.get(slug='builder')
+            leaderboard = LeaderboardEntry.objects.filter(user=obj.user, category=category).first()
+            return leaderboard.total_points if leaderboard else 0
+        except Category.DoesNotExist:
+            return 0
+    
+    def get_rank(self, obj):
+        """Get rank in builder category."""
+        try:
+            category = Category.objects.get(slug='builder')
+            leaderboard = LeaderboardEntry.objects.filter(user=obj.user, category=category).first()
+            return leaderboard.rank if leaderboard else None
+        except Category.DoesNotExist:
+            return None
+
+
+class StewardSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Steward profile.
+    """
+    total_points = serializers.SerializerMethodField()
+    rank = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Steward
+        fields = ['total_points', 'rank', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
+    
+    def get_total_points(self, obj):
+        """Get total points for steward category."""
+        try:
+            category = Category.objects.get(slug='steward')
+            leaderboard = LeaderboardEntry.objects.filter(user=obj.user, category=category).first()
+            return leaderboard.total_points if leaderboard else 0
+        except Category.DoesNotExist:
+            return 0
+    
+    def get_rank(self, obj):
+        """Get rank in steward category."""
+        try:
+            category = Category.objects.get(slug='steward')
+            leaderboard = LeaderboardEntry.objects.filter(user=obj.user, category=category).first()
+            return leaderboard.rank if leaderboard else None
+        except Category.DoesNotExist:
+            return None
+
+
 class UserSerializer(serializers.ModelSerializer):
     leaderboard_entry = serializers.SerializerMethodField()
     validator = ValidatorSerializer(read_only=True)
+    builder = BuilderSerializer(read_only=True)
+    steward = StewardSerializer(read_only=True)
     
     class Meta:
         model = User
-        fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_leaderboard_entry(self, obj):
         """
-        Get the leaderboard entry for this user.
+        Get the global leaderboard entry for this user.
         Returns rank and total_points if the entry exists, otherwise returns None.
         """
         try:
-            if hasattr(obj, 'leaderboard_entry'):
+            # Get the global leaderboard entry (category=None)
+            entry = LeaderboardEntry.objects.filter(user=obj, category=None).first()
+            if entry:
                 return {
-                    'rank': obj.leaderboard_entry.rank,
-                    'total_points': obj.leaderboard_entry.total_points
+                    'rank': entry.rank,
+                    'total_points': entry.total_points
                 }
         except:
             pass

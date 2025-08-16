@@ -6,6 +6,7 @@
   import { leaderboardAPI, contributionsAPI, usersAPI, statsAPI } from '../lib/api';
   import { authState } from '../lib/auth.js';
   import { push } from 'svelte-spa-router';
+  import { currentCategory, categoryTheme } from '../stores/category.js';
   
   // State management
   let leaderboard = $state([]);
@@ -27,14 +28,32 @@
   // Tab state
   let activeTab = $state('leaderboard');
   
-  // Fetch data
-  onMount(async () => {
+  // Fetch data based on category
+  async function fetchDashboardData() {
     try {
-      // Fetch leaderboard
+      // Fetch leaderboard based on category
       leaderboardLoading = true;
-      const leaderboardRes = await leaderboardAPI.getLeaderboard();
-      // API now returns unpaginated data, so it's directly in data
-      leaderboard = leaderboardRes.data || [];
+      let leaderboardRes;
+      
+      if ($currentCategory === 'global') {
+        leaderboardRes = await leaderboardAPI.getLeaderboard();
+        leaderboard = leaderboardRes.data || [];
+      } else {
+        // Fetch category-specific leaderboard
+        const response = await fetch(`http://localhost:8002/api/v1/leaderboard/category/${$currentCategory}/`);
+        const data = await response.json();
+        // Transform the entries to match the expected format
+        leaderboard = (data.entries || []).map(entry => ({
+          rank: entry.rank,
+          total_points: entry.total_points,
+          user_details: {
+            id: entry.user.id,
+            name: entry.user.name,
+            address: entry.user.address
+          }
+        }));
+      }
+      
       leaderboardLoading = false;
     } catch (error) {
       leaderboardError = error.message || 'Failed to load leaderboard';
@@ -42,9 +61,16 @@
     }
     
     try {
-      // Fetch recent contributions
+      // Fetch recent contributions based on category
       contributionsLoading = true;
-      const contributionsRes = await contributionsAPI.getContributions({ limit: 5, ordering: '-created_at' });
+      const params = { limit: 5, ordering: '-created_at' };
+      
+      // Add category filter if not global
+      if ($currentCategory !== 'global') {
+        params.category = $currentCategory;
+      }
+      
+      const contributionsRes = await contributionsAPI.getContributions(params);
       contributions = contributionsRes.data.results || [];
       contributionsLoading = false;
     } catch (error) {
@@ -53,33 +79,53 @@
     }
     
     try {
-      // Fetch stats
+      // Fetch stats based on category
       statsLoading = true;
       
-      // Try to get from the stats API first
-      try {
-        const dashboardStats = await statsAPI.getDashboardStats();
-        if (dashboardStats.data) {
+      if ($currentCategory === 'global') {
+        // Try to get from the stats API first
+        try {
+          const dashboardStats = await statsAPI.getDashboardStats();
+          if (dashboardStats.data) {
+            stats = {
+              totalParticipants: dashboardStats.data.participant_count || 0,
+              totalContributions: dashboardStats.data.contribution_count || 0,
+              totalPoints: dashboardStats.data.total_points || 0,
+              lastUpdated: new Date().toISOString()
+            };
+          }
+        } catch (statsApiError) {
+          console.warn('Stats API failed, falling back to individual requests', statsApiError);
+          
+          // Fallback to individual requests
+          const [participantCountRes, contributionsRes] = await Promise.all([
+            usersAPI.getParticipantCount(),
+            contributionsAPI.getContributions({ limit: 1 }) // Just to get count from the response
+          ]);
+          
           stats = {
-            totalParticipants: dashboardStats.data.participant_count || 0,
-            totalContributions: dashboardStats.data.contribution_count || 0,
-            totalPoints: dashboardStats.data.total_points || 0,
+            totalParticipants: participantCountRes.data.count || 0,
+            totalContributions: contributionsRes.data.count || 0,
+            totalPoints: leaderboard.reduce((sum, entry) => sum + entry.total_points, 0),
             lastUpdated: new Date().toISOString()
           };
         }
-      } catch (statsApiError) {
-        console.warn('Stats API failed, falling back to individual requests', statsApiError);
+      } else {
+        // For category-specific stats, calculate from filtered data
+        // Count unique users in the leaderboard for this category
+        const participantCount = leaderboard.length;
         
-        // Fallback to individual requests
-        const [participantCountRes, contributionsRes] = await Promise.all([
-          usersAPI.getParticipantCount(),
-          contributionsAPI.getContributions({ limit: 1 }) // Just to get count from the response
-        ]);
+        // Get contribution count for this category
+        const contributionsParams = { limit: 1 };
+        if ($currentCategory !== 'global') {
+          contributionsParams.category = $currentCategory;
+        }
+        const contributionsRes = await contributionsAPI.getContributions(contributionsParams);
         
         stats = {
-          totalParticipants: participantCountRes.data.count || 0,
+          totalParticipants: participantCount,
           totalContributions: contributionsRes.data.count || 0,
-          totalPoints: leaderboard.reduce((sum, entry) => sum + entry.total_points, 0),
+          totalPoints: leaderboard.reduce((sum, entry) => sum + (entry.total_points || 0), 0),
           lastUpdated: new Date().toISOString()
         };
       }
@@ -89,6 +135,18 @@
       statsError = error.message || 'Failed to load statistics';
       statsLoading = false;
       console.error('Error fetching dashboard stats:', error);
+    }
+  }
+  
+  // Fetch data on mount
+  onMount(() => {
+    fetchDashboardData();
+  });
+  
+  // Re-fetch when category changes
+  $effect(() => {
+    if ($currentCategory) {
+      fetchDashboardData();
     }
   });
   
@@ -102,7 +160,11 @@
 
 <div class="space-y-6">
   <div class="flex justify-between items-center">
-    <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+    <h1 class="text-2xl font-bold text-gray-900">
+      {$currentCategory === 'global' ? 'Testnet Asimov' : 
+       $currentCategory === 'builder' ? 'Builders' : 
+       'Validators'} Dashboard
+    </h1>
     {#if $authState.isAuthenticated}
       <button
         onclick={() => push('/submit-contribution')}

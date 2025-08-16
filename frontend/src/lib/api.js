@@ -62,9 +62,9 @@ export const contributionsAPI = {
   getContributions: (params) => api.get('/contributions/', { params }),
   getContribution: (id) => api.get(`/contributions/${id}/`),
   getContributionsByUser: (address) => api.get(`/contributions/?user_address=${address}`),
-  getContributionTypes: () => api.get('/contribution-types/'),
+  getContributionTypes: (params) => api.get('/contribution-types/', { params }),
   getContributionType: (id) => api.get(`/contribution-types/${id}/`),
-  getContributionTypeStatistics: () => api.get('/contribution-types/statistics/'),
+  getContributionTypeStatistics: (params) => api.get('/contribution-types/statistics/', { params }),
   getContributionCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.contribution_count }
   }))

@@ -30,6 +30,16 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
+    
+    def get_queryset(self):
+        queryset = ContributionType.objects.all()
+        
+        # Filter by category if provided
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category__slug=category)
+            
+        return queryset
         
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def statistics(self, request):
@@ -41,7 +51,15 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             - number of participants with each type
             - last date someone earned each type
         """
-        types_with_stats = ContributionType.objects.annotate(
+        # Start with all contribution types
+        queryset = ContributionType.objects.all()
+        
+        # Filter by category if provided
+        category = request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category__slug=category)
+        
+        types_with_stats = queryset.annotate(
             count=Count('contributions'),
             participants_count=Count('contributions__user', distinct=True),
             last_earned=Coalesce(Max('contributions__contribution_date'), timezone.now())
@@ -82,6 +100,11 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         user_address = self.request.query_params.get('user_address')
         if user_address:
             queryset = queryset.filter(user__address__iexact=user_address)
+        
+        # Filter by category if provided
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(contribution_type__category__slug=category)
             
         return queryset
 

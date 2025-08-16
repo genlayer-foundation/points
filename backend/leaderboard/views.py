@@ -5,6 +5,7 @@ from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ranks
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
+from contributions.models import Category
 
 
 class GlobalLeaderboardMultiplierViewSet(viewsets.ReadOnlyModelViewSet):
@@ -41,7 +42,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     API endpoint that allows viewing the leaderboard.
     Read-only because entries are automatically created and updated.
     """
-    queryset = LeaderboardEntry.objects.filter(user__visible=True)
+    queryset = LeaderboardEntry.objects.filter(user__visible=True, category=None)  # Global leaderboard
     serializer_class = LeaderboardEntrySerializer
     permission_classes = [permissions.AllowAny]  # Allow access without authentication
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -63,9 +64,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def top(self, request):
         """
-        Get the top 10 users on the leaderboard.
+        Get the top 10 users on the global leaderboard.
         """
-        top_entries = LeaderboardEntry.objects.filter(user__visible=True).order_by('rank')[:10]
+        top_entries = LeaderboardEntry.objects.filter(user__visible=True, category=None).order_by('rank')[:10]
         serializer = self.get_serializer(top_entries, many=True)
         return Response(serializer.data)
         
@@ -175,3 +176,41 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             
         stats = self._get_user_stats(user)
         return Response(stats)
+    
+    @action(detail=False, methods=['get'], url_path='category/(?P<category_slug>[^/.]+)')
+    def category_leaderboard(self, request, category_slug=None):
+        """
+        Get leaderboard for a specific category.
+        """
+        try:
+            category = Category.objects.get(slug=category_slug)
+        except Category.DoesNotExist:
+            return Response({'error': 'Category not found'}, status=404)
+        
+        # Get leaderboard entries for this category
+        entries = LeaderboardEntry.objects.filter(
+            category=category,
+            user__visible=True
+        ).select_related('user').order_by('rank')
+        
+        # Serialize the data
+        data = []
+        for entry in entries:
+            data.append({
+                'rank': entry.rank,
+                'user': {
+                    'id': entry.user.id,
+                    'name': entry.user.name,
+                    'address': entry.user.address,
+                },
+                'total_points': entry.total_points,
+            })
+        
+        return Response({
+            'category': {
+                'name': category.name,
+                'slug': category.slug,
+                'description': category.description,
+            },
+            'entries': data
+        })

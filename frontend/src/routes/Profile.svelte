@@ -4,6 +4,8 @@
   import { getCurrentUser, updateUserProfile } from '../lib/api';
   import { authState } from '../lib/auth';
   import { userStore } from '../lib/userStore';
+  import { currentCategory, categoryTheme } from '../stores/category.js';
+  import Icon from '../components/Icons.svelte';
   
   let user = $state(null);
   let name = $state('');
@@ -151,10 +153,21 @@
           <p class="mt-1 text-sm text-gray-500">This name will be displayed on your public profile</p>
         </div>
         
-        <div class="border-t pt-4">
-          <label for="nodeVersion" class="block text-sm font-medium text-gray-700 mb-2">
-            Node Version
-          </label>
+        <!-- Category-specific sections -->
+        <div class="border-t pt-4 space-y-6">
+          <h2 class="text-lg font-semibold text-gray-900">Category Profiles</h2>
+          
+          <!-- Validator Profile -->
+          {#if user.validator}
+            <div class="bg-sky-50 rounded-lg p-4 border-2 border-sky-200">
+              <h3 class="text-md font-medium text-sky-900 mb-3 flex items-center">
+                <Icon name="validator" size="sm" className="mr-2 text-sky-600" />
+                Validator Profile
+              </h3>
+              <div>
+                <label for="nodeVersion" class="block text-sm font-medium text-gray-700 mb-2">
+                  Node Version
+                </label>
           
           {#if user?.validator?.target_version}
             <!-- Status Banner -->
@@ -247,6 +260,55 @@
           <p class="mt-1 text-sm text-gray-500">
             Enter your current GenLayer node version (semantic versioning format)
           </p>
+              </div>
+            </div>
+          {/if}
+          
+          <!-- Builder Profile -->
+          {#if user.builder}
+            <div class="bg-orange-50 rounded-lg p-4 border-2 border-orange-200">
+              <h3 class="text-md font-medium text-orange-900 mb-3 flex items-center">
+                <Icon name="builder" size="sm" className="mr-2 text-orange-600" />
+                Builder Profile
+              </h3>
+              <div class="text-sm text-orange-800">
+                <p>Total Points: <span class="font-bold text-orange-900">{user.builder.total_points || 0}</span></p>
+                <p>Rank: <span class="font-bold text-orange-900">#{user.builder.rank || 'Unranked'}</span></p>
+                <p class="text-xs text-orange-600 mt-2">Profile created: {formatDate(user.builder.created_at)}</p>
+              </div>
+            </div>
+          {:else}
+            <div class="bg-orange-50/50 rounded-lg p-4 border-2 border-orange-200/50">
+              <h3 class="text-md font-medium text-orange-600/70 mb-2 flex items-center">
+                <Icon name="builder" size="sm" className="mr-2 text-orange-500/50" />
+                Builder Profile
+              </h3>
+              <p class="text-sm text-orange-600/60">Not a builder yet. Contribute to builder projects to activate this profile.</p>
+            </div>
+          {/if}
+          
+          <!-- Steward Profile -->
+          {#if user.steward}
+            <div class="bg-green-50 rounded-lg p-4 border-2 border-green-200">
+              <h3 class="text-md font-medium text-green-900 mb-3 flex items-center">
+                <Icon name="steward" size="sm" className="mr-2 text-green-600" />
+                Steward Profile
+              </h3>
+              <div class="text-sm text-green-800">
+                <p>Total Points: <span class="font-bold text-green-900">{user.steward.total_points || 0}</span></p>
+                <p>Rank: <span class="font-bold text-green-900">#{user.steward.rank || 'Unranked'}</span></p>
+                <p class="text-xs text-green-600 mt-2">Profile created: {formatDate(user.steward.created_at)}</p>
+              </div>
+            </div>
+          {:else}
+            <div class="bg-green-50/50 rounded-lg p-4 border-2 border-green-200/50">
+              <h3 class="text-md font-medium text-green-600/70 mb-2 flex items-center">
+                <Icon name="steward" size="sm" className="mr-2 text-green-500/50" />
+                Steward Profile
+              </h3>
+              <p class="text-sm text-green-600/60">Not a steward yet. Contribute to community initiatives to activate this profile.</p>
+            </div>
+          {/if}
         </div>
       </div>
       

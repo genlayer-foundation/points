@@ -5,7 +5,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from utils.models import BaseModel
-from contributions.models import ContributionType, Contribution
+from contributions.models import ContributionType, Contribution, Category
 
 
 class GlobalLeaderboardMultiplier(BaseModel):
@@ -91,11 +91,20 @@ class GlobalLeaderboardMultiplier(BaseModel):
 class LeaderboardEntry(BaseModel):
     """
     Represents a user's position on the leaderboard.
+    Can be global (category=None) or category-specific.
     """
-    user = models.OneToOneField(
+    user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
-        related_name='leaderboard_entry'
+        related_name='leaderboard_entries'
+    )
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE,
+        related_name='leaderboard_entries',
+        null=True,
+        blank=True,
+        help_text="Null for global leaderboard, or specific category"
     )
     total_points = models.PositiveIntegerField(default=0)
     rank = models.PositiveIntegerField(null=True, blank=True)
@@ -103,9 +112,11 @@ class LeaderboardEntry(BaseModel):
     class Meta:
         ordering = ['-total_points', 'user__name']
         verbose_name_plural = 'Leaderboard entries'
+        unique_together = ['user', 'category']
     
     def __str__(self):
-        return f"{self.user} - {self.total_points} points - Rank: {self.rank or 'Not ranked'}"
+        category_name = self.category.name if self.category else "Global"
+        return f"{self.user} - {category_name} - {self.total_points} points - Rank: {self.rank or 'Not ranked'}"
     
     def update_points_without_ranking(self):
         """
@@ -115,11 +126,45 @@ class LeaderboardEntry(BaseModel):
         """
         from contributions.models import Contribution
         
-        total_points = Contribution.objects.filter(user=self.user).values_list('frozen_global_points', flat=True)
+        if self.category:
+            # Category-specific leaderboard
+            contributions = Contribution.objects.filter(
+                user=self.user,
+                contribution_type__category=self.category
+            )
+        else:
+            # Global leaderboard
+            contributions = Contribution.objects.filter(user=self.user)
+        
+        total_points = contributions.values_list('frozen_global_points', flat=True)
         self.total_points = sum(total_points)
         self.save(update_fields=['total_points'])
         
         return self.total_points
+
+
+    @classmethod
+    def update_category_ranks(cls, category=None):
+        """
+        Update ranks for all users in a specific category leaderboard.
+        If category is None, updates global leaderboard.
+        Only visible users are ranked.
+        """
+        # First, set all non-visible users' ranks to null
+        cls.objects.filter(
+            category=category,
+            user__visible=False
+        ).update(rank=None)
+        
+        # Then rank only visible users
+        entries = cls.objects.filter(
+            category=category,
+            user__visible=True
+        ).order_by('-total_points', 'user__name')
+        
+        for i, entry in enumerate(entries):
+            entry.rank = i + 1
+            entry.save(update_fields=['rank'])
 
 
 # Signals to update leaderboard entries
@@ -154,16 +199,34 @@ def update_leaderboard_on_contribution(sender, instance, created, **kwargs):
 
 def update_user_leaderboard_entry(user):
     """
-    Update or create a leaderboard entry for a user based on their total frozen_global_points.
+    Update or create leaderboard entries for a user based on their total frozen_global_points.
+    Creates/updates both global and category-specific entries.
     """
+    # Update global leaderboard entry
     total_points = Contribution.objects.filter(user=user).values_list('frozen_global_points', flat=True)
     total_points = sum(total_points)
     
-    # Update or create the leaderboard entry
     LeaderboardEntry.objects.update_or_create(
         user=user,
+        category=None,  # Global
         defaults={'total_points': total_points}
     )
+    
+    # Update category-specific leaderboard entries
+    categories = Category.objects.all()
+    for category in categories:
+        cat_contributions = Contribution.objects.filter(
+            user=user,
+            contribution_type__category=category
+        )
+        cat_points = sum(c.frozen_global_points for c in cat_contributions)
+        
+        if cat_points > 0:  # Only create entry if user has points in this category
+            LeaderboardEntry.objects.update_or_create(
+                user=user,
+                category=category,
+                defaults={'total_points': cat_points}
+            )
     
     # Recompute all ranks
     update_all_ranks()
@@ -172,7 +235,7 @@ def update_user_leaderboard_entry(user):
 
 def update_all_ranks():
     """
-    Update the ranks for all leaderboard entries.
+    Update the ranks for all leaderboard entries (both global and per-category).
     
     Users with the same points will have consecutive ranks.
     For example: if two users have 100 points, they will be ranked 1 and 2,
@@ -180,13 +243,10 @@ def update_all_ranks():
     
     Only visible users are ranked. Non-visible users get null rank.
     """
-    # First, set all non-visible users' ranks to null
-    LeaderboardEntry.objects.filter(user__visible=False).update(rank=None)
+    # Update global leaderboard ranks
+    LeaderboardEntry.update_category_ranks(category=None)
     
-    # Then rank only visible users
-    entries = LeaderboardEntry.objects.filter(user__visible=True).order_by('-total_points', 'user__name')
-    
-    for i, entry in enumerate(entries):
-        # Simple consecutive ranking: each user gets i+1 as their rank
-        entry.rank = i + 1
-        entry.save(update_fields=['rank'])
+    # Update each category's leaderboard ranks
+    categories = Category.objects.all()
+    for category in categories:
+        LeaderboardEntry.update_category_ranks(category=category)

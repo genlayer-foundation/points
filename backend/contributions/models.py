@@ -8,6 +8,28 @@ import decimal
 import os
 import uuid
 
+
+class Category(BaseModel):
+    """
+    Defines a user category (Validator, Builder, Steward).
+    Each category has its own profile model and contribution types.
+    """
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(unique=True)
+    description = models.TextField(blank=True)
+    profile_model = models.CharField(
+        max_length=100, 
+        blank=True,
+        help_text="App.Model reference for the profile model (e.g., 'validators.Validator')"
+    )
+    
+    class Meta:
+        verbose_name_plural = "Categories"
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
+
 def evidence_file_path(instance, filename):
     """Generate a unique file path for evidence files."""
     # Generate a unique path for each file based on user and timestamp
@@ -44,6 +66,14 @@ class ContributionType(BaseModel):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True, null=True, blank=True, help_text="Unique identifier for this contribution type")
     description = models.TextField(blank=True)
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE,
+        related_name='contribution_types',
+        null=True,  # Temporarily nullable for migration
+        blank=True,
+        help_text="The category this contribution type belongs to"
+    )
     min_points = models.PositiveIntegerField(default=0, help_text="Minimum points allowed for this contribution type")
     max_points = models.PositiveIntegerField(default=100, help_text="Maximum points allowed for this contribution type")
     is_default = models.BooleanField(default=False, help_text="Include this contribution type by default when creating validators")

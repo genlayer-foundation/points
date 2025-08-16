@@ -70,6 +70,9 @@ INSTALLED_APPS = [
     'contributions.node_upgrade',
     'leaderboard',
     'ethereum_auth',
+    'validators',
+    'builders',
+    'stewards',
 ]
 
 MIDDLEWARE = [
