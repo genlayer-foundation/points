@@ -1,0 +1,40 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+    &rsaquo; <a href="{% url 'admin:leaderboard_leaderboardentry_changelist' %}">Leaderboard Entries</a>
+    &rsaquo; {% trans 'Update Leaderboard' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Update Leaderboard</h1>
+
+<div class="module">
+    <div style="padding: 20px;">
+        <p><strong>This action will:</strong></p>
+        <ul style="margin-left: 20px;">
+            <li>Recalculate all contribution multipliers based on their creation dates</li>
+            <li>Update frozen global points for all contributions</li>
+            <li>Delete and recreate all leaderboard entries</li>
+            <li>Update rankings for both global and category-specific leaderboards</li>
+        </ul>
+        
+        <p style="margin-top: 20px;">
+            <strong>Note:</strong> This process may take a few moments depending on the number of contributions in the system.
+        </p>
+        
+        <form method="post" style="margin-top: 20px;">
+            {% csrf_token %}
+            <div class="submit-row">
+                <input type="submit" value="Update Leaderboard" class="default" />
+                <a href="{% url 'admin:leaderboard_leaderboardentry_changelist' %}" class="button cancel-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
