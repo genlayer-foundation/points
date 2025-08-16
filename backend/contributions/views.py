@@ -163,6 +163,126 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(user__address__iexact=user_address)
             
         return queryset
+    
+    def list(self, request, *args, **kwargs):
+        """
+        Override list to optionally group consecutive contributions of the same type.
+        """
+        # Check if grouping is requested
+        group_consecutive = request.query_params.get('group_consecutive', 'false').lower() == 'true'
+        
+        if not group_consecutive:
+            # Default behavior - no grouping
+            return super().list(request, *args, **kwargs)
+        
+        # Get the queryset and apply pagination before grouping
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Apply regular pagination first to get raw contributions
+        page_size = int(request.query_params.get('limit', 10))
+        page_number = int(request.query_params.get('page', 1))
+        
+        # We need to fetch more records to ensure we have enough after grouping
+        # Fetch 3x the page size to account for grouping
+        extended_limit = page_size * 3
+        start_index = (page_number - 1) * page_size
+        
+        # Get contributions with extended limit
+        all_contributions = list(queryset)
+        
+        # Group consecutive contributions
+        grouped = []
+        current_group = None
+        total_grouped_count = 0
+        
+        for contrib in all_contributions:
+            serialized = ContributionSerializer(contrib).data
+            type_id = contrib.contribution_type.id
+            user_id = contrib.user.id if contrib.user else None
+            
+            # Check if we should add to current group or start new one
+            # Only group if same type AND same user
+            if (current_group and 
+                current_group['contribution_type']['id'] == type_id and
+                current_group.get('primary_user_id') == user_id):
+                # Add to existing group
+                current_group['grouped_contributions'].append(serialized)
+                current_group['frozen_global_points'] += (serialized.get('frozen_global_points') or 0)
+                current_group['end_date'] = serialized['contribution_date']
+                
+                # Add unique user to the set
+                user_details = serialized.get('user_details')
+                if user_details:
+                    user_key = f"{user_details.get('address', '')}|{user_details.get('name', '')}"
+                    if user_key not in current_group['unique_users']:
+                        current_group['unique_users'][user_key] = user_details
+            else:
+                # Start new group
+                if current_group:
+                    # Save previous group
+                    current_group['count'] = len(current_group['grouped_contributions'])
+                    current_group['users'] = list(current_group['unique_users'].values())
+                    del current_group['unique_users']  # Remove the temporary set
+                    current_group.pop('primary_user_id', None)  # Remove internal tracking field
+                    grouped.append(current_group)
+                    total_grouped_count += 1
+                    
+                    # Check if we have enough grouped items for this page
+                    if total_grouped_count > start_index + page_size:
+                        break
+                
+                # Create new group
+                current_group = {
+                    'id': f"group_{contrib.id}",  # Use first contribution's ID as group ID
+                    'contribution_type': {
+                        'id': type_id,
+                        'name': contrib.contribution_type.name,
+                        'slug': contrib.contribution_type.slug,
+                    },
+                    'contribution_type_name': contrib.contribution_type.name,
+                    'grouped_contributions': [serialized],
+                    'frozen_global_points': serialized.get('frozen_global_points') or 0,
+                    'contribution_date': serialized['contribution_date'],  # First date
+                    'end_date': serialized['contribution_date'],  # Will be updated
+                    'unique_users': {},
+                    'user_details': serialized.get('user_details'),  # Primary user (for single-user groups)
+                    'primary_user_id': user_id,  # Track the user for grouping
+                }
+                
+                # Add first user
+                user_details = serialized.get('user_details')
+                if user_details:
+                    user_key = f"{user_details.get('address', '')}|{user_details.get('name', '')}"
+                    current_group['unique_users'][user_key] = user_details
+        
+        # Add the last group if exists
+        if current_group:
+            current_group['count'] = len(current_group['grouped_contributions'])
+            # Check if unique_users exists before accessing it
+            if 'unique_users' in current_group:
+                current_group['users'] = list(current_group['unique_users'].values())
+                del current_group['unique_users']
+            else:
+                # Fallback: extract users from grouped contributions
+                current_group['users'] = []
+            # Remove internal tracking field
+            current_group.pop('primary_user_id', None)
+            grouped.append(current_group)
+        
+        # Apply pagination to grouped results
+        paginated_groups = grouped[start_index:start_index + page_size]
+        
+        # Calculate total count - this is approximate
+        # In a real implementation, you might want to do a more accurate count
+        total_count = len(grouped)
+        
+        # Return paginated response
+        return Response({
+            'count': total_count,
+            'next': None if (start_index + page_size) >= total_count else f"?page={page_number + 1}&limit={page_size}&group_consecutive=true",
+            'previous': None if page_number == 1 else f"?page={page_number - 1}&limit={page_size}&group_consecutive=true",
+            'results': paginated_groups
+        })
 
 
 class EvidenceViewSet(viewsets.ReadOnlyModelViewSet):

@@ -60,9 +60,16 @@ export const usersAPI = {
 
 // API endpoints for contributions
 export const contributionsAPI = {
-  getContributions: (params) => api.get('/contributions/', { params }),
+  getContributions: (params) => {
+    // Add group_consecutive parameter by default for better UX
+    const enhancedParams = {
+      group_consecutive: true,
+      ...params
+    };
+    return api.get('/contributions/', { params: enhancedParams });
+  },
   getContribution: (id) => api.get(`/contributions/${id}/`),
-  getContributionsByUser: (address) => api.get(`/contributions/?user_address=${address}`),
+  getContributionsByUser: (address) => api.get(`/contributions/?user_address=${address}&group_consecutive=true`),
   getContributionTypes: () => api.get('/contribution-types/'),
   getContributionType: (id) => api.get(`/contribution-types/${id}/`),
   getContributionTypeStatistics: () => api.get('/contribution-types/statistics/'),
