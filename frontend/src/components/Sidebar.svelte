@@ -113,12 +113,6 @@
       ]
     }
   ];
-  
-  // Profile section items (same for all categories)
-  const profileItems = [
-    { name: 'My Submissions', path: '/my-submissions', iconName: 'mySubmissions', requiresAuth: true },
-    { name: 'Profile', path: 'profile', iconName: 'profile', isProfile: true }
-  ];
 </script>
 
 <!-- Desktop Sidebar -->
@@ -179,50 +173,35 @@
         </div>
       {/each}
       
-      <!-- Profile section (always visible) -->
+      <!-- Profile links -->
       <div>
         <div class="border-t border-gray-200 pt-4"></div>
-        <div class="flex items-center px-3 py-2 mb-2">
-          <Icon 
-            name="profile"
-            size="sm"
-            className="mr-2 text-gray-500"
-          />
-          <h3 class="text-xs font-medium text-gray-700 uppercase tracking-wider">
-            Account
-          </h3>
-        </div>
         <div class="space-y-0.5">
-          {#each profileItems as item}
-            {#if item.isProfile}
-              <button
-                onclick={handleProfileClick}
-                class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
-              >
-                <Icon 
-                  name={item.iconName}
-                  size="sm"
-                  className="mr-2 text-gray-400 group-hover:text-gray-500"
-                />
-                {item.name}
-              </button>
-            {:else}
-              <a 
-                href={item.path}
-                onclick={(e) => { e.preventDefault(); navigate(item.path, item.requiresAuth); }}
-                class="group flex items-center px-3 py-1.5 text-sm rounded-md {
-                  isActive(item.path) ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                }"
-              >
-                <Icon 
-                  name={item.iconName}
-                  size="sm"
-                  className="mr-2 {isActive(item.path) ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
-                />
-                {item.name}
-              </a>
-            {/if}
-          {/each}
+          <a 
+            href="/my-submissions"
+            onclick={(e) => { e.preventDefault(); navigate('/my-submissions', true); }}
+            class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+              isActive('/my-submissions') ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            }"
+          >
+            <Icon 
+              name="mySubmissions"
+              size="sm"
+              className="mr-2 {isActive('/my-submissions') ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
+            />
+            My Submissions
+          </a>
+          <button
+            onclick={handleProfileClick}
+            class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
+          >
+            <Icon 
+              name="profile"
+              size="sm"
+              className="mr-2 text-gray-400 group-hover:text-gray-500"
+            />
+            Profile
+          </button>
         </div>
       </div>
     </div>
@@ -312,50 +291,35 @@
           </div>
         {/each}
         
-        <!-- Profile section (always visible) -->
+        <!-- Profile links -->
         <div>
           <div class="border-t border-gray-200 pt-4"></div>
-          <div class="flex items-center px-3 py-2 mb-2">
-            <Icon 
-              name="profile"
-              size="sm"
-              className="mr-2 text-gray-500"
-            />
-            <h3 class="text-xs font-medium text-gray-700 uppercase tracking-wider">
-              Account
-            </h3>
-          </div>
           <div class="space-y-0.5">
-            {#each profileItems as item}
-              {#if item.isProfile}
-                <button
-                  onclick={handleProfileClick}
-                  class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
-                >
-                  <Icon 
-                    name={item.iconName}
-                    size="sm"
-                    className="mr-2 text-gray-400 group-hover:text-gray-500"
-                  />
-                  {item.name}
-                </button>
-              {:else}
-                <a 
-                  href={item.path}
-                  onclick={(e) => { e.preventDefault(); navigate(item.path, item.requiresAuth); }}
-                  class="group flex items-center px-3 py-1.5 text-sm rounded-md {
-                    isActive(item.path) ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                  }"
-                >
-                  <Icon 
-                    name={item.iconName}
-                    size="sm"
-                    className="mr-2 {isActive(item.path) ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
-                  />
-                  {item.name}
-                </a>
-              {/if}
-            {/each}
+            <a 
+              href="/my-submissions"
+              onclick={(e) => { e.preventDefault(); navigate('/my-submissions', true); }}
+              class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+                isActive('/my-submissions') ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+              }"
+            >
+              <Icon 
+                name="mySubmissions"
+                size="sm"
+                className="mr-2 {isActive('/my-submissions') ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
+              />
+              My Submissions
+            </a>
+            <button
+              onclick={handleProfileClick}
+              class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
+            >
+              <Icon 
+                name="profile"
+                size="sm"
+                className="mr-2 text-gray-400 group-hover:text-gray-500"
+              />
+              Profile
+            </button>
           </div>
         </div>
       </div>

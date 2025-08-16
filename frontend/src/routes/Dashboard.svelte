@@ -162,13 +162,11 @@
 {:else}
   <!-- Category-specific Dashboard -->
   <div class="space-y-6 sm:space-y-8">
-    <div>
-      <h1 class="text-2xl font-bold text-gray-900">
-        {$currentCategory === 'builder' ? 'Builders' :
-         $currentCategory === 'validator' ? 'Validators' :
-         $currentCategory === 'steward' ? 'Stewards' : 'Dashboard'}
-      </h1>
-    </div>
+    <h1 class="text-2xl font-bold text-gray-900">
+      {$currentCategory === 'builder' ? 'Builders' :
+       $currentCategory === 'validator' ? 'Validators' :
+       $currentCategory === 'steward' ? 'Stewards' : 'Dashboard'}
+    </h1>
   
   <!-- Connection error message if needed -->
   {#if statsError}

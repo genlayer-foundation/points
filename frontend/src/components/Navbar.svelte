@@ -37,18 +37,20 @@
 </script>
 
 <header class="bg-white shadow">
-  <div class="container mx-auto px-4">
-    <div class="flex justify-between h-16">
-      <div class="flex items-center">
-        <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex-shrink-0 flex items-center">
-          <Icon name="genlayer" size="lg" className="text-black" />
-          <span class="ml-3 text-sm sm:text-xl font-bold {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">
-            <span class="hidden sm:inline">GenLayer Points</span>
-            <span class="sm:hidden">GenLayer</span>
-          </span>
-        </a>
-      </div>
-      
+  <div class="flex">
+    <!-- Left section with logo - aligned with sidebar content -->
+    <div class="w-64 flex items-center h-16 px-7">
+      <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex items-center">
+        <Icon name="genlayer" size="lg" className="text-black" />
+        <span class="ml-3 text-sm sm:text-xl font-bold {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">
+          <span class="hidden sm:inline">GenLayer Points</span>
+          <span class="sm:hidden">GenLayer</span>
+        </span>
+      </a>
+    </div>
+    
+    <!-- Right section with actions -->
+    <div class="flex-1 flex justify-end items-center h-16 px-4">
       <div class="hidden md:flex items-center gap-4">
         <button 
           onclick={handleSubmitContribution}
