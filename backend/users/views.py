@@ -1,6 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from .models import User
@@ -130,6 +131,103 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         
         # Create contract instance
         return w3.eth.contract(address=contract_address, abi=abi)
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def complete_validator_journey(self, request):
+        """
+        Award the validator waitlist badge to the user.
+        This should be called after the user completes the validator journey requirements.
+        """
+        from contributions.models import Contribution, ContributionType
+        from leaderboard.models import GlobalLeaderboardMultiplier
+        from django.utils import timezone
+        
+        user = request.user
+        
+        # Check if user already has the badge
+        try:
+            waitlist_type = ContributionType.objects.get(slug='validator-waitlist')
+        except ContributionType.DoesNotExist:
+            return Response(
+                {'error': 'Validator waitlist contribution type not configured'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        if Contribution.objects.filter(user=user, contribution_type=waitlist_type).exists():
+            return Response(
+                {'message': 'You already have the validator waitlist badge'},
+                status=status.HTTP_200_OK
+            )
+        
+        # Create the contribution to award the badge
+        try:
+            contribution = Contribution.objects.create(
+                user=user,
+                contribution_type=waitlist_type,
+                points=20,
+                contribution_date=timezone.now(),
+                notes='Completed validator journey and joined the waitlist'
+            )
+            
+            serializer = self.get_serializer(user)
+            return Response({
+                'message': 'Validator waitlist badge awarded successfully!',
+                'user': serializer.data
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to award badge: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def complete_builder_journey(self, request):
+        """
+        Award the builder initiate badge to the user.
+        This should be called after the user completes the builder journey requirements.
+        """
+        from contributions.models import Contribution, ContributionType
+        from django.utils import timezone
+        
+        user = request.user
+        
+        # Check if user already has the badge
+        try:
+            initiate_type = ContributionType.objects.get(slug='builder-initiate')
+        except ContributionType.DoesNotExist:
+            return Response(
+                {'error': 'Builder initiate contribution type not configured'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        if Contribution.objects.filter(user=user, contribution_type=initiate_type).exists():
+            return Response(
+                {'message': 'You already have the builder initiate badge'},
+                status=status.HTTP_200_OK
+            )
+        
+        # Create the contribution to award the badge
+        try:
+            contribution = Contribution.objects.create(
+                user=user,
+                contribution_type=initiate_type,
+                points=20,
+                contribution_date=timezone.now(),
+                notes='Completed builder journey and became an initiate'
+            )
+            
+            serializer = self.get_serializer(user)
+            return Response({
+                'message': 'Builder initiate badge awarded successfully!',
+                'user': serializer.data
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to award badge: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['get'])
     def validators(self, request):
