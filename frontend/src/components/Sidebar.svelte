@@ -49,7 +49,19 @@
   
   // Check if a route is active
   function isActive(path) {
-    return $location === path;
+    // Direct match
+    if ($location === path) return true;
+    
+    // Special case: contribution-type pages should highlight the contributions item
+    if (path.includes('/contributions') && $location.startsWith('/contribution-type/')) {
+      // Determine which contributions section based on current category
+      const category = $currentCategory;
+      if (category === 'builder' && path === '/builders/contributions') return true;
+      if (category === 'validator' && path === '/validators/contributions') return true;
+      if (category === 'global' && path === '/contributions') return true;
+    }
+    
+    return false;
   }
   
   // Function to change category and navigate
