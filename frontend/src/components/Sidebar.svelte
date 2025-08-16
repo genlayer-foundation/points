@@ -206,10 +206,23 @@
         </div>
       {/if}
       
-      <!-- Profile links -->
+      <!-- Profile section -->
       <div>
-        <div class="border-t border-gray-200 pt-4"></div>
-        <div class="space-y-0.5">
+        <div class="border-t border-gray-200 mb-3"></div>
+        <button
+          onclick={handleProfileClick}
+          class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors hover:bg-gray-50"
+        >
+          <Icon 
+            name="profile"
+            size="sm"
+            className="mr-2 text-purple-600"
+          />
+          <h3 class="text-xs font-medium uppercase tracking-wider text-gray-700">
+            Profile
+          </h3>
+        </button>
+        <div class="space-y-0.5 mb-3">
           <a 
             href="/my-submissions"
             onclick={(e) => { e.preventDefault(); navigate('/my-submissions', true); }}
@@ -220,21 +233,10 @@
             <Icon 
               name="mySubmissions"
               size="sm"
-              className="mr-2 {isActive('/my-submissions') ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
+              className="mr-2 text-purple-600"
             />
             My Submissions
           </a>
-          <button
-            onclick={handleProfileClick}
-            class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
-          >
-            <Icon 
-              name="profile"
-              size="sm"
-              className="mr-2 text-gray-400 group-hover:text-gray-500"
-            />
-            Profile
-          </button>
         </div>
       </div>
     </div>
@@ -339,10 +341,23 @@
           </div>
         {/if}
         
-        <!-- Profile links -->
+        <!-- Profile section -->
         <div>
-          <div class="border-t border-gray-200 pt-4"></div>
-          <div class="space-y-0.5">
+          <div class="border-t border-gray-200 mb-3"></div>
+          <button
+            onclick={handleProfileClick}
+            class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors hover:bg-gray-50"
+          >
+            <Icon 
+              name="profile"
+              size="sm"
+              className="mr-2 text-purple-600"
+            />
+            <h3 class="text-xs font-medium uppercase tracking-wider text-gray-700">
+              Profile
+            </h3>
+          </button>
+          <div class="space-y-0.5 mb-3">
             <a 
               href="/my-submissions"
               onclick={(e) => { e.preventDefault(); navigate('/my-submissions', true); }}
@@ -353,21 +368,10 @@
               <Icon 
                 name="mySubmissions"
                 size="sm"
-                className="mr-2 {isActive('/my-submissions') ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
+                className="mr-2 text-purple-600"
               />
               My Submissions
             </a>
-            <button
-              onclick={handleProfileClick}
-              class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
-            >
-              <Icon 
-                name="profile"
-                size="sm"
-                className="mr-2 text-gray-400 group-hover:text-gray-500"
-              />
-              Profile
-            </button>
           </div>
         </div>
       </div>
