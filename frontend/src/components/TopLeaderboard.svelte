@@ -3,6 +3,7 @@
   import { push } from 'svelte-spa-router';
   import LeaderboardTable from './LeaderboardTable.svelte';
   import { leaderboardAPI } from '../lib/api';
+  import { currentCategory } from '../stores/category.js';
 
   let {
     title = 'Top Validators',
@@ -20,10 +21,11 @@
   let loading = $state(true);
   let error = $state(null);
 
-  onMount(async () => {
+  async function fetchLeaderboard() {
     try {
       loading = true;
-      const response = await leaderboardAPI.getLeaderboard();
+      const params = $currentCategory !== 'global' ? { category: $currentCategory } : {};
+      const response = await leaderboardAPI.getLeaderboard(params);
       leaderboard = response.data || [];
       if (limit && leaderboard.length > limit) {
         leaderboard = leaderboard.slice(0, limit);
@@ -32,6 +34,16 @@
     } catch (err) {
       error = err.message || 'Failed to load leaderboard';
       loading = false;
+    }
+  }
+  
+  onMount(() => {
+    fetchLeaderboard();
+  });
+  
+  $effect(() => {
+    if ($currentCategory) {
+      fetchLeaderboard();
     }
   });
 </script>

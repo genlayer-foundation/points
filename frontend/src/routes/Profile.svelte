@@ -14,20 +14,37 @@
   let balance = $state(null);
   let loadingBalance = $state(false);
   
+  // Determine user type
+  let userType = $derived(
+    !user ? null :
+    user.validator ? 'validator' :
+    user.builder ? 'builder' :
+    user.steward ? 'steward' :
+    'participant'
+  );
+  
+  // Get type-specific color theme
+  let typeColor = $derived(
+    userType === 'validator' ? 'sky' :
+    userType === 'builder' ? 'orange' :
+    userType === 'steward' ? 'green' :
+    'gray'
+  );
+  
   // Track if any field has changed
   let hasChanges = $derived(user && (
     name !== (user.name || '') || 
-    nodeVersion !== (user.validator?.node_version || '')
+    (userType === 'validator' && nodeVersion !== (user.validator?.node_version || ''))
   ));
   
   // Calculate days since target was set
-  let daysSinceTarget = $derived(() => {
+  let daysSinceTarget = () => {
     if (!user?.validator?.target_created_at) return null;
     const created = new Date(user.validator.target_created_at);
     const now = new Date();
     const diff = now - created;
     return Math.floor(diff / (1000 * 60 * 60 * 24));
-  });
+  };
   
   // Humanize time since target was set
   function humanizeTimeSince(dateStr) {
@@ -180,10 +197,11 @@
           <p class="mt-1 text-sm text-gray-500">This name will be displayed on your public profile</p>
         </div>
         
-        <div class="border-t pt-4">
-          <label for="nodeVersion" class="block text-sm font-medium text-gray-700 mb-2">
-            Node Version
-          </label>
+        {#if userType === 'validator'}
+          <div class="border-t pt-4">
+            <label for="nodeVersion" class="block text-sm font-medium text-gray-700 mb-2">
+              Node Version
+            </label>
           
           {#if user?.validator?.target_version}
             <!-- Status Banner -->
@@ -276,7 +294,8 @@
           <p class="mt-1 text-sm text-gray-500">
             Enter your current GenLayer node version (semantic versioning format)
           </p>
-        </div>
+          </div>
+        {/if}
       </div>
       
       <div class="mt-6 flex gap-2">

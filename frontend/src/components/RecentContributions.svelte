@@ -4,6 +4,7 @@
   import { format } from 'date-fns';
   import ContributionsList from './ContributionsList.svelte';
   import { contributionsAPI } from '../lib/api';
+  import { currentCategory } from '../stores/category.js';
 
   let {
     title = 'Recent Contributions',
@@ -21,7 +22,7 @@
   let loading = $state(true);
   let error = $state(null);
 
-  onMount(async () => {
+  async function fetchContributions() {
     try {
       loading = true;
       
@@ -39,12 +40,27 @@
         params.user = userId;
       }
       
+      // Add category filter if not global
+      if ($currentCategory !== 'global') {
+        params.category = $currentCategory;
+      }
+      
       const response = await contributionsAPI.getContributions(params);
       contributions = response.data.results || [];
       loading = false;
     } catch (err) {
       error = err.message || 'Failed to load recent contributions';
       loading = false;
+    }
+  }
+  
+  onMount(() => {
+    fetchContributions();
+  });
+  
+  $effect(() => {
+    if ($currentCategory) {
+      fetchContributions();
     }
   });
 </script>

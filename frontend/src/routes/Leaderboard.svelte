@@ -31,19 +31,9 @@
         response = await leaderboardAPI.getLeaderboard();
         leaderboard = response.data || [];
       } else {
-        // Fetch category-specific leaderboard
-        response = await fetch(`http://localhost:8002/api/v1/leaderboard/category/${$currentCategory}/`);
-        const data = await response.json();
-        // Transform the entries to match the expected format
-        leaderboard = (data.entries || []).map(entry => ({
-          rank: entry.rank,
-          total_points: entry.total_points,
-          user_details: {
-            id: entry.user.id,
-            name: entry.user.name,
-            address: entry.user.address
-          }
-        }));
+        // Fetch category-specific leaderboard using the proper API params
+        response = await leaderboardAPI.getLeaderboard({ category: $currentCategory });
+        leaderboard = response.data || [];
       }
       
       loading = false;

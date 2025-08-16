@@ -5,9 +5,10 @@
   import TopLeaderboard from '../components/TopLeaderboard.svelte';
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import RecentContributions from '../components/RecentContributions.svelte';
-  import { contributionsAPI, usersAPI, statsAPI } from '../lib/api';
+  import { contributionsAPI, usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
   import { authState } from '../lib/auth.js';
   import { push } from 'svelte-spa-router';
+  import { currentCategory, categoryTheme } from '../stores/category.js';
   
   // State management
   let newestValidators = $state([]);
@@ -32,18 +33,28 @@
     }
   };
   
-  // Fetch data
-  onMount(async () => {
+  // Function to fetch data based on category
+  async function fetchDashboardData() {
     
     try {
-      // Fetch newest validators (ordered by first uptime contribution)
+      // Fetch newest participants based on category
       newestValidatorsLoading = true;
-      // Get recent uptime contributions to find newest validators
-      const uptimeRes = await contributionsAPI.getContributions({ 
+      
+      // Build params based on category
+      const params = { 
         limit: 20, 
-        ordering: '-contribution_date',
-        contribution_type_name: 'Uptime'
-      });
+        ordering: '-contribution_date'
+      };
+      
+      // For validators, look for Uptime contributions
+      // For other categories, get any recent contributions
+      if ($currentCategory === 'validator') {
+        params.contribution_type_name = 'Uptime';
+      } else if ($currentCategory !== 'global') {
+        params.category = $currentCategory;
+      }
+      
+      const uptimeRes = await contributionsAPI.getContributions(params);
       
       // Extract unique users from uptime contributions
       const seenUsers = new Set();
@@ -65,7 +76,7 @@
       newestValidators = uniqueValidators;
       newestValidatorsLoading = false;
     } catch (error) {
-      newestValidatorsError = error.message || 'Failed to load newest validators';
+      newestValidatorsError = error.message || `Failed to load newest ${$currentCategory === 'validator' ? 'validators' : $currentCategory === 'builder' ? 'builders' : 'participants'}`;
       newestValidatorsLoading = false;
     }
     
@@ -107,6 +118,17 @@
       statsLoading = false;
       console.error('Error fetching dashboard stats:', error);
     }
+  }
+  
+  // Fetch data on mount and when category changes
+  onMount(() => {
+    fetchDashboardData();
+  });
+  
+  $effect(() => {
+    if ($currentCategory) {
+      fetchDashboardData();
+    }
   });
   
   // Icons for stat cards
@@ -119,7 +141,12 @@
 
 <div class="space-y-4">
   <div class="flex justify-between items-center">
-    <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+    <h1 class="text-2xl font-bold text-gray-900">
+      {$currentCategory === 'global' ? 'Testnet Asimov' : 
+       $currentCategory === 'builder' ? 'Builders' :
+       $currentCategory === 'validator' ? 'Validators' :
+       $currentCategory === 'steward' ? 'Stewards' : 'Dashboard'}
+    </h1>
     {#if $authState.isAuthenticated}
       <button
         onclick={() => push('/submit-contribution')}
@@ -184,7 +211,11 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
             </svg>
           </div>
-          <h2 class="text-lg font-semibold text-gray-900">Top Validators</h2>
+          <h2 class="text-lg font-semibold text-gray-900">
+            Top {$currentCategory === 'builder' ? 'Builders' : 
+                 $currentCategory === 'validator' ? 'Validators' :
+                 $currentCategory === 'steward' ? 'Stewards' : 'Participants'}
+          </h2>
         </div>
         <button
           onclick={() => push('/leaderboard')}
@@ -240,10 +271,14 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
             </svg>
           </div>
-          <h2 class="text-lg font-semibold text-gray-900">Newest Validators</h2>
+          <h2 class="text-lg font-semibold text-gray-900">
+            Newest {$currentCategory === 'builder' ? 'Builders' : 
+                    $currentCategory === 'validator' ? 'Validators' :
+                    $currentCategory === 'steward' ? 'Stewards' : 'Participants'}
+          </h2>
         </div>
         <button
-          onclick={() => push('/validators')}
+          onclick={() => push('/participants')}
           class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
           View all
