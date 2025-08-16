@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import Navbar from './components/Navbar.svelte';
   import Sidebar from './components/Sidebar.svelte';
+  import { categoryTheme } from './stores/category.js';
   import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
@@ -23,7 +24,7 @@
     '/': Dashboard,
     '/contributions': Contributions,
     '/leaderboard': Leaderboard,
-    '/validators': Validators,
+    '/participants': Validators,
     '/participant/:address': ParticipantProfile,
     '/contribution-type/:id': ContributionTypeDetail,
     '/badge/:id': BadgeDetail,
@@ -170,16 +171,16 @@
   }
 </script>
 
-<div class="min-h-screen bg-gray-50">
+<div class="min-h-screen {$categoryTheme.bg} transition-colors duration-300">
   <Navbar />
-    <div class="container mx-auto px-4 py-4 md:py-6 lg:py-8 flex">
-      <Sidebar />
-      <main class="flex-1 ml-0 md:ml-64">
-        <Router 
-          {routes} 
-          on:conditionsFailed={hideTooltips}
-          on:routeLoaded={hideTooltips}
-        />
-      </main>
-    </div>
+  <div class="container mx-auto px-4 py-4 md:py-6 lg:py-8 flex">
+    <Sidebar />
+    <main class="flex-1 ml-0 md:ml-64">
+      <Router 
+        {routes} 
+        on:conditionsFailed={hideTooltips}
+        on:routeLoaded={hideTooltips}
+      />
+    </main>
   </div>
+</div>
