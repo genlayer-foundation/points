@@ -147,7 +147,12 @@
     <div class="bg-sky-50/30 rounded-lg shadow-sm border border-sky-100 overflow-hidden">
       <!-- Column Header -->
       <div class="bg-sky-100/50 px-5 py-3 border-b border-sky-200">
-        <h2 class="text-lg font-semibold text-sky-700 uppercase tracking-wider">Validators</h2>
+        <button 
+          onclick={() => push('/validators')}
+          class="text-lg font-semibold text-sky-700 uppercase tracking-wider hover:text-sky-800 transition-colors"
+        >
+          Validators
+        </button>
       </div>
       
       <!-- Column Content -->
@@ -294,7 +299,12 @@
     <div class="bg-orange-50/30 rounded-lg shadow-sm border border-orange-100 overflow-hidden">
       <!-- Column Header -->
       <div class="bg-orange-100/50 px-5 py-3 border-b border-orange-200">
-        <h2 class="text-lg font-semibold text-orange-700 uppercase tracking-wider">Builders</h2>
+        <button 
+          onclick={() => push('/builders')}
+          class="text-lg font-semibold text-orange-700 uppercase tracking-wider hover:text-orange-800 transition-colors"
+        >
+          Builders
+        </button>
       </div>
       
       <!-- Column Content -->

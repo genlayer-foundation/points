@@ -14,7 +14,8 @@
     compact = true,
     hideAddress = true,
     showHeader = false,
-    className = ''
+    className = '',
+    category = null  // Add optional category prop
   } = $props();
 
   let leaderboard = $state([]);
@@ -25,13 +26,16 @@
     try {
       loading = true;
       
+      // Use prop category if provided, otherwise use store category
+      const categoryToUse = category || $currentCategory;
+      
       let response;
-      if ($currentCategory === 'global') {
+      if (categoryToUse === 'global') {
         response = await leaderboardAPI.getLeaderboard();
         leaderboard = response.data || [];
       } else {
         // Use category-specific endpoint
-        response = await leaderboardAPI.getCategoryLeaderboard($currentCategory);
+        response = await leaderboardAPI.getCategoryLeaderboard(categoryToUse);
         // Transform the entries to match the expected format
         leaderboard = (response.data.entries || []).map(entry => ({
           rank: entry.rank,
@@ -58,8 +62,10 @@
   let previousCategory = $state(null);
   
   $effect(() => {
-    if ($currentCategory && $currentCategory !== previousCategory) {
-      previousCategory = $currentCategory;
+    // Use prop category if provided, otherwise use store category
+    const categoryToUse = category || $currentCategory;
+    if (categoryToUse && categoryToUse !== previousCategory) {
+      previousCategory = categoryToUse;
       fetchLeaderboard();
     }
   });

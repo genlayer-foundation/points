@@ -3,7 +3,7 @@
   import AuthButton from './AuthButton.svelte';
   import Icon from './Icons.svelte';
   import { authState } from '../lib/auth.js';
-  import { categoryTheme } from '../stores/category.js';
+  import { categoryTheme, currentCategory } from '../stores/category.js';
   
   
   let isMenuOpen = $state(false);
@@ -41,7 +41,7 @@
       <div class="flex items-center">
         <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex-shrink-0 flex items-center">
           <Icon name="genlayer" size="lg" className="text-black" />
-          <span class="ml-3 text-xl font-bold {$categoryTheme.text}">GenLayer Testnet Contributions</span>
+          <span class="ml-3 text-xl font-bold {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">GenLayer Testnet Contributions</span>
         </a>
       </div>
       
