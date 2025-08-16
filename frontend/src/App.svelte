@@ -211,7 +211,7 @@
 </script>
 
 <div class="min-h-screen {$categoryTheme.bg} transition-colors duration-300">
-  <Navbar {toggleSidebar} />
+  <Navbar {toggleSidebar} {sidebarOpen} />
   <div class="flex">
     <Sidebar bind:isOpen={sidebarOpen} />
     <main class="flex-1 container mx-auto px-4 py-4 md:py-6 lg:py-8">
