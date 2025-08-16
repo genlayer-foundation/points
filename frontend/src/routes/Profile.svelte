@@ -345,13 +345,17 @@
           {#if user.steward}
             <div class="bg-green-50 rounded-lg p-4 border-2 border-green-200">
               <h3 class="text-md font-medium text-green-900 mb-3 flex items-center">
-                <Icon name="steward" size="sm" className="mr-2 text-green-600" />
+                <span class="mr-2 text-lg">🌱</span>
                 Steward Profile
               </h3>
-              <div class="text-sm text-green-800">
-                <p>Total Points: <span class="font-bold text-green-900">{user.steward.total_points || 0}</span></p>
-                <p>Rank: <span class="font-bold text-green-900">#{user.steward.rank || 'Unranked'}</span></p>
-                <p class="text-xs text-green-600 mt-2">Profile created: {formatDate(user.steward.created_at)}</p>
+              <div class="text-sm">
+                <p class="text-green-700 font-medium">
+                  Thanks for keeping things running smoothly around here 🛡️
+                </p>
+                <p class="text-gray-600 mt-2">
+                  Your steward profile is active. You have access to review and manage community submissions.
+                </p>
+                <p class="text-xs text-green-600 mt-3">Profile created: {formatDate(user.steward.created_at)}</p>
               </div>
             </div>
           {:else}

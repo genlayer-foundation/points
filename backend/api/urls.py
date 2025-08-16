@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from users.views import UserViewSet
-from contributions.views import ContributionTypeViewSet, ContributionViewSet, EvidenceViewSet, SubmittedContributionViewSet
+from contributions.views import ContributionTypeViewSet, ContributionViewSet, EvidenceViewSet, SubmittedContributionViewSet, StewardSubmissionViewSet
 from leaderboard.views import GlobalLeaderboardMultiplierViewSet, LeaderboardViewSet
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 from .metrics_views import ActiveValidatorsView, ContributionTypesStatsView
@@ -15,6 +15,7 @@ router.register(r'evidence', EvidenceViewSet)
 router.register(r'multipliers', GlobalLeaderboardMultiplierViewSet)
 router.register(r'leaderboard', LeaderboardViewSet)
 router.register(r'submissions', SubmittedContributionViewSet, basename='submission')
+router.register(r'steward-submissions', StewardSubmissionViewSet, basename='steward-submission')
 
 # The API URLs are now determined automatically by the router
 urlpatterns = [

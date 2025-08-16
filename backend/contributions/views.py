@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
-from django.db.models import Count, Max, F
+from django.db.models import Count, Max, F, Q
 from django.db.models.functions import Coalesce
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -13,8 +13,10 @@ from django.utils.decorators import method_decorator
 from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight
 from .serializers import (ContributionTypeSerializer, ContributionSerializer, 
                          EvidenceSerializer, SubmittedContributionSerializer,
-                         SubmittedEvidenceSerializer, ContributionHighlightSerializer)
+                         SubmittedEvidenceSerializer, ContributionHighlightSerializer,
+                         StewardSubmissionSerializer, StewardSubmissionReviewSerializer)
 from .forms import SubmissionReviewForm
+from .permissions import IsSteward
 from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from ethereum_auth.authentication import EthereumAuthentication
@@ -542,3 +544,127 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             SubmittedEvidenceSerializer(evidence).data,
             status=status.HTTP_201_CREATED
         )
+
+
+class StewardSubmissionViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for stewards to review submissions.
+    """
+    serializer_class = StewardSubmissionSerializer
+    authentication_classes = [EthereumAuthentication]
+    permission_classes = [IsSteward]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['state', 'contribution_type', 'user']
+    ordering_fields = ['created_at', 'contribution_date']
+    ordering = ['-created_at']
+    
+    def get_queryset(self):
+        """Get all submissions for steward review."""
+        queryset = SubmittedContribution.objects.all()
+        
+        # Add prefetch for optimization
+        queryset = queryset.select_related(
+            'user', 'contribution_type', 'reviewed_by'
+        ).prefetch_related('evidence_items')
+        
+        return queryset
+    
+    @action(detail=True, methods=['post'], url_path='review')
+    def review(self, request, pk=None):
+        """Review and take action on a submission."""
+        submission = self.get_object()
+        serializer = StewardSubmissionReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        action = serializer.validated_data['action']
+        
+        # Update submission fields
+        submission.reviewed_by = request.user
+        submission.reviewed_at = timezone.now()
+        
+        if action == 'accept':
+            # Get the contribution type (use provided or keep original)
+            contribution_type = serializer.validated_data.get('contribution_type', submission.contribution_type)
+            
+            # Update submission contribution type if changed
+            if contribution_type != submission.contribution_type:
+                submission.contribution_type = contribution_type
+            
+            # Create the actual contribution
+            contribution = Contribution.objects.create(
+                user=submission.user,
+                contribution_type=contribution_type,
+                points=serializer.validated_data['points'],
+                contribution_date=submission.contribution_date,
+                notes=submission.notes
+            )
+            
+            # Copy evidence items
+            for evidence in submission.evidence_items.all():
+                Evidence.objects.create(
+                    contribution=contribution,
+                    description=evidence.description,
+                    url=evidence.url,
+                    file=evidence.file
+                )
+            
+            # Create highlight if requested
+            if serializer.validated_data.get('create_highlight'):
+                ContributionHighlight.objects.create(
+                    contribution=contribution,
+                    title=serializer.validated_data['highlight_title'],
+                    description=serializer.validated_data['highlight_description']
+                )
+            
+            submission.state = 'accepted'
+            submission.converted_contribution = contribution
+            submission.staff_reply = serializer.validated_data.get('staff_reply', '')
+            
+        elif action == 'reject':
+            submission.state = 'rejected'
+            submission.staff_reply = serializer.validated_data['staff_reply']
+            
+        elif action == 'more_info':
+            submission.state = 'more_info_needed'
+            submission.staff_reply = serializer.validated_data['staff_reply']
+        
+        submission.save()
+        
+        return Response(
+            self.get_serializer(submission).data,
+            status=status.HTTP_200_OK
+        )
+    
+    @action(detail=False, methods=['get'], url_path='stats')
+    def stats(self, request):
+        """Get statistics for steward dashboard."""
+        total_pending = SubmittedContribution.objects.filter(state='pending').count()
+        total_reviewed = SubmittedContribution.objects.filter(
+            reviewed_by=request.user
+        ).count()
+        
+        # Get last review time
+        last_review = SubmittedContribution.objects.filter(
+            reviewed_by=request.user
+        ).order_by('-reviewed_at').first()
+        
+        last_review_time = last_review.reviewed_at if last_review else None
+        
+        # Get acceptance rate
+        user_reviews = SubmittedContribution.objects.filter(
+            reviewed_by=request.user
+        ).exclude(state='pending')
+        
+        total_decisions = user_reviews.count()
+        accepted = user_reviews.filter(state='accepted').count()
+        acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
+        
+        return Response({
+            'pending_count': total_pending,
+            'total_reviewed': total_reviewed,
+            'last_review': last_review_time,
+            'acceptance_rate': round(acceptance_rate, 1),
+            'total_accepted': accepted,
+            'total_rejected': user_reviews.filter(state='rejected').count(),
+            'total_info_requested': user_reviews.filter(state='more_info_needed').count()
+        })
