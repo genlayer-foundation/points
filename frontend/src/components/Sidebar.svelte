@@ -66,7 +66,7 @@
     {
       title: 'Testnet Asimov',
       category: 'global',
-      iconName: 'global',
+      iconName: 'genlayer',
       dashboardPath: '/',
       dashboardAction: () => changeCategory('global', '/'),
       items: [] // No sub-items for Testnet Asimov
@@ -136,17 +136,17 @@
             >
               <Icon 
                 name={section.iconName}
-                size="md"
-                className="mr-2 {section.category === $currentCategory ? $categoryTheme.text : 'text-gray-500'}"
+                size="sm"
+                className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-500'}"
               />
-              <h3 class="text-xs font-bold text-gray-700 uppercase tracking-wider">
+              <h3 class="text-xs font-medium text-gray-700 uppercase tracking-wider">
                 {section.title}
               </h3>
             </button>
             
             <!-- Section items (only if they exist) -->
             {#if section.items.length > 0}
-              <div class="space-y-0.5 ml-3 mb-3">
+              <div class="space-y-0.5 mb-3">
                 {#each section.items as item}
                   <!-- Regular navigation item -->
                   <a 
@@ -161,7 +161,7 @@
                     <Icon 
                       name={item.iconName}
                       size="sm"
-                      className="mr-2 {isActive(item.path) ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
+                      className="mr-2 {section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-400'}"
                     />
                     {item.name}
                   </a>
@@ -182,14 +182,14 @@
           <div class="flex items-center px-3 py-2 mb-2">
             <Icon 
               name="profile"
-              size="md"
+              size="sm"
               className="mr-2 text-gray-500"
             />
-            <h3 class="text-xs font-bold text-gray-700 uppercase tracking-wider">
+            <h3 class="text-xs font-medium text-gray-700 uppercase tracking-wider">
               Account
             </h3>
           </div>
-          <div class="space-y-0.5 ml-3">
+          <div class="space-y-0.5">
             {#each profileItems as item}
               {#if item.isProfile}
                 <button

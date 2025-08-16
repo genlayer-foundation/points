@@ -1,7 +1,6 @@
 <script>
   import { push, location } from 'svelte-spa-router';
   import AuthButton from './AuthButton.svelte';
-  import CategorySwitcher from './CategorySwitcher.svelte';
   import Icon from './Icons.svelte';
   import { authState } from '../lib/auth.js';
   import { categoryTheme } from '../stores/category.js';
@@ -47,7 +46,6 @@
       </div>
       
       <div class="hidden md:flex items-center gap-4">
-        <CategorySwitcher />
         <button 
           onclick={handleSubmitContribution}
           class="px-3 py-2 {$categoryTheme.button} rounded-md"
@@ -81,9 +79,6 @@
   {#if isMenuOpen}
     <div class="md:hidden">
       <div class="px-2 pt-2 pb-3 space-y-1">
-        <div class="px-3 py-2">
-          <CategorySwitcher />
-        </div>
         <button 
           onclick={handleSubmitContribution}
           class="block w-full text-left px-3 py-2 rounded-md text-base font-medium bg-primary-600 text-white hover:bg-primary-700"
