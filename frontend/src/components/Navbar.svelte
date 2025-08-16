@@ -5,7 +5,7 @@
   import { authState } from '../lib/auth.js';
   import { categoryTheme, currentCategory } from '../stores/category.js';
   
-  let { toggleSidebar } = $props();
+  let { toggleSidebar, sidebarOpen = false } = $props();
   
   let isMenuOpen = $state(false);
   
@@ -36,19 +36,21 @@
   }
 </script>
 
-<header class="bg-white shadow">
-  <div class="container mx-auto px-4">
-    <div class="flex justify-between h-16">
-      <div class="flex items-center">
-        <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex-shrink-0 flex items-center">
-          <Icon name="genlayer" size="lg" className="text-black" />
-          <span class="ml-3 text-sm sm:text-xl font-bold {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">
-            <span class="hidden sm:inline">GenLayer Points</span>
-            <span class="sm:hidden">GenLayer</span>
-          </span>
-        </a>
-      </div>
-      
+<header class="bg-white shadow relative z-50">
+  <div class="flex">
+    <!-- Left section with logo - aligned with sidebar content on desktop, normal padding on mobile -->
+    <div class="md:w-64 flex items-center h-16 px-4 md:px-7">
+      <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex items-center">
+        <Icon name="genlayer" size="lg" className="text-black" />
+        <span class="ml-3 text-sm sm:text-xl font-bold {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">
+          <span class="hidden sm:inline">GenLayer Points</span>
+          <span class="sm:hidden">GenLayer</span>
+        </span>
+      </a>
+    </div>
+    
+    <!-- Right section with actions -->
+    <div class="flex-1 flex justify-end items-center h-16 px-4">
       <div class="hidden md:flex items-center gap-4">
         <button 
           onclick={handleSubmitContribution}
@@ -69,12 +71,17 @@
               console.error('toggleSidebar function not provided to Navbar');
             }
           }} 
-          class="p-2 rounded-md text-gray-700 hover:bg-gray-100"
-          aria-label="Open menu"
+          class="p-2 rounded-md text-gray-700 hover:bg-gray-100 relative"
+          aria-label="{sidebarOpen ? 'Close' : 'Open'} menu"
         >
-          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
+          <div class="h-6 w-6 relative">
+            <!-- Top line -->
+            <span class="absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? 'rotate-45 top-3' : 'rotate-0 top-1'}"></span>
+            <!-- Middle line -->
+            <span class="absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out top-3 {sidebarOpen ? 'opacity-0' : 'opacity-100'}"></span>
+            <!-- Bottom line -->
+            <span class="absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? '-rotate-45 top-3' : 'rotate-0 top-5'}"></span>
+          </div>
         </button>
       </div>
     </div>

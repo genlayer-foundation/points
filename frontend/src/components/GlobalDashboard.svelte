@@ -114,9 +114,7 @@
 
 <div class="space-y-6 sm:space-y-8">
   <!-- Title -->
-  <div>
-    <h1 class="text-2xl font-bold text-gray-900">Testnet Asimov</h1>
-  </div>
+  <h1 class="text-2xl font-bold text-gray-900">Testnet Asimov</h1>
   
   <!-- 2 Column Layout -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">

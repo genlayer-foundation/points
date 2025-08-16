@@ -6,16 +6,19 @@
   
   let { isOpen = $bindable(false) } = $props();
   
+  // Track previous location to detect route changes
+  let previousLocation = $state($location);
+  
   // Close sidebar on route change on mobile
   $effect(() => {
-    if (isOpen && window.innerWidth < 768) {
-      isOpen = false;
+    // Only close if the location actually changed
+    if ($location !== previousLocation) {
+      previousLocation = $location;
+      if (isOpen && window.innerWidth < 768) {
+        isOpen = false;
+      }
     }
   });
-  
-  function toggleSidebar() {
-    isOpen = !isOpen;
-  }
   
   function navigate(path, requiresAuth = false) {
     if (requiresAuth && !$authState.isAuthenticated) {
@@ -113,12 +116,6 @@
       ]
     }
   ];
-  
-  // Profile section items (same for all categories)
-  const profileItems = [
-    { name: 'My Submissions', path: '/my-submissions', iconName: 'mySubmissions', requiresAuth: true },
-    { name: 'Profile', path: 'profile', iconName: 'profile', isProfile: true }
-  ];
 </script>
 
 <!-- Desktop Sidebar -->
@@ -179,50 +176,35 @@
         </div>
       {/each}
       
-      <!-- Profile section (always visible) -->
+      <!-- Profile links -->
       <div>
         <div class="border-t border-gray-200 pt-4"></div>
-        <div class="flex items-center px-3 py-2 mb-2">
-          <Icon 
-            name="profile"
-            size="sm"
-            className="mr-2 text-gray-500"
-          />
-          <h3 class="text-xs font-medium text-gray-700 uppercase tracking-wider">
-            Account
-          </h3>
-        </div>
         <div class="space-y-0.5">
-          {#each profileItems as item}
-            {#if item.isProfile}
-              <button
-                onclick={handleProfileClick}
-                class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
-              >
-                <Icon 
-                  name={item.iconName}
-                  size="sm"
-                  className="mr-2 text-gray-400 group-hover:text-gray-500"
-                />
-                {item.name}
-              </button>
-            {:else}
-              <a 
-                href={item.path}
-                onclick={(e) => { e.preventDefault(); navigate(item.path, item.requiresAuth); }}
-                class="group flex items-center px-3 py-1.5 text-sm rounded-md {
-                  isActive(item.path) ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                }"
-              >
-                <Icon 
-                  name={item.iconName}
-                  size="sm"
-                  className="mr-2 {isActive(item.path) ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
-                />
-                {item.name}
-              </a>
-            {/if}
-          {/each}
+          <a 
+            href="/my-submissions"
+            onclick={(e) => { e.preventDefault(); navigate('/my-submissions', true); }}
+            class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+              isActive('/my-submissions') ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            }"
+          >
+            <Icon 
+              name="mySubmissions"
+              size="sm"
+              className="mr-2 {isActive('/my-submissions') ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
+            />
+            My Submissions
+          </a>
+          <button
+            onclick={handleProfileClick}
+            class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
+          >
+            <Icon 
+              name="profile"
+              size="sm"
+              className="mr-2 text-gray-400 group-hover:text-gray-500"
+            />
+            Profile
+          </button>
         </div>
       </div>
     </div>
@@ -230,33 +212,19 @@
 </aside>
 
 <!-- Mobile Sidebar Overlay -->
-{#if isOpen}
-  <!-- Backdrop -->
-  <div 
-    class="md:hidden fixed inset-0 z-40 bg-gray-600 bg-opacity-75"
-    onclick={toggleSidebar}
-    onkeydown={(e) => e.key === 'Escape' && toggleSidebar()}
-    role="button"
-    tabindex="0"
-    aria-label="Close sidebar"
-  ></div>
-  
-  <!-- Mobile Sidebar -->
-  <aside class="md:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl">
-    <div class="flex items-center justify-between h-16 px-4 border-b">
-      <span class="text-xl font-semibold text-gray-900">Menu</span>
-      <button 
-        onclick={toggleSidebar}
-        class="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
-        aria-label="Close menu"
-      >
-        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-    </div>
-    
-    <nav class="mt-5 px-4 overflow-y-auto" style="max-height: calc(100vh - 5rem);">
+<!-- Backdrop -->
+<div 
+  class="md:hidden fixed inset-0 z-30 bg-gray-600 transition-opacity duration-300 {isOpen ? 'bg-opacity-75 pointer-events-auto' : 'bg-opacity-0 pointer-events-none'}"
+  onclick={() => isOpen = false}
+  onkeydown={(e) => e.key === 'Escape' && (isOpen = false)}
+  role="button"
+  tabindex="0"
+  aria-label="Close sidebar"
+></div>
+
+<!-- Mobile Sidebar -->
+<aside class="md:hidden fixed top-16 left-0 right-0 bottom-0 z-40 bg-white transform transition-transform duration-300 ease-in-out {isOpen ? 'translate-y-0' : '-translate-y-full'}">
+    <nav class="px-4 py-4 overflow-y-auto h-full">
       <div class="space-y-2">
         <!-- Navigation sections - all visible -->
         {#each navigationStructure as section, index}
@@ -312,60 +280,37 @@
           </div>
         {/each}
         
-        <!-- Profile section (always visible) -->
+        <!-- Profile links -->
         <div>
           <div class="border-t border-gray-200 pt-4"></div>
-          <div class="flex items-center px-3 py-2 mb-2">
-            <Icon 
-              name="profile"
-              size="sm"
-              className="mr-2 text-gray-500"
-            />
-            <h3 class="text-xs font-medium text-gray-700 uppercase tracking-wider">
-              Account
-            </h3>
-          </div>
           <div class="space-y-0.5">
-            {#each profileItems as item}
-              {#if item.isProfile}
-                <button
-                  onclick={handleProfileClick}
-                  class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
-                >
-                  <Icon 
-                    name={item.iconName}
-                    size="sm"
-                    className="mr-2 text-gray-400 group-hover:text-gray-500"
-                  />
-                  {item.name}
-                </button>
-              {:else}
-                <a 
-                  href={item.path}
-                  onclick={(e) => { e.preventDefault(); navigate(item.path, item.requiresAuth); }}
-                  class="group flex items-center px-3 py-1.5 text-sm rounded-md {
-                    isActive(item.path) ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                  }"
-                >
-                  <Icon 
-                    name={item.iconName}
-                    size="sm"
-                    className="mr-2 {isActive(item.path) ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
-                  />
-                  {item.name}
-                </a>
-              {/if}
-            {/each}
+            <a 
+              href="/my-submissions"
+              onclick={(e) => { e.preventDefault(); navigate('/my-submissions', true); }}
+              class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+                isActive('/my-submissions') ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+              }"
+            >
+              <Icon 
+                name="mySubmissions"
+                size="sm"
+                className="mr-2 {isActive('/my-submissions') ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
+              />
+              My Submissions
+            </a>
+            <button
+              onclick={handleProfileClick}
+              class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
+            >
+              <Icon 
+                name="profile"
+                size="sm"
+                className="mr-2 text-gray-400 group-hover:text-gray-500"
+              />
+              Profile
+            </button>
           </div>
         </div>
       </div>
     </nav>
   </aside>
-{/if}
-
-<style>
-  /* Add smooth transition for mobile sidebar */
-  aside {
-    transition: transform 0.3s ease-in-out;
-  }
-</style>
