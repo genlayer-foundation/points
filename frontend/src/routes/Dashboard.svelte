@@ -117,7 +117,7 @@
   };
 </script>
 
-<div class="space-y-6">
+<div class="space-y-4">
   <div class="flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
     {#if $authState.isAuthenticated}
@@ -135,7 +135,7 @@
   
   <!-- Connection error message if needed -->
   {#if statsError}
-    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
       <div class="flex">
         <div class="flex-shrink-0">
           <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -152,7 +152,7 @@
   {/if}
 
   <!-- Stats Section -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
     <StatCard 
       title="Total Participants" 
       value={statsLoading ? '...' : (stats.totalParticipants || 0)} 
@@ -174,7 +174,7 @@
   </div>
   
   <!-- First Row: Leaderboard and Highlights -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <!-- Top Validators -->
     <div class="space-y-4">
       <div class="flex items-center justify-between">
@@ -230,7 +230,7 @@
   </div>
   
   <!-- Second Row: Newest Validators and Recent Contributions -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <!-- Newest Validators -->
     <div class="space-y-4">
       <div class="flex items-center justify-between">
@@ -269,7 +269,7 @@
         <div class="bg-white shadow rounded-lg divide-y divide-gray-200">
           {#each newestValidators as validator}
             <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2">
                 <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center flex-shrink-0">
                   <span class="text-sm font-bold text-blue-600">
                     {validator.name ? validator.name.charAt(0).toUpperCase() : '#'}

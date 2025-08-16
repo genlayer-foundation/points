@@ -99,7 +99,7 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="space-y-4">
   {#if loading}
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -236,7 +236,7 @@
       </div>
     {:else}
       <!-- Top Contributors and Recent Contributions -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <!-- Top Contributors -->
         <div class="space-y-4">
           <h2 class="text-lg font-semibold text-gray-900">Top Contributors</h2>

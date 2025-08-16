@@ -72,7 +72,7 @@
   <!-- Sidebar content -->
   <aside class={`bg-white shadow-md md:h-screen md:sticky md:top-16 md:block transition-all duration-300 ${isOpen ? 'block' : 'hidden'}`}>
     <div class="p-4">
-      <nav class="mt-5 space-y-1">
+      <nav class="mt-4 space-y-1">
         {#each navItems as item}
           <a 
             href={item.path}
