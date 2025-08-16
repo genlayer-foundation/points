@@ -4,7 +4,8 @@
   import { onMount } from 'svelte';
   import Navbar from './components/Navbar.svelte';
   import Sidebar from './components/Sidebar.svelte';
-  import { categoryTheme } from './stores/category.js';
+  import { categoryTheme, currentCategory, detectCategoryFromRoute } from './stores/category.js';
+  import { location } from 'svelte-spa-router';
   import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
@@ -22,11 +23,26 @@
   
   // Define routes
   const routes = {
+    // Global/Testnet Asimov routes
     '/': Dashboard,
     '/contributions': Contributions,
     '/highlights': Highlights,
     '/leaderboard': Leaderboard,
     '/participants': Validators,
+    
+    // Builders routes
+    '/builders': Dashboard,
+    '/builders/contributions': Contributions,
+    '/builders/leaderboard': Leaderboard,
+    '/builders/participants': Validators,
+    
+    // Validators routes
+    '/validators': Dashboard,
+    '/validators/contributions': Contributions,
+    '/validators/leaderboard': Leaderboard,
+    '/validators/participants': Validators,
+    
+    // Shared routes
     '/participant/:address': ParticipantProfile,
     '/contribution-type/:id': ContributionTypeDetail,
     '/badge/:id': BadgeDetail,
@@ -37,6 +53,12 @@
     '/profile': Profile,
     '*': NotFound
   };
+  
+  // Automatically update category based on current route
+  $: {
+    const category = detectCategoryFromRoute($location);
+    currentCategory.set(category);
+  }
   
   // Function to hide tooltips - used for route changes
   function hideTooltips() {

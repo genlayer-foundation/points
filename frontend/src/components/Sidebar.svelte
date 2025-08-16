@@ -67,22 +67,21 @@
       title: 'Testnet Asimov',
       category: 'global',
       iconName: 'global',
-      items: [
-        { name: 'Dashboard', path: '/', iconName: 'dashboard' },
-        { name: 'Builders', action: () => changeCategory('builder', '/'), iconName: 'builder' },
-        { name: 'Validators', action: () => changeCategory('validator', '/'), iconName: 'validator' }
-      ]
+      dashboardPath: '/',
+      dashboardAction: () => changeCategory('global', '/'),
+      items: [] // No sub-items for Testnet Asimov
     },
     {
       title: 'Builders',
       category: 'builder',
       iconName: 'builder',
       color: 'orange',
+      dashboardPath: '/builders',
+      dashboardAction: () => changeCategory('builder', '/builders'),
       items: [
-        { name: 'Dashboard', path: '/', iconName: 'dashboard' },
-        { name: 'Contributions', path: '/contributions', iconName: 'contributions' },
-        { name: 'Leaderboard', path: '/leaderboard', iconName: 'leaderboard' },
-        { name: 'Participants', path: '/participants', iconName: 'participants' }
+        { name: 'Contributions', path: '/builders/contributions', iconName: 'contributions' },
+        { name: 'Leaderboard', path: '/builders/leaderboard', iconName: 'leaderboard' },
+        { name: 'Participants', path: '/builders/participants', iconName: 'participants' }
       ]
     },
     {
@@ -90,11 +89,12 @@
       category: 'validator',
       iconName: 'validator', 
       color: 'sky',
+      dashboardPath: '/validators',
+      dashboardAction: () => changeCategory('validator', '/validators'),
       items: [
-        { name: 'Dashboard', path: '/', iconName: 'dashboard' },
-        { name: 'Contributions', path: '/contributions', iconName: 'contributions' },
-        { name: 'Leaderboard', path: '/leaderboard', iconName: 'leaderboard' },
-        { name: 'Participants', path: '/participants', iconName: 'participants' }
+        { name: 'Contributions', path: '/validators/contributions', iconName: 'contributions' },
+        { name: 'Leaderboard', path: '/validators/leaderboard', iconName: 'leaderboard' },
+        { name: 'Participants', path: '/validators/participants', iconName: 'participants' }
       ]
     }
   ];
@@ -121,63 +121,55 @@
   <!-- Sidebar content -->
   <aside class={`bg-white shadow-md md:h-screen md:sticky md:top-16 md:block transition-all duration-300 ${isOpen ? 'block' : 'hidden'}`}>
     <div class="p-4">
-      <nav class="mt-4 space-y-6">
-        <!-- Navigation sections -->
-        {#each navigationStructure as section}
-          <!-- Only show sections that match current category or Testnet Asimov -->
-          {#if section.category === $currentCategory || section.category === 'global'}
-            <div>
-              <!-- Section header -->
-              <div class="flex items-center px-3 py-2 mb-2">
-                <Icon 
-                  name={section.iconName}
-                  size="md"
-                  className="mr-2 {section.category === $currentCategory ? $categoryTheme.text : 'text-gray-500'}"
-                />
-                <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-                  {section.title}
-                </h3>
-              </div>
-              
-              <!-- Section items -->
-              <div class="space-y-1 ml-2">
+      <nav class="mt-4 space-y-2">
+        <!-- Navigation sections - all visible -->
+        {#each navigationStructure as section, index}
+          <div>
+            <!-- Section header - clickable dashboard link -->
+            <button
+              onclick={section.dashboardAction}
+              class={`w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors ${
+                isActive(section.dashboardPath) && section.category === $currentCategory
+                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                  : 'hover:bg-gray-50'
+              }`}
+            >
+              <Icon 
+                name={section.iconName}
+                size="md"
+                className="mr-2 {section.category === $currentCategory ? $categoryTheme.text : 'text-gray-500'}"
+              />
+              <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+                {section.title}
+              </h3>
+            </button>
+            
+            <!-- Section items (only if they exist) -->
+            {#if section.items.length > 0}
+              <div class="space-y-0.5 ml-3 mb-3">
                 {#each section.items as item}
-                  {#if item.action}
-                    <!-- Action item (category switcher) -->
-                    <button
-                      onclick={item.action}
-                      class="group flex items-center px-3 py-2 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 w-full text-left"
-                    >
-                      <Icon 
-                        name={item.iconName}
-                        size="sm"
-                        className="mr-3 text-gray-400 group-hover:text-gray-500"
-                      />
-                      {item.name}
-                    </button>
-                  {:else}
-                    <!-- Regular navigation item -->
-                    <a 
-                      href={item.path}
-                      onclick={(e) => { e.preventDefault(); navigate(item.path); }}
-                      class={`group flex items-center px-3 py-2 text-sm font-medium rounded-md ${
-                        isActive(item.path) && section.category === $currentCategory
-                          ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      <Icon 
-                        name={item.iconName}
-                        size="sm"
-                        className="mr-3 {isActive(item.path) && section.category === $currentCategory ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
-                      />
-                      {item.name}
-                    </a>
-                  {/if}
+                  <!-- Regular navigation item -->
+                  <a 
+                    href={item.path}
+                    onclick={(e) => { e.preventDefault(); navigate(item.path); }}
+                    class={`group flex items-center px-3 py-1.5 text-sm rounded-md ${
+                      isActive(item.path)
+                        ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
+                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                    }`}
+                  >
+                    <span class="mr-2 text-gray-400">•</span>
+                    {item.name}
+                  </a>
                 {/each}
               </div>
-            </div>
-          {/if}
+            {/if}
+            
+            <!-- Separator after each section except the last -->
+            {#if index < navigationStructure.length - 1}
+              <div class="border-t border-gray-200 mb-3"></div>
+            {/if}
+          </div>
         {/each}
         
         <!-- Profile section (always visible) -->
@@ -193,33 +185,25 @@
               Account
             </h3>
           </div>
-          <div class="space-y-1 ml-2">
+          <div class="space-y-0.5 ml-3">
             {#each profileItems as item}
               {#if item.isProfile}
                 <button
                   onclick={handleProfileClick}
-                  class="group flex items-center px-3 py-2 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 w-full text-left"
+                  class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
                 >
-                  <Icon 
-                    name={item.iconName}
-                    size="sm"
-                    className="mr-3 text-gray-400 group-hover:text-gray-500"
-                  />
+                  <span class="mr-2 text-gray-400">•</span>
                   {item.name}
                 </button>
               {:else}
                 <a 
                   href={item.path}
                   onclick={(e) => { e.preventDefault(); navigate(item.path, item.requiresAuth); }}
-                  class={`group flex items-center px-3 py-2 text-sm font-medium rounded-md ${
-                    isActive(item.path) ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-700 hover:bg-gray-50'
+                  class={`group flex items-center px-3 py-1.5 text-sm rounded-md ${
+                    isActive(item.path) ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}
                 >
-                  <Icon 
-                    name={item.iconName}
-                    size="sm"
-                    className="mr-3 {isActive(item.path) ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
-                  />
+                  <span class="mr-2 text-gray-400">•</span>
                   {item.name}
                 </a>
               {/if}

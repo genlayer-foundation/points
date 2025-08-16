@@ -82,3 +82,13 @@ export function getCategoryEndpoint(category, baseEndpoint) {
   }
   return `${baseEndpoint}/category/${category}`;
 }
+
+// Helper to detect category from route
+export function detectCategoryFromRoute(path) {
+  if (path.startsWith('/builders')) {
+    return 'builder';
+  } else if (path.startsWith('/validators')) {
+    return 'validator';
+  }
+  return 'global';
+}
