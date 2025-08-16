@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.db import transaction
 from django.contrib.auth import get_user_model
-from contributions.models import Contribution, ContributionType
+from contributions.models import Contribution, ContributionType, Category
 from leaderboard.models import GlobalLeaderboardMultiplier, update_all_ranks, LeaderboardEntry
 from datetime import datetime, timedelta
 import pytz
@@ -191,19 +191,64 @@ class Command(BaseCommand):
         # Update leaderboard entries for all affected users
         if users_to_update_leaderboard and not dry_run:
             self.stdout.write('Updating leaderboard entries...')
+            
+            # Get the category for Uptime contributions
+            uptime_category = None
+            if uptime_type.category:
+                uptime_category = uptime_type.category
+                if verbose:
+                    self.stdout.write(f'Uptime contributions belong to category: {uptime_category.name}')
+            
             for user in users_to_update_leaderboard:
-                # Get or create the leaderboard entry for this user
-                leaderboard_entry, created = LeaderboardEntry.objects.get_or_create(user=user)
-                
-                # Use the instance method to update points without updating ranks
-                total_points = leaderboard_entry.update_points_without_ranking()
+                # Update GLOBAL leaderboard entry
+                global_entry, created = LeaderboardEntry.objects.get_or_create(
+                    user=user,
+                    category=None  # None means global
+                )
+                global_points = global_entry.update_points_without_ranking()
                 
                 if verbose:
-                    self.stdout.write(f'Updated leaderboard for {user}: {total_points} total points')
+                    action = 'Created' if created else 'Updated'
+                    self.stdout.write(f'{action} GLOBAL leaderboard for {user}: {global_points} total points')
+                
+                # Update CATEGORY-SPECIFIC leaderboard entry if uptime has a category
+                if uptime_category:
+                    category_entry, cat_created = LeaderboardEntry.objects.get_or_create(
+                        user=user,
+                        category=uptime_category
+                    )
+                    category_points = category_entry.update_points_without_ranking()
+                    
+                    if verbose:
+                        action = 'Created' if cat_created else 'Updated'
+                        self.stdout.write(f'{action} {uptime_category.name} category leaderboard for {user}: {category_points} points')
+                
+                # Also check and update entries for ALL categories this user has contributions in
+                user_categories = Category.objects.filter(
+                    contribution_types__contributions__user=user
+                ).distinct()
+                
+                for category in user_categories:
+                    if category != uptime_category:  # Skip if we already updated it above
+                        cat_entry, cat_created = LeaderboardEntry.objects.get_or_create(
+                            user=user,
+                            category=category
+                        )
+                        cat_points = cat_entry.update_points_without_ranking()
+                        
+                        if verbose and cat_created:
+                            self.stdout.write(f'Created {category.name} category leaderboard for {user}: {cat_points} points')
             
             # Now update all ranks once, after all users have been processed
-            self.stdout.write('Updating leaderboard ranks...')
+            self.stdout.write('Updating all leaderboard ranks (global and categories)...')
             update_all_ranks()
+            
+            if verbose:
+                # Show summary of category leaderboards
+                self.stdout.write('\nCategory leaderboard summary:')
+                for category in Category.objects.all():
+                    entry_count = LeaderboardEntry.objects.filter(category=category).count()
+                    self.stdout.write(f'  - {category.name}: {entry_count} participants')
         
         # Print summary
         self.stdout.write(self.style.SUCCESS(

@@ -10,11 +10,19 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from datetime import datetime
-from .models import ContributionType, Contribution, SubmittedContribution, Evidence
+from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
 
 User = get_user_model()
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'description', 'created_at')
+    search_fields = ('name', 'slug', 'description')
+    readonly_fields = ('created_at', 'updated_at')
+    prepopulated_fields = {'slug': ('name',)}
 
 
 class GlobalLeaderboardMultiplierInline(admin.TabularInline):
@@ -25,12 +33,12 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
 
 @admin.register(ContributionType)
 class ContributionTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'is_default', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
+    list_display = ('name', 'category', 'is_default', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
     list_display_links = ('get_current_multiplier',)
     list_editable = ('name', 'is_default', 'description')
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at')
-    list_filter = ('is_default',)
+    list_filter = ('category', 'is_default')
     inlines = [GlobalLeaderboardMultiplierInline]
     
     def get_current_multiplier(self, obj):
@@ -45,6 +53,21 @@ class GlobalLeaderboardMultiplierAdmin(admin.ModelAdmin):
     list_filter = ('contribution_type', 'valid_from')
     search_fields = ('contribution_type__name', 'description', 'notes')
     readonly_fields = ('created_at', 'updated_at')
+
+
+class ContributionHighlightInline(admin.TabularInline):
+    model = ContributionHighlight
+    extra = 1
+    fields = ('title', 'description', 'created_at')
+    readonly_fields = ('created_at',)
+    verbose_name = "Highlight"
+    verbose_name_plural = "Highlights"
+    
+    def get_extra(self, request, obj=None, **kwargs):
+        """Only show extra form if no highlights exist."""
+        if obj and obj.highlights.exists():
+            return 0
+        return 1
 
 
 class EvidenceInline(admin.TabularInline):
@@ -83,14 +106,22 @@ class EvidenceInline(admin.TabularInline):
 
 @admin.register(Contribution)
 class ContributionAdmin(admin.ModelAdmin):
-    list_display = ('user', 'contribution_type', 'points', 'multiplier_at_creation',
-                   'frozen_global_points', 'contribution_date', 'source_submission_link', 'created_at')
-    list_filter = ('contribution_type', 'contribution_date', 'created_at')
-    search_fields = ('user__email', 'user__name', 'contribution_type__name', 'notes')
+    list_display = ('id', 'user_display', 'user_address_short', 'contribution_type', 'points', 
+                   'frozen_global_points', 'contribution_date_display', 'has_evidence', 
+                   'has_highlight', 'created_at')
+    list_filter = ('contribution_type__category', 'contribution_type', 'contribution_date', 'created_at',
+                  ('evidence_items', admin.EmptyFieldListFilter))
+    search_fields = ('user__email', 'user__name', 'user__address', 'contribution_type__name', 
+                    'notes', 'evidence_items__description', 'evidence_items__url')
     readonly_fields = ('frozen_global_points', 'multiplier_at_creation', 'created_at', 'updated_at', 
                       'source_submission_link', 'contribution_type_info')
-    ordering = ('-created_at', '-contribution_date')  # Most recent contributions first
-    inlines = [EvidenceInline]
+    ordering = ('-contribution_date', '-created_at')  # Most recent contributions first
+    inlines = [ContributionHighlightInline, EvidenceInline]
+    list_per_page = 50
+    date_hierarchy = 'contribution_date'
+    list_select_related = ['user', 'contribution_type']
+    autocomplete_fields = ['user', 'contribution_type']
+    change_form_template = 'admin/contributions/contribution_change_form.html'
     fieldsets = (
         (None, {
             'fields': ('user', 'contribution_type', 'contribution_type_info', 'points', 'contribution_date')
@@ -283,7 +314,42 @@ class ContributionAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         """Optimize queryset to avoid N+1 queries."""
         qs = super().get_queryset(request)
-        return qs.select_related('user', 'contribution_type').prefetch_related('source_submission')
+        return qs.select_related('user', 'contribution_type').prefetch_related('source_submission', 'evidence_items', 'highlights')
+    
+    def user_display(self, obj):
+        """Display user name with email."""
+        if obj.user.name:
+            return f"{obj.user.name}"
+        return obj.user.email
+    user_display.short_description = 'User'
+    user_display.admin_order_field = 'user__name'
+    
+    def user_address_short(self, obj):
+        """Display shortened wallet address."""
+        if obj.user.address:
+            return f"{obj.user.address[:6]}...{obj.user.address[-4:]}"
+        return '-'
+    user_address_short.short_description = 'Address'
+    
+    def contribution_date_display(self, obj):
+        """Display formatted contribution date."""
+        if obj.contribution_date:
+            return obj.contribution_date.strftime('%b %d, %Y')
+        return '-'
+    contribution_date_display.short_description = 'Date'
+    contribution_date_display.admin_order_field = 'contribution_date'
+    
+    def has_evidence(self, obj):
+        """Check if contribution has evidence."""
+        return obj.evidence_items.exists()
+    has_evidence.boolean = True
+    has_evidence.short_description = 'Evidence'
+    
+    def has_highlight(self, obj):
+        """Check if contribution has a highlight."""
+        return obj.highlights.filter().exists()
+    has_highlight.boolean = True
+    has_highlight.short_description = 'Highlighted'
     
     class Media:
         js = ('admin/js/contribution_type_dynamic.js',)
@@ -293,7 +359,7 @@ class ContributionAdmin(admin.ModelAdmin):
 class SubmittedContributionAdmin(admin.ModelAdmin):
     list_display = ('user', 'contribution_type', 'state', 'contribution_date', 
                    'created_at', 'reviewed_by')
-    list_filter = ('state', 'contribution_type', 'created_at', 'reviewed_at')
+    list_filter = ('state', 'contribution_type__category', 'contribution_type', 'created_at', 'reviewed_at')
     search_fields = ('user__email', 'user__name', 'notes', 'staff_reply')
     date_hierarchy = 'created_at'
     readonly_fields = ('id', 'created_at', 'updated_at', 'last_edited_at', 
@@ -409,3 +475,99 @@ class EvidenceAdmin(admin.ModelAdmin):
         qs = super().get_queryset(request)
         return qs.select_related('contribution__user', 'submitted_contribution__user', 
                                'contribution__contribution_type', 'submitted_contribution__contribution_type')
+
+
+@admin.register(ContributionHighlight)
+class ContributionHighlightAdmin(admin.ModelAdmin):
+    list_display = ('title', 'contribution_id_display', 'contribution_type', 'user_display', 'points_display', 'created_at')
+    list_filter = ('contribution__contribution_type', 'created_at')
+    search_fields = ('title', 'description', 'contribution__id', 'contribution__user__name', 
+                     'contribution__user__email', 'contribution__notes')
+    ordering = ['-created_at']
+    readonly_fields = ('created_at', 'updated_at', 'contribution_details')
+    raw_id_fields = ('contribution',)  # Show only ID in the field
+    
+    fieldsets = (
+        ('Highlight Information', {
+            'fields': ('title', 'description', 'contribution')
+        }),
+        ('Contribution Details', {
+            'fields': ('contribution_details',),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def contribution_id_display(self, obj):
+        """Display contribution ID with link."""
+        if obj.contribution:
+            url = reverse('admin:contributions_contribution_change', args=[obj.contribution.id])
+            return format_html('<a href="{}">#{}</a>', url, obj.contribution.id)
+        return '-'
+    contribution_id_display.short_description = 'Contribution ID'
+    
+    def user_display(self, obj):
+        """Display user name."""
+        if obj.contribution and obj.contribution.user:
+            return obj.contribution.user.name or obj.contribution.user.email
+        return '-'
+    user_display.short_description = 'User'
+    
+    def points_display(self, obj):
+        """Display points earned."""
+        if obj.contribution:
+            return obj.contribution.frozen_global_points
+        return '-'
+    points_display.short_description = 'Points'
+    
+    def contribution_summary(self, obj):
+        """Display a summary of the contribution."""
+        if obj.contribution:
+            user_display = obj.contribution.user.name or obj.contribution.user.address[:8]
+            return f"{user_display} - {obj.contribution.points} pts"
+        return '-'
+    contribution_summary.short_description = 'Contribution'
+    
+    def contribution_type(self, obj):
+        """Display the contribution type."""
+        if obj.contribution:
+            return obj.contribution.contribution_type.name
+        return '-'
+    contribution_type.short_description = 'Type'
+    
+    def contribution_details(self, obj):
+        """Display detailed information about the contribution."""
+        if obj and obj.contribution:
+            contrib = obj.contribution
+            user = contrib.user
+            
+            return format_html(
+                '<div style="padding: 10px; background: #f8f9fa; border-radius: 4px;">'
+                '<strong>User:</strong> {} ({})<br>'
+                '<strong>Type:</strong> {}<br>'
+                '<strong>Points:</strong> {} (Global: {})<br>'
+                '<strong>Date:</strong> {}<br>'
+                '<strong>Notes:</strong> {}'
+                '</div>',
+                user.name or 'No name',
+                user.address,
+                contrib.contribution_type.name,
+                contrib.points,
+                contrib.frozen_global_points,
+                contrib.contribution_date.strftime('%Y-%m-%d %H:%M'),
+                contrib.notes or 'No notes'
+            )
+        return '-'
+    contribution_details.short_description = 'Full Contribution Details'
+    
+    def get_queryset(self, request):
+        """Optimize queryset with select_related."""
+        qs = super().get_queryset(request)
+        return qs.select_related(
+            'contribution',
+            'contribution__user',
+            'contribution__contribution_type'
+        )

@@ -120,7 +120,7 @@
 </script>
 
 <div class="container mx-auto px-4 py-8">
-  <h1 class="text-3xl font-bold mb-8">Submit Contribution</h1>
+  <h1 class="text-2xl font-bold mb-6">Submit Contribution</h1>
   
   {#if loading}
     <div class="flex justify-center py-12">

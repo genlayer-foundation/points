@@ -6,6 +6,7 @@
   import Badge from '../components/Badge.svelte';
   import Pagination from '../components/Pagination.svelte';
   import { contributionsAPI, usersAPI } from '../lib/api';
+  import { currentCategory, categoryTheme } from '../stores/category.js';
   
   // State management
   let contributions = $state([]);
@@ -22,16 +23,24 @@
   let sortOrder = $state('-contribution_date');
   let showUser = $state(true);
   
-  // Watch for changes in page, selectedType, or sortOrder to trigger data fetch
+  // Watch for changes in page, selectedType, sortOrder, or category to trigger data fetch
   $effect(() => {
-    // This will automatically track dependencies (page, selectedType, sortOrder)
-    fetchContributions();
+    // This will automatically track dependencies (page, selectedType, sortOrder, currentCategory)
+    // The dependencies are tracked automatically when they're used in fetchContributions
+    if ($currentCategory !== undefined) {
+      fetchContributions();
+    }
   });
   
   onMount(async () => {
     try {
       typesError = null;
-      const typesRes = await contributionsAPI.getContributionTypes();
+      // Pass category parameter to API
+      const params = {};
+      if ($currentCategory !== 'global') {
+        params.category = $currentCategory;
+      }
+      const typesRes = await contributionsAPI.getContributionTypes(params);
       // Handle paginated response
       contributionTypes = typesRes.data.results || [];
     } catch (err) {
@@ -40,6 +49,22 @@
     }
     
     await fetchContributions();
+  });
+  
+  // Re-fetch contribution types when category changes
+  $effect(() => {
+    if ($currentCategory) {
+      // Fetch contribution types with category filter
+      const params = {};
+      if ($currentCategory !== 'global') {
+        params.category = $currentCategory;
+      }
+      contributionsAPI.getContributionTypes(params).then(typesRes => {
+        contributionTypes = typesRes.data.results || [];
+      }).catch(err => {
+        console.error('Failed to load contribution types:', err);
+      });
+    }
   });
   
   async function fetchContributions() {
@@ -62,6 +87,11 @@
       
       if (selectedType) {
         params.contribution_type = selectedType;
+      }
+      
+      // Add category filter if not global
+      if ($currentCategory !== 'global') {
+        params.category = $currentCategory;
       }
       
       const res = await contributionsAPI.getContributions(params);
@@ -145,10 +175,13 @@
     <div class="px-4 py-5 sm:px-6 flex justify-between items-center flex-wrap all-contributions-header">
       <div>
         <h3 class="text-lg leading-6 font-medium text-gray-900">
-          All Contributions
+          {$currentCategory === 'global' ? 'All' :
+           $currentCategory === 'builder' ? 'Builder' :
+           'Validator'} Contributions
         </h3>
         <p class="mt-1 max-w-2xl text-sm text-gray-500">
-          Recent contributions with points
+          {$currentCategory === 'global' ? 'Recent contributions with points' :
+           `Contributions in the ${$currentCategory} category`}
         </p>
       </div>
       <div class="flex items-center gap-4 mt-2 sm:mt-0">
@@ -196,7 +229,15 @@
       </div>
     {:else if contributions.length === 0}
       <div class="p-6 text-center text-gray-500">
-        No contributions found.
+        {#if $currentCategory === 'builder'}
+          <p class="text-lg mb-2">No builder contributions yet</p>
+          <p class="text-sm">Builder contributions will appear here once builders start contributing to the ecosystem.</p>
+        {:else if $currentCategory === 'steward'}
+          <p class="text-lg mb-2">No steward contributions yet</p>
+          <p class="text-sm">Steward contributions will appear here once stewards start contributing to the community.</p>
+        {:else}
+          No contributions found{selectedType ? ' for this type' : ''}.
+        {/if}
       </div>
     {:else}
       <!-- Loading overlay -->
@@ -265,7 +306,7 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   {#if contribution.evidence_items && contribution.evidence_items.length > 0}
-                    <div class="flex flex-col items-end gap-1">
+                    <div class="flex flex-col items-end gap-2">
                       {#each contribution.evidence_items as evidence}
                         <div class="flex items-center gap-2">
                           {#if evidence.description}

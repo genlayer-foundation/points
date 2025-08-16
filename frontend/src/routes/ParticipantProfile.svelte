@@ -2,11 +2,13 @@
   import { onMount } from 'svelte';
   import { push, querystring } from 'svelte-spa-router';
   import { format } from 'date-fns';
-  import ContributionsList from '../components/ContributionsList.svelte';
+  import UserContributions from '../components/UserContributions.svelte';
+  import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import StatCard from '../components/StatCard.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import { usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
   import { authState } from '../lib/auth';
+  import { getValidatorBalance } from '../lib/blockchain';
   
   // Import route params from svelte-spa-router
   import { params } from 'svelte-spa-router';
@@ -25,12 +27,31 @@
   let error = $state(null);
   let statsError = $state(null);
   let successMessage = $state(null);
+  let balance = $state(null);
+  let loadingBalance = $state(false);
   
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
     $authState.isAuthenticated && 
     participant?.address && 
     $authState.address?.toLowerCase() === participant.address.toLowerCase()
+  );
+  
+  // Determine participant type
+  let participantType = $derived(
+    !participant ? null :
+    participant.validator ? 'validator' :
+    participant.builder ? 'builder' :
+    participant.steward ? 'steward' :
+    'participant'
+  );
+  
+  // Get type-specific color theme
+  let typeColor = $derived(
+    participantType === 'validator' ? 'sky' :
+    participantType === 'builder' ? 'orange' :
+    participantType === 'steward' ? 'green' :
+    'gray'
   );
   
   $effect(() => {
@@ -70,6 +91,19 @@
       console.log("Participant data received:", res.data);
       console.log("Leaderboard entry data:", res.data.leaderboard_entry);
       participant = res.data;
+      
+      // Fetch validator balance
+      if (participant.address) {
+        loadingBalance = true;
+        try {
+          balance = await getValidatorBalance(participant.address);
+        } catch (err) {
+          console.error('Failed to fetch balance:', err);
+          // Don't show error, just leave balance as null
+        } finally {
+          loadingBalance = false;
+        }
+      }
       
       // Also try to fetch the leaderboard entry directly
       try {
@@ -195,23 +229,28 @@
     <div class="mb-6">
       <div class="flex justify-between items-start">
         <div>
-          <h1 class="text-3xl font-bold text-gray-900 flex items-center">
+          <h1 class="text-2xl font-bold text-gray-900 flex items-center">
             {participant.name || (isValidatorOnly ? 'Validator' : 'Participant')} 
+            {#if participantType && participantType !== 'participant'}
+              <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-{typeColor}-100 text-{typeColor}-800 capitalize">
+                {participantType}
+              </span>
+            {/if}
             {#if !isValidatorOnly && participant.visible !== false}
               <span class="ml-3 inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
                 Rank #{participant.leaderboard_entry?.rank || 'N/A'}
               </span>
             {/if}
           </h1>
-          <p class="mt-1 text-sm text-gray-500">
-            {#if isValidatorOnly}
-              This validator has not created an account yet
-            {:else if participant.visible === false}
-              This participant is not currently listed on the leaderboard
-            {:else}
-              Wallet details and contributions
-            {/if}
-          </p>
+          {#if isValidatorOnly || participant.visible === false}
+            <p class="mt-1 text-sm text-gray-500">
+              {#if isValidatorOnly}
+                This validator has not created an account yet
+              {:else if participant.visible === false}
+                This participant is not currently listed on the leaderboard
+              {/if}
+            </p>
+          {/if}
         </div>
         {#if isOwnProfile}
           <button
@@ -227,6 +266,22 @@
       </div>
     </div>
     
+    <!-- Explorer Button - Standalone -->
+    <div class="mb-6">
+      <a 
+        href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${participant.address}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+      >
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+        </svg>
+        View in Testnet Asimov Explorer
+      </a>
+    </div>
+    
+    <!-- Main Information -->
     <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
       <div class="border-t border-gray-200">
         <dl>
@@ -235,14 +290,74 @@
               <dt class="text-sm font-medium text-gray-500">
                 Wallet Address
               </dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 font-mono">
+                {participant.address}
+              </dd>
+            </div>
+            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">
+                Balance
+              </dt>
               <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                <div class="font-mono mb-2">{participant.address}</div>
-                <ValidatorStatus address={participant.address} />
+                {#if loadingBalance}
+                  <span class="text-gray-500">Loading balance...</span>
+                {:else if balance}
+                  <span class="font-mono">{balance.formatted} GEN</span>
+                {:else}
+                  <span class="text-gray-500">Unable to fetch balance</span>
+                {/if}
+              </dd>
+            </div>
+          {/if}
+          {#if participant.validator?.node_version || participant.validator?.target_version}
+            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">
+                Node Version
+              </dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {#if participant.validator?.node_version}
+                  <div class="flex items-center justify-between">
+                    <span class="font-mono text-base font-semibold">{participant.validator.node_version}</span>
+                    {#if participant.validator.matches_target}
+                      <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
+                        <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        Up to date
+                      </span>
+                    {:else}
+                      <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                        <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                        Outdated
+                      </span>
+                    {/if}
+                  </div>
+                  {#if participant.validator.target_version && !participant.validator.matches_target}
+                    <p class="mt-2 text-xs text-gray-600 bg-amber-50 rounded px-2 py-1 inline-block">
+                      📍 Target: {participant.validator.target_version}
+                    </p>
+                  {/if}
+                {:else if participant.validator?.target_version}
+                  <div class="text-gray-500 italic">
+                    Not set
+                    <span class="ml-2 text-xs text-gray-400">(Target: {participant.validator.target_version})</span>
+                  </div>
+                {/if}
               </dd>
             </div>
           {/if}
           {#if !isValidatorOnly}
             <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">
+                Joined
+              </dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {formatDate(participant.created_at)}
+              </dd>
+            </div>
+            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
               <dt class="text-sm font-medium text-gray-500">
                 Total Points
               </dt>
@@ -250,12 +365,14 @@
                 {participant.leaderboard_entry?.total_points ?? '—'}
               </dd>
             </div>
-            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+          {/if}
+          {#if participant.address}
+            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
               <dt class="text-sm font-medium text-gray-500">
-                Joined
+                Validator Status
               </dt>
               <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {formatDate(participant.created_at)}
+                <ValidatorStatus address={participant.address} />
               </dd>
             </div>
           {/if}
@@ -265,7 +382,7 @@
     
     {#if !isValidatorOnly}
       <!-- Stats Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <StatCard 
           title="Total Contributions" 
           value={contributionStats.totalContributions || 0} 
@@ -285,6 +402,18 @@
           color="blue"
         />
       </div>
+      
+      <!-- Highlights Section -->
+      <FeaturedContributions
+        userId={participant.address}
+        limit={5}
+        title="Featured Contributions"
+        cardStyle="highlight"
+        showViewAll={false}
+        className="mb-6"
+        isOwnProfile={isOwnProfile}
+        hideWhenEmpty={!isOwnProfile}
+      />
     {:else}
       <!-- Simple message for validators without accounts -->
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6 text-center">
@@ -298,80 +427,84 @@
     
     
     
-    <!-- Contribution Types Breakdown -->
+    <!-- Contribution Types Breakdown - Visual Cards Style -->
     {#if !isValidatorOnly && contributionStats.contributionTypes && contributionStats.contributionTypes.length > 0}
-      <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
-        <div class="px-4 py-5 sm:px-6">
+      <div class="mb-6">
+        <div class="mb-4">
           <h3 class="text-lg leading-6 font-medium text-gray-900">
             Contribution Breakdown
           </h3>
-          <p class="mt-1 max-w-2xl text-sm text-gray-500">
-            Points by contribution type
+          <p class="mt-1 text-sm text-gray-500">
+            Points distribution across contribution types
           </p>
         </div>
-        <div class="border-t border-gray-200">
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Count
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Points
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    % of Total
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                {#each contributionStats.contributionTypes as type, i}
-                  <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <a 
-                        href={`/contribution-type/${type.id}`}
-                        onclick={(e) => { e.preventDefault(); push(`/contribution-type/${type.id}`); }}
-                        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 cursor-pointer hover:bg-green-200"
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {#each contributionStats.contributionTypes as type}
+            <div class="bg-white shadow rounded-lg p-4 hover:shadow-lg transition-shadow">
+              <div class="flex flex-col h-full">
+                <div class="flex items-start justify-between mb-3">
+                  <div class="flex items-center gap-2 flex-1 min-w-0">
+                    <div class="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
+                      class:bg-purple-500={type.percentage >= 40}
+                      class:bg-blue-500={type.percentage >= 25 && type.percentage < 40}
+                      class:bg-green-500={type.percentage >= 10 && type.percentage < 25}
+                      class:bg-gray-400={type.percentage < 10}
+                    >
+                      <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
+                      </svg>
+                    </div>
+                    <h3 class="text-sm font-semibold text-gray-900 truncate">
+                      <button
+                        class="hover:text-primary-600 transition-colors"
+                        onclick={() => push(`/contribution-type/${type.id}`)}
                       >
                         {type.name}
-                      </a>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {type.count}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                      {type.total_points}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <div class="flex items-center">
-                        <div class="w-full bg-gray-200 rounded-full h-2.5">
-                          <div class="bg-primary-600 h-2.5 rounded-full" style={`width: ${type.percentage}%`}></div>
-                        </div>
-                        <span class="ml-2 text-sm text-gray-600">{type.percentage.toFixed(1)}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
+                      </button>
+                    </h3>
+                  </div>
+                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 ml-2 flex-shrink-0">
+                    {type.total_points} pts
+                  </span>
+                </div>
+                
+                <div class="text-xs text-gray-500 mb-2">
+                  {#if type.count > 1}
+                    × {type.count} contributions
+                  {:else}
+                    × 1 contribution
+                  {/if}
+                </div>
+                
+                <div class="flex items-center gap-2 mt-auto">
+                  <div class="flex-1 bg-gray-200 rounded-full h-2">
+                    <div 
+                      class="h-2 rounded-full transition-all duration-300"
+                      class:bg-purple-500={type.percentage >= 40}
+                      class:bg-blue-500={type.percentage >= 25 && type.percentage < 40}
+                      class:bg-green-500={type.percentage >= 10 && type.percentage < 25}
+                      class:bg-gray-400={type.percentage < 10}
+                      style={`width: ${type.percentage}%`}
+                    ></div>
+                  </div>
+                  <span class="text-xs text-gray-600 font-medium min-w-[2.5rem] text-right">
+                    {type.percentage.toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          {/each}
         </div>
       </div>
     {/if}
     
     <!-- Contributions -->
     {#if !isValidatorOnly}
-      <div>
-        <h2 class="text-xl font-semibold text-gray-900 mb-4">{participant.name || 'Participant'}'s Contributions</h2>
-        <ContributionsList
-          userAddress={participant.address}
-          showUser={false}
-        />
-      </div>
+      <UserContributions
+        userAddress={participant.address}
+        userName={participant.name || 'Participant'}
+      />
     {/if}
   {:else}
     <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded">

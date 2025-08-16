@@ -39,6 +39,21 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = self.get_serializer(user)
         return Response(serializer.data)
     
+    @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)/highlights')
+    def user_highlights(self, request, address=None):
+        """
+        Get highlights for a specific user by their address
+        """
+        from contributions.models import ContributionHighlight
+        from contributions.serializers import ContributionHighlightSerializer
+        
+        user = get_object_or_404(User, address__iexact=address)
+        limit = int(request.query_params.get('limit', 5))
+        
+        highlights = ContributionHighlight.get_active_highlights(user=user, limit=limit)
+        serializer = ContributionHighlightSerializer(highlights, many=True)
+        return Response(serializer.data)
+    
     def get_serializer_class(self):
         if self.action == 'create':
             return UserCreateSerializer

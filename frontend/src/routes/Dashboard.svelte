@@ -1,15 +1,17 @@
 <script>
   import { onMount } from 'svelte';
+  import { format } from 'date-fns';
   import StatCard from '../components/StatCard.svelte';
-  import LeaderboardTable from '../components/LeaderboardTable.svelte';
-  import ContributionsList from '../components/ContributionsList.svelte';
-  import { leaderboardAPI, contributionsAPI, usersAPI, statsAPI } from '../lib/api';
-  import { authState } from '../lib/auth.js';
+  import TopLeaderboard from '../components/TopLeaderboard.svelte';
+  import FeaturedContributions from '../components/FeaturedContributions.svelte';
+  import RecentContributions from '../components/RecentContributions.svelte';
+  import GlobalDashboard from '../components/GlobalDashboard.svelte';
+  import { contributionsAPI, usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
   import { push } from 'svelte-spa-router';
+  import { currentCategory, categoryTheme } from '../stores/category.js';
   
   // State management
-  let leaderboard = $state([]);
-  let contributions = $state([]);
+  let newestValidators = $state([]);
   let stats = $state({
     totalParticipants: 0,
     totalContributions: 0,
@@ -17,69 +19,113 @@
     lastUpdated: null
   });
   
-  let leaderboardLoading = $state(true);
-  let contributionsLoading = $state(true);
+  let newestValidatorsLoading = $state(true);
   let statsLoading = $state(true);
-  let leaderboardError = $state(null);
-  let contributionsError = $state(null);
+  let newestValidatorsError = $state(null);
   let statsError = $state(null);
   
-  // Tab state
-  let activeTab = $state('leaderboard');
+  // Format date helper
+  const formatDate = (dateString) => {
+    try {
+      return format(new Date(dateString), 'MMM d, yyyy');
+    } catch (e) {
+      return dateString;
+    }
+  };
   
-  // Fetch data
-  onMount(async () => {
+  // Function to fetch data based on category
+  async function fetchDashboardData() {
+    
     try {
-      // Fetch leaderboard
-      leaderboardLoading = true;
-      const leaderboardRes = await leaderboardAPI.getLeaderboard();
-      // API now returns unpaginated data, so it's directly in data
-      leaderboard = leaderboardRes.data || [];
-      leaderboardLoading = false;
+      // Fetch newest participants based on category
+      newestValidatorsLoading = true;
+      
+      // Build params based on category
+      const params = { 
+        limit: 20, 
+        ordering: '-contribution_date'
+      };
+      
+      // For validators, look for Uptime contributions
+      // For other categories, get any recent contributions
+      if ($currentCategory === 'validator') {
+        params.contribution_type_name = 'Uptime';
+      } else if ($currentCategory !== 'global') {
+        params.category = $currentCategory;
+      }
+      
+      const uptimeRes = await contributionsAPI.getContributions(params);
+      
+      // Extract unique users from uptime contributions
+      const seenUsers = new Set();
+      const uniqueValidators = [];
+      
+      if (uptimeRes.data && uptimeRes.data.results) {
+        for (const contribution of uptimeRes.data.results) {
+          if (contribution.user_details && !seenUsers.has(contribution.user_details.address)) {
+            seenUsers.add(contribution.user_details.address);
+            uniqueValidators.push({
+              ...contribution.user_details,
+              first_uptime_date: contribution.contribution_date
+            });
+            if (uniqueValidators.length >= 5) break;
+          }
+        }
+      }
+      
+      newestValidators = uniqueValidators;
+      newestValidatorsLoading = false;
     } catch (error) {
-      leaderboardError = error.message || 'Failed to load leaderboard';
-      leaderboardLoading = false;
+      newestValidatorsError = error.message || `Failed to load newest ${$currentCategory === 'validator' ? 'validators' : $currentCategory === 'builder' ? 'builders' : 'participants'}`;
+      newestValidatorsLoading = false;
     }
     
     try {
-      // Fetch recent contributions
-      contributionsLoading = true;
-      const contributionsRes = await contributionsAPI.getContributions({ limit: 5, ordering: '-created_at' });
-      contributions = contributionsRes.data.results || [];
-      contributionsLoading = false;
-    } catch (error) {
-      contributionsError = error.message || 'Failed to load contributions';
-      contributionsLoading = false;
-    }
-    
-    try {
-      // Fetch stats
+      // Fetch stats based on category
       statsLoading = true;
       
-      // Try to get from the stats API first
-      try {
-        const dashboardStats = await statsAPI.getDashboardStats();
-        if (dashboardStats.data) {
+      if ($currentCategory === 'global') {
+        // For global, use the stats API
+        try {
+          const dashboardStats = await statsAPI.getDashboardStats();
+          if (dashboardStats.data) {
+            stats = {
+              totalParticipants: dashboardStats.data.participant_count || 0,
+              totalContributions: dashboardStats.data.contribution_count || 0,
+              totalPoints: dashboardStats.data.total_points || 0,
+              lastUpdated: new Date().toISOString()
+            };
+          }
+        } catch (statsApiError) {
+          console.warn('Stats API failed, falling back to individual requests', statsApiError);
+          
+          // Fallback to individual requests
+          const [participantCountRes, contributionsRes] = await Promise.all([
+            usersAPI.getParticipantCount(),
+            contributionsAPI.getContributions({ limit: 1 })
+          ]);
+          
           stats = {
-            totalParticipants: dashboardStats.data.participant_count || 0,
-            totalContributions: dashboardStats.data.contribution_count || 0,
-            totalPoints: dashboardStats.data.total_points || 0,
+            totalParticipants: participantCountRes.data.count || 0,
+            totalContributions: contributionsRes.data.count || 0,
+            totalPoints: 0,
             lastUpdated: new Date().toISOString()
           };
         }
-      } catch (statsApiError) {
-        console.warn('Stats API failed, falling back to individual requests', statsApiError);
-        
-        // Fallback to individual requests
-        const [participantCountRes, contributionsRes] = await Promise.all([
-          usersAPI.getParticipantCount(),
-          contributionsAPI.getContributions({ limit: 1 }) // Just to get count from the response
+      } else {
+        // For categories, fetch filtered data using category endpoint
+        const [leaderboardRes, contributionsRes] = await Promise.all([
+          leaderboardAPI.getCategoryLeaderboard($currentCategory),
+          contributionsAPI.getContributions({ category: $currentCategory, limit: 1 })
         ]);
         
+        const categoryEntries = leaderboardRes.data.entries || [];
+        const categoryContributions = contributionsRes.data;
+        
         stats = {
-          totalParticipants: participantCountRes.data.count || 0,
-          totalContributions: contributionsRes.data.count || 0,
-          totalPoints: leaderboard.reduce((sum, entry) => sum + entry.total_points, 0),
+          totalParticipants: categoryEntries.length,
+          totalContributions: categoryContributions.count || 0,
+          totalPoints: categoryEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0),
           lastUpdated: new Date().toISOString()
         };
       }
@@ -89,6 +135,16 @@
       statsError = error.message || 'Failed to load statistics';
       statsLoading = false;
       console.error('Error fetching dashboard stats:', error);
+    }
+  }
+  
+  // Fetch data when category changes (including initial mount)
+  let previousCategory = $state(null);
+  
+  $effect(() => {
+    if ($currentCategory && $currentCategory !== previousCategory) {
+      previousCategory = $currentCategory;
+      fetchDashboardData();
     }
   });
   
@@ -100,25 +156,23 @@
   };
 </script>
 
-<div class="space-y-6">
-  <div class="flex justify-between items-center">
-    <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
-    {#if $authState.isAuthenticated}
-      <button
-        onclick={() => push('/submit-contribution')}
-        class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 flex items-center gap-2"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-        </svg>
-        Submit Contribution
-      </button>
-    {/if}
-  </div>
+{#if $currentCategory === 'global'}
+  <!-- Global Dashboard - Use separate component -->
+  <GlobalDashboard />
+{:else}
+  <!-- Category-specific Dashboard -->
+  <div class="space-y-8">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">
+        {$currentCategory === 'builder' ? 'Builders' :
+         $currentCategory === 'validator' ? 'Validators' :
+         $currentCategory === 'steward' ? 'Stewards' : 'Dashboard'}
+      </h1>
+    </div>
   
   <!-- Connection error message if needed -->
-  {#if statsError || leaderboardError || contributionsError}
-    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+  {#if statsError}
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
       <div class="flex">
         <div class="flex-shrink-0">
           <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -135,7 +189,7 @@
   {/if}
 
   <!-- Stats Section -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
     <StatCard 
       title="Total Participants" 
       value={statsLoading ? '...' : (stats.totalParticipants || 0)} 
@@ -156,82 +210,166 @@
     />
   </div>
   
-  <!-- Tab Navigation (Transparent) -->
-  <div class="border-b border-gray-200">
-    <nav class="-mb-px flex space-x-4 sm:space-x-8" aria-label="Tabs">
-      <button
-        onclick={() => activeTab = 'leaderboard'}
-        class="
-          {activeTab === 'leaderboard' 
-            ? 'border-primary-500 text-primary-600' 
-            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} 
-          whitespace-nowrap py-3 sm:py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex-1 sm:flex-initial
-        "
-      >
-        <div class="flex items-center justify-center sm:justify-start gap-1 sm:gap-2">
-          <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-          </svg>
-          <span class="text-xs sm:text-sm">Leaderboard</span>
+  <!-- First Row: Leaderboard and Highlights -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <!-- Top Leaderboard -->
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-purple-100 rounded-lg">
+            <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-900">
+            Top {$currentCategory === 'builder' ? 'Builders' : 
+                 $currentCategory === 'validator' ? 'Validators' :
+                 $currentCategory === 'steward' ? 'Stewards' : 'Participants'}
+          </h2>
         </div>
-      </button>
-      
-      <button
-        onclick={() => activeTab = 'contributions'}
-        class="
-          {activeTab === 'contributions' 
-            ? 'border-primary-500 text-primary-600' 
-            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} 
-          whitespace-nowrap py-3 sm:py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex-1 sm:flex-initial
-        "
-      >
-        <div class="flex items-center justify-center sm:justify-start gap-1 sm:gap-2">
-          <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        <button
+          onclick={() => push($currentCategory === 'builder' ? '/builders/leaderboard' : $currentCategory === 'validator' ? '/validators/leaderboard' : '/leaderboard')}
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
+        >
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
           </svg>
-          <span class="text-xs sm:text-sm">Recent</span>
+        </button>
+      </div>
+      <TopLeaderboard 
+        showHeader={false}
+      />
+    </div>
+    
+    <!-- Featured Highlights -->
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-yellow-100 rounded-lg">
+            <svg class="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-900">Featured Contributions</h2>
         </div>
-      </button>
-    </nav>
+        <button
+          onclick={() => push($currentCategory === 'builder' ? '/builders/contributions/highlights' : $currentCategory === 'validator' ? '/validators/contributions/highlights' : '/contributions/highlights')}
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
+        >
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
+        </button>
+      </div>
+      <FeaturedContributions 
+        showHeader={false}
+        showViewAll={false}
+        cardStyle="highlight"
+      />
+    </div>
   </div>
   
-  <!-- Tab Content -->
-  <div class="mt-6">
-    {#if activeTab === 'leaderboard'}
-      <div class="space-y-4">
-        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-          <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Top Contributors</h2>
-          <button
-            onclick={() => push('/leaderboard')}
-            class="text-sm text-primary-600 hover:text-primary-700 font-medium self-start sm:self-auto"
-          >
-            View All →
-          </button>
+  <!-- Second Row: Newest Validators and Recent Contributions -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <!-- Newest Validators -->
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-blue-100 rounded-lg">
+            <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-900">
+            Newest {$currentCategory === 'builder' ? 'Builders' : 
+                    $currentCategory === 'validator' ? 'Validators' :
+                    $currentCategory === 'steward' ? 'Stewards' : 'Participants'}
+          </h2>
         </div>
-        <LeaderboardTable
-          entries={(leaderboard || []).slice(0, 10)} 
-          loading={leaderboardLoading}
-          error={leaderboardError}
-        />
+        <button
+          onclick={() => push($currentCategory === 'builder' ? '/builders/participants' : $currentCategory === 'validator' ? '/validators/participants' : '/participants')}
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
+        >
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
+        </button>
       </div>
-    {:else if activeTab === 'contributions'}
-      <div class="space-y-4">
-        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-          <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Recent Contributions</h2>
-          <button
-            onclick={() => push('/contributions')}
-            class="text-sm text-primary-600 hover:text-primary-700 font-medium self-start sm:self-auto"
-          >
-            View All →
-          </button>
+      
+      {#if newestValidatorsLoading}
+        <div class="flex justify-center items-center p-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
-        <ContributionsList
-          contributions={contributions || []}
-          loading={contributionsLoading}
-          error={contributionsError}
-          showUser={true}
-        />
+      {:else if newestValidatorsError}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <p>{newestValidatorsError}</p>
+        </div>
+      {:else if newestValidators.length === 0}
+        <div class="bg-gray-50 rounded-lg p-6 text-center">
+          <p class="text-gray-500">No new validators yet.</p>
+        </div>
+      {:else}
+        <div class="bg-white shadow rounded-lg divide-y divide-gray-200">
+          {#each newestValidators as validator}
+            <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+              <div class="flex items-center gap-2">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center flex-shrink-0">
+                  <span class="text-sm font-bold text-blue-600">
+                    {validator.name ? validator.name.charAt(0).toUpperCase() : '#'}
+                  </span>
+                </div>
+                <div class="min-w-0">
+                  <button
+                    class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors truncate"
+                    onclick={() => push(`/participant/${validator.address}`)}
+                  >
+                    {validator.name || `${validator.address.slice(0, 6)}...${validator.address.slice(-4)}`}
+                  </button>
+                  <div class="text-xs text-gray-500">
+                    {formatDate(validator.first_uptime_date || validator.created_at)}
+                  </div>
+                </div>
+              </div>
+              <button
+                onclick={() => push(`/participant/${validator.address}`)}
+                class="text-xs text-primary-600 hover:text-primary-700 font-medium flex-shrink-0"
+              >
+                View →
+              </button>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
+    
+    <!-- Recent Contributions -->
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-green-100 rounded-lg">
+            <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-900">Recent Contributions</h2>
+        </div>
+        <button
+          onclick={() => push($currentCategory === 'builder' ? '/builders/contributions' : $currentCategory === 'validator' ? '/validators/contributions' : '/contributions')}
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
+        >
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
+        </button>
       </div>
-    {/if}
+      <RecentContributions 
+        showHeader={false}
+      />
+    </div>
   </div>
-</div>
+  </div>
+{/if}

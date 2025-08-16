@@ -1,7 +1,6 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
-  import Badge from './Badge.svelte';
   import Pagination from './Pagination.svelte';
   import { contributionsAPI } from '../lib/api';
   
@@ -15,6 +14,84 @@
   let localContributions = $state(contributions || []);
   let localLoading = $state(externalLoading);
   let localError = $state(externalError);
+  
+  // Process contributions - handle both grouped and ungrouped formats
+  function processContributions(contribs) {
+    if (!contribs || contribs.length === 0) return [];
+    
+    // Check if data is already grouped (from backend)
+    if (contribs[0] && contribs[0].grouped_contributions) {
+      // Data is already grouped, just format it for display
+      return contribs.map(group => ({
+        id: group.id,
+        typeId: group.contribution_type.id,
+        typeName: group.contribution_type_name || group.contribution_type.name,
+        count: group.count || group.grouped_contributions.length,
+        totalPoints: group.frozen_global_points,
+        startDate: group.contribution_date,
+        endDate: group.end_date || group.contribution_date,
+        users: group.users || (group.user_details ? [group.user_details] : []),
+        userDetails: group.user_details  // For single-user groups
+      }));
+    }
+    
+    // Data is not grouped (fallback for old API or when group_consecutive=false)
+    // Group consecutive contributions of the same type
+    const grouped = [];
+    let currentGroup = null;
+    
+    for (const contrib of contribs) {
+      const typeId = contrib.contribution_type?.id || contrib.contribution_type;
+      const typeName = contrib.contribution_type_name || contrib.contribution_type?.name || 'Unknown Type';
+      
+      if (!currentGroup || currentGroup.typeId !== typeId) {
+        // Start a new group
+        currentGroup = {
+          id: `group_${contrib.id}`,
+          typeId,
+          typeName,
+          count: 1,
+          totalPoints: contrib.frozen_global_points || 0,
+          startDate: contrib.contribution_date,
+          endDate: contrib.contribution_date,
+          users: [],
+          userDetails: contrib.user_details
+        };
+        
+        if (contrib.user_details) {
+          currentGroup.users = [{
+            address: contrib.user_details.address,
+            name: contrib.user_details.name
+          }];
+        }
+        
+        grouped.push(currentGroup);
+      } else {
+        // Add to existing group
+        currentGroup.count++;
+        currentGroup.totalPoints += (contrib.frozen_global_points || 0);
+        currentGroup.endDate = contrib.contribution_date;
+        
+        // Add unique user
+        if (contrib.user_details) {
+          const userExists = currentGroup.users.some(u => 
+            u.address === contrib.user_details.address
+          );
+          if (!userExists) {
+            currentGroup.users.push({
+              address: contrib.user_details.address,
+              name: contrib.user_details.name
+            });
+          }
+        }
+      }
+    }
+    
+    return grouped;
+  }
+  
+  // Process contributions for display
+  let processedContributions = $derived(processContributions(localContributions));
   
   // Watch for external prop changes
   $effect(() => {
@@ -72,16 +149,7 @@
   }
 </script>
 
-<div class="bg-white shadow overflow-hidden rounded-lg">
-  <div class="px-4 py-5 sm:px-6">
-    <h3 class="text-lg leading-6 font-medium text-gray-900">
-      Contributions
-    </h3>
-    <p class="mt-1 max-w-2xl text-sm text-gray-500">
-      Recent contributions with points
-    </p>
-  </div>
-  
+<div>
   {#if localLoading}
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -95,113 +163,85 @@
       No contributions found.
     </div>
   {:else}
-    <div class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            {#if showUser}
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Contributor
-              </th>
-            {/if}
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Type
-            </th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Date
-            </th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Points
-            </th>
-            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Evidence
-            </th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-          {#each localContributions as contribution, i}
-            <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-              {#if showUser}
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="flex items-center">
-                    <div class="text-sm font-medium text-gray-900">
-                      <a href={`/participant/${contribution.user_details?.address || ''}`} onclick={(e) => { e.preventDefault(); push(`/participant/${contribution.user_details?.address || ''}`); }}>
-                        {contribution.user_details?.name || contribution.user_details?.address || 'N/A'}
-                      </a>
-                    </div>
-                  </div>
-                </td>
-              {/if}
-              <td class="px-6 py-4 whitespace-nowrap">
-                <Badge
-                  badge={{
-                    id: contribution.contribution_type?.id || contribution.contribution_type,
-                    name: contribution.contribution_type_name || (contribution.contribution_type?.name) || 'Unknown Type',
-                    description: contribution.contribution_type_description || contribution.contribution_type?.description || '',
-                    points: 0,
-                    actionId: contribution.contribution_type?.id || contribution.contribution_type,
-                    actionName: contribution.contribution_type_name || (contribution.contribution_type?.name) || 'Unknown Type',
-                    evidenceUrl: ''
-                  }}
-                  color="green"
-                  clickable={true}
-                />
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {formatDate(contribution.contribution_date)}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">
-                  {contribution.frozen_global_points != null ? contribution.frozen_global_points : 0}
+    <div class="space-y-3">
+      {#each processedContributions as group}
+        <div class="bg-white shadow rounded-lg p-4 hover:shadow-lg transition-shadow">
+          <div class="flex items-start justify-between">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-2">
+                <div class="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
+                  </svg>
                 </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                {#if contribution.evidence_items && contribution.evidence_items.length > 0}
-                  <div class="flex flex-col items-end gap-1">
-                    {#each contribution.evidence_items as evidence}
-                      <div class="flex items-center gap-2">
-                        {#if evidence.description}
-                          <span class="text-xs text-gray-500 max-w-xs truncate text-right" title={evidence.description}>
-                            {evidence.description}
-                          </span>
-                        {/if}
-                        
-                        {#if evidence.url}
-                          <a href={evidence.url} target="_blank" rel="noopener noreferrer" 
-                             class="inline-flex items-center text-primary-600 hover:text-primary-900">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                          </a>
-                        {/if}
-                        
-                        {#if evidence.file_url}
-                          <a href={evidence.file_url} target="_blank" rel="noopener noreferrer" 
-                             class="inline-flex items-center text-primary-600 hover:text-primary-900">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                          </a>
-                        {/if}
-                      </div>
-                    {/each}
-                  </div>
-                {:else}
-                  <span class="text-gray-400">None</span>
+                <h3 class="text-base font-semibold text-gray-900 flex items-center gap-2">
+                  <button
+                    class="hover:text-primary-600 transition-colors"
+                    onclick={() => push(`/contribution-type/${group.typeId}`)}
+                  >
+                    {group.typeName}
+                  </button>
+                  {#if group.count > 1}
+                    <span class="text-sm font-normal text-gray-500">
+                      × {group.count}
+                    </span>
+                  {/if}
+                </h3>
+              </div>
+              
+              <div class="flex items-center gap-3 text-xs">
+                {#if showUser}
+                  {#if group.users.length === 1}
+                    <button 
+                      class="text-primary-600 hover:text-primary-700 font-medium"
+                      onclick={() => push(`/participant/${group.users[0].address || ''}`)}
+                    >
+                      {group.users[0].name || `${group.users[0].address?.slice(0, 6)}...${group.users[0].address?.slice(-4)}` || 'Anonymous'}
+                    </button>
+                  {:else if group.users.length > 1}
+                    <span class="text-primary-600 font-medium">
+                      {group.users.length} participants
+                    </span>
+                  {:else if group.userDetails}
+                    <button 
+                      class="text-primary-600 hover:text-primary-700 font-medium"
+                      onclick={() => push(`/participant/${group.userDetails.address || ''}`)}
+                    >
+                      {group.userDetails.name || `${group.userDetails.address?.slice(0, 6)}...${group.userDetails.address?.slice(-4)}` || 'Anonymous'}
+                    </button>
+                  {/if}
+                  <span class="text-gray-400">•</span>
                 {/if}
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+                <span class="text-gray-500">
+                  {#if group.count === 1}
+                    {formatDate(group.startDate)}
+                  {:else}
+                    {formatDate(group.startDate)} - {formatDate(group.endDate)}
+                  {/if}
+                </span>
+              </div>
+            </div>
+            
+            <div class="ml-3 flex-shrink-0">
+              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                {group.totalPoints} pts
+              </span>
+            </div>
+          </div>
+        </div>
+      {/each}
     </div>
     
-    <!-- Pagination -->
-    <Pagination 
-      page={page} 
-      limit={limit} 
-      totalCount={totalCount} 
-      on:pageChange={handlePageChange} 
-    />
+    {#if userAddress}
+      <!-- Pagination -->
+      <div class="mt-4">
+        <Pagination 
+          page={page} 
+          limit={limit} 
+          totalCount={totalCount} 
+          on:pageChange={handlePageChange} 
+        />
+      </div>
+    {/if}
   {/if}
 </div>

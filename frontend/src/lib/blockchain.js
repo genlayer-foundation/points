@@ -83,3 +83,25 @@ export async function getActiveValidators() {
     throw error;
   }
 }
+
+/**
+ * Get the balance of a validator address
+ * @param {string} address - The validator's wallet address
+ * @returns {Promise<{balance: bigint, formatted: string}>} Balance in wei and formatted in GEN
+ */
+export async function getValidatorBalance(address) {
+  try {
+    const balance = await publicClient.getBalance({ address });
+    
+    // Format balance to GEN (divide by 10^18, same decimals as ETH)
+    const formatted = (Number(balance) / 1e18).toFixed(4);
+    
+    return {
+      balance, // BigInt value in wei
+      formatted // String value in GEN
+    };
+  } catch (error) {
+    console.error('Error fetching validator balance:', error);
+    throw error;
+  }
+}

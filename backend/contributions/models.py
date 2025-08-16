@@ -3,10 +3,33 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
+from django.utils import timezone
 from utils.models import BaseModel
 import decimal
 import os
 import uuid
+
+
+class Category(BaseModel):
+    """
+    Defines a user category (Validator, Builder, Steward).
+    Each category has its own profile model and contribution types.
+    """
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(unique=True)
+    description = models.TextField(blank=True)
+    profile_model = models.CharField(
+        max_length=100, 
+        blank=True,
+        help_text="App.Model reference for the profile model (e.g., 'validators.Validator')"
+    )
+    
+    class Meta:
+        verbose_name_plural = "Categories"
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
 
 def evidence_file_path(instance, filename):
     """Generate a unique file path for evidence files."""
@@ -42,7 +65,16 @@ class ContributionType(BaseModel):
     Examples: Node Runner, Uptime, Asimov, Blog Post, etc.
     """
     name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=100, unique=True, null=True, blank=True, help_text="Unique identifier for this contribution type")
     description = models.TextField(blank=True)
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE,
+        related_name='contribution_types',
+        null=True,  # Temporarily nullable for migration
+        blank=True,
+        help_text="The category this contribution type belongs to"
+    )
     min_points = models.PositiveIntegerField(default=0, help_text="Minimum points allowed for this contribution type")
     max_points = models.PositiveIntegerField(default=100, help_text="Maximum points allowed for this contribution type")
     is_default = models.BooleanField(default=False, help_text="Include this contribution type by default when creating validators")
@@ -292,3 +324,60 @@ class Evidence(BaseModel):
     class Meta:
         verbose_name = "Evidence"
         verbose_name_plural = "Evidence Items"
+
+
+class ContributionHighlight(BaseModel):
+    """
+    Represents a highlighted contribution to be featured on the dashboard and contribution type pages.
+    Staff can select specific contributions to highlight with custom descriptions.
+    """
+    contribution = models.ForeignKey(
+        'Contribution',
+        on_delete=models.CASCADE,
+        related_name='highlights'
+    )
+    title = models.CharField(
+        max_length=200,
+        help_text="Short title for the highlight"
+    )
+    description = models.TextField(
+        help_text="Detailed description of why this contribution is noteworthy"
+    )
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Contribution Highlight"
+        verbose_name_plural = "Contribution Highlights"
+    
+    def __str__(self):
+        return f"{self.title} - {self.contribution.user.name or self.contribution.user.address[:8]}"
+    
+    @classmethod
+    def get_active_highlights(cls, contribution_type=None, user=None, limit=5):
+        """
+        Get highlights, optionally filtered by contribution type or user.
+        Ordered by creation date (newest first).
+        
+        Args:
+            contribution_type: Optional ContributionType to filter by
+            user: Optional User to filter by
+            limit: Maximum number of highlights to return (default 5)
+        """
+        queryset = cls.objects.all()
+        
+        # Filter by contribution type if provided
+        if contribution_type:
+            queryset = queryset.filter(contribution__contribution_type=contribution_type)
+        
+        # Filter by user if provided
+        if user:
+            queryset = queryset.filter(contribution__user=user)
+        
+        # Select related for optimization
+        queryset = queryset.select_related(
+            'contribution',
+            'contribution__user',
+            'contribution__contribution_type'
+        )
+        
+        return queryset[:limit]

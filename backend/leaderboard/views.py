@@ -5,6 +5,7 @@ from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ranks
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
+from contributions.models import Category
 
 
 class GlobalLeaderboardMultiplierViewSet(viewsets.ReadOnlyModelViewSet):
@@ -50,6 +51,29 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['rank']
     pagination_class = None  # Disable pagination to return all entries
     
+    def get_queryset(self):
+        """
+        Filter leaderboard by category if provided in query params.
+        """
+        queryset = super().get_queryset()
+        
+        # Get category from query params
+        category_slug = self.request.query_params.get('category')
+        
+        if category_slug and category_slug != 'global':
+            # Filter by specific category
+            try:
+                category = Category.objects.get(slug=category_slug)
+                queryset = queryset.filter(category=category)
+            except Category.DoesNotExist:
+                # If category doesn't exist, return empty queryset
+                queryset = queryset.none()
+        elif not category_slug or category_slug == 'global':
+            # Default to global leaderboard (category=None)
+            queryset = queryset.filter(category=None)
+        
+        return queryset.order_by('rank')
+    
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAdminUser])
     def recalculate(self, request):
         """
@@ -63,9 +87,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def top(self, request):
         """
-        Get the top 10 users on the leaderboard.
+        Get the top 10 users on the global leaderboard.
         """
-        top_entries = LeaderboardEntry.objects.filter(user__visible=True).order_by('rank')[:10]
+        top_entries = LeaderboardEntry.objects.filter(user__visible=True, category=None).order_by('rank')[:10]
         serializer = self.get_serializer(top_entries, many=True)
         return Response(serializer.data)
         
@@ -175,3 +199,41 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             
         stats = self._get_user_stats(user)
         return Response(stats)
+    
+    @action(detail=False, methods=['get'], url_path='category/(?P<category_slug>[^/.]+)')
+    def category_leaderboard(self, request, category_slug=None):
+        """
+        Get leaderboard for a specific category.
+        """
+        try:
+            category = Category.objects.get(slug=category_slug)
+        except Category.DoesNotExist:
+            return Response({'error': 'Category not found'}, status=404)
+        
+        # Get leaderboard entries for this category
+        entries = LeaderboardEntry.objects.filter(
+            category=category,
+            user__visible=True
+        ).select_related('user').order_by('rank')
+        
+        # Serialize the data
+        data = []
+        for entry in entries:
+            data.append({
+                'rank': entry.rank,
+                'user': {
+                    'id': entry.user.id,
+                    'name': entry.user.name,
+                    'address': entry.user.address,
+                },
+                'total_points': entry.total_points,
+            })
+        
+        return Response({
+            'category': {
+                'name': category.name,
+                'slug': category.slug,
+                'description': category.description,
+            },
+            'entries': data
+        })
