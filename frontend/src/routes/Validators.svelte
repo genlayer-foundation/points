@@ -36,14 +36,24 @@
         
         const activeValidators = activeRes.data;
       
-      // Get all unique validator addresses
-      const allAddresses = [...new Set([...activeValidators, ...bannedValidators])];
+      // Filter out 0x000 addresses and get all unique validator addresses
+      const isValidAddress = (addr) => {
+        return addr && 
+               addr.toLowerCase() !== '0x0000000000000000000000000000000000000000' &&
+               addr.toLowerCase() !== '0x000' &&
+               addr !== '0x0';
+      };
+      
+      const filteredActiveValidators = activeValidators.filter(isValidAddress);
+      const filteredBannedValidators = bannedValidators.filter(isValidAddress);
+      
+      const allAddresses = [...new Set([...filteredActiveValidators, ...filteredBannedValidators])];
       
       // Prepare validators with status
       const validatorsWithStatus = allAddresses.map(address => ({
         address,
-        isActive: activeValidators.includes(address),
-        isBanned: bannedValidators.includes(address),
+        isActive: filteredActiveValidators.includes(address),
+        isBanned: filteredBannedValidators.includes(address),
         user: null,
         score: null
       }));
@@ -196,7 +206,7 @@
     </a>
   </div>
   
-  <h1 class="text-3xl font-bold text-gray-900 mb-5">
+  <h1 class="text-2xl font-bold text-gray-900 mb-6">
     {$currentCategory === 'builder' ? 'GenLayer Builders' : 
      $currentCategory === 'validator' ? 'GenLayer Validators' :
      'GenLayer Participants'}
@@ -223,6 +233,7 @@
             {#if $currentCategory === 'validator'}
               Active: {validators.filter(v => v.isActive).length} | 
               Banned: {validators.filter(v => v.isBanned).length} | 
+              Inactive: {validators.filter(v => !v.isActive && !v.isBanned).length} | 
               Up to date: {validators.filter(v => v.matchesTarget).length}/{validators.filter(v => v.targetVersion).length}
             {:else}
               Total participants in {$currentCategory} category
@@ -266,13 +277,26 @@
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <a 
-                    href={`/participant/${validator.address}`}
-                    onclick={(e) => { e.preventDefault(); push(`/participant/${validator.address}`); }}
-                    class="text-primary-600 hover:text-primary-800 font-mono"
-                  >
-                    {truncateAddress(validator.address)}
-                  </a>
+                  <div class="flex items-center gap-2">
+                    <a 
+                      href={`/participant/${validator.address}`}
+                      onclick={(e) => { e.preventDefault(); push(`/participant/${validator.address}`); }}
+                      class="text-primary-600 hover:text-primary-800 font-mono"
+                    >
+                      {truncateAddress(validator.address)}
+                    </a>
+                    <a 
+                      href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${validator.address}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-gray-400 hover:text-gray-600"
+                      title="View in Explorer"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                      </svg>
+                    </a>
+                  </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   {#if validator.user && validator.user.name}

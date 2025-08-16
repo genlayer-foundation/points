@@ -47,6 +47,7 @@ export const usersAPI = {
   getUsers: (params) => api.get('/users/', { params }),
   getUser: (address) => api.get(`/users/${address}/`),
   getUserByAddress: (address) => api.get(`/users/by-address/${address}/`),
+  getUserHighlights: (address, params) => api.get(`/users/by-address/${address}/highlights/`, { params }),
   getUserCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.participant_count }
   })),
@@ -59,12 +60,23 @@ export const usersAPI = {
 
 // API endpoints for contributions
 export const contributionsAPI = {
-  getContributions: (params) => api.get('/contributions/', { params }),
+  getContributions: (params) => {
+    // Add group_consecutive parameter by default for better UX
+    const enhancedParams = {
+      group_consecutive: true,
+      ...params
+    };
+    return api.get('/contributions/', { params: enhancedParams });
+  },
   getContribution: (id) => api.get(`/contributions/${id}/`),
-  getContributionsByUser: (address) => api.get(`/contributions/?user_address=${address}`),
+  getContributionsByUser: (address) => api.get(`/contributions/?user_address=${address}&group_consecutive=true`),
   getContributionTypes: (params) => api.get('/contribution-types/', { params }),
   getContributionType: (id) => api.get(`/contribution-types/${id}/`),
   getContributionTypeStatistics: (params) => api.get('/contribution-types/statistics/', { params }),
+  getContributionTypeTopContributors: (id) => api.get(`/contribution-types/${id}/top_contributors/`),
+  getContributionTypeRecentContributions: (id) => api.get(`/contribution-types/${id}/recent_contributions/`),
+  getContributionTypeHighlights: (id) => api.get(`/contribution-types/${id}/highlights/`),
+  getAllHighlights: () => api.get('/contribution-types/all_highlights/'),
   getContributionCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.contribution_count }
   }))

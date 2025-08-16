@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ContributionType, Contribution, SubmittedContribution, Evidence
+from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight
 from users.serializers import UserSerializer
 import decimal
 
@@ -48,22 +48,23 @@ class ContributionSerializer(serializers.ModelSerializer):
         # Handle potentially corrupted multiplier_at_creation
         try:
             if ret.get('multiplier_at_creation') is not None:
-                float(ret['multiplier_at_creation'])
-        except (ValueError, decimal.InvalidOperation, TypeError):
-            # If conversion fails, use a fallback value
-            ret['multiplier_at_creation'] = "1.0"
+                # Try to convert to string first to check validity
+                decimal_str = str(ret['multiplier_at_creation'])
+                # If successful, keep the value as is
+        except (decimal.InvalidOperation, TypeError, ValueError):
+            # If there's an error, set a default value
+            ret['multiplier_at_creation'] = '1.00'
             
         return ret
 
 
 class EvidenceSerializer(serializers.ModelSerializer):
-    """Serializer for the Evidence model."""
     file_url = serializers.SerializerMethodField()
     
     class Meta:
         model = Evidence
-        fields = ['id', 'contribution', 'submitted_contribution', 'description', 'url', 'file', 'file_url', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        fields = ['id', 'description', 'url', 'file', 'file_url', 'created_at']
+        read_only_fields = ['id', 'created_at']
     
     def get_file_url(self, obj):
         """Returns the full URL to the file if it exists."""
@@ -74,22 +75,10 @@ class EvidenceSerializer(serializers.ModelSerializer):
         if request is not None:
             return request.build_absolute_uri(obj.file.url)
         return obj.file.url
-    
-    def validate(self, attrs):
-        """Ensure evidence belongs to either contribution or submitted_contribution, not both."""
-        contribution = attrs.get('contribution')
-        submitted_contribution = attrs.get('submitted_contribution')
-        
-        if contribution and submitted_contribution:
-            raise serializers.ValidationError("Evidence can only belong to either a contribution or a submitted contribution, not both.")
-        if not contribution and not submitted_contribution:
-            raise serializers.ValidationError("Evidence must belong to either a contribution or a submitted contribution.")
-        
-        return attrs
 
 
 class SubmittedContributionSerializer(serializers.ModelSerializer):
-    """Serializer for submitted contributions."""
+    """Serializer for submitted contributions (user submissions)."""
     user_details = UserSerializer(source='user', read_only=True)
     contribution_type_name = serializers.ReadOnlyField(source='contribution_type.name')
     evidence_items = serializers.SerializerMethodField()
@@ -138,3 +127,20 @@ class SubmittedEvidenceSerializer(serializers.ModelSerializer):
         if request is not None:
             return request.build_absolute_uri(obj.file.url)
         return obj.file.url
+
+
+class ContributionHighlightSerializer(serializers.ModelSerializer):
+    contribution_details = ContributionSerializer(source='contribution', read_only=True)
+    user_name = serializers.CharField(source='contribution.user.name', read_only=True)
+    user_address = serializers.CharField(source='contribution.user.address', read_only=True)
+    contribution_type_name = serializers.CharField(source='contribution.contribution_type.name', read_only=True)
+    contribution_type_id = serializers.IntegerField(source='contribution.contribution_type.id', read_only=True)
+    contribution_points = serializers.IntegerField(source='contribution.frozen_global_points', read_only=True)
+    contribution_date = serializers.DateTimeField(source='contribution.contribution_date', read_only=True)
+    
+    class Meta:
+        model = ContributionHighlight
+        fields = ['id', 'title', 'description', 'contribution', 'contribution_details',
+                  'user_name', 'user_address', 'contribution_type_name', 'contribution_type_id',
+                  'contribution_points', 'contribution_date', 'created_at']
+        read_only_fields = ['id', 'created_at']

@@ -2,11 +2,13 @@
   import { onMount } from 'svelte';
   import { push, querystring } from 'svelte-spa-router';
   import { format } from 'date-fns';
-  import ContributionsList from '../components/ContributionsList.svelte';
+  import UserContributions from '../components/UserContributions.svelte';
+  import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import StatCard from '../components/StatCard.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import { usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
   import { authState } from '../lib/auth';
+  import { getValidatorBalance } from '../lib/blockchain';
   
   // Import route params from svelte-spa-router
   import { params } from 'svelte-spa-router';
@@ -25,6 +27,8 @@
   let error = $state(null);
   let statsError = $state(null);
   let successMessage = $state(null);
+  let balance = $state(null);
+  let loadingBalance = $state(false);
   
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
@@ -70,6 +74,19 @@
       console.log("Participant data received:", res.data);
       console.log("Leaderboard entry data:", res.data.leaderboard_entry);
       participant = res.data;
+      
+      // Fetch validator balance
+      if (participant.address) {
+        loadingBalance = true;
+        try {
+          balance = await getValidatorBalance(participant.address);
+        } catch (err) {
+          console.error('Failed to fetch balance:', err);
+          // Don't show error, just leave balance as null
+        } finally {
+          loadingBalance = false;
+        }
+      }
       
       // Also try to fetch the leaderboard entry directly
       try {
@@ -195,7 +212,7 @@
     <div class="mb-6">
       <div class="flex justify-between items-start">
         <div>
-          <h1 class="text-3xl font-bold text-gray-900 flex items-center">
+          <h1 class="text-2xl font-bold text-gray-900 flex items-center">
             {participant.name || (isValidatorOnly ? 'Validator' : 'Participant')} 
             {#if !isValidatorOnly && participant.visible !== false}
               <span class="ml-3 inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
@@ -227,6 +244,22 @@
       </div>
     </div>
     
+    <!-- Explorer Button - Standalone -->
+    <div class="mb-6">
+      <a 
+        href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${participant.address}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+      >
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+        </svg>
+        View in Testnet Asimov Explorer
+      </a>
+    </div>
+    
+    <!-- Main Information -->
     <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
       <div class="border-t border-gray-200">
         <dl>
@@ -235,9 +268,22 @@
               <dt class="text-sm font-medium text-gray-500">
                 Wallet Address
               </dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 font-mono">
+                {participant.address}
+              </dd>
+            </div>
+            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">
+                Balance
+              </dt>
               <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                <div class="font-mono mb-2">{participant.address}</div>
-                <ValidatorStatus address={participant.address} />
+                {#if loadingBalance}
+                  <span class="text-gray-500">Loading balance...</span>
+                {:else if balance}
+                  <span class="font-mono">{balance.formatted} GEN</span>
+                {:else}
+                  <span class="text-gray-500">Unable to fetch balance</span>
+                {/if}
               </dd>
             </div>
           {/if}
@@ -283,18 +329,28 @@
           {#if !isValidatorOnly}
             <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
               <dt class="text-sm font-medium text-gray-500">
+                Joined
+              </dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {formatDate(participant.created_at)}
+              </dd>
+            </div>
+            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">
                 Total Points
               </dt>
               <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
                 {participant.leaderboard_entry?.total_points ?? '—'}
               </dd>
             </div>
-            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+          {/if}
+          {#if participant.address}
+            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
               <dt class="text-sm font-medium text-gray-500">
-                Joined
+                Validator Status
               </dt>
               <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {formatDate(participant.created_at)}
+                <ValidatorStatus address={participant.address} />
               </dd>
             </div>
           {/if}
@@ -304,7 +360,7 @@
     
     {#if !isValidatorOnly}
       <!-- Stats Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <StatCard 
           title="Total Contributions" 
           value={contributionStats.totalContributions || 0} 
@@ -324,6 +380,16 @@
           color="blue"
         />
       </div>
+      
+      <!-- Highlights Section -->
+      <FeaturedContributions
+        userId={participant.address}
+        limit={5}
+        title="Featured Contributions"
+        cardStyle="highlight"
+        showViewAll={false}
+        className="mb-6"
+      />
     {:else}
       <!-- Simple message for validators without accounts -->
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6 text-center">
@@ -404,13 +470,10 @@
     
     <!-- Contributions -->
     {#if !isValidatorOnly}
-      <div>
-        <h2 class="text-xl font-semibold text-gray-900 mb-4">{participant.name || 'Participant'}'s Contributions</h2>
-        <ContributionsList
-          userAddress={participant.address}
-          showUser={false}
-        />
-      </div>
+      <UserContributions
+        userAddress={participant.address}
+        userName={participant.name || 'Participant'}
+      />
     {/if}
   {:else}
     <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded">

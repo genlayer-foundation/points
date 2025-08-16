@@ -38,6 +38,178 @@ export let params = {};
 let { params = {} } = $props();
 ```
 
+## 🎨 Design System & Spacing Guidelines
+
+### Core Spacing Values
+Use these consistent spacing values throughout the application:
+- **xs**: `0.5rem` (8px) - Use: Small gaps between related elements
+- **sm**: `1rem` (16px) - Use: Standard gaps between elements
+- **md**: `1.5rem` (24px) - Use: Section spacing within components
+- **lg**: `2rem` (32px) - Use: Major section breaks
+- **xl**: `3rem` (48px) - Use: Page-level spacing
+
+### Tailwind Spacing Classes
+```
+p-2 (0.5rem/8px)   - Tight padding for small elements
+p-3 (0.75rem/12px) - Compact padding for buttons/badges
+p-4 (1rem/16px)    - Standard padding for cards/containers
+p-5 (1.25rem/20px) - Comfortable padding for sections
+p-6 (1.5rem/24px)  - Spacious padding for major sections
+p-8 (2rem/32px)    - Extra padding for empty states/loading
+
+space-y-1 - Minimal vertical spacing between list items
+space-y-3 - Standard vertical spacing between cards
+space-y-4 - Section spacing within components
+space-y-6 - Major section spacing on pages
+
+gap-2 - Small gaps in flex/grid
+gap-3 - Standard gaps in flex/grid
+gap-4 - Comfortable gaps in flex/grid
+gap-6 - Large gaps between major sections
+```
+
+### Component-Specific Spacing
+
+#### Page Layout
+```javascript
+// Main page container
+<div class="space-y-6">  // Major sections
+  <div class="space-y-4"> // Sub-sections
+```
+
+#### Cards & Containers
+```javascript
+// Standard card
+<div class="bg-white shadow rounded-lg p-4">
+
+// Card with sections
+<div class="bg-white shadow rounded-lg">
+  <div class="p-4 border-b"> // Header
+  <div class="p-4">          // Content
+```
+
+#### Buttons
+```javascript
+// Primary button
+class="px-4 py-2 bg-primary-600 text-white rounded-md"
+
+// Small button
+class="px-3 py-1.5 text-sm"
+
+// Large button
+class="px-6 py-3 text-lg"
+```
+
+#### Forms
+```javascript
+// Form container
+<form class="max-w-2xl space-y-6">
+
+// Form group
+<div class="mb-6">
+  <label class="block text-sm font-medium text-gray-700 mb-2">
+  <input class="w-full px-3 py-2 border rounded-md">
+```
+
+#### Navigation
+```javascript
+// Nav links - desktop
+class="px-3 py-2 text-gray-700"
+
+// Nav links - mobile
+class="block px-3 py-2 rounded-md"
+
+// Sidebar items
+class="px-3 py-2 text-sm font-medium rounded-md"
+```
+
+#### Lists
+```javascript
+// Vertical list of cards
+<div class="space-y-3">
+
+// Horizontal list
+<div class="flex gap-4">
+
+// Grid layout
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+```
+
+#### Loading & Empty States
+```javascript
+// Loading spinner container
+<div class="flex justify-center items-center p-8">
+
+// Empty state
+<div class="p-6 text-center text-gray-500">
+```
+
+### Container Widths
+```javascript
+// Page container
+class="container mx-auto px-4 py-8"
+
+// Content max-widths
+class="max-w-2xl"  // Forms, focused content
+class="max-w-4xl"  // Standard content
+class="max-w-6xl"  // Wide content
+class="max-w-7xl"  // Full width content
+```
+
+### Responsive Spacing
+Always consider mobile-first:
+```javascript
+// Responsive padding
+class="p-4 md:p-6 lg:p-8"
+
+// Responsive gaps
+class="gap-4 md:gap-6"
+
+// Responsive margins
+class="mt-4 md:mt-6 lg:mt-8"
+```
+
+### Typography Spacing
+```javascript
+// Heading with content
+<h1 class="text-2xl font-bold mb-4">
+<h2 class="text-lg font-semibold mb-3">
+<h3 class="text-base font-medium mb-2">
+
+// Paragraph spacing
+<p class="mb-4">  // Between paragraphs
+<p class="mt-1">  // After labels/small headings
+```
+
+### Color System
+```javascript
+// Primary colors (blue/indigo)
+primary-50 through primary-900
+
+// Status colors
+green-* (success)
+red-* (error)
+yellow-* (warning)
+blue-* (info)
+purple-* (special/featured)
+```
+
+### Shadow System
+```javascript
+shadow        // Standard card shadow
+shadow-md     // Elevated elements
+shadow-lg     // Hover state
+shadow-xl     // Modals/overlays
+```
+
+### Border Radius
+```javascript
+rounded       // Small radius (0.25rem)
+rounded-md    // Medium radius (0.375rem)
+rounded-lg    // Large radius (0.5rem)
+rounded-full  // Circular elements
+```
+
 ## Project Structure
 ```
 frontend/src/
@@ -267,6 +439,28 @@ npm run preview
 - Tailwind CSS for utility classes
 - Global styles in `src/styles.css`
 - Component-scoped styles in `<style>` blocks
+
+## Design Guidelines
+
+### Component Card Wrappers
+**IMPORTANT**: When using reusable components in pages, do NOT wrap them in additional card containers.
+
+Components like `RecentContributions`, `FeaturedContributions`, `UserContributions`, etc. already include their own styling and structure. Adding wrapper cards creates unnecessary nesting and visual clutter.
+
+```javascript
+// ❌ WRONG - Don't wrap components in cards
+<div class="bg-white shadow rounded-lg p-6">
+  <RecentContributions />
+</div>
+
+// ✅ CORRECT - Use components directly
+<RecentContributions />
+
+// ✅ CORRECT - Components can have className for spacing
+<FeaturedContributions className="mb-6" />
+```
+
+The only exception is when you need to group multiple related elements that aren't already in a component.
 
 ## Important Notes
 

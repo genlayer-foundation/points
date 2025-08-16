@@ -7,7 +7,9 @@
     error = null,
     showHeader = true,
     title = 'Leaderboard',
-    subtitle = 'Top contributors ranked by points'
+    subtitle = 'Top contributors ranked by points',
+    compact = false,
+    hideAddress = false
   } = $props();
   
   // Helper for rank styling
@@ -57,9 +59,6 @@
             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Points
             </th>
-            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Actions
-            </th>
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -72,26 +71,30 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
-                  <div class="flex-shrink-0 h-10 w-10">
-                    <div class="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
-                      {entry.user_details?.name ? entry.user_details.name.charAt(0).toUpperCase() : '#'}
+                  {#if !compact}
+                    <div class="flex-shrink-0 h-10 w-10">
+                      <div class="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+                        {entry.user_details?.name ? entry.user_details.name.charAt(0).toUpperCase() : '#'}
+                      </div>
                     </div>
-                  </div>
-                  <div class="ml-4">
-                    <div class="text-sm font-medium text-gray-900">
+                  {/if}
+                  <div class={compact ? '' : 'ml-4'}>
+                    <button
+                      onclick={() => push(`/participant/${entry.user_details?.address || ''}`)}
+                      class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors"
+                    >
                       {entry.user_details?.name || 'N/A'}
-                    </div>
-                    <div class="text-sm text-gray-500">
-                      {entry.user_details?.address || ''}
-                    </div>
+                    </button>
+                    {#if !hideAddress}
+                      <div class="text-sm text-gray-500">
+                        {entry.user_details?.address || ''}
+                      </div>
+                    {/if}
                   </div>
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-900 font-medium">{entry.total_points}</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <a href={`/participant/${entry.user_details?.address || ''}`} onclick={(e) => { e.preventDefault(); push(`/participant/${entry.user_details?.address || ''}`); }} class="text-primary-600 hover:text-primary-900">View Profile</a>
               </td>
             </tr>
           {/each}

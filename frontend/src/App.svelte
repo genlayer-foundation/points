@@ -17,12 +17,14 @@
   import EditSubmission from './routes/EditSubmission.svelte';
   import Metrics from './routes/Metrics.svelte';
   import Profile from './routes/Profile.svelte';
+  import Highlights from './routes/Highlights.svelte';
   import NotFound from './routes/NotFound.svelte';
   
   // Define routes
   const routes = {
     '/': Dashboard,
     '/contributions': Contributions,
+    '/highlights': Highlights,
     '/leaderboard': Leaderboard,
     '/participants': Validators,
     '/participant/:address': ParticipantProfile,
@@ -175,7 +177,7 @@
   <Navbar />
   <div class="container mx-auto px-4 py-4 md:py-6 lg:py-8 flex">
     <Sidebar />
-    <main class="flex-1 ml-0 md:ml-64">
+    <main class="flex-1 md:ml-4">
       <Router 
         {routes} 
         on:conditionsFailed={hideTooltips}

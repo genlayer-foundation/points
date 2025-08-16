@@ -46,15 +46,22 @@
         </a>
       </div>
       
-      <div class="hidden md:flex items-center space-x-4">
+      <div class="hidden md:flex items-center gap-4">
         <CategorySwitcher />
+        <a 
+          href="/highlights" 
+          onclick={(e) => { e.preventDefault(); navigate('/highlights'); }}
+          class="px-3 py-2 text-gray-700 hover:text-primary-600 {isActive('/highlights') ? 'text-primary-600 font-medium' : ''}"
+        >
+          Highlights
+        </a>
         <button 
           onclick={handleSubmitContribution}
           class="px-3 py-2 {$categoryTheme.button} rounded-md"
         >
           Submit Contribution
         </button>
-        <div class="ml-4 flex items-center space-x-4">
+        <div class="ml-4 flex items-center gap-4">
           <AuthButton />
         </div>
       </div>
@@ -84,6 +91,13 @@
         <div class="px-3 py-2">
           <CategorySwitcher />
         </div>
+        <a 
+          href="/highlights" 
+          onclick={(e) => { e.preventDefault(); navigate('/highlights'); }}
+          class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 {isActive('/highlights') ? 'bg-gray-50 text-primary-600' : ''}"
+        >
+          Highlights
+        </a>
         <button 
           onclick={handleSubmitContribution}
           class="block w-full text-left px-3 py-2 rounded-md text-base font-medium bg-primary-600 text-white hover:bg-primary-700"
