@@ -1,5 +1,9 @@
 from django.contrib import admin
 from django.contrib import messages
+from django.shortcuts import render, redirect
+from django.urls import path, reverse
+from django.http import HttpResponseRedirect
+from django.core.management import call_command
 from .models import LeaderboardEntry, GlobalLeaderboardMultiplier
 from contributions.models import Category, Contribution
 from users.models import User
@@ -13,6 +17,13 @@ class LeaderboardEntryAdmin(admin.ModelAdmin):
     readonly_fields = ('total_points', 'rank', 'created_at', 'updated_at')
     ordering = ('rank', '-total_points')
     actions = ['recreate_all_leaderboards']
+    
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('update-leaderboard/', self.admin_site.admin_view(self.update_leaderboard_view), name='update_leaderboard'),
+        ]
+        return custom_urls + urls
     
     def has_add_permission(self, request):
         # Don't allow manual creation of leaderboard entries
@@ -94,3 +105,22 @@ class LeaderboardEntryAdmin(admin.ModelAdmin):
             )
     
     recreate_all_leaderboards.short_description = "Recreate all leaderboards (global and categories)"
+    
+    def update_leaderboard_view(self, request):
+        """View for updating the leaderboard using the management command."""
+        if request.method == 'POST':
+            try:
+                # Run the update_leaderboard management command
+                call_command('update_leaderboard')
+                messages.success(request, 'Leaderboard updated successfully! All contribution multipliers and points have been recalculated.')
+            except Exception as e:
+                messages.error(request, f'Error updating leaderboard: {str(e)}')
+            
+            return HttpResponseRedirect(reverse('admin:leaderboard_leaderboardentry_changelist'))
+        
+        context = {
+            'title': 'Update Leaderboard',
+            'opts': self.model._meta,
+            'has_change_permission': request.user.has_perm('leaderboard.change_leaderboardentry'),
+        }
+        return render(request, 'admin/leaderboard/update_leaderboard.html', context)
