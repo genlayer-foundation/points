@@ -440,6 +440,28 @@ npm run preview
 - Global styles in `src/styles.css`
 - Component-scoped styles in `<style>` blocks
 
+## Design Guidelines
+
+### Component Card Wrappers
+**IMPORTANT**: When using reusable components in pages, do NOT wrap them in additional card containers.
+
+Components like `RecentContributions`, `FeaturedContributions`, `UserContributions`, etc. already include their own styling and structure. Adding wrapper cards creates unnecessary nesting and visual clutter.
+
+```javascript
+// ❌ WRONG - Don't wrap components in cards
+<div class="bg-white shadow rounded-lg p-6">
+  <RecentContributions />
+</div>
+
+// ✅ CORRECT - Use components directly
+<RecentContributions />
+
+// ✅ CORRECT - Components can have className for spacing
+<FeaturedContributions className="mb-6" />
+```
+
+The only exception is when you need to group multiple related elements that aren't already in a component.
+
 ## Important Notes
 
 ### Component Props in Svelte 5

@@ -1,7 +1,9 @@
 <script>
   import { onMount } from 'svelte';
   import { format } from 'date-fns';
-  import ContributionsList from '../components/ContributionsList.svelte';
+  import RecentContributions from '../components/RecentContributions.svelte';
+  import FeaturedContributions from '../components/FeaturedContributions.svelte';
+  import LeaderboardTable from '../components/LeaderboardTable.svelte';
   import StatCard from '../components/StatCard.svelte';
   import { contributionsAPI } from '../lib/api';
   import { push } from 'svelte-spa-router';
@@ -13,8 +15,6 @@
   let contributions = [];
   let statistics = {};
   let topContributors = [];
-  let recentContributions = [];
-  let highlights = [];
   let loading = true;
   let error = null;
 
@@ -64,27 +64,6 @@
     }
   };
 
-  // Get recent contributions for this type
-  const fetchRecentContributions = async () => {
-    try {
-      const response = await contributionsAPI.getContributionTypeRecentContributions(params.id);
-      return response.data || [];
-    } catch (err) {
-      console.error('Error fetching recent contributions:', err);
-      return [];
-    }
-  };
-  
-  // Get highlights for this type
-  const fetchHighlights = async () => {
-    try {
-      const response = await contributionsAPI.getContributionTypeHighlights(params.id);
-      return response.data || [];
-    } catch (err) {
-      console.error('Error fetching highlights:', err);
-      return [];
-    }
-  };
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -101,21 +80,17 @@
 
     try {
       // Fetch all data in parallel
-      const [typeData, statsData, contributionsData, topContributorsData, recentContributionsData, highlightsData] = await Promise.all([
+      const [typeData, statsData, contributionsData, topContributorsData] = await Promise.all([
         fetchContributionType(),
         fetchStatistics(),
         fetchContributions(),
-        fetchTopContributors(),
-        fetchRecentContributions(),
-        fetchHighlights()
+        fetchTopContributors()
       ]);
 
       contributionType = typeData;
       statistics = statsData || {};
       contributions = contributionsData.results || [];
       topContributors = topContributorsData;
-      recentContributions = recentContributionsData;
-      highlights = highlightsData;
     } catch (err) {
       error = err.message;
     } finally {
@@ -124,7 +99,7 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="space-y-4">
   {#if loading}
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -215,37 +190,13 @@
     </div>
 
     <!-- Highlights Section -->
-    {#if highlights.length > 0}
-      <div class="bg-white shadow rounded-lg p-6">
-        <div class="flex items-center mb-4">
-          <svg class="w-5 h-5 text-yellow-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-          </svg>
-          <h2 class="text-lg font-semibold text-gray-900">Featured Highlights</h2>
-        </div>
-        
-        <div class="space-y-3">
-          {#each highlights as highlight}
-            <div class="border-l-4 border-yellow-400 pl-4 py-2">
-              <h3 class="font-semibold text-gray-900">{highlight.title}</h3>
-              <p class="text-sm text-gray-600 mt-1">{highlight.description}</p>
-              <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
-                <button 
-                  class="hover:text-purple-600"
-                  onclick={() => push(`/participant/${highlight.user_address}`)}
-                >
-                  {highlight.user_name || `${highlight.user_address.slice(0, 6)}...${highlight.user_address.slice(-4)}`}
-                </button>
-                <span>•</span>
-                <span>{formatDate(highlight.contribution_date)}</span>
-                <span>•</span>
-                <span class="font-semibold text-purple-600">{highlight.contribution_points} pts</span>
-              </div>
-            </div>
-          {/each}
-        </div>
-      </div>
-    {/if}
+    <FeaturedContributions
+      contributionTypeId={params.id}
+      title="Featured Highlights"
+      cardStyle="compact"
+      showViewAll={false}
+      className="mb-6"
+    />
 
     <!-- Pioneer Opportunity Alert if no contributions -->
     {#if statistics.count === 0 || contributions.length === 0}
@@ -285,78 +236,33 @@
       </div>
     {:else}
       <!-- Top Contributors and Recent Contributions -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <!-- Top Contributors -->
-        <div class="bg-white shadow rounded-lg p-6">
-          <div class="flex items-center mb-4">
-            <svg class="w-5 h-5 text-yellow-500 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-            </svg>
-            <h2 class="text-lg font-semibold text-gray-900">Top Contributors</h2>
-          </div>
-          {#if topContributors.length > 0}
-            <div class="space-y-3">
-              {#each topContributors as contributor, index}
-                <div class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
-                     onclick={() => push(`/participant/${contributor.address}`)}>
-                  <div class="flex items-center gap-3">
-                    <div class="flex-shrink-0">
-                      <span class="text-lg font-bold text-gray-500">#{index + 1}</span>
-                    </div>
-                    <div>
-                      <p class="text-sm font-medium text-gray-900">
-                        {contributor.name || `${contributor.address.slice(0, 6)}...${contributor.address.slice(-4)}`}
-                      </p>
-                      <p class="text-xs text-gray-500">{contributor.contribution_count} contribution{contributor.contribution_count !== 1 ? 's' : ''}</p>
-                    </div>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-sm font-semibold text-purple-600">{contributor.total_points} pts</p>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <p class="text-gray-500 text-sm">No contributors yet</p>
-          {/if}
+        <div class="space-y-4">
+          <h2 class="text-lg font-semibold text-gray-900">Top Contributors</h2>
+          <LeaderboardTable
+            entries={topContributors.map((c, i) => ({
+              rank: i + 1,
+              user_details: {
+                name: c.name,
+                address: c.address
+              },
+              total_points: c.total_points
+            }))}
+            loading={false}
+            error={null}
+            showHeader={false}
+            compact={true}
+            hideAddress={true}
+          />
         </div>
 
         <!-- Recent Contributions -->
-        <div class="bg-white shadow rounded-lg p-6">
-          <div class="flex items-center mb-4">
-            <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <h2 class="text-lg font-semibold text-gray-900">Recent Contributions</h2>
-          </div>
-          {#if recentContributions.length > 0}
-            <div class="space-y-3">
-              {#each recentContributions as contribution}
-                <div class="p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                  <div class="flex justify-between items-start">
-                    <div class="flex-1">
-                      <p class="text-sm font-medium text-gray-900 cursor-pointer hover:text-purple-600"
-                         onclick={() => push(`/participant/${contribution.user_details?.address || ''}`)}>
-                        {contribution.user_details?.name || (contribution.user_details?.address ? `${contribution.user_details.address.slice(0, 6)}...${contribution.user_details.address.slice(-4)}` : 'Unknown')}
-                      </p>
-                      {#if contribution.notes}
-                        <p class="text-xs text-gray-600 mt-1">{contribution.notes}</p>
-                      {/if}
-                      <p class="text-xs text-gray-500 mt-1">{formatDate(contribution.contribution_date)}</p>
-                    </div>
-                    <div class="ml-4">
-                      <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800">
-                        {contribution.frozen_global_points} pts
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <p class="text-gray-500 text-sm">No recent contributions</p>
-          {/if}
-        </div>
+        <RecentContributions 
+          contributionTypeId={params.id}
+          limit={10}
+          showViewAll={false}
+        />
       </div>
     {/if}
 
