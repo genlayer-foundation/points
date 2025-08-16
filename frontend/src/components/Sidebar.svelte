@@ -139,7 +139,7 @@
                 size="md"
                 className="mr-2 {section.category === $currentCategory ? $categoryTheme.text : 'text-gray-500'}"
               />
-              <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+              <h3 class="text-xs font-bold text-gray-700 uppercase tracking-wider">
                 {section.title}
               </h3>
             </button>
@@ -185,7 +185,7 @@
               size="md"
               className="mr-2 text-gray-500"
             />
-            <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+            <h3 class="text-xs font-bold text-gray-700 uppercase tracking-wider">
               Account
             </h3>
           </div>
