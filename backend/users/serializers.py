@@ -18,11 +18,14 @@ class ValidatorSerializer(serializers.ModelSerializer):
     target_created_at = serializers.SerializerMethodField()
     total_points = serializers.SerializerMethodField()
     rank = serializers.SerializerMethodField()
+    total_contributions = serializers.SerializerMethodField()
+    contribution_types = serializers.SerializerMethodField()
     
     class Meta:
         model = Validator
-        fields = ['node_version', 'matches_target', 'target_version', 'target_date', 'target_created_at', 'total_points', 'rank', 'updated_at']
-        read_only_fields = ['updated_at']
+        fields = ['node_version', 'matches_target', 'target_version', 'target_date', 'target_created_at', 
+                 'total_points', 'rank', 'total_contributions', 'contribution_types', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
     
     def get_matches_target(self, obj):
         """
@@ -71,6 +74,56 @@ class ValidatorSerializer(serializers.ModelSerializer):
             return leaderboard.rank if leaderboard else None
         except Category.DoesNotExist:
             return None
+    
+    def get_total_contributions(self, obj):
+        """Get total number of contributions in validator category."""
+        from contributions.models import Contribution, ContributionType
+        try:
+            category = Category.objects.get(slug='validator')
+            contribution_types = ContributionType.objects.filter(category=category)
+            return Contribution.objects.filter(
+                user=obj.user,
+                contribution_type__in=contribution_types
+            ).count()
+        except Category.DoesNotExist:
+            return 0
+    
+    def get_contribution_types(self, obj):
+        """Get breakdown of contribution types for validator category."""
+        from contributions.models import Contribution, ContributionType
+        from django.db.models import Count, Sum
+        
+        try:
+            category = Category.objects.get(slug='validator')
+            contribution_types = ContributionType.objects.filter(category=category)
+            
+            # Get contribution stats grouped by type
+            stats = Contribution.objects.filter(
+                user=obj.user,
+                contribution_type__in=contribution_types
+            ).values('contribution_type__id', 'contribution_type__name').annotate(
+                count=Count('id'),
+                total_points=Sum('frozen_global_points')
+            ).order_by('-total_points')
+            
+            # Calculate total points for percentage
+            total_points = sum(s['total_points'] or 0 for s in stats)
+            
+            # Format the response
+            result = []
+            for stat in stats:
+                points = stat['total_points'] or 0
+                result.append({
+                    'id': stat['contribution_type__id'],
+                    'name': stat['contribution_type__name'],
+                    'count': stat['count'],
+                    'total_points': points,
+                    'percentage': round((points / total_points * 100) if total_points > 0 else 0, 1)
+                })
+            
+            return result
+        except Category.DoesNotExist:
+            return []
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
