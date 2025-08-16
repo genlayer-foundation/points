@@ -55,15 +55,15 @@
   {#if opportunityTypes.length > 0}
     <div class="bg-blue-50 border border-blue-200 shadow overflow-hidden rounded-lg mb-6">
       <div class="px-4 py-5 sm:px-6 bg-blue-100 border-b border-blue-200">
-        <div class="flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div class="flex items-center flex-wrap gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
-          <h3 class="text-lg leading-6 font-medium text-blue-900">
+          <h3 class="text-base sm:text-lg leading-6 font-medium text-blue-900">
             Pioneer Opportunities
           </h3>
         </div>
-        <p class="mt-1 max-w-2xl text-sm text-blue-700">
+        <p class="mt-1 max-w-2xl text-xs sm:text-sm text-blue-700">
           Be the first to make these contributions and earn extra points!
         </p>
       </div>

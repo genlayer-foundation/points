@@ -4,6 +4,13 @@
   import { onMount } from 'svelte';
   import Navbar from './components/Navbar.svelte';
   import Sidebar from './components/Sidebar.svelte';
+  
+  // State for sidebar toggle on mobile
+  let sidebarOpen = $state(false);
+  
+  function toggleSidebar() {
+    sidebarOpen = !sidebarOpen;
+  }
   import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
@@ -175,15 +182,15 @@
 </script>
 
 <div class="min-h-screen bg-gray-50">
-  <Navbar />
-    <div class="container mx-auto px-4 py-4 md:py-6 lg:py-8 flex">
-      <Sidebar />
-      <main class="flex-1 md:ml-4">
-        <Router 
-          {routes} 
-          on:conditionsFailed={hideTooltips}
-          on:routeLoaded={hideTooltips}
-        />
-      </main>
-    </div>
+  <Navbar {toggleSidebar} />
+  <div class="flex">
+    <Sidebar bind:isOpen={sidebarOpen} />
+    <main class="flex-1 container mx-auto px-4 py-4 md:py-6 lg:py-8">
+      <Router 
+        {routes} 
+        on:conditionsFailed={hideTooltips}
+        on:routeLoaded={hideTooltips}
+      />
+    </main>
   </div>
+</div>

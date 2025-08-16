@@ -142,7 +142,7 @@
   
   <!-- Contributions List with integrated filters -->
   <div class="bg-white shadow overflow-hidden rounded-lg relative">
-    <div class="px-4 py-5 sm:px-6 flex justify-between items-center flex-wrap all-contributions-header">
+    <div class="px-4 py-5 sm:px-6 flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 all-contributions-header">
       <div>
         <h3 class="text-lg leading-6 font-medium text-gray-900">
           All Contributions
@@ -151,12 +151,12 @@
           Recent contributions with points
         </p>
       </div>
-      <div class="flex items-center gap-4 mt-2 sm:mt-0">
-        <div class="flex items-center">
-          <label for="type-filter" class="block text-sm font-medium text-gray-700 mr-2">Filter:</label>
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+          <label for="type-filter" class="block text-sm font-medium text-gray-700 whitespace-nowrap">Filter:</label>
           <select
             id="type-filter"
-            class="block w-full min-w-[140px] rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm py-1.5 px-3"
+            class="block w-full sm:w-auto sm:min-w-[140px] rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm py-1.5 px-3"
             bind:value={selectedType}
             onchange={() => {
               previousContributions = [...contributions];
@@ -170,11 +170,11 @@
           </select>
         </div>
         
-        <div class="flex items-center">
-          <label for="sort-order" class="block text-sm font-medium text-gray-700 mr-2">Sort:</label>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+          <label for="sort-order" class="block text-sm font-medium text-gray-700 whitespace-nowrap">Sort:</label>
           <select
             id="sort-order"
-            class="block w-full min-w-[140px] rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm py-1.5 px-3"
+            class="block w-full sm:w-auto sm:min-w-[140px] rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm py-1.5 px-3"
             bind:value={sortOrder}
             onchange={() => {
               previousContributions = [...contributions];

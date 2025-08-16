@@ -3,6 +3,7 @@
   import AuthButton from './AuthButton.svelte';
   import { authState } from '../lib/auth.js';
   
+  let { toggleSidebar } = $props();
   
   let isMenuOpen = $state(false);
   
@@ -39,96 +40,36 @@
       <div class="flex items-center">
         <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex-shrink-0 flex items-center">
           <img class="h-8 w-8" src="/assets/logo.svg" alt="GenLayer Logo" />
-          <span class="ml-2 text-xl font-bold text-primary-700">GenLayer Testnet Contributions</span>
+          <span class="ml-2 text-sm sm:text-xl font-bold text-primary-700">
+            <span class="hidden sm:inline">GenLayer Testnet Contributions</span>
+            <span class="sm:hidden">GenLayer</span>
+          </span>
         </a>
       </div>
       
       <div class="hidden md:flex items-center gap-4">
-        <a 
-          href="/" 
-          onclick={(e) => { e.preventDefault(); navigate('/'); }}
-          class="px-3 py-2 text-gray-700 hover:text-primary-600 {isActive('/') ? 'text-primary-600 font-medium' : ''}"
-        >
-          Dashboard
-        </a>
-        <a 
-          href="/highlights" 
-          onclick={(e) => { e.preventDefault(); navigate('/highlights'); }}
-          class="px-3 py-2 text-gray-700 hover:text-primary-600 {isActive('/highlights') ? 'text-primary-600 font-medium' : ''}"
-        >
-          Highlights
-        </a>
-        <a 
-          href="/contributions" 
-          onclick={(e) => { e.preventDefault(); navigate('/contributions'); }}
-          class="px-3 py-2 text-gray-700 hover:text-primary-600 {isActive('/contributions') ? 'text-primary-600 font-medium' : ''}"
-        >
-          Contributions
-        </a>
         <button 
           onclick={handleSubmitContribution}
-          class="px-3 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+          class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 font-medium"
         >
           Submit Contribution
         </button>
-        <div class="ml-4 flex items-center gap-4">
-          <AuthButton />
-        </div>
+        <AuthButton />
       </div>
       
-      <div class="flex items-center md:hidden">
+      <div class="flex items-center md:hidden gap-2">
+        <AuthButton />
         <button 
-          onclick={toggleMenu} 
+          onclick={toggleSidebar} 
           class="p-2 rounded-md text-gray-700 hover:bg-gray-100"
-          aria-label="Main menu"
+          aria-label="Open menu"
         >
           <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            {#if isMenuOpen}
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            {:else}
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-            {/if}
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
       </div>
     </div>
   </div>
   
-  <!-- Mobile menu -->
-  {#if isMenuOpen}
-    <div class="md:hidden">
-      <div class="px-2 pt-2 pb-3 space-y-1">
-        <a 
-          href="/" 
-          onclick={(e) => { e.preventDefault(); navigate('/'); }}
-          class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 {isActive('/') ? 'bg-gray-50 text-primary-600' : ''}"
-        >
-          Dashboard
-        </a>
-        <a 
-          href="/highlights" 
-          onclick={(e) => { e.preventDefault(); navigate('/highlights'); }}
-          class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 {isActive('/highlights') ? 'bg-gray-50 text-primary-600' : ''}"
-        >
-          Highlights
-        </a>
-        <a 
-          href="/contributions" 
-          onclick={(e) => { e.preventDefault(); navigate('/contributions'); }}
-          class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 {isActive('/contributions') ? 'bg-gray-50 text-primary-600' : ''}"
-        >
-          Contributions
-        </a>
-        <button 
-          onclick={handleSubmitContribution}
-          class="block w-full text-left px-3 py-2 rounded-md text-base font-medium bg-primary-600 text-white hover:bg-primary-700"
-        >
-          Submit Contribution
-        </button>
-        <div class="px-3 py-2">
-          <AuthButton />
-        </div>
-      </div>
-    </div>
-  {/if}
 </header>

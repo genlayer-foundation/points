@@ -1,14 +1,14 @@
 <script>
   import { push, location } from 'svelte-spa-router';
   
+  let { isOpen = $bindable(false) } = $props();
+  
+  // Close sidebar on route change on mobile
   $effect(() => {
-    // Reset mobile menu when route changes
     if (isOpen && window.innerWidth < 768) {
       isOpen = false;
     }
   });
-  
-  let isOpen = $state(false);
   
   function toggleSidebar() {
     isOpen = !isOpen;
@@ -16,6 +16,7 @@
   
   function navigate(path) {
     push(path);
+    // Close sidebar on mobile after navigation
     if (window.innerWidth < 768) {
       isOpen = false;
     }
@@ -31,6 +32,11 @@
       name: 'Dashboard', 
       path: '/', 
       icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' 
+    },
+    { 
+      name: 'Leaderboard', 
+      path: '/leaderboard', 
+      icon: 'M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3' 
     },
     { 
       name: 'Contributions', 
@@ -55,32 +61,62 @@
   ];
 </script>
 
-<div class="md:w-64 flex flex-col fixed md:sticky top-0 z-10">
-  <!-- Mobile toggle -->
-  <div class="md:hidden px-4 py-3 bg-gray-50">
-    <button 
-      onclick={toggleSidebar} 
-      class="text-gray-600 hover:text-gray-900 focus:outline-none"
-      aria-label="Toggle sidebar"
-    >
-      <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16" />
-      </svg>
-    </button>
-  </div>
+<!-- Desktop Sidebar -->
+<aside class="hidden md:block w-64 bg-white shadow-md h-screen sticky top-0">
+  <nav class="mt-8 px-4">
+    <div class="space-y-1">
+      {#each navItems as item}
+        <button
+          onclick={() => navigate(item.path)}
+          class="w-full group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors {isActive(item.path) ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-50'}"
+        >
+          <svg 
+            class="mr-3 h-5 w-5 {isActive(item.path) ? 'text-primary-500' : 'text-gray-400 group-hover:text-gray-500'}"
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor" 
+            aria-hidden="true"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={item.icon} />
+          </svg>
+          {item.name}
+        </button>
+      {/each}
+    </div>
+  </nav>
+</aside>
+
+<!-- Mobile Sidebar Overlay -->
+{#if isOpen}
+  <!-- Backdrop -->
+  <div 
+    class="md:hidden fixed inset-0 z-40 bg-gray-600 bg-opacity-75"
+    onclick={toggleSidebar}
+  ></div>
   
-  <!-- Sidebar content -->
-  <aside class={`bg-white shadow-md md:h-screen md:sticky md:top-16 md:block transition-all duration-300 ${isOpen ? 'block' : 'hidden'}`}>
-    <div class="p-4">
-      <nav class="mt-4 space-y-1">
+  <!-- Mobile Sidebar -->
+  <aside class="md:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl">
+    <div class="flex items-center justify-between h-16 px-4 border-b">
+      <span class="text-xl font-semibold text-gray-900">Menu</span>
+      <button 
+        onclick={toggleSidebar}
+        class="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+      >
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    
+    <nav class="mt-5 px-4">
+      <div class="space-y-1">
         {#each navItems as item}
-          <a 
-            href={item.path}
-            onclick={(e) => { e.preventDefault(); navigate(item.path); }}
-            class={`group flex items-center px-3 py-2 text-sm font-medium rounded-md ${isActive(item.path) ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-50'}`}
+          <button
+            onclick={() => navigate(item.path)}
+            class="w-full group flex items-center px-3 py-2 text-base font-medium rounded-md transition-colors {isActive(item.path) ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-50'}"
           >
             <svg 
-              class={`mr-3 h-5 w-5 ${isActive(item.path) ? 'text-primary-500' : 'text-gray-400 group-hover:text-gray-500'}`}
+              class="mr-3 h-5 w-5 {isActive(item.path) ? 'text-primary-500' : 'text-gray-400 group-hover:text-gray-500'}"
               fill="none" 
               viewBox="0 0 24 24" 
               stroke="currentColor" 
@@ -89,9 +125,16 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={item.icon} />
             </svg>
             {item.name}
-          </a>
+          </button>
         {/each}
-      </nav>
-    </div>
+      </div>
+    </nav>
   </aside>
-</div>
+{/if}
+
+<style>
+  /* Add smooth transition for mobile sidebar */
+  aside {
+    transition: transform 0.3s ease-in-out;
+  }
+</style>
