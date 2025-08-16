@@ -143,25 +143,26 @@
   
   <!-- 2 Column Layout -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-    <!-- VALIDATORS COLUMN -->
-    <div class="space-y-6">
-      <!-- Column Header with Background -->
-      <div class="bg-sky-50 px-4 py-3 rounded-lg border-l-4 border-sky-500 shadow-sm">
-        <h2 class="text-2xl font-bold text-sky-700 uppercase tracking-wide">Validators</h2>
+    <!-- VALIDATORS COLUMN CARD -->
+    <div class="bg-sky-50/30 rounded-lg shadow-sm border border-sky-100 overflow-hidden">
+      <!-- Column Header -->
+      <div class="bg-sky-100/50 px-5 py-3 border-b border-sky-200">
+        <h2 class="text-lg font-semibold text-sky-700 uppercase tracking-wider">Validators</h2>
       </div>
       
+      <!-- Column Content -->
+      <div class="p-4 space-y-8">
+      
       <!-- Total Validators Stat -->
-      <div class="bg-white shadow rounded-lg p-4">
-        <div class="flex items-center">
-          <div class="p-3 bg-sky-100 rounded-lg mr-4">
-            <svg class="w-6 h-6 text-sky-600" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
-            </svg>
-          </div>
-          <div>
-            <p class="text-sm text-gray-500">Total Validators</p>
-            <p class="text-2xl font-bold text-gray-900">{statsLoading ? '...' : validatorStats.total}</p>
-          </div>
+      <div class="flex items-center">
+        <div class="p-3 bg-sky-100 rounded-lg mr-4">
+          <svg class="w-6 h-6 text-sky-600" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-sm text-gray-500">Total Validators</p>
+          <p class="text-2xl font-bold text-gray-900">{statsLoading ? '...' : validatorStats.total}</p>
         </div>
       </div>
       
@@ -194,7 +195,7 @@
       </div>
       
       <!-- Featured Validators Contributions -->
-      <div class="space-y-4 mt-8">
+      <div class="space-y-4 mt-10">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <div class="p-1.5 bg-yellow-100 rounded-lg">
@@ -218,12 +219,13 @@
           showHeader={false}
           showViewAll={false}
           category="validator"
+          cardStyle="highlight"
           limit={3}
         />
       </div>
       
       <!-- Newest Validators -->
-      <div class="space-y-4 mt-8">
+      <div class="space-y-4 mt-10">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <div class="p-1.5 bg-blue-100 rounded-lg">
@@ -253,7 +255,7 @@
             <p class="text-gray-500">No new validators yet.</p>
           </div>
         {:else}
-          <div class="bg-white shadow rounded-lg divide-y divide-gray-200">
+          <div class="bg-white rounded-lg divide-y divide-gray-200">
             {#each newestValidators as validator}
               <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
                 <div class="flex items-center gap-2">
@@ -285,27 +287,29 @@
           </div>
         {/if}
       </div>
+      </div>
     </div>
     
-    <!-- BUILDERS COLUMN -->
-    <div class="space-y-6">
-      <!-- Column Header with Background -->
-      <div class="bg-orange-50 px-4 py-3 rounded-lg border-l-4 border-orange-500 shadow-sm">
-        <h2 class="text-2xl font-bold text-orange-700 uppercase tracking-wide">Builders</h2>
+    <!-- BUILDERS COLUMN CARD -->
+    <div class="bg-orange-50/30 rounded-lg shadow-sm border border-orange-100 overflow-hidden">
+      <!-- Column Header -->
+      <div class="bg-orange-100/50 px-5 py-3 border-b border-orange-200">
+        <h2 class="text-lg font-semibold text-orange-700 uppercase tracking-wider">Builders</h2>
       </div>
       
+      <!-- Column Content -->
+      <div class="p-4 space-y-8">
+      
       <!-- Total Builders Stat -->
-      <div class="bg-white shadow rounded-lg p-4">
-        <div class="flex items-center">
-          <div class="p-3 bg-orange-100 rounded-lg mr-4">
-            <svg class="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
-            </svg>
-          </div>
-          <div>
-            <p class="text-sm text-gray-500">Total Builders</p>
-            <p class="text-2xl font-bold text-gray-900">{statsLoading ? '...' : builderStats.total}</p>
-          </div>
+      <div class="flex items-center">
+        <div class="p-3 bg-orange-100 rounded-lg mr-4">
+          <svg class="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-sm text-gray-500">Total Builders</p>
+          <p class="text-2xl font-bold text-gray-900">{statsLoading ? '...' : builderStats.total}</p>
         </div>
       </div>
       
@@ -338,7 +342,7 @@
       </div>
       
       <!-- Featured Builders Contributions -->
-      <div class="space-y-4 mt-8">
+      <div class="space-y-4 mt-10">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <div class="p-1.5 bg-yellow-100 rounded-lg">
@@ -362,12 +366,13 @@
           showHeader={false}
           showViewAll={false}
           category="builder"
+          cardStyle="highlight"
           limit={3}
         />
       </div>
       
       <!-- Newest Builders -->
-      <div class="space-y-4 mt-8">
+      <div class="space-y-4 mt-10">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <div class="p-1.5 bg-blue-100 rounded-lg">
@@ -397,7 +402,7 @@
             <p class="text-gray-500">No new builders yet.</p>
           </div>
         {:else}
-          <div class="bg-white shadow rounded-lg divide-y divide-gray-200">
+          <div class="bg-white rounded-lg divide-y divide-gray-200">
             {#each newestBuilders as builder}
               <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
                 <div class="flex items-center gap-2">
@@ -428,6 +433,7 @@
             {/each}
           </div>
         {/if}
+      </div>
       </div>
     </div>
   </div>

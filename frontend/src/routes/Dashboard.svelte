@@ -266,6 +266,7 @@
       <FeaturedContributions 
         showHeader={false}
         showViewAll={false}
+        cardStyle="highlight"
       />
     </div>
   </div>
