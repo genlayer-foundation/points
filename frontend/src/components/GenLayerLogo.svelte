@@ -1,0 +1,14 @@
+<script>
+  let { class: className = '', ...props } = $props();
+</script>
+
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 98 92"
+  class={className}
+  {...props}
+>
+  <polygon class="logo-left" points="44.26 32.35 27.72 67.12 43.29 74.9 0 91.93 44.26 0 44.26 32.35" />
+  <polygon class="logo-right" points="53.5 32.35 70.04 67.12 54.47 74.9 97.76 91.93 53.5 0 53.5 32.35" />
+  <polygon class="logo-center" points="48.64 43.78 58.33 62.94 48.64 67.69 39.47 62.92 48.64 43.78" />
+</svg>

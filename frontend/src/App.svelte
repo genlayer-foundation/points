@@ -18,6 +18,7 @@
   import Profile from './routes/Profile.svelte';
   import Highlights from './routes/Highlights.svelte';
   import NotFound from './routes/NotFound.svelte';
+  import LoaderShowcase from './routes/LoaderShowcase.svelte';
   
   // Define routes
   const routes = {
@@ -34,6 +35,7 @@
     '/contributions/:id': EditSubmission,
     '/metrics': Metrics,
     '/profile': Profile,
+    '/loader-showcase': LoaderShowcase,
     '*': NotFound
   };
   
