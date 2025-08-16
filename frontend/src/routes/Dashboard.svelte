@@ -6,7 +6,6 @@
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import RecentContributions from '../components/RecentContributions.svelte';
   import { contributionsAPI, usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
-  import { authState } from '../lib/auth.js';
   import { push } from 'svelte-spa-router';
   import { currentCategory, categoryTheme } from '../stores/category.js';
   
@@ -138,13 +137,12 @@
     }
   }
   
-  // Fetch data on mount and when category changes
-  onMount(() => {
-    fetchDashboardData();
-  });
+  // Fetch data when category changes (including initial mount)
+  let previousCategory = $state(null);
   
   $effect(() => {
-    if ($currentCategory) {
+    if ($currentCategory && $currentCategory !== previousCategory) {
+      previousCategory = $currentCategory;
       fetchDashboardData();
     }
   });
@@ -158,24 +156,13 @@
 </script>
 
 <div class="space-y-4">
-  <div class="flex justify-between items-center">
+  <div>
     <h1 class="text-2xl font-bold text-gray-900">
       {$currentCategory === 'global' ? 'Testnet Asimov' : 
        $currentCategory === 'builder' ? 'Builders' :
        $currentCategory === 'validator' ? 'Validators' :
        $currentCategory === 'steward' ? 'Stewards' : 'Dashboard'}
     </h1>
-    {#if $authState.isAuthenticated}
-      <button
-        onclick={() => push('/submit-contribution')}
-        class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 flex items-center gap-2"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-        </svg>
-        Submit Contribution
-      </button>
-    {/if}
   </div>
   
   <!-- Connection error message if needed -->
@@ -220,7 +207,7 @@
   
   <!-- First Row: Leaderboard and Highlights -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-    <!-- Top Validators -->
+    <!-- Top Leaderboard -->
     <div class="space-y-4">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
@@ -236,7 +223,7 @@
           </h2>
         </div>
         <button
-          onclick={() => push('/leaderboard')}
+          onclick={() => push($currentCategory === 'builder' ? '/builders/leaderboard' : $currentCategory === 'validator' ? '/validators/leaderboard' : '/leaderboard')}
           class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
           View all
@@ -262,7 +249,7 @@
           <h2 class="text-lg font-semibold text-gray-900">Featured Contributions</h2>
         </div>
         <button
-          onclick={() => push('/highlights')}
+          onclick={() => push($currentCategory === 'builder' ? '/builders/contributions/highlights' : $currentCategory === 'validator' ? '/validators/contributions/highlights' : '/contributions/highlights')}
           class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
           View all
@@ -296,7 +283,7 @@
           </h2>
         </div>
         <button
-          onclick={() => push('/participants')}
+          onclick={() => push($currentCategory === 'builder' ? '/builders/participants' : $currentCategory === 'validator' ? '/validators/participants' : '/participants')}
           class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
           View all
@@ -364,7 +351,7 @@
           <h2 class="text-lg font-semibold text-gray-900">Recent Contributions</h2>
         </div>
         <button
-          onclick={() => push('/contributions')}
+          onclick={() => push($currentCategory === 'builder' ? '/builders/contributions' : $currentCategory === 'validator' ? '/validators/contributions' : '/contributions')}
           class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
           View all

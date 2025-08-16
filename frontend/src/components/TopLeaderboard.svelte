@@ -54,12 +54,12 @@
     }
   }
   
-  onMount(() => {
-    fetchLeaderboard();
-  });
+  // Fetch leaderboard when category changes (including initial mount)
+  let previousCategory = $state(null);
   
   $effect(() => {
-    if ($currentCategory) {
+    if ($currentCategory && $currentCategory !== previousCategory) {
+      previousCategory = $currentCategory;
       fetchLeaderboard();
     }
   });

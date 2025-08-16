@@ -146,17 +146,6 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = ContributionHighlightSerializer(highlights, many=True)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
-    def all_highlights(self, request):
-        """
-        Get all active highlights across all contribution types.
-        """
-        limit = int(request.query_params.get('limit', 5))
-        
-        highlights = ContributionHighlight.get_active_highlights(limit=limit)
-        
-        serializer = ContributionHighlightSerializer(highlights, many=True)
-        return Response(serializer.data)
 
 
 class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -306,6 +295,39 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             'previous': None if page_number == 1 else f"?page={page_number - 1}&limit={page_size}&group_consecutive=true",
             'results': paginated_groups
         })
+    
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    def highlights(self, request):
+        """
+        Get all active highlights across all contribution types.
+        Optionally filter by category.
+        """
+        from contributions.models import Category
+        
+        limit = int(request.query_params.get('limit', 10))
+        category_slug = request.query_params.get('category')
+        
+        # Start with all highlights
+        queryset = ContributionHighlight.objects.all()
+        
+        # Filter by category if provided
+        if category_slug and category_slug != 'global':
+            try:
+                category = Category.objects.get(slug=category_slug)
+                queryset = queryset.filter(contribution__contribution_type__category=category)
+            except Category.DoesNotExist:
+                # If category doesn't exist, return empty list
+                return Response([])
+        
+        # Order by created_at descending and apply limit
+        highlights = queryset.select_related(
+            'contribution__user',
+            'contribution__contribution_type',
+            'contribution__contribution_type__category'
+        ).order_by('-created_at')[:limit]
+        
+        serializer = ContributionHighlightSerializer(highlights, many=True)
+        return Response(serializer.data)
 
 
 class EvidenceViewSet(viewsets.ReadOnlyModelViewSet):

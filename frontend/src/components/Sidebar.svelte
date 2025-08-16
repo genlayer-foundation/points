@@ -69,7 +69,9 @@
       iconName: 'genlayer',
       dashboardPath: '/',
       dashboardAction: () => changeCategory('global', '/'),
-      items: [] // No sub-items for Testnet Asimov
+      items: [
+        { name: 'Metrics', path: '/metrics', iconName: 'metrics' }
+      ]
     },
     {
       title: 'Builders',
@@ -139,7 +141,7 @@
                 size="sm"
                 className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-500'}"
               />
-              <h3 class="text-xs font-medium text-gray-700 uppercase tracking-wider">
+              <h3 class="text-xs font-medium uppercase tracking-wider {section.category === 'global' && section.category === $currentCategory ? 'text-black' : 'text-gray-700'}">
                 {section.title}
               </h3>
             </button>
@@ -153,7 +155,7 @@
                     href={item.path}
                     onclick={(e) => { e.preventDefault(); navigate(item.path); }}
                     class={`group flex items-center px-3 py-1.5 text-sm rounded-md ${
-                      isActive(item.path)
+                      isActive(item.path) || $location.startsWith(item.path + '/')
                         ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
                         : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                     }`}
@@ -161,7 +163,7 @@
                     <Icon 
                       name={item.iconName}
                       size="sm"
-                      className="mr-2 {section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-400'}"
+                      className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-400'}"
                     />
                     {item.name}
                   </a>

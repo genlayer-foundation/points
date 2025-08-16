@@ -26,6 +26,7 @@
     // Global/Testnet Asimov routes
     '/': Dashboard,
     '/contributions': Contributions,
+    '/contributions/highlights': Highlights,
     '/highlights': Highlights,
     '/leaderboard': Leaderboard,
     '/participants': Validators,
@@ -33,12 +34,16 @@
     // Builders routes
     '/builders': Dashboard,
     '/builders/contributions': Contributions,
+    '/builders/contributions/highlights': Highlights,
+    '/builders/highlights': Highlights,
     '/builders/leaderboard': Leaderboard,
     '/builders/participants': Validators,
     
     // Validators routes
     '/validators': Dashboard,
     '/validators/contributions': Contributions,
+    '/validators/contributions/highlights': Highlights,
+    '/validators/highlights': Highlights,
     '/validators/leaderboard': Leaderboard,
     '/validators/participants': Validators,
     
