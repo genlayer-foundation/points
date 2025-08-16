@@ -4,6 +4,7 @@
   import { push } from 'svelte-spa-router';
   import Badge from './Badge.svelte';
   import { contributionsAPI } from '../lib/api';
+  import { currentCategory } from '../stores/category.js';
   
   // State management
   let typeStats = $state([]);
@@ -27,12 +28,25 @@
     await fetchTypeStatistics();
   });
   
+  // Re-fetch when category changes
+  $effect(() => {
+    if ($currentCategory) {
+      fetchTypeStatistics();
+    }
+  });
+  
   async function fetchTypeStatistics() {
     try {
       loading = true;
       error = null;
       
-      const res = await contributionsAPI.getContributionTypeStatistics();
+      // Pass category parameter if not global
+      const params = {};
+      if ($currentCategory !== 'global') {
+        params.category = $currentCategory;
+      }
+      
+      const res = await contributionsAPI.getContributionTypeStatistics(params);
       typeStats = res.data || [];
       loading = false;
     } catch (err) {

@@ -1,5 +1,8 @@
 <script>
   import { push, location } from 'svelte-spa-router';
+  import { currentCategory, categoryTheme } from '../stores/category.js';
+  import Icon from './Icons.svelte';
+  import { authState } from '../lib/auth.js';
   
   let { isOpen = $bindable(false) } = $props();
   
@@ -14,9 +17,32 @@
     isOpen = !isOpen;
   }
   
-  function navigate(path) {
+  function navigate(path, requiresAuth = false) {
+    if (requiresAuth && !$authState.isAuthenticated) {
+      // Store the intended destination
+      sessionStorage.setItem('redirectAfterLogin', path);
+      // Trigger login by programmatically clicking the auth button
+      const authButton = document.querySelector('[data-auth-button]');
+      if (authButton) authButton.click();
+      return;
+    }
+    
     push(path);
     // Close sidebar on mobile after navigation
+    if (window.innerWidth < 768) {
+      isOpen = false;
+    }
+  }
+  
+  function handleProfileClick() {
+    if ($authState.isAuthenticated) {
+      // Go to public profile, not edit
+      push(`/participant/${$authState.address}`);
+    } else {
+      // Trigger login
+      const authButton = document.querySelector('[data-auth-button]');
+      if (authButton) authButton.click();
+    }
     if (window.innerWidth < 768) {
       isOpen = false;
     }
@@ -27,61 +53,166 @@
     return $location === path;
   }
   
-  const navItems = [
-    { 
-      name: 'Dashboard', 
-      path: '/', 
-      icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' 
-    },
-    { 
-      name: 'Leaderboard', 
-      path: '/leaderboard', 
-      icon: 'M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3' 
-    },
-    { 
-      name: 'Contributions', 
-      path: '/contributions', 
-      icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01' 
-    },
-    {
-      name: 'My Submissions',
-      path: '/my-submissions',
-      icon: 'M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z'
-    },
-    {
-      name: 'Validators',
-      path: '/validators',
-      icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'
-    },
-    {
-      name: 'Metrics',
-      path: '/metrics',
-      icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
+  // Function to change category and navigate
+  function changeCategory(category, path = '/') {
+    currentCategory.set(category);
+    push(path);
+    if (window.innerWidth < 768) {
+      isOpen = false;
     }
+  }
+  
+  // Define the complete navigation structure
+  const navigationStructure = [
+    {
+      title: 'Testnet Asimov',
+      category: 'global',
+      iconName: 'genlayer',
+      dashboardPath: '/',
+      dashboardAction: () => changeCategory('global', '/'),
+      items: [
+        { name: 'Metrics', path: '/metrics', iconName: 'metrics' }
+      ]
+    },
+    {
+      title: 'Builders',
+      category: 'builder',
+      iconName: 'builder',
+      color: 'orange',
+      dashboardPath: '/builders',
+      dashboardAction: () => changeCategory('builder', '/builders'),
+      items: [
+        { name: 'Contributions', path: '/builders/contributions', iconName: 'contributions' },
+        { name: 'Leaderboard', path: '/builders/leaderboard', iconName: 'leaderboard' },
+        { name: 'Participants', path: '/builders/participants', iconName: 'participants' }
+      ]
+    },
+    {
+      title: 'Validators',
+      category: 'validator',
+      iconName: 'validator', 
+      color: 'sky',
+      dashboardPath: '/validators',
+      dashboardAction: () => changeCategory('validator', '/validators'),
+      items: [
+        { name: 'Contributions', path: '/validators/contributions', iconName: 'contributions' },
+        { name: 'Leaderboard', path: '/validators/leaderboard', iconName: 'leaderboard' },
+        { name: 'Participants', path: '/validators/participants', iconName: 'participants' }
+      ]
+    }
+  ];
+  
+  // Profile section items (same for all categories)
+  const profileItems = [
+    { name: 'My Submissions', path: '/my-submissions', iconName: 'mySubmissions', requiresAuth: true },
+    { name: 'Profile', path: 'profile', iconName: 'profile', isProfile: true }
   ];
 </script>
 
 <!-- Desktop Sidebar -->
 <aside class="hidden md:block w-64 bg-white shadow-md h-screen sticky top-0">
   <nav class="mt-8 px-4">
-    <div class="space-y-1">
-      {#each navItems as item}
-        <button
-          onclick={() => navigate(item.path)}
-          class="w-full group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors {isActive(item.path) ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-50'}"
-        >
-          <svg 
-            class="mr-3 h-5 w-5 {isActive(item.path) ? 'text-primary-500' : 'text-gray-400 group-hover:text-gray-500'}"
-            fill="none" 
-            viewBox="0 0 24 24" 
-            stroke="currentColor" 
-            aria-hidden="true"
+    <div class="space-y-2">
+      <!-- Navigation sections - all visible -->
+      {#each navigationStructure as section, index}
+        <div>
+          <!-- Section header - clickable dashboard link -->
+          <button
+            onclick={section.dashboardAction}
+            class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors {
+              isActive(section.dashboardPath) && section.category === $currentCategory
+                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                : 'hover:bg-gray-50'
+            }"
           >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={item.icon} />
-          </svg>
-          {item.name}
-        </button>
+            <Icon 
+              name={section.iconName}
+              size="sm"
+              className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-500'}"
+            />
+            <h3 class="text-xs font-medium uppercase tracking-wider {section.category === 'global' && section.category === $currentCategory ? 'text-black' : 'text-gray-700'}">
+              {section.title}
+            </h3>
+          </button>
+          
+          <!-- Section items (only if they exist) -->
+          {#if section.items.length > 0}
+            <div class="space-y-0.5 mb-3">
+              {#each section.items as item}
+                <!-- Regular navigation item -->
+                <a 
+                  href={item.path}
+                  onclick={(e) => { e.preventDefault(); navigate(item.path); }}
+                  class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+                    isActive(item.path) || $location.startsWith(item.path + '/')
+                      ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
+                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                  }"
+                >
+                  <Icon 
+                    name={item.iconName}
+                    size="sm"
+                    className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-400'}"
+                  />
+                  {item.name}
+                </a>
+              {/each}
+            </div>
+          {/if}
+          
+          <!-- Separator after each section except the last -->
+          {#if index < navigationStructure.length - 1}
+            <div class="border-t border-gray-200 mb-3"></div>
+          {/if}
+        </div>
       {/each}
+      
+      <!-- Profile section (always visible) -->
+      <div>
+        <div class="border-t border-gray-200 pt-4"></div>
+        <div class="flex items-center px-3 py-2 mb-2">
+          <Icon 
+            name="profile"
+            size="sm"
+            className="mr-2 text-gray-500"
+          />
+          <h3 class="text-xs font-medium text-gray-700 uppercase tracking-wider">
+            Account
+          </h3>
+        </div>
+        <div class="space-y-0.5">
+          {#each profileItems as item}
+            {#if item.isProfile}
+              <button
+                onclick={handleProfileClick}
+                class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
+              >
+                <Icon 
+                  name={item.iconName}
+                  size="sm"
+                  className="mr-2 text-gray-400 group-hover:text-gray-500"
+                />
+                {item.name}
+              </button>
+            {:else}
+              <a 
+                href={item.path}
+                onclick={(e) => { e.preventDefault(); navigate(item.path, item.requiresAuth); }}
+                class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+                  isActive(item.path) ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                }"
+              >
+                <Icon 
+                  name={item.iconName}
+                  size="sm"
+                  className="mr-2 {isActive(item.path) ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
+                />
+                {item.name}
+              </a>
+            {/if}
+          {/each}
+        </div>
+      </div>
     </div>
   </nav>
 </aside>
@@ -92,6 +223,10 @@
   <div 
     class="md:hidden fixed inset-0 z-40 bg-gray-600 bg-opacity-75"
     onclick={toggleSidebar}
+    onkeydown={(e) => e.key === 'Escape' && toggleSidebar()}
+    role="button"
+    tabindex="0"
+    aria-label="Close sidebar"
   ></div>
   
   <!-- Mobile Sidebar -->
@@ -101,6 +236,7 @@
       <button 
         onclick={toggleSidebar}
         class="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+        aria-label="Close menu"
       >
         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -108,25 +244,108 @@
       </button>
     </div>
     
-    <nav class="mt-5 px-4">
-      <div class="space-y-1">
-        {#each navItems as item}
-          <button
-            onclick={() => navigate(item.path)}
-            class="w-full group flex items-center px-3 py-2 text-base font-medium rounded-md transition-colors {isActive(item.path) ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-50'}"
-          >
-            <svg 
-              class="mr-3 h-5 w-5 {isActive(item.path) ? 'text-primary-500' : 'text-gray-400 group-hover:text-gray-500'}"
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor" 
-              aria-hidden="true"
+    <nav class="mt-5 px-4 overflow-y-auto" style="max-height: calc(100vh - 5rem);">
+      <div class="space-y-2">
+        <!-- Navigation sections - all visible -->
+        {#each navigationStructure as section, index}
+          <div>
+            <!-- Section header - clickable dashboard link -->
+            <button
+              onclick={section.dashboardAction}
+              class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors {
+                isActive(section.dashboardPath) && section.category === $currentCategory
+                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                  : 'hover:bg-gray-50'
+              }"
             >
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={item.icon} />
-            </svg>
-            {item.name}
-          </button>
+              <Icon 
+                name={section.iconName}
+                size="sm"
+                className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-500'}"
+              />
+              <h3 class="text-xs font-medium uppercase tracking-wider {section.category === 'global' && section.category === $currentCategory ? 'text-black' : 'text-gray-700'}">
+                {section.title}
+              </h3>
+            </button>
+            
+            <!-- Section items (only if they exist) -->
+            {#if section.items.length > 0}
+              <div class="space-y-0.5 mb-3">
+                {#each section.items as item}
+                  <!-- Regular navigation item -->
+                  <a 
+                    href={item.path}
+                    onclick={(e) => { e.preventDefault(); navigate(item.path); }}
+                    class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+                      isActive(item.path) || $location.startsWith(item.path + '/')
+                        ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
+                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                    }"
+                  >
+                    <Icon 
+                      name={item.iconName}
+                      size="sm"
+                      className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-400'}"
+                    />
+                    {item.name}
+                  </a>
+                {/each}
+              </div>
+            {/if}
+            
+            <!-- Separator after each section except the last -->
+            {#if index < navigationStructure.length - 1}
+              <div class="border-t border-gray-200 mb-3"></div>
+            {/if}
+          </div>
         {/each}
+        
+        <!-- Profile section (always visible) -->
+        <div>
+          <div class="border-t border-gray-200 pt-4"></div>
+          <div class="flex items-center px-3 py-2 mb-2">
+            <Icon 
+              name="profile"
+              size="sm"
+              className="mr-2 text-gray-500"
+            />
+            <h3 class="text-xs font-medium text-gray-700 uppercase tracking-wider">
+              Account
+            </h3>
+          </div>
+          <div class="space-y-0.5">
+            {#each profileItems as item}
+              {#if item.isProfile}
+                <button
+                  onclick={handleProfileClick}
+                  class="group flex items-center px-3 py-1.5 text-sm rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 w-full text-left"
+                >
+                  <Icon 
+                    name={item.iconName}
+                    size="sm"
+                    className="mr-2 text-gray-400 group-hover:text-gray-500"
+                  />
+                  {item.name}
+                </button>
+              {:else}
+                <a 
+                  href={item.path}
+                  onclick={(e) => { e.preventDefault(); navigate(item.path, item.requiresAuth); }}
+                  class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+                    isActive(item.path) ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                  }"
+                >
+                  <Icon 
+                    name={item.iconName}
+                    size="sm"
+                    className="mr-2 {isActive(item.path) ? $categoryTheme.text : 'text-gray-400 group-hover:text-gray-500'}"
+                  />
+                  {item.name}
+                </a>
+              {/if}
+            {/each}
+          </div>
+        </div>
       </div>
     </nav>
   </aside>

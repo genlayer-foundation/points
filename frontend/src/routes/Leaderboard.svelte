@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import LeaderboardTable from '../components/LeaderboardTable.svelte';
   import { leaderboardAPI } from '../lib/api';
+  import { currentCategory, categoryTheme } from '../stores/category.js';
   
   // State management
   let leaderboard = $state([]);
@@ -19,17 +20,47 @@
     })
   );
   
-  // Fetch data
-  onMount(async () => {
+  // Fetch data based on category
+  async function fetchLeaderboard() {
     try {
       loading = true;
-      const response = await leaderboardAPI.getLeaderboard();
-      // API now returns unpaginated data
-      leaderboard = response.data || [];
+      error = null;
+      
+      let response;
+      if ($currentCategory === 'global') {
+        response = await leaderboardAPI.getLeaderboard();
+        leaderboard = response.data || [];
+      } else {
+        // Fetch category-specific leaderboard using the category endpoint
+        response = await leaderboardAPI.getCategoryLeaderboard($currentCategory);
+        // Transform the entries to match the expected format
+        leaderboard = (response.data.entries || []).map(entry => ({
+          rank: entry.rank,
+          total_points: entry.total_points,
+          user_details: {
+            id: entry.user.id,
+            name: entry.user.name,
+            address: entry.user.address,
+          }
+        }));
+      }
+      
       loading = false;
     } catch (err) {
       error = err.message || 'Failed to load leaderboard';
       loading = false;
+    }
+  }
+  
+  // Fetch on mount and when category changes
+  onMount(() => {
+    fetchLeaderboard();
+  });
+  
+  // Re-fetch when category changes
+  $effect(() => {
+    if ($currentCategory) {
+      fetchLeaderboard();
     }
   });
 </script>
@@ -37,9 +68,12 @@
 <div class="space-y-6">
   <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900">Leaderboard</h1>
+      <h1 class="text-2xl font-bold text-gray-900">
+        {$currentCategory === 'global' ? 'Global' : 
+         $currentCategory === 'builders' ? 'Builders' : 'Validators'} Leaderboard
+      </h1>
       <p class="mt-1 text-sm text-gray-500">
-        Complete rankings of all participants
+        Complete rankings of {$currentCategory === 'global' ? 'all participants' : $currentCategory}
       </p>
     </div>
     
@@ -83,7 +117,7 @@
       </div>
     </div>
   {:else}
-    <div class="bg-white shadow rounded-lg">
+    <div class="{$categoryTheme.bg === 'bg-white' ? 'bg-white' : 'bg-white/90'} shadow rounded-lg">
       {#if searchQuery && filteredLeaderboard.length === 0}
         <div class="p-6 text-center text-gray-500">
           No participants found matching "{searchQuery}"

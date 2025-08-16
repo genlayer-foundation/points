@@ -1,7 +1,9 @@
 <script>
   import { push, location } from 'svelte-spa-router';
   import AuthButton from './AuthButton.svelte';
+  import Icon from './Icons.svelte';
   import { authState } from '../lib/auth.js';
+  import { categoryTheme, currentCategory } from '../stores/category.js';
   
   let { toggleSidebar } = $props();
   
@@ -39,8 +41,8 @@
     <div class="flex justify-between h-16">
       <div class="flex items-center">
         <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex-shrink-0 flex items-center">
-          <img class="h-8 w-8" src="/assets/logo.svg" alt="GenLayer Logo" />
-          <span class="ml-2 text-sm sm:text-xl font-bold text-primary-700">
+          <Icon name="genlayer" size="lg" className="text-black" />
+          <span class="ml-3 text-sm sm:text-xl font-bold {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">
             <span class="hidden sm:inline">GenLayer Testnet Contributions</span>
             <span class="sm:hidden">GenLayer</span>
           </span>
@@ -50,7 +52,7 @@
       <div class="hidden md:flex items-center gap-4">
         <button 
           onclick={handleSubmitContribution}
-          class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 font-medium"
+          class="px-4 py-2 {$categoryTheme.button} rounded-md font-medium"
         >
           Submit Contribution
         </button>
@@ -71,5 +73,4 @@
       </div>
     </div>
   </div>
-  
 </header>

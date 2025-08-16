@@ -4,6 +4,8 @@
   import { onMount } from 'svelte';
   import Navbar from './components/Navbar.svelte';
   import Sidebar from './components/Sidebar.svelte';
+  import { categoryTheme, currentCategory, detectCategoryFromRoute } from './stores/category.js';
+  import { location } from 'svelte-spa-router';
   
   // State for sidebar toggle on mobile
   let sidebarOpen = $state(false);
@@ -11,6 +13,7 @@
   function toggleSidebar() {
     sidebarOpen = !sidebarOpen;
   }
+  
   import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
@@ -29,11 +32,31 @@
   
   // Define routes
   const routes = {
+    // Global/Testnet Asimov routes
     '/': Dashboard,
     '/contributions': Contributions,
+    '/contributions/highlights': Highlights,
     '/highlights': Highlights,
     '/leaderboard': Leaderboard,
-    '/validators': Validators,
+    '/participants': Validators,
+    
+    // Builders routes
+    '/builders': Dashboard,
+    '/builders/contributions': Contributions,
+    '/builders/contributions/highlights': Highlights,
+    '/builders/highlights': Highlights,
+    '/builders/leaderboard': Leaderboard,
+    '/builders/participants': Validators,
+    
+    // Validators routes
+    '/validators': Dashboard,
+    '/validators/contributions': Contributions,
+    '/validators/contributions/highlights': Highlights,
+    '/validators/highlights': Highlights,
+    '/validators/leaderboard': Leaderboard,
+    '/validators/participants': Validators,
+    
+    // Shared routes
     '/participant/:address': ParticipantProfile,
     '/contribution-type/:id': ContributionTypeDetail,
     '/badge/:id': BadgeDetail,
@@ -45,6 +68,12 @@
     '/loader-showcase': LoaderShowcase,
     '*': NotFound
   };
+  
+  // Automatically update category based on current route
+  $: {
+    const category = detectCategoryFromRoute($location);
+    currentCategory.set(category);
+  }
   
   // Function to hide tooltips - used for route changes
   function hideTooltips() {
@@ -181,7 +210,7 @@
   }
 </script>
 
-<div class="min-h-screen bg-gray-50">
+<div class="min-h-screen {$categoryTheme.bg} transition-colors duration-300">
   <Navbar {toggleSidebar} />
   <div class="flex">
     <Sidebar bind:isOpen={sidebarOpen} />

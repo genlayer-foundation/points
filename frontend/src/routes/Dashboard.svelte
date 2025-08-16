@@ -5,9 +5,10 @@
   import TopLeaderboard from '../components/TopLeaderboard.svelte';
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import RecentContributions from '../components/RecentContributions.svelte';
-  import { contributionsAPI, usersAPI, statsAPI } from '../lib/api';
-  import { authState } from '../lib/auth.js';
+  import GlobalDashboard from '../components/GlobalDashboard.svelte';
+  import { contributionsAPI, usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
   import { push } from 'svelte-spa-router';
+  import { currentCategory, categoryTheme } from '../stores/category.js';
   
   // State management
   let newestValidators = $state([]);
@@ -32,18 +33,28 @@
     }
   };
   
-  // Fetch data
-  onMount(async () => {
+  // Function to fetch data based on category
+  async function fetchDashboardData() {
     
     try {
-      // Fetch newest validators (ordered by first uptime contribution)
+      // Fetch newest participants based on category
       newestValidatorsLoading = true;
-      // Get recent uptime contributions to find newest validators
-      const uptimeRes = await contributionsAPI.getContributions({ 
+      
+      // Build params based on category
+      const params = { 
         limit: 20, 
-        ordering: '-contribution_date',
-        contribution_type_name: 'Uptime'
-      });
+        ordering: '-contribution_date'
+      };
+      
+      // For validators, look for Uptime contributions
+      // For other categories, get any recent contributions
+      if ($currentCategory === 'validator') {
+        params.contribution_type_name = 'Uptime';
+      } else if ($currentCategory !== 'global') {
+        params.category = $currentCategory;
+      }
+      
+      const uptimeRes = await contributionsAPI.getContributions(params);
       
       // Extract unique users from uptime contributions
       const seenUsers = new Set();
@@ -65,38 +76,56 @@
       newestValidators = uniqueValidators;
       newestValidatorsLoading = false;
     } catch (error) {
-      newestValidatorsError = error.message || 'Failed to load newest validators';
+      newestValidatorsError = error.message || `Failed to load newest ${$currentCategory === 'validator' ? 'validators' : $currentCategory === 'builder' ? 'builders' : 'participants'}`;
       newestValidatorsLoading = false;
     }
     
     try {
-      // Fetch stats
+      // Fetch stats based on category
       statsLoading = true;
       
-      // Try to get from the stats API first
-      try {
-        const dashboardStats = await statsAPI.getDashboardStats();
-        if (dashboardStats.data) {
+      if ($currentCategory === 'global') {
+        // For global, use the stats API
+        try {
+          const dashboardStats = await statsAPI.getDashboardStats();
+          if (dashboardStats.data) {
+            stats = {
+              totalParticipants: dashboardStats.data.participant_count || 0,
+              totalContributions: dashboardStats.data.contribution_count || 0,
+              totalPoints: dashboardStats.data.total_points || 0,
+              lastUpdated: new Date().toISOString()
+            };
+          }
+        } catch (statsApiError) {
+          console.warn('Stats API failed, falling back to individual requests', statsApiError);
+          
+          // Fallback to individual requests
+          const [participantCountRes, contributionsRes] = await Promise.all([
+            usersAPI.getParticipantCount(),
+            contributionsAPI.getContributions({ limit: 1 })
+          ]);
+          
           stats = {
-            totalParticipants: dashboardStats.data.participant_count || 0,
-            totalContributions: dashboardStats.data.contribution_count || 0,
-            totalPoints: dashboardStats.data.total_points || 0,
+            totalParticipants: participantCountRes.data.count || 0,
+            totalContributions: contributionsRes.data.count || 0,
+            totalPoints: 0,
             lastUpdated: new Date().toISOString()
           };
         }
-      } catch (statsApiError) {
-        console.warn('Stats API failed, falling back to individual requests', statsApiError);
-        
-        // Fallback to individual requests
-        const [participantCountRes, contributionsRes] = await Promise.all([
-          usersAPI.getParticipantCount(),
-          contributionsAPI.getContributions({ limit: 1 }) // Just to get count from the response
+      } else {
+        // For categories, fetch filtered data using category endpoint
+        const [leaderboardRes, contributionsRes] = await Promise.all([
+          leaderboardAPI.getCategoryLeaderboard($currentCategory),
+          contributionsAPI.getContributions({ category: $currentCategory, limit: 1 })
         ]);
         
+        const categoryEntries = leaderboardRes.data.entries || [];
+        const categoryContributions = contributionsRes.data;
+        
         stats = {
-          totalParticipants: participantCountRes.data.count || 0,
-          totalContributions: contributionsRes.data.count || 0,
-          totalPoints: leaderboard.reduce((sum, entry) => sum + entry.total_points, 0),
+          totalParticipants: categoryEntries.length,
+          totalContributions: categoryContributions.count || 0,
+          totalPoints: categoryEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0),
           lastUpdated: new Date().toISOString()
         };
       }
@@ -106,6 +135,16 @@
       statsError = error.message || 'Failed to load statistics';
       statsLoading = false;
       console.error('Error fetching dashboard stats:', error);
+    }
+  }
+  
+  // Fetch data when category changes (including initial mount)
+  let previousCategory = $state(null);
+  
+  $effect(() => {
+    if ($currentCategory && $currentCategory !== previousCategory) {
+      previousCategory = $currentCategory;
+      fetchDashboardData();
     }
   });
   
@@ -117,21 +156,19 @@
   };
 </script>
 
-<div class="space-y-4">
-  <div class="flex justify-between items-center">
-    <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
-    {#if $authState.isAuthenticated}
-      <button
-        onclick={() => push('/submit-contribution')}
-        class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 flex items-center gap-2"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-        </svg>
-        Submit Contribution
-      </button>
-    {/if}
-  </div>
+{#if $currentCategory === 'global'}
+  <!-- Global Dashboard - Use separate component -->
+  <GlobalDashboard />
+{:else}
+  <!-- Category-specific Dashboard -->
+  <div class="space-y-8">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">
+        {$currentCategory === 'builder' ? 'Builders' :
+         $currentCategory === 'validator' ? 'Validators' :
+         $currentCategory === 'steward' ? 'Stewards' : 'Dashboard'}
+      </h1>
+    </div>
   
   <!-- Connection error message if needed -->
   {#if statsError}
@@ -175,7 +212,7 @@
   
   <!-- First Row: Leaderboard and Highlights -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-    <!-- Top Validators -->
+    <!-- Top Leaderboard -->
     <div class="space-y-4">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
@@ -184,10 +221,14 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
             </svg>
           </div>
-          <h2 class="text-lg font-semibold text-gray-900">Top Validators</h2>
+          <h2 class="text-lg font-semibold text-gray-900">
+            Top {$currentCategory === 'builder' ? 'Builders' : 
+                 $currentCategory === 'validator' ? 'Validators' :
+                 $currentCategory === 'steward' ? 'Stewards' : 'Participants'}
+          </h2>
         </div>
         <button
-          onclick={() => push('/leaderboard')}
+          onclick={() => push($currentCategory === 'builder' ? '/builders/leaderboard' : $currentCategory === 'validator' ? '/validators/leaderboard' : '/leaderboard')}
           class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
           View all
@@ -213,7 +254,7 @@
           <h2 class="text-lg font-semibold text-gray-900">Featured Contributions</h2>
         </div>
         <button
-          onclick={() => push('/highlights')}
+          onclick={() => push($currentCategory === 'builder' ? '/builders/contributions/highlights' : $currentCategory === 'validator' ? '/validators/contributions/highlights' : '/contributions/highlights')}
           class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
           View all
@@ -225,6 +266,7 @@
       <FeaturedContributions 
         showHeader={false}
         showViewAll={false}
+        cardStyle="highlight"
       />
     </div>
   </div>
@@ -240,10 +282,14 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
             </svg>
           </div>
-          <h2 class="text-lg font-semibold text-gray-900">Newest Validators</h2>
+          <h2 class="text-lg font-semibold text-gray-900">
+            Newest {$currentCategory === 'builder' ? 'Builders' : 
+                    $currentCategory === 'validator' ? 'Validators' :
+                    $currentCategory === 'steward' ? 'Stewards' : 'Participants'}
+          </h2>
         </div>
         <button
-          onclick={() => push('/validators')}
+          onclick={() => push($currentCategory === 'builder' ? '/builders/participants' : $currentCategory === 'validator' ? '/validators/participants' : '/participants')}
           class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
           View all
@@ -311,7 +357,7 @@
           <h2 class="text-lg font-semibold text-gray-900">Recent Contributions</h2>
         </div>
         <button
-          onclick={() => push('/contributions')}
+          onclick={() => push($currentCategory === 'builder' ? '/builders/contributions' : $currentCategory === 'validator' ? '/validators/contributions' : '/contributions')}
           class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
           View all
@@ -325,4 +371,5 @@
       />
     </div>
   </div>
-</div>
+  </div>
+{/if}

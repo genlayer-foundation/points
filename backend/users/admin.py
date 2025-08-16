@@ -1,9 +1,16 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
+from django.contrib import messages
 
-from .models import User, Validator
+from .models import User
 from contributions.models import Contribution
+from validators.admin import ValidatorInline
+from builders.admin import BuilderInline
+from stewards.admin import StewardInline
+from validators.models import Validator
+from builders.models import Builder
+from stewards.models import Steward
 
 
 class ContributionInline(admin.TabularInline):
@@ -34,14 +41,7 @@ class ContributionInline(admin.TabularInline):
     evidence_link.short_description = 'Evidence'
 
 
-class ValidatorInline(admin.StackedInline):
-    model = Validator
-    extra = 0  # Don't show empty rows
-    max_num = 1  # Only one validator per user
-    fields = ('node_version',)
-    verbose_name = "Validator Information"
-    verbose_name_plural = "Validator Information"
-    can_delete = False  # Don't allow deletion through inline
+# ValidatorInline removed - now in validators app
 
 
 @admin.register(User)
@@ -67,4 +67,56 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
     
-    inlines = [ValidatorInline, ContributionInline]
+    inlines = [ContributionInline, ValidatorInline, BuilderInline, StewardInline]
+    actions = ['set_as_builder', 'set_as_validator', 'set_as_steward']
+    
+    def set_as_builder(self, request, queryset):
+        """Action to set selected users as builders."""
+        count = 0
+        for user in queryset:
+            # Check if already a builder
+            if hasattr(user, 'builder'):
+                self.message_user(request, f"{user.email} is already a builder.", level=messages.WARNING)
+                continue
+            
+            # Create builder profile
+            Builder.objects.create(user=user)
+            count += 1
+        
+        if count > 0:
+            self.message_user(request, f"Successfully set {count} user(s) as builder(s).", level=messages.SUCCESS)
+    set_as_builder.short_description = "Set selected users as builders"
+    
+    def set_as_validator(self, request, queryset):
+        """Action to set selected users as validators."""
+        count = 0
+        for user in queryset:
+            # Check if already a validator
+            if hasattr(user, 'validator'):
+                self.message_user(request, f"{user.email} is already a validator.", level=messages.WARNING)
+                continue
+            
+            # Create validator profile
+            Validator.objects.create(user=user)
+            count += 1
+        
+        if count > 0:
+            self.message_user(request, f"Successfully set {count} user(s) as validator(s).", level=messages.SUCCESS)
+    set_as_validator.short_description = "Set selected users as validators"
+    
+    def set_as_steward(self, request, queryset):
+        """Action to set selected users as stewards."""
+        count = 0
+        for user in queryset:
+            # Check if already a steward
+            if hasattr(user, 'steward'):
+                self.message_user(request, f"{user.email} is already a steward.", level=messages.WARNING)
+                continue
+            
+            # Create steward profile
+            Steward.objects.create(user=user)
+            count += 1
+        
+        if count > 0:
+            self.message_user(request, f"Successfully set {count} user(s) as steward(s).", level=messages.SUCCESS)
+    set_as_steward.short_description = "Set selected users as stewards"
