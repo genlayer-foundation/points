@@ -18,10 +18,12 @@ This is the main management script with the following commands:
 Each session consists of:
 - **Git Worktree**: Located at `~/Dev/tally-<name>/`
 - **Git Branch**: Named exactly as the session (e.g., `feature-auth`, not `session-feature-auth`)
-- **Tmux Session**: Named `tally-<name>` with 3 windows:
-  - `backend` - Django server running in `/backend` directory
-  - `frontend` - Svelte dev server running in `/frontend` directory  
+- **Tmux Session**: Named `tally-<name>` with 5 windows:
+  - `backend:<port>` - Django server running on the specified port
+  - `frontend:<port>` - Svelte dev server running on the specified port
   - `claude` - Claude Code session running in worktree root
+  - `shell` - Interactive shell with environment activated and ready
+  - `cli` - Command line ready for one-off commands (env activated, not executed)
 
 ### 3. Port Management
 - Backend ports start at 8000 and increment (8001, 8002, etc.)
@@ -50,11 +52,12 @@ When creating a new session, the script automatically:
 
 ### 1. Creates Symlinks
 - `frontend/node_modules` → symlinked to main project's node_modules (avoids reinstalling)
-- `backend/db.sqlite3` → symlinked to main project's database (shared data)
 
-### 2. Copies Configuration Files
+### 2. Copies Resources (Each Session Gets Its Own)
+- `backend/db.sqlite3` → copied from main project (independent database per session)
 - `backend/.env` - Copied from main project (contains SECRET_KEY and other env vars)
-- `frontend/.env` - Copied from main project if exists
+- `frontend/.env` - Copied from main project and updated with session-specific backend URL
+  - Automatically sets `VITE_API_URL=http://localhost:<backend_port>` for proper API routing
 
 ### 3. Sets Up Claude Code
 - Each Claude session uses a persistent name: `tally-<session-name>`
@@ -134,9 +137,11 @@ When working with this system:
 1. **Always use the worktree path** - Each session runs in its own worktree at `~/Dev/tally-<name>/`
 2. **Port awareness** - Check `.tally-sessions` for assigned ports before suggesting localhost URLs
 3. **Virtual environment** - All Python commands need `workon tally` first
-4. **Shared resources** - Database and node_modules are symlinked, so changes affect all sessions
-5. **Git operations** - Each worktree has its own branch; commits don't affect other sessions
-6. **Tool permissions** - New worktrees may need permission setup if not inherited from main project
+4. **Independent databases** - Each session has its own database copy, changes don't affect other sessions
+5. **Shared node_modules** - Node modules are symlinked to save space (read-only, shared)
+6. **Git operations** - Each worktree has its own branch; commits don't affect other sessions
+7. **Tool permissions** - New worktrees may need permission setup if not inherited from main project
+8. **Frontend API URL** - Each session's frontend automatically points to its own backend port
 
 ## File Structure Example
 ```
@@ -154,10 +159,10 @@ When working with this system:
 ├── tally-feature-auth/       # Worktree for feature-auth session
 │   ├── backend/
 │   │   ├── .env             # Copied from main
-│   │   └── db.sqlite3       # Symlink to main
+│   │   └── db.sqlite3       # Independent copy (not shared)
 │   └── frontend/
-│       ├── .env             # Copied from main
-│       └── node_modules/    # Symlink to main
+│       ├── .env             # Copied & updated with backend port
+│       └── node_modules/    # Symlink to main (shared)
 │
 └── tally-bugfix-ui/          # Another worktree
     └── ...                   # Same structure
@@ -165,9 +170,15 @@ When working with this system:
 
 ## Session Commands Reference
 
-Inside each tmux session, the commands running are:
-- **Backend**: `workon tally && cd ~/Dev/tally-<name>/backend && python manage.py runserver <port>`
-- **Frontend**: `workon tally && cd ~/Dev/tally-<name>/frontend && npm run dev -- --port <port>`
-- **Claude**: `workon tally && cd ~/Dev/tally-<name> && claude tally-<name> [--resume]`
+Inside each tmux session, the windows and their states are:
+- **backend:<port>**: Running Django server - `python manage.py runserver <port>`
+- **frontend:<port>**: Running Svelte dev server - `npm run dev -- --port <port>`
+- **claude**: Running Claude Code session - `claude tally-<name>` (or with `--resume`)
+- **shell**: Interactive shell ready for use (environment activated, in worktree root)
+- **cli**: Command line with environment ready but not executed (press Enter to run commands)
 
-This ensures each session has the correct working directory and environment activated.
+All windows have:
+- Virtual environment activated: `workon tally`
+- Working directory set: `cd ~/Dev/tally-<name>/[appropriate-dir]`
+
+The port numbers are shown in the window names for easy reference.
