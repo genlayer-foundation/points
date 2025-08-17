@@ -23,6 +23,18 @@
   // Evidence slots for editing
   let evidenceSlots = $state([]);
   
+  // Update form data when submission changes
+  $effect(() => {
+    if (submission && !loading) {
+      formData = {
+        contribution_type: submission.contribution_type,
+        contribution_date: submission.contribution_date ? submission.contribution_date.split('T')[0] : '',
+        notes: submission.notes || ''
+      };
+      console.log('Form data updated from submission:', formData);
+    }
+  });
+  
   onMount(async () => {
     // Check authentication
     if (!$authState.isAuthenticated) {
@@ -61,7 +73,11 @@
       ]);
       
       submission = submissionResponse.data;
-      contributionTypes = typesResponse.data;
+      // Handle paginated response for contribution types
+      contributionTypes = typesResponse.data.results || typesResponse.data;
+      
+      console.log('Loaded submission:', submission);
+      console.log('Loaded contribution types:', contributionTypes);
       
       // Check if editing is allowed
       if (!submission.can_edit) {
@@ -69,12 +85,7 @@
         return;
       }
       
-      // Populate form data
-      formData = {
-        contribution_type: submission.contribution_type,
-        contribution_date: submission.contribution_date.split('T')[0],
-        notes: submission.notes || ''
-      };
+      // Form data will be populated by the $effect
       
       // Note: We don't populate existing evidence as editable slots
       // since the backend doesn't support updating existing evidence
@@ -185,8 +196,9 @@
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             required
           >
+            <option value="">Select a contribution type</option>
             {#each contributionTypes as type}
-              <option value={type.id}>
+              <option value={type.id} selected={type.id === formData.contribution_type}>
                 {type.name} ({type.min_points}-{type.max_points} points)
               </option>
             {/each}
