@@ -183,17 +183,26 @@
         <div>
           <div class="border-t border-gray-200 pt-4"></div>
           <button
-            onclick={() => navigate('/stewards')}
-            class="px-3 text-xs font-semibold text-green-600 uppercase tracking-wider mb-2 hover:text-green-700 transition-colors w-full text-left"
+            onclick={() => changeCategory('steward', '/stewards')}
+            class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors {
+              isActive('/stewards') && $currentCategory === 'steward'
+                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                : 'hover:bg-gray-50'
+            }"
           >
-            <span class="mr-1">🌱</span> STEWARDS
+            <span class="mr-2 text-green-600">🌱</span>
+            <h3 class="text-xs font-medium uppercase tracking-wider {$currentCategory === 'steward' ? 'text-green-700' : 'text-gray-700'}">
+              STEWARDS
+            </h3>
           </button>
           <div class="space-y-0.5">
             <a
               href="/stewards/submissions"
               onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
               class="group flex items-center px-3 py-1.5 text-sm rounded-md {
-                isActive('/stewards/submissions') ? 'bg-green-100 text-green-800' : 'text-gray-500 hover:bg-green-50 hover:text-green-700'
+                isActive('/stewards/submissions') || $location.startsWith('/stewards/submissions/')
+                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
               }"
             >
               <Icon 

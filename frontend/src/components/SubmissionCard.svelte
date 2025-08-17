@@ -25,6 +25,23 @@
   let highlightTitle = $state(reviewData?.highlight_title || '');
   let highlightDescription = $state(reviewData?.highlight_description || '');
   
+  // Reset form when submission changes
+  $effect(() => {
+    if (submission) {
+      // Only reset if no existing review data
+      if (!reviewData) {
+        reviewAction = 'accept';
+        selectedUser = submission.user;
+        selectedType = submission.contribution_type;
+        points = submission.contribution_type_details?.min_points || 0;
+        staffReply = '';
+        createHighlight = false;
+        highlightTitle = '';
+        highlightDescription = '';
+      }
+    }
+  });
+  
   function getStateClass(state) {
     switch (state) {
       case 'pending':
@@ -314,6 +331,47 @@
                       </p>
                     </div>
                   </div>
+                  
+                  <div>
+                    <label class="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        bind:checked={createHighlight}
+                        class="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                      />
+                      <span class="text-sm font-medium text-gray-700">
+                        Feature this contribution
+                      </span>
+                    </label>
+                  </div>
+                  
+                  {#if createHighlight}
+                    <div class="space-y-3 pl-6 border-l-2 border-green-300">
+                      <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                          Feature Title
+                        </label>
+                        <input
+                          type="text"
+                          bind:value={highlightTitle}
+                          placeholder="e.g., Outstanding Bug Discovery"
+                          class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                          Feature Description
+                        </label>
+                        <textarea
+                          bind:value={highlightDescription}
+                          placeholder="Describe why this contribution is being featured..."
+                          rows="3"
+                          class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
+                        ></textarea>
+                      </div>
+                    </div>
+                  {/if}
                   
                   <button
                     onclick={handleReview}
