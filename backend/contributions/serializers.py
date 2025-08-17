@@ -7,10 +7,11 @@ import decimal
 
 class ContributionTypeSerializer(serializers.ModelSerializer):
     current_multiplier = serializers.SerializerMethodField()
+    category = serializers.CharField(source='category.slug', read_only=True)
     
     class Meta:
         model = ContributionType
-        fields = ['id', 'name', 'description', 'min_points', 'max_points', 'current_multiplier', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'category', 'min_points', 'max_points', 'current_multiplier', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_current_multiplier(self, obj):

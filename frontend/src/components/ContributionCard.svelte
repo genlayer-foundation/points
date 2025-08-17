@@ -12,8 +12,10 @@
   let isExpanded = $state(false);
   
   // Determine category and colors
+  // Try multiple paths where category might be stored
   let category = $derived(
     contribution?.contribution_type_details?.category || 
+    contribution?.contribution_type?.category ||
     contribution?.category || 
     'global'
   );
@@ -21,6 +23,7 @@
   let categoryColors = $derived(
     category === 'builder' ? {
       border: 'border-orange-400',
+      cardBg: 'bg-orange-50',
       bg: 'bg-orange-500',
       text: 'text-orange-600',
       hoverText: 'hover:text-orange-700',
@@ -28,6 +31,7 @@
       expandBorder: 'border-orange-200'
     } : category === 'validator' ? {
       border: 'border-sky-400',
+      cardBg: 'bg-sky-50',
       bg: 'bg-sky-500',
       text: 'text-sky-600',
       hoverText: 'hover:text-sky-700',
@@ -35,6 +39,7 @@
       expandBorder: 'border-sky-200'
     } : {
       border: 'border-gray-400',
+      cardBg: 'bg-white',
       bg: 'bg-gray-500',
       text: 'text-gray-600',
       hoverText: 'hover:text-gray-700',
@@ -58,7 +63,7 @@
   );
 </script>
 
-<div class="bg-white shadow rounded-lg hover:shadow-lg transition-shadow border-2 {categoryColors.border} overflow-hidden {className}">
+<div class="{categoryColors.cardBg} shadow rounded-lg hover:shadow-lg transition-shadow border-2 {categoryColors.border} overflow-hidden {className}">
   <div class="p-4">
     <div class="flex items-start justify-between gap-4">
       <div class="min-w-0 flex-1">
