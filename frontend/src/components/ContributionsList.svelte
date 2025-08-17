@@ -179,18 +179,18 @@
   {:else}
     <div class="space-y-3">
       {#each processedContributions as group}
-        <div class="{category === 'validator' ? 'bg-sky-50 border border-sky-200' : 'bg-white shadow'} rounded-lg p-4 hover:shadow-lg transition-shadow">
+        <div class="{category === 'validator' ? 'bg-sky-50 border border-sky-200' : category === 'builder' ? 'bg-orange-50 border border-orange-200' : 'bg-white shadow'} rounded-lg p-4 hover:shadow-lg transition-shadow">
           <div class="flex items-start justify-between">
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-2">
-                <div class="w-4 h-4 rounded-full {category === 'validator' ? 'bg-sky-500' : 'bg-green-500'} flex items-center justify-center flex-shrink-0">
+                <div class="w-4 h-4 rounded-full {category === 'validator' ? 'bg-sky-500' : category === 'builder' ? 'bg-orange-500' : 'bg-green-500'} flex items-center justify-center flex-shrink-0">
                   <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
                   </svg>
                 </div>
                 <h3 class="text-base font-semibold text-gray-900 flex items-center gap-2">
                   <button
-                    class="{category === 'validator' ? 'hover:text-sky-600' : 'hover:text-primary-600'} transition-colors"
+                    class="{category === 'validator' ? 'hover:text-sky-600' : category === 'builder' ? 'hover:text-orange-600' : 'hover:text-primary-600'} transition-colors"
                     onclick={() => push(`/contribution-type/${group.typeId}`)}
                   >
                     {group.typeName}
@@ -207,18 +207,18 @@
                 {#if showUser}
                   {#if group.users.length === 1}
                     <button 
-                      class="{category === 'validator' ? 'text-sky-600 hover:text-sky-700' : 'text-primary-600 hover:text-primary-700'} font-medium"
+                      class="{category === 'validator' ? 'text-sky-600 hover:text-sky-700' : category === 'builder' ? 'text-orange-600 hover:text-orange-700' : 'text-primary-600 hover:text-primary-700'} font-medium"
                       onclick={() => push(`/participant/${group.users[0].address || ''}`)}
                     >
                       {group.users[0].name || `${group.users[0].address?.slice(0, 6)}...${group.users[0].address?.slice(-4)}` || 'Anonymous'}
                     </button>
                   {:else if group.users.length > 1}
-                    <span class="{category === 'validator' ? 'text-sky-600' : 'text-primary-600'} font-medium">
+                    <span class="{category === 'validator' ? 'text-sky-600' : category === 'builder' ? 'text-orange-600' : 'text-primary-600'} font-medium">
                       {group.users.length} participants
                     </span>
                   {:else if group.userDetails}
                     <button 
-                      class="{category === 'validator' ? 'text-sky-600 hover:text-sky-700' : 'text-primary-600 hover:text-primary-700'} font-medium"
+                      class="{category === 'validator' ? 'text-sky-600 hover:text-sky-700' : category === 'builder' ? 'text-orange-600 hover:text-orange-700' : 'text-primary-600 hover:text-primary-700'} font-medium"
                       onclick={() => push(`/participant/${group.userDetails.address || ''}`)}
                     >
                       {group.userDetails.name || `${group.userDetails.address?.slice(0, 6)}...${group.userDetails.address?.slice(-4)}` || 'Anonymous'}
@@ -237,7 +237,7 @@
             </div>
             
             <div class="ml-3 flex-shrink-0">
-              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {category === 'validator' ? 'bg-sky-100 text-sky-800' : 'bg-purple-100 text-purple-800'}">
+              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {category === 'validator' ? 'bg-sky-100 text-sky-800' : category === 'builder' ? 'bg-orange-100 text-orange-800' : 'bg-purple-100 text-purple-800'}">
                 {group.totalPoints} pts
               </span>
             </div>
