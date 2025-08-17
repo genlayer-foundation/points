@@ -8,6 +8,7 @@
   let loading = $state(true);
   let submitting = $state(false);
   let error = $state('');
+  let authChecked = $state(false);
   
   // Form data
   let formData = $state({
@@ -19,14 +20,15 @@
   // Evidence slots - start with no slots
   let evidenceSlots = $state([]);
   
-  onMount(async () => {
-    // Check authentication
+  // Load contribution types when authenticated
+  async function loadContributionTypes() {
     if (!$authState.isAuthenticated) {
-      push('/');
+      loading = false;
+      authChecked = true;
       return;
     }
     
-    // Load contribution types
+    loading = true;
     try {
       const response = await api.get('/contribution-types/');
       console.log('Contribution types response:', response.data);
@@ -38,7 +40,25 @@
       console.error('Error loading contribution types:', err);
     } finally {
       loading = false;
+      authChecked = true;
     }
+  }
+  
+  // React to auth state changes
+  $effect(() => {
+    if ($authState.isAuthenticated) {
+      loadContributionTypes();
+    } else {
+      contributionTypes = [];
+      authChecked = true;
+      loading = false;
+    }
+  });
+  
+  onMount(async () => {
+    // Wait a moment for auth state to be verified
+    await new Promise(resolve => setTimeout(resolve, 100));
+    loadContributionTypes();
   });
   
   function addEvidenceSlot() {
@@ -120,9 +140,25 @@
 <div class="container mx-auto px-4 py-8">
   <h1 class="text-2xl font-bold mb-6">Submit Contribution</h1>
   
-  {#if loading}
+  {#if !authChecked || loading}
     <div class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+    </div>
+  {:else if !$authState.isAuthenticated}
+    <div class="bg-white shadow rounded-lg p-8">
+      <div class="text-center">
+        <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">Authentication Required</h3>
+        <p class="text-gray-500 mb-4">Please connect your wallet to submit contributions.</p>
+        <button
+          onclick={() => push('/')}
+          class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+        >
+          Go to Dashboard
+        </button>
+      </div>
     </div>
   {:else}
     <form onsubmit={handleSubmit} class="max-w-2xl">
@@ -142,23 +178,13 @@
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           required
         >
-          <option value="">Select a type...</option>
-          {#if contributionTypes && contributionTypes.length > 0}
-            {#each contributionTypes as type}
-              <option value={type.id}>
-                {type.name}
-              </option>
-            {/each}
-          {:else}
-            <option value="" disabled>No contribution types available</option>
-          {/if}
+          <option value="">Select a contribution type</option>
+          {#each contributionTypes as type}
+            <option value={type.id}>
+              {type.name} ({type.min_points}-{type.max_points} points)
+            </option>
+          {/each}
         </select>
-        {#if formData.contribution_type}
-          {@const selectedType = contributionTypes.find(t => t.id === parseInt(formData.contribution_type))}
-          {#if selectedType?.description}
-            <p class="mt-1 text-sm text-gray-600">{selectedType.description}</p>
-          {/if}
-        {/if}
       </div>
       
       <div class="mb-6">
@@ -182,23 +208,72 @@
         <textarea
           id="notes"
           bind:value={formData.notes}
-          rows="4"
+          rows="6"
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           placeholder="Describe your contribution..."
         ></textarea>
       </div>
       
       <div class="mb-6">
-        <h3 class="text-lg font-medium mb-4">Evidence (Optional)</h3>
+        <div class="flex justify-between items-center mb-2">
+          <label class="block text-sm font-medium text-gray-700">
+            Evidence & Supporting Information
+          </label>
+          <button
+            type="button"
+            onclick={addEvidenceSlot}
+            class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+          >
+            + Add Evidence
+          </button>
+        </div>
         
-        {#if evidenceSlots.length > 0}
-          <p class="text-sm text-gray-600 mb-4">You can add multiple pieces of evidence to support your contribution.</p>
-          
+        {#if evidenceSlots.length === 0}
+          <div class="bg-gray-50 p-4 rounded text-center text-gray-500">
+            No evidence added yet. Click "Add Evidence" to include supporting information.
+          </div>
+        {:else}
           <div class="space-y-4">
             {#each evidenceSlots as slot, index}
-              <div class="border border-gray-300 rounded-md p-4 {hasEvidenceInSlot(slot) ? 'bg-green-50 border-green-300' : 'bg-white'}">
-                <div class="flex justify-between items-start mb-3">
-                  <h4 class="font-medium text-sm">Evidence #{index + 1}</h4>
+              <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                      Description
+                    </label>
+                    <input
+                      type="text"
+                      bind:value={slot.description}
+                      placeholder="Brief description"
+                      class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                      URL
+                    </label>
+                    <input
+                      type="url"
+                      bind:value={slot.url}
+                      placeholder="https://example.com"
+                      class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+                
+                <div class="mt-3">
+                  <label class="block text-xs font-medium text-gray-700 mb-1">
+                    File Upload
+                  </label>
+                  <input
+                    type="file"
+                    onchange={(e) => handleFileChange(e, index)}
+                    class="w-full text-sm text-gray-500 file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+                  />
+                </div>
+                
+                <div class="mt-2 flex justify-end">
                   <button
                     type="button"
                     onclick={() => removeEvidenceSlot(index)}
@@ -207,63 +282,14 @@
                     Remove
                   </button>
                 </div>
-                
-                <div class="space-y-3">
-                  <div>
-                    <label for="evidence_description_{slot.id}" class="block text-sm text-gray-700 mb-1">
-                      Description
-                    </label>
-                    <input
-                      type="text"
-                      id="evidence_description_{slot.id}"
-                      bind:value={slot.description}
-                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Brief description"
-                    />
-                  </div>
-                  
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <label for="evidence_url_{slot.id}" class="block text-sm text-gray-700 mb-1">
-                        URL
-                      </label>
-                      <input
-                        type="url"
-                        id="evidence_url_{slot.id}"
-                        bind:value={slot.url}
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        placeholder="https://example.com"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label for="evidence_file_{slot.id}" class="block text-sm text-gray-700 mb-1">
-                        File
-                      </label>
-                      <input
-                        type="file"
-                        id="evidence_file_{slot.id}"
-                        onchange={(e) => handleFileChange(e, index)}
-                        class="w-full text-sm"
-                      />
-                      {#if slot.file}
-                        <p class="text-xs text-gray-600 mt-1">{slot.file.name}</p>
-                      {/if}
-                    </div>
-                  </div>
-                </div>
               </div>
             {/each}
           </div>
         {/if}
         
-        <button
-          type="button"
-          onclick={addEvidenceSlot}
-          class="{evidenceSlots.length === 0 ? '' : 'mt-3'} text-primary-600 hover:text-primary-700 text-sm font-medium"
-        >
-          {evidenceSlots.length === 0 ? '+ Add evidence' : '+ Add another evidence'}
-        </button>
+        <p class="text-xs text-gray-500 mt-2">
+          Add URLs, descriptions, and files to support your contribution claim.
+        </p>
       </div>
       
       <div class="flex gap-4">
@@ -277,7 +303,7 @@
         
         <button
           type="button"
-          onclick={() => push('/my-submissions')}
+          onclick={() => push('/')}
           class="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
         >
           Cancel
