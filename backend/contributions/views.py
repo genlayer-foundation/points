@@ -573,6 +573,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     def review(self, request, pk=None):
         """Review and take action on a submission."""
         submission = self.get_object()
+        
         serializer = StewardSubmissionReviewSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -586,13 +587,16 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             # Get the contribution type (use provided or keep original)
             contribution_type = serializer.validated_data.get('contribution_type', submission.contribution_type)
             
+            # Get the user for the contribution (use provided or keep original submitter)
+            contribution_user = serializer.validated_data.get('user', submission.user)
+            
             # Update submission contribution type if changed
             if contribution_type != submission.contribution_type:
                 submission.contribution_type = contribution_type
             
-            # Create the actual contribution
+            # Create the actual contribution with the selected user
             contribution = Contribution.objects.create(
-                user=submission.user,
+                user=contribution_user,
                 contribution_type=contribution_type,
                 points=serializer.validated_data['points'],
                 contribution_date=submission.contribution_date,
@@ -668,3 +672,23 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'total_rejected': user_reviews.filter(state='rejected').count(),
             'total_info_requested': user_reviews.filter(state='more_info_needed').count()
         })
+    
+    @action(detail=False, methods=['get'], url_path='users')
+    def users(self, request):
+        """Get all users sorted alphabetically by name for steward dropdown."""
+        from users.models import User
+        
+        users = User.objects.all().order_by('name', 'address')
+        
+        # Create simplified user data for the dropdown
+        user_data = []
+        for user in users:
+            display_name = user.name if user.name else f"{user.address[:6]}...{user.address[-4:]}"
+            user_data.append({
+                'id': user.id,
+                'name': user.name,
+                'address': user.address,
+                'display_name': display_name
+            })
+        
+        return Response(user_data)

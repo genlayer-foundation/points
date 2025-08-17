@@ -8,6 +8,7 @@
   
   let submissions = $state([]);
   let contributionTypes = $state([]);
+  let users = $state([]);
   let loading = $state(true);
   let error = $state(null);
   let currentPage = $state(1);
@@ -31,8 +32,18 @@
     }
     
     await loadContributionTypes();
+    await loadUsers();
     await loadSubmissions();
   });
+  
+  async function loadUsers() {
+    try {
+      const response = await stewardAPI.getUsers();
+      users = response.data;
+    } catch (err) {
+      console.error('Error loading users:', err);
+    }
+  }
   
   async function loadContributionTypes() {
     try {
@@ -88,6 +99,7 @@
         if (!submissionForms[sub.id]) {
           submissionForms[sub.id] = {
             action: 'accept', // Default to accept action
+            user: sub.user, // This should be the user ID
             contribution_type: sub.contribution_type,
             points: sub.contribution_type_details?.min_points || 0,
             create_highlight: false,
@@ -134,6 +146,12 @@
       if (action === 'accept') {
         reviewData.points = parseInt(form.points);
         reviewData.contribution_type = form.contribution_type;
+        
+        // Handle user ID properly
+        const userId = parseInt(form.user);
+        if (!isNaN(userId)) {
+          reviewData.user = userId;
+        }
         
         if (form.create_highlight) {
           reviewData.create_highlight = true;
@@ -421,6 +439,30 @@
                       <div class="space-y-3">
                         <div>
                           <label class="block text-sm font-medium text-gray-700">
+                            Assign Contribution To
+                          </label>
+                          <select
+                            value={submissionForms[submission.id].user}
+                            onchange={(e) => {
+                              submissionForms[submission.id].user = parseInt(e.target.value);
+                              // Force reactivity update
+                              submissionForms = { ...submissionForms };
+                            }}
+                            class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
+                          >
+                            {#each users as user}
+                              <option value={user.id}>
+                                {user.display_name}
+                              </option>
+                            {/each}
+                          </select>
+                          <p class="text-xs text-gray-500 mt-1">
+                            The contribution will be assigned to this user (submission remains with original submitter)
+                          </p>
+                        </div>
+                        
+                        <div>
+                          <label class="block text-sm font-medium text-gray-700">
                             Contribution Type
                           </label>
                           <select
@@ -630,9 +672,9 @@
                             <div class="flex items-center gap-3 text-xs">
                               <button 
                                 class="text-primary-600 hover:text-primary-700 font-medium"
-                                onclick={() => push(`/participant/${submission.user_details?.address || ''}`)}
+                                onclick={() => push(`/participant/${submission.contribution.user_details?.address || ''}`)}
                               >
-                                {submission.user_details?.name || `${submission.user_details?.address?.slice(0, 6)}...${submission.user_details?.address?.slice(-4)}` || 'Anonymous'}
+                                {submission.contribution.user_details?.name || `${submission.contribution.user_details?.address?.slice(0, 6)}...${submission.contribution.user_details?.address?.slice(-4)}` || 'Anonymous'}
                               </button>
                               <span class="text-gray-400">•</span>
                               <span class="text-gray-500">
