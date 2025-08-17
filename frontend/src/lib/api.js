@@ -122,6 +122,9 @@ export const stewardAPI = {
   // Review a submission (accept, reject, or request more info)
   reviewSubmission: (id, data) => api.post(`/steward-submissions/${id}/review/`, data),
   
+  // Get all users for reassignment dropdown
+  getUsers: () => api.get('/steward-submissions/users/'),
+  
   // Get steward statistics
   getStats: () => api.get('/steward-submissions/stats/')
 };

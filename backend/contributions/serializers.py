@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight
 from users.serializers import UserSerializer
+from users.models import User
 import decimal
 
 
@@ -149,6 +150,13 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
 class StewardSubmissionReviewSerializer(serializers.Serializer):
     """Serializer for steward review actions on submissions."""
     action = serializers.ChoiceField(choices=['accept', 'reject', 'more_info'])
+    
+    # User field to assign the contribution to a different user than the submitter
+    user = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        required=False,
+        help_text="User to assign the contribution to (defaults to original submitter)"
+    )
     
     # Fields for acceptance
     contribution_type = serializers.PrimaryKeyRelatedField(
