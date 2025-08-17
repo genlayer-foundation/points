@@ -12,24 +12,16 @@
   let totalCount = $state(0);
   let pageSize = 20;
   let stateFilter = $state('');
+  let authChecked = $state(false);
   
-  onMount(async () => {
-    // Wait a moment for auth state to be verified
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Check authentication
+  // Load submissions when authenticated
+  async function loadSubmissions() {
     if (!$authState.isAuthenticated) {
-      console.log('Not authenticated, redirecting to home');
-      console.log('Auth state:', $authState);
-      push('/');
+      loading = false;
+      authChecked = true;
       return;
     }
     
-    console.log('Authenticated as:', $authState.address);
-    loadSubmissions();
-  });
-  
-  async function loadSubmissions() {
     loading = true;
     error = '';
     
@@ -53,8 +45,26 @@
       console.error(err);
     } finally {
       loading = false;
+      authChecked = true;
     }
   }
+  
+  // React to auth state changes
+  $effect(() => {
+    if ($authState.isAuthenticated) {
+      loadSubmissions();
+    } else {
+      submissions = [];
+      authChecked = true;
+      loading = false;
+    }
+  });
+  
+  onMount(async () => {
+    // Wait a moment for auth state to be verified
+    await new Promise(resolve => setTimeout(resolve, 100));
+    loadSubmissions();
+  });
   
   function handlePageChange(newPage) {
     currentPage = newPage;
@@ -121,9 +131,25 @@
     </select>
   </div>
   
-  {#if loading}
+  {#if !authChecked || loading}
     <div class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+    </div>
+  {:else if !$authState.isAuthenticated}
+    <div class="bg-white shadow rounded-lg p-8">
+      <div class="text-center">
+        <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">Authentication Required</h3>
+        <p class="text-gray-500 mb-4">Please connect your wallet to view your submissions.</p>
+        <button
+          onclick={() => push('/')}
+          class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+        >
+          Go to Dashboard
+        </button>
+      </div>
     </div>
   {:else if error}
     <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
