@@ -8,7 +8,6 @@
   let loading = $state(true);
   let submitting = $state(false);
   let error = $state('');
-  let success = $state(false);
   
   // Form data
   let formData = $state({
@@ -103,12 +102,11 @@
         await api.post(`/submissions/${submissionId}/add-evidence/`, evidenceFormData);
       }
       
-      success = true;
+      // Store success message in sessionStorage to show on My Submissions page
+      sessionStorage.setItem('submissionUpdateSuccess', 'Your contribution has been submitted successfully and is pending review.');
       
-      // Redirect to my submissions after a moment
-      setTimeout(() => {
-        push('/my-submissions');
-      }, 2000);
+      // Redirect immediately to my submissions
+      push('/my-submissions');
       
     } catch (err) {
       error = err.response?.data?.error || err.response?.data?.detail || 'Failed to submit contribution';
@@ -125,11 +123,6 @@
   {#if loading}
     <div class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-    </div>
-  {:else if success}
-    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-      <p class="font-bold">Success!</p>
-      <p>Your contribution has been submitted successfully. Redirecting to your submissions...</p>
     </div>
   {:else}
     <form onsubmit={handleSubmit} class="max-w-2xl">

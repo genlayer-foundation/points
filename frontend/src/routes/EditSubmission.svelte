@@ -11,7 +11,6 @@
   let loading = $state(true);
   let submitting = $state(false);
   let error = $state('');
-  let success = $state(false);
   
   // Form data
   let formData = $state({
@@ -138,12 +137,11 @@
         await api.post(`/submissions/${params.id}/add-evidence/`, evidenceFormData);
       }
       
-      success = true;
+      // Store success message in sessionStorage to show on My Submissions page
+      sessionStorage.setItem('submissionUpdateSuccess', 'Your submission has been successfully updated and resubmitted for review.');
       
-      // Redirect to my submissions after a moment
-      setTimeout(() => {
-        push('/my-submissions');
-      }, 2000);
+      // Redirect immediately to my submissions
+      push('/my-submissions');
       
     } catch (err) {
       error = err.response?.data?.error || 'Failed to update submission';
@@ -164,11 +162,6 @@
   {:else if error && !submission}
     <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
       {error}
-    </div>
-  {:else if success}
-    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-      <p class="font-bold">Success!</p>
-      <p>Your submission has been updated and resubmitted for review. Redirecting...</p>
     </div>
   {:else if submission}
     <div class="max-w-2xl">
