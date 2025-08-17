@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import api from '../lib/api.js';
   import Pagination from '../components/Pagination.svelte';
+  import SubmissionCard from '../components/SubmissionCard.svelte';
   
   let submissions = $state([]);
   let loading = $state(true);
@@ -65,31 +66,6 @@
     currentPage = 1;
     loadSubmissions();
   }
-  
-  function getStateClass(state) {
-    switch (state) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'accepted':
-        return 'bg-green-100 text-green-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      case 'more_info_needed':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  }
-  
-  function formatDate(dateString) {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  }
 </script>
 
 <div class="container mx-auto px-4 py-8">
@@ -142,78 +118,10 @@
   {:else}
     <div class="space-y-4">
       {#each submissions as submission}
-        <div class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-          <div class="flex justify-between items-start mb-4">
-            <div>
-              <h3 class="text-lg font-semibold">{submission.contribution_type_name}</h3>
-              <p class="text-sm text-gray-600">
-                Contribution Date: {formatDate(submission.contribution_date)}
-              </p>
-              <p class="text-sm text-gray-600">
-                Submitted: {formatDate(submission.created_at)}
-              </p>
-            </div>
-            <span class="px-3 py-1 rounded-full text-sm font-medium {getStateClass(submission.state)}">
-              {submission.state_display}
-            </span>
-          </div>
-          
-          {#if submission.notes}
-            <div class="mb-4">
-              <h4 class="font-medium text-sm text-gray-700 mb-1">Notes:</h4>
-              <p class="text-gray-600">{submission.notes}</p>
-            </div>
-          {/if}
-          
-          {#if submission.staff_reply}
-            <div class="mb-4 bg-gray-50 p-3 rounded">
-              <h4 class="font-medium text-sm text-gray-700 mb-1">Staff Response:</h4>
-              <p class="text-gray-600">{submission.staff_reply}</p>
-            </div>
-          {/if}
-          
-          {#if submission.evidence_items && submission.evidence_items.length > 0}
-            <div class="mb-4">
-              <h4 class="font-medium text-sm text-gray-700 mb-2">Evidence:</h4>
-              <ul class="space-y-1">
-                {#each submission.evidence_items as evidence}
-                  <li class="text-sm text-gray-600">
-                    {#if evidence.description}
-                      • {evidence.description}
-                    {/if}
-                    {#if evidence.url}
-                      <a href={evidence.url} target="_blank" class="text-primary-600 underline ml-1">
-                        View URL
-                      </a>
-                    {/if}
-                    {#if evidence.file_url}
-                      <a href={evidence.file_url} target="_blank" class="text-primary-600 underline ml-1">
-                        View File
-                      </a>
-                    {/if}
-                  </li>
-                {/each}
-              </ul>
-            </div>
-          {/if}
-          
-          <div class="flex justify-between items-center mt-4">
-            <div class="text-sm text-gray-500">
-              {#if submission.last_edited_at}
-                Last edited: {formatDate(submission.last_edited_at)}
-              {/if}
-            </div>
-            
-            {#if submission.can_edit}
-              <button
-                onclick={() => push(`/contributions/${submission.id}`)}
-                class="px-4 py-2 bg-primary-600 text-white text-sm rounded-md hover:bg-primary-700"
-              >
-                Edit & Resubmit
-              </button>
-            {/if}
-          </div>
-        </div>
+        <SubmissionCard 
+          {submission}
+          isOwnSubmission={true}
+        />
       {/each}
     </div>
     

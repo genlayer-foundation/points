@@ -126,7 +126,10 @@ export const stewardAPI = {
   getUsers: () => api.get('/steward-submissions/users/'),
   
   // Get steward statistics
-  getStats: () => api.get('/steward-submissions/stats/')
+  getStats: () => api.get('/steward-submissions/stats/'),
+  
+  // Get list of all stewards
+  getStewards: () => api.get('/stewards/')
 };
 
 // Convenience exports for profile functions

@@ -200,7 +200,7 @@
                 size="sm"
                 className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
               />
-              Review Submissions
+              Contribution Submissions
             </a>
           </div>
         </div>
@@ -335,7 +335,7 @@
                   size="sm"
                   className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
                 />
-                Review Submissions
+                Contribution Submissions
               </a>
             </div>
           </div>
