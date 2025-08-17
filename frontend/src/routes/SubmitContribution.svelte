@@ -9,6 +9,7 @@
   let submitting = $state(false);
   let error = $state('');
   let success = $state(false);
+  let authChecked = $state(false);
   
   // Form data
   let formData = $state({
@@ -20,14 +21,15 @@
   // Evidence slots - start with no slots
   let evidenceSlots = $state([]);
   
-  onMount(async () => {
-    // Check authentication
+  // Load contribution types when authenticated
+  async function loadContributionTypes() {
     if (!$authState.isAuthenticated) {
-      push('/');
+      loading = false;
+      authChecked = true;
       return;
     }
     
-    // Load contribution types
+    loading = true;
     try {
       const response = await api.get('/contribution-types/');
       console.log('Contribution types response:', response.data);
@@ -39,7 +41,25 @@
       console.error('Error loading contribution types:', err);
     } finally {
       loading = false;
+      authChecked = true;
     }
+  }
+  
+  // React to auth state changes
+  $effect(() => {
+    if ($authState.isAuthenticated) {
+      loadContributionTypes();
+    } else {
+      contributionTypes = [];
+      authChecked = true;
+      loading = false;
+    }
+  });
+  
+  onMount(async () => {
+    // Wait a moment for auth state to be verified
+    await new Promise(resolve => setTimeout(resolve, 100));
+    loadContributionTypes();
   });
   
   function addEvidenceSlot() {
@@ -122,9 +142,25 @@
 <div class="container mx-auto px-4 py-8">
   <h1 class="text-2xl font-bold mb-6">Submit Contribution</h1>
   
-  {#if loading}
+  {#if !authChecked || loading}
     <div class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+    </div>
+  {:else if !$authState.isAuthenticated}
+    <div class="bg-white shadow rounded-lg p-8">
+      <div class="text-center">
+        <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">Authentication Required</h3>
+        <p class="text-gray-500 mb-4">Please connect your wallet to submit contributions.</p>
+        <button
+          onclick={() => push('/')}
+          class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+        >
+          Go to Dashboard
+        </button>
+      </div>
     </div>
   {:else if success}
     <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
