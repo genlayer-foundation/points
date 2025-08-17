@@ -25,6 +25,9 @@
   let highlightTitle = $state(reviewData?.highlight_title || '');
   let highlightDescription = $state(reviewData?.highlight_description || '');
   
+  // State for expanding contribution preview
+  let isExpanded = $state(false);
+  
   // Reset form when submission changes
   $effect(() => {
     if (submission) {
@@ -451,7 +454,7 @@
           <div class="bg-white shadow rounded-lg hover:shadow-lg transition-shadow border-2 border-green-400 overflow-hidden">
             <div class="p-4">
               <div class="flex items-start justify-between gap-4">
-                <div class="min-w-0">
+                <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2 mb-2">
                     <div class="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
                       <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -468,6 +471,24 @@
                       {formatDate(submission.contribution.contribution_date)}
                     </span>
                   </div>
+                  
+                  {#if submission.notes || submission.evidence_items?.length > 0}
+                    <button
+                      type="button"
+                      onclick={() => isExpanded = !isExpanded}
+                      class="mt-2 text-xs text-green-600 hover:text-green-700 flex items-center gap-1"
+                    >
+                      <svg 
+                        class="w-3 h-3 transition-transform {isExpanded ? 'rotate-180' : ''}" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                      {isExpanded ? 'Hide' : 'Show'} details
+                    </button>
+                  {/if}
                 </div>
                 
                 <div class="ml-3 flex-shrink-0">
@@ -476,6 +497,42 @@
                   </span>
                 </div>
               </div>
+              
+              {#if isExpanded}
+                <div class="mt-3 pt-3 border-t border-gray-200 space-y-3">
+                  {#if submission.notes}
+                    <div>
+                      <h5 class="text-xs font-medium text-gray-700 mb-1">Notes</h5>
+                      <p class="text-xs text-gray-600">{submission.notes}</p>
+                    </div>
+                  {/if}
+                  
+                  {#if submission.evidence_items?.length > 0}
+                    <div>
+                      <h5 class="text-xs font-medium text-gray-700 mb-1">Evidence</h5>
+                      <ul class="space-y-1">
+                        {#each submission.evidence_items as evidence}
+                          <li class="text-xs text-gray-600">
+                            {#if evidence.description}
+                              • {evidence.description}
+                            {/if}
+                            {#if evidence.url}
+                              <a href={evidence.url} target="_blank" class="text-green-600 underline ml-1">
+                                View URL
+                              </a>
+                            {/if}
+                            {#if evidence.file_url}
+                              <a href={evidence.file_url} target="_blank" class="text-green-600 underline ml-1">
+                                View File
+                              </a>
+                            {/if}
+                          </li>
+                        {/each}
+                      </ul>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
             </div>
             
             {#if submission.contribution.highlight}
