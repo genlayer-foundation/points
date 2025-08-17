@@ -464,6 +464,23 @@
                     <h3 class="text-base font-semibold text-gray-900">
                       {submission.contribution.contribution_type_details?.name || 'Contribution'}
                     </h3>
+                    {#if submission.notes || submission.evidence_items?.length > 0}
+                      <button
+                        type="button"
+                        onclick={() => isExpanded = !isExpanded}
+                        class="text-green-600 hover:text-green-700 p-1"
+                        title="{isExpanded ? 'Hide' : 'Show'} details"
+                      >
+                        <svg 
+                          class="w-4 h-4 transition-transform {isExpanded ? 'rotate-180' : ''}" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    {/if}
                   </div>
                   
                   <div class="flex items-center gap-3 text-xs">
@@ -471,24 +488,6 @@
                       {formatDate(submission.contribution.contribution_date)}
                     </span>
                   </div>
-                  
-                  {#if submission.notes || submission.evidence_items?.length > 0}
-                    <button
-                      type="button"
-                      onclick={() => isExpanded = !isExpanded}
-                      class="mt-2 text-xs text-green-600 hover:text-green-700 flex items-center gap-1"
-                    >
-                      <svg 
-                        class="w-3 h-3 transition-transform {isExpanded ? 'rotate-180' : ''}" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        viewBox="0 0 24 24"
-                      >
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                      </svg>
-                      {isExpanded ? 'Hide' : 'Show'} details
-                    </button>
-                  {/if}
                 </div>
                 
                 <div class="ml-3 flex-shrink-0">
