@@ -20,6 +20,9 @@
     notes: ''
   });
   
+  // Evidence slots for editing
+  let evidenceSlots = $state([]);
+  
   onMount(async () => {
     // Check authentication
     if (!$authState.isAuthenticated) {
@@ -29,6 +32,25 @@
     
     await loadData();
   });
+  
+  function addEvidenceSlot() {
+    evidenceSlots = [...evidenceSlots, { id: Date.now(), description: '', url: '', file: null, existing: false }];
+  }
+  
+  function removeEvidenceSlot(index) {
+    evidenceSlots = evidenceSlots.filter((_, i) => i !== index);
+  }
+  
+  function handleFileChange(event, index) {
+    const file = event.target.files[0];
+    if (file) {
+      evidenceSlots[index].file = file;
+    }
+  }
+  
+  function hasEvidenceInSlot(slot) {
+    return slot.description || slot.url || slot.file;
+  }
   
   async function loadData() {
     try {
@@ -53,6 +75,10 @@
         contribution_date: submission.contribution_date.split('T')[0],
         notes: submission.notes || ''
       };
+      
+      // Note: We don't populate existing evidence as editable slots
+      // since the backend doesn't support updating existing evidence
+      // Users can only add new evidence items
       
     } catch (err) {
       if (err.response?.status === 404) {
@@ -82,6 +108,24 @@
       };
       
       await api.put(`/submissions/${params.id}/`, updateData);
+      
+      // Add new evidence items
+      const filledSlots = evidenceSlots.filter(hasEvidenceInSlot);
+      for (const slot of filledSlots) {
+        const evidenceFormData = new FormData();
+        
+        if (slot.description) {
+          evidenceFormData.append('description', slot.description);
+        }
+        if (slot.url) {
+          evidenceFormData.append('url', slot.url);
+        }
+        if (slot.file) {
+          evidenceFormData.append('file', slot.file, slot.file.name);
+        }
+        
+        await api.post(`/submissions/${params.id}/add-evidence/`, evidenceFormData);
+      }
       
       success = true;
       
@@ -196,11 +240,86 @@
                 {/each}
               </ul>
             </div>
-            <p class="text-sm text-gray-600 mt-2">
-              Note: You cannot modify evidence in this form. Please include any additional information in the notes field.
-            </p>
           </div>
         {/if}
+        
+        <div class="mb-6">
+          <div class="flex justify-between items-center mb-2">
+            <label class="block text-sm font-medium text-gray-700">
+              Add New Evidence
+            </label>
+            <button
+              type="button"
+              onclick={addEvidenceSlot}
+              class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+            >
+              + Add Evidence
+            </button>
+          </div>
+          
+          {#if evidenceSlots.length === 0}
+            <div class="bg-gray-50 p-4 rounded text-center text-gray-500">
+              Click "Add Evidence" to include additional supporting information.
+            </div>
+          {:else}
+            <div class="space-y-4">
+              {#each evidenceSlots as slot, index}
+                <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs font-medium text-gray-700 mb-1">
+                        Description
+                      </label>
+                      <input
+                        type="text"
+                        bind:value={slot.description}
+                        placeholder="Brief description"
+                        class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label class="block text-xs font-medium text-gray-700 mb-1">
+                        URL
+                      </label>
+                      <input
+                        type="url"
+                        bind:value={slot.url}
+                        placeholder="https://example.com"
+                        class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div class="mt-3">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                      File Upload
+                    </label>
+                    <input
+                      type="file"
+                      onchange={(e) => handleFileChange(e, index)}
+                      class="w-full text-sm text-gray-500 file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+                    />
+                  </div>
+                  
+                  <div class="mt-2 flex justify-end">
+                    <button
+                      type="button"
+                      onclick={() => removeEvidenceSlot(index)}
+                      class="text-red-600 hover:text-red-800 text-sm"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+          
+          <p class="text-xs text-gray-500 mt-2">
+            Add additional URLs, descriptions, and files to support your contribution claim.
+          </p>
+        </div>
         
         <div class="flex gap-4">
           <button
