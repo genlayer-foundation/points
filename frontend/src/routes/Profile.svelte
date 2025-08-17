@@ -291,12 +291,13 @@
             <Icon name="validator" className="mr-2 text-sky-500" />
             Validator Profile
           </h2>
-          <p class="text-sm text-sky-700 mb-4">Not a validator yet. Run a node to activate this profile.</p>
+          <p class="text-sm text-sky-700 mb-2">Want to become a GenLayer Validator? Join the waitlist, start earning points, and climb the ranks.</p>
+          <p class="text-sm text-sky-700 mb-4">Top contributors will be invited to run nodes on Testnet Asimov.</p>
           <button
             onclick={startValidatorJourney}
             class="px-3 py-1.5 bg-sky-600 text-white rounded text-sm hover:bg-sky-700 transition-colors"
           >
-            Start Journey →
+            Start Validator Journey →
           </button>
         </div>
       {/if}
@@ -336,12 +337,13 @@
             <Icon name="builder" className="mr-2 text-orange-500" />
             Builder Profile
           </h2>
-          <p class="text-sm text-orange-700 mb-4">Not a builder yet. Contribute to builder projects to activate this profile.</p>
+          <p class="text-sm text-orange-700 mb-2">Start building on GenLayer. Deploy contracts, earn points, and join our growing developer community.</p>
+          <p class="text-sm text-orange-700 mb-4">Top contributors get special rewards.</p>
           <button
             onclick={startBuilderJourney}
             class="px-3 py-1.5 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 transition-colors"
           >
-            Start Journey →
+            Start Builder Journey →
           </button>
         </div>
       {/if}
@@ -369,7 +371,8 @@
             <Icon name="steward" className="mr-2 text-green-600" />
             Steward Profile
           </h2>
-          <p class="text-sm text-green-700">Not a steward yet. Contribute to community initiatives to activate this profile.</p>
+          <p class="text-sm text-green-700 mb-2">Steward positions are earned through exceptional contribution.</p>
+          <p class="text-sm text-green-700">Keep building, validating, and supporting the community to unlock this role.</p>
         </div>
       {/if}
     {/if}
