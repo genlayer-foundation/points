@@ -85,5 +85,6 @@
     {loading}
     {error}
     showUser={!userId}
+    category={$currentCategory}
   />
 </div>

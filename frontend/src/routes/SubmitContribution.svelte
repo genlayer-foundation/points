@@ -8,7 +8,6 @@
   let loading = $state(true);
   let submitting = $state(false);
   let error = $state('');
-  let success = $state(false);
   let authChecked = $state(false);
   
   // Form data
@@ -123,12 +122,11 @@
         await api.post(`/submissions/${submissionId}/add-evidence/`, evidenceFormData);
       }
       
-      success = true;
+      // Store success message in sessionStorage to show on My Submissions page
+      sessionStorage.setItem('submissionUpdateSuccess', 'Your contribution has been submitted successfully and is pending review.');
       
-      // Redirect to my submissions after a moment
-      setTimeout(() => {
-        push('/my-submissions');
-      }, 2000);
+      // Redirect immediately to my submissions
+      push('/my-submissions');
       
     } catch (err) {
       error = err.response?.data?.error || err.response?.data?.detail || 'Failed to submit contribution';
@@ -162,11 +160,6 @@
         </button>
       </div>
     </div>
-  {:else if success}
-    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-      <p class="font-bold">Success!</p>
-      <p>Your contribution has been submitted successfully. Redirecting to your submissions...</p>
-    </div>
   {:else}
     <form onsubmit={handleSubmit} class="max-w-2xl">
       {#if error}
@@ -185,23 +178,13 @@
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           required
         >
-          <option value="">Select a type...</option>
-          {#if contributionTypes && contributionTypes.length > 0}
-            {#each contributionTypes as type}
-              <option value={type.id}>
-                {type.name}
-              </option>
-            {/each}
-          {:else}
-            <option value="" disabled>No contribution types available</option>
-          {/if}
+          <option value="">Select a contribution type</option>
+          {#each contributionTypes as type}
+            <option value={type.id}>
+              {type.name} ({type.min_points}-{type.max_points} points)
+            </option>
+          {/each}
         </select>
-        {#if formData.contribution_type}
-          {@const selectedType = contributionTypes.find(t => t.id === parseInt(formData.contribution_type))}
-          {#if selectedType?.description}
-            <p class="mt-1 text-sm text-gray-600">{selectedType.description}</p>
-          {/if}
-        {/if}
       </div>
       
       <div class="mb-6">
@@ -225,23 +208,72 @@
         <textarea
           id="notes"
           bind:value={formData.notes}
-          rows="4"
+          rows="6"
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           placeholder="Describe your contribution..."
         ></textarea>
       </div>
       
       <div class="mb-6">
-        <h3 class="text-lg font-medium mb-4">Evidence (Optional)</h3>
+        <div class="flex justify-between items-center mb-2">
+          <label class="block text-sm font-medium text-gray-700">
+            Evidence & Supporting Information
+          </label>
+          <button
+            type="button"
+            onclick={addEvidenceSlot}
+            class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+          >
+            + Add Evidence
+          </button>
+        </div>
         
-        {#if evidenceSlots.length > 0}
-          <p class="text-sm text-gray-600 mb-4">You can add multiple pieces of evidence to support your contribution.</p>
-          
+        {#if evidenceSlots.length === 0}
+          <div class="bg-gray-50 p-4 rounded text-center text-gray-500">
+            No evidence added yet. Click "Add Evidence" to include supporting information.
+          </div>
+        {:else}
           <div class="space-y-4">
             {#each evidenceSlots as slot, index}
-              <div class="border border-gray-300 rounded-md p-4 {hasEvidenceInSlot(slot) ? 'bg-green-50 border-green-300' : 'bg-white'}">
-                <div class="flex justify-between items-start mb-3">
-                  <h4 class="font-medium text-sm">Evidence #{index + 1}</h4>
+              <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                      Description
+                    </label>
+                    <input
+                      type="text"
+                      bind:value={slot.description}
+                      placeholder="Brief description"
+                      class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                      URL
+                    </label>
+                    <input
+                      type="url"
+                      bind:value={slot.url}
+                      placeholder="https://example.com"
+                      class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+                
+                <div class="mt-3">
+                  <label class="block text-xs font-medium text-gray-700 mb-1">
+                    File Upload
+                  </label>
+                  <input
+                    type="file"
+                    onchange={(e) => handleFileChange(e, index)}
+                    class="w-full text-sm text-gray-500 file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+                  />
+                </div>
+                
+                <div class="mt-2 flex justify-end">
                   <button
                     type="button"
                     onclick={() => removeEvidenceSlot(index)}
@@ -250,63 +282,14 @@
                     Remove
                   </button>
                 </div>
-                
-                <div class="space-y-3">
-                  <div>
-                    <label for="evidence_description_{slot.id}" class="block text-sm text-gray-700 mb-1">
-                      Description
-                    </label>
-                    <input
-                      type="text"
-                      id="evidence_description_{slot.id}"
-                      bind:value={slot.description}
-                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="Brief description"
-                    />
-                  </div>
-                  
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <label for="evidence_url_{slot.id}" class="block text-sm text-gray-700 mb-1">
-                        URL
-                      </label>
-                      <input
-                        type="url"
-                        id="evidence_url_{slot.id}"
-                        bind:value={slot.url}
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        placeholder="https://example.com"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label for="evidence_file_{slot.id}" class="block text-sm text-gray-700 mb-1">
-                        File
-                      </label>
-                      <input
-                        type="file"
-                        id="evidence_file_{slot.id}"
-                        onchange={(e) => handleFileChange(e, index)}
-                        class="w-full text-sm"
-                      />
-                      {#if slot.file}
-                        <p class="text-xs text-gray-600 mt-1">{slot.file.name}</p>
-                      {/if}
-                    </div>
-                  </div>
-                </div>
               </div>
             {/each}
           </div>
         {/if}
         
-        <button
-          type="button"
-          onclick={addEvidenceSlot}
-          class="{evidenceSlots.length === 0 ? '' : 'mt-3'} text-primary-600 hover:text-primary-700 text-sm font-medium"
-        >
-          {evidenceSlots.length === 0 ? '+ Add evidence' : '+ Add another evidence'}
-        </button>
+        <p class="text-xs text-gray-500 mt-2">
+          Add URLs, descriptions, and files to support your contribution claim.
+        </p>
       </div>
       
       <div class="flex gap-4">
@@ -320,7 +303,7 @@
         
         <button
           type="button"
-          onclick={() => push('/my-submissions')}
+          onclick={() => push('/')}
           class="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
         >
           Cancel

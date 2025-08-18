@@ -462,6 +462,19 @@ Components like `RecentContributions`, `FeaturedContributions`, `UserContributio
 
 The only exception is when you need to group multiple related elements that aren't already in a component.
 
+### Gradients Policy
+**NO GRADIENTS**: Avoid using gradient backgrounds in the UI. Use solid colors instead for a cleaner, more professional look.
+
+```javascript
+// ❌ WRONG - Don't use gradients
+<div class="bg-gradient-to-r from-blue-500 to-purple-600">
+
+// ✅ CORRECT - Use solid colors
+<div class="bg-blue-500">
+```
+
+Gradients can make text harder to read and create visual complexity. Stick to the established color palette with solid colors for consistency.
+
 ## Important Notes
 
 ### Component Props in Svelte 5

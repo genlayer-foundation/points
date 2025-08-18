@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import api from '../lib/api.js';
   import Pagination from '../components/Pagination.svelte';
+  import SubmissionCard from '../components/SubmissionCard.svelte';
   
   let submissions = $state([]);
   let loading = $state(true);
@@ -12,6 +13,7 @@
   let totalCount = $state(0);
   let pageSize = 20;
   let stateFilter = $state('');
+  let successMessage = $state('');
   let authChecked = $state(false);
   
   // Load submissions when authenticated
@@ -61,6 +63,17 @@
   });
   
   onMount(async () => {
+    // Check for success message from edit submission
+    const updateSuccess = sessionStorage.getItem('submissionUpdateSuccess');
+    if (updateSuccess) {
+      successMessage = updateSuccess;
+      sessionStorage.removeItem('submissionUpdateSuccess');
+      // Clear the message after 5 seconds
+      setTimeout(() => {
+        successMessage = '';
+      }, 5000);
+    }
+    
     // Wait a moment for auth state to be verified
     await new Promise(resolve => setTimeout(resolve, 100));
     loadSubmissions();
@@ -75,34 +88,25 @@
     currentPage = 1;
     loadSubmissions();
   }
-  
-  function getStateClass(state) {
-    switch (state) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'accepted':
-        return 'bg-green-100 text-green-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      case 'more_info_needed':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  }
-  
-  function formatDate(dateString) {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  }
 </script>
 
 <div class="container mx-auto px-4 py-8">
+  {#if successMessage}
+    <div class="mb-6 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded flex items-center justify-between">
+      <div class="flex items-center">
+        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+        </svg>
+        <span>{successMessage}</span>
+      </div>
+      <button onclick={() => successMessage = ''} class="text-green-700 hover:text-green-900">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+        </svg>
+      </button>
+    </div>
+  {/if}
+  
   <div class="flex justify-between items-center mb-6">
     <h1 class="text-2xl font-bold">My Submissions</h1>
     <button
@@ -168,78 +172,10 @@
   {:else}
     <div class="space-y-4">
       {#each submissions as submission}
-        <div class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-          <div class="flex justify-between items-start mb-4">
-            <div>
-              <h3 class="text-lg font-semibold">{submission.contribution_type_name}</h3>
-              <p class="text-sm text-gray-600">
-                Contribution Date: {formatDate(submission.contribution_date)}
-              </p>
-              <p class="text-sm text-gray-600">
-                Submitted: {formatDate(submission.created_at)}
-              </p>
-            </div>
-            <span class="px-3 py-1 rounded-full text-sm font-medium {getStateClass(submission.state)}">
-              {submission.state_display}
-            </span>
-          </div>
-          
-          {#if submission.notes}
-            <div class="mb-4">
-              <h4 class="font-medium text-sm text-gray-700 mb-1">Notes:</h4>
-              <p class="text-gray-600">{submission.notes}</p>
-            </div>
-          {/if}
-          
-          {#if submission.staff_reply}
-            <div class="mb-4 bg-gray-50 p-3 rounded">
-              <h4 class="font-medium text-sm text-gray-700 mb-1">Staff Response:</h4>
-              <p class="text-gray-600">{submission.staff_reply}</p>
-            </div>
-          {/if}
-          
-          {#if submission.evidence_items && submission.evidence_items.length > 0}
-            <div class="mb-4">
-              <h4 class="font-medium text-sm text-gray-700 mb-2">Evidence:</h4>
-              <ul class="space-y-1">
-                {#each submission.evidence_items as evidence}
-                  <li class="text-sm text-gray-600">
-                    {#if evidence.description}
-                      • {evidence.description}
-                    {/if}
-                    {#if evidence.url}
-                      <a href={evidence.url} target="_blank" class="text-primary-600 underline ml-1">
-                        View URL
-                      </a>
-                    {/if}
-                    {#if evidence.file_url}
-                      <a href={evidence.file_url} target="_blank" class="text-primary-600 underline ml-1">
-                        View File
-                      </a>
-                    {/if}
-                  </li>
-                {/each}
-              </ul>
-            </div>
-          {/if}
-          
-          <div class="flex justify-between items-center mt-4">
-            <div class="text-sm text-gray-500">
-              {#if submission.last_edited_at}
-                Last edited: {formatDate(submission.last_edited_at)}
-              {/if}
-            </div>
-            
-            {#if submission.can_edit}
-              <button
-                onclick={() => push(`/contributions/${submission.id}`)}
-                class="px-4 py-2 bg-primary-600 text-white text-sm rounded-md hover:bg-primary-700"
-              >
-                Edit & Resubmit
-              </button>
-            {/if}
-          </div>
-        </div>
+        <SubmissionCard 
+          {submission}
+          isOwnSubmission={true}
+        />
       {/each}
     </div>
     
