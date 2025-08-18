@@ -18,6 +18,8 @@
   let showValidatorJourney = $state(false);
   let showBuilderJourney = $state(false);
   let isCompletingJourney = $state(false);
+  let showJourneyConfirm = $state(null); // 'validator' or 'builder'
+  let journeySuccessMessage = $state('');
   
   // Track if any field has changed
   let hasChanges = $derived(user && (
@@ -42,6 +44,17 @@
       user = userData;
       name = userData.name || '';
       nodeVersion = userData.validator?.node_version || '';
+      
+      // Check for journey success message
+      const journeySuccess = sessionStorage.getItem('journeySuccess');
+      if (journeySuccess) {
+        journeySuccessMessage = journeySuccess;
+        sessionStorage.removeItem('journeySuccess');
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+          journeySuccessMessage = '';
+        }, 5000);
+      }
       
       // Fetch validator balance if user has an address
       if (userData.address) {
@@ -98,11 +111,28 @@
   }
   
   async function startValidatorJourney() {
-    showValidatorJourney = true;
+    showJourneyConfirm = 'validator';
   }
   
   async function startBuilderJourney() {
-    showBuilderJourney = true;
+    showJourneyConfirm = 'builder';
+  }
+  
+  async function confirmJourney(type) {
+    if (type === 'validator') {
+      await completeValidatorJourney();
+    } else if (type === 'builder') {
+      await completeBuilderJourney();
+    }
+    showJourneyConfirm = null;
+    
+    // Scroll to the relevant profile section after a short delay
+    setTimeout(() => {
+      const element = document.querySelector(`[data-profile-type="${type}"]`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
   }
   
   async function completeValidatorJourney() {
@@ -115,7 +145,8 @@
       const userData = await getCurrentUser();
       user = userData;
       showValidatorJourney = false;
-      alert('Validator waitlist badge awarded! +20 points earned.');
+      // Show success message in a nicer way
+      sessionStorage.setItem('journeySuccess', 'Validator waitlist badge awarded! +20 points earned.');
     } catch (err) {
       error = err.response?.data?.error || 'Failed to complete journey';
     } finally {
@@ -133,7 +164,8 @@
       const userData = await getCurrentUser();
       user = userData;
       showBuilderJourney = false;
-      alert('Builder initiate badge awarded! +20 points earned.');
+      // Show success message in a nicer way
+      sessionStorage.setItem('journeySuccess', 'Builder initiate badge awarded! +20 points earned.');
     } catch (err) {
       error = err.response?.data?.error || 'Failed to complete journey';
     } finally {
@@ -167,6 +199,23 @@
   {#if error}
     <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
       {error}
+    </div>
+  {/if}
+  
+  {#if journeySuccessMessage}
+    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded flex items-center justify-between">
+      <div class="flex items-center">
+        <Icon name="star" className="mr-2" />
+        <span>{journeySuccessMessage}</span>
+      </div>
+      <button 
+        onclick={() => journeySuccessMessage = ''}
+        class="text-green-700 hover:text-green-900"
+      >
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+        </svg>
+      </button>
     </div>
   {/if}
 
@@ -258,7 +307,7 @@
     <!-- Validator Profile -->
     {#if !showValidatorJourney && !showBuilderJourney}
       {#if user.validator}
-        <div class="bg-sky-100 shadow rounded-lg p-6 border border-sky-300">
+        <div class="bg-sky-100 shadow rounded-lg p-6 border border-sky-300" data-profile-type="validator">
           <h2 class="text-lg font-semibold text-sky-900 mb-4 flex items-center">
             <Icon name="validator" className="mr-2 text-sky-700" />
             Validator Profile
@@ -274,7 +323,7 @@
           </div>
         </div>
       {:else if user.has_validator_waitlist}
-        <div class="bg-sky-100 shadow rounded-lg p-6 border border-sky-300">
+        <div class="bg-sky-100 shadow rounded-lg p-6 border border-sky-300" data-profile-type="validator">
           <h2 class="text-lg font-semibold text-sky-900 mb-4 flex items-center">
             <Icon name="validator" className="mr-2 text-sky-700" />
             Validator Profile
@@ -304,7 +353,7 @@
       
       <!-- Builder Profile -->
       {#if user.builder}
-        <div class="bg-orange-100 shadow rounded-lg p-6 border border-orange-300">
+        <div class="bg-orange-100 shadow rounded-lg p-6 border border-orange-300" data-profile-type="builder">
           <h2 class="text-lg font-semibold text-orange-900 mb-4 flex items-center">
             <Icon name="builder" className="mr-2 text-orange-700" />
             Builder Profile
@@ -320,7 +369,7 @@
           </div>
         </div>
       {:else if user.has_builder_initiate}
-        <div class="bg-orange-100 shadow rounded-lg p-6 border border-orange-300">
+        <div class="bg-orange-100 shadow rounded-lg p-6 border border-orange-300" data-profile-type="builder">
           <h2 class="text-lg font-semibold text-orange-900 mb-4 flex items-center">
             <Icon name="builder" className="mr-2 text-orange-700" />
             Builder Profile
@@ -483,6 +532,76 @@
       <div class="text-center">
         <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
         <p class="text-gray-500 mt-4">Loading profile...</p>
+      </div>
+    </div>
+  {/if}
+  
+  <!-- Journey Confirmation Modal -->
+  {#if showJourneyConfirm}
+    <div class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <div class="flex items-center mb-4">
+          {#if showJourneyConfirm === 'validator'}
+            <Icon name="validator" className="mr-3 text-sky-500" size="lg" />
+            <h2 class="text-xl font-semibold text-gray-900">Start Validator Journey?</h2>
+          {:else}
+            <Icon name="builder" className="mr-3 text-orange-500" size="lg" />
+            <h2 class="text-xl font-semibold text-gray-900">Start Builder Journey?</h2>
+          {/if}
+        </div>
+        
+        <div class="mb-6">
+          {#if showJourneyConfirm === 'validator'}
+            <p class="text-gray-600 mb-3">By joining the Validator Journey, you'll:</p>
+            <ul class="space-y-2 text-sm text-gray-700">
+              <li class="flex items-start">
+                <Icon name="star" size="xs" className="mr-2 text-sky-500 mt-0.5" />
+                <span>Join the validator waitlist</span>
+              </li>
+              <li class="flex items-start">
+                <Icon name="star" size="xs" className="mr-2 text-sky-500 mt-0.5" />
+                <span>Earn 20 points immediately</span>
+              </li>
+              <li class="flex items-start">
+                <Icon name="star" size="xs" className="mr-2 text-sky-500 mt-0.5" />
+                <span>Get priority for node allocation on Testnet Asimov</span>
+              </li>
+            </ul>
+          {:else}
+            <p class="text-gray-600 mb-3">By joining the Builder Journey, you'll:</p>
+            <ul class="space-y-2 text-sm text-gray-700">
+              <li class="flex items-start">
+                <Icon name="star" size="xs" className="mr-2 text-orange-500 mt-0.5" />
+                <span>Get the Builder Initiate badge</span>
+              </li>
+              <li class="flex items-start">
+                <Icon name="star" size="xs" className="mr-2 text-orange-500 mt-0.5" />
+                <span>Earn 20 points immediately</span>
+              </li>
+              <li class="flex items-start">
+                <Icon name="star" size="xs" className="mr-2 text-orange-500 mt-0.5" />
+                <span>Unlock builder-specific rewards and features</span>
+              </li>
+            </ul>
+          {/if}
+        </div>
+        
+        <div class="flex gap-3">
+          <button
+            onclick={() => confirmJourney(showJourneyConfirm)}
+            disabled={isCompletingJourney}
+            class="flex-1 px-4 py-2 {showJourneyConfirm === 'validator' ? 'bg-sky-600 hover:bg-sky-700' : 'bg-orange-600 hover:bg-orange-700'} text-white rounded-md transition-colors disabled:opacity-50"
+          >
+            {isCompletingJourney ? 'Starting...' : 'Yes, Start Journey'}
+          </button>
+          <button
+            onclick={() => showJourneyConfirm = null}
+            disabled={isCompletingJourney}
+            class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   {/if}
