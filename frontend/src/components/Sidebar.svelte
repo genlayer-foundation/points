@@ -4,6 +4,7 @@
   import Icon from './Icons.svelte';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
+  import { getCategoryIconColor } from '../lib/categoryColors';
   
   let { isOpen = $bindable(false) } = $props();
   
@@ -139,7 +140,7 @@
             <Icon 
               name={section.iconName}
               size="sm"
-              className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-500'}"
+              className="mr-2 {getCategoryIconColor(section.category)}"
             />
             <h3 class="text-xs font-medium uppercase tracking-wider {section.category === 'global' && section.category === $currentCategory ? 'text-black' : 'text-gray-700'}">
               {section.title}
@@ -163,7 +164,7 @@
                   <Icon 
                     name={item.iconName}
                     size="sm"
-                    className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-400'}"
+                    className="mr-2 {getCategoryIconColor(section.category)}"
                   />
                   {item.name}
                 </a>
@@ -307,7 +308,7 @@
               <Icon 
                 name={section.iconName}
                 size="sm"
-                className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-500'}"
+                className="mr-2 {getCategoryIconColor(section.category)}"
               />
               <h3 class="text-xs font-medium uppercase tracking-wider {section.category === 'global' && section.category === $currentCategory ? 'text-black' : 'text-gray-700'}">
                 {section.title}
@@ -331,7 +332,7 @@
                     <Icon 
                       name={item.iconName}
                       size="sm"
-                      className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-400'}"
+                      className="mr-2 {getCategoryIconColor(section.category)}"
                     />
                     {item.name}
                   </a>

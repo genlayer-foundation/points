@@ -1,6 +1,7 @@
 <script>
   import { format } from 'date-fns';
   import { push } from 'svelte-spa-router';
+  import { getCategoryColors } from '../lib/categoryColors';
   
   let { 
     contribution,
@@ -22,33 +23,7 @@
     'global'
   );
   
-  let categoryColors = $derived(
-    category === 'builder' ? {
-      border: 'border-orange-400',
-      cardBg: 'bg-orange-50',
-      bg: 'bg-orange-500',
-      text: 'text-orange-600',
-      hoverText: 'hover:text-orange-700',
-      expandBg: 'bg-orange-50',
-      expandBorder: 'border-orange-200'
-    } : category === 'validator' ? {
-      border: 'border-sky-400',
-      cardBg: 'bg-sky-50',
-      bg: 'bg-sky-500',
-      text: 'text-sky-600',
-      hoverText: 'hover:text-sky-700',
-      expandBg: 'bg-sky-50',
-      expandBorder: 'border-sky-200'
-    } : {
-      border: 'border-gray-400',
-      cardBg: 'bg-white',
-      bg: 'bg-gray-500',
-      text: 'text-gray-600',
-      hoverText: 'hover:text-gray-700',
-      expandBg: 'bg-gray-50',
-      expandBorder: 'border-gray-200'
-    }
-  );
+  let categoryColors = $derived(getCategoryColors(category));
   
   function formatDate(dateString) {
     if (!dateString) return 'N/A';
