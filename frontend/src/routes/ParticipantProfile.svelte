@@ -362,29 +362,87 @@
         {/if}
       {/if}
       
-      <!-- Journey Badges Section -->
-      {#if (participant.has_validator_waitlist || participant.has_builder_welcome) && (!participant.validator && !participant.builder)}
-        <div class="mb-6">
-          <h3 class="text-lg font-medium text-gray-900 mb-3">Journey Status</h3>
-          <div class="flex flex-wrap gap-3">
-            {#if participant.has_validator_waitlist && !participant.validator}
-              <div class="inline-flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 text-white shadow-md">
-                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+      <!-- Profile Sections in Order: Validator, Builder-Welcome Journey, Validator-Waitlist Journey, Builder -->
+      
+      <!-- 1. Validator Profile (if active) -->
+      {#if participant.validator}
+        <!-- Validator section already exists below -->
+      {/if}
+      
+      <!-- 2. Builder Welcome Journey Card -->
+      {#if participant.has_builder_welcome && !participant.builder}
+        <div class="mb-6 bg-gradient-to-r from-orange-50 to-orange-100 shadow rounded-lg p-6 border border-orange-300">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-semibold text-orange-900 mb-2 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+                Builder Journey
+              </h3>
+              <p class="text-sm text-orange-700">Welcome to the builder community! Keep deploying to level up.</p>
+            </div>
+            <div class="text-right">
+              <div class="inline-flex items-center px-3 py-1 rounded-full bg-orange-200 text-orange-900 text-xs font-medium">
+                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
                 </svg>
-                <span class="font-medium">Validator Waitlist</span>
-                <span class="ml-2 text-sm opacity-90">+20 pts</span>
+                +20 Points
               </div>
-            {/if}
-            {#if participant.has_builder_welcome && !participant.builder}
-              <div class="inline-flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md">
-                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+            </div>
+          </div>
+        </div>
+      {/if}
+      
+      <!-- 3. Validator Waitlist Journey Card -->
+      {#if participant.has_validator_waitlist && !participant.validator}
+        <div class="mb-6 bg-gradient-to-r from-sky-50 to-sky-100 shadow rounded-lg p-6 border border-sky-300">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-semibold text-sky-900 mb-2 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-sky-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+                Validator Journey
+              </h3>
+              <p class="text-sm text-sky-700">On the waitlist! Working towards becoming a validator.</p>
+            </div>
+            <div class="text-right">
+              <div class="inline-flex items-center px-3 py-1 rounded-full bg-sky-200 text-sky-900 text-xs font-medium">
+                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
                 </svg>
-                <span class="font-medium">Builder Welcome</span>
-                <span class="ml-2 text-sm opacity-90">+20 pts</span>
+                +20 Points
               </div>
-            {/if}
+            </div>
+          </div>
+        </div>
+      {/if}
+      
+      <!-- 4. Builder Profile (if active) -->
+      {#if participant.builder}
+        <div class="mb-6 bg-orange-50/30 rounded-lg shadow-sm border border-orange-100 overflow-hidden">
+          <!-- Header -->
+          <div class="bg-orange-100/50 px-5 py-3 border-b border-orange-200">
+            <h2 class="text-lg font-semibold text-orange-700 uppercase tracking-wider flex items-center">
+              <svg class="w-5 h-5 mr-2 text-orange-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+              </svg>
+              Builder
+            </h2>
+          </div>
+          
+          <!-- Content -->
+          <div class="p-4">
+            <div class="text-sm text-orange-800">
+              <p>Active builder on GenLayer!</p>
+              {#if participant.builder?.total_points}
+                <p class="mt-1">Total Points: <span class="font-bold text-orange-900">{participant.builder.total_points}</span></p>
+              {/if}
+              {#if participant.builder?.rank}
+                <p>Builder Rank: <span class="font-bold text-orange-900">#{participant.builder.rank}</span></p>
+              {/if}
+            </div>
           </div>
         </div>
       {/if}
