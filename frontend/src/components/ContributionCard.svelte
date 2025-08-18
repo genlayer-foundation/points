@@ -1,10 +1,12 @@
 <script>
   import { format } from 'date-fns';
+  import { push } from 'svelte-spa-router';
   
   let { 
     contribution,
     submission = null,
     showExpand = false,
+    showUser = true,
     className = ''
   } = $props();
   
@@ -51,7 +53,11 @@
   function formatDate(dateString) {
     if (!dateString) return 'N/A';
     try {
-      return format(new Date(dateString), 'MMM d, yyyy');
+      // Take just the date part (YYYY-MM-DD) and ignore time/timezone
+      const datePart = dateString.split('T')[0];
+      const [year, month, day] = datePart.split('-');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${months[parseInt(month) - 1]} ${parseInt(day)}, ${year}`;
     } catch {
       return dateString;
     }
@@ -73,8 +79,18 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
             </svg>
           </div>
-          <h3 class="text-base font-semibold text-gray-900">
-            {contribution.contribution_type_details?.name || contribution.contribution_type_name || 'Contribution'}
+          <h3 class="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <button
+              class="{categoryColors.hoverText} transition-colors"
+              onclick={() => push(`/contribution-type/${contribution.typeId || contribution.contribution_type || contribution.contribution_type_details?.id}`)}
+            >
+              {contribution.contribution_type_details?.name || contribution.contribution_type_name || 'Contribution'}
+            </button>
+            {#if contribution.count > 1}
+              <span class="text-sm font-normal text-gray-500">
+                × {contribution.count}
+              </span>
+            {/if}
           </h3>
           {#if hasDetails}
             <button
@@ -96,8 +112,35 @@
         </div>
         
         <div class="flex items-center gap-3 text-xs">
+          {#if showUser && contribution.users && contribution.users.length > 0}
+            {#if contribution.users.length === 1}
+              <button 
+                class="{categoryColors.text} {categoryColors.hoverText} font-medium"
+                onclick={() => push(`/participant/${contribution.users[0].address || ''}`)}
+              >
+                {contribution.users[0].name || `${contribution.users[0].address?.slice(0, 6)}...${contribution.users[0].address?.slice(-4)}` || 'Anonymous'}
+              </button>
+            {:else}
+              <span class="{categoryColors.text} font-medium">
+                {contribution.users.length} participants
+              </span>
+            {/if}
+            <span class="text-gray-400">•</span>
+          {:else if showUser && contribution.user_details}
+            <button 
+              class="{categoryColors.text} {categoryColors.hoverText} font-medium"
+              onclick={() => push(`/participant/${contribution.user_details.address || ''}`)}
+            >
+              {contribution.user_details.name || `${contribution.user_details.address?.slice(0, 6)}...${contribution.user_details.address?.slice(-4)}` || 'Anonymous'}
+            </button>
+            <span class="text-gray-400">•</span>
+          {/if}
           <span class="text-gray-500">
-            {formatDate(contribution.contribution_date)}
+            {#if contribution.count > 1 && contribution.end_date && contribution.end_date !== contribution.contribution_date}
+              {formatDate(contribution.contribution_date)} - {formatDate(contribution.end_date)}
+            {:else}
+              {formatDate(contribution.contribution_date)}
+            {/if}
           </span>
         </div>
       </div>

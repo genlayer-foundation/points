@@ -28,20 +28,36 @@ class ContributionSerializer(serializers.ModelSerializer):
     contribution_type_name = serializers.ReadOnlyField(source='contribution_type.name')
     contribution_type_min_points = serializers.ReadOnlyField(source='contribution_type.min_points')
     contribution_type_max_points = serializers.ReadOnlyField(source='contribution_type.max_points')
+    contribution_type_details = serializers.SerializerMethodField()
     evidence_items = serializers.SerializerMethodField()
+    highlight = serializers.SerializerMethodField()
     
     class Meta:
         model = Contribution
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name', 
-                  'contribution_type_min_points', 'contribution_type_max_points', 'points', 
-                  'frozen_global_points', 'multiplier_at_creation', 'contribution_date',
-                  'evidence_items', 'notes', 'created_at', 'updated_at']
+                  'contribution_type_min_points', 'contribution_type_max_points', 'contribution_type_details',
+                  'points', 'frozen_global_points', 'multiplier_at_creation', 'contribution_date',
+                  'evidence_items', 'notes', 'highlight', 'created_at', 'updated_at']
         read_only_fields = ['id', 'frozen_global_points', 'created_at', 'updated_at']
         
     def get_evidence_items(self, obj):
         """Returns serialized evidence items for this contribution."""
         evidence_items = obj.evidence_items.all().order_by('-created_at')
         return EvidenceSerializer(evidence_items, many=True, context=self.context).data
+    
+    def get_contribution_type_details(self, obj):
+        """Returns detailed contribution type information including category."""
+        return ContributionTypeSerializer(obj.contribution_type, context=self.context).data
+    
+    def get_highlight(self, obj):
+        """Returns highlight information if this contribution is highlighted."""
+        highlight = obj.highlights.first()  # Using related_name from the model
+        if highlight:
+            return {
+                'title': highlight.title,
+                'description': highlight.description
+            }
+        return None
     
     def to_representation(self, instance):
         """Override to_representation to handle invalid decimal values gracefully"""

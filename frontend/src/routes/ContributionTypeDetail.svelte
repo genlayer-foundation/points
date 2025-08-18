@@ -45,7 +45,10 @@
   // Get contributions for this type
   const fetchContributions = async () => {
     try {
-      const response = await contributionsAPI.getContributions({ contribution_type: params.id });
+      const response = await contributionsAPI.getContributions({ 
+        contribution_type: params.id,
+        ordering: '-contribution_date'  // Order by contribution date descending
+      });
       return response.data;
     } catch (err) {
       error = err.message;

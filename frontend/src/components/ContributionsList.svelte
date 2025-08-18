@@ -2,6 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import Pagination from './Pagination.svelte';
+  import ContributionCard from './ContributionCard.svelte';
   import { contributionsAPI } from '../lib/api';
   
   const { 
@@ -30,41 +31,116 @@
     
     // Check if data is already grouped (from backend)
     if (contribs[0] && contribs[0].grouped_contributions) {
-      // Data is already grouped, just format it for display
-      return contribs.map(group => ({
-        id: group.id,
-        typeId: group.contribution_type.id,
-        typeName: group.contribution_type_name || group.contribution_type.name,
-        count: group.count || group.grouped_contributions.length,
-        totalPoints: group.frozen_global_points,
-        startDate: group.contribution_date,
-        endDate: group.end_date || group.contribution_date,
-        users: group.users || (group.user_details ? [group.user_details] : []),
-        userDetails: group.user_details  // For single-user groups
-      }));
+      // Data is already grouped, but we need to handle highlights properly
+      const result = [];
+      
+      for (const group of contribs) {
+        // Process each group - split at highlights but keep non-highlighted consecutive items grouped
+        let currentSubgroup = null;
+        
+        for (const contrib of group.grouped_contributions) {
+          if (contrib.highlight) {
+            // If we have a current subgroup, push it before the highlight
+            if (currentSubgroup) {
+              result.push(currentSubgroup);
+              currentSubgroup = null;
+            }
+            
+            // Push the highlighted contribution separately
+            result.push({
+              id: contrib.id,
+              contribution_type: contrib.contribution_type,
+              contribution_type_name: contrib.contribution_type_name,
+              contribution_type_details: contrib.contribution_type_details,
+              contribution_date: contrib.contribution_date,
+              frozen_global_points: contrib.frozen_global_points,
+              points: contrib.frozen_global_points || contrib.points,
+              user_details: contrib.user_details,
+              category: category || contrib.contribution_type_details?.category,
+              highlight: contrib.highlight,
+              typeId: contrib.contribution_type_details?.id || contrib.contribution_type,
+              count: 1,
+              end_date: contrib.contribution_date,
+              users: contrib.user_details ? [contrib.user_details] : []
+            });
+          } else {
+            // Non-highlighted contribution - add to current subgroup
+            if (!currentSubgroup) {
+              // Start a new subgroup
+              currentSubgroup = {
+                id: contrib.id,
+                contribution_type: contrib.contribution_type,
+                contribution_type_name: contrib.contribution_type_name,
+                contribution_type_details: contrib.contribution_type_details,
+                contribution_date: contrib.contribution_date,
+                frozen_global_points: contrib.frozen_global_points || contrib.points,
+                points: contrib.frozen_global_points || contrib.points,
+                user_details: contrib.user_details,
+                category: category || contrib.contribution_type_details?.category,
+                highlight: null,
+                typeId: contrib.contribution_type_details?.id || contrib.contribution_type,
+                count: 1,
+                end_date: contrib.contribution_date,
+                users: contrib.user_details ? [contrib.user_details] : []
+              };
+            } else {
+              // Add to existing subgroup
+              currentSubgroup.count++;
+              currentSubgroup.frozen_global_points += (contrib.frozen_global_points || contrib.points || 0);
+              currentSubgroup.points = currentSubgroup.frozen_global_points;
+              currentSubgroup.end_date = contrib.contribution_date;
+              
+              // Add unique user if different
+              if (contrib.user_details) {
+                const userExists = currentSubgroup.users.some(u => 
+                  u.address === contrib.user_details.address
+                );
+                if (!userExists) {
+                  currentSubgroup.users.push(contrib.user_details);
+                }
+              }
+            }
+          }
+        }
+        
+        // Push any remaining subgroup
+        if (currentSubgroup) {
+          result.push(currentSubgroup);
+        }
+      }
+      
+      return result;
     }
     
-    // Data is not grouped (fallback for old API or when group_consecutive=false)
-    // Group consecutive contributions of the same type
+    // Data is not grouped - group consecutive contributions of the same type
+    // but don't group if there's a featured/highlighted contribution
     const grouped = [];
     let currentGroup = null;
     
     for (const contrib of contribs) {
       const typeId = contrib.contribution_type?.id || contrib.contribution_type;
       const typeName = contrib.contribution_type_name || contrib.contribution_type?.name || 'Unknown Type';
+      const hasHighlight = contrib.highlight ? true : false;
       
-      if (!currentGroup || currentGroup.typeId !== typeId) {
+      // Start a new group if: different type, has highlight, or current group has highlight
+      if (!currentGroup || currentGroup.typeId !== typeId || hasHighlight || currentGroup.highlight) {
         // Start a new group
         currentGroup = {
-          id: `group_${contrib.id}`,
-          typeId,
-          typeName,
+          id: contrib.id,
+          contribution_type: typeId,
+          contribution_type_name: typeName,
+          contribution_type_details: contrib.contribution_type,
+          contribution_date: contrib.contribution_date,
+          frozen_global_points: contrib.frozen_global_points || 0,
+          points: contrib.frozen_global_points || 0,
+          user_details: contrib.user_details,
+          category: category || contrib.contribution_type?.category || contrib.category,
+          highlight: contrib.highlight,
+          // Grouping info
+          typeId: typeId,
           count: 1,
-          totalPoints: contrib.frozen_global_points || 0,
-          startDate: contrib.contribution_date,
-          endDate: contrib.contribution_date,
-          users: [],
-          userDetails: contrib.user_details
+          end_date: contrib.contribution_date,
+          users: []
         };
         
         if (contrib.user_details) {
@@ -78,8 +154,9 @@
       } else {
         // Add to existing group
         currentGroup.count++;
-        currentGroup.totalPoints += (contrib.frozen_global_points || 0);
-        currentGroup.endDate = contrib.contribution_date;
+        currentGroup.frozen_global_points += (contrib.frozen_global_points || 0);
+        currentGroup.points = currentGroup.frozen_global_points;
+        currentGroup.end_date = contrib.contribution_date;
         
         // Add unique user
         if (contrib.user_details) {
@@ -156,7 +233,11 @@
   
   function formatDate(dateString) {
     try {
-      return format(new Date(dateString), 'MMM d, yyyy');
+      // Take just the date part (YYYY-MM-DD) and ignore time/timezone
+      const datePart = dateString.split('T')[0];
+      const [year, month, day] = datePart.split('-');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${months[parseInt(month) - 1]} ${parseInt(day)}, ${year}`;
     } catch (e) {
       return dateString;
     }
@@ -178,71 +259,8 @@
     </div>
   {:else}
     <div class="space-y-3">
-      {#each processedContributions as group}
-        <div class="{category === 'validator' ? 'bg-sky-50 border border-sky-200' : category === 'builder' ? 'bg-orange-50 border border-orange-200' : 'bg-white shadow'} rounded-lg p-4 hover:shadow-lg transition-shadow">
-          <div class="flex items-start justify-between">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 mb-2">
-                <div class="w-4 h-4 rounded-full {category === 'validator' ? 'bg-sky-500' : category === 'builder' ? 'bg-orange-500' : 'bg-green-500'} flex items-center justify-center flex-shrink-0">
-                  <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
-                  </svg>
-                </div>
-                <h3 class="text-base font-semibold text-gray-900 flex items-center gap-2">
-                  <button
-                    class="{category === 'validator' ? 'hover:text-sky-600' : category === 'builder' ? 'hover:text-orange-600' : 'hover:text-primary-600'} transition-colors"
-                    onclick={() => push(`/contribution-type/${group.typeId}`)}
-                  >
-                    {group.typeName}
-                  </button>
-                  {#if group.count > 1}
-                    <span class="text-sm font-normal text-gray-500">
-                      × {group.count}
-                    </span>
-                  {/if}
-                </h3>
-              </div>
-              
-              <div class="flex items-center gap-3 text-xs">
-                {#if showUser}
-                  {#if group.users.length === 1}
-                    <button 
-                      class="{category === 'validator' ? 'text-sky-600 hover:text-sky-700' : category === 'builder' ? 'text-orange-600 hover:text-orange-700' : 'text-primary-600 hover:text-primary-700'} font-medium"
-                      onclick={() => push(`/participant/${group.users[0].address || ''}`)}
-                    >
-                      {group.users[0].name || `${group.users[0].address?.slice(0, 6)}...${group.users[0].address?.slice(-4)}` || 'Anonymous'}
-                    </button>
-                  {:else if group.users.length > 1}
-                    <span class="{category === 'validator' ? 'text-sky-600' : category === 'builder' ? 'text-orange-600' : 'text-primary-600'} font-medium">
-                      {group.users.length} participants
-                    </span>
-                  {:else if group.userDetails}
-                    <button 
-                      class="{category === 'validator' ? 'text-sky-600 hover:text-sky-700' : category === 'builder' ? 'text-orange-600 hover:text-orange-700' : 'text-primary-600 hover:text-primary-700'} font-medium"
-                      onclick={() => push(`/participant/${group.userDetails.address || ''}`)}
-                    >
-                      {group.userDetails.name || `${group.userDetails.address?.slice(0, 6)}...${group.userDetails.address?.slice(-4)}` || 'Anonymous'}
-                    </button>
-                  {/if}
-                  <span class="text-gray-400">•</span>
-                {/if}
-                <span class="text-gray-500">
-                  {#if group.count === 1}
-                    {formatDate(group.startDate)}
-                  {:else}
-                    {formatDate(group.startDate)} - {formatDate(group.endDate)}
-                  {/if}
-                </span>
-              </div>
-            </div>
-            
-            <div class="ml-3 flex-shrink-0">
-              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {category === 'validator' ? 'bg-sky-100 text-sky-800' : category === 'builder' ? 'bg-orange-100 text-orange-800' : 'bg-purple-100 text-purple-800'}">
-                {group.totalPoints} pts
-              </span>
-            </div>
-          </div>
-        </div>
+      {#each processedContributions as contribution}
+        <ContributionCard {contribution} {showUser} />
       {/each}
     </div>
     
