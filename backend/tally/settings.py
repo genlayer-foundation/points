@@ -220,6 +220,39 @@ SESSION_COOKIE_AGE = 86400 * 14  # 14 days in seconds
 SESSION_COOKIE_DOMAIN = None  # Allow cookies on localhost
 SESSION_SAVE_EVERY_REQUEST = True  # Save session on every request to extend expiry
 
+# Dynamic session cookie name based on port to prevent conflicts in multi-port development
+# This allows running multiple instances on different ports without session conflicts
+import sys
+
+# Function to extract port from command line
+def get_port_from_argv():
+    """Extract port number from runserver command arguments"""
+    if 'runserver' in sys.argv:
+        try:
+            # Find the runserver argument
+            runserver_index = sys.argv.index('runserver')
+            if runserver_index + 1 < len(sys.argv):
+                server_arg = sys.argv[runserver_index + 1]
+                # Handle both '8000' and '0.0.0.0:8000' formats
+                if ':' in server_arg:
+                    return server_arg.split(':')[-1]
+                elif server_arg.isdigit():
+                    return server_arg
+        except (ValueError, IndexError):
+            pass
+    return '8000'  # Default port
+
+# Set cookie names based on port for development
+if DEBUG and 'runserver' in sys.argv:
+    port = get_port_from_argv()
+    SESSION_COOKIE_NAME = f'tally_sessionid_{port}'
+    CSRF_COOKIE_NAME = f'tally_csrftoken_{port}'
+    print(f"[DEV] Using port-specific cookies for port {port}: {SESSION_COOKIE_NAME}")
+else:
+    # Production settings
+    SESSION_COOKIE_NAME = 'tally_sessionid'
+    CSRF_COOKIE_NAME = 'csrftoken'
+
 # Ethereum authentication settings
 ETHEREUM_AUTH = {
     'SIWE_DOMAIN': get_required_env('SIWE_DOMAIN'),

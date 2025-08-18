@@ -92,9 +92,11 @@ add_session() {
     echo "Creating symlink for node_modules..."
     ln -s "$TALLY_ROOT/frontend/node_modules" "$HOME/Dev/tally-$name/frontend/node_modules"
     
-    # Create symlink for database
-    echo "Creating symlink for database..."
-    ln -s "$TALLY_ROOT/backend/db.sqlite3" "$HOME/Dev/tally-$name/backend/db.sqlite3"
+    # Copy database (not symlink) so each session has its own
+    echo "Copying database..."
+    if [ -f "$TALLY_ROOT/backend/db.sqlite3" ]; then
+        cp "$TALLY_ROOT/backend/db.sqlite3" "$HOME/Dev/tally-$name/backend/db.sqlite3"
+    fi
     
     # Copy backend .env if it exists
     if [ -f "$TALLY_ROOT/backend/.env" ]; then
@@ -102,10 +104,24 @@ add_session() {
         cp "$TALLY_ROOT/backend/.env" "$HOME/Dev/tally-$name/backend/.env"
     fi
     
-    # Copy frontend .env if it exists
+    # Copy frontend .env and update backend URL
     if [ -f "$TALLY_ROOT/frontend/.env" ]; then
-        echo "Copying frontend .env..."
+        echo "Copying and updating frontend .env..."
         cp "$TALLY_ROOT/frontend/.env" "$HOME/Dev/tally-$name/frontend/.env"
+        
+        # Add or update VITE_API_URL to point to this session's backend
+        if grep -q "^VITE_API_URL=" "$HOME/Dev/tally-$name/frontend/.env"; then
+            # Update existing VITE_API_URL
+            sed -i '' "s|^VITE_API_URL=.*|VITE_API_URL=http://localhost:$backend_port|" "$HOME/Dev/tally-$name/frontend/.env"
+        else
+            # Add VITE_API_URL on a new line
+            echo "" >> "$HOME/Dev/tally-$name/frontend/.env"
+            echo "VITE_API_URL=http://localhost:$backend_port" >> "$HOME/Dev/tally-$name/frontend/.env"
+        fi
+    else
+        # Create minimal .env with backend URL
+        echo "Creating frontend .env with backend URL..."
+        echo "VITE_API_URL=http://localhost:$backend_port" > "$HOME/Dev/tally-$name/frontend/.env"
     fi
     
     # Save session info to file (using python for JSON handling)
@@ -123,16 +139,23 @@ with open('$SESSIONS_FILE', 'w') as f:
     json.dump(sessions, f, indent=2)
 "
     
-    # Create tmux session with 3 windows
+    # Create tmux session with 5 windows
     echo "Creating tmux session..."
-    tmux new-session -d -s "tally-$name" -c "$HOME/Dev/tally-$name/backend" -n backend
-    tmux send-keys -t "tally-$name:backend" "workon tally && cd $HOME/Dev/tally-$name/backend && python manage.py runserver $backend_port" C-m
+    tmux new-session -d -s "tally-$name" -c "$HOME/Dev/tally-$name/backend" -n "backend:$backend_port"
+    tmux send-keys -t "tally-$name:backend:$backend_port" "workon tally && cd $HOME/Dev/tally-$name/backend && python manage.py runserver $backend_port" C-m
     
-    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name/frontend" -n frontend
-    tmux send-keys -t "tally-$name:frontend" "workon tally && cd $HOME/Dev/tally-$name/frontend && npm run dev -- --port $frontend_port" C-m
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name/frontend" -n "frontend:$frontend_port"
+    tmux send-keys -t "tally-$name:frontend:$frontend_port" "workon tally && cd $HOME/Dev/tally-$name/frontend && npm run dev -- --port $frontend_port" C-m
     
     tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name" -n claude
     tmux send-keys -t "tally-$name:claude" "workon tally && cd $HOME/Dev/tally-$name && claude tally-$name" C-m
+    
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name" -n shell
+    tmux send-keys -t "tally-$name:shell" "workon tally && cd $HOME/Dev/tally-$name" C-m
+    tmux send-keys -t "tally-$name:shell" "clear" C-m
+    
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name" -n cli
+    tmux send-keys -t "tally-$name:cli" "workon tally && cd $HOME/Dev/tally-$name"
     
     echo ""
     echo "Session '$name' created successfully!"
@@ -235,16 +258,23 @@ with open('$SESSIONS_FILE', 'r') as f:
     echo "  Backend port:  $backend_port"
     echo "  Frontend port: $frontend_port"
     
-    # Recreate tmux session
+    # Recreate tmux session with 5 windows
     echo "Creating tmux session..."
-    tmux new-session -d -s "tally-$name" -c "$HOME/Dev/tally-$name/backend" -n backend
-    tmux send-keys -t "tally-$name:backend" "workon tally && cd $HOME/Dev/tally-$name/backend && python manage.py runserver $backend_port" C-m
+    tmux new-session -d -s "tally-$name" -c "$HOME/Dev/tally-$name/backend" -n "backend:$backend_port"
+    tmux send-keys -t "tally-$name:backend:$backend_port" "workon tally && cd $HOME/Dev/tally-$name/backend && python manage.py runserver $backend_port" C-m
     
-    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name/frontend" -n frontend
-    tmux send-keys -t "tally-$name:frontend" "workon tally && cd $HOME/Dev/tally-$name/frontend && npm run dev -- --port $frontend_port" C-m
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name/frontend" -n "frontend:$frontend_port"
+    tmux send-keys -t "tally-$name:frontend:$frontend_port" "workon tally && cd $HOME/Dev/tally-$name/frontend && npm run dev -- --port $frontend_port" C-m
     
     tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name" -n claude
     tmux send-keys -t "tally-$name:claude" "workon tally && cd $HOME/Dev/tally-$name && claude tally-$name --resume" C-m
+    
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name" -n shell
+    tmux send-keys -t "tally-$name:shell" "workon tally && cd $HOME/Dev/tally-$name" C-m
+    tmux send-keys -t "tally-$name:shell" "clear" C-m
+    
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name" -n cli
+    tmux send-keys -t "tally-$name:cli" "workon tally && cd $HOME/Dev/tally-$name"
     
     echo ""
     echo "Session '$name' resumed successfully!"

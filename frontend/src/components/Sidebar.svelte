@@ -4,6 +4,7 @@
   import Icon from './Icons.svelte';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
+  import { getCategoryIconColor } from '../lib/categoryColors';
   
   let { isOpen = $bindable(false) } = $props();
   
@@ -120,9 +121,10 @@
 </script>
 
 <!-- Desktop Sidebar -->
-<aside class="hidden md:block w-64 bg-white shadow-md h-screen sticky top-0">
-  <nav class="mt-8 px-4">
-    <div class="space-y-2">
+<aside class="hidden md:flex flex-col w-64 bg-white shadow-md min-h-screen sticky top-0 overflow-y-auto">
+  <!-- Navigation content - takes only what it needs -->
+  <div class="px-4 pt-8 pb-4">
+    <nav class="space-y-2">
       <!-- Navigation sections - all visible -->
       {#each navigationStructure as section, index}
         <div>
@@ -138,7 +140,7 @@
             <Icon 
               name={section.iconName}
               size="sm"
-              className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-500'}"
+              className="mr-2 {getCategoryIconColor(section.category)}"
             />
             <h3 class="text-xs font-medium uppercase tracking-wider {section.category === 'global' && section.category === $currentCategory ? 'text-black' : 'text-gray-700'}">
               {section.title}
@@ -162,7 +164,7 @@
                   <Icon 
                     name={item.iconName}
                     size="sm"
-                    className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-400'}"
+                    className="mr-2 {getCategoryIconColor(section.category)}"
                   />
                   {item.name}
                 </a>
@@ -182,17 +184,26 @@
         <div>
           <div class="border-t border-gray-200 pt-4"></div>
           <button
-            onclick={() => navigate('/stewards')}
-            class="px-3 text-xs font-semibold text-green-600 uppercase tracking-wider mb-2 hover:text-green-700 transition-colors w-full text-left"
+            onclick={() => changeCategory('steward', '/stewards')}
+            class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors {
+              isActive('/stewards') && $currentCategory === 'steward'
+                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                : 'hover:bg-gray-50'
+            }"
           >
-            <span class="mr-1">🌱</span> STEWARDS
+            <span class="mr-2 text-green-600">🌱</span>
+            <h3 class="text-xs font-medium uppercase tracking-wider {$currentCategory === 'steward' ? 'text-green-700' : 'text-gray-700'}">
+              STEWARDS
+            </h3>
           </button>
           <div class="space-y-0.5">
             <a
               href="/stewards/submissions"
               onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
               class="group flex items-center px-3 py-1.5 text-sm rounded-md {
-                isActive('/stewards/submissions') ? 'bg-green-100 text-green-800' : 'text-gray-500 hover:bg-green-50 hover:text-green-700'
+                isActive('/stewards/submissions') || $location.startsWith('/stewards/submissions/')
+                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
               }"
             >
               <Icon 
@@ -200,7 +211,7 @@
                 size="sm"
                 className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
               />
-              Review Submissions
+              Contribution Submissions
             </a>
           </div>
         </div>
@@ -239,8 +250,31 @@
           </a>
         </div>
       </div>
-    </div>
-  </nav>
+    </nav>
+  </div>
+  
+  <!-- Spacer to push footer to bottom -->
+  <div class="flex-1"></div>
+  
+  <!-- Footer - Always at bottom -->
+  <div class="p-4 border-t border-gray-200 bg-white">
+      <div class="flex flex-col items-center space-y-2 text-xs text-gray-500">
+        <a 
+          href="https://github.com/genlayer-foundation/tally" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="flex items-center hover:text-gray-700 transition-colors"
+        >
+          <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+          </svg>
+          GitHub
+        </a>
+        <div class="text-center">
+          © {new Date().getFullYear()} GenLayer Foundation
+        </div>
+      </div>
+  </div>
 </aside>
 
 <!-- Mobile Sidebar Overlay -->
@@ -255,9 +289,10 @@
 ></div>
 
 <!-- Mobile Sidebar -->
-<aside class="md:hidden fixed top-16 left-0 right-0 bottom-0 z-40 bg-white transform transition-transform duration-300 ease-in-out {isOpen ? 'translate-y-0' : '-translate-y-full'}">
-    <nav class="px-4 py-4 overflow-y-auto h-full">
-      <div class="space-y-2">
+<aside class="md:hidden fixed top-16 left-0 right-0 bottom-0 z-40 bg-white transform transition-transform duration-300 ease-in-out flex flex-col overflow-y-auto {isOpen ? 'translate-y-0' : '-translate-y-full'}">
+    <!-- Navigation content - takes only what it needs -->
+    <div class="px-4 py-4">
+      <nav class="space-y-2">
         <!-- Navigation sections - all visible -->
         {#each navigationStructure as section, index}
           <div>
@@ -273,7 +308,7 @@
               <Icon 
                 name={section.iconName}
                 size="sm"
-                className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-500'}"
+                className="mr-2 {getCategoryIconColor(section.category)}"
               />
               <h3 class="text-xs font-medium uppercase tracking-wider {section.category === 'global' && section.category === $currentCategory ? 'text-black' : 'text-gray-700'}">
                 {section.title}
@@ -297,7 +332,7 @@
                     <Icon 
                       name={item.iconName}
                       size="sm"
-                      className="mr-2 {section.category === 'global' ? 'text-black' : section.category === 'builder' ? 'text-orange-600' : section.category === 'validator' ? 'text-sky-600' : 'text-gray-400'}"
+                      className="mr-2 {getCategoryIconColor(section.category)}"
                     />
                     {item.name}
                   </a>
@@ -335,7 +370,7 @@
                   size="sm"
                   className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
                 />
-                Review Submissions
+                Contribution Submissions
               </a>
             </div>
           </div>
@@ -374,6 +409,29 @@
             </a>
           </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+    </div>
+    
+    <!-- Spacer to push footer to bottom -->
+    <div class="flex-1"></div>
+    
+    <!-- Footer (Mobile) - Always at bottom -->
+    <div class="p-4 border-t border-gray-200 bg-white">
+        <div class="flex flex-col items-center space-y-2 text-xs text-gray-500">
+          <a 
+            href="https://github.com/genlayer-foundation/tally" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            class="flex items-center hover:text-gray-700 transition-colors"
+          >
+            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            GitHub
+          </a>
+          <div class="text-center">
+            © {new Date().getFullYear()} GenLayer Foundation
+          </div>
+        </div>
+    </div>
   </aside>
