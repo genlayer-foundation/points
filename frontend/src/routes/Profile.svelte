@@ -6,6 +6,7 @@
   import { userStore } from '../lib/userStore';
   import { getValidatorBalance } from '../lib/blockchain';
   import { journeyAPI } from '../lib/api';
+  import Icon from '../components/Icons.svelte';
   
   let user = $state(null);
   let name = $state('');
@@ -17,6 +18,8 @@
   let showValidatorJourney = $state(false);
   let showBuilderJourney = $state(false);
   let isCompletingJourney = $state(false);
+  let showJourneyConfirm = $state(null); // 'validator' or 'builder'
+  let journeySuccessMessage = $state('');
   let authChecked = $state(false);
   
   // Track if any field has changed
@@ -49,6 +52,17 @@
       user = userData;
       name = userData.name || '';
       nodeVersion = userData.validator?.node_version || '';
+      
+      // Check for journey success message
+      const journeySuccess = sessionStorage.getItem('journeySuccess');
+      if (journeySuccess) {
+        journeySuccessMessage = journeySuccess;
+        sessionStorage.removeItem('journeySuccess');
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+          journeySuccessMessage = '';
+        }, 5000);
+      }
       
       // Fetch validator balance if user has an address
       if (userData.address) {
@@ -118,11 +132,28 @@
   }
   
   async function startValidatorJourney() {
-    showValidatorJourney = true;
+    showJourneyConfirm = 'validator';
   }
   
   async function startBuilderJourney() {
-    showBuilderJourney = true;
+    showJourneyConfirm = 'builder';
+  }
+  
+  async function confirmJourney(type) {
+    if (type === 'validator') {
+      await completeValidatorJourney();
+    } else if (type === 'builder') {
+      await completeBuilderJourney();
+    }
+    showJourneyConfirm = null;
+    
+    // Scroll to the relevant profile section after a short delay
+    setTimeout(() => {
+      const element = document.querySelector(`[data-profile-type="${type}"]`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
   }
   
   async function completeValidatorJourney() {
@@ -135,7 +166,8 @@
       const userData = await getCurrentUser();
       user = userData;
       showValidatorJourney = false;
-      alert('Validator waitlist badge awarded! +20 points earned.');
+      // Show success message in a nicer way
+      sessionStorage.setItem('journeySuccess', 'Validator waitlist badge awarded! +20 points earned.');
     } catch (err) {
       error = err.response?.data?.error || 'Failed to complete journey';
     } finally {
@@ -153,7 +185,8 @@
       const userData = await getCurrentUser();
       user = userData;
       showBuilderJourney = false;
-      alert('Builder initiate badge awarded! +20 points earned.');
+      // Show success message in a nicer way
+      sessionStorage.setItem('journeySuccess', 'Builder welcome badge awarded! +20 points earned.');
     } catch (err) {
       error = err.response?.data?.error || 'Failed to complete journey';
     } finally {
@@ -187,6 +220,23 @@
   {#if error}
     <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
       {error}
+    </div>
+  {/if}
+  
+  {#if journeySuccessMessage}
+    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded flex items-center justify-between">
+      <div class="flex items-center">
+        <Icon name="star" className="mr-2" />
+        <span>{journeySuccessMessage}</span>
+      </div>
+      <button 
+        onclick={() => journeySuccessMessage = ''}
+        class="text-green-700 hover:text-green-900"
+      >
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+        </svg>
+      </button>
     </div>
   {/if}
 
@@ -275,151 +325,165 @@
       {/if}
     </div>
     
-    <!-- Profile Sections -->
-    {#if !showValidatorJourney && !showBuilderJourney}
-      <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Profiles</h2>
-        
-        <div class="space-y-3">
-          <!-- Validator Profile -->
-          {#if user.validator}
-            <div class="bg-sky-50 rounded-lg p-4 border-2 border-sky-200">
-              <h3 class="text-md font-medium text-sky-900 mb-3 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-sky-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
-                  <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
-                </svg>
-                Validator Profile
-              </h3>
-              <div class="text-sm text-sky-800">
-                <p>You're running a validator node! Keep it up.</p>
-                {#if user.validator.total_points}
-                  <p class="mt-1">Total Points: <span class="font-bold text-sky-900">{user.validator.total_points}</span></p>
-                {/if}
-                {#if user.validator.rank}
-                  <p>Validator Rank: <span class="font-bold text-sky-900">#{user.validator.rank}</span></p>
-                {/if}
-              </div>
+    <!-- Active Journey Cards -->
+    {#if user.has_validator_waitlist && !user.validator}
+      <div class="bg-gradient-to-r from-sky-50 to-sky-100 shadow rounded-lg p-6 border border-sky-300">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold text-sky-900 mb-2 flex items-center">
+              <Icon name="lightning" className="mr-2 text-sky-600" />
+              Validator Journey
+            </h2>
+            <p class="text-sm text-sky-700">You're on the waitlist! Complete tasks to move up the ranks.</p>
+          </div>
+          <div class="text-right">
+            <div class="inline-flex items-center px-3 py-1 rounded-full bg-sky-200 text-sky-900 text-xs font-medium">
+              Waitlist Position: Coming Soon
             </div>
-          {:else if user.has_validator_waitlist}
-            <div class="bg-sky-50/70 rounded-lg p-4 border-2 border-sky-200/70">
-              <h3 class="text-md font-medium text-sky-800 mb-2 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-sky-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
-                  <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
-                </svg>
-                Validator Journey Started
-              </h3>
-              <p class="text-sm text-sky-700">You're on the waitlist! Keep earning points to become a validator.</p>
-              <div class="mt-2 inline-flex items-center px-2 py-1 rounded-full bg-sky-200 text-sky-800 text-xs">
-                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                </svg>
-                +20 Points Earned
-              </div>
-            </div>
-          {:else}
-            <div class="bg-sky-50/50 rounded-lg p-4 border-2 border-sky-200/50">
-              <h3 class="text-md font-medium text-sky-600/70 mb-2 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-sky-500/50" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
-                  <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
-                </svg>
-                Validator Profile
-              </h3>
-              <p class="text-sm text-sky-600/60 mb-3">Not a validator yet. Run a node to activate this profile.</p>
-              <button
-                onclick={startValidatorJourney}
-                class="px-3 py-1.5 bg-sky-600 text-white rounded text-sm hover:bg-sky-700 transition-colors"
-              >
-                Start Journey →
-              </button>
-            </div>
-          {/if}
-          
-          <!-- Builder Profile -->
-          {#if user.builder}
-            <div class="bg-orange-50 rounded-lg p-4 border-2 border-orange-200">
-              <h3 class="text-md font-medium text-orange-900 mb-3 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                </svg>
-                Builder Profile
-              </h3>
-              <div class="text-sm text-orange-800">
-                <p>You're building on GenLayer! Keep creating.</p>
-                {#if user.builder.total_points}
-                  <p class="mt-1">Total Points: <span class="font-bold text-orange-900">{user.builder.total_points}</span></p>
-                {/if}
-                {#if user.builder.rank}
-                  <p>Builder Rank: <span class="font-bold text-orange-900">#{user.builder.rank}</span></p>
-                {/if}
-              </div>
-            </div>
-          {:else if user.has_builder_initiate}
-            <div class="bg-orange-50/70 rounded-lg p-4 border-2 border-orange-200/70">
-              <h3 class="text-md font-medium text-orange-800 mb-2 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                </svg>
-                Builder Journey Started
-              </h3>
-              <p class="text-sm text-orange-700">You've started building! Keep deploying contracts to level up.</p>
-              <div class="mt-2 inline-flex items-center px-2 py-1 rounded-full bg-orange-200 text-orange-800 text-xs">
-                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                </svg>
-                +20 Points Earned
-              </div>
-            </div>
-          {:else}
-            <div class="bg-orange-50/50 rounded-lg p-4 border-2 border-orange-200/50">
-              <h3 class="text-md font-medium text-orange-600/70 mb-2 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-orange-500/50" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                </svg>
-                Builder Profile
-              </h3>
-              <p class="text-sm text-orange-600/60 mb-3">Not a builder yet. Contribute to builder projects to activate this profile.</p>
-              <button
-                onclick={startBuilderJourney}
-                class="px-3 py-1.5 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 transition-colors"
-              >
-                Start Journey →
-              </button>
-            </div>
-          {/if}
-          
-          <!-- Steward Profile -->
-          {#if user.steward}
-            <div class="bg-green-50 rounded-lg p-4 border-2 border-green-200">
-              <h3 class="text-md font-medium text-green-900 mb-3 flex items-center">
-                <span class="mr-2 text-lg">🌱</span>
-                Steward Profile
-              </h3>
-              <div class="text-sm">
-                <p class="text-green-700 font-medium">
-                  Thanks for keeping things running smoothly around here 🛡️
-                </p>
-                <p class="text-gray-600 mt-2">
-                  Your steward profile is active. You have access to review and manage community submissions.
-                </p>
-                <p class="text-xs text-green-600 mt-3">Profile created: {formatDate(user.steward.created_at)}</p>
-              </div>
-            </div>
-          {:else}
-            <div class="bg-green-50/50 rounded-lg p-4 border-2 border-green-200/50">
-              <h3 class="text-md font-medium text-green-600/70 mb-2 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-green-500/50" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/>
-                </svg>
-                Steward Profile
-              </h3>
-              <p class="text-sm text-green-600/60">Not a steward yet. Contribute to community initiatives to activate this profile.</p>
-            </div>
-          {/if}
+          </div>
         </div>
       </div>
+    {/if}
+    
+    {#if user.has_builder_welcome && !user.builder}
+      <div class="bg-gradient-to-r from-orange-50 to-orange-100 shadow rounded-lg p-6 border border-orange-300">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold text-orange-900 mb-2 flex items-center">
+              <Icon name="lightning" className="mr-2 text-orange-600" />
+              Builder Journey
+            </h2>
+            <p class="text-sm text-orange-700">Journey started! Deploy contracts to unlock your full builder profile.</p>
+          </div>
+          <div class="text-right">
+            <div class="inline-flex items-center px-3 py-1 rounded-full bg-orange-200 text-orange-900 text-xs font-medium">
+              Next: Deploy Contract
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
+    
+    <!-- Validator Profile -->
+    {#if !showValidatorJourney && !showBuilderJourney}
+      {#if user.validator}
+        <div class="bg-sky-100 shadow rounded-lg p-6 border border-sky-300" data-profile-type="validator">
+          <h2 class="text-lg font-semibold text-sky-900 mb-4 flex items-center">
+            <Icon name="validator" className="mr-2 text-sky-700" />
+            Validator Profile
+          </h2>
+          <div class="text-sm text-sky-800">
+            <p>You're running a validator node! Keep it up.</p>
+            {#if user.validator.total_points}
+              <p class="mt-1">Total Points: <span class="font-bold text-sky-900">{user.validator.total_points}</span></p>
+            {/if}
+            {#if user.validator.rank}
+              <p>Validator Rank: <span class="font-bold text-sky-900">#{user.validator.rank}</span></p>
+            {/if}
+          </div>
+        </div>
+      {:else if user.has_validator_waitlist}
+        <div class="bg-sky-100 shadow rounded-lg p-6 border border-sky-300" data-profile-type="validator">
+          <h2 class="text-lg font-semibold text-sky-900 mb-4 flex items-center">
+            <Icon name="validator" className="mr-2 text-sky-700" />
+            Validator Profile
+          </h2>
+          <p class="text-sm text-sky-800">You're on the waitlist! Keep earning points to become a validator.</p>
+          <div class="mt-3 inline-flex items-center px-2 py-1 rounded-full bg-sky-200 text-sky-900 text-xs">
+            <Icon name="star" size="xs" className="mr-1" />
+            +20 Points Earned
+          </div>
+        </div>
+      {:else}
+        <div class="bg-sky-50 shadow rounded-lg p-6 border border-sky-200">
+          <h2 class="text-lg font-semibold text-sky-900 mb-4 flex items-center">
+            <Icon name="validator" className="mr-2 text-sky-500" />
+            Validator Profile
+          </h2>
+          <p class="text-sm text-sky-700 mb-2">Want to become a GenLayer Validator? Join the waitlist, start earning points, and climb the ranks.</p>
+          <p class="text-sm text-sky-700 mb-4">Top contributors will be invited to run nodes on Testnet Asimov.</p>
+          <button
+            onclick={startValidatorJourney}
+            class="px-3 py-1.5 bg-sky-600 text-white rounded text-sm hover:bg-sky-700 transition-colors"
+          >
+            Start Validator Journey →
+          </button>
+        </div>
+      {/if}
+      
+      <!-- Builder Profile -->
+      {#if user.builder}
+        <div class="bg-orange-100 shadow rounded-lg p-6 border border-orange-300" data-profile-type="builder">
+          <h2 class="text-lg font-semibold text-orange-900 mb-4 flex items-center">
+            <Icon name="builder" className="mr-2 text-orange-700" />
+            Builder Profile
+          </h2>
+          <div class="text-sm text-orange-800">
+            <p>You're building on GenLayer! Keep creating.</p>
+            {#if user.builder.total_points}
+              <p class="mt-1">Total Points: <span class="font-bold text-orange-900">{user.builder.total_points}</span></p>
+            {/if}
+            {#if user.builder.rank}
+              <p>Builder Rank: <span class="font-bold text-orange-900">#{user.builder.rank}</span></p>
+            {/if}
+          </div>
+        </div>
+      {:else if user.has_builder_welcome}
+        <div class="bg-orange-100 shadow rounded-lg p-6 border border-orange-300" data-profile-type="builder">
+          <h2 class="text-lg font-semibold text-orange-900 mb-4 flex items-center">
+            <Icon name="builder" className="mr-2 text-orange-700" />
+            Builder Profile
+          </h2>
+          <p class="text-sm text-orange-800">You've started building! Keep deploying contracts to level up.</p>
+          <div class="mt-3 inline-flex items-center px-2 py-1 rounded-full bg-orange-200 text-orange-900 text-xs">
+            <Icon name="star" size="xs" className="mr-1" />
+            +20 Points Earned
+          </div>
+        </div>
+      {:else}
+        <div class="bg-orange-50 shadow rounded-lg p-6 border border-orange-200">
+          <h2 class="text-lg font-semibold text-orange-900 mb-4 flex items-center">
+            <Icon name="builder" className="mr-2 text-orange-500" />
+            Builder Profile
+          </h2>
+          <p class="text-sm text-orange-700 mb-2">Start building on GenLayer. Deploy contracts, earn points, and join our growing developer community.</p>
+          <p class="text-sm text-orange-700 mb-4">Top contributors get special rewards.</p>
+          <button
+            onclick={startBuilderJourney}
+            class="px-3 py-1.5 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 transition-colors"
+          >
+            Start Builder Journey →
+          </button>
+        </div>
+      {/if}
+      
+      <!-- Steward Profile -->
+      {#if user.steward}
+        <div class="bg-green-100 shadow rounded-lg p-6 border border-green-300">
+          <h2 class="text-lg font-semibold text-green-900 mb-4 flex items-center">
+            <Icon name="steward" className="mr-2 text-green-700" />
+            Steward Profile
+          </h2>
+          <div class="text-sm">
+            <p class="text-green-800 font-medium">
+              Thanks for keeping things running smoothly around here 🛡️
+            </p>
+            <p class="text-gray-700 mt-2">
+              Your steward profile is active. You have access to review and manage community submissions.
+            </p>
+            <p class="text-xs text-green-700 mt-3">Profile created: {formatDate(user.steward.created_at)}</p>
+          </div>
+        </div>
+      {:else}
+        <div class="bg-green-50 shadow rounded-lg p-6 border border-green-200">
+          <h2 class="text-lg font-semibold text-green-900 mb-4 flex items-center">
+            <Icon name="steward" className="mr-2 text-green-600" />
+            Steward Profile
+          </h2>
+          <p class="text-sm text-green-700 mb-2">Steward positions are earned through exceptional contribution.</p>
+          <p class="text-sm text-green-700">Keep building, validating, and supporting the community to unlock this role.</p>
+        </div>
+      {/if}
     {/if}
     
     <!-- Journey Detail Views -->
@@ -544,6 +608,76 @@
         >
           Go to Dashboard
         </button>
+      </div>
+    </div>
+  {/if}
+  
+  <!-- Journey Confirmation Modal -->
+  {#if showJourneyConfirm}
+    <div class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <div class="flex items-center mb-4">
+          {#if showJourneyConfirm === 'validator'}
+            <Icon name="validator" className="mr-3 text-sky-500" size="lg" />
+            <h2 class="text-xl font-semibold text-gray-900">Start Validator Journey?</h2>
+          {:else}
+            <Icon name="builder" className="mr-3 text-orange-500" size="lg" />
+            <h2 class="text-xl font-semibold text-gray-900">Start Builder Journey?</h2>
+          {/if}
+        </div>
+        
+        <div class="mb-6">
+          {#if showJourneyConfirm === 'validator'}
+            <p class="text-gray-600 mb-3">By joining the Validator Journey, you'll:</p>
+            <ul class="space-y-2 text-sm text-gray-700">
+              <li class="flex items-start">
+                <Icon name="star" size="xs" className="mr-2 text-sky-500 mt-0.5" />
+                <span>Join the validator waitlist</span>
+              </li>
+              <li class="flex items-start">
+                <Icon name="star" size="xs" className="mr-2 text-sky-500 mt-0.5" />
+                <span>Earn 20 points immediately</span>
+              </li>
+              <li class="flex items-start">
+                <Icon name="star" size="xs" className="mr-2 text-sky-500 mt-0.5" />
+                <span>Get priority for node allocation on Testnet Asimov</span>
+              </li>
+            </ul>
+          {:else}
+            <p class="text-gray-600 mb-3">By joining the Builder Journey, you'll:</p>
+            <ul class="space-y-2 text-sm text-gray-700">
+              <li class="flex items-start">
+                <Icon name="star" size="xs" className="mr-2 text-orange-500 mt-0.5" />
+                <span>Get the Builder Welcome badge</span>
+              </li>
+              <li class="flex items-start">
+                <Icon name="star" size="xs" className="mr-2 text-orange-500 mt-0.5" />
+                <span>Earn 20 points immediately</span>
+              </li>
+              <li class="flex items-start">
+                <Icon name="star" size="xs" className="mr-2 text-orange-500 mt-0.5" />
+                <span>Unlock builder-specific rewards and features</span>
+              </li>
+            </ul>
+          {/if}
+        </div>
+        
+        <div class="flex gap-3">
+          <button
+            onclick={() => confirmJourney(showJourneyConfirm)}
+            disabled={isCompletingJourney}
+            class="flex-1 px-4 py-2 {showJourneyConfirm === 'validator' ? 'bg-sky-600 hover:bg-sky-700' : 'bg-orange-600 hover:bg-orange-700'} text-white rounded-md transition-colors disabled:opacity-50"
+          >
+            {isCompletingJourney ? 'Starting...' : 'Yes, Start Journey'}
+          </button>
+          <button
+            onclick={() => showJourneyConfirm = null}
+            disabled={isCompletingJourney}
+            class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   {/if}

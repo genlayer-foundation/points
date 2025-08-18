@@ -8,10 +8,10 @@
   let isCompleting = $state(false);
   let error = $state('');
   
-  // Check if user has builder profile or initiate badge
+  // Check if user has builder profile or welcome badge
   let hasBuilder = $derived(user?.builder);
-  let hasInitiate = $derived(user?.has_builder_initiate);
-  let showJourney = $derived(!hasBuilder && !hasInitiate);
+  let hasWelcome = $derived(user?.has_builder_welcome);
+  let showJourney = $derived(!hasBuilder && !hasWelcome);
   
   async function completeJourney() {
     error = '';
