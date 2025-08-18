@@ -165,7 +165,7 @@
       user = userData;
       showBuilderJourney = false;
       // Show success message in a nicer way
-      sessionStorage.setItem('journeySuccess', 'Builder initiate badge awarded! +20 points earned.');
+      sessionStorage.setItem('journeySuccess', 'Builder welcome badge awarded! +20 points earned.');
     } catch (err) {
       error = err.response?.data?.error || 'Failed to complete journey';
     } finally {
@@ -304,6 +304,45 @@
       {/if}
     </div>
     
+    <!-- Active Journey Cards -->
+    {#if user.has_validator_waitlist && !user.validator}
+      <div class="bg-gradient-to-r from-sky-50 to-sky-100 shadow rounded-lg p-6 border border-sky-300">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold text-sky-900 mb-2 flex items-center">
+              <Icon name="lightning" className="mr-2 text-sky-600" />
+              Validator Journey
+            </h2>
+            <p class="text-sm text-sky-700">You're on the waitlist! Complete tasks to move up the ranks.</p>
+          </div>
+          <div class="text-right">
+            <div class="inline-flex items-center px-3 py-1 rounded-full bg-sky-200 text-sky-900 text-xs font-medium">
+              Waitlist Position: Coming Soon
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
+    
+    {#if user.has_builder_welcome && !user.builder}
+      <div class="bg-gradient-to-r from-orange-50 to-orange-100 shadow rounded-lg p-6 border border-orange-300">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold text-orange-900 mb-2 flex items-center">
+              <Icon name="lightning" className="mr-2 text-orange-600" />
+              Builder Journey
+            </h2>
+            <p class="text-sm text-orange-700">Journey started! Deploy contracts to unlock your full builder profile.</p>
+          </div>
+          <div class="text-right">
+            <div class="inline-flex items-center px-3 py-1 rounded-full bg-orange-200 text-orange-900 text-xs font-medium">
+              Next: Deploy Contract
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
+    
     <!-- Validator Profile -->
     {#if !showValidatorJourney && !showBuilderJourney}
       {#if user.validator}
@@ -368,7 +407,7 @@
             {/if}
           </div>
         </div>
-      {:else if user.has_builder_initiate}
+      {:else if user.has_builder_welcome}
         <div class="bg-orange-100 shadow rounded-lg p-6 border border-orange-300" data-profile-type="builder">
           <h2 class="text-lg font-semibold text-orange-900 mb-4 flex items-center">
             <Icon name="builder" className="mr-2 text-orange-700" />
@@ -572,7 +611,7 @@
             <ul class="space-y-2 text-sm text-gray-700">
               <li class="flex items-start">
                 <Icon name="star" size="xs" className="mr-2 text-orange-500 mt-0.5" />
-                <span>Get the Builder Initiate badge</span>
+                <span>Get the Builder Welcome badge</span>
               </li>
               <li class="flex items-start">
                 <Icon name="star" size="xs" className="mr-2 text-orange-500 mt-0.5" />

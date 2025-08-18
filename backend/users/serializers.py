@@ -222,12 +222,12 @@ class UserSerializer(serializers.ModelSerializer):
     builder = BuilderSerializer(read_only=True)
     steward = StewardSerializer(read_only=True)
     has_validator_waitlist = serializers.SerializerMethodField()
-    has_builder_initiate = serializers.SerializerMethodField()
+    has_builder_welcome = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward', 
-                  'has_validator_waitlist', 'has_builder_initiate', 'created_at', 'updated_at']
+                  'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_leaderboard_entry(self, obj):
@@ -259,15 +259,15 @@ class UserSerializer(serializers.ModelSerializer):
         except ContributionType.DoesNotExist:
             return False
     
-    def get_has_builder_initiate(self, obj):
+    def get_has_builder_welcome(self, obj):
         """
-        Check if user has the builder initiate badge (contribution).
+        Check if user has the builder welcome badge (contribution).
         """
         from contributions.models import Contribution, ContributionType
         
         try:
-            initiate_type = ContributionType.objects.get(slug='builder-initiate')
-            return Contribution.objects.filter(user=obj, contribution_type=initiate_type).exists()
+            welcome_type = ContributionType.objects.get(slug='builder-welcome')
+            return Contribution.objects.filter(user=obj, contribution_type=welcome_type).exists()
         except ContributionType.DoesNotExist:
             return False
 

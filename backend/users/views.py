@@ -194,16 +194,16 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         
         # Check if user already has the badge
         try:
-            initiate_type = ContributionType.objects.get(slug='builder-initiate')
+            welcome_type = ContributionType.objects.get(slug='builder-welcome')
         except ContributionType.DoesNotExist:
             return Response(
-                {'error': 'Builder initiate contribution type not configured'},
+                {'error': 'Builder welcome contribution type not configured'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
-        if Contribution.objects.filter(user=user, contribution_type=initiate_type).exists():
+        if Contribution.objects.filter(user=user, contribution_type=welcome_type).exists():
             return Response(
-                {'message': 'You already have the builder initiate badge'},
+                {'message': 'You already have the builder welcome badge'},
                 status=status.HTTP_200_OK
             )
         
@@ -211,15 +211,15 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         try:
             contribution = Contribution.objects.create(
                 user=user,
-                contribution_type=initiate_type,
+                contribution_type=welcome_type,
                 points=20,
                 contribution_date=timezone.now(),
-                notes='Completed builder journey and became an initiate'
+                notes='Completed builder journey - welcome to the builder community!'
             )
             
             serializer = self.get_serializer(user)
             return Response({
-                'message': 'Builder initiate badge awarded successfully!',
+                'message': 'Builder welcome badge awarded successfully!',
                 'user': serializer.data
             }, status=status.HTTP_201_CREATED)
             

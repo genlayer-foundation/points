@@ -19,7 +19,7 @@
     try {
       // Check if user has journey badges or contributions
       const user = $userStore.user;
-      hasJourneys = user?.has_validator_waitlist || user?.has_builder_initiate || user?.validator || user?.builder;
+      hasJourneys = user?.has_validator_waitlist || user?.has_builder_welcome || user?.validator || user?.builder;
       
       // Check if user has any contributions
       const contribResponse = await contributionsAPI.getUserContributions($authState.address);

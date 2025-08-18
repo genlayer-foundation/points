@@ -346,7 +346,7 @@
       
       <!-- Journey Section for Own Profile -->
       {#if isOwnProfile}
-        {#if (!participant.validator && !participant.has_validator_waitlist) || (!participant.builder && !participant.has_builder_initiate)}
+        {#if (!participant.validator && !participant.has_validator_waitlist) || (!participant.builder && !participant.has_builder_welcome)}
           <div class="mb-6 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg p-6 text-white">
             <h3 class="text-lg font-semibold mb-3">Start Your Journey</h3>
             <p class="text-purple-100 mb-4">
@@ -363,7 +363,7 @@
       {/if}
       
       <!-- Journey Badges Section -->
-      {#if (participant.has_validator_waitlist || participant.has_builder_initiate) && (!participant.validator && !participant.builder)}
+      {#if (participant.has_validator_waitlist || participant.has_builder_welcome) && (!participant.validator && !participant.builder)}
         <div class="mb-6">
           <h3 class="text-lg font-medium text-gray-900 mb-3">Journey Status</h3>
           <div class="flex flex-wrap gap-3">
@@ -376,12 +376,12 @@
                 <span class="ml-2 text-sm opacity-90">+20 pts</span>
               </div>
             {/if}
-            {#if participant.has_builder_initiate && !participant.builder}
+            {#if participant.has_builder_welcome && !participant.builder}
               <div class="inline-flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md">
                 <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
                 </svg>
-                <span class="font-medium">Builder Initiate</span>
+                <span class="font-medium">Builder Welcome</span>
                 <span class="ml-2 text-sm opacity-90">+20 pts</span>
               </div>
             {/if}
