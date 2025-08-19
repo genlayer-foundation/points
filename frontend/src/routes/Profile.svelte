@@ -308,161 +308,18 @@
         </div>
       {/if}
       
-      {#if user.leaderboard_entry}
-        <div class="mt-6 pt-6 border-t border-gray-200">
-          <h3 class="text-sm font-medium text-gray-900 mb-3">Global Stats</h3>
-          <div class="grid grid-cols-2 gap-4 max-w-sm">
-            <div class="bg-gray-50 rounded-md p-3">
-              <p class="text-2xl font-bold text-gray-900">{user.leaderboard_entry.total_points || 0}</p>
-              <p class="text-xs text-gray-600">Total Points</p>
-            </div>
-            <div class="bg-gray-50 rounded-md p-3">
-              <p class="text-2xl font-bold text-gray-900">#{user.leaderboard_entry.rank || '—'}</p>
-              <p class="text-xs text-gray-600">Global Rank</p>
-            </div>
-          </div>
-        </div>
-      {/if}
     </div>
     
-    <!-- Active Journey Cards -->
-    {#if user.has_validator_waitlist && !user.validator}
-      <div class="bg-gradient-to-r from-sky-50 to-sky-100 shadow rounded-lg p-6 border border-sky-300">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-lg font-semibold text-sky-900 mb-2 flex items-center">
-              <Icon name="lightning" className="mr-2 text-sky-600" />
-              Validator Journey
-            </h2>
-            <p class="text-sm text-sky-700">You're on the waitlist! Complete tasks to move up the ranks.</p>
-          </div>
-          <div class="text-right">
-            <div class="inline-flex items-center px-3 py-1 rounded-full bg-sky-200 text-sky-900 text-xs font-medium">
-              Waitlist Position: Coming Soon
-            </div>
-          </div>
-        </div>
-      </div>
-    {/if}
-    
-    {#if user.has_builder_welcome && !user.builder}
-      <div class="bg-gradient-to-r from-orange-50 to-orange-100 shadow rounded-lg p-6 border border-orange-300">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-lg font-semibold text-orange-900 mb-2 flex items-center">
-              <Icon name="lightning" className="mr-2 text-orange-600" />
-              Builder Journey
-            </h2>
-            <p class="text-sm text-orange-700">Journey started! Deploy contracts to unlock your full builder profile.</p>
-          </div>
-          <div class="text-right">
-            <div class="inline-flex items-center px-3 py-1 rounded-full bg-orange-200 text-orange-900 text-xs font-medium">
-              Next: Deploy Contract
-            </div>
-          </div>
-        </div>
-      </div>
-    {/if}
-    
-    <!-- Validator Profile -->
+    <!-- Profile Sections -->
     {#if !showValidatorJourney && !showBuilderJourney}
-      {#if user.validator}
-        <div class="bg-sky-100 shadow rounded-lg p-6 border border-sky-300" data-profile-type="validator">
-          <h2 class="text-lg font-semibold text-sky-900 mb-4 flex items-center">
-            <Icon name="validator" className="mr-2 text-sky-700" />
-            Validator Profile
-          </h2>
-          <div class="text-sm text-sky-800">
-            <p>You're running a validator node! Keep it up.</p>
-            {#if user.validator.total_points}
-              <p class="mt-1">Total Points: <span class="font-bold text-sky-900">{user.validator.total_points}</span></p>
-            {/if}
-            {#if user.validator.rank}
-              <p>Validator Rank: <span class="font-bold text-sky-900">#{user.validator.rank}</span></p>
-            {/if}
-          </div>
-        </div>
-      {:else if user.has_validator_waitlist}
-        <div class="bg-sky-100 shadow rounded-lg p-6 border border-sky-300" data-profile-type="validator">
-          <h2 class="text-lg font-semibold text-sky-900 mb-4 flex items-center">
-            <Icon name="validator" className="mr-2 text-sky-700" />
-            Validator Profile
-          </h2>
-          <p class="text-sm text-sky-800">You're on the waitlist! Keep earning points to become a validator.</p>
-          <div class="mt-3 inline-flex items-center px-2 py-1 rounded-full bg-sky-200 text-sky-900 text-xs">
-            <Icon name="star" size="xs" className="mr-1" />
-            +20 Points Earned
-          </div>
-        </div>
-      {:else}
-        <div class="bg-sky-50 shadow rounded-lg p-6 border border-sky-200">
-          <h2 class="text-lg font-semibold text-sky-900 mb-4 flex items-center">
-            <Icon name="validator" className="mr-2 text-sky-500" />
-            Validator Profile
-          </h2>
-          <p class="text-sm text-sky-700 mb-2">Want to become a GenLayer Validator? Join the waitlist, start earning points, and climb the ranks.</p>
-          <p class="text-sm text-sky-700 mb-4">Top contributors will be invited to run nodes on Testnet Asimov.</p>
-          <button
-            onclick={startValidatorJourney}
-            class="px-3 py-1.5 bg-sky-600 text-white rounded text-sm hover:bg-sky-700 transition-colors"
-          >
-            Start Validator Journey →
-          </button>
-        </div>
-      {/if}
+      <!-- Active Profiles (100% width) -->
       
-      <!-- Builder Profile -->
-      {#if user.builder}
-        <div class="bg-orange-100 shadow rounded-lg p-6 border border-orange-300" data-profile-type="builder">
-          <h2 class="text-lg font-semibold text-orange-900 mb-4 flex items-center">
-            <Icon name="builder" className="mr-2 text-orange-700" />
-            Builder Profile
-          </h2>
-          <div class="text-sm text-orange-800">
-            <p>You're building on GenLayer! Keep creating.</p>
-            {#if user.builder.total_points}
-              <p class="mt-1">Total Points: <span class="font-bold text-orange-900">{user.builder.total_points}</span></p>
-            {/if}
-            {#if user.builder.rank}
-              <p>Builder Rank: <span class="font-bold text-orange-900">#{user.builder.rank}</span></p>
-            {/if}
-          </div>
-        </div>
-      {:else if user.has_builder_welcome}
-        <div class="bg-orange-100 shadow rounded-lg p-6 border border-orange-300" data-profile-type="builder">
-          <h2 class="text-lg font-semibold text-orange-900 mb-4 flex items-center">
-            <Icon name="builder" className="mr-2 text-orange-700" />
-            Builder Profile
-          </h2>
-          <p class="text-sm text-orange-800">You've started building! Keep deploying contracts to level up.</p>
-          <div class="mt-3 inline-flex items-center px-2 py-1 rounded-full bg-orange-200 text-orange-900 text-xs">
-            <Icon name="star" size="xs" className="mr-1" />
-            +20 Points Earned
-          </div>
-        </div>
-      {:else}
-        <div class="bg-orange-50 shadow rounded-lg p-6 border border-orange-200">
-          <h2 class="text-lg font-semibold text-orange-900 mb-4 flex items-center">
-            <Icon name="builder" className="mr-2 text-orange-500" />
-            Builder Profile
-          </h2>
-          <p class="text-sm text-orange-700 mb-2">Start building on GenLayer. Deploy contracts, earn points, and join our growing developer community.</p>
-          <p class="text-sm text-orange-700 mb-4">Top contributors get special rewards.</p>
-          <button
-            onclick={startBuilderJourney}
-            class="px-3 py-1.5 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 transition-colors"
-          >
-            Start Builder Journey →
-          </button>
-        </div>
-      {/if}
-      
-      <!-- Steward Profile -->
+      <!-- Steward (Always first if active) -->
       {#if user.steward}
         <div class="bg-green-100 shadow rounded-lg p-6 border border-green-300">
           <h2 class="text-lg font-semibold text-green-900 mb-4 flex items-center">
             <Icon name="steward" className="mr-2 text-green-700" />
-            Steward Profile
+            Steward
           </h2>
           <div class="text-sm">
             <p class="text-green-800 font-medium">
@@ -474,11 +331,123 @@
             <p class="text-xs text-green-700 mt-3">Profile created: {formatDate(user.steward.created_at)}</p>
           </div>
         </div>
-      {:else}
+      {/if}
+      
+      <!-- Builder (Active profile) -->
+      {#if user.builder}
+        <div class="bg-orange-100 shadow rounded-lg p-6 border border-orange-300" data-profile-type="builder">
+          <h2 class="text-lg font-semibold text-orange-900 mb-4 flex items-center">
+            <Icon name="builder" className="mr-2 text-orange-700" />
+            Builder
+          </h2>
+          <div class="text-sm text-orange-800">
+            <p>You're building on GenLayer! Keep creating.</p>
+            {#if user.builder.total_points}
+              <p class="mt-1">Total Points: <span class="font-bold text-orange-900">{user.builder.total_points}</span></p>
+            {/if}
+            {#if user.builder.rank}
+              <p>Builder Rank: <span class="font-bold text-orange-900">#{user.builder.rank}</span></p>
+            {/if}
+          </div>
+        </div>
+      {/if}
+      
+      <!-- Validator (Active profile) -->
+      {#if user.validator}
+        <div class="bg-sky-100 shadow rounded-lg p-6 border border-sky-300" data-profile-type="validator">
+          <h2 class="text-lg font-semibold text-sky-900 mb-4 flex items-center">
+            <Icon name="validator" className="mr-2 text-sky-700" />
+            Validator
+          </h2>
+          <div class="text-sm text-sky-800">
+            <p>You're running a validator node! Keep it up.</p>
+            {#if user.validator.total_points}
+              <p class="mt-1">Total Points: <span class="font-bold text-sky-900">{user.validator.total_points}</span></p>
+            {/if}
+            {#if user.validator.rank}
+              <p>Validator Rank: <span class="font-bold text-sky-900">#{user.validator.rank}</span></p>
+            {/if}
+          </div>
+        </div>
+      {/if}
+      
+      <!-- Waitlist/Welcome Profiles -->
+      {#if user.has_builder_welcome && !user.builder}
+        <div class="bg-orange-100 shadow rounded-lg p-6 border border-orange-300" data-profile-type="builder">
+          <h2 class="text-lg font-semibold text-orange-900 mb-4 flex items-center">
+            <Icon name="builder" className="mr-2 text-orange-700" />
+            Builder Welcome
+          </h2>
+          <p class="text-sm text-orange-800">You've started building! Keep deploying contracts to level up.</p>
+          <div class="mt-3 inline-flex items-center px-2 py-1 rounded-full bg-orange-200 text-orange-900 text-xs">
+            <Icon name="star" size="xs" className="mr-1" />
+            +20 Points Earned
+          </div>
+        </div>
+      {/if}
+      
+      {#if user.has_validator_waitlist && !user.validator}
+        <div class="bg-sky-100 shadow rounded-lg p-6 border border-sky-300" data-profile-type="validator">
+          <h2 class="text-lg font-semibold text-sky-900 mb-4 flex items-center">
+            <Icon name="validator" className="mr-2 text-sky-700" />
+            Validator Waitlist
+          </h2>
+          <p class="text-sm text-sky-800">You're on the waitlist! Keep earning points to become a validator.</p>
+          <div class="mt-3 inline-flex items-center px-2 py-1 rounded-full bg-sky-200 text-sky-900 text-xs">
+            <Icon name="star" size="xs" className="mr-1" />
+            +20 Points Earned
+          </div>
+        </div>
+      {/if}
+      
+      <!-- Remaining Inactive Profiles (2 columns or 100% if only one) -->
+      {@const needsBuilder = !user.builder && !user.has_builder_welcome}
+      {@const needsValidator = !user.validator && !user.has_validator_waitlist}
+      
+      {#if needsBuilder || needsValidator}
+        <div class="{(needsBuilder && needsValidator) ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : ''}">
+          {#if needsBuilder}
+            <div class="bg-orange-50 shadow rounded-lg p-6 border border-orange-200">
+              <h2 class="text-lg font-semibold text-orange-900 mb-4 flex items-center">
+                <Icon name="builder" className="mr-2 text-orange-500" />
+                Builder
+              </h2>
+              <p class="text-sm text-orange-700 mb-2">Start building on GenLayer. Deploy contracts, earn points, and join our growing developer community.</p>
+              <p class="text-sm text-orange-700 mb-4">Top contributors get special rewards.</p>
+              <button
+                onclick={startBuilderJourney}
+                class="px-3 py-1.5 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 transition-colors"
+              >
+                Start Builder Journey →
+              </button>
+            </div>
+          {/if}
+          
+          {#if needsValidator}
+            <div class="bg-sky-50 shadow rounded-lg p-6 border border-sky-200">
+              <h2 class="text-lg font-semibold text-sky-900 mb-4 flex items-center">
+                <Icon name="validator" className="mr-2 text-sky-500" />
+                Validator
+              </h2>
+              <p class="text-sm text-sky-700 mb-2">Want to become a GenLayer Validator? Join the waitlist, start earning points, and climb the ranks.</p>
+              <p class="text-sm text-sky-700 mb-4">Top contributors will be invited to run nodes on Testnet Asimov.</p>
+              <button
+                onclick={startValidatorJourney}
+                class="px-3 py-1.5 bg-sky-600 text-white rounded text-sm hover:bg-sky-700 transition-colors"
+              >
+                Start Validator Journey →
+              </button>
+            </div>
+          {/if}
+        </div>
+      {/if}
+      
+      <!-- Inactive Steward (100% width, last position) -->
+      {#if !user.steward}
         <div class="bg-green-50 shadow rounded-lg p-6 border border-green-200">
           <h2 class="text-lg font-semibold text-green-900 mb-4 flex items-center">
             <Icon name="steward" className="mr-2 text-green-600" />
-            Steward Profile
+            Steward
           </h2>
           <p class="text-sm text-green-700 mb-2">Steward positions are earned through exceptional contribution.</p>
           <p class="text-sm text-green-700">Keep building, validating, and supporting the community to unlock this role.</p>
