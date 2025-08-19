@@ -54,6 +54,17 @@
     'gray'
   );
   
+  // Check if user has any role cards to display
+  let hasAnyRole = $derived(
+    participant && (
+      participant.steward ||
+      participant.validator ||
+      participant.builder ||
+      participant.has_validator_waitlist ||
+      participant.has_builder_welcome
+    )
+  );
+  
   $effect(() => {
     const currentParams = $params;
     console.log("ParticipantProfile params:", currentParams);
@@ -229,18 +240,8 @@
     <div class="mb-6">
       <div class="flex justify-between items-start">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900 flex items-center">
-            {participant.name || (isValidatorOnly ? 'Validator' : 'Participant')} 
-            {#if participantType && participantType !== 'participant'}
-              <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-{typeColor}-100 text-{typeColor}-800 capitalize">
-                {participantType}
-              </span>
-            {/if}
-            {#if !isValidatorOnly && participant.visible !== false && participantType !== 'steward'}
-              <span class="ml-3 inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
-                Rank #{participant.leaderboard_entry?.rank || 'N/A'}
-              </span>
-            {/if}
+          <h1 class="text-2xl font-bold text-gray-900">
+            {participant.name || (isValidatorOnly ? 'Validator' : 'Participant')}
           </h1>
           {#if isValidatorOnly || participant.visible === false}
             <p class="mt-1 text-sm text-gray-500">
@@ -279,185 +280,194 @@
       </div>
     </div>
     
-    <!-- Main Information (Common for all) -->
-    <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
-      <div class="border-t border-gray-200">
-        <dl>
-          {#if participant.address}
-            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt class="text-sm font-medium text-gray-500">
-                Wallet Address
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 font-mono">
-                {participant.address}
-              </dd>
-            </div>
-            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt class="text-sm font-medium text-gray-500">
-                Balance
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {#if loadingBalance}
-                  <span class="text-gray-500">Loading balance...</span>
-                {:else if balance}
-                  <span class="font-mono">{balance.formatted} GEN</span>
-                {:else}
-                  <span class="text-gray-500">Unable to fetch balance</span>
-                {/if}
-              </dd>
-            </div>
+    <!-- Basic User Information -->
+    <div class="bg-white shadow rounded-lg p-4 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <p class="text-sm text-gray-500 mb-1">Wallet</p>
+          <p class="text-sm font-mono text-gray-900 break-all">{participant.address || 'Not connected'}</p>
+        </div>
+        <div>
+          <p class="text-sm text-gray-500 mb-1">Balance</p>
+          {#if loadingBalance}
+            <p class="text-sm text-gray-500">Loading...</p>
+          {:else if balance}
+            <p class="text-sm font-mono text-gray-900">{balance.formatted} GEN</p>
+          {:else}
+            <p class="text-sm text-gray-500">-</p>
           {/if}
-          {#if !isValidatorOnly}
-            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt class="text-sm font-medium text-gray-500">
-                Joined
-              </dt>
-              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {formatDate(participant.created_at)}
-              </dd>
-            </div>
-          {/if}
-        </dl>
+        </div>
+        <div>
+          <p class="text-sm text-gray-500 mb-1">Joined</p>
+          <p class="text-sm text-gray-900">{participant.created_at ? formatDate(participant.created_at) : '-'}</p>
+        </div>
       </div>
     </div>
     
-    <!-- Stats Cards (from upstream) -->
-    {#if !isValidatorOnly && participantType !== 'steward'}
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <StatCard 
-          title="Total Contributions" 
-          value={contributionStats.totalContributions || 0} 
-          icon={icons.contributions}
-          color="green"
-        />
-        <StatCard 
-          title="Total Points" 
-          value={participant.leaderboard_entry?.total_points ?? '—'} 
-          icon={icons.points}
-          color="purple"
-        />
-        <StatCard 
-          title="Current Rank" 
-          value={participant.leaderboard_entry?.rank || 'N/A'} 
-          icon={icons.rank}
-          color="blue"
-        />
-      </div>
-      
-      <!-- Journey Section for Own Profile -->
-      {#if isOwnProfile}
-        {#if (!participant.validator && !participant.has_validator_waitlist) || (!participant.builder && !participant.has_builder_welcome)}
-          <div class="mb-6 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg p-6 text-white">
-            <h3 class="text-lg font-semibold mb-3">Start Your Journey</h3>
-            <p class="text-purple-100 mb-4">
-              Begin your path to becoming a validator or builder and earn badges along the way!
-            </p>
-            <button
-              onclick={() => push('/profile')}
-              class="px-4 py-2 bg-white text-purple-600 rounded-md hover:bg-purple-50 transition-colors font-medium"
-            >
-              View Available Journeys →
-            </button>
-          </div>
-        {/if}
-      {/if}
-      
-      <!-- Profile Sections in Order: Validator, Builder-Welcome Journey, Validator-Waitlist Journey, Builder -->
-      
-      <!-- 1. Validator Profile (if active) -->
-      {#if participant.validator}
-        <!-- Validator section already exists below -->
-      {/if}
-      
-      <!-- 2. Builder Welcome Journey Card -->
-      {#if participant.has_builder_welcome && !participant.builder}
-        <div class="mb-6 bg-gradient-to-r from-orange-50 to-orange-100 shadow rounded-lg p-6 border border-orange-300">
-          <div class="flex items-center justify-between">
-            <div>
-              <h3 class="text-lg font-semibold text-orange-900 mb-2 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+    <!-- Welcome Section for Users Without Roles (Only show on own profile) -->
+    {#if !hasAnyRole && !isValidatorOnly && isOwnProfile}
+      <!-- Welcome Card with Everything Inside -->
+      <div class="bg-white border border-gray-200 rounded-lg shadow-sm mb-6">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="text-2xl font-bold text-gray-900">Welcome to GenLayer Points</h2>
+        </div>
+        <div class="p-6">
+          <p class="text-gray-700 font-medium mb-2">
+            GenLayer Testnet Asimov is live.
+          </p>
+          <p class="text-gray-600 mb-6">
+            Join professional validators and builders in testing the trust infrastructure for the AI age.
+          </p>
+          
+          <!-- Three Info Sections Inside Card -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4 border-t border-gray-100 mb-6">
+            <!-- Section 1: Select Your Journey -->
+            <div class="flex items-center">
+              <div class="flex items-center justify-center font-bold text-purple-600 flex-shrink-0 leading-10 mr-2" style="font-size: 2.25rem;">
+                1
+              </div>
+              <div class="flex items-center justify-center w-10 h-10 bg-purple-100 rounded-lg flex-shrink-0">
+                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
                 </svg>
-                Builder Journey
-              </h3>
-              <p class="text-sm text-orange-700">Welcome to the builder community! Keep deploying to level up.</p>
-            </div>
-            <div class="text-right">
-              <div class="inline-flex items-center px-3 py-1 rounded-full bg-orange-200 text-orange-900 text-xs font-medium">
-                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                </svg>
-                +20 Points
+              </div>
+              <div class="flex-1 ml-2">
+                <h3 class="font-semibold text-gray-900">Select Your Journey</h3>
+                <p class="text-sm text-gray-600">Start contributing as a Builder or Validator</p>
               </div>
             </div>
-          </div>
-        </div>
-      {/if}
-      
-      <!-- 3. Validator Waitlist Journey Card -->
-      {#if participant.has_validator_waitlist && !participant.validator}
-        <div class="mb-6 bg-gradient-to-r from-sky-50 to-sky-100 shadow rounded-lg p-6 border border-sky-300">
-          <div class="flex items-center justify-between">
-            <div>
-              <h3 class="text-lg font-semibold text-sky-900 mb-2 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-sky-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            
+            <!-- Section 2: Submit Contributions -->
+            <div class="flex items-center">
+              <div class="flex items-center justify-center font-bold text-green-600 flex-shrink-0 leading-10 mr-2" style="font-size: 2.25rem;">
+                2
+              </div>
+              <div class="flex items-center justify-center w-10 h-10 bg-green-100 rounded-lg flex-shrink-0">
+                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                 </svg>
-                Validator Journey
-              </h3>
-              <p class="text-sm text-sky-700">On the waitlist! Working towards becoming a validator.</p>
-            </div>
-            <div class="text-right">
-              <div class="inline-flex items-center px-3 py-1 rounded-full bg-sky-200 text-sky-900 text-xs font-medium">
-                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                </svg>
-                +20 Points
+              </div>
+              <div class="flex-1 ml-2">
+                <h3 class="font-semibold text-gray-900">Submit Contributions</h3>
+                <p class="text-sm text-gray-600">Choose between many ways of contributing</p>
               </div>
             </div>
-          </div>
-        </div>
-      {/if}
-      
-      <!-- 4. Builder Profile (if active) -->
-      {#if participant.builder}
-        <div class="mb-6 bg-orange-50/30 rounded-lg shadow-sm border border-orange-100 overflow-hidden">
-          <!-- Header -->
-          <div class="bg-orange-100/50 px-5 py-3 border-b border-orange-200">
-            <h2 class="text-lg font-semibold text-orange-700 uppercase tracking-wider flex items-center">
-              <svg class="w-5 h-5 mr-2 text-orange-600" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
-              </svg>
-              Builder
-            </h2>
+            
+            <!-- Section 3: Climb the Ranks -->
+            <div class="flex items-center">
+              <div class="flex items-center justify-center font-bold text-yellow-600 flex-shrink-0 leading-10 mr-2" style="font-size: 2.25rem;">
+                3
+              </div>
+              <div class="flex items-center justify-center w-10 h-10 bg-yellow-100 rounded-lg flex-shrink-0">
+                <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                </svg>
+              </div>
+              <div class="flex-1 ml-2">
+                <h3 class="font-semibold text-gray-900">Climb the Ranks</h3>
+                <p class="text-sm text-gray-600">Earn points for each contribution and climb the ranks</p>
+              </div>
+            </div>
           </div>
           
-          <!-- Content -->
-          <div class="p-4">
-            <div class="text-sm text-orange-800">
-              <p>Active builder on GenLayer!</p>
-              {#if participant.builder?.total_points}
-                <p class="mt-1">Total Points: <span class="font-bold text-orange-900">{participant.builder.total_points}</span></p>
-              {/if}
-              {#if participant.builder?.rank}
-                <p>Builder Rank: <span class="font-bold text-orange-900">#{participant.builder.rank}</span></p>
-              {/if}
+          <!-- Journey Selection Cards Inside Welcome Card -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-100">
+            <!-- Validator Journey Card -->
+            <div class="group relative bg-sky-50 border-2 border-sky-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
+              <div class="absolute inset-0 bg-sky-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div class="relative p-6">
+            <div class="flex items-center mb-4">
+              <div class="flex items-center justify-center w-12 h-12 bg-sky-500 rounded-full mr-4 flex-shrink-0">
+                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-xl font-bold text-sky-900 mb-1">Validator Journey</h3>
+                <p class="text-sky-700 text-sm">Validate and judge subjective Intelligent Contracts on Testnet Asimov</p>
+              </div>
+            </div>
+            <ul class="space-y-2 mb-6">
+              <li class="flex items-center text-sm text-sky-600">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Participate in Optimistic Democracy consensus with professional validators
+              </li>
+              <li class="flex items-center text-sm text-sky-600">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Validate subjective outcomes in Intelligent Contracts with AI-powered validation
+              </li>
+              <li class="flex items-center text-sm text-sky-600">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Currently only selected validators can participate - earn your slot
+              </li>
+            </ul>
+            <button
+              onclick={() => push('/profile')}
+              class="w-full flex items-center justify-center px-4 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-semibold group-hover:shadow-md"
+            >
+              <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
+              </svg>
+              Join the Waitlist
+            </button>
+          </div>
+        </div>
+        
+        <!-- Builder Journey Card -->
+        <div class="group relative bg-orange-50 border-2 border-orange-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
+          <div class="absolute inset-0 bg-orange-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          <div class="relative p-6">
+            <div class="flex items-center mb-4">
+              <div class="flex items-center justify-center w-12 h-12 bg-orange-500 rounded-full mr-4 flex-shrink-0">
+                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-xl font-bold text-orange-900 mb-1">Builder Journey</h3>
+                <p class="text-orange-700 text-sm">Deploy smart contracts, build dApps, and contribute to the GenLayer ecosystem</p>
+              </div>
+            </div>
+            <ul class="space-y-2 mb-6">
+              <li class="flex items-center text-sm text-orange-600">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Deploy smart contracts
+              </li>
+              <li class="flex items-center text-sm text-orange-600">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Build innovative dApps
+              </li>
+              <li class="flex items-center text-sm text-orange-600">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Access developer resources
+              </li>
+            </ul>
+            <button
+              onclick={() => push('/profile')}
+              class="w-full flex items-center justify-center px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold group-hover:shadow-md"
+            >
+              <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+              </svg>
+              Start Building
+            </button>
+              </div>
             </div>
           </div>
         </div>
-      {/if}
-      
-      <!-- Highlights Section -->
-      <FeaturedContributions
-        userId={participant.address}
-        limit={5}
-        title="Featured Contributions"
-        cardStyle="highlight"
-        showViewAll={false}
-        className="mb-6"
-        isOwnProfile={isOwnProfile}
-        hideWhenEmpty={!isOwnProfile}
-      />
+      </div>
     {/if}
     
     <!-- Steward Section -->
@@ -737,6 +747,157 @@
             />
           </div>
         {/if}
+      </div>
+    {/if}
+    
+    <!-- Validator Waitlist Card -->
+    {#if participant.has_validator_waitlist && !participant.validator}
+      <div class="bg-sky-50 rounded-lg shadow-sm border border-sky-200 overflow-hidden mb-6">
+        <!-- Header -->
+        <div class="bg-sky-100 px-5 py-3 border-b border-sky-200">
+          <h2 class="text-lg font-semibold text-sky-700 uppercase tracking-wider flex items-center">
+            <svg class="w-5 h-5 mr-2 text-sky-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
+            </svg>
+            Validator Waitlist
+          </h2>
+        </div>
+        
+        <!-- Content -->
+        <div class="p-6">
+          <!-- Stats Row -->
+          <div class="grid grid-cols-3 gap-4 mb-6">
+            <div>
+              <p class="text-xs text-gray-500">Total Contributions</p>
+              <p class="text-2xl font-bold text-gray-900">{contributionStats.totalContributions || 0}</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-500">Total Points</p>
+              <p class="text-2xl font-bold text-gray-900">{participant.leaderboard_entry?.total_points || 0}</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-500">Waitlist Rank</p>
+              <p class="text-2xl font-bold text-gray-900">#{participant.leaderboard_entry?.rank || 'N/A'}</p>
+            </div>
+          </div>
+          
+          <!-- Featured Section -->
+          <FeaturedContributions
+            userId={participant.address}
+            limit={3}
+            title="Featured"
+            cardStyle="compact"
+            showViewAll={false}
+            isOwnProfile={isOwnProfile}
+            hideWhenEmpty={false}
+          />
+          
+          <!-- Contribution Breakdown -->
+          {#if contributionStats.contributionTypes && contributionStats.contributionTypes.length > 0}
+            <div class="mt-6">
+              <h3 class="text-base font-semibold text-gray-900 mb-3">Breakdown</h3>
+              <div class="space-y-2">
+                {#each contributionStats.contributionTypes as type}
+                  <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                    <span class="text-sm text-gray-700">{type.name}</span>
+                    <span class="text-sm font-medium text-gray-900">{type.total_points} pts</span>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+          
+          <!-- Contributions List -->
+          <div class="mt-6">
+            <UserContributions
+              userAddress={participant.address}
+              userName={participant.name || 'Participant'}
+              compact={true}
+            />
+          </div>
+        </div>
+      </div>
+    {/if}
+    
+    <!-- Builder Welcome Card -->
+    {#if participant.has_builder_welcome && !participant.builder}
+      <div class="bg-orange-50 rounded-lg shadow-sm border border-orange-200 overflow-hidden mb-6">
+        <!-- Header -->
+        <div class="bg-orange-100 px-5 py-3 border-b border-orange-200">
+          <h2 class="text-lg font-semibold text-orange-700 uppercase tracking-wider flex items-center">
+            <svg class="w-5 h-5 mr-2 text-orange-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+            </svg>
+            Builder Welcome
+          </h2>
+        </div>
+        
+        <!-- Content -->
+        <div class="p-6">
+          <p class="text-orange-700 mb-4">Welcome to the builder community! Deploy contracts to level up.</p>
+          <div class="inline-flex items-center px-3 py-1 rounded-full bg-orange-200 text-orange-900 text-sm font-medium">
+            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+            </svg>
+            +20 Points Earned
+          </div>
+        </div>
+      </div>
+    {/if}
+    
+    <!-- Builder Card -->
+    {#if participant.builder}
+      <div class="bg-orange-50 rounded-lg shadow-sm border border-orange-200 overflow-hidden mb-6">
+        <!-- Header -->
+        <div class="bg-orange-100 px-5 py-3 border-b border-orange-200">
+          <h2 class="text-lg font-semibold text-orange-700 uppercase tracking-wider flex items-center">
+            <svg class="w-5 h-5 mr-2 text-orange-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+            </svg>
+            Builder
+          </h2>
+        </div>
+        
+        <!-- Content -->
+        <div class="p-6">
+          <!-- Stats Row -->
+          <div class="grid grid-cols-3 gap-4 mb-6">
+            <div>
+              <p class="text-xs text-gray-500">Total Contributions</p>
+              <p class="text-2xl font-bold text-gray-900">{participant.builder?.total_contributions || 0}</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-500">Total Points</p>
+              <p class="text-2xl font-bold text-gray-900">{participant.builder?.total_points || 0}</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-500">Builder Rank</p>
+              <p class="text-2xl font-bold text-gray-900">#{participant.builder?.rank || 'N/A'}</p>
+            </div>
+          </div>
+          
+          <!-- Featured Section -->
+          <FeaturedContributions
+            userId={participant.address}
+            limit={3}
+            title="Featured"
+            cardStyle="compact"
+            showViewAll={false}
+            isOwnProfile={isOwnProfile}
+            hideWhenEmpty={false}
+            category="builder"
+          />
+          
+          <!-- Contributions -->
+          <div class="mt-6">
+            <UserContributions
+              userAddress={participant.address}
+              userName={participant.name || 'Builder'}
+              category="builder"
+              compact={true}
+            />
+          </div>
+        </div>
       </div>
     {/if}
     
