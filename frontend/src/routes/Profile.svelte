@@ -948,16 +948,6 @@
             />
           </div>
           
-          <!-- Contribution Breakdown -->
-          {#if validatorStats.contributionTypes && validatorStats.contributionTypes.length > 0}
-            <div class="mb-6">
-              <ContributionBreakdown
-                contributionTypes={validatorStats.contributionTypes}
-                colorTheme="sky"
-              />
-            </div>
-          {/if}
-          
           <!-- Featured Section -->
           <FeaturedContributions
             userId={participant.address}
@@ -966,10 +956,20 @@
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
-            hideWhenEmpty={false}
+            hideWhenEmpty={!isOwnProfile}
             category="validator"
             colorTheme="sky"
           />
+          
+          <!-- Contribution Breakdown -->
+          {#if validatorStats.contributionTypes && validatorStats.contributionTypes.length > 0}
+            <div class="mt-6">
+              <ContributionBreakdown
+                contributionTypes={validatorStats.contributionTypes}
+                colorTheme="sky"
+              />
+            </div>
+          {/if}
           
           <!-- Contributions List -->
           <div class="mt-6">
@@ -1011,16 +1011,6 @@
             />
           </div>
           
-          <!-- Contribution Breakdown -->
-          {#if builderStats.contributionTypes && builderStats.contributionTypes.length > 0}
-            <div class="mb-6">
-              <ContributionBreakdown
-                contributionTypes={builderStats.contributionTypes}
-                colorTheme="orange"
-              />
-            </div>
-          {/if}
-          
           <!-- Featured Section -->
           <FeaturedContributions
             userId={participant.address}
@@ -1029,10 +1019,20 @@
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
-            hideWhenEmpty={false}
+            hideWhenEmpty={!isOwnProfile}
             category="builder"
             colorTheme="orange"
           />
+          
+          <!-- Contribution Breakdown -->
+          {#if builderStats.contributionTypes && builderStats.contributionTypes.length > 0}
+            <div class="mt-6">
+              <ContributionBreakdown
+                contributionTypes={builderStats.contributionTypes}
+                colorTheme="orange"
+              />
+            </div>
+          {/if}
           
           <!-- Contributions List -->
           <div class="mt-6">
@@ -1072,16 +1072,6 @@
             />
           </div>
           
-          <!-- Contribution Breakdown -->
-          {#if participant.builder?.contribution_types && participant.builder.contribution_types.length > 0}
-            <div class="mb-6">
-              <ContributionBreakdown
-                contributionTypes={participant.builder.contribution_types}
-                colorTheme="orange"
-              />
-            </div>
-          {/if}
-          
           <!-- Featured Section -->
           <FeaturedContributions
             userId={participant.address}
@@ -1090,10 +1080,20 @@
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
-            hideWhenEmpty={false}
+            hideWhenEmpty={!isOwnProfile}
             category="builder"
             colorTheme="orange"
           />
+          
+          <!-- Contribution Breakdown -->
+          {#if participant.builder?.contribution_types && participant.builder.contribution_types.length > 0}
+            <div class="mt-6">
+              <ContributionBreakdown
+                contributionTypes={participant.builder.contribution_types}
+                colorTheme="orange"
+              />
+            </div>
+          {/if}
           
           <!-- Contributions -->
           <div class="mt-6">
