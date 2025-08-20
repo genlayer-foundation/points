@@ -895,6 +895,7 @@
               isOwnProfile={isOwnProfile}
               hideWhenEmpty={!isOwnProfile}
               category="validator"
+              colorTheme="sky"
             />
           </div>
           
@@ -967,6 +968,7 @@
             isOwnProfile={isOwnProfile}
             hideWhenEmpty={false}
             category="validator"
+            colorTheme="sky"
           />
           
           <!-- Contributions List -->
@@ -1029,6 +1031,7 @@
             isOwnProfile={isOwnProfile}
             hideWhenEmpty={false}
             category="builder"
+            colorTheme="orange"
           />
           
           <!-- Contributions List -->
@@ -1089,6 +1092,7 @@
             isOwnProfile={isOwnProfile}
             hideWhenEmpty={false}
             category="builder"
+            colorTheme="orange"
           />
           
           <!-- Contributions -->
