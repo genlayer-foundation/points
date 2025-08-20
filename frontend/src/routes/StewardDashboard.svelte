@@ -5,6 +5,7 @@
   import { stewardAPI, usersAPI, leaderboardAPI } from '../lib/api.js';
   import { format, formatDistanceToNow } from 'date-fns';
   import { categoryTheme } from '../stores/category.js';
+  import Avatar from '../components/Avatar.svelte';
   
   let stats = $state({
     pending_count: 0,
@@ -240,13 +241,11 @@
                 <div class="p-4 hover:bg-gray-50 transition-colors">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                      <div class="flex-shrink-0">
-                        <div class="w-10 h-10 rounded-full bg-gradient-to-br {$categoryTheme.bgSecondary} flex items-center justify-center">
-                          <span class="text-sm font-bold {$categoryTheme.text}">
-                            {steward.name ? steward.name.charAt(0).toUpperCase() : 'S'}
-                          </span>
-                        </div>
-                      </div>
+                      <Avatar 
+                        user={steward}
+                        size="sm"
+                        clickable={true}
+                      />
                       <div class="min-w-0">
                         <button
                           onclick={() => push(`/participant/${steward.address}`)}

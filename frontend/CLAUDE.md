@@ -250,24 +250,27 @@ const routes = {
   '/contributions': Contributions,
   '/leaderboard': Leaderboard,
   '/validators': Validators,
-  '/participant/:address': ParticipantProfile,  // Public profile view
+  '/validators/waitlist/join': ValidatorWaitlist,  // Validator waitlist join page
+  '/participant/:address': Profile,  // Public profile view
   '/contribution-type/:id': ContributionTypeDetail,
   '/badge/:id': BadgeDetail,
   '/submit-contribution': SubmitContribution,
   '/my-submissions': MySubmissions,
   '/contributions/:id': EditSubmission,
   '/metrics': Metrics,
-  '/profile': Profile,  // Edit own profile (authenticated only)
+  '/profile': EditProfile,  // Edit own profile (authenticated only)
   '*': NotFound
 }
 ```
 
 #### Profile System
 - **`/participant/:address`** - Public participant profile (anyone can view)
+  - Component: `Profile.svelte`
   - Shows participant stats, contributions, validator status
   - Shows "Edit Profile" button if viewing own profile
 - **`/profile`** - Edit profile page (authenticated users only)
-  - Only allows editing display name
+  - Component: `EditProfile.svelte`
+  - Only allows editing display name and node version
   - Redirects to public profile after save with success message
 
 ### API Integration (`src/lib/api.js`)
@@ -323,7 +326,8 @@ const routes = {
     - Disconnect - Logs out
   - Reactively updates name from `userStore`
 - `SubmitContribution.svelte` - Contribution form
-- `Profile.svelte` - User profile editing (name only)
+- `EditProfile.svelte` - User profile editing (name and node version)
+- `Profile.svelte` - Public participant profile view
 
 ### Wallet Integration (`src/lib/wallet/`)
 - `WalletProvider.svelte` - Wallet context provider
@@ -441,6 +445,13 @@ npm run preview
 - Component-scoped styles in `<style>` blocks
 
 ## Design Guidelines
+
+### Terminology Guidelines
+**NEVER USE "GLOBAL"**: Do not use the word "global" in the UI. Use more specific terms like:
+- "Overall" for general rankings/stats
+- "Total" for aggregate counts
+- "All Categories" when referring to cross-category data
+- Simply omit the qualifier when the context is clear
 
 ### Component Card Wrappers
 **IMPORTANT**: When using reusable components in pages, do NOT wrap them in additional card containers.

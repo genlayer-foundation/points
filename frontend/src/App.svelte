@@ -17,7 +17,7 @@
   import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
-  import ParticipantProfile from './routes/ParticipantProfile.svelte';
+  import Profile from './routes/Profile.svelte';
   import ContributionTypeDetail from './routes/ContributionTypeDetail.svelte';
   import BadgeDetail from './routes/BadgeDetail.svelte';
   import Validators from './routes/Validators.svelte';
@@ -25,12 +25,13 @@
   import MySubmissions from './routes/MySubmissions.svelte';
   import EditSubmission from './routes/EditSubmission.svelte';
   import Metrics from './routes/Metrics.svelte';
-  import Profile from './routes/Profile.svelte';
+  import EditProfile from './routes/EditProfile.svelte';
   import Highlights from './routes/Highlights.svelte';
   import NotFound from './routes/NotFound.svelte';
   import LoaderShowcase from './routes/LoaderShowcase.svelte';
   import StewardDashboard from './routes/StewardDashboard.svelte';
   import StewardSubmissions from './routes/StewardSubmissions.svelte';
+  import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   
   // Define routes
   const routes = {
@@ -57,16 +58,17 @@
     '/validators/highlights': Highlights,
     '/validators/leaderboard': Leaderboard,
     '/validators/participants': Validators,
+    '/validators/waitlist/join': ValidatorWaitlist,
     
     // Shared routes
-    '/participant/:address': ParticipantProfile,
+    '/participant/:address': Profile,
     '/contribution-type/:id': ContributionTypeDetail,
     '/badge/:id': BadgeDetail,
     '/submit-contribution': SubmitContribution,
     '/my-submissions': MySubmissions,
     '/contributions/:id': EditSubmission,
     '/metrics': Metrics,
-    '/profile': Profile,
+    '/profile': EditProfile,
     '/loader-showcase': LoaderShowcase,
     
     // Steward routes

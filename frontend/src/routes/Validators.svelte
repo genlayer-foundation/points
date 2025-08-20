@@ -4,6 +4,7 @@
   import api, { usersAPI, leaderboardAPI } from '../lib/api';
   import { getBannedValidators } from '../lib/blockchain';
   import { currentCategory, categoryTheme } from '../stores/category.js';
+  import Avatar from '../components/Avatar.svelte';
   
   // State variables
   let validators = $state([]);
@@ -200,7 +201,6 @@
 </script>
 
 <div>
-  
   <h1 class="text-2xl font-bold text-gray-900 mb-6">
     {$currentCategory === 'builder' ? 'GenLayer Builders' : 
      $currentCategory === 'validator' ? 'GenLayer Validators' :
@@ -294,11 +294,18 @@
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  {#if validator.user && validator.user.name}
-                    <span class="text-gray-900">{validator.user.name}</span>
-                  {:else}
-                    <span class="text-gray-400">—</span>
-                  {/if}
+                  <div class="flex items-center gap-3">
+                    {#if validator.user}
+                      <Avatar 
+                        user={validator.user}
+                        size="sm"
+                        clickable={true}
+                      />
+                      <span class="text-gray-900">{validator.user.name || 'Unnamed'}</span>
+                    {:else}
+                      <span class="text-gray-400">—</span>
+                    {/if}
+                  </div>
                 </td>
                 {#if $currentCategory === 'validator'}
                   <td class="px-6 py-4 whitespace-nowrap">

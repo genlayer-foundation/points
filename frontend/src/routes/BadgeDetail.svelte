@@ -3,6 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import Badge from '../components/Badge.svelte';
+  import Avatar from '../components/Avatar.svelte';
   // Import route params from svelte-spa-router
   import { params } from 'svelte-spa-router';
   
@@ -94,7 +95,6 @@
 </script>
 
 <div>
-  
   {#if loading}
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
@@ -166,13 +166,20 @@
                 <ul class="divide-y divide-gray-200">
                   {#each badge.earners as earner}
                     <li class="px-4 py-3 flex items-center justify-between hover:bg-gray-50">
-                      <a 
-                        href={`/participant/${earner.id}`} 
-                        onclick={(e) => { e.preventDefault(); push(`/participant/${earner.id}`); }}
-                        class="text-sm font-medium text-primary-600 hover:text-primary-900"
-                      >
-                        {earner.name}
-                      </a>
+                      <div class="flex items-center gap-3">
+                        <Avatar 
+                          user={earner}
+                          size="sm"
+                          clickable={true}
+                        />
+                        <a 
+                          href={`/participant/${earner.id}`} 
+                          onclick={(e) => { e.preventDefault(); push(`/participant/${earner.id}`); }}
+                          class="text-sm font-medium text-primary-600 hover:text-primary-900"
+                        >
+                          {earner.name}
+                        </a>
+                      </div>
                       <span class="text-sm text-gray-500">{earner.points} points</span>
                     </li>
                   {/each}
