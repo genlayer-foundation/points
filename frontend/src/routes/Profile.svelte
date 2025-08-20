@@ -495,9 +495,9 @@
                   {#if loadingBalance}
                     Loading...
                   {:else if balance}
-                    {balance.formatted} ETH
+                    {balance.formatted} GEN
                   {:else}
-                    0 ETH
+                    0 GEN
                   {/if}
                 </p>
               </div>
