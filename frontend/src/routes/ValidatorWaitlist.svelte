@@ -45,7 +45,7 @@
     try {
       await journeyAPI.completeValidatorJourney();
       // Store success message and redirect to profile
-      sessionStorage.setItem('journeySuccess', 'Successfully joined Testnet Asimov Validator Waitlist! +20 points earned.');
+      sessionStorage.setItem('journeySuccess', 'Successfully joined Testnet Asimov Validator Waitlist!');
       push(`/participant/${$authState.address}`);
     } catch (err) {
       error = err.response?.data?.error || 'Failed to join waitlist';
