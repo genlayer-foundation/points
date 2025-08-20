@@ -3,6 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import { contributionsAPI } from '../lib/api';
+  import Avatar from '../components/Avatar.svelte';
   
   // State management
   let highlights = $state([]);
@@ -136,6 +137,15 @@
           
           <div class="flex items-center justify-between text-sm">
             <div class="flex items-center gap-3">
+              <Avatar 
+                user={{
+                  name: highlight.user_name,
+                  address: highlight.user_address,
+                  profile_image_url: highlight.user_profile_image_url
+                }}
+                size="xs"
+                clickable={true}
+              />
               <button 
                 class="text-primary-600 hover:text-primary-700 font-medium"
                 onclick={() => push(`/participant/${highlight.user_address}`)}

@@ -4,6 +4,7 @@
   import { format } from 'date-fns';
   import { contributionsAPI, usersAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
+  import Avatar from './Avatar.svelte';
 
   let {
     title = 'Featured Contributions',
@@ -159,6 +160,15 @@
               </div>
               <p class="text-sm text-gray-600 mb-2 line-clamp-2">{highlight.description}</p>
               <div class="flex items-center gap-3 text-xs">
+                <Avatar 
+                  user={{
+                    name: highlight.user_name,
+                    address: highlight.user_address,
+                    profile_image_url: highlight.user_profile_image_url
+                  }}
+                  size="xs"
+                  clickable={true}
+                />
                 <button 
                   class="text-primary-600 hover:text-primary-700 font-medium"
                   onclick={() => push(`/participant/${highlight.user_address}`)}
@@ -194,6 +204,15 @@
           <h3 class="font-semibold text-gray-900">{highlight.title}</h3>
           <p class="text-sm text-gray-600 mt-1">{highlight.description}</p>
           <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
+            <Avatar 
+              user={{
+                name: highlight.user_name,
+                address: highlight.user_address,
+                profile_image_url: highlight.user_profile_image_url
+              }}
+              size="xs"
+              clickable={true}
+            />
             <button 
               class="hover:text-purple-600"
               onclick={() => push(`/participant/${highlight.user_address}`)}
@@ -220,6 +239,23 @@
               <h4 class="text-lg font-semibold text-gray-900">{highlight.title}</h4>
               <p class="mt-2 text-sm text-gray-700">{highlight.description}</p>
               <div class="mt-3 flex items-center gap-4 text-xs text-gray-600">
+                <div class="flex items-center gap-2">
+                  <Avatar 
+                    user={{
+                      name: highlight.user_name,
+                      address: highlight.user_address,
+                      profile_image_url: highlight.user_profile_image_url
+                    }}
+                    size="xs"
+                    clickable={true}
+                  />
+                  <button 
+                    class="text-primary-600 hover:text-primary-700 font-medium"
+                    onclick={() => push(`/participant/${highlight.user_address}`)}
+                  >
+                    {highlight.user_name || `${highlight.user_address.slice(0, 6)}...${highlight.user_address.slice(-4)}`}
+                  </button>
+                </div>
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
                   {highlight.contribution_type_name || 'Contribution'}
                 </span>

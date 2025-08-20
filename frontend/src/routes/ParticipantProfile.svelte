@@ -9,6 +9,7 @@
   import { usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
+  import Avatar from '../components/Avatar.svelte';
   
   // Import route params from svelte-spa-router
   import { params } from 'svelte-spa-router';
@@ -277,19 +278,7 @@
           />
         {:else}
           <!-- Default banner with solid color -->
-          <div class="w-full h-full {solidColor} relative">
-            {#if isInTransition}
-              <!-- Static stripes for waitlist/welcome users only -->
-              <div class="absolute inset-0" style="
-                background-image: repeating-linear-gradient(
-                  45deg,
-                  transparent 0,
-                  transparent 20px,
-                  rgba(255,255,255,0.3) 20px,
-                  rgba(255,255,255,0.3) 40px
-                );
-              "></div>
-            {/if}
+          <div class="w-full h-full {solidColor}">
           </div>
         {/if}
       </div>
@@ -298,52 +287,76 @@
       <div class="relative px-4 sm:px-6 pb-6">
         <!-- Avatar -->
         <div class="-mt-12 sm:-mt-16 mb-4">
-          <div class="inline-block">
-            {#if participant.profile_image_url}
-              <img 
-                src={participant.profile_image_url} 
-                alt={participant.name || 'Profile'} 
-                class="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white shadow-lg object-cover"
-              />
-            {:else}
-              <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white shadow-lg {avatarColor} flex items-center justify-center relative overflow-hidden">
-                {#if participant.name}
-                  <span class="text-3xl sm:text-4xl font-bold text-white relative z-10">
-                    {participant.name.charAt(0).toUpperCase()}
-                  </span>
-                {:else if participant.address}
-                  <div class="relative">
-                    <div class="absolute inset-0 flex items-center justify-center">
-                      <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/20"></div>
-                    </div>
-                    <div class="absolute inset-0 flex items-center justify-center">
-                      <div class="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-white/20"></div>
-                    </div>
-                    <svg class="w-12 h-12 sm:w-16 sm:h-16 text-white relative z-10" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-                    </svg>
-                  </div>
-                {:else}
-                  <svg class="w-12 h-12 sm:w-16 sm:h-16 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-                  </svg>
-                {/if}
-              </div>
-            {/if}
-          </div>
+          <Avatar 
+            user={participant}
+            size="3xl"
+            showBorder={true}
+            className=""
+          />
         </div>
         
         <!-- Name and Actions Row -->
         <div class="sm:flex sm:items-start sm:justify-between">
           <div class="mb-4 sm:mb-0">
-            <h1 class="text-2xl font-bold text-gray-900">
-              {participant.name || (isValidatorOnly ? 'Validator' : 'Participant')}
-            </h1>
+            <!-- Name with badges inline -->
+            <div class="flex items-center flex-wrap gap-2">
+              <h1 class="text-2xl font-bold text-gray-900">
+                {participant.name || (isValidatorOnly ? 'Validator' : 'Participant')}
+              </h1>
+              
+              <!-- Badges next to name -->
+              {#if participant.steward || participant.validator || participant.builder || participant.has_validator_waitlist || participant.has_builder_welcome}
+                {#if participant.steward}
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    Steward
+                  </span>
+                {/if}
+                {#if participant.validator}
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-800">
+                    Validator
+                  </span>
+                {:else if participant.has_validator_waitlist}
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200">
+                    Validator Waitlist
+                  </span>
+                {/if}
+                {#if participant.builder}
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                    Builder
+                  </span>
+                {:else if participant.has_builder_welcome}
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
+                    Builder Welcome
+                  </span>
+                {/if}
+              {/if}
+            </div>
+            
             {#if participant.address}
-              <p class="text-sm text-gray-500 font-mono mt-1">
-                {participant.address.slice(0, 6)}...{participant.address.slice(-4)}
-              </p>
+              <!-- Address with copy button -->
+              <div class="flex items-center gap-2 mt-2">
+                <code class="text-sm text-gray-600 font-mono">
+                  {participant.address.substring(0, 6)}...{participant.address.substring(participant.address.length - 4)}
+                </code>
+                <button
+                  onclick={() => {
+                    navigator.clipboard.writeText(participant.address);
+                    // Show brief feedback
+                    const btn = event.currentTarget;
+                    const originalTitle = btn.title;
+                    btn.title = 'Copied!';
+                    setTimeout(() => btn.title = originalTitle, 2000);
+                  }}
+                  title="Copy address"
+                  class="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100 transition-colors"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                  </svg>
+                </button>
+              </div>
             {/if}
+            
             {#if isValidatorOnly || participant.visible === false}
               <p class="mt-2 text-sm text-gray-500">
                 {#if isValidatorOnly}
@@ -464,6 +477,54 @@
       </div>
     </div>
     
+    <!-- Balance and Joined Cards -->
+    {#if !isValidatorOnly && (participant.created_at || balance !== null)}
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <!-- Balance Card -->
+        {#if balance !== null || loadingBalance}
+          <div class="bg-white shadow rounded-lg p-4">
+            <div class="flex items-center">
+              <div class="flex-shrink-0 p-3 rounded-lg mr-4 bg-green-50 text-green-500">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <p class="text-sm text-gray-500">Balance</p>
+                <p class="text-xl font-bold text-gray-900">
+                  {#if loadingBalance}
+                    Loading...
+                  {:else if balance}
+                    {balance.formatted} ETH
+                  {:else}
+                    0 ETH
+                  {/if}
+                </p>
+              </div>
+            </div>
+          </div>
+        {/if}
+        
+        <!-- Joined Date Card -->
+        {#if participant.created_at}
+          <div class="bg-white shadow rounded-lg p-4">
+            <div class="flex items-center">
+              <div class="flex-shrink-0 p-3 rounded-lg mr-4 bg-blue-50 text-blue-500">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <p class="text-sm text-gray-500">Joined</p>
+                <p class="text-xl font-bold text-gray-900">
+                  {new Date(participant.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/if}
     
     <!-- Welcome Section for Users Without Roles (Only show on own profile) -->
     {#if !hasAnyRole && !isValidatorOnly && isOwnProfile}
