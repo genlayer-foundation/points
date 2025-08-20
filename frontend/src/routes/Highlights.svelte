@@ -66,12 +66,6 @@
         Exceptional contributions from our community members
       </p>
     </div>
-    <button
-      onclick={() => push('/')}
-      class="text-sm text-primary-600 hover:text-primary-700 font-medium"
-    >
-      ← Back to Dashboard
-    </button>
   </div>
   
   <!-- Filter by Type -->
