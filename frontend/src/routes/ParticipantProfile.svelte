@@ -54,6 +54,40 @@
     'gray'
   );
   
+  // Get role-based color theme for defaults
+  let roleColorTheme = $derived(
+    participant?.steward ? 'green' :
+    participant?.validator ? 'sky' :
+    participant?.builder ? 'orange' :
+    participant?.has_validator_waitlist ? 'sky-waitlist' :
+    participant?.has_builder_welcome ? 'orange-welcome' :
+    'purple'
+  );
+  
+  // Check if user is in transition (waitlist/welcome)
+  let isInTransition = $derived(
+    roleColorTheme === 'sky-waitlist' || roleColorTheme === 'orange-welcome'
+  );
+  
+  // Get solid colors based on role
+  let solidColor = $derived(
+    roleColorTheme === 'green' ? 'bg-green-500' :
+    roleColorTheme === 'sky' ? 'bg-sky-500' :
+    roleColorTheme === 'orange' ? 'bg-orange-500' :
+    roleColorTheme === 'sky-waitlist' ? 'bg-sky-400' :
+    roleColorTheme === 'orange-welcome' ? 'bg-orange-400' :
+    'bg-purple-500'
+  );
+  
+  let avatarColor = $derived(
+    roleColorTheme === 'green' ? 'bg-green-500' :
+    roleColorTheme === 'sky' ? 'bg-sky-500' :
+    roleColorTheme === 'orange' ? 'bg-orange-500' :
+    roleColorTheme === 'sky-waitlist' ? 'bg-sky-400' :
+    roleColorTheme === 'orange-welcome' ? 'bg-orange-400' :
+    'bg-purple-500'
+  );
+  
   // Check if user has any role cards to display
   let hasAnyRole = $derived(
     participant && (
@@ -242,16 +276,20 @@
             class="w-full h-full object-cover"
           />
         {:else}
-          <!-- Stylish default banner with geometric pattern -->
-          <div class="w-full h-full bg-gradient-to-br from-primary-500 via-primary-600 to-purple-600 relative">
-            <!-- Geometric pattern overlay -->
-            <div class="absolute inset-0 opacity-20">
-              <div class="absolute inset-0" style="background-image: repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255,255,255,.1) 35px, rgba(255,255,255,.1) 70px);"></div>
-            </div>
-            <!-- Floating shapes -->
-            <div class="absolute top-4 left-8 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
-            <div class="absolute bottom-4 right-12 w-32 h-32 bg-purple-400/20 rounded-full blur-3xl"></div>
-            <div class="absolute top-12 right-20 w-20 h-20 bg-white/10 rounded-full blur-xl"></div>
+          <!-- Default banner with solid color -->
+          <div class="w-full h-full {solidColor} relative">
+            {#if isInTransition}
+              <!-- Static stripes for waitlist/welcome users only -->
+              <div class="absolute inset-0" style="
+                background-image: repeating-linear-gradient(
+                  45deg,
+                  transparent 0,
+                  transparent 20px,
+                  rgba(255,255,255,0.3) 20px,
+                  rgba(255,255,255,0.3) 40px
+                );
+              "></div>
+            {/if}
           </div>
         {/if}
       </div>
@@ -268,9 +306,9 @@
                 class="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white shadow-lg object-cover"
               />
             {:else}
-              <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white shadow-lg bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
+              <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white shadow-lg {avatarColor} flex items-center justify-center relative overflow-hidden">
                 {#if participant.name}
-                  <span class="text-3xl sm:text-4xl font-bold text-white">
+                  <span class="text-3xl sm:text-4xl font-bold text-white relative z-10">
                     {participant.name.charAt(0).toUpperCase()}
                   </span>
                 {:else if participant.address}
@@ -347,7 +385,14 @@
         <!-- Description -->
         {#if participant.description}
           <div class="mt-4">
-            <p class="text-gray-700">{participant.description}</p>
+            <p class="text-gray-700 whitespace-pre-wrap">
+              {participant.description
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line !== '')
+                .slice(0, 3)
+                .join('\n')}
+            </p>
           </div>
         {/if}
         
