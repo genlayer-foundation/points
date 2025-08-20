@@ -947,16 +947,18 @@
           </div>
           
           <!-- Call to Action -->
-          <div class="bg-sky-50 border-l-4 border-sky-400 px-4 py-3 mb-6">
-            <div class="flex items-center">
-              <svg class="h-5 w-5 text-sky-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-              </svg>
-              <p class="text-sm font-medium text-sky-800">
-                Climb the ranks and get invited to validate on Testnet Asimov
-              </p>
+          {#if isOwnProfile}
+            <div class="bg-sky-50 border-l-4 border-sky-400 px-4 py-3 mb-6">
+              <div class="flex items-center">
+                <svg class="h-5 w-5 text-sky-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                </svg>
+                <p class="text-sm font-medium text-sky-800">
+                  Climb the ranks and get invited to validate on Testnet Asimov
+                </p>
+              </div>
             </div>
-          </div>
+          {/if}
           
           <!-- Featured Section -->
           <FeaturedContributions
