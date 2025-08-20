@@ -210,6 +210,12 @@ else:
     CORS_ALLOWED_ORIGINS = get_required_env('CORS_ALLOWED_ORIGINS').split(',')
 CORS_ALLOW_CREDENTIALS = True
 
+# Cloudinary settings
+CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', '')
+CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY', '')
+CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '')
+CLOUDINARY_UPLOAD_PRESET = os.environ.get('CLOUDINARY_UPLOAD_PRESET', 'tally_unsigned')  # For browser uploads
+
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = get_required_env('CSRF_TRUSTED_ORIGINS').split(',')
 

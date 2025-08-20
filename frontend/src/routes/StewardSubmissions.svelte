@@ -191,12 +191,6 @@
       <h1 class="text-2xl font-bold">Review Submissions</h1>
       <p class="text-sm text-gray-600 mt-1">Review and manage user contribution submissions</p>
     </div>
-    <button
-      onclick={() => push('/stewards')}
-      class="px-4 py-2 text-gray-700 hover:text-gray-900"
-    >
-      ← Back to Dashboard
-    </button>
   </div>
   
   <!-- Filters -->

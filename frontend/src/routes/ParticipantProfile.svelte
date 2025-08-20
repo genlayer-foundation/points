@@ -186,12 +186,6 @@
 </script>
 
 <div>
-  <div class="mb-5">
-    <a href="/" onclick={(e) => { e.preventDefault(); push('/'); }} class="text-primary-600 hover:text-primary-700">
-      ← Back to Dashboard
-    </a>
-  </div>
-  
   <!-- Success message -->
   {#if successMessage}
     <div class="bg-green-50 border-l-4 border-green-400 p-4 mb-6">
@@ -237,72 +231,194 @@
       {error}
     </div>
   {:else if participant}
-    <div class="mb-6">
-      <div class="flex justify-between items-start">
-        <div>
-          <h1 class="text-2xl font-bold text-gray-900">
-            {participant.name || (isValidatorOnly ? 'Validator' : 'Participant')}
-          </h1>
-          {#if isValidatorOnly || participant.visible === false}
-            <p class="mt-1 text-sm text-gray-500">
-              {#if isValidatorOnly}
-                This validator has not created an account yet
-              {:else if participant.visible === false}
-                This participant is not currently listed on the leaderboard
-              {/if}
-            </p>
-          {/if}
+    <!-- Profile Header with Banner and Avatar -->
+    <div class="bg-white shadow rounded-lg overflow-hidden mb-6">
+      <!-- Banner Image -->
+      <div class="h-32 md:h-48 relative overflow-hidden">
+        {#if participant.banner_image_url}
+          <img 
+            src={participant.banner_image_url} 
+            alt="Profile banner" 
+            class="w-full h-full object-cover"
+          />
+        {:else}
+          <!-- Stylish default banner with geometric pattern -->
+          <div class="w-full h-full bg-gradient-to-br from-primary-500 via-primary-600 to-purple-600 relative">
+            <!-- Geometric pattern overlay -->
+            <div class="absolute inset-0 opacity-20">
+              <div class="absolute inset-0" style="background-image: repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255,255,255,.1) 35px, rgba(255,255,255,.1) 70px);"></div>
+            </div>
+            <!-- Floating shapes -->
+            <div class="absolute top-4 left-8 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
+            <div class="absolute bottom-4 right-12 w-32 h-32 bg-purple-400/20 rounded-full blur-3xl"></div>
+            <div class="absolute top-12 right-20 w-20 h-20 bg-white/10 rounded-full blur-xl"></div>
+          </div>
+        {/if}
+      </div>
+      
+      <!-- Profile Info Section -->
+      <div class="relative px-4 sm:px-6 pb-6">
+        <!-- Avatar -->
+        <div class="-mt-12 sm:-mt-16 mb-4">
+          <div class="inline-block">
+            {#if participant.profile_image_url}
+              <img 
+                src={participant.profile_image_url} 
+                alt={participant.name || 'Profile'} 
+                class="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white shadow-lg object-cover"
+              />
+            {:else}
+              <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white shadow-lg bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
+                {#if participant.name}
+                  <span class="text-3xl sm:text-4xl font-bold text-white">
+                    {participant.name.charAt(0).toUpperCase()}
+                  </span>
+                {:else if participant.address}
+                  <div class="relative">
+                    <div class="absolute inset-0 flex items-center justify-center">
+                      <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/20"></div>
+                    </div>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                      <div class="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-white/20"></div>
+                    </div>
+                    <svg class="w-12 h-12 sm:w-16 sm:h-16 text-white relative z-10" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+                    </svg>
+                  </div>
+                {:else}
+                  <svg class="w-12 h-12 sm:w-16 sm:h-16 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+                  </svg>
+                {/if}
+              </div>
+            {/if}
+          </div>
         </div>
-        <div class="flex gap-3">
-          {#if isOwnProfile}
-            <button
-              onclick={() => push('/profile')}
-              class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 flex items-center"
+        
+        <!-- Name and Actions Row -->
+        <div class="sm:flex sm:items-start sm:justify-between">
+          <div class="mb-4 sm:mb-0">
+            <h1 class="text-2xl font-bold text-gray-900">
+              {participant.name || (isValidatorOnly ? 'Validator' : 'Participant')}
+            </h1>
+            {#if participant.address}
+              <p class="text-sm text-gray-500 font-mono mt-1">
+                {participant.address.slice(0, 6)}...{participant.address.slice(-4)}
+              </p>
+            {/if}
+            {#if isValidatorOnly || participant.visible === false}
+              <p class="mt-2 text-sm text-gray-500">
+                {#if isValidatorOnly}
+                  This validator has not created an account yet
+                {:else if participant.visible === false}
+                  This participant is not currently listed on the leaderboard
+                {/if}
+              </p>
+            {/if}
+          </div>
+          
+          <!-- Action Buttons -->
+          <div class="flex gap-3">
+            {#if isOwnProfile}
+              <button
+                onclick={() => push('/profile')}
+                class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 flex items-center"
+              >
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                </svg>
+                Edit Profile
+              </button>
+            {/if}
+            <a 
+              href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${participant.address}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center"
             >
               <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
               </svg>
-              Edit Profile
-            </button>
-          {/if}
-          <a 
-            href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${participant.address}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center"
-          >
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-            </svg>
-            View in Explorer
-          </a>
+              View in Explorer
+            </a>
+          </div>
         </div>
+        
+        <!-- Description -->
+        {#if participant.description}
+          <div class="mt-4">
+            <p class="text-gray-700">{participant.description}</p>
+          </div>
+        {/if}
+        
+        <!-- Contact Links -->
+        {#if participant.website || participant.twitter_handle || participant.discord_handle || participant.telegram_handle || participant.linkedin_handle}
+          <div class="mt-4 flex flex-wrap gap-3">
+            {#if participant.website}
+              <a 
+                href={participant.website} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                class="inline-flex items-center text-sm text-gray-600 hover:text-primary-600"
+              >
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
+                </svg>
+                Website
+              </a>
+            {/if}
+            {#if participant.twitter_handle}
+              <a 
+                href={`https://x.com/${participant.twitter_handle}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                class="inline-flex items-center text-sm text-gray-600 hover:text-primary-600"
+              >
+                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+                @{participant.twitter_handle}
+              </a>
+            {/if}
+            {#if participant.discord_handle}
+              <span class="inline-flex items-center text-sm text-gray-600">
+                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
+                </svg>
+                {participant.discord_handle}
+              </span>
+            {/if}
+            {#if participant.telegram_handle}
+              <a 
+                href={`https://t.me/${participant.telegram_handle}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                class="inline-flex items-center text-sm text-gray-600 hover:text-primary-600"
+              >
+                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M11.944 0A12 12 0 1 0 24 12a12 12 0 0 0-12.056-12zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                </svg>
+                @{participant.telegram_handle}
+              </a>
+            {/if}
+            {#if participant.linkedin_handle}
+              <a 
+                href={`https://linkedin.com/in/${participant.linkedin_handle}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                class="inline-flex items-center text-sm text-gray-600 hover:text-primary-600"
+              >
+                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                </svg>
+                {participant.linkedin_handle}
+              </a>
+            {/if}
+          </div>
+        {/if}
       </div>
     </div>
     
-    <!-- Basic User Information -->
-    <div class="bg-white shadow rounded-lg p-4 mb-6">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <p class="text-sm text-gray-500 mb-1">Wallet</p>
-          <p class="text-sm font-mono text-gray-900 break-all">{participant.address || 'Not connected'}</p>
-        </div>
-        <div>
-          <p class="text-sm text-gray-500 mb-1">Balance</p>
-          {#if loadingBalance}
-            <p class="text-sm text-gray-500">Loading...</p>
-          {:else if balance}
-            <p class="text-sm font-mono text-gray-900">{balance.formatted} GEN</p>
-          {:else}
-            <p class="text-sm text-gray-500">-</p>
-          {/if}
-        </div>
-        <div>
-          <p class="text-sm text-gray-500 mb-1">Joined</p>
-          <p class="text-sm text-gray-900">{participant.created_at ? formatDate(participant.created_at) : '-'}</p>
-        </div>
-      </div>
-    </div>
     
     <!-- Welcome Section for Users Without Roles (Only show on own profile) -->
     {#if !hasAnyRole && !isValidatorOnly && isOwnProfile}
@@ -765,22 +881,6 @@
         
         <!-- Content -->
         <div class="p-6">
-          <!-- Stats Row -->
-          <div class="grid grid-cols-3 gap-4 mb-6">
-            <div>
-              <p class="text-xs text-gray-500">Total Contributions</p>
-              <p class="text-2xl font-bold text-gray-900">{contributionStats.totalContributions || 0}</p>
-            </div>
-            <div>
-              <p class="text-xs text-gray-500">Total Points</p>
-              <p class="text-2xl font-bold text-gray-900">{participant.leaderboard_entry?.total_points || 0}</p>
-            </div>
-            <div>
-              <p class="text-xs text-gray-500">Waitlist Rank</p>
-              <p class="text-2xl font-bold text-gray-900">#{participant.leaderboard_entry?.rank || 'N/A'}</p>
-            </div>
-          </div>
-          
           <!-- Featured Section -->
           <FeaturedContributions
             userId={participant.address}

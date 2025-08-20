@@ -94,12 +94,6 @@
 </script>
 
 <div>
-  <div class="mb-5">
-    <a href="/" onclick={(e) => { e.preventDefault(); push('/'); }} class="text-primary-600 hover:text-primary-700">
-      ← Back to Dashboard
-    </a>
-  </div>
-  
   {#if loading}
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>

@@ -133,16 +133,35 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     """
     node_version = serializers.CharField(required=False, allow_blank=True, allow_null=True, source='validator.node_version')
     email = serializers.EmailField(required=False, allow_blank=True)
+    website = serializers.CharField(required=False, allow_blank=True, max_length=200)
     
     class Meta:
         model = User
         fields = ['name', 'node_version', 'email', 'description', 'website',
-                  'twitter_handle', 'discord_handle', 'telegram_handle']
+                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle']
     
     def validate_description(self, value):
         """Validate description length"""
         if value and len(value) > 500:
             raise serializers.ValidationError("Description must be 500 characters or less.")
+        return value
+    
+    def validate_website(self, value):
+        """Validate and format website URL"""
+        if value:
+            # If no protocol is specified, add https://
+            if not value.startswith(('http://', 'https://')):
+                value = 'https://' + value
+            
+            # Now validate it's a proper URL
+            from django.core.validators import URLValidator
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            
+            validator = URLValidator()
+            try:
+                validator(value)
+            except DjangoValidationError:
+                raise serializers.ValidationError("Enter a valid URL.")
         return value
     
     def validate_twitter_handle(self, value):
@@ -159,6 +178,18 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
         if value:
             # Remove @ if provided
             value = value.lstrip('@')
+        return value
+    
+    def validate_linkedin_handle(self, value):
+        """Validate LinkedIn handle format"""
+        if value:
+            # Remove linkedin.com/in/ if provided as full URL
+            if 'linkedin.com/in/' in value:
+                value = value.split('linkedin.com/in/')[-1]
+            # Remove trailing slashes
+            value = value.rstrip('/')
+            # Remove any remaining URL parts
+            value = value.split('?')[0]
         return value
     
     def update(self, instance, validated_data):
@@ -267,7 +298,7 @@ class UserSerializer(serializers.ModelSerializer):
                   'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at',
                   # Profile fields
                   'description', 'banner_image_url', 'profile_image_url', 'website',
-                  'twitter_handle', 'discord_handle', 'telegram_handle',
+                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
                   'email', 'is_email_verified']
         read_only_fields = ['id', 'created_at', 'updated_at']
     

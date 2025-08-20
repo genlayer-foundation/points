@@ -200,7 +200,10 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "SIWE_DOMAIN": "$SSM_PREFIX/prod/siwe_domain",
           "VALIDATOR_CONTRACT_ADDRESS": "$SSM_PREFIX/prod/validator_contract_address",
           "VALIDATOR_RPC_URL": "$SSM_PREFIX/prod/validator_rpc_url",
-          "ALLOWED_CIDR_NETS": "$SSM_PREFIX/prod/allowed_cidr_nets"
+          "ALLOWED_CIDR_NETS": "$SSM_PREFIX/prod/allowed_cidr_nets",
+          "CLOUDINARY_CLOUD_NAME": "$SSM_PREFIX/prod/cloudinary_cloud_name",
+          "CLOUDINARY_API_KEY": "$SSM_PREFIX/prod/cloudinary_api_key",
+          "CLOUDINARY_API_SECRET": "$SSM_PREFIX/prod/cloudinary_api_secret"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
@@ -271,7 +274,10 @@ else
           "SIWE_DOMAIN": "$SSM_PREFIX/prod/siwe_domain",
           "VALIDATOR_CONTRACT_ADDRESS": "$SSM_PREFIX/prod/validator_contract_address",
           "VALIDATOR_RPC_URL": "$SSM_PREFIX/prod/validator_rpc_url",
-          "ALLOWED_CIDR_NETS": "$SSM_PREFIX/prod/allowed_cidr_nets"
+          "ALLOWED_CIDR_NETS": "$SSM_PREFIX/prod/allowed_cidr_nets",
+          "CLOUDINARY_CLOUD_NAME": "$SSM_PREFIX/prod/cloudinary_cloud_name",
+          "CLOUDINARY_API_KEY": "$SSM_PREFIX/prod/cloudinary_api_key",
+          "CLOUDINARY_API_SECRET": "$SSM_PREFIX/prod/cloudinary_api_secret"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },

@@ -2,11 +2,16 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from .models import User
 from .serializers import UserSerializer, UserCreateSerializer, UserProfileUpdateSerializer
+from .cloudinary_service import CloudinaryService
 from web3 import Web3
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
@@ -84,6 +89,142 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
                 full_serializer = self.get_serializer(request.user)
                 return Response(full_serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated],
+            parser_classes=[MultiPartParser, FormParser])
+    def upload_profile_image(self, request):
+        """
+        Upload and update user's profile image.
+        Expects a multipart form with 'image' field.
+        """
+        if 'image' not in request.FILES:
+            return Response(
+                {'error': 'No image file provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        image = request.FILES['image']
+        
+        # Validate file size (10MB max)
+        if image.size > 10 * 1024 * 1024:
+            return Response(
+                {'error': 'File size must be less than 10MB'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate file type
+        allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+        if image.content_type not in allowed_types:
+            return Response(
+                {'error': 'Invalid file type. Allowed: JPEG, PNG, WebP'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Delete old image if exists
+            if request.user.profile_image_public_id:
+                CloudinaryService.delete_image(request.user.profile_image_public_id)
+            
+            # Upload new image
+            result = CloudinaryService.upload_profile_image(image, request.user.id)
+            
+            # Update user model
+            request.user.profile_image_url = result['url']
+            request.user.profile_image_public_id = result['public_id']
+            request.user.save()
+            
+            serializer = self.get_serializer(request.user)
+            return Response({
+                'message': 'Profile image uploaded successfully',
+                'profile_image_url': result['url'],
+                'user': serializer.data
+            })
+            
+        except Exception as e:
+            logger.error(f"Profile image upload failed for user {request.user.id}: {str(e)}")
+            return Response(
+                {'error': 'Failed to upload image'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated],
+            parser_classes=[MultiPartParser, FormParser])
+    def upload_banner_image(self, request):
+        """
+        Upload and update user's banner image.
+        Expects a multipart form with 'image' field.
+        """
+        if 'image' not in request.FILES:
+            return Response(
+                {'error': 'No image file provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        image = request.FILES['image']
+        
+        # Validate file size (10MB max)
+        if image.size > 10 * 1024 * 1024:
+            return Response(
+                {'error': 'File size must be less than 10MB'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate file type
+        allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+        if image.content_type not in allowed_types:
+            return Response(
+                {'error': 'Invalid file type. Allowed: JPEG, PNG, WebP'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Delete old image if exists
+            if request.user.banner_image_public_id:
+                CloudinaryService.delete_image(request.user.banner_image_public_id)
+            
+            # Upload new image
+            result = CloudinaryService.upload_banner_image(image, request.user.id)
+            
+            # Update user model
+            request.user.banner_image_url = result['url']
+            request.user.banner_image_public_id = result['public_id']
+            request.user.save()
+            
+            serializer = self.get_serializer(request.user)
+            return Response({
+                'message': 'Banner image uploaded successfully',
+                'banner_image_url': result['url'],
+                'user': serializer.data
+            })
+            
+        except Exception as e:
+            logger.error(f"Banner image upload failed for user {request.user.id}: {str(e)}")
+            return Response(
+                {'error': 'Failed to upload image'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def cloudinary_config(self, request):
+        """
+        Get Cloudinary configuration for direct browser uploads.
+        """
+        image_type = request.query_params.get('type', 'profile')
+        
+        if image_type not in ['profile', 'banner']:
+            return Response(
+                {'error': 'Invalid image type. Must be "profile" or "banner"'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            config = CloudinaryService.get_upload_preset(image_type)
+            return Response(config)
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     # Registration will be handled by MetaMask authentication
     

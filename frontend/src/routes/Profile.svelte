@@ -1,12 +1,13 @@
 <script>
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
-  import { getCurrentUser, updateUserProfile } from '../lib/api';
+  import { getCurrentUser, updateUserProfile, imageAPI } from '../lib/api';
   import { authState } from '../lib/auth';
   import { userStore } from '../lib/userStore';
   import { getValidatorBalance } from '../lib/blockchain';
   import { journeyAPI } from '../lib/api';
   import Icon from '../components/Icons.svelte';
+  import ImageCropper from '../components/ImageCropper.svelte';
   
   let user = $state(null);
   let name = $state('');
@@ -22,10 +23,36 @@
   let journeySuccessMessage = $state('');
   let authChecked = $state(false);
   
+  // New profile fields
+  let email = $state('');
+  let description = $state('');
+  let website = $state('');
+  let twitterHandle = $state('');
+  let discordHandle = $state('');
+  let telegramHandle = $state('');
+  let linkedinHandle = $state('');
+  let profileImageUrl = $state('');
+  let bannerImageUrl = $state('');
+  
+  // Image upload states
+  let showImageCropper = $state(false);
+  let cropperImage = $state(null);
+  let cropperAspectRatio = $state(1);
+  let cropperTitle = $state('');
+  let cropperCallback = $state(null);
+  let uploadingImage = $state(false);
+  
   // Track if any field has changed
   let hasChanges = $derived(user && (
     name !== (user.name || '') || 
-    (user.validator && nodeVersion !== (user.validator?.node_version || ''))
+    (user.validator && nodeVersion !== (user.validator?.node_version || '')) ||
+    email !== (user.email || '') ||
+    description !== (user.description || '') ||
+    website !== (user.website || '') ||
+    twitterHandle !== (user.twitter_handle || '') ||
+    discordHandle !== (user.discord_handle || '') ||
+    telegramHandle !== (user.telegram_handle || '') ||
+    linkedinHandle !== (user.linkedin_handle || '')
   ));
   
   // Format date helper
@@ -52,6 +79,18 @@
       user = userData;
       name = userData.name || '';
       nodeVersion = userData.validator?.node_version || '';
+      
+      // Load profile fields
+      // Always show the email if it exists, regardless of verification status
+      email = userData.email || '';
+      description = userData.description || '';
+      website = userData.website || '';
+      twitterHandle = userData.twitter_handle || '';
+      discordHandle = userData.discord_handle || '';
+      telegramHandle = userData.telegram_handle || '';
+      linkedinHandle = userData.linkedin_handle || '';
+      profileImageUrl = userData.profile_image_url || '';
+      bannerImageUrl = userData.banner_image_url || '';
       
       // Check for journey success message
       const journeySuccess = sessionStorage.getItem('journeySuccess');
@@ -101,7 +140,21 @@
     isSaving = true;
     
     try {
-      const updateData = { name };
+      const updateData = { 
+        name,
+        description,
+        website,
+        twitter_handle: twitterHandle,
+        discord_handle: discordHandle,
+        telegram_handle: telegramHandle,
+        linkedin_handle: linkedinHandle
+      };
+      
+      // Only include email if it has changed
+      if (email && email !== user.email) {
+        updateData.email = email;
+      }
+      
       // Only include node_version if it has changed
       if (nodeVersion !== (user.validator?.node_version || '')) {
         updateData.node_version = nodeVersion;
@@ -109,19 +162,13 @@
       
       const updatedUser = await updateUserProfile(updateData);
       // Update the user store with new data
-      userStore.updateUser({ 
-        name,
-        validator: { 
-          ...user.validator,
-          node_version: nodeVersion 
-        }
-      });
+      userStore.updateUser(updatedUser);
       // Store success message in sessionStorage to show on profile page
       sessionStorage.setItem('profileUpdateSuccess', 'Profile updated successfully!');
       // Redirect to public profile
       push(`/participant/${$authState.address}`);
     } catch (err) {
-      error = err.message || 'Failed to update profile';
+      error = err.response?.data?.error || err.message || 'Failed to update profile';
       isSaving = false;
     }
   }
@@ -193,6 +240,85 @@
       isCompletingJourney = false;
     }
   }
+  
+  function handleProfileImageSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      cropperImage = e.target.result;
+      cropperAspectRatio = 1; // 1:1 for profile image
+      cropperTitle = 'Crop Profile Image';
+      cropperCallback = uploadProfileImage;
+      showImageCropper = true;
+    };
+    reader.readAsDataURL(file);
+  }
+  
+  function handleBannerImageSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      cropperImage = e.target.result;
+      cropperAspectRatio = 3; // 3:1 for banner (1500x500)
+      cropperTitle = 'Crop Banner Image';
+      cropperCallback = uploadBannerImage;
+      showImageCropper = true;
+    };
+    reader.readAsDataURL(file);
+  }
+  
+  async function uploadProfileImage(blob) {
+    showImageCropper = false;
+    uploadingImage = true;
+    error = '';
+    
+    try {
+      const formData = new FormData();
+      formData.append('image', blob, 'profile.jpg');
+      
+      const response = await imageAPI.uploadProfileImage(formData);
+      profileImageUrl = response.data.profile_image_url;
+      user.profile_image_url = response.data.profile_image_url;
+      
+      // Update user store
+      userStore.updateUser({ profile_image_url: response.data.profile_image_url });
+    } catch (err) {
+      error = err.response?.data?.error || 'Failed to upload profile image';
+    } finally {
+      uploadingImage = false;
+    }
+  }
+  
+  async function uploadBannerImage(blob) {
+    showImageCropper = false;
+    uploadingImage = true;
+    error = '';
+    
+    try {
+      const formData = new FormData();
+      formData.append('image', blob, 'banner.jpg');
+      
+      const response = await imageAPI.uploadBannerImage(formData);
+      bannerImageUrl = response.data.banner_image_url;
+      user.banner_image_url = response.data.banner_image_url;
+      
+      // Update user store
+      userStore.updateUser({ banner_image_url: response.data.banner_image_url });
+    } catch (err) {
+      error = err.response?.data?.error || 'Failed to upload banner image';
+    } finally {
+      uploadingImage = false;
+    }
+  }
+  
+  function handleCropCancel() {
+    showImageCropper = false;
+    cropperImage = null;
+  }
 </script>
 
 <div class="space-y-6">
@@ -241,57 +367,222 @@
   {/if}
 
   {#if user}
-    <!-- Basic Information -->
+    <!-- Profile Information -->
     <div class="bg-white shadow rounded-lg p-6">
-      <h2 class="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
+      <h2 class="text-lg font-semibold text-gray-900 mb-6">Profile Information</h2>
       
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Wallet Address</label>
-          <p class="text-gray-900 font-mono text-sm break-all bg-gray-50 px-3 py-2 rounded">{user.address || 'Not connected'}</p>
-        </div>
-        
-        {#if user.address}
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Balance</label>
-            {#if loadingBalance}
-              <p class="text-gray-500 bg-gray-50 px-3 py-2 rounded">Loading...</p>
-            {:else if balance}
-              <p class="text-gray-900 font-mono text-sm bg-gray-50 px-3 py-2 rounded">{balance.formatted} GEN</p>
-            {:else}
-              <p class="text-gray-500 bg-gray-50 px-3 py-2 rounded">Unable to fetch</p>
-            {/if}
-          </div>
-        {/if}
+      <!-- Wallet Address -->
+      <div class="mb-6">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Wallet Address</label>
+        <p class="text-gray-900 font-mono text-sm break-all bg-gray-50 px-3 py-2 rounded">{user.address || 'Not connected'}</p>
       </div>
       
-      <div class="mt-4">
-        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
+      <!-- Display Name -->
+      <div class="mb-6">
+        <label for="name" class="block text-sm font-medium text-gray-700 mb-2">Display Name</label>
         <input
           id="name"
           type="text"
           bind:value={name}
-          class="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Enter your display name"
           disabled={isSaving}
         />
-        <p class="mt-1 text-xs text-gray-500">This name will be displayed on leaderboards and profiles</p>
       </div>
       
-      {#if user.validator && !showValidatorJourney && !showBuilderJourney}
-        <div class="mt-6 pt-6 border-t border-gray-200">
+      <!-- Bio -->
+      <div class="mb-6">
+        <label for="description" class="block text-sm font-medium text-gray-700 mb-2">
+          Bio <span class="text-gray-500 text-xs">({description.length}/500)</span>
+        </label>
+        <textarea
+          id="description"
+          bind:value={description}
+          maxlength="500"
+          rows="4"
+          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Tell us about yourself"
+          disabled={isSaving}
+        />
+      </div>
+      
+      <!-- Images Section -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <!-- Profile Image -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Profile Image</label>
+          <div class="flex items-center gap-3">
+            <div class="w-20 h-20 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+              {#if profileImageUrl}
+                <img src={profileImageUrl} alt="Profile" class="w-full h-full object-cover" />
+              {:else}
+                <div class="w-full h-full flex items-center justify-center text-gray-400">
+                  <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+              {/if}
+            </div>
+            <div>
+              <label>
+                <input type="file" accept="image/*" class="hidden" onchange={handleProfileImageSelect} disabled={uploadingImage} />
+                <span class="inline-block px-4 py-2 bg-blue-600 text-white rounded-md cursor-pointer hover:bg-blue-700 transition-colors text-sm">
+                  {uploadingImage ? 'Uploading...' : 'Choose Image'}
+                </span>
+              </label>
+              <p class="mt-1 text-xs text-gray-500">400x400px recommended</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Banner Image -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Banner Image</label>
+          <div class="flex items-center gap-3">
+            <div class="w-20 h-20 bg-gray-200 rounded overflow-hidden flex-shrink-0">
+              {#if bannerImageUrl}
+                <img src={bannerImageUrl} alt="Banner" class="w-full h-full object-cover" />
+              {:else}
+                <div class="w-full h-full flex items-center justify-center text-gray-400">
+                  <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+              {/if}
+            </div>
+            <div>
+              <label>
+                <input type="file" accept="image/*" class="hidden" onchange={handleBannerImageSelect} disabled={uploadingImage} />
+                <span class="inline-block px-4 py-2 bg-blue-600 text-white rounded-md cursor-pointer hover:bg-blue-700 transition-colors text-sm">
+                  {uploadingImage ? 'Uploading...' : 'Choose Image'}
+                </span>
+              </label>
+              <p class="mt-1 text-xs text-gray-500">1500x500px recommended</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Separator -->
+      <hr class="my-6 border-gray-200" />
+      
+      <!-- Contact Information Section -->
+      <h3 class="text-md font-semibold text-gray-900 mb-4">Contact Information</h3>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Email -->
+        <div>
+          <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            bind:value={email}
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter your email"
+            disabled={isSaving}
+          />
+          {#if user.email && user.email.endsWith('@ethereum.address')}
+            <p class="mt-1 text-xs text-gray-500">Your current email is auto-generated. Enter a real email to update it.</p>
+          {:else if !user.is_email_verified}
+            <p class="mt-1 text-xs text-gray-500">Email not verified</p>
+          {/if}
+        </div>
+        
+        <!-- Website -->
+        <div>
+          <label for="website" class="block text-sm font-medium text-gray-700 mb-2">Website</label>
+          <input
+            id="website"
+            type="text"
+            bind:value={website}
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="yourwebsite.com"
+            disabled={isSaving}
+          />
+          <p class="text-xs text-gray-500 mt-1">You can enter with or without https://</p>
+        </div>
+        
+        <!-- Twitter/X -->
+        <div>
+          <label for="twitter" class="block text-sm font-medium text-gray-700 mb-2">Twitter/X</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">@</span>
+            <input
+              id="twitter"
+              type="text"
+              bind:value={twitterHandle}
+              class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="username"
+              disabled={isSaving}
+            />
+          </div>
+        </div>
+        
+        <!-- Discord -->
+        <div>
+          <label for="discord" class="block text-sm font-medium text-gray-700 mb-2">Discord</label>
+          <input
+            id="discord"
+            type="text"
+            bind:value={discordHandle}
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="username"
+            disabled={isSaving}
+          />
+        </div>
+        
+        <!-- Telegram -->
+        <div>
+          <label for="telegram" class="block text-sm font-medium text-gray-700 mb-2">Telegram</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">@</span>
+            <input
+              id="telegram"
+              type="text"
+              bind:value={telegramHandle}
+              class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="username"
+              disabled={isSaving}
+            />
+          </div>
+        </div>
+        
+        <!-- LinkedIn -->
+        <div>
+          <label for="linkedin" class="block text-sm font-medium text-gray-700 mb-2">LinkedIn</label>
+          <input
+            id="linkedin"
+            type="text"
+            bind:value={linkedinHandle}
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="linkedin.com/in/username"
+            disabled={isSaving}
+          />
+          <p class="text-xs text-gray-500 mt-1">Enter your LinkedIn username or profile URL</p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Validator Settings (if applicable) -->
+    {#if user.validator && !showValidatorJourney && !showBuilderJourney}
+      <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Validator Settings</h2>
+        
+        <div>
           <label for="nodeVersion" class="block text-sm font-medium text-gray-700 mb-2">
             Node Version
           </label>
           
           {#if user?.validator?.target_version}
             {#if user?.validator?.matches_target}
-              <div class="bg-green-50 border border-green-200 rounded-md p-2 mb-2 text-sm">
-                <span class="text-green-800">✓ Up to date with target {user.validator.target_version}</span>
+              <div class="bg-green-50 border border-green-200 rounded-md p-3 mb-3 text-sm">
+                <span class="text-green-800">✓ Your node is up to date with target version {user.validator.target_version}</span>
               </div>
             {:else}
-              <div class="bg-yellow-50 border border-yellow-200 rounded-md p-2 mb-2 text-sm">
-                <span class="text-yellow-800">⚠ Update to {user.validator.target_version}</span>
+              <div class="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-3 text-sm">
+                <span class="text-yellow-800">⚠ Please update your node to version {user.validator.target_version}</span>
               </div>
             {/if}
           {/if}
@@ -304,11 +595,10 @@
             placeholder="e.g., 0.3.9"
             disabled={isSaving}
           />
-          <p class="mt-1 text-xs text-gray-500">Enter your current GenLayer node version</p>
+          <p class="mt-2 text-xs text-gray-500">Enter your current GenLayer node version</p>
         </div>
-      {/if}
-      
-    </div>
+      </div>
+    {/if}
     
     <!-- Profile Sections -->
     {#if !showValidatorJourney && !showBuilderJourney}
@@ -651,3 +941,14 @@
     </div>
   {/if}
 </div>
+
+<!-- Image Cropper Modal -->
+{#if showImageCropper && cropperImage}
+  <ImageCropper
+    image={cropperImage}
+    aspectRatio={cropperAspectRatio}
+    title={cropperTitle}
+    onCrop={cropperCallback}
+    onCancel={handleCropCancel}
+  />
+{/if}
