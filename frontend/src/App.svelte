@@ -25,7 +25,7 @@
   import MySubmissions from './routes/MySubmissions.svelte';
   import EditSubmission from './routes/EditSubmission.svelte';
   import Metrics from './routes/Metrics.svelte';
-  import EditProfile from './routes/EditProfile.svelte';
+  import ProfileEdit from './routes/ProfileEdit.svelte';
   import Highlights from './routes/Highlights.svelte';
   import NotFound from './routes/NotFound.svelte';
   import LoaderShowcase from './routes/LoaderShowcase.svelte';
@@ -68,7 +68,7 @@
     '/my-submissions': MySubmissions,
     '/contributions/:id': EditSubmission,
     '/metrics': Metrics,
-    '/profile': EditProfile,
+    '/profile': ProfileEdit,
     '/loader-showcase': LoaderShowcase,
     
     // Steward routes
