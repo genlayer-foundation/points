@@ -14,7 +14,6 @@
   let loading = $state(true);
   let error = $state('');
   let isSaving = $state(false);
-  let isCompletingJourney = $state(false);
   let journeySuccessMessage = $state('');
   
   // Form fields
@@ -159,28 +158,10 @@
   }
   
   async function startBuilderJourney() {
-    // TODO: Create builder journey page similar to validator waitlist
-    // For now, complete the journey directly
-    await completeBuilderJourney();
+    // Redirect to builder welcome page
+    push('/builders/welcome/join');
   }
   
-  
-  
-  async function completeBuilderJourney() {
-    error = '';
-    isCompletingJourney = true;
-    
-    try {
-      await journeyAPI.completeBuilderJourney();
-      // Show success message and redirect to profile
-      sessionStorage.setItem('journeySuccess', 'Builder welcome badge awarded!');
-      push(`/participant/${$authState.address}`);
-    } catch (err) {
-      error = err.response?.data?.error || 'Failed to complete journey';
-    } finally {
-      isCompletingJourney = false;
-    }
-  }
   
   function handleProfileImageSelect(event) {
     const file = event.target.files[0];
