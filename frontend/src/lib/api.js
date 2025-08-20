@@ -97,7 +97,10 @@ export const leaderboardAPI = {
 // Stats API
 export const statsAPI = {
   getDashboardStats: () => api.get('/leaderboard/stats/'),
-  getUserStats: (address) => api.get(`/leaderboard/user_stats/by-address/${address}/`)
+  getUserStats: (address, category = null) => {
+    const params = category ? { category } : {};
+    return api.get(`/leaderboard/user_stats/by-address/${address}/`, { params });
+  }
 };
 
 // Validators API
