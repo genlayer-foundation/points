@@ -27,10 +27,12 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     
     def get_object(self):
         """
-        Override to allow users to access their own profile
-        even if they're marked as not visible.
+        Override to use case-insensitive address lookup and allow users to access 
+        their own profile even if they're marked as not visible.
         """
-        obj = super().get_object()
+        lookup_value = self.kwargs[self.lookup_field]  # Gets address from URL
+        obj = get_object_or_404(User, address__iexact=lookup_value)  # Case-insensitive
+        
         # If the user is accessing their own profile, allow it
         if self.request.user.is_authenticated and obj.id == self.request.user.id:
             return obj
