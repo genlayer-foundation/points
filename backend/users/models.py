@@ -50,6 +50,37 @@ class User(AbstractUser, BaseModel):
                               help_text="Ethereum wallet address associated with this user")
     visible = models.BooleanField(default=True, help_text="Whether this user should be visible in API responses.")
     
+    # Profile fields
+    description = models.TextField(max_length=500, blank=True, 
+                                 help_text="User bio/description")
+    banner_image_url = models.URLField(max_length=500, blank=True,
+                                      help_text="Cloudinary URL for banner image (1500x500)")
+    profile_image_url = models.URLField(max_length=500, blank=True,
+                                       help_text="Cloudinary URL for profile image (400x400)")
+    website = models.URLField(blank=True, help_text="User's website URL")
+    
+    # Contact information
+    contact_email = models.EmailField(blank=True, 
+                                     help_text="Public contact email (different from auth email)")
+    twitter_handle = models.CharField(max_length=50, blank=True,
+                                     help_text="Twitter/X username without @")
+    discord_handle = models.CharField(max_length=50, blank=True,
+                                     help_text="Discord username")
+    telegram_handle = models.CharField(max_length=50, blank=True,
+                                      help_text="Telegram username without @")
+    linkedin_handle = models.CharField(max_length=100, blank=True,
+                                      help_text="LinkedIn username or profile URL slug")
+    
+    # Email verification
+    is_email_verified = models.BooleanField(default=False,
+                                           help_text="Whether the email is user-provided (True) or auto-generated (False)")
+    
+    # Cloudinary metadata (for deletion/management)
+    profile_image_public_id = models.CharField(max_length=255, blank=True,
+                                              help_text="Cloudinary public ID for profile image")
+    banner_image_public_id = models.CharField(max_length=255, blank=True,
+                                            help_text="Cloudinary public ID for banner image")
+    
     class Meta:
         constraints = [
             models.UniqueConstraint(

@@ -446,6 +446,13 @@ npm run preview
 
 ## Design Guidelines
 
+### Terminology Guidelines
+**NEVER USE "GLOBAL"**: Do not use the word "global" in the UI. Use more specific terms like:
+- "Overall" for general rankings/stats
+- "Total" for aggregate counts
+- "All Categories" when referring to cross-category data
+- Simply omit the qualifier when the context is clear
+
 ### Component Card Wrappers
 **IMPORTANT**: When using reusable components in pages, do NOT wrap them in additional card containers.
 

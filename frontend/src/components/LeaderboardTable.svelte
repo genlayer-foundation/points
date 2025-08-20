@@ -1,5 +1,6 @@
 <script>
   import { push } from 'svelte-spa-router';
+  import Avatar from './Avatar.svelte';
   
   let { 
     entries = [],
@@ -72,13 +73,15 @@
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
                   {#if !compact}
-                    <div class="flex-shrink-0 h-10 w-10">
-                      <div class="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
-                        {entry.user_details?.name ? entry.user_details.name.charAt(0).toUpperCase() : '#'}
-                      </div>
+                    <div class="flex-shrink-0 mr-3">
+                      <Avatar 
+                        user={entry.user_details}
+                        size="sm"
+                        clickable={true}
+                      />
                     </div>
                   {/if}
-                  <div class={compact ? '' : 'ml-4'}>
+                  <div>
                     <button
                       onclick={() => push(`/participant/${entry.user_details?.address || ''}`)}
                       class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors"
