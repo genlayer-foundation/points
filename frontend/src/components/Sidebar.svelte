@@ -11,6 +11,26 @@
   // Track previous location to detect route changes
   let previousLocation = $state($location);
   
+  // Determine which section should be expanded based on current route
+  function getActiveSection() {
+    const path = $location;
+    
+    // Check for specific sections
+    if (path === '/' || path === '/metrics') {
+      return 'global';
+    } else if (path.startsWith('/builders') || (path.startsWith('/contribution-type/') && $currentCategory === 'builder')) {
+      return 'builder';
+    } else if (path.startsWith('/validators') || (path.startsWith('/contribution-type/') && $currentCategory === 'validator')) {
+      return 'validator';
+    } else if (path.startsWith('/stewards')) {
+      return 'steward';
+    } else if (path === '/my-submissions' || path.startsWith('/participant/')) {
+      return 'profile';
+    }
+    
+    return null;
+  }
+  
   // Close sidebar on route change on mobile
   $effect(() => {
     // Only close if the location actually changed
@@ -142,14 +162,21 @@
               size="sm"
               className="mr-2 {getCategoryIconColor(section.category)}"
             />
-            <h3 class="text-xs font-medium uppercase tracking-wider {section.category === 'global' && section.category === $currentCategory ? 'text-black' : 'text-gray-700'}">
+            <h3 class="text-xs font-medium uppercase tracking-wider flex-1 text-left {section.category === 'global' && section.category === $currentCategory ? 'text-black' : 'text-gray-700'}">
               {section.title}
             </h3>
+            {#if section.items.length > 0}
+              <Icon 
+                name={getActiveSection() === section.category ? "chevronDown" : "chevronRight"}
+                size="xs"
+                className="text-gray-400 transition-transform duration-200"
+              />
+            {/if}
           </button>
           
-          <!-- Section items (only if they exist) -->
-          {#if section.items.length > 0}
-            <div class="space-y-0.5 mb-3">
+          <!-- Section items (only if they exist and section is active) -->
+          {#if section.items.length > 0 && getActiveSection() === section.category}
+            <div class="space-y-0.5 mb-3 pl-2">
               {#each section.items as item}
                 <!-- Regular navigation item -->
                 <a 
@@ -192,11 +219,17 @@
             }"
           >
             <span class="mr-2 text-green-600">🌱</span>
-            <h3 class="text-xs font-medium uppercase tracking-wider {$currentCategory === 'steward' ? 'text-green-700' : 'text-gray-700'}">
+            <h3 class="text-xs font-medium uppercase tracking-wider flex-1 text-left {$currentCategory === 'steward' ? 'text-green-700' : 'text-gray-700'}">
               STEWARDS
             </h3>
+            <Icon 
+              name={getActiveSection() === 'steward' ? "chevronDown" : "chevronRight"}
+              size="xs"
+              className="text-gray-400 transition-transform duration-200"
+            />
           </button>
-          <div class="space-y-0.5">
+          {#if getActiveSection() === 'steward'}
+          <div class="space-y-0.5 pl-2">
             <a
               href="/stewards/submissions"
               onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
@@ -214,6 +247,7 @@
               Contribution Submissions
             </a>
           </div>
+          {/if}
         </div>
       {/if}
       
@@ -229,11 +263,17 @@
             size="sm"
             className="mr-2 text-purple-600"
           />
-          <h3 class="text-xs font-medium uppercase tracking-wider text-gray-700">
+          <h3 class="text-xs font-medium uppercase tracking-wider flex-1 text-left text-gray-700">
             Profile
           </h3>
+          <Icon 
+            name="chevronDown"
+            size="xs"
+            className="text-gray-400"
+          />
         </button>
-        <div class="space-y-0.5 mb-3">
+        {#if getActiveSection() === 'profile'}
+        <div class="space-y-0.5 mb-3 pl-2">
           <a 
             href="/my-submissions"
             onclick={(e) => { e.preventDefault(); navigate('/my-submissions', true); }}
@@ -249,6 +289,7 @@
             My Submissions
           </a>
         </div>
+        {/if}
       </div>
     </nav>
   </div>
@@ -310,20 +351,20 @@
                 size="sm"
                 className="mr-2 {getCategoryIconColor(section.category)}"
               />
-              <h3 class="text-xs font-medium uppercase tracking-wider {section.category === 'global' && section.category === $currentCategory ? 'text-black' : 'text-gray-700'}">
+              <h3 class="text-sm font-medium uppercase tracking-wider {section.category === 'global' && section.category === $currentCategory ? 'text-black' : 'text-gray-700'}">
                 {section.title}
               </h3>
             </button>
             
             <!-- Section items (only if they exist) -->
             {#if section.items.length > 0}
-              <div class="space-y-0.5 mb-3">
+              <div class="space-y-0.5 mb-3 pl-2">
                 {#each section.items as item}
                   <!-- Regular navigation item -->
                   <a 
                     href={item.path}
                     onclick={(e) => { e.preventDefault(); navigate(item.path); }}
-                    class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+                    class="group flex items-center px-3 py-1.5 text-base rounded-md {
                       isActive(item.path) || $location.startsWith(item.path + '/')
                         ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
                         : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
@@ -352,17 +393,26 @@
           <div>
             <div class="border-t border-gray-200 pt-4"></div>
             <button
-              onclick={() => navigate('/stewards')}
-              class="px-3 text-xs font-semibold text-green-600 uppercase tracking-wider mb-2 hover:text-green-700 transition-colors w-full text-left"
+              onclick={() => changeCategory('steward', '/stewards')}
+              class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors {
+                isActive('/stewards') && $currentCategory === 'steward'
+                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                  : 'hover:bg-gray-50'
+              }"
             >
-              <span class="mr-1">🌱</span> STEWARDS
+              <span class="mr-2 text-green-600">🌱</span>
+              <h3 class="text-sm font-medium uppercase tracking-wider {$currentCategory === 'steward' ? 'text-green-700' : 'text-gray-700'}">
+                STEWARDS
+              </h3>
             </button>
-            <div class="space-y-0.5">
+            <div class="space-y-0.5 pl-2">
               <a
                 href="/stewards/submissions"
                 onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
-                class="group flex items-center px-3 py-1.5 text-sm rounded-md {
-                  isActive('/stewards/submissions') ? 'bg-green-100 text-green-800' : 'text-gray-500 hover:bg-green-50 hover:text-green-700'
+                class="group flex items-center px-3 py-1.5 text-base rounded-md {
+                  isActive('/stewards/submissions') || $location.startsWith('/stewards/submissions/')
+                    ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                 }"
               >
                 <Icon 
@@ -388,15 +438,15 @@
               size="sm"
               className="mr-2 text-purple-600"
             />
-            <h3 class="text-xs font-medium uppercase tracking-wider text-gray-700">
+            <h3 class="text-sm font-medium uppercase tracking-wider text-gray-700">
               Profile
             </h3>
           </button>
-          <div class="space-y-0.5 mb-3">
+          <div class="space-y-0.5 mb-3 pl-2">
             <a 
               href="/my-submissions"
               onclick={(e) => { e.preventDefault(); navigate('/my-submissions', true); }}
-              class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+              class="group flex items-center px-3 py-1.5 text-base rounded-md {
                 isActive('/my-submissions') ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
               }"
             >
