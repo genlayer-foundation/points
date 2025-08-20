@@ -885,18 +885,17 @@
         <!-- Validator Stats and Contributions Section -->
         {#if !isValidatorOnly}
           <!-- Highlights Section -->
-          <div class="px-4 mt-6">
-            <FeaturedContributions
-              userId={participant.address}
-              limit={5}
-              title="Featured Contributions"
-              cardStyle="highlight"
-              showViewAll={false}
-              isOwnProfile={isOwnProfile}
-              hideWhenEmpty={!isOwnProfile}
-              category="validator"
-            />
-          </div>
+          <FeaturedContributions
+            userId={participant.address}
+            limit={5}
+            title="Featured Contributions"
+            cardStyle="highlight"
+            showViewAll={false}
+            isOwnProfile={isOwnProfile}
+            hideWhenEmpty={!isOwnProfile}
+            category="validator"
+            className="px-4 mt-6"
+          />
           
           <!-- Contribution Types Breakdown -->
           {#if participant.validator?.contribution_types && participant.validator.contribution_types.length > 0}
@@ -965,7 +964,7 @@
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
-            hideWhenEmpty={false}
+            hideWhenEmpty={!isOwnProfile}
             category="validator"
           />
           
@@ -1027,7 +1026,7 @@
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
-            hideWhenEmpty={false}
+            hideWhenEmpty={!isOwnProfile}
             category="builder"
           />
           
@@ -1087,7 +1086,7 @@
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
-            hideWhenEmpty={false}
+            hideWhenEmpty={!isOwnProfile}
             category="builder"
           />
           
