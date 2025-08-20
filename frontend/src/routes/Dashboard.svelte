@@ -7,6 +7,7 @@
   import RecentContributions from '../components/RecentContributions.svelte';
   import GlobalDashboard from '../components/GlobalDashboard.svelte';
   import WelcomeNewUser from '../components/WelcomeNewUser.svelte';
+  import Avatar from '../components/Avatar.svelte';
   import { contributionsAPI, usersAPI, statsAPI, leaderboardAPI, validatorsAPI } from '../lib/api';
   import { push } from 'svelte-spa-router';
   import { currentCategory, categoryTheme } from '../stores/category.js';
@@ -320,12 +321,12 @@
         <div class="bg-white shadow rounded-lg divide-y divide-gray-200">
           {#each newestValidators as validator}
             <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-              <div class="flex items-center gap-2">
-                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center flex-shrink-0">
-                  <span class="text-sm font-bold text-blue-600">
-                    {validator.name ? validator.name.charAt(0).toUpperCase() : '#'}
-                  </span>
-                </div>
+              <div class="flex items-center gap-3">
+                <Avatar 
+                  user={validator}
+                  size="sm"
+                  clickable={true}
+                />
                 <div class="min-w-0">
                   <button
                     class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors truncate"

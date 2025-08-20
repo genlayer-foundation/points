@@ -129,20 +129,87 @@ class ValidatorSerializer(serializers.ModelSerializer):
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     """
     Serializer for updating user profile.
-    Allows updating name and validator node_version.
+    Allows updating name, profile fields, and validator node_version.
     """
     node_version = serializers.CharField(required=False, allow_blank=True, allow_null=True, source='validator.node_version')
+    email = serializers.EmailField(required=False, allow_blank=True)
+    website = serializers.CharField(required=False, allow_blank=True, max_length=200)
     
     class Meta:
         model = User
-        fields = ['name', 'node_version']
+        fields = ['name', 'node_version', 'email', 'description', 'website',
+                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle']
+    
+    def validate_description(self, value):
+        """Validate description length"""
+        if value and len(value) > 500:
+            raise serializers.ValidationError("Description must be 500 characters or less.")
+        return value
+    
+    def validate_website(self, value):
+        """Validate and format website URL"""
+        if value:
+            # If no protocol is specified, add https://
+            if not value.startswith(('http://', 'https://')):
+                value = 'https://' + value
+            
+            # Now validate it's a proper URL
+            from django.core.validators import URLValidator
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            
+            validator = URLValidator()
+            try:
+                validator(value)
+            except DjangoValidationError:
+                raise serializers.ValidationError("Enter a valid URL.")
+        return value
+    
+    def validate_twitter_handle(self, value):
+        """Validate Twitter handle format"""
+        if value:
+            # Remove @ if provided
+            value = value.lstrip('@')
+            if len(value) > 15:  # Twitter username max length
+                raise serializers.ValidationError("Twitter handle must be 15 characters or less.")
+        return value
+    
+    def validate_telegram_handle(self, value):
+        """Validate Telegram handle format"""
+        if value:
+            # Remove @ if provided
+            value = value.lstrip('@')
+        return value
+    
+    def validate_linkedin_handle(self, value):
+        """Validate LinkedIn handle format"""
+        if value:
+            # Remove linkedin.com/in/ if provided as full URL
+            if 'linkedin.com/in/' in value:
+                value = value.split('linkedin.com/in/')[-1]
+            # Remove trailing slashes
+            value = value.rstrip('/')
+            # Remove any remaining URL parts
+            value = value.split('?')[0]
+        return value
     
     def update(self, instance, validated_data):
         # Handle validator data if present
         validator_data = validated_data.pop('validator', {})
         
-        # Update user fields
-        instance.name = validated_data.get('name', instance.name)
+        # Handle email update
+        if 'email' in validated_data:
+            new_email = validated_data.pop('email')
+            if new_email and new_email != instance.email:
+                # Check if email is already taken
+                if User.objects.filter(email=new_email).exclude(id=instance.id).exists():
+                    raise serializers.ValidationError({'email': 'This email is already in use.'})
+                instance.email = new_email
+                instance.is_email_verified = True  # Mark as verified when user provides it
+        
+        # Update other user fields
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        
         instance.save()
         
         # Update or create validator if node_version is provided
@@ -223,11 +290,16 @@ class UserSerializer(serializers.ModelSerializer):
     steward = StewardSerializer(read_only=True)
     has_validator_waitlist = serializers.SerializerMethodField()
     has_builder_welcome = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward', 
-                  'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at']
+                  'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at',
+                  # Profile fields
+                  'description', 'banner_image_url', 'profile_image_url', 'website',
+                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
+                  'email', 'is_email_verified']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_leaderboard_entry(self, obj):
@@ -270,6 +342,15 @@ class UserSerializer(serializers.ModelSerializer):
             return Contribution.objects.filter(user=obj, contribution_type=welcome_type).exists()
         except ContributionType.DoesNotExist:
             return False
+    
+    def get_email(self, obj):
+        """
+        Return email only if it's verified, otherwise return empty string.
+        This prevents exposing auto-generated emails.
+        """
+        if obj.is_email_verified:
+            return obj.email
+        return ''
 
 
 class UserCreateSerializer(serializers.ModelSerializer):

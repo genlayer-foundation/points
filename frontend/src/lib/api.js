@@ -132,6 +132,21 @@ export const stewardAPI = {
   getStewards: () => api.get('/stewards/')
 };
 
+// Image upload API
+export const imageAPI = {
+  uploadProfileImage: (formData) => api.post('/users/upload_profile_image/', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  }),
+  uploadBannerImage: (formData) => api.post('/users/upload_banner_image/', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  }),
+  getCloudinaryConfig: (type) => api.get('/users/cloudinary_config/', { params: { type } })
+};
+
 // Convenience exports for profile functions
 export const getCurrentUser = async () => {
   const response = await usersAPI.getCurrentUser();

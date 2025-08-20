@@ -46,19 +46,21 @@ class ContributionInline(admin.TabularInline):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'address')
-    list_filter = ('is_staff', 'is_active', 'visible')
-    search_fields = ('email', 'name', 'address')
+    list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'address', 'is_email_verified')
+    list_filter = ('is_staff', 'is_active', 'visible', 'is_email_verified')
+    search_fields = ('email', 'name', 'address', 'twitter_handle', 'discord_handle', 'telegram_handle')
     ordering = ('email',)
     
     fieldsets = (
-        (None, {'fields': ('email', 'password')}),
-        (_('Personal info'), {'fields': ('name', 'address')}),
+        (None, {'fields': ('email', 'password', 'is_email_verified')}),
+        (_('Personal info'), {'fields': ('name', 'address', 'description')}),
+        (_('Profile Images'), {'fields': ('profile_image_url', 'banner_image_url', 'profile_image_public_id', 'banner_image_public_id')}),
+        (_('Contact & Social'), {'fields': ('website', 'twitter_handle', 'discord_handle', 'telegram_handle')}),
         (_('Visibility'), {'fields': ('visible',)}),
         (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         (_('Important dates'), {'fields': ('last_login', 'date_joined', 'created_at', 'updated_at')}),
     )
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'profile_image_public_id', 'banner_image_public_id')
     
     add_fieldsets = (
         (None, {
