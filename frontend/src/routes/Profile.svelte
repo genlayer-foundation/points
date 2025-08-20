@@ -936,16 +936,26 @@
         
         <!-- Content -->
         <div class="p-6">
-          <p class="text-sky-700 mb-4">Climb the ranks and get invited to validate on Testnet Asimov</p>
-          
           <!-- Stats -->
-          <div class="mb-6">
+          <div class="mb-4">
             <ProfileStats
               contributions={validatorStats.totalContributions || 0}
               points={validatorStats.totalPoints || 20}
               rank={participant.has_validator_waitlist?.rank}
               colorTheme="sky"
             />
+          </div>
+          
+          <!-- Call to Action -->
+          <div class="bg-sky-50 border-l-4 border-sky-400 px-4 py-3 mb-6">
+            <div class="flex items-center">
+              <svg class="h-5 w-5 text-sky-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+              </svg>
+              <p class="text-sm font-medium text-sky-800">
+                Climb the ranks and get invited to validate on Testnet Asimov
+              </p>
+            </div>
           </div>
           
           <!-- Featured Section -->
