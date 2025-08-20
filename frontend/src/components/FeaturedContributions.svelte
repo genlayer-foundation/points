@@ -134,30 +134,25 @@
       <!-- Don't render anything when empty and hideWhenEmpty is true -->
     {:else if isOwnProfile}
       <div class="py-4">
-        <div class="flex items-start gap-4">
-          <svg class="h-10 w-10 text-yellow-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-          </svg>
-          <div class="flex-1">
-            <p class="text-sm text-gray-700 mb-3">
-              <span class="font-semibold text-gray-900">Get Highlighted!</span> Submit impactful or pioneering work to get featured.
-            </p>
-            <button
-              onclick={() => push('/submit-contribution')}
-              class="inline-flex items-center px-4 py-2 border {buttonClasses} text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow"
-            >
-              <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-              </svg>
-              Submit Contribution
-            </button>
-          </div>
+        <div>
+          <p class="text-sm text-gray-700 mb-3">
+            <span class="font-semibold text-gray-900">Get Highlighted!</span> Submit impactful or pioneering work to get featured.
+          </p>
+          <button
+            onclick={() => push('/submit-contribution')}
+            class="inline-flex items-center px-4 py-2 border {buttonClasses} text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+          >
+            <svg class="w-5 h-5 mr-2 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+            </svg>
+            Submit Contribution
+          </button>
         </div>
       </div>
     {:else}
       <div class="py-4">
-        <div class="flex items-center gap-4">
-          <svg class="h-9 w-9 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+        <div class="flex items-center gap-2">
+          <svg class="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
           </svg>
           <p class="text-sm text-gray-500">No featured contributions yet</p>
