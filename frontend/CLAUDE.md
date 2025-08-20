@@ -250,24 +250,27 @@ const routes = {
   '/contributions': Contributions,
   '/leaderboard': Leaderboard,
   '/validators': Validators,
-  '/participant/:address': ParticipantProfile,  // Public profile view
+  '/validators/waitlist/join': ValidatorWaitlist,  // Validator waitlist join page
+  '/participant/:address': Profile,  // Public profile view
   '/contribution-type/:id': ContributionTypeDetail,
   '/badge/:id': BadgeDetail,
   '/submit-contribution': SubmitContribution,
   '/my-submissions': MySubmissions,
   '/contributions/:id': EditSubmission,
   '/metrics': Metrics,
-  '/profile': Profile,  // Edit own profile (authenticated only)
+  '/profile': EditProfile,  // Edit own profile (authenticated only)
   '*': NotFound
 }
 ```
 
 #### Profile System
 - **`/participant/:address`** - Public participant profile (anyone can view)
+  - Component: `Profile.svelte`
   - Shows participant stats, contributions, validator status
   - Shows "Edit Profile" button if viewing own profile
 - **`/profile`** - Edit profile page (authenticated users only)
-  - Only allows editing display name
+  - Component: `EditProfile.svelte`
+  - Only allows editing display name and node version
   - Redirects to public profile after save with success message
 
 ### API Integration (`src/lib/api.js`)
@@ -323,7 +326,8 @@ const routes = {
     - Disconnect - Logs out
   - Reactively updates name from `userStore`
 - `SubmitContribution.svelte` - Contribution form
-- `Profile.svelte` - User profile editing (name only)
+- `EditProfile.svelte` - User profile editing (name and node version)
+- `Profile.svelte` - Public participant profile view
 
 ### Wallet Integration (`src/lib/wallet/`)
 - `WalletProvider.svelte` - Wallet context provider
