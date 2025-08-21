@@ -43,6 +43,7 @@
   let statsError = $state(null);
   let successMessage = $state(null);
   let balance = $state(null);
+  let testnetBalance = $state(null);
   let loadingBalance = $state(false);
   
   // Check if this is the current user's profile
