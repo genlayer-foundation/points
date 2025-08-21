@@ -243,7 +243,7 @@
   }
 </script>
 
-<div class="container mx-auto px-4 py-8 max-w-4xl">
+<div class="container mx-auto px-4 py-8">
   <div class="mb-5">
     <a href="/" onclick={(e) => { e.preventDefault(); push('/'); }} class="text-primary-600 hover:text-primary-700">
       ← Back to Dashboard
@@ -472,40 +472,7 @@
       </div>
     </div>
     
-    <!-- Validator Settings (if applicable) -->
-    {#if user.validator}
-      <div class="bg-white shadow rounded-lg p-6 mt-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Validator Settings</h2>
-        
-        <div>
-          <label for="nodeVersion" class="block text-sm font-medium text-gray-700 mb-2">
-            Node Version
-          </label>
-          
-          {#if user?.validator?.target_version}
-            {#if user?.validator?.matches_target}
-              <div class="bg-green-50 border border-green-200 rounded-md p-3 mb-3 text-sm">
-                <span class="text-green-800">✓ Your node is up to date with target version {user.validator.target_version}</span>
-              </div>
-            {:else}
-              <div class="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-3 text-sm">
-                <span class="text-yellow-800">⚠ Please update your node to version {user.validator.target_version}</span>
-              </div>
-            {/if}
-          {/if}
-          
-          <input
-            id="nodeVersion"
-            type="text"
-            bind:value={nodeVersion}
-            class="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g., 0.3.9"
-            disabled={isSaving}
-          />
-          <p class="mt-2 text-xs text-gray-500">Enter your current GenLayer node version</p>
-        </div>
-      </div>
-    {/if}
+    <!-- Removed Validator Settings - moved to profile section below -->
     
     <!-- Profile Sections -->
       <!-- Active Profiles (100% width) -->
@@ -556,13 +523,50 @@
             Validator
           </h2>
           <div class="text-sm text-sky-800">
-            <p>You're running a validator node! Keep it up.</p>
-            {#if user.validator.total_points}
-              <p class="mt-1">Total Points: <span class="font-bold text-sky-900">{user.validator.total_points}</span></p>
-            {/if}
-            {#if user.validator.rank}
-              <p>Validator Rank: <span class="font-bold text-sky-900">#{user.validator.rank}</span></p>
-            {/if}
+            <p class="mb-4">You're running a validator node! Keep it up.</p>
+            
+            <!-- Node Version Field -->
+            <div>
+              <label for="nodeVersion" class="block text-sm font-medium text-sky-900 mb-2">
+                Node Version
+              </label>
+              
+              {#if user?.validator?.target_version}
+                {#if user?.validator?.matches_target}
+                  <div class="bg-green-50 border border-green-200 rounded-md p-3 mb-3 text-sm">
+                    <span class="text-green-800">✓ Your node is up to date with target version {user.validator.target_version}</span>
+                  </div>
+                {:else}
+                  <div class="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-3 text-sm">
+                    <span class="text-yellow-800">⚠ Please update your node to version {user.validator.target_version}</span>
+                  </div>
+                {/if}
+              {/if}
+              
+              <div class="flex gap-3 items-start">
+                <div class="flex-1">
+                  <input
+                    id="nodeVersion"
+                    type="text"
+                    bind:value={nodeVersion}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+                    placeholder="e.g., 0.3.9"
+                    disabled={isSaving}
+                  />
+                  <p class="mt-2 text-xs text-sky-700">Enter your current GenLayer node version</p>
+                </div>
+                
+                {#if user.validator && nodeVersion !== (user.validator?.node_version || '')}
+                  <button
+                    onclick={handleSave}
+                    disabled={isSaving}
+                    class="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </button>
+                {/if}
+              </div>
+            </div>
           </div>
         </div>
       {/if}
