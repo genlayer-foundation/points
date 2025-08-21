@@ -55,7 +55,8 @@ export const usersAPI = {
     data: { count: res.data.participant_count }
   })),
   getCurrentUser: () => api.get('/users/me/'),
-  updateUserProfile: (data) => api.patch('/users/me/', data)
+  updateUserProfile: (data) => api.patch('/users/me/', data),
+  getAccountBalance: () => api.get('/users/balance/')
 };
 
 // API endpoints for contributions

@@ -32,6 +32,7 @@
   import StewardDashboard from './routes/StewardDashboard.svelte';
   import StewardSubmissions from './routes/StewardSubmissions.svelte';
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
+  import BuilderWelcome from './routes/BuilderWelcome.svelte';
   
   // Define routes
   const routes = {
@@ -50,6 +51,7 @@
     '/builders/highlights': Highlights,
     '/builders/leaderboard': Leaderboard,
     '/builders/participants': Validators,
+    '/builders/welcome': BuilderWelcome,
     
     // Validators routes
     '/validators': Dashboard,
