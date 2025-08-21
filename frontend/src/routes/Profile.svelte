@@ -630,7 +630,7 @@
                   </li>
                 </ul>
                 <button
-                  onclick={() => push('/builders/welcome/join')}
+                  onclick={() => push('/builders/welcome')}
                   class="w-full flex items-center justify-center px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold group-hover:shadow-md"
                 >
                   <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">

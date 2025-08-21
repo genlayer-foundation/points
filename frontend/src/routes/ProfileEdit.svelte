@@ -159,7 +159,7 @@
   
   async function startBuilderJourney() {
     // Redirect to builder welcome page
-    push('/builders/welcome/join');
+    push('/builders/welcome');
   }
   
   

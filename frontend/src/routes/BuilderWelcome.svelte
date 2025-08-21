@@ -2,23 +2,42 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { authState } from '../lib/auth';
-  import { getCurrentUser, journeyAPI } from '../lib/api';
+  import { getCurrentUser, journeyAPI, usersAPI } from '../lib/api';
   import Icon from '../components/Icons.svelte';
   
   let currentUser = $state(null);
+  let hasValidatorWelcome = $state(false);
+  let isClaimingValidatorBadge = $state(false);
+  let accountBalance = $state(0);
   let hasDeployedContract = $state(false);
-  let isClaimingBadge = $state(false);
+  let isClaimingBuilderBadge = $state(false);
   let error = $state('');
   let loading = $state(true);
   
+  // Derived states for requirements
+  let requirement1Met = $derived(hasValidatorWelcome);
+  let requirement2Met = $derived(accountBalance > 0);
+  let requirement3Met = $derived(hasDeployedContract);
+  let allRequirementsMet = $derived(requirement1Met && requirement2Met && requirement3Met);
+  
   onMount(async () => {
     await loadData();
+    // Check balance periodically
+    const interval = setInterval(async () => {
+      if ($authState.isAuthenticated && accountBalance === 0) {
+        await checkBalance();
+      }
+    }, 5000); // Check every 5 seconds
+    
+    return () => clearInterval(interval);
   });
   
   async function loadData() {
     try {
       if ($authState.isAuthenticated) {
         currentUser = await getCurrentUser();
+        hasValidatorWelcome = currentUser?.has_validator_waitlist || false;
+        await checkBalance();
       }
     } catch (err) {
       console.error('Failed to load user data:', err);
@@ -27,17 +46,49 @@
     }
   }
   
-  async function handleClaimBadge() {
+  async function checkBalance() {
+    try {
+      // Check account balance via API
+      const response = await usersAPI.getAccountBalance();
+      accountBalance = response.data.balance || 0;
+    } catch (err) {
+      console.error('Failed to check balance:', err);
+    }
+  }
+  
+  async function claimValidatorWelcome() {
     if (!$authState.isAuthenticated) {
       document.querySelector('.auth-button')?.click();
       return;
     }
     
-    if (!hasDeployedContract) {
+    isClaimingValidatorBadge = true;
+    error = '';
+    
+    try {
+      await journeyAPI.completeValidatorJourney();
+      // Reload user data to get updated badge status
+      currentUser = await getCurrentUser();
+      hasValidatorWelcome = currentUser?.has_validator_waitlist || false;
+    } catch (err) {
+      error = err.response?.data?.error || 'Failed to claim validator welcome badge';
+    } finally {
+      isClaimingValidatorBadge = false;
+    }
+  }
+  
+  async function handleClaimBuilderBadge() {
+    if (!$authState.isAuthenticated) {
+      document.querySelector('.auth-button')?.click();
       return;
     }
     
-    isClaimingBadge = true;
+    if (!allRequirementsMet) {
+      error = 'Please complete all requirements first';
+      return;
+    }
+    
+    isClaimingBuilderBadge = true;
     error = '';
     
     try {
@@ -46,7 +97,7 @@
       push(`/participant/${$authState.address}`);
     } catch (err) {
       error = err.response?.data?.error || 'Failed to claim badge';
-      isClaimingBadge = false;
+      isClaimingBuilderBadge = false;
     }
   }
 </script>
@@ -65,7 +116,7 @@
     <div class="p-6">
       <!-- Three Steps -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <!-- Step 1: Learn & Build -->
+        <!-- Step 1: Learn the Basics -->
         <div class="flex items-center">
           <div class="flex items-center justify-center font-bold text-orange-600 flex-shrink-0 leading-10 mr-2" style="font-size: 2.25rem;">
             1
@@ -93,7 +144,7 @@
           </div>
         </div>
         
-        <!-- Step 2: Deploy Contract -->
+        <!-- Step 2: Deploy -->
         <div class="flex items-center">
           <div class="flex items-center justify-center font-bold text-orange-600 flex-shrink-0 leading-10 mr-2" style="font-size: 2.25rem;">
             2
@@ -109,7 +160,7 @@
           </div>
         </div>
         
-        <!-- Step 3: Level Up -->
+        <!-- Step 3: Earn Your Badge -->
         <div class="flex items-center">
           <div class="flex items-center justify-center font-bold text-orange-600 flex-shrink-0 leading-10 mr-2" style="font-size: 2.25rem;">
             3
@@ -190,65 +241,139 @@
     </div>
   </div>
 
-  <!-- Start Journey Section -->
+  <!-- Requirements Section -->
   <div class="bg-white shadow-sm rounded-lg p-6 sm:p-8">
-    <h2 class="text-xl font-bold text-gray-900 mb-3">Start Your Builder Journey</h2>
+    <h2 class="text-xl font-bold text-gray-900 mb-3">Builder Badge Requirements</h2>
     
     <p class="text-gray-700 mb-6">
-      Dive into our docs, experiment in the Studio, and deploy your first Intelligent Contract. 
-      Claim your Builder badge when you're ready.
+      Complete these three requirements to earn your Builder badge:
     </p>
     
     <div class="space-y-4">
-      <div class="flex flex-col sm:flex-row gap-3">
-        <a 
-          href="https://docs.genlayer.com" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          class="inline-flex items-center justify-center px-5 py-2.5 bg-orange-50 text-orange-700 border border-orange-300 rounded-lg hover:bg-orange-100 transition-colors font-medium"
-        >
-          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-          </svg>
-          Read Documentation
-        </a>
-        
-        <a 
-          href="https://studio.genlayer.com" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          class="inline-flex items-center justify-center px-5 py-2.5 bg-orange-50 text-orange-700 border border-orange-300 rounded-lg hover:bg-orange-100 transition-colors font-medium"
-        >
-          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-          </svg>
-          Open GenLayer Studio
-        </a>
-      </div>
-      
-      <div class="pt-2">
-        <div class="flex items-start space-x-3 mb-4">
-          <input 
-            type="checkbox" 
-            id="contractDeployed" 
-            bind:checked={hasDeployedContract}
-            class="mt-0.5 h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
-          />
-          <label for="contractDeployed" class="text-sm text-gray-700">
-            I have deployed my first Intelligent Contract in GenLayer Studio
-          </label>
+      <!-- Requirement 1: Validator Welcome Badge -->
+      <div class="border border-gray-200 rounded-lg p-4">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <div class="flex items-center">
+              <input 
+                type="checkbox" 
+                id="validatorBadge" 
+                checked={requirement1Met}
+                disabled={true}
+                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded mr-3"
+              />
+              <label for="validatorBadge" class="text-sm font-medium text-gray-900">
+                1. Claim Validator Welcome Badge
+              </label>
+            </div>
+            <p class="text-xs text-gray-600 mt-1 ml-7">
+              Join the validator waitlist to get started
+            </p>
+          </div>
+          {#if !hasValidatorWelcome}
+            <button
+              onclick={claimValidatorWelcome}
+              disabled={isClaimingValidatorBadge}
+              class="ml-3 px-4 py-2 bg-sky-600 text-white text-sm rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50"
+            >
+              {isClaimingValidatorBadge ? 'Claiming...' : 'Claim Badge'}
+            </button>
+          {:else}
+            <span class="ml-3 px-3 py-2 bg-green-100 text-green-800 text-sm rounded-md">
+              ✓ Claimed
+            </span>
+          {/if}
         </div>
-        
+      </div>
+
+      <!-- Requirement 2: Top up Account -->
+      <div class="border border-gray-200 rounded-lg p-4">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <div class="flex items-center">
+              <input 
+                type="checkbox" 
+                id="accountBalance" 
+                checked={requirement2Met}
+                disabled={true}
+                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded mr-3"
+              />
+              <label for="accountBalance" class="text-sm font-medium text-gray-900">
+                2. Top up your GenLayer account
+              </label>
+            </div>
+            <p class="text-xs text-gray-600 mt-1 ml-7">
+              Get test tokens from the faucet. Current balance: {accountBalance} GEN
+            </p>
+          </div>
+          {#if !requirement2Met}
+            <a
+              href="https://genlayer-faucet.vercel.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="ml-3 px-4 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors inline-flex items-center"
+            >
+              Open Faucet
+              <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+              </svg>
+            </a>
+          {:else}
+            <span class="ml-3 px-3 py-2 bg-green-100 text-green-800 text-sm rounded-md">
+              ✓ Funded
+            </span>
+          {/if}
+        </div>
+      </div>
+
+      <!-- Requirement 3: Deploy Contract -->
+      <div class="border border-gray-200 rounded-lg p-4">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <div class="flex items-center">
+              <input 
+                type="checkbox" 
+                id="deployContract" 
+                bind:checked={hasDeployedContract}
+                disabled={!requirement1Met || !requirement2Met}
+                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded mr-3 disabled:opacity-50"
+              />
+              <label for="deployContract" class="text-sm font-medium text-gray-900">
+                3. Deploy an Intelligent Contract
+              </label>
+            </div>
+            <p class="text-xs text-gray-600 mt-1 ml-7">
+              Use GenLayer Studio to deploy your first contract
+            </p>
+          </div>
+          <a
+            href="https://studio.genlayer.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="ml-3 px-4 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors inline-flex items-center"
+          >
+            Open Studio
+            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Claim Builder Badge Button -->
+      <div class="pt-4">
         <button
-          onclick={handleClaimBadge}
-          disabled={!hasDeployedContract || isClaimingBadge}
-          class="inline-flex items-center px-8 py-3 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+          onclick={handleClaimBuilderBadge}
+          disabled={!allRequirementsMet || isClaimingBuilderBadge}
+          class="w-full inline-flex items-center justify-center px-8 py-3 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
         >
           <Icon name="builder" className="mr-2 text-white" />
           {#if !$authState.isAuthenticated}
             Connect Wallet to Claim Badge
-          {:else if isClaimingBadge}
+          {:else if isClaimingBuilderBadge}
             Claiming Badge...
+          {:else if !allRequirementsMet}
+            Complete All Requirements First
           {:else}
             Claim Builder Welcome Badge
           {/if}

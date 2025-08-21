@@ -51,7 +51,7 @@
     '/builders/highlights': Highlights,
     '/builders/leaderboard': Leaderboard,
     '/builders/participants': Validators,
-    '/builders/welcome/join': BuilderWelcome,
+    '/builders/welcome': BuilderWelcome,
     
     // Validators routes
     '/validators': Dashboard,
