@@ -20,12 +20,22 @@
     cardStyle = 'default', // 'default', 'compact', 'highlight'
     className = '',
     isOwnProfile = false,
-    hideWhenEmpty = false
+    hideWhenEmpty = false,
+    colorTheme = null // 'orange' for builder, 'sky' for validator, null for default
   } = $props();
 
   let highlights = $state([]);
   let loading = $state(true);
   let error = $state(null);
+
+  // Determine button colors based on theme
+  const buttonClasses = $derived(
+    colorTheme === 'orange' 
+      ? 'border-orange-300 text-orange-700 bg-orange-100 hover:bg-orange-200 hover:border-orange-400'
+      : colorTheme === 'sky'
+      ? 'border-sky-300 text-sky-700 bg-sky-100 hover:bg-sky-200 hover:border-sky-400'
+      : 'border-primary-200 text-primary-700 bg-primary-50 hover:bg-primary-100 hover:border-primary-300'
+  );
 
   const formatDate = (dateString) => {
     try {
@@ -123,26 +133,30 @@
     {#if hideWhenEmpty}
       <!-- Don't render anything when empty and hideWhenEmpty is true -->
     {:else if isOwnProfile}
-      <div class="text-center py-4">
-        <svg class="inline-block h-8 w-8 text-yellow-500 mb-2" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-        </svg>
-        <p class="text-sm text-gray-600 mb-3">
-          <span class="font-semibold">Get Highlighted!</span> Submit impactful or pioneering work to get featured.
-        </p>
-        <button
-          onclick={() => push('/submit-contribution')}
-          class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-        >
-          <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-          </svg>
-          Submit Contribution
-        </button>
+      <div class="py-4">
+        <div>
+          <p class="text-sm text-gray-700 mb-3">
+            <span class="font-semibold text-gray-900">Get Highlighted!</span> Submit impactful or pioneering work to get featured.
+          </p>
+          <button
+            onclick={() => push('/submit-contribution')}
+            class="inline-flex items-center px-4 py-2 border {buttonClasses} text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+          >
+            <svg class="w-5 h-5 mr-2 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+            </svg>
+            Submit Contribution
+          </button>
+        </div>
       </div>
     {:else}
-      <div class="bg-gray-50 rounded-lg p-6 text-center">
-        <p class="text-gray-500">No featured contributions yet.</p>
+      <div class="py-4">
+        <div class="flex items-center gap-2">
+          <svg class="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+          </svg>
+          <p class="text-sm text-gray-500">No featured contributions yet</p>
+        </div>
       </div>
     {/if}
   {:else if cardStyle === 'default'}

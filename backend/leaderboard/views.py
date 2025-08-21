@@ -122,7 +122,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             'total_points': total_points,
         })
         
-    def _get_user_stats(self, user):
+    def _get_user_stats(self, user, category=None):
         """
         Helper method to get statistics for a user.
         """
@@ -131,6 +131,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         
         # Get user's contributions
         contributions = Contribution.objects.filter(user=user)
+        
+        # Filter by category if provided
+        if category:
+            contributions = contributions.filter(contribution_type__category__slug=category)
         
         # Get user's total points
         total_points = contributions.aggregate(
@@ -181,8 +185,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             user = User.objects.get(pk=user_id)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=404)
-            
-        stats = self._get_user_stats(user)
+        
+        # Get category filter from query params
+        category = request.query_params.get('category')
+        stats = self._get_user_stats(user, category=category)
         return Response(stats)
             
     @action(detail=False, methods=['get'], url_path='user_stats/by-address/(?P<address>[^/.]+)')
@@ -196,8 +202,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             user = User.objects.get(address__iexact=address)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=404)
-            
-        stats = self._get_user_stats(user)
+        
+        # Get category filter from query params
+        category = request.query_params.get('category')
+        stats = self._get_user_stats(user, category=category)
         return Response(stats)
     
     @action(detail=False, methods=['get'], url_path='category/(?P<category_slug>[^/.]+)')

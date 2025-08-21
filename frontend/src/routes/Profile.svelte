@@ -6,6 +6,8 @@
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import StatCard from '../components/StatCard.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
+  import ProfileStats from '../components/ProfileStats.svelte';
+  import ContributionBreakdown from '../components/ContributionBreakdown.svelte';
   import { usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
@@ -17,6 +19,18 @@
   // State management
   let participant = $state(null);
   let contributionStats = $state({
+    totalContributions: 0,
+    totalPoints: 0,
+    averagePoints: 0,
+    contributionTypes: []
+  });
+  let validatorStats = $state({
+    totalContributions: 0,
+    totalPoints: 0,
+    averagePoints: 0,
+    contributionTypes: []
+  });
+  let builderStats = $state({
     totalContributions: 0,
     totalPoints: 0,
     averagePoints: 0,
@@ -175,6 +189,32 @@
       } catch (statsError) {
         console.warn('Stats API error, will use basic data:', statsError);
         statsError = statsError.message || 'Failed to load participant statistics';
+      }
+      
+      // Fetch validator-specific stats if user has validator waitlist
+      if (participant.has_validator_waitlist) {
+        try {
+          const validatorStatsRes = await statsAPI.getUserStats(participantAddress, 'validator');
+          if (validatorStatsRes.data) {
+            validatorStats = validatorStatsRes.data;
+            console.log("Validator stats data received:", validatorStatsRes.data);
+          }
+        } catch (error) {
+          console.warn('Validator stats API error:', error);
+        }
+      }
+      
+      // Fetch builder-specific stats if user has builder welcome
+      if (participant.has_builder_welcome) {
+        try {
+          const builderStatsRes = await statsAPI.getUserStats(participantAddress, 'builder');
+          if (builderStatsRes.data) {
+            builderStats = builderStatsRes.data;
+            console.log("Builder stats data received:", builderStatsRes.data);
+          }
+        } catch (error) {
+          console.warn('Builder stats API error:', error);
+        }
       }
       
       loading = false;
@@ -755,48 +795,13 @@
         <div class="p-4">
           <!-- Stats Cards at the beginning -->
           {#if !isValidatorOnly}
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              <div class="bg-sky-50 rounded-lg p-4 border border-sky-200">
-                <div class="flex items-center">
-                  <div class="p-3 bg-sky-100 rounded-lg mr-4">
-                    <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="text-xs text-gray-500">Total Contributions</p>
-                    <p class="text-2xl font-bold text-gray-900">{participant.validator?.total_contributions || 0}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="bg-sky-50 rounded-lg p-4 border border-sky-200">
-                <div class="flex items-center">
-                  <div class="p-3 bg-sky-100 rounded-lg mr-4">
-                    <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="text-xs text-gray-500">Total Points</p>
-                    <p class="text-2xl font-bold text-gray-900">{participant.validator?.total_points || 0}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="bg-sky-50 rounded-lg p-4 border border-sky-200 sm:col-span-2 lg:col-span-1">
-                <div class="flex items-center">
-                  <div class="p-3 bg-sky-100 rounded-lg mr-4">
-                    <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="text-xs text-gray-500">Current Rank</p>
-                    <p class="text-2xl font-bold text-gray-900">#{participant.validator?.rank || 'N/A'}</p>
-                  </div>
-                </div>
-              </div>
+            <div class="mb-6">
+              <ProfileStats
+                contributions={participant.validator?.total_contributions || 0}
+                points={participant.validator?.total_points || 0}
+                rank={participant.validator?.rank}
+                colorTheme="sky"
+              />
             </div>
           {/if}
           
@@ -890,73 +895,17 @@
               isOwnProfile={isOwnProfile}
               hideWhenEmpty={!isOwnProfile}
               category="validator"
+              colorTheme="sky"
             />
           </div>
           
           <!-- Contribution Types Breakdown -->
           {#if participant.validator?.contribution_types && participant.validator.contribution_types.length > 0}
             <div class="px-4 mt-6">
-              <div class="mb-4">
-                <h3 class="text-lg leading-6 font-medium text-gray-900">
-                  Contribution Breakdown
-                </h3>
-                <p class="mt-1 text-sm text-gray-500">
-                  Points distribution across contribution types
-                </p>
-              </div>
-              
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {#each participant.validator.contribution_types as type}
-                  <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div class="flex flex-col h-full">
-                      <div class="flex items-start justify-between mb-3">
-                        <div class="flex items-center gap-2 flex-1 min-w-0">
-                          <div class="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 bg-sky-500">
-                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
-                            </svg>
-                          </div>
-                          <h3 class="text-sm font-semibold text-gray-900 truncate">
-                            <button
-                              class="hover:text-sky-600 transition-colors"
-                              onclick={() => push(`/contribution-type/${type.id}`)}
-                            >
-                              {type.name}
-                            </button>
-                          </h3>
-                        </div>
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-sky-100 text-sky-800 ml-2 flex-shrink-0">
-                          {type.total_points} pts
-                        </span>
-                      </div>
-                      
-                      <div class="text-xs text-gray-500 mb-2">
-                        {#if type.count > 1}
-                          × {type.count} contributions
-                        {:else}
-                          × 1 contribution
-                        {/if}
-                      </div>
-                      
-                      <div class="flex items-center gap-2 mt-auto">
-                        <div class="flex-1 bg-gray-200 rounded-full h-2">
-                          <div 
-                            class="h-2 rounded-full transition-all duration-300"
-                            class:bg-purple-500={type.percentage >= 40}
-                            class:bg-blue-500={type.percentage >= 25 && type.percentage < 40}
-                            class:bg-green-500={type.percentage >= 10 && type.percentage < 25}
-                            class:bg-gray-400={type.percentage < 10}
-                            style={`width: ${type.percentage}%`}
-                          ></div>
-                        </div>
-                        <span class="text-xs text-gray-600 font-medium min-w-[2.5rem] text-right">
-                          {type.percentage.toFixed(0)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                {/each}
-              </div>
+              <ContributionBreakdown
+                contributionTypes={participant.validator.contribution_types}
+                colorTheme="sky"
+              />
             </div>
           {/if}
           
@@ -987,6 +936,30 @@
         
         <!-- Content -->
         <div class="p-6">
+          <!-- Stats -->
+          <div class="mb-4">
+            <ProfileStats
+              contributions={validatorStats.totalContributions || 0}
+              points={validatorStats.totalPoints || 20}
+              rank={participant.has_validator_waitlist?.rank}
+              colorTheme="sky"
+            />
+          </div>
+          
+          <!-- Call to Action -->
+          {#if isOwnProfile}
+            <div class="bg-sky-50 border-l-4 border-sky-400 px-4 py-3 mb-6">
+              <div class="flex items-center">
+                <svg class="h-5 w-5 text-sky-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                </svg>
+                <p class="text-sm font-medium text-sky-800">
+                  Climb the ranks and get invited to validate on Testnet Asimov
+                </p>
+              </div>
+            </div>
+          {/if}
+          
           <!-- Featured Section -->
           <FeaturedContributions
             userId={participant.address}
@@ -995,21 +968,18 @@
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
-            hideWhenEmpty={false}
+            hideWhenEmpty={!isOwnProfile}
+            category="validator"
+            colorTheme="sky"
           />
           
           <!-- Contribution Breakdown -->
-          {#if contributionStats.contributionTypes && contributionStats.contributionTypes.length > 0}
+          {#if validatorStats.contributionTypes && validatorStats.contributionTypes.length > 0}
             <div class="mt-6">
-              <h3 class="text-base font-semibold text-gray-900 mb-3">Breakdown</h3>
-              <div class="space-y-2">
-                {#each contributionStats.contributionTypes as type}
-                  <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span class="text-sm text-gray-700">{type.name}</span>
-                    <span class="text-sm font-medium text-gray-900">{type.total_points} pts</span>
-                  </div>
-                {/each}
-              </div>
+              <ContributionBreakdown
+                contributionTypes={validatorStats.contributionTypes}
+                colorTheme="sky"
+              />
             </div>
           {/if}
           
@@ -1018,6 +988,7 @@
             <UserContributions
               userAddress={participant.address}
               userName={participant.name || 'Participant'}
+              category="validator"
               compact={true}
             />
           </div>
@@ -1041,11 +1012,48 @@
         <!-- Content -->
         <div class="p-6">
           <p class="text-orange-700 mb-4">Welcome to the builder community! Deploy contracts to level up.</p>
-          <div class="inline-flex items-center px-3 py-1 rounded-full bg-orange-200 text-orange-900 text-sm font-medium">
-            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-            </svg>
-            +20 Points Earned
+          
+          <!-- Stats -->
+          <div class="mb-6">
+            <ProfileStats
+              contributions={builderStats.totalContributions || 0}
+              points={builderStats.totalPoints || 20}
+              rank={participant.has_builder_welcome?.rank}
+              colorTheme="orange"
+            />
+          </div>
+          
+          <!-- Featured Section -->
+          <FeaturedContributions
+            userId={participant.address}
+            limit={3}
+            title="Featured"
+            cardStyle="compact"
+            showViewAll={false}
+            isOwnProfile={isOwnProfile}
+            hideWhenEmpty={!isOwnProfile}
+            category="builder"
+            colorTheme="orange"
+          />
+          
+          <!-- Contribution Breakdown -->
+          {#if builderStats.contributionTypes && builderStats.contributionTypes.length > 0}
+            <div class="mt-6">
+              <ContributionBreakdown
+                contributionTypes={builderStats.contributionTypes}
+                colorTheme="orange"
+              />
+            </div>
+          {/if}
+          
+          <!-- Contributions List -->
+          <div class="mt-6">
+            <UserContributions
+              userAddress={participant.address}
+              userName={participant.name || 'Participant'}
+              category="builder"
+              compact={true}
+            />
           </div>
         </div>
       </div>
@@ -1066,20 +1074,14 @@
         
         <!-- Content -->
         <div class="p-6">
-          <!-- Stats Row -->
-          <div class="grid grid-cols-3 gap-4 mb-6">
-            <div>
-              <p class="text-xs text-gray-500">Total Contributions</p>
-              <p class="text-2xl font-bold text-gray-900">{participant.builder?.total_contributions || 0}</p>
-            </div>
-            <div>
-              <p class="text-xs text-gray-500">Total Points</p>
-              <p class="text-2xl font-bold text-gray-900">{participant.builder?.total_points || 0}</p>
-            </div>
-            <div>
-              <p class="text-xs text-gray-500">Builder Rank</p>
-              <p class="text-2xl font-bold text-gray-900">#{participant.builder?.rank || 'N/A'}</p>
-            </div>
+          <!-- Stats -->
+          <div class="mb-6">
+            <ProfileStats
+              contributions={participant.builder?.total_contributions || 0}
+              points={participant.builder?.total_points || 0}
+              rank={participant.builder?.rank}
+              colorTheme="orange"
+            />
           </div>
           
           <!-- Featured Section -->
@@ -1090,9 +1092,20 @@
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
-            hideWhenEmpty={false}
+            hideWhenEmpty={!isOwnProfile}
             category="builder"
+            colorTheme="orange"
           />
+          
+          <!-- Contribution Breakdown -->
+          {#if participant.builder?.contribution_types && participant.builder.contribution_types.length > 0}
+            <div class="mt-6">
+              <ContributionBreakdown
+                contributionTypes={participant.builder.contribution_types}
+                colorTheme="orange"
+              />
+            </div>
+          {/if}
           
           <!-- Contributions -->
           <div class="mt-6">
