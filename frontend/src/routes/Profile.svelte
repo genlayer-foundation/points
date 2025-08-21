@@ -212,6 +212,17 @@
             builderStats = builderStatsRes.data;
             console.log("Builder stats data received:", builderStatsRes.data);
           }
+          
+          // Check testnet balance for builder welcome users (only for own profile)
+          if (isOwnProfile) {
+            try {
+              const result = await getValidatorBalance(participant.address);
+              testnetBalance = parseFloat(result.formatted);
+            } catch (err) {
+              console.error('Failed to check testnet balance:', err);
+              testnetBalance = 0;
+            }
+          }
         } catch (error) {
           console.warn('Builder stats API error:', error);
         }
@@ -1011,7 +1022,107 @@
         
         <!-- Content -->
         <div class="p-6">
-          <p class="text-orange-700 mb-4">Welcome to the builder community! Deploy contracts to level up.</p>
+          <!-- Welcome message and requirements -->
+          {#if isOwnProfile}
+            <div class="bg-white rounded-lg p-5 mb-6 border border-orange-200">
+              <h3 class="text-base font-semibold text-gray-900 mb-3 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+                Builder Badge Progress
+              </h3>
+              
+              <div class="space-y-3">
+                <!-- Requirement 1: First Points -->
+                <div class="flex items-start">
+                  <div class="flex-shrink-0 mt-0.5">
+                    <div class="w-5 h-5 rounded-full bg-green-100 border-2 border-green-500 flex items-center justify-center">
+                      <svg class="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <div class="ml-3 flex-1">
+                    <p class="text-sm font-medium text-gray-900">Earn your first points</p>
+                    <p class="text-xs text-gray-500">Welcome! You've earned your first 20 points in the Builder Journey</p>
+                  </div>
+                </div>
+                
+                <!-- Requirement 2: Fund Account -->
+                <div class="flex items-start">
+                  <div class="flex-shrink-0 mt-0.5">
+                    {#if testnetBalance && testnetBalance > 0}
+                      <div class="w-5 h-5 rounded-full bg-green-100 border-2 border-green-500 flex items-center justify-center">
+                        <svg class="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                      </div>
+                    {:else}
+                      <div class="w-5 h-5 rounded-full bg-gray-100 border-2 border-gray-300 flex items-center justify-center">
+                        <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
+                      </div>
+                    {/if}
+                  </div>
+                  <div class="ml-3 flex-1">
+                    <p class="text-sm font-medium text-gray-900">Top up your GenLayer Testnet Asimov account</p>
+                    <p class="text-xs text-gray-500">
+                      {#if testnetBalance === null}
+                        Checking balance...
+                      {:else if testnetBalance > 0}
+                        Current balance: {testnetBalance} GEN
+                      {:else}
+                        Visit the faucet to get testnet tokens
+                      {/if}
+                    </p>
+                  </div>
+                </div>
+                
+                <!-- Requirement 3: Deploy Contract -->
+                <div class="flex items-start">
+                  <div class="flex-shrink-0 mt-0.5">
+                    <div class="w-5 h-5 rounded-full bg-gray-100 border-2 border-gray-300 flex items-center justify-center">
+                      <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
+                    </div>
+                  </div>
+                  <div class="ml-3 flex-1">
+                    <p class="text-sm font-medium text-gray-900">Deploy your first smart contract</p>
+                    <p class="text-xs text-gray-500">Use GenLayer Studio to deploy a contract on testnet</p>
+                  </div>
+                </div>
+                
+                <!-- Requirement 4: Submit Contribution -->
+                <div class="flex items-start">
+                  <div class="flex-shrink-0 mt-0.5">
+                    <div class="w-5 h-5 rounded-full bg-gray-100 border-2 border-gray-300 flex items-center justify-center">
+                      <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
+                    </div>
+                  </div>
+                  <div class="ml-3 flex-1">
+                    <p class="text-sm font-medium text-gray-900">Submit your first contribution</p>
+                    <p class="text-xs text-gray-500">Share your work with the community for review</p>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- CTA Button -->
+              <div class="mt-5 flex items-center justify-between">
+                <div class="text-xs text-gray-500">
+                  <span class="font-medium">1 of 4</span> requirements completed
+                </div>
+                <button
+                  onclick={() => push('/submit-contribution')}
+                  class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-sm font-medium rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all duration-200 shadow-sm hover:shadow-md"
+                >
+                  <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                  </svg>
+                  Claim Builder Badge
+                </button>
+              </div>
+            </div>
+          {:else}
+            <p class="text-orange-700 mb-4">Building amazing things on GenLayer!</p>
+          {/if}
           
           <!-- Stats -->
           <div class="mb-6">
