@@ -3,13 +3,17 @@
   import { push } from 'svelte-spa-router';
   import { authState } from '../lib/auth';
   import { getCurrentUser, journeyAPI, usersAPI } from '../lib/api';
+  import { getValidatorBalance } from '../lib/blockchain';
   import Icon from '../components/Icons.svelte';
+  import BuilderProgress from '../components/BuilderProgress.svelte';
   
   let currentUser = $state(null);
   let hasValidatorWelcome = $state(false);
   let isClaimingValidatorBadge = $state(false);
   let accountBalance = $state(0);
+  let testnetBalance = $state(null);
   let hasDeployedContract = $state(false);
+  let hasSubmittedContribution = $state(false);
   let isClaimingBuilderBadge = $state(false);
   let error = $state('');
   let loading = $state(true);
@@ -37,12 +41,26 @@
       if ($authState.isAuthenticated) {
         currentUser = await getCurrentUser();
         hasValidatorWelcome = currentUser?.has_validator_waitlist || false;
+        hasSubmittedContribution = (currentUser?.builder?.total_contributions || 0) > 0;
         await checkBalance();
+        await checkTestnetBalance();
       }
     } catch (err) {
       console.error('Failed to load user data:', err);
     } finally {
       loading = false;
+    }
+  }
+  
+  async function checkTestnetBalance() {
+    try {
+      if ($authState.address) {
+        const result = await getValidatorBalance($authState.address);
+        testnetBalance = parseFloat(result.formatted);
+      }
+    } catch (err) {
+      console.error('Failed to check testnet balance:', err);
+      testnetBalance = 0;
     }
   }
   
@@ -246,111 +264,58 @@
     <h2 class="text-xl font-bold text-gray-900 mb-3">Builder Badge Requirements</h2>
     
     <p class="text-gray-700 mb-6">
-      Complete these three requirements to earn your Builder badge:
+      Complete these requirements to earn your Builder badge:
     </p>
     
-    <div class="space-y-4">
-      <!-- Requirement 1: Validator Welcome Badge -->
-      <div class="border border-gray-200 rounded-lg p-4">
-        <div class="flex items-start justify-between">
-          <div class="flex-1">
-            <div class="flex items-center">
-              <input 
-                type="checkbox" 
-                id="validatorBadge" 
-                checked={requirement1Met}
-                disabled={true}
-                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded mr-3"
-              />
-              <label for="validatorBadge" class="text-sm font-medium text-gray-900">
-                1. Claim Validator Welcome Badge
-              </label>
-            </div>
-            <p class="text-xs text-gray-600 mt-1 ml-7">
-              Join the validator waitlist to get started
-            </p>
-          </div>
-          {#if !hasValidatorWelcome}
-            <button
-              onclick={claimValidatorWelcome}
-              disabled={isClaimingValidatorBadge}
-              class="ml-3 px-4 py-2 bg-sky-600 text-white text-sm rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50"
-            >
-              {isClaimingValidatorBadge ? 'Claiming...' : 'Claim Badge'}
-            </button>
-          {:else}
-            <span class="ml-3 px-3 py-2 bg-green-100 text-green-800 text-sm rounded-md">
-              ✓ Claimed
-            </span>
-          {/if}
+    <BuilderProgress 
+      testnetBalance={testnetBalance}
+      hasValidatorWelcome={hasValidatorWelcome}
+      hasDeployedContract={hasDeployedContract}
+      hasSubmittedContribution={hasSubmittedContribution}
+      showActions={false}
+      colorTheme="orange"
+    />
+    
+    <!-- Quick Action Buttons for Requirements -->
+    <div class="mt-6 space-y-3">
+      {#if !hasValidatorWelcome}
+        <div class="flex items-center justify-between p-3 bg-sky-50 rounded-lg border border-sky-200">
+          <span class="text-sm text-sky-700">Need to claim your Validator Welcome badge first</span>
+          <button
+            onclick={claimValidatorWelcome}
+            disabled={isClaimingValidatorBadge}
+            class="px-4 py-2 bg-sky-600 text-white text-sm rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50"
+          >
+            {isClaimingValidatorBadge ? 'Claiming...' : 'Claim Badge'}
+          </button>
         </div>
-      </div>
-
-      <!-- Requirement 2: Top up Account -->
-      <div class="border border-gray-200 rounded-lg p-4">
-        <div class="flex items-start justify-between">
-          <div class="flex-1">
-            <div class="flex items-center">
-              <input 
-                type="checkbox" 
-                id="accountBalance" 
-                checked={requirement2Met}
-                disabled={true}
-                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded mr-3"
-              />
-              <label for="accountBalance" class="text-sm font-medium text-gray-900">
-                2. Top up your GenLayer account
-              </label>
-            </div>
-            <p class="text-xs text-gray-600 mt-1 ml-7">
-              Get test tokens from the faucet. Current balance: {accountBalance} GEN
-            </p>
-          </div>
-          {#if !requirement2Met}
-            <a
-              href="https://genlayer-faucet.vercel.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="ml-3 px-4 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors inline-flex items-center"
-            >
-              Open Faucet
-              <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-              </svg>
-            </a>
-          {:else}
-            <span class="ml-3 px-3 py-2 bg-green-100 text-green-800 text-sm rounded-md">
-              ✓ Funded
-            </span>
-          {/if}
+      {/if}
+      
+      {#if testnetBalance === 0 || testnetBalance === null}
+        <div class="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
+          <span class="text-sm text-orange-700">Get test tokens to interact with the network</span>
+          <a
+            href="https://genlayer-faucet.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="px-4 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors inline-flex items-center"
+          >
+            Open Faucet
+            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+          </a>
         </div>
-      </div>
-
-      <!-- Requirement 3: Deploy Contract -->
-      <div class="border border-gray-200 rounded-lg p-4">
-        <div class="flex items-start justify-between">
-          <div class="flex-1">
-            <div class="flex items-center">
-              <input 
-                type="checkbox" 
-                id="deployContract" 
-                bind:checked={hasDeployedContract}
-                disabled={!requirement1Met || !requirement2Met}
-                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded mr-3 disabled:opacity-50"
-              />
-              <label for="deployContract" class="text-sm font-medium text-gray-900">
-                3. Deploy an Intelligent Contract
-              </label>
-            </div>
-            <p class="text-xs text-gray-600 mt-1 ml-7">
-              Use GenLayer Studio to deploy your first contract
-            </p>
-          </div>
+      {/if}
+      
+      {#if !hasDeployedContract}
+        <div class="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
+          <span class="text-sm text-orange-700">Deploy your first contract in GenLayer Studio</span>
           <a
             href="https://studio.genlayer.com"
             target="_blank"
             rel="noopener noreferrer"
-            class="ml-3 px-4 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors inline-flex items-center"
+            class="px-4 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors inline-flex items-center"
           >
             Open Studio
             <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -358,7 +323,8 @@
             </svg>
           </a>
         </div>
-      </div>
+      {/if}
+    </div>
 
       <!-- Claim Builder Badge Button -->
       <div class="pt-4">
@@ -385,4 +351,3 @@
       </div>
     </div>
   </div>
-</div>
