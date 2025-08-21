@@ -44,6 +44,7 @@
         hasSubmittedContribution = (currentUser?.builder?.total_contributions || 0) > 0;
         await checkBalance();
         await checkTestnetBalance();
+        await checkDeployments();
       }
     } catch (err) {
       console.error('Failed to load user data:', err);
@@ -71,6 +72,16 @@
       accountBalance = response.data.balance || 0;
     } catch (err) {
       console.error('Failed to check balance:', err);
+    }
+  }
+  
+  async function checkDeployments() {
+    try {
+      const response = await usersAPI.getDeploymentStatus();
+      hasDeployedContract = response.data.has_deployments || false;
+    } catch (err) {
+      console.error('Failed to check deployments:', err);
+      hasDeployedContract = false;
     }
   }
   

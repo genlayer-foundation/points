@@ -8,6 +8,7 @@ from django.conf import settings
 from .models import User
 from .serializers import UserSerializer, UserCreateSerializer, UserProfileUpdateSerializer
 from .cloudinary_service import CloudinaryService
+from .genlayer_service import GenLayerDeploymentService
 from web3 import Web3
 import logging
 
@@ -391,4 +392,73 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def check_deployments(self, request):
+        """
+        Check if the authenticated user has deployed any contracts on GenLayer Studio.
+        Returns deployment status and contract details if any deployments are found.
+        """
+        user = request.user
+        
+        # Check if user has a wallet address
+        if not user.address:
+            return Response({
+                'has_deployments': False,
+                'deployments': [],
+                'error': 'No wallet address associated with this account'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Initialize GenLayer service
+            genlayer_service = GenLayerDeploymentService()
+            
+            # Check for deployments
+            deployment_result = genlayer_service.get_user_deployments(user.address)
+            
+            # Log the check for monitoring
+            logger.info(f"Deployment check for user {user.id} (address: {user.address}): "
+                       f"{deployment_result.get('deployment_count', 0)} deployments found")
+            
+            return Response(deployment_result, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error checking deployments for user {user.id}: {str(e)}")
+            return Response({
+                'has_deployments': False,
+                'deployments': [],
+                'error': 'Failed to check deployments. Please try again later.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def deployment_status(self, request):
+        """
+        Get a simplified deployment status for the authenticated user.
+        Useful for quick checks without detailed deployment information.
+        """
+        user = request.user
+        
+        if not user.address:
+            return Response({
+                'has_deployments': False,
+                'message': 'No wallet address associated with this account'
+            })
+        
+        try:
+            genlayer_service = GenLayerDeploymentService()
+            deployment_result = genlayer_service.get_user_deployments(user.address)
+            
+            return Response({
+                'has_deployments': deployment_result.get('has_deployments', False),
+                'deployment_count': deployment_result.get('deployment_count', 0),
+                'wallet_address': user.address
+            })
+            
+        except Exception as e:
+            logger.error(f"Error checking deployment status for user {user.id}: {str(e)}")
+            return Response({
+                'has_deployments': False,
+                'deployment_count': 0,
+                'error': 'Failed to check deployment status'
+            })
             

@@ -46,6 +46,7 @@
   let balance = $state(null);
   let testnetBalance = $state(null);
   let loadingBalance = $state(false);
+  let hasDeployedContract = $state(false);
   
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
@@ -223,6 +224,15 @@
             } catch (err) {
               console.error('Failed to check testnet balance:', err);
               testnetBalance = 0;
+            }
+            
+            // Check for contract deployments
+            try {
+              const deploymentResult = await usersAPI.getDeploymentStatus();
+              hasDeployedContract = deploymentResult.data.has_deployments || false;
+            } catch (err) {
+              console.error('Failed to check deployments:', err);
+              hasDeployedContract = false;
             }
           }
         } catch (error) {
@@ -1030,7 +1040,7 @@
               <BuilderProgress 
                 testnetBalance={testnetBalance}
                 hasValidatorWelcome={true}
-                hasDeployedContract={false}
+                hasDeployedContract={hasDeployedContract}
                 hasSubmittedContribution={builderStats.totalContributions > 0}
                 showActions={true}
                 colorTheme="orange"

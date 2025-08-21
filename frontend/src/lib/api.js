@@ -56,7 +56,9 @@ export const usersAPI = {
   })),
   getCurrentUser: () => api.get('/users/me/'),
   updateUserProfile: (data) => api.patch('/users/me/', data),
-  getAccountBalance: () => api.get('/users/balance/')
+  getAccountBalance: () => api.get('/users/balance/'),
+  checkDeployments: () => api.get('/users/check_deployments/'),
+  getDeploymentStatus: () => api.get('/users/deployment_status/')
 };
 
 // API endpoints for contributions
