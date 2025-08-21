@@ -275,3 +275,11 @@ VALIDATOR_RPC_URL = get_required_env('VALIDATOR_RPC_URL')
 # AWS Health Check IPs - Allow these IPs to bypass ALLOWED_HOSTS
 # Required environment variable with AWS internal/metadata service IPs
 ALLOWED_CIDR_NETS = get_required_env('ALLOWED_CIDR_NETS').split(',')
+
+# HTTPS/SSL Settings for production
+# These settings help Django detect HTTPS when behind a proxy/load balancer
+# Always trust the X-Forwarded-Proto header when it's present (for both staging and production)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# Use forwarded headers for generating URLs
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
