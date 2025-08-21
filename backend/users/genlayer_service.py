@@ -18,42 +18,11 @@ class GenLayerDeploymentService:
     def __init__(self):
         """Initialize the GenLayer client with RPC URL from settings."""
         try:
-            from genlayer_py.types import GenLayerChain, NativeCurrency
+            from genlayer_py.chains import studionet
             
-            # Create a custom chain configuration for StudioNet
-            studionet_chain = GenLayerChain(
-                id=12345,  # StudioNet chain ID
-                name='GenLayer StudioNet',
-                rpc_urls={'default': {'http': ['https://studio-rpc.genlayer.com']}},
-                native_currency=NativeCurrency(
-                    name='GEN Token',
-                    symbol='GEN',
-                    decimals=18
-                ),
-                block_explorers={
-                    'default': {
-                        'name': 'GenLayer Studio Explorer',
-                        'url': 'https://studio.genlayer.com'
-                    }
-                },
-                testnet=True,
-                # Required consensus contract configuration
-                consensus_main_contract={
-                    'address': '0x0000000000000000000000000000000000000000',  # Placeholder
-                    'abi': [],
-                    'bytecode': ''
-                },
-                consensus_data_contract={
-                    'address': '0x0000000000000000000000000000000000000000',  # Placeholder
-                    'abi': [],
-                    'bytecode': ''
-                },
-                default_number_of_initial_validators=3,
-                default_consensus_max_rotations=5
-            )
-            
-            self.client = create_client(chain=studionet_chain)
-            logger.info(f"GenLayer client initialized with StudioNet RPC")
+            # Use the built-in studionet chain configuration
+            self.client = create_client(chain=studionet)
+            logger.info(f"GenLayer client initialized with StudioNet")
         except Exception as e:
             logger.error(f"Failed to initialize GenLayer client: {str(e)}")
             # Don't raise, just log the error and continue
