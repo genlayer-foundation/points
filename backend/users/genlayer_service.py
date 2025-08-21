@@ -5,6 +5,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from django.conf import settings
 from genlayer_py import create_client
+from web3 import Web3
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +18,11 @@ class GenLayerDeploymentService:
     def __init__(self):
         """Initialize the GenLayer client with RPC URL from settings."""
         try:
-            # Get RPC URL from Django settings, fallback to the validator RPC URL
-            rpc_url = getattr(settings, 'GENLAYER_RPC_URL', settings.VALIDATOR_RPC_URL)
-            self.client = create_client(rpc_url)
-            logger.info(f"GenLayer client initialized with RPC URL: {rpc_url}")
+            # For now, use the default client without custom configuration
+            # The genlayer_py library expects a GenLayerChain object, not a URL string
+            # TODO: Configure with proper chain settings when library documentation is available
+            self.client = create_client()
+            logger.info(f"GenLayer client initialized with default settings")
         except Exception as e:
             logger.error(f"Failed to initialize GenLayer client: {str(e)}")
             # Don't raise, just log the error and continue
@@ -48,24 +50,38 @@ class GenLayerDeploymentService:
             
             # Check if client is initialized
             if not self.client:
-                logger.warning("GenLayer client not initialized, simulating deployment check")
-                # For now, return a simulated response
-                # This can be replaced with actual SDK calls once the library is fixed
+                logger.warning("GenLayer client not initialized, returning empty deployments")
                 deployments = []
             else:
-                # Get transactions for the address
+                # For now, we'll return empty deployments as the genlayer_py library
+                # doesn't have a direct method to get transactions for an address
+                # This would need to be implemented using the available methods
+                # or waiting for library updates
+                logger.info(f"Checking deployments for address: {wallet_address}")
+                
+                # TODO: Implement actual deployment checking when the library supports it
+                # Possible approaches:
+                # 1. Use get_transaction_count to check nonce (indicates activity)
+                # 2. Query specific known contract addresses
+                # 3. Use event logs if deployment events are emitted
+                
                 try:
-                    transactions = self.client.get_transactions_for_address(wallet_address)
+                    # Convert address to checksum format
+                    checksum_address = Web3.to_checksum_address(wallet_address)
                     
-                    # Filter for contract deployments
+                    # Check if the address has any transaction activity
+                    tx_count = self.client.get_transaction_count(checksum_address)
+                    logger.info(f"Transaction count for {checksum_address}: {tx_count}")
+                    
+                    # For now, we'll assume if there are transactions, there might be deployments
+                    # This is a simplified check and should be improved
                     deployments = []
-                    for tx in transactions:
-                        if self._is_contract_deployment(tx):
-                            deployment_info = self._extract_deployment_info(tx)
-                            if deployment_info:
-                                deployments.append(deployment_info)
+                    if tx_count > 0:
+                        # We can't get detailed deployment info without proper API support
+                        # Just indicate that the address has been active
+                        logger.info(f"Address {wallet_address} has {tx_count} transactions")
                 except Exception as e:
-                    logger.error(f"Error fetching transactions: {str(e)}")
+                    logger.error(f"Error checking transaction count: {str(e)}")
                     deployments = []
             
             return {
