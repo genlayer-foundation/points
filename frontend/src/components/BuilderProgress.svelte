@@ -5,17 +5,14 @@
     testnetBalance = null,
     hasValidatorWelcome = false,
     hasDeployedContract = false,
-    hasSubmittedContribution = false,
     showActions = true,
     colorTheme = 'orange'
   } = $props();
   
-  // Calculate completed requirements
+  // Calculate completed requirements (excluding deploy which is coming soon)
   let completedCount = $derived(
     (hasValidatorWelcome ? 1 : 0) +
-    (testnetBalance && testnetBalance > 0 ? 1 : 0) +
-    (hasDeployedContract ? 1 : 0) +
-    (hasSubmittedContribution ? 1 : 0)
+    (testnetBalance && testnetBalance > 0 ? 1 : 0)
   );
 </script>
 
@@ -90,45 +87,22 @@
       </div>
     </div>
     
-    <!-- Requirement 3: Deploy Contract -->
-    <div class="flex items-start">
+    <!-- Requirement 3: Deploy Contract (Coming Soon) -->
+    <div class="flex items-start opacity-60">
       <div class="flex-shrink-0 mt-0.5">
-        {#if hasDeployedContract}
-          <div class="w-5 h-5 rounded-full bg-green-100 border-2 border-green-500 flex items-center justify-center">
-            <svg class="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-            </svg>
-          </div>
-        {:else}
-          <div class="w-5 h-5 rounded-full bg-gray-100 border-2 border-gray-300 flex items-center justify-center">
-            <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
-          </div>
-        {/if}
+        <div class="w-5 h-5 rounded-full bg-gray-100 border-2 border-gray-300 flex items-center justify-center">
+          <svg class="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+          </svg>
+        </div>
       </div>
       <div class="ml-3 flex-1">
         <p class="text-sm font-medium text-gray-900">Deploy your first smart contract</p>
-        <p class="text-xs text-gray-500">Use GenLayer Studio to deploy a contract on testnet</p>
-      </div>
-    </div>
-    
-    <!-- Requirement 4: Submit Contribution -->
-    <div class="flex items-start">
-      <div class="flex-shrink-0 mt-0.5">
-        {#if hasSubmittedContribution}
-          <div class="w-5 h-5 rounded-full bg-green-100 border-2 border-green-500 flex items-center justify-center">
-            <svg class="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-            </svg>
-          </div>
-        {:else}
-          <div class="w-5 h-5 rounded-full bg-gray-100 border-2 border-gray-300 flex items-center justify-center">
-            <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
-          </div>
-        {/if}
-      </div>
-      <div class="ml-3 flex-1">
-        <p class="text-sm font-medium text-gray-900">Submit your first contribution</p>
-        <p class="text-xs text-gray-500">Share your work with the community for review</p>
+        <p class="text-xs text-gray-500">
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+            Coming Soon
+          </span>
+        </p>
       </div>
     </div>
   </div>
@@ -137,7 +111,7 @@
     <!-- CTA Button -->
     <div class="mt-5 flex items-center justify-between">
       <div class="text-xs text-gray-500">
-        <span class="font-medium">{completedCount} of 4</span> requirements completed
+        <span class="font-medium">{completedCount} of 2</span> requirements completed
       </div>
       <button
         onclick={() => push('/submit-contribution')}

@@ -1041,7 +1041,6 @@
                 testnetBalance={testnetBalance}
                 hasValidatorWelcome={true}
                 hasDeployedContract={hasDeployedContract}
-                hasSubmittedContribution={builderStats.totalContributions > 0}
                 showActions={true}
                 colorTheme="orange"
               />

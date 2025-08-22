@@ -20,9 +20,8 @@
   
   // Derived states for requirements
   let requirement1Met = $derived(hasValidatorWelcome);
-  let requirement2Met = $derived(accountBalance > 0);
-  let requirement3Met = $derived(hasDeployedContract);
-  let allRequirementsMet = $derived(requirement1Met && requirement2Met && requirement3Met);
+  let requirement2Met = $derived(testnetBalance > 0);
+  let allRequirementsMet = $derived(requirement1Met && requirement2Met);
   
   onMount(async () => {
     await loadData();
@@ -282,7 +281,6 @@
       testnetBalance={testnetBalance}
       hasValidatorWelcome={hasValidatorWelcome}
       hasDeployedContract={hasDeployedContract}
-      hasSubmittedContribution={hasSubmittedContribution}
       showActions={false}
       colorTheme="orange"
     />
@@ -319,22 +317,6 @@
         </div>
       {/if}
       
-      {#if !hasDeployedContract}
-        <div class="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
-          <span class="text-sm text-orange-700">Deploy your first contract in GenLayer Studio</span>
-          <a
-            href="https://studio.genlayer.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="px-4 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors inline-flex items-center"
-          >
-            Open Studio
-            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-            </svg>
-          </a>
-        </div>
-      {/if}
     </div>
 
       <!-- Claim Builder Badge Button -->
