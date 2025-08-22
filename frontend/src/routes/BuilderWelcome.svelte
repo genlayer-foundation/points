@@ -281,43 +281,11 @@
       testnetBalance={testnetBalance}
       hasValidatorWelcome={hasValidatorWelcome}
       hasDeployedContract={hasDeployedContract}
-      showActions={false}
+      showActions={true}
       colorTheme="orange"
+      onClaimValidatorBadge={claimValidatorWelcome}
+      isClaimingValidatorBadge={isClaimingValidatorBadge}
     />
-    
-    <!-- Quick Action Buttons for Requirements -->
-    <div class="mt-6 space-y-3">
-      {#if !hasValidatorWelcome}
-        <div class="flex items-center justify-between p-3 bg-sky-50 rounded-lg border border-sky-200">
-          <span class="text-sm text-sky-700">Need to claim your Validator Welcome badge first</span>
-          <button
-            onclick={claimValidatorWelcome}
-            disabled={isClaimingValidatorBadge}
-            class="px-4 py-2 bg-sky-600 text-white text-sm rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50"
-          >
-            {isClaimingValidatorBadge ? 'Claiming...' : 'Claim Badge'}
-          </button>
-        </div>
-      {/if}
-      
-      {#if testnetBalance === 0 || testnetBalance === null}
-        <div class="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
-          <span class="text-sm text-orange-700">Get test tokens to interact with the network</span>
-          <a
-            href="https://genlayer-faucet.vercel.app/"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="px-4 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors inline-flex items-center"
-          >
-            Open Faucet
-            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-            </svg>
-          </a>
-        </div>
-      {/if}
-      
-    </div>
 
       <!-- Claim Builder Badge Button -->
       <div class="pt-4">

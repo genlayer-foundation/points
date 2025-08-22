@@ -6,7 +6,9 @@
     hasValidatorWelcome = false,
     hasDeployedContract = false,
     showActions = true,
-    colorTheme = 'orange'
+    colorTheme = 'orange',
+    onClaimValidatorBadge = null,
+    isClaimingValidatorBadge = false
   } = $props();
   
   // Calculate completed requirements (excluding deploy which is coming soon)
@@ -41,14 +43,38 @@
         {/if}
       </div>
       <div class="ml-3 flex-1">
-        <p class="text-sm font-medium text-gray-900">Earn your first points</p>
-        <p class="text-xs text-gray-500">
-          {#if hasValidatorWelcome}
-            Welcome! You've earned your first points in the Builder Journey
-          {:else}
-            Join the validator waitlist to get started
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <p class="text-sm font-medium text-gray-900">Earn your first points</p>
+            <p class="text-xs text-gray-500">
+              {#if hasValidatorWelcome}
+                Welcome! You've earned your first points in the Builder Journey
+              {:else}
+                Join the validator waitlist to get started
+              {/if}
+            </p>
+          </div>
+          {#if !hasValidatorWelcome && showActions}
+            <button
+              onclick={() => onClaimValidatorBadge ? onClaimValidatorBadge() : push('/validators/waitlist/join')}
+              disabled={isClaimingValidatorBadge}
+              class="ml-3 px-3 py-1 bg-sky-50 text-sky-700 text-xs font-medium rounded-md hover:bg-sky-100 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {#if isClaimingValidatorBadge}
+                <svg class="animate-spin -ml-0.5 mr-1.5 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Claiming...
+              {:else}
+                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+                </svg>
+                Claim Badge
+              {/if}
+            </button>
           {/if}
-        </p>
+        </div>
       </div>
     </div>
     
@@ -68,22 +94,39 @@
         {/if}
       </div>
       <div class="ml-3 flex-1">
-        <p class="text-sm font-medium text-gray-900">Top up your GenLayer Testnet Asimov account</p>
-        <p class="text-xs text-gray-500">
-          {#if testnetBalance === null}
-            <span class="inline-flex items-center">
-              <svg class="animate-spin -ml-0.5 mr-1.5 h-3 w-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <p class="text-sm font-medium text-gray-900">Top up your GenLayer Testnet Asimov account</p>
+            <p class="text-xs text-gray-500">
+              {#if testnetBalance === null}
+                <span class="inline-flex items-center">
+                  <svg class="animate-spin -ml-0.5 mr-1.5 h-3 w-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Checking balance...
+                </span>
+              {:else if testnetBalance > 0}
+                Current balance: {testnetBalance} GEN
+              {:else}
+                Visit the faucet to get testnet tokens
+              {/if}
+            </p>
+          </div>
+          {#if showActions && testnetBalance !== null && testnetBalance === 0}
+            <a
+              href="https://genlayer-faucet.vercel.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="ml-3 px-3 py-1 bg-{colorTheme}-50 text-{colorTheme}-700 text-xs font-medium rounded-md hover:bg-{colorTheme}-100 transition-colors flex items-center"
+            >
+              <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
               </svg>
-              Checking balance...
-            </span>
-          {:else if testnetBalance > 0}
-            Current balance: {testnetBalance} GEN
-          {:else}
-            Visit the faucet to get testnet tokens
+              Get Tokens
+            </a>
           {/if}
-        </p>
+        </div>
       </div>
     </div>
     
