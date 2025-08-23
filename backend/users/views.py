@@ -44,7 +44,10 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Get a user by their Ethereum wallet address
         """
-        user = get_object_or_404(User, address__iexact=address)
+        user = get_object_or_404(
+            User.objects.select_related('validator', 'builder', 'steward'),
+            address__iexact=address
+        )
         serializer = self.get_serializer(user)
         return Response(serializer.data)
     
@@ -277,6 +280,116 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         return w3.eth.contract(address=contract_address, abi=abi)
     
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def start_builder_journey(self, request):
+        """
+        Award the builder welcome contribution to start the builder journey.
+        This gives the user their first contribution without checking other requirements.
+        """
+        from contributions.models import Contribution, ContributionType
+        from django.utils import timezone
+        from django.db import transaction
+        
+        user = request.user
+        
+        # Check if user already has the contribution
+        try:
+            welcome_type = ContributionType.objects.get(slug='builder-welcome')
+        except ContributionType.DoesNotExist:
+            return Response(
+                {'error': 'Builder welcome contribution type not configured'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        if Contribution.objects.filter(user=user, contribution_type=welcome_type).exists():
+            return Response(
+                {'message': 'You already have the builder welcome contribution'},
+                status=status.HTTP_200_OK
+            )
+        
+        # Create the contribution to start the journey
+        try:
+            with transaction.atomic():
+                # Ensure multiplier exists for builder-welcome contribution type
+                from leaderboard.models import GlobalLeaderboardMultiplier
+                if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=welcome_type).exists():
+                    GlobalLeaderboardMultiplier.objects.create(
+                        contribution_type=welcome_type,
+                        multiplier_value=1.0,
+                        valid_from=timezone.now() - timezone.timedelta(days=30),
+                        description='Default multiplier for Builder Welcome contributions',
+                        notes='Applied when users start the builder journey'
+                    )
+                
+                contribution = Contribution.objects.create(
+                    user=user,
+                    contribution_type=welcome_type,
+                    points=20,
+                    contribution_date=timezone.now(),
+                    notes='Started builder journey - welcome to the GenLayer community!'
+                )
+            
+            serializer = self.get_serializer(user)
+            return Response({
+                'message': 'Builder journey started successfully!',
+                'user': serializer.data
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            logger.error(f"Failed to start builder journey for user {user.id}: {str(e)}")
+            return Response(
+                {'error': f'Failed to start journey: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def start_validator_journey(self, request):
+        """
+        Award the validator waitlist contribution to start the validator journey.
+        This gives the user their first contribution without checking other requirements.
+        """
+        from contributions.models import Contribution, ContributionType
+        from django.utils import timezone
+        
+        user = request.user
+        
+        # Check if user already has the contribution
+        try:
+            waitlist_type = ContributionType.objects.get(slug='validator-waitlist')
+        except ContributionType.DoesNotExist:
+            return Response(
+                {'error': 'Validator waitlist contribution type not configured'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        if Contribution.objects.filter(user=user, contribution_type=waitlist_type).exists():
+            return Response(
+                {'message': 'You already have the validator waitlist contribution'},
+                status=status.HTTP_200_OK
+            )
+        
+        # Create the contribution to start the journey
+        try:
+            contribution = Contribution.objects.create(
+                user=user,
+                contribution_type=waitlist_type,
+                points=20,
+                contribution_date=timezone.now(),
+                notes='Joined the validator waitlist'
+            )
+            
+            serializer = self.get_serializer(user)
+            return Response({
+                'message': 'Validator journey started successfully!',
+                'user': serializer.data
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to start journey: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def complete_validator_journey(self, request):
         """
         Award the validator waitlist badge to the user.
@@ -328,48 +441,126 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def complete_builder_journey(self, request):
         """
-        Award the builder initiate badge to the user.
-        This should be called after the user completes the builder journey requirements.
+        Check if user meets builder journey requirements and award the builder contribution.
+        Requirements:
+        1. Has at least one contribution (any type)
+        2. Has testnet balance > 0
+        
+        Also creates Builder profile if it doesn't exist.
         """
         from contributions.models import Contribution, ContributionType
+        from builders.models import Builder
         from django.utils import timezone
+        from django.db import transaction
+        from web3 import Web3
+        import requests
         
         user = request.user
         
-        # Check if user already has the badge
+        # Check if user already has the BUILDER contribution (not builder-welcome)
         try:
-            welcome_type = ContributionType.objects.get(slug='builder-welcome')
+            builder_type = ContributionType.objects.get(slug='builder')
         except ContributionType.DoesNotExist:
-            return Response(
-                {'error': 'Builder welcome contribution type not configured'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            # If builder contribution type doesn't exist, create it
+            from contributions.models import Category
+            try:
+                builder_category = Category.objects.get(slug='builder')
+            except Category.DoesNotExist:
+                builder_category = None
+            
+            builder_type = ContributionType.objects.create(
+                name='Builder',
+                slug='builder',
+                description='Awarded when becoming a GenLayer Builder',
+                category=builder_category
             )
         
-        if Contribution.objects.filter(user=user, contribution_type=welcome_type).exists():
-            return Response(
-                {'message': 'You already have the builder welcome badge'},
-                status=status.HTTP_200_OK
-            )
-        
-        # Create the contribution to award the badge
-        try:
-            contribution = Contribution.objects.create(
-                user=user,
-                contribution_type=welcome_type,
-                points=20,
-                contribution_date=timezone.now(),
-                notes='Completed builder journey - welcome to the builder community!'
-            )
+        if Contribution.objects.filter(user=user, contribution_type=builder_type).exists():
+            # User already has the builder contribution, just ensure they have a Builder profile
+            if not hasattr(user, 'builder'):
+                Builder.objects.create(user=user)
             
             serializer = self.get_serializer(user)
             return Response({
-                'message': 'Builder welcome badge awarded successfully!',
+                'message': 'You are already a GenLayer Builder',
+                'user': serializer.data
+            }, status=status.HTTP_200_OK)
+        
+        # Check requirement 1: Has at least one contribution
+        has_contribution = Contribution.objects.filter(user=user).exists()
+        if not has_contribution:
+            return Response(
+                {'error': 'You need at least one contribution to complete the builder journey'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check requirement 2: Has testnet balance > 0
+        if not user.address:
+            return Response(
+                {'error': 'No wallet address associated with your account'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Check testnet balance using Web3 with RPC URL from settings
+            from django.conf import settings
+            web3 = Web3(Web3.HTTPProvider(settings.VALIDATOR_RPC_URL))
+            checksum_address = Web3.to_checksum_address(user.address)
+            balance_wei = web3.eth.get_balance(checksum_address)
+            balance_eth = web3.from_wei(balance_wei, 'ether')
+            
+            if balance_eth <= 0:
+                return Response(
+                    {'error': 'You need testnet tokens to complete the builder journey. Visit the faucet to get tokens.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except Exception as e:
+            logger.warning(f"Failed to check balance for {user.address}: {str(e)}")
+            # If we can't check balance, we'll allow proceeding (fail open)
+            pass
+        
+        # All requirements met, create the BUILDER contribution and Builder profile atomically
+        try:
+            with transaction.atomic():
+                # First ensure the multiplier exists for the builder contribution type
+                from leaderboard.models import GlobalLeaderboardMultiplier
+                if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=builder_type).exists():
+                    # Create a default multiplier if it doesn't exist
+                    GlobalLeaderboardMultiplier.objects.create(
+                        contribution_type=builder_type,
+                        multiplier_value=1.0,
+                        valid_from=timezone.now() - timezone.timedelta(days=30),
+                        description='Default multiplier for Builder contributions',
+                        notes='Applied when users complete the builder journey'
+                    )
+                
+                # Create the BUILDER contribution (this is the actual achievement)
+                contribution = Contribution.objects.create(
+                    user=user,
+                    contribution_type=builder_type,
+                    points=50,  # Points for becoming a builder
+                    contribution_date=timezone.now(),
+                    notes='Became a GenLayer Builder - completed all requirements'
+                )
+                
+                # Create Builder profile if it doesn't exist
+                builder_created = False
+                if not hasattr(user, 'builder'):
+                    Builder.objects.create(user=user)
+                    builder_created = True
+            
+            # Transaction successful, return response
+            serializer = self.get_serializer(user)
+            return Response({
+                'message': 'Builder journey completed successfully!',
                 'user': serializer.data
             }, status=status.HTTP_201_CREATED)
             
         except Exception as e:
+            # Transaction will be rolled back automatically
+            logger.error(f"Failed to complete builder journey for user {user.id}: {str(e)}")
             return Response(
-                {'error': f'Failed to award badge: {str(e)}'},
+                {'error': f'Failed to complete journey: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
