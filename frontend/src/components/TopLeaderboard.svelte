@@ -34,18 +34,10 @@
         response = await leaderboardAPI.getLeaderboard();
         leaderboard = response.data || [];
       } else {
-        // Use category-specific endpoint
-        response = await leaderboardAPI.getCategoryLeaderboard(categoryToUse);
-        // Transform the entries to match the expected format
-        leaderboard = (response.data.entries || []).map(entry => ({
-          rank: entry.rank,
-          total_points: entry.total_points,
-          user_details: {
-            id: entry.user.id,
-            name: entry.user.name,
-            address: entry.user.address,
-          }
-        }));
+        // Use type-specific endpoint
+        response = await leaderboardAPI.getLeaderboardByType(categoryToUse);
+        // API now returns array directly, not wrapped in entries
+        leaderboard = response.data || [];
       }
       
       if (limit && leaderboard.length > limit) {

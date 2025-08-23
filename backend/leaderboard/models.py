@@ -4,8 +4,123 @@ from django.dispatch import receiver
 from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from django.db.models import Sum
 from utils.models import BaseModel
 from contributions.models import ContributionType, Contribution, Category
+
+
+# Helper functions for leaderboard configuration
+def has_contribution_badge(user, slug):
+    """Helper to check if user has a specific contribution badge"""
+    return Contribution.objects.filter(
+        user=user,
+        contribution_type__slug=slug
+    ).exists()
+
+
+def has_category_contributions(user, category_slug):
+    """Helper to check if user has contributions in a category"""
+    return Contribution.objects.filter(
+        user=user,
+        contribution_type__category__slug=category_slug
+    ).exists()
+
+
+def calculate_category_points(user, category_slug):
+    """Calculate total points from a specific category"""
+    return Contribution.objects.filter(
+        user=user,
+        contribution_type__category__slug=category_slug
+    ).aggregate(
+        total=Sum('frozen_global_points')
+    )['total'] or 0
+
+
+def calculate_waitlist_points(user):
+    """Calculate validator category points before graduation date"""
+    # Find graduation contribution if exists
+    grad_contrib = Contribution.objects.filter(
+        user=user,
+        contribution_type__slug='validator'
+    ).order_by('contribution_date').first()
+    
+    query = Contribution.objects.filter(
+        user=user,
+        contribution_type__category__slug='validator'
+    )
+    
+    if grad_contrib:
+        # Only count contributions before graduation
+        query = query.filter(contribution_date__lt=grad_contrib.contribution_date)
+    
+    return query.aggregate(total=Sum('frozen_global_points'))['total'] or 0
+
+
+def calculate_graduation_points(user):
+    """
+    For graduation leaderboard - returns existing frozen points or calculates them.
+    Returns tuple of (points, should_update, graduation_date)
+    """
+    # Import here to avoid circular dependency
+    from leaderboard.models import LeaderboardEntry
+    
+    # Check if already has graduation entry
+    existing_entry = LeaderboardEntry.objects.filter(
+        user=user,
+        type='validator-waitlist-graduation'
+    ).first()
+    
+    if existing_entry:
+        # Points already frozen, no update needed
+        return existing_entry.total_points, False, existing_entry.graduation_date
+    
+    # New graduation - calculate points to freeze
+    waitlist_points = calculate_waitlist_points(user)
+    
+    # Get graduation date from validator contribution
+    grad_contrib = Contribution.objects.filter(
+        user=user,
+        contribution_type__slug='validator'
+    ).order_by('contribution_date').first()
+    
+    graduation_date = grad_contrib.contribution_date if grad_contrib else timezone.now()
+    
+    return waitlist_points, True, graduation_date
+
+
+# Unified configuration for all leaderboard types
+LEADERBOARD_CONFIG = {
+    'validator': {
+        'name': 'Validator',
+        'participants': lambda user: has_contribution_badge(user, 'validator'),
+        'points_calculator': lambda user: calculate_category_points(user, 'validator'),
+        'ranking_order': '-total_points',  # Highest points first
+    },
+    'builder': {
+        'name': 'Builder',
+        'participants': lambda user: has_category_contributions(user, 'builder'),
+        'points_calculator': lambda user: calculate_category_points(user, 'builder'),
+        'ranking_order': '-total_points',
+    },
+    'validator-waitlist': {
+        'name': 'Validator Waitlist',
+        'participants': lambda user: (
+            has_contribution_badge(user, 'validator-waitlist') and 
+            not has_contribution_badge(user, 'validator')
+        ),
+        'points_calculator': lambda user: calculate_waitlist_points(user),
+        'ranking_order': '-total_points',
+    },
+    'validator-waitlist-graduation': {
+        'name': 'Validator Waitlist Graduation',
+        'participants': lambda user: (
+            has_contribution_badge(user, 'validator-waitlist') and
+            has_contribution_badge(user, 'validator')
+        ),
+        'points_calculator': lambda user: calculate_graduation_points(user),
+        'ranking_order': '-graduation_date',  # Most recent graduations first
+    }
+}
 
 
 class GlobalLeaderboardMultiplier(BaseModel):
@@ -90,33 +205,37 @@ class GlobalLeaderboardMultiplier(BaseModel):
 
 class LeaderboardEntry(BaseModel):
     """
-    Represents a user's position on the leaderboard.
-    Can be global (category=None) or category-specific.
+    Represents a user's position on a specific leaderboard type.
+    Each leaderboard has independent point calculations.
     """
+    # Generate choices from configuration
+    LEADERBOARD_TYPES = [(key, config['name']) for key, config in LEADERBOARD_CONFIG.items()]
+    
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
         related_name='leaderboard_entries'
     )
-    category = models.ForeignKey(
-        Category,
-        on_delete=models.CASCADE,
-        related_name='leaderboard_entries',
-        null=True,
-        blank=True,
-        help_text="Null for global leaderboard, or specific category"
+    type = models.CharField(
+        max_length=50,
+        choices=LEADERBOARD_TYPES,
+        help_text="Type of leaderboard this entry belongs to"
     )
     total_points = models.PositiveIntegerField(default=0)
     rank = models.PositiveIntegerField(null=True, blank=True)
+    last_update = models.DateTimeField(auto_now=True)
+    
+    # For graduation leaderboard - store graduation date
+    graduation_date = models.DateTimeField(null=True, blank=True)
     
     class Meta:
         ordering = ['-total_points', 'user__name']
         verbose_name_plural = 'Leaderboard entries'
-        unique_together = ['user', 'category']
+        unique_together = ['user', 'type']
     
     def __str__(self):
-        category_name = self.category.name if self.category else "Global"
-        return f"{self.user} - {category_name} - {self.total_points} points - Rank: {self.rank or 'Not ranked'}"
+        leaderboard_name = self.get_type_display() if self.type else "Unknown"
+        return f"{self.user} - {leaderboard_name} - {self.total_points} points - Rank: {self.rank or 'Not ranked'}"
     
     def update_points_without_ranking(self):
         """
@@ -124,50 +243,79 @@ class LeaderboardEntry(BaseModel):
         This method does NOT update ranks - useful for batch operations where ranks 
         should be updated once at the end.
         """
-        from contributions.models import Contribution
+        config = LEADERBOARD_CONFIG.get(self.type)
+        if not config:
+            return self.total_points
         
-        if self.category:
-            # Category-specific leaderboard
-            contributions = Contribution.objects.filter(
-                user=self.user,
-                contribution_type__category=self.category
-            )
+        calculator = config['points_calculator']
+        
+        if self.type == 'validator-waitlist-graduation':
+            # Special handling for graduation
+            points, should_update, _ = calculator(self.user)
+            if should_update:
+                self.total_points = points
+                self.save(update_fields=['total_points'])
         else:
-            # Global leaderboard
-            contributions = Contribution.objects.filter(user=self.user)
-        
-        total_points = contributions.values_list('frozen_global_points', flat=True)
-        self.total_points = sum(total_points)
-        self.save(update_fields=['total_points'])
+            self.total_points = calculator(self.user)
+            self.save(update_fields=['total_points'])
         
         return self.total_points
-
+    
+    @classmethod
+    def determine_user_leaderboards(cls, user):
+        """
+        Determine which leaderboards a user should appear on based on LEADERBOARD_CONFIG.
+        Returns a list of leaderboard type strings.
+        """
+        user_leaderboards = []
+        for leaderboard_type, config in LEADERBOARD_CONFIG.items():
+            if config['participants'](user):
+                user_leaderboards.append(leaderboard_type)
+        return user_leaderboards
 
     @classmethod
-    def update_category_ranks(cls, category=None):
+    def update_leaderboard_ranks(cls, leaderboard_type):
         """
-        Update ranks for all users in a specific category leaderboard.
-        If category is None, updates global leaderboard.
+        Update ranks for all users in a specific leaderboard type.
         Only visible users are ranked.
         """
+        if leaderboard_type not in LEADERBOARD_CONFIG:
+            return
+        
+        config = LEADERBOARD_CONFIG[leaderboard_type]
+        ranking_order = config['ranking_order']
+        
+        # Build order_by fields based on configuration
+        if ranking_order == '-graduation_date':
+            order_fields = ['-graduation_date', 'user__name']
+        elif ranking_order == '-total_points':
+            order_fields = ['-total_points', 'user__name']
+        else:
+            order_fields = [ranking_order, 'user__name']
+        
         # First, set all non-visible users' ranks to null
         cls.objects.filter(
-            category=category,
+            type=leaderboard_type,
             user__visible=False
         ).update(rank=None)
         
         # Then rank only visible users
-        entries = cls.objects.filter(
-            category=category,
-            user__visible=True
-        ).order_by('-total_points', 'user__name')
+        entries = list(
+            cls.objects.filter(
+                type=leaderboard_type,
+                user__visible=True
+            ).order_by(*order_fields)
+        )
         
-        for i, entry in enumerate(entries):
-            entry.rank = i + 1
-            entry.save(update_fields=['rank'])
+        # Bulk update ranks
+        for i, entry in enumerate(entries, 1):
+            entry.rank = i
+        
+        if entries:
+            cls.objects.bulk_update(entries, ['rank'], batch_size=1000)
 
 
-# Signals to update leaderboard entries
+# Signal handlers
 @receiver(post_save, sender=GlobalLeaderboardMultiplier)
 def log_multiplier_creation(sender, instance, created, **kwargs):
     """
@@ -181,10 +329,7 @@ def log_multiplier_creation(sender, instance, created, **kwargs):
 @receiver(post_save, sender=Contribution)
 def update_leaderboard_on_contribution(sender, instance, created, **kwargs):
     """
-    When a contribution is saved, update the leaderboard entry.
-    
-    Note: We don't need to recalculate frozen_global_points here as it's 
-    handled in the Contribution.save() method using the multiplier_at_creation value.
+    When a contribution is saved, update all affected leaderboard entries.
     """
     # Only update if points have changed or it's a new contribution
     if created or kwargs.get('update_fields') is None or 'points' in kwargs.get('update_fields', []):
@@ -193,49 +338,73 @@ def update_leaderboard_on_contribution(sender, instance, created, **kwargs):
         print(f"Contribution saved: {instance.points} points × {instance.multiplier_at_creation} = "
               f"{instance.frozen_global_points} global points (contribution date: {contribution_date_str})")
     
-    # Update the user's leaderboard entry
-    update_user_leaderboard_entry(instance.user)
+    # Update the user's leaderboard entries
+    update_user_leaderboard_entries(instance.user)
 
 
-def update_user_leaderboard_entry(user):
+def update_user_leaderboard_entries(user):
     """
-    Update or create leaderboard entries for a user based on their total frozen_global_points.
-    Creates/updates both global and category-specific entries.
+    Core function that manages all of a user's leaderboard placements.
+    Handles graduation, point calculations, and rank updates.
     """
-    # Update global leaderboard entry
-    total_points = Contribution.objects.filter(user=user).values_list('frozen_global_points', flat=True)
-    total_points = sum(total_points)
+    # Step 1: Determine which leaderboards user qualifies for
+    qualified_leaderboards = []
+    for leaderboard_type, config in LEADERBOARD_CONFIG.items():
+        if config['participants'](user):
+            qualified_leaderboards.append(leaderboard_type)
     
-    LeaderboardEntry.objects.update_or_create(
-        user=user,
-        category=None,  # Global
-        defaults={'total_points': total_points}
+    # Step 2: Track which leaderboards were removed (for rank updates)
+    existing_entries = set(
+        LeaderboardEntry.objects.filter(user=user).values_list('type', flat=True)
     )
+    removed_leaderboards = existing_entries - set(qualified_leaderboards)
     
-    # Update category-specific leaderboard entries
-    categories = Category.objects.all()
-    for category in categories:
-        cat_contributions = Contribution.objects.filter(
+    # Step 3: Remove from leaderboards user no longer qualifies for
+    if removed_leaderboards:
+        LeaderboardEntry.objects.filter(
             user=user,
-            contribution_type__category=category
-        )
-        cat_points = sum(c.frozen_global_points for c in cat_contributions)
+            type__in=removed_leaderboards
+        ).delete()
+    
+    # Step 4: Update or create entries for each qualified leaderboard
+    for leaderboard_type in qualified_leaderboards:
+        config = LEADERBOARD_CONFIG[leaderboard_type]
+        calculator = config['points_calculator']
         
-        if cat_points > 0:  # Only create entry if user has points in this category
+        if leaderboard_type == 'validator-waitlist-graduation':
+            # Special handling for graduation (frozen points)
+            points, should_update, graduation_date = calculator(user)
+            
+            if should_update:
+                # Create or update graduation entry
+                LeaderboardEntry.objects.update_or_create(
+                    user=user,
+                    type=leaderboard_type,
+                    defaults={
+                        'total_points': points,
+                        'graduation_date': graduation_date
+                    }
+                )
+            # If not should_update, entry already exists with frozen points
+        else:
+            # Regular leaderboard update
+            points = calculator(user)
+            
             LeaderboardEntry.objects.update_or_create(
                 user=user,
-                category=category,
-                defaults={'total_points': cat_points}
+                type=leaderboard_type,
+                defaults={'total_points': points}
             )
     
-    # Recompute all ranks
-    update_all_ranks()
-
+    # Step 5: Update ranks for all affected leaderboards
+    affected_leaderboards = set(qualified_leaderboards) | removed_leaderboards
+    for leaderboard_type in affected_leaderboards:
+        LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
 
 def update_all_ranks():
     """
-    Update the ranks for all leaderboard entries (both global and per-category).
+    Update the ranks for all leaderboard types.
     
     Users with the same points will have consecutive ranks.
     For example: if two users have 100 points, they will be ranked 1 and 2,
@@ -243,10 +412,36 @@ def update_all_ranks():
     
     Only visible users are ranked. Non-visible users get null rank.
     """
-    # Update global leaderboard ranks
-    LeaderboardEntry.update_category_ranks(category=None)
+    # Update each leaderboard type
+    for leaderboard_type in LEADERBOARD_CONFIG.keys():
+        LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
+
+
+def recalculate_all_leaderboards():
+    """
+    Admin command to recalculate all leaderboard entries from scratch.
+    Called from admin panel shortcut.
+    """
+    from django.db import transaction
+    from users.models import User
     
-    # Update each category's leaderboard ranks
-    categories = Category.objects.all()
-    for category in categories:
-        LeaderboardEntry.update_category_ranks(category=category)
+    with transaction.atomic():
+        # Clear all existing entries
+        LeaderboardEntry.objects.all().delete()
+        
+        # Get all users with any contributions
+        users = User.objects.filter(
+            contributions__isnull=False
+        ).distinct().prefetch_related(
+            'contributions__contribution_type__category'
+        )
+        
+        # Process each user
+        for user in users:
+            update_user_leaderboard_entries(user)
+        
+        # Update ranks for all leaderboard types
+        for leaderboard_type in LEADERBOARD_CONFIG.keys():
+            LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
+        
+        return f"Recalculated {users.count()} users across {len(LEADERBOARD_CONFIG)} leaderboards"
