@@ -3,12 +3,16 @@
   import { authState } from '../lib/auth.js';
   import { onMount } from 'svelte';
   import api from '../lib/api.js';
+  import ContributionSelection from '../lib/components/ContributionSelection.svelte';
   
-  let contributionTypes = $state([]);
-  let loading = $state(true);
+  let loading = $state(false);
   let submitting = $state(false);
   let error = $state('');
   let authChecked = $state(false);
+  
+  // Selection state
+  let selectedCategory = $state('validator');
+  let selectedContributionType = $state(null);
   
   // Form data
   let formData = $state({
@@ -20,46 +24,37 @@
   // Evidence slots - start with no slots
   let evidenceSlots = $state([]);
   
-  // Load contribution types when authenticated
-  async function loadContributionTypes() {
-    if (!$authState.isAuthenticated) {
-      loading = false;
-      authChecked = true;
-      return;
-    }
-    
-    loading = true;
-    try {
-      const response = await api.get('/contribution-types/');
-      console.log('Contribution types response:', response.data);
-      // Handle paginated response
-      contributionTypes = response.data.results || response.data;
-      console.log('Parsed contribution types:', contributionTypes);
-    } catch (err) {
-      error = 'Failed to load contribution types';
-      console.error('Error loading contribution types:', err);
-    } finally {
-      loading = false;
-      authChecked = true;
-    }
-  }
-  
   // React to auth state changes
   $effect(() => {
     if ($authState.isAuthenticated) {
-      loadContributionTypes();
-    } else {
-      contributionTypes = [];
       authChecked = true;
-      loading = false;
+    } else {
+      authChecked = true;
+    }
+  });
+  
+  // Update form data when contribution type is selected
+  $effect(() => {
+    if (selectedContributionType) {
+      formData.contribution_type = selectedContributionType.id;
+      // Clear error when a contribution type is selected
+      if (error === 'Please select a contribution type') {
+        error = '';
+      }
+    } else {
+      formData.contribution_type = '';
     }
   });
   
   onMount(async () => {
     // Wait a moment for auth state to be verified
     await new Promise(resolve => setTimeout(resolve, 100));
-    loadContributionTypes();
+    authChecked = true;
   });
+  
+  function handleSelectionChange(category, contributionType) {
+    console.log('Selection changed:', { category, contributionType });
+  }
   
   function addEvidenceSlot() {
     evidenceSlots = [...evidenceSlots, { id: Date.now(), description: '', url: '', file: null }];
@@ -169,22 +164,16 @@
       {/if}
       
       <div class="mb-6">
-        <label for="contribution_type" class="block text-sm font-medium text-gray-700 mb-2">
+        <label class="block text-sm font-medium text-gray-700 mb-2">
           Contribution Type <span class="text-red-500">*</span>
         </label>
-        <select
-          id="contribution_type"
-          bind:value={formData.contribution_type}
-          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-          required
-        >
-          <option value="">Select a contribution type</option>
-          {#each contributionTypes as type}
-            <option value={type.id}>
-              {type.name} ({type.min_points}-{type.max_points} points)
-            </option>
-          {/each}
-        </select>
+        <ContributionSelection
+          bind:selectedCategory
+          bind:selectedContributionType
+          onlySubmittable={true}
+          stewardMode={false}
+          onSelectionChange={handleSelectionChange}
+        />
       </div>
       
       <div class="mb-6">
