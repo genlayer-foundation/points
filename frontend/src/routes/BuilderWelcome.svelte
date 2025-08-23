@@ -3,22 +3,34 @@
   import { push } from 'svelte-spa-router';
   import { authState } from '../lib/auth';
   import { getCurrentUser, journeyAPI, usersAPI } from '../lib/api';
+  import { getValidatorBalance } from '../lib/blockchain';
   import Icon from '../components/Icons.svelte';
+  import BuilderProgress from '../components/BuilderProgress.svelte';
   
   let currentUser = $state(null);
-  let hasValidatorWelcome = $state(false);
-  let isClaimingValidatorBadge = $state(false);
-  let accountBalance = $state(0);
-  let hasDeployedContract = $state(false);
+  let hasBuilderWelcome = $state(false);
   let isClaimingBuilderBadge = $state(false);
+  let accountBalance = $state(0);
+  let testnetBalance = $state(null);
+  let hasDeployedContract = $state(false);
+  let hasSubmittedContribution = $state(false);
   let error = $state('');
   let loading = $state(true);
+  let isRefreshingBalance = $state(false);
   
   // Derived states for requirements
-  let requirement1Met = $derived(hasValidatorWelcome);
-  let requirement2Met = $derived(accountBalance > 0);
-  let requirement3Met = $derived(hasDeployedContract);
-  let allRequirementsMet = $derived(requirement1Met && requirement2Met && requirement3Met);
+  let requirement1Met = $derived(hasBuilderWelcome);
+  let requirement2Met = $derived(testnetBalance > 0);
+  let allRequirementsMet = $derived(requirement1Met && requirement2Met);
+  let hasCalledComplete = $state(false);
+  
+  // Auto-complete journey when all requirements are met
+  $effect(() => {
+    if (allRequirementsMet && !hasCalledComplete && $authState.isAuthenticated) {
+      hasCalledComplete = true;
+      completeBuilderJourney();
+    }
+  });
   
   onMount(async () => {
     await loadData();
@@ -36,13 +48,28 @@
     try {
       if ($authState.isAuthenticated) {
         currentUser = await getCurrentUser();
-        hasValidatorWelcome = currentUser?.has_validator_waitlist || false;
+        hasBuilderWelcome = currentUser?.has_builder_welcome || false;
+        hasSubmittedContribution = (currentUser?.builder?.total_contributions || 0) > 0;
         await checkBalance();
+        await checkTestnetBalance();
+        await checkDeployments();
       }
     } catch (err) {
       console.error('Failed to load user data:', err);
     } finally {
       loading = false;
+    }
+  }
+  
+  async function checkTestnetBalance() {
+    try {
+      if ($authState.address) {
+        const result = await getValidatorBalance($authState.address);
+        testnetBalance = parseFloat(result.formatted);
+      }
+    } catch (err) {
+      console.error('Failed to check testnet balance:', err);
+      testnetBalance = 0;
     }
   }
   
@@ -56,35 +83,36 @@
     }
   }
   
-  async function claimValidatorWelcome() {
-    if (!$authState.isAuthenticated) {
-      document.querySelector('.auth-button')?.click();
-      return;
-    }
-    
-    isClaimingValidatorBadge = true;
-    error = '';
-    
+  async function checkDeployments() {
     try {
-      await journeyAPI.completeValidatorJourney();
-      // Reload user data to get updated badge status
-      currentUser = await getCurrentUser();
-      hasValidatorWelcome = currentUser?.has_validator_waitlist || false;
+      const response = await usersAPI.getDeploymentStatus();
+      hasDeployedContract = response.data.has_deployments || false;
     } catch (err) {
-      error = err.response?.data?.error || 'Failed to claim validator welcome badge';
-    } finally {
-      isClaimingValidatorBadge = false;
+      console.error('Failed to check deployments:', err);
+      hasDeployedContract = false;
     }
   }
   
-  async function handleClaimBuilderBadge() {
-    if (!$authState.isAuthenticated) {
-      document.querySelector('.auth-button')?.click();
+  async function refreshBalance() {
+    if (!$authState.isAuthenticated || !$authState.address) {
       return;
     }
     
-    if (!allRequirementsMet) {
-      error = 'Please complete all requirements first';
+    isRefreshingBalance = true;
+    try {
+      const result = await getValidatorBalance($authState.address);
+      testnetBalance = parseFloat(result.formatted);
+    } catch (err) {
+      console.error('Failed to refresh balance:', err);
+      testnetBalance = 0;
+    } finally {
+      isRefreshingBalance = false;
+    }
+  }
+
+  async function claimBuilderWelcome() {
+    if (!$authState.isAuthenticated) {
+      document.querySelector('.auth-button')?.click();
       return;
     }
     
@@ -92,14 +120,46 @@
     error = '';
     
     try {
-      await journeyAPI.completeBuilderJourney();
-      sessionStorage.setItem('journeySuccess', 'Successfully earned your Builder Welcome badge!');
-      push(`/participant/${$authState.address}`);
+      await journeyAPI.startBuilderJourney();
+      // Reload user data to get updated contribution status
+      currentUser = await getCurrentUser();
+      hasBuilderWelcome = currentUser?.has_builder_welcome || false;
     } catch (err) {
-      error = err.response?.data?.error || 'Failed to claim badge';
+      error = err.response?.data?.error || 'Failed to claim builder contribution';
+    } finally {
       isClaimingBuilderBadge = false;
     }
   }
+  
+  async function completeBuilderJourney() {
+    if (!$authState.isAuthenticated || !allRequirementsMet) {
+      return;
+    }
+    
+    try {
+      const response = await journeyAPI.completeBuilderJourney();
+      
+      // If successful, redirect to profile with success message
+      if (response.status === 201) {
+        // New builder created
+        sessionStorage.setItem('builderJourneySuccess', 'true');
+        push(`/participant/${$authState.address}`);
+      } else if (response.status === 200) {
+        // Already a builder, just redirect
+        push(`/participant/${$authState.address}`);
+      }
+    } catch (err) {
+      // If already has the contribution and Builder profile, redirect anyway
+      if (err.response?.status === 200) {
+        push(`/participant/${$authState.address}`);
+      } else {
+        console.error('Failed to complete builder journey:', err);
+        // Reset flag to allow retry
+        hasCalledComplete = false;
+      }
+    }
+  }
+  
 </script>
 
 <div class="space-y-6 sm:space-y-8">
@@ -243,146 +303,49 @@
 
   <!-- Requirements Section -->
   <div class="bg-white shadow-sm rounded-lg p-6 sm:p-8">
-    <h2 class="text-xl font-bold text-gray-900 mb-3">Builder Badge Requirements</h2>
+    <h2 class="text-xl font-bold text-gray-900 mb-3">Builder Journey Requirements</h2>
     
     <p class="text-gray-700 mb-6">
-      Complete these three requirements to earn your Builder badge:
+      Complete these requirements to become a GenLayer Builder:
     </p>
     
-    <div class="space-y-4">
-      <!-- Requirement 1: Validator Welcome Badge -->
-      <div class="border border-gray-200 rounded-lg p-4">
-        <div class="flex items-start justify-between">
-          <div class="flex-1">
-            <div class="flex items-center">
-              <input 
-                type="checkbox" 
-                id="validatorBadge" 
-                checked={requirement1Met}
-                disabled={true}
-                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded mr-3"
-              />
-              <label for="validatorBadge" class="text-sm font-medium text-gray-900">
-                1. Claim Validator Welcome Badge
-              </label>
-            </div>
-            <p class="text-xs text-gray-600 mt-1 ml-7">
-              Join the validator waitlist to get started
-            </p>
-          </div>
-          {#if !hasValidatorWelcome}
-            <button
-              onclick={claimValidatorWelcome}
-              disabled={isClaimingValidatorBadge}
-              class="ml-3 px-4 py-2 bg-sky-600 text-white text-sm rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50"
-            >
-              {isClaimingValidatorBadge ? 'Claiming...' : 'Claim Badge'}
-            </button>
-          {:else}
-            <span class="ml-3 px-3 py-2 bg-green-100 text-green-800 text-sm rounded-md">
-              ✓ Claimed
-            </span>
-          {/if}
-        </div>
-      </div>
+    <BuilderProgress 
+      testnetBalance={testnetBalance}
+      hasBuilderWelcome={hasBuilderWelcome}
+      hasDeployedContract={hasDeployedContract}
+      showActions={true}
+      colorTheme="orange"
+      onClaimBuilderBadge={claimBuilderWelcome}
+      isClaimingBuilderBadge={isClaimingBuilderBadge}
+      onRefreshBalance={refreshBalance}
+      isRefreshingBalance={isRefreshingBalance}
+    />
 
-      <!-- Requirement 2: Top up Account -->
-      <div class="border border-gray-200 rounded-lg p-4">
-        <div class="flex items-start justify-between">
-          <div class="flex-1">
-            <div class="flex items-center">
-              <input 
-                type="checkbox" 
-                id="accountBalance" 
-                checked={requirement2Met}
-                disabled={true}
-                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded mr-3"
-              />
-              <label for="accountBalance" class="text-sm font-medium text-gray-900">
-                2. Top up your GenLayer account
-              </label>
-            </div>
-            <p class="text-xs text-gray-600 mt-1 ml-7">
-              Get test tokens from the faucet. Current balance: {accountBalance} GEN
-            </p>
-          </div>
-          {#if !requirement2Met}
-            <a
-              href="https://genlayer-faucet.vercel.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="ml-3 px-4 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors inline-flex items-center"
-            >
-              Open Faucet
-              <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-              </svg>
-            </a>
-          {:else}
-            <span class="ml-3 px-3 py-2 bg-green-100 text-green-800 text-sm rounded-md">
-              ✓ Funded
-            </span>
-          {/if}
-        </div>
-      </div>
-
-      <!-- Requirement 3: Deploy Contract -->
-      <div class="border border-gray-200 rounded-lg p-4">
-        <div class="flex items-start justify-between">
-          <div class="flex-1">
-            <div class="flex items-center">
-              <input 
-                type="checkbox" 
-                id="deployContract" 
-                bind:checked={hasDeployedContract}
-                disabled={!requirement1Met || !requirement2Met}
-                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded mr-3 disabled:opacity-50"
-              />
-              <label for="deployContract" class="text-sm font-medium text-gray-900">
-                3. Deploy an Intelligent Contract
-              </label>
-            </div>
-            <p class="text-xs text-gray-600 mt-1 ml-7">
-              Use GenLayer Studio to deploy your first contract
-            </p>
-          </div>
-          <a
-            href="https://studio.genlayer.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="ml-3 px-4 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors inline-flex items-center"
-          >
-            Open Studio
-            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+      <!-- Status Message -->
+      {#if allRequirementsMet && !hasCalledComplete}
+        <div class="pt-4">
+          <div class="w-full inline-flex items-center justify-center px-8 py-3 bg-green-100 text-green-800 rounded-lg font-medium shadow-sm">
+            <svg class="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-          </a>
+            Completing your Builder Journey...
+          </div>
         </div>
-      </div>
-
-      <!-- Claim Builder Badge Button -->
-      <div class="pt-4">
-        <button
-          onclick={handleClaimBuilderBadge}
-          disabled={!allRequirementsMet || isClaimingBuilderBadge}
-          class="w-full inline-flex items-center justify-center px-8 py-3 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-        >
-          <Icon name="builder" className="mr-2 text-white" />
-          {#if !$authState.isAuthenticated}
-            Connect Wallet to Claim Badge
-          {:else if isClaimingBuilderBadge}
-            Claiming Badge...
-          {:else if !allRequirementsMet}
-            Complete All Requirements First
-          {:else}
-            Claim Builder Welcome Badge
-          {/if}
-        </button>
-        
-        {#if error}
-          <div class="mt-4 text-red-600 text-sm">{error}</div>
-        {/if}
-      </div>
+      {:else if hasBuilderWelcome || (allRequirementsMet && hasCalledComplete)}
+        <div class="pt-4">
+          <button
+            onclick={() => push(`/participant/${$authState.address}`)}
+            class="w-full inline-flex items-center justify-center px-8 py-3 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition-colors shadow-sm"
+          >
+            <Icon name="builder" className="mr-2 text-white" />
+            View Your Profile
+          </button>
+        </div>
+      {/if}
+      
+      {#if error}
+        <div class="mt-4 text-red-600 text-sm">{error}</div>
+      {/if}
     </div>
   </div>
-</div>

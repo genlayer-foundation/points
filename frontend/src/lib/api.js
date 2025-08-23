@@ -56,7 +56,9 @@ export const usersAPI = {
   })),
   getCurrentUser: () => api.get('/users/me/'),
   updateUserProfile: (data) => api.patch('/users/me/', data),
-  getAccountBalance: () => api.get('/users/balance/')
+  getAccountBalance: () => api.get('/users/balance/'),
+  checkDeployments: () => api.get('/users/check_deployments/'),
+  getDeploymentStatus: () => api.get('/users/deployment_status/')
 };
 
 // API endpoints for contributions
@@ -114,8 +116,10 @@ export const validatorsAPI = {
   getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } })
 };
 
-// Journey completion API
+// Journey API
 export const journeyAPI = {
+  startValidatorJourney: () => api.post('/users/start_validator_journey/'),
+  startBuilderJourney: () => api.post('/users/start_builder_journey/'),
   completeValidatorJourney: () => api.post('/users/complete_validator_journey/'),
   completeBuilderJourney: () => api.post('/users/complete_builder_journey/')
 };

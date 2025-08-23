@@ -47,6 +47,17 @@ When creating git commits, **DO NOT** include Claude attribution lines such as:
 
 Keep commit messages clean and focused on the changes made.
 
+## Important Terminology
+
+### Never Use "Badge" - Always Use "Contribution"
+**IMPORTANT**: The word "badge" should NEVER be used in the UI or code comments. Always use "contribution" instead:
+- ❌ WRONG: "Claim your badge", "Badge earned", "Badge requirements"
+- ✅ CORRECT: "Complete your journey", "Contribution earned", "Journey requirements"
+- ❌ WRONG: "Builder Badge", "Validator Badge"
+- ✅ CORRECT: "Builder Welcome Contribution", "Validator Waitlist Contribution"
+
+The system tracks contributions, not badges. Each journey completion results in a contribution being recorded.
+
 ## Environment Setup
 
 ### Frontend Development

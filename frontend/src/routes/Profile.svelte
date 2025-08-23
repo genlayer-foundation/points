@@ -8,7 +8,8 @@
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import ProfileStats from '../components/ProfileStats.svelte';
   import ContributionBreakdown from '../components/ContributionBreakdown.svelte';
-  import { usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
+  import BuilderProgress from '../components/BuilderProgress.svelte';
+  import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, getCurrentUser } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
   import Avatar from '../components/Avatar.svelte';
@@ -43,7 +44,13 @@
   let statsError = $state(null);
   let successMessage = $state(null);
   let balance = $state(null);
+  let testnetBalance = $state(null);
   let loadingBalance = $state(false);
+  let hasDeployedContract = $state(false);
+  let isRefreshingBalance = $state(false);
+  let isClaimingBuilderBadge = $state(false);
+  let hasCalledComplete = $state(false);
+  let showSuccessNotification = $state(false);
   
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
@@ -51,6 +58,19 @@
     participant?.address && 
     $authState.address?.toLowerCase() === participant.address.toLowerCase()
   );
+  
+  // Derived states for builder requirements
+  let requirement1Met = $derived(participant?.has_builder_welcome || false);
+  let requirement2Met = $derived(testnetBalance > 0);
+  let allRequirementsMet = $derived(requirement1Met && requirement2Met);
+  
+  // Auto-complete journey when all requirements are met
+  $effect(() => {
+    if (allRequirementsMet && !hasCalledComplete && isOwnProfile && !participant?.builder) {
+      hasCalledComplete = true;
+      completeBuilderJourney();
+    }
+  });
   
   // Determine participant type
   let participantType = $derived(
@@ -129,6 +149,17 @@
       }, 3000);
     }
     
+    // Check for builder journey success
+    const builderSuccess = sessionStorage.getItem('builderJourneySuccess');
+    if (builderSuccess === 'true') {
+      sessionStorage.removeItem('builderJourneySuccess');
+      showSuccessNotification = true;
+      // Hide notification after 5 seconds
+      setTimeout(() => {
+        showSuccessNotification = false;
+      }, 5000);
+    }
+    
     if (currentParams && currentParams.address) {
       console.log("Using params.address:", currentParams.address);
       fetchParticipantData(currentParams.address);
@@ -139,6 +170,91 @@
     }
   });
   
+  // Also check on mount to ensure we catch the notification
+  onMount(() => {
+    const builderSuccess = sessionStorage.getItem('builderJourneySuccess');
+    if (builderSuccess === 'true') {
+      sessionStorage.removeItem('builderJourneySuccess');
+      showSuccessNotification = true;
+      // Hide notification after 5 seconds
+      setTimeout(() => {
+        showSuccessNotification = false;
+      }, 5000);
+    }
+  });
+  
+  async function refreshBalance() {
+    if (!participant?.address) {
+      return;
+    }
+    
+    isRefreshingBalance = true;
+    try {
+      const result = await getValidatorBalance(participant.address);
+      testnetBalance = parseFloat(result.formatted);
+    } catch (err) {
+      console.error('Failed to refresh balance:', err);
+      testnetBalance = 0;
+    } finally {
+      isRefreshingBalance = false;
+    }
+  }
+  
+  async function claimBuilderWelcome() {
+    if (!$authState.isAuthenticated) {
+      document.querySelector('.auth-button')?.click();
+      return;
+    }
+    
+    isClaimingBuilderBadge = true;
+    
+    try {
+      await journeyAPI.startBuilderJourney();
+      // Reload user data to get updated contribution status
+      const updatedUser = await getCurrentUser();
+      participant = updatedUser;
+    } catch (err) {
+      console.error('Failed to claim builder contribution:', err);
+    } finally {
+      isClaimingBuilderBadge = false;
+    }
+  }
+  
+  async function completeBuilderJourney() {
+    if (!$authState.isAuthenticated || !allRequirementsMet) {
+      return;
+    }
+    
+    try {
+      const response = await journeyAPI.completeBuilderJourney();
+      
+      // If successful, show success notification and reload data
+      if (response.status === 201 || response.status === 200) {
+        showSuccessNotification = true;
+        
+        // Reload participant data to get Builder profile
+        const updatedUser = await getCurrentUser();
+        participant = updatedUser;
+        
+        // Hide notification after 5 seconds
+        setTimeout(() => {
+          showSuccessNotification = false;
+        }, 5000);
+      }
+    } catch (err) {
+      // If already has the contribution and Builder profile
+      if (err.response?.status === 200) {
+        // Still reload data
+        const updatedUser = await getCurrentUser();
+        participant = updatedUser;
+      } else {
+        console.error('Failed to complete builder journey:', err);
+        // Reset flag to allow retry
+        hasCalledComplete = false;
+      }
+    }
+  }
+
   async function fetchParticipantData(participantAddress) {
     try {
       loading = true;
@@ -230,7 +346,27 @@
         }
       }
       
+      // Set loading to false first to show the UI progressively
       loading = false;
+      
+      // Then load additional data asynchronously for own profile
+      if (isOwnProfile && participant.has_builder_welcome) {
+        // Check testnet balance asynchronously
+        getValidatorBalance(participant.address).then(result => {
+          testnetBalance = parseFloat(result.formatted);
+        }).catch(err => {
+          console.error('Failed to check testnet balance:', err);
+          testnetBalance = 0;
+        });
+        
+        // Check for contract deployments asynchronously
+        usersAPI.getDeploymentStatus().then(deploymentResult => {
+          hasDeployedContract = deploymentResult.data.has_deployments || false;
+        }).catch(err => {
+          console.error('Failed to check deployments:', err);
+          hasDeployedContract = false;
+        });
+      }
     } catch (err) {
       // Check if it's a 404 (user not found) - for validators without accounts
       if (err.response && err.response.status === 404) {
@@ -273,6 +409,23 @@
   };
 </script>
 
+<style>
+  @keyframes slide-in {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  
+  .animate-slide-in {
+    animation: slide-in 0.3s ease-out;
+  }
+</style>
+
 <div>
   <!-- Success message -->
   {#if successMessage}
@@ -287,6 +440,37 @@
           <p class="text-sm text-green-700">
             {successMessage}
           </p>
+        </div>
+      </div>
+    </div>
+  {/if}
+  
+  <!-- Builder Journey Success Notification -->
+  {#if showSuccessNotification}
+    <div class="fixed top-4 right-4 z-50 animate-slide-in">
+      <div class="bg-green-100 border-l-4 border-green-500 p-4 rounded-lg shadow-lg max-w-md">
+        <div class="flex items-start">
+          <div class="flex-shrink-0">
+            <svg class="h-6 w-6 text-green-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-green-800">
+              Congratulations! 🎉
+            </h3>
+            <p class="mt-1 text-sm text-green-700">
+              You are now a GenLayer Builder! Your Builder profile has been created and you can start contributing to the ecosystem.
+            </p>
+          </div>
+          <button
+            onclick={() => showSuccessNotification = false}
+            class="ml-3 flex-shrink-0 text-green-500 hover:text-green-600"
+          >
+            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -1024,7 +1208,24 @@
         
         <!-- Content -->
         <div class="p-6">
-          <p class="text-orange-700 mb-4">Welcome to the builder community! Deploy contracts to level up.</p>
+          <!-- Welcome message and requirements -->
+          {#if isOwnProfile}
+            <div class="mb-6">
+              <BuilderProgress 
+                testnetBalance={testnetBalance}
+                hasBuilderWelcome={participant?.has_builder_welcome || false}
+                hasDeployedContract={hasDeployedContract}
+                showActions={true}
+                colorTheme="orange"
+                onClaimBuilderBadge={claimBuilderWelcome}
+                isClaimingBuilderBadge={isClaimingBuilderBadge}
+                onRefreshBalance={refreshBalance}
+                isRefreshingBalance={isRefreshingBalance}
+              />
+            </div>
+          {:else}
+            <p class="text-orange-700 mb-4">Building amazing things on GenLayer!</p>
+          {/if}
           
           <!-- Stats -->
           <div class="mb-6">
