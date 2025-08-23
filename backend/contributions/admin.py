@@ -33,12 +33,12 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
 
 @admin.register(ContributionType)
 class ContributionTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'is_default', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
+    list_display = ('name', 'category', 'is_default', 'is_submittable', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
     list_display_links = ('get_current_multiplier',)
-    list_editable = ('name', 'is_default', 'description')
+    list_editable = ('name', 'is_default', 'is_submittable', 'description')
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at')
-    list_filter = ('category', 'is_default')
+    list_filter = ('category', 'is_default', 'is_submittable')
     inlines = [GlobalLeaderboardMultiplierInline]
     
     def get_current_multiplier(self, obj):

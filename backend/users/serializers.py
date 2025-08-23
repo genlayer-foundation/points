@@ -58,22 +58,14 @@ class ValidatorSerializer(serializers.ModelSerializer):
         return target.created_at if target else None
     
     def get_total_points(self, obj):
-        """Get total points for validator category."""
-        try:
-            category = Category.objects.get(slug='validator')
-            leaderboard = LeaderboardEntry.objects.filter(user=obj.user, category=category).first()
-            return leaderboard.total_points if leaderboard else 0
-        except Category.DoesNotExist:
-            return 0
+        """Get total points for validator leaderboard."""
+        leaderboard = LeaderboardEntry.objects.filter(user=obj.user, type='validator').first()
+        return leaderboard.total_points if leaderboard else 0
     
     def get_rank(self, obj):
-        """Get rank in validator category."""
-        try:
-            category = Category.objects.get(slug='validator')
-            leaderboard = LeaderboardEntry.objects.filter(user=obj.user, category=category).first()
-            return leaderboard.rank if leaderboard else None
-        except Category.DoesNotExist:
-            return None
+        """Get rank in validator leaderboard."""
+        leaderboard = LeaderboardEntry.objects.filter(user=obj.user, type='validator').first()
+        return leaderboard.rank if leaderboard else None
     
     def get_total_contributions(self, obj):
         """Get total number of contributions in validator category."""
@@ -236,22 +228,14 @@ class BuilderSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
     
     def get_total_points(self, obj):
-        """Get total points for builder category."""
-        try:
-            category = Category.objects.get(slug='builder')
-            leaderboard = LeaderboardEntry.objects.filter(user=obj.user, category=category).first()
-            return leaderboard.total_points if leaderboard else 0
-        except Category.DoesNotExist:
-            return 0
+        """Get total points for builder leaderboard."""
+        leaderboard = LeaderboardEntry.objects.filter(user=obj.user, type='builder').first()
+        return leaderboard.total_points if leaderboard else 0
     
     def get_rank(self, obj):
-        """Get rank in builder category."""
-        try:
-            category = Category.objects.get(slug='builder')
-            leaderboard = LeaderboardEntry.objects.filter(user=obj.user, category=category).first()
-            return leaderboard.rank if leaderboard else None
-        except Category.DoesNotExist:
-            return None
+        """Get rank in builder leaderboard."""
+        leaderboard = LeaderboardEntry.objects.filter(user=obj.user, type='builder').first()
+        return leaderboard.rank if leaderboard else None
     
     def get_total_contributions(self, obj):
         """Get total number of builder-related contributions."""
@@ -315,22 +299,14 @@ class StewardSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
     
     def get_total_points(self, obj):
-        """Get total points for steward category."""
-        try:
-            category = Category.objects.get(slug='steward')
-            leaderboard = LeaderboardEntry.objects.filter(user=obj.user, category=category).first()
-            return leaderboard.total_points if leaderboard else 0
-        except Category.DoesNotExist:
-            return 0
+        """Get total points for user."""
+        # Stewards are deprecated, but return 0 for compatibility
+        return 0
     
     def get_rank(self, obj):
-        """Get rank in steward category."""
-        try:
-            category = Category.objects.get(slug='steward')
-            leaderboard = LeaderboardEntry.objects.filter(user=obj.user, category=category).first()
-            return leaderboard.rank if leaderboard else None
-        except Category.DoesNotExist:
-            return None
+        """Get rank for user."""
+        # Stewards are deprecated, return None for compatibility
+        return None
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -358,8 +334,8 @@ class UserSerializer(serializers.ModelSerializer):
         Returns rank and total_points if the entry exists, otherwise returns None.
         """
         try:
-            # Get the global leaderboard entry (category=None)
-            entry = LeaderboardEntry.objects.filter(user=obj, category=None).first()
+            # Get the validator leaderboard entry (default leaderboard)
+            entry = LeaderboardEntry.objects.filter(user=obj, type='validator').first()
             if entry:
                 return {
                     'rank': entry.rank,

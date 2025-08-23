@@ -40,6 +40,11 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         category = self.request.query_params.get('category')
         if category:
             queryset = queryset.filter(category__slug=category)
+        
+        # Filter by is_submittable if provided (for user submission forms)
+        is_submittable = self.request.query_params.get('is_submittable')
+        if is_submittable is not None:
+            queryset = queryset.filter(is_submittable=is_submittable.lower() == 'true')
             
         return queryset
         
@@ -302,12 +307,14 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     def highlights(self, request):
         """
         Get all active highlights across all contribution types.
-        Optionally filter by category.
+        Optionally filter by category or waitlist users.
         """
-        from contributions.models import Category
+        from contributions.models import Category, ContributionType
+        from django.db.models import Q
         
         limit = int(request.query_params.get('limit', 10))
         category_slug = request.query_params.get('category')
+        waitlist_only = request.query_params.get('waitlist_only', 'false').lower() == 'true'
         
         # Start with all highlights
         queryset = ContributionHighlight.objects.all()
@@ -320,6 +327,54 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             except Category.DoesNotExist:
                 # If category doesn't exist, return empty list
                 return Response([])
+        
+        if waitlist_only:
+            # Get all users with waitlist badge
+            waitlist_type = ContributionType.objects.filter(
+                slug='validator-waitlist'
+            ).first()
+            
+            if not waitlist_type:
+                return Response([])
+            
+            waitlist_users = Contribution.objects.filter(
+                contribution_type=waitlist_type
+            ).values_list('user_id', flat=True).distinct()
+            
+            # Build complex query for graduated users
+            validator_type = ContributionType.objects.filter(
+                slug='validator'
+            ).first()
+            
+            if validator_type:
+                # Get graduation dates for each user
+                graduation_dates = {}
+                validator_contribs = Contribution.objects.filter(
+                    contribution_type=validator_type,
+                    user_id__in=waitlist_users
+                ).values('user_id', 'contribution_date').order_by('user_id', 'contribution_date')
+                
+                for vc in validator_contribs:
+                    if vc['user_id'] not in graduation_dates:
+                        graduation_dates[vc['user_id']] = vc['contribution_date']
+                
+                # Build Q objects for filtering
+                q_filters = Q()
+                for user_id in waitlist_users:
+                    if user_id in graduation_dates:
+                        # Graduated - only show pre-graduation highlights
+                        q_filters |= Q(
+                            contribution__user_id=user_id,
+                            contribution__contribution_date__lt=graduation_dates[user_id]
+                        )
+                    else:
+                        # Still on waitlist - show all highlights
+                        q_filters |= Q(contribution__user_id=user_id)
+                
+                queryset = queryset.filter(q_filters)
+            else:
+                # No validator type, just filter by waitlist users
+                queryset = queryset.filter(contribution__user_id__in=waitlist_users)
         
         # Order by created_at descending and apply limit
         highlights = queryset.select_related(

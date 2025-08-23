@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ranks
+from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ranks, recalculate_all_leaderboards, LEADERBOARD_CONFIG
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
 from contributions.models import Category
 
@@ -40,56 +40,68 @@ class GlobalLeaderboardMultiplierViewSet(viewsets.ReadOnlyModelViewSet):
 class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint that allows viewing the leaderboard.
-    Read-only because entries are automatically created and updated.
+    Filter by type to get specific leaderboards:
+    - ?type=validator - Active validators
+    - ?type=builder - Builders  
+    - ?type=steward - Stewards
+    - ?type=validator-waitlist - Waitlisted users (not yet validators)
     """
     queryset = LeaderboardEntry.objects.filter(user__visible=True)
     serializer_class = LeaderboardEntrySerializer
     permission_classes = [permissions.AllowAny]  # Allow access without authentication
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['user__email', 'user__name']
+    search_fields = ['user__email', 'user__name', 'user__address']
     ordering_fields = ['rank', 'total_points', 'updated_at']
     ordering = ['rank']
     pagination_class = None  # Disable pagination to return all entries
     
     def get_queryset(self):
         """
-        Filter leaderboard by category if provided in query params.
+        Filter leaderboard by type, user address, and handle ordering.
         """
         queryset = super().get_queryset()
         
-        # Get category from query params
-        category_slug = self.request.query_params.get('category')
+        # Filter by user address if provided
+        user_address = self.request.query_params.get('user_address')
+        if user_address:
+            queryset = queryset.filter(user__address__iexact=user_address)
+            # When filtering by user, don't apply type filter unless explicitly provided
+            leaderboard_type = self.request.query_params.get('type')
+            if leaderboard_type:
+                queryset = queryset.filter(type=leaderboard_type)
+        else:
+            # Get type from query params
+            leaderboard_type = self.request.query_params.get('type')
+            
+            if leaderboard_type:
+                queryset = queryset.filter(type=leaderboard_type)
+            else:
+                # Default to validator leaderboard only when not filtering by user
+                queryset = queryset.filter(type='validator')
         
-        if category_slug and category_slug != 'global':
-            # Filter by specific category
-            try:
-                category = Category.objects.get(slug=category_slug)
-                queryset = queryset.filter(category=category)
-            except Category.DoesNotExist:
-                # If category doesn't exist, return empty queryset
-                queryset = queryset.none()
-        elif not category_slug or category_slug == 'global':
-            # Default to global leaderboard (category=None)
-            queryset = queryset.filter(category=None)
-        
+        # Handle rank ordering
+        order = self.request.query_params.get('order', 'asc')
+        if order == 'desc':
+            return queryset.order_by('-rank')
         return queryset.order_by('rank')
     
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAdminUser])
     def recalculate(self, request):
         """
-        Force a recalculation of all leaderboard ranks.
-        Admin only.
+        Admin action to recalculate all leaderboards from scratch.
         """
-        update_all_ranks()
-        return Response({"message": "Leaderboard ranks recalculated successfully."}, 
-                        status=status.HTTP_200_OK)
+        result = recalculate_all_leaderboards()
+        return Response({
+            'message': result,
+            'status': 'success'
+        }, status=status.HTTP_200_OK)
                         
     @action(detail=False, methods=['get'])
     def top(self, request):
         """
-        Get the top 10 users on the global leaderboard.
+        Get the top 10 users on the validator leaderboard (default).
         """
-        top_entries = LeaderboardEntry.objects.filter(user__visible=True, category=None).order_by('rank')[:10]
+        top_entries = LeaderboardEntry.objects.filter(user__visible=True, type='validator').order_by('rank')[:10]
         serializer = self.get_serializer(top_entries, many=True)
         return Response(serializer.data)
         
@@ -151,7 +163,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         contribution_types = []
         types_data = contributions.values(
             'contribution_type__name', 
-            'contribution_type__id'
+            'contribution_type__id',
+            'contribution_type__category__slug',
+            'contribution_type__category__name'
         ).annotate(
             count=Count('id'),
             total_points=Sum('frozen_global_points')
@@ -162,6 +176,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             contribution_types.append({
                 'id': type_data['contribution_type__id'],
                 'name': type_data['contribution_type__name'],
+                'category_slug': type_data['contribution_type__category__slug'],
+                'category_name': type_data['contribution_type__category__name'],
                 'count': type_data['count'],
                 'total_points': type_data['total_points'],
                 'percentage': percentage,
@@ -208,40 +224,70 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         stats = self._get_user_stats(user, category=category)
         return Response(stats)
     
-    @action(detail=False, methods=['get'], url_path='category/(?P<category_slug>[^/.]+)')
-    def category_leaderboard(self, request, category_slug=None):
+    @action(detail=False, methods=['get'], url_path='validator-waitlist-stats')
+    def validator_waitlist_stats(self, request):
         """
-        Get leaderboard for a specific category.
+        Get comprehensive statistics for the waitlist dashboard.
         """
-        try:
-            category = Category.objects.get(slug=category_slug)
-        except Category.DoesNotExist:
-            return Response({'error': 'Category not found'}, status=404)
+        from django.db.models import Sum, Count
+        from contributions.models import Contribution
         
-        # Get leaderboard entries for this category
-        entries = LeaderboardEntry.objects.filter(
-            category=category,
+        # Waitlist statistics
+        waitlist_entries = LeaderboardEntry.objects.filter(
+            type='validator-waitlist',
             user__visible=True
-        ).select_related('user').order_by('rank')
+        )
         
-        # Serialize the data
-        data = []
-        for entry in entries:
-            data.append({
-                'rank': entry.rank,
-                'user': {
-                    'id': entry.user.id,
-                    'name': entry.user.name,
-                    'address': entry.user.address,
-                },
-                'total_points': entry.total_points,
-            })
+        # Graduation statistics
+        graduation_entries = LeaderboardEntry.objects.filter(
+            type='validator-waitlist-graduation',
+            user__visible=True
+        )
+        
+        # Calculate statistics
+        waitlist_stats = waitlist_entries.aggregate(
+            total_participants=Count('id'),
+            total_points=Sum('total_points')
+        )
+        
+        graduation_stats = graduation_entries.aggregate(
+            total_graduated=Count('id'),
+            total_graduated_points=Sum('total_points')
+        )
+        
+        # Get contribution counts
+        waitlist_user_ids = waitlist_entries.values_list('user_id', flat=True)
+        graduated_user_ids = graduation_entries.values_list('user_id', flat=True)
+        
+        waitlist_contributions = Contribution.objects.filter(
+            user_id__in=waitlist_user_ids
+        ).count()
+        
+        graduated_contributions = Contribution.objects.filter(
+            user_id__in=graduated_user_ids
+        ).count()
         
         return Response({
-            'category': {
-                'name': category.name,
-                'slug': category.slug,
-                'description': category.description,
-            },
-            'entries': data
+            'total_participants': waitlist_stats['total_participants'] or 0,
+            'total_contributions': waitlist_contributions,
+            'total_graduated_contributions': graduated_contributions,
+            'total_points': waitlist_stats['total_points'] or 0,
+            'total_graduated_points': graduation_stats['total_graduated_points'] or 0,
+            'total_graduated': graduation_stats['total_graduated'] or 0
         })
+    
+    @action(detail=False, methods=['get'])
+    def types(self, request):
+        """
+        Get all available leaderboard types and their configuration.
+        """
+        types_info = []
+        for key, config in LEADERBOARD_CONFIG.items():
+            types_info.append({
+                'key': key,
+                'name': config['name'],
+                'ranking_order': config['ranking_order']
+            })
+        
+        return Response(types_info)
+    

@@ -118,13 +118,14 @@
           };
         }
       } else {
-        // For categories, fetch filtered data using category endpoint
+        // For categories, fetch filtered data using type endpoint
         const [leaderboardRes, contributionsRes] = await Promise.all([
-          leaderboardAPI.getCategoryLeaderboard($currentCategory),
+          leaderboardAPI.getLeaderboardByType($currentCategory),
           contributionsAPI.getContributions({ category: $currentCategory, limit: 1 })
         ]);
         
-        const categoryEntries = leaderboardRes.data.entries || [];
+        // API now returns array directly
+        const categoryEntries = Array.isArray(leaderboardRes.data) ? leaderboardRes.data : [];
         const categoryContributions = contributionsRes.data;
         
         stats = {

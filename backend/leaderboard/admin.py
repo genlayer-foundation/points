@@ -11,8 +11,8 @@ from users.models import User
 
 @admin.register(LeaderboardEntry)
 class LeaderboardEntryAdmin(admin.ModelAdmin):
-    list_display = ('rank', 'user', 'category', 'total_points', 'created_at', 'updated_at')
-    list_filter = ('category', 'rank', 'created_at')
+    list_display = ('rank', 'user', 'type', 'total_points', 'created_at', 'updated_at')
+    list_filter = ('type', 'rank', 'created_at')
     search_fields = ('user__email', 'user__name')
     readonly_fields = ('total_points', 'rank', 'created_at', 'updated_at')
     ordering = ('rank', '-total_points')
@@ -51,44 +51,27 @@ class LeaderboardEntryAdmin(admin.ModelAdmin):
             
             # For each user, create their leaderboard entries
             for user in users_with_contributions:
-                # Calculate and create global leaderboard entry
-                global_points = Contribution.objects.filter(
+                # Calculate user's total points
+                total_points = sum(Contribution.objects.filter(
                     user=user
-                ).values_list('frozen_global_points', flat=True)
-                global_total = sum(global_points)
+                ).values_list('frozen_global_points', flat=True))
                 
-                if global_total > 0:
-                    LeaderboardEntry.objects.create(
-                        user=user,
-                        category=None,  # Global
-                        total_points=global_total
-                    )
-                    created_count += 1
-                
-                # Create category-specific leaderboard entries
-                categories = Category.objects.all()
-                for category in categories:
-                    cat_contributions = Contribution.objects.filter(
-                        user=user,
-                        contribution_type__category=category
-                    )
-                    cat_points = sum(c.frozen_global_points for c in cat_contributions)
+                if total_points > 0:
+                    # Determine which leaderboards this user should be on
+                    user_leaderboards = LeaderboardEntry.determine_user_leaderboards(user)
                     
-                    if cat_points > 0:
+                    # Create entries for each qualified leaderboard
+                    for leaderboard_type in user_leaderboards:
                         LeaderboardEntry.objects.create(
                             user=user,
-                            category=category,
-                            total_points=cat_points
+                            type=leaderboard_type,
+                            total_points=total_points
                         )
                         created_count += 1
             
-            # Update all ranks (global and per-category)
-            # Update global leaderboard ranks
-            LeaderboardEntry.update_category_ranks(category=None)
-            
-            # Update each category's leaderboard ranks
-            for category in Category.objects.all():
-                LeaderboardEntry.update_category_ranks(category=category)
+            # Update all ranks for each leaderboard type
+            for leaderboard_type, _ in LeaderboardEntry.LEADERBOARD_TYPES:
+                LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
             
             # Show success message
             self.message_user(
@@ -104,7 +87,7 @@ class LeaderboardEntryAdmin(admin.ModelAdmin):
                 messages.ERROR
             )
     
-    recreate_all_leaderboards.short_description = "Recreate all leaderboards (global and categories)"
+    recreate_all_leaderboards.short_description = "Recreate all leaderboards"
     
     def update_leaderboard_view(self, request):
         """View for updating the leaderboard using the management command."""
