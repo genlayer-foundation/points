@@ -150,7 +150,7 @@
   }
 </script>
 
-<div class="bg-white shadow-lg rounded-lg overflow-hidden border-l-4 {getStateBorderClass(submission.state)}">
+<div class="bg-white shadow-lg rounded-lg border-l-4 {getStateBorderClass(submission.state)}">
   <!-- Success Message -->
   {#if successMessage}
     <div class="bg-green-50 border-l-4 border-green-400 p-4 animate-fade-in">
@@ -244,7 +244,7 @@
       <!-- Right Column - Action Forms or Status -->
       <div>
         {#if showReviewForm && (submission.state === 'pending' || submission.state === 'more_info_needed')}
-          <div class="border {reviewAction === 'accept' ? 'border-green-200' : reviewAction === 'reject' ? 'border-red-200' : 'border-blue-200'} rounded-lg overflow-hidden">
+          <div class="border {reviewAction === 'accept' ? 'border-green-200' : reviewAction === 'reject' ? 'border-red-200' : 'border-blue-200'} rounded-lg">
             <!-- Action Toggle Buttons -->
             <div class="flex">
               <button
