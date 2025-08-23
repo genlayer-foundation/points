@@ -6,6 +6,8 @@
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import StatCard from '../components/StatCard.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
+  import ProfileStats from '../components/ProfileStats.svelte';
+  import ContributionBreakdown from '../components/ContributionBreakdown.svelte';
   import { usersAPI, statsAPI, leaderboardAPI } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
@@ -17,6 +19,18 @@
   // State management
   let participant = $state(null);
   let contributionStats = $state({
+    totalContributions: 0,
+    totalPoints: 0,
+    averagePoints: 0,
+    contributionTypes: []
+  });
+  let validatorStats = $state({
+    totalContributions: 0,
+    totalPoints: 0,
+    averagePoints: 0,
+    contributionTypes: []
+  });
+  let builderStats = $state({
     totalContributions: 0,
     totalPoints: 0,
     averagePoints: 0,
@@ -151,10 +165,10 @@
         }
       }
       
-      // Also try to fetch the leaderboard entries directly
+      // Also try to fetch the leaderboard entry directly
       try {
         const leaderboardRes = await leaderboardAPI.getLeaderboardEntry(participantAddress);
-        console.log("Leaderboard data received at", new Date().toISOString(), ":", leaderboardRes.data);
+        console.log("Leaderboard data received:", leaderboardRes.data);
         
         // Store all leaderboard entries (user can be on multiple leaderboards)
         if (leaderboardRes.data && Array.isArray(leaderboardRes.data)) {
@@ -170,14 +184,9 @@
             entry.type === 'validator'
           );
           
-          // Keep the first entry for backward compatibility
-          participant.leaderboard_entry = leaderboardRes.data[0];
-          
-          console.log("Leaderboard entries processed:", {
-            all: participant.leaderboard_entries,
-            waitlist: participant.waitlist_entry,
-            validator: participant.validator_entry
-          });
+          console.log("Added leaderboard entries from separate request:", participant.leaderboard_entries);
+          console.log("Waitlist entry:", participant.waitlist_entry);
+          console.log("Validator entry:", participant.validator_entry);
         }
       } catch (leaderboardError) {
         console.warn('Leaderboard API error:', leaderboardError);
@@ -193,6 +202,32 @@
       } catch (statsError) {
         console.warn('Stats API error, will use basic data:', statsError);
         statsError = statsError.message || 'Failed to load participant statistics';
+      }
+      
+      // Fetch validator-specific stats if user has validator waitlist
+      if (participant.has_validator_waitlist) {
+        try {
+          const validatorStatsRes = await statsAPI.getUserStats(participantAddress, 'validator');
+          if (validatorStatsRes.data) {
+            validatorStats = validatorStatsRes.data;
+            console.log("Validator stats data received:", validatorStatsRes.data);
+          }
+        } catch (error) {
+          console.warn('Validator stats API error:', error);
+        }
+      }
+      
+      // Fetch builder-specific stats if user has builder welcome
+      if (participant.has_builder_welcome) {
+        try {
+          const builderStatsRes = await statsAPI.getUserStats(participantAddress, 'builder');
+          if (builderStatsRes.data) {
+            builderStats = builderStatsRes.data;
+            console.log("Builder stats data received:", builderStatsRes.data);
+          }
+        } catch (error) {
+          console.warn('Builder stats API error:', error);
+        }
       }
       
       loading = false;
@@ -513,9 +548,9 @@
                   {#if loadingBalance}
                     Loading...
                   {:else if balance}
-                    {balance.formatted} ETH
+                    {balance.formatted} GEN
                   {:else}
-                    0 ETH
+                    0 GEN
                   {/if}
                 </p>
               </div>
@@ -612,97 +647,97 @@
           
           <!-- Journey Selection Cards Inside Welcome Card -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-100">
+            <!-- Builder Journey Card -->
+            <div class="group relative bg-orange-50 border-2 border-orange-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
+              <div class="absolute inset-0 bg-orange-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div class="relative p-6">
+                <div class="flex items-center mb-4">
+                  <div class="flex items-center justify-center w-12 h-12 bg-orange-500 rounded-full mr-4 flex-shrink-0">
+                    <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="text-xl font-bold text-orange-900 mb-1">Builder Journey</h3>
+                    <p class="text-orange-700 text-sm">Learn GenLayer's basics and deploy your first Intelligent Contract powered by Optimistic Democracy</p>
+                  </div>
+                </div>
+                <ul class="space-y-2 mb-6">
+                  <li class="flex items-center text-sm text-orange-600">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Explore the Studio and docs
+                  </li>
+                  <li class="flex items-center text-sm text-orange-600">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Learn Intelligent Contracts fundamentals
+                  </li>
+                  <li class="flex items-center text-sm text-orange-600">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Deploy, contribute and become a GenLayer Builder
+                  </li>
+                </ul>
+                <button
+                  onclick={() => push('/builders/welcome')}
+                  class="w-full flex items-center justify-center px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold group-hover:shadow-md"
+                >
+                  <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+                  </svg>
+                  Start Building
+                </button>
+              </div>
+            </div>
+            
             <!-- Validator Journey Card -->
             <div class="group relative bg-sky-50 border-2 border-sky-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
               <div class="absolute inset-0 bg-sky-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div class="relative p-6">
-            <div class="flex items-center mb-4">
-              <div class="flex items-center justify-center w-12 h-12 bg-sky-500 rounded-full mr-4 flex-shrink-0">
-                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
-                </svg>
-              </div>
-              <div>
-                <h3 class="text-xl font-bold text-sky-900 mb-1">Validator Journey</h3>
-                <p class="text-sky-700 text-sm">Validate and judge subjective Intelligent Contracts on Testnet Asimov</p>
-              </div>
-            </div>
-            <ul class="space-y-2 mb-6">
-              <li class="flex items-center text-sm text-sky-600">
-                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                Participate in Optimistic Democracy consensus with professional validators
-              </li>
-              <li class="flex items-center text-sm text-sky-600">
-                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                Validate subjective outcomes in Intelligent Contracts with AI-powered validation
-              </li>
-              <li class="flex items-center text-sm text-sky-600">
-                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                Currently only selected validators can participate - earn your slot
-              </li>
-            </ul>
-            <button
-              onclick={() => push('/validators/waitlist/join')}
-              class="w-full flex items-center justify-center px-4 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-semibold group-hover:shadow-md"
-            >
-              <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
-              </svg>
-              Join the Waitlist
-            </button>
-          </div>
-        </div>
-        
-        <!-- Builder Journey Card -->
-        <div class="group relative bg-orange-50 border-2 border-orange-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
-          <div class="absolute inset-0 bg-orange-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          <div class="relative p-6">
-            <div class="flex items-center mb-4">
-              <div class="flex items-center justify-center w-12 h-12 bg-orange-500 rounded-full mr-4 flex-shrink-0">
-                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
-                </svg>
-              </div>
-              <div>
-                <h3 class="text-xl font-bold text-orange-900 mb-1">Builder Journey</h3>
-                <p class="text-orange-700 text-sm">Deploy smart contracts, build dApps, and contribute to the GenLayer ecosystem</p>
-              </div>
-            </div>
-            <ul class="space-y-2 mb-6">
-              <li class="flex items-center text-sm text-orange-600">
-                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                Deploy smart contracts
-              </li>
-              <li class="flex items-center text-sm text-orange-600">
-                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                Build innovative dApps
-              </li>
-              <li class="flex items-center text-sm text-orange-600">
-                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                Access developer resources
-              </li>
-            </ul>
-            <button
-              onclick={() => push('/profile')}
-              class="w-full flex items-center justify-center px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold group-hover:shadow-md"
-            >
-              <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
-              </svg>
-              Start Building
-            </button>
+                <div class="flex items-center mb-4">
+                  <div class="flex items-center justify-center w-12 h-12 bg-sky-500 rounded-full mr-4 flex-shrink-0">
+                    <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="text-xl font-bold text-sky-900 mb-1">Validator Journey</h3>
+                    <p class="text-sky-700 text-sm">Validate and judge subjective Intelligent Contracts on Testnet Asimov</p>
+                  </div>
+                </div>
+                <ul class="space-y-2 mb-6">
+                  <li class="flex items-center text-sm text-sky-600">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Participate in Optimistic Democracy consensus with professional validators
+                  </li>
+                  <li class="flex items-center text-sm text-sky-600">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Validate subjective outcomes in Intelligent Contracts with AI-powered validation
+                  </li>
+                  <li class="flex items-center text-sm text-sky-600">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Currently only selected validators can participate - earn your slot
+                  </li>
+                </ul>
+                <button
+                  onclick={() => push('/profile')}
+                  class="w-full flex items-center justify-center px-4 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-semibold group-hover:shadow-md"
+                >
+                  <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
+                  </svg>
+                  Join the Waitlist
+                </button>
               </div>
             </div>
           </div>
@@ -773,48 +808,13 @@
         <div class="p-4">
           <!-- Stats Cards at the beginning -->
           {#if !isValidatorOnly}
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              <div class="bg-sky-50 rounded-lg p-4 border border-sky-200">
-                <div class="flex items-center">
-                  <div class="p-3 bg-sky-100 rounded-lg mr-4">
-                    <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="text-xs text-gray-500">Total Contributions</p>
-                    <p class="text-2xl font-bold text-gray-900">{participant.validator?.total_contributions || 0}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="bg-sky-50 rounded-lg p-4 border border-sky-200">
-                <div class="flex items-center">
-                  <div class="p-3 bg-sky-100 rounded-lg mr-4">
-                    <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="text-xs text-gray-500">Total Points</p>
-                    <p class="text-2xl font-bold text-gray-900">{participant.validator?.total_points || 0}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="bg-sky-50 rounded-lg p-4 border border-sky-200 sm:col-span-2 lg:col-span-1">
-                <div class="flex items-center">
-                  <div class="p-3 bg-sky-100 rounded-lg mr-4">
-                    <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="text-xs text-gray-500">Current Rank</p>
-                    <p class="text-2xl font-bold text-gray-900">#{participant.validator_entry?.rank || participant.validator?.rank || 'N/A'}</p>
-                  </div>
-                </div>
-              </div>
+            <div class="mb-6">
+              <ProfileStats
+                contributions={participant.validator?.total_contributions || 0}
+                points={participant.validator?.total_points || 0}
+                rank={participant.validator_entry?.rank || participant.validator?.rank}
+                colorTheme="sky"
+              />
             </div>
           {/if}
           
@@ -908,73 +908,17 @@
               isOwnProfile={isOwnProfile}
               hideWhenEmpty={!isOwnProfile}
               category="validator"
+              colorTheme="sky"
             />
           </div>
           
           <!-- Contribution Types Breakdown -->
           {#if participant.validator?.contribution_types && participant.validator.contribution_types.length > 0}
             <div class="px-4 mt-6">
-              <div class="mb-4">
-                <h3 class="text-lg leading-6 font-medium text-gray-900">
-                  Contribution Breakdown
-                </h3>
-                <p class="mt-1 text-sm text-gray-500">
-                  Points distribution across contribution types
-                </p>
-              </div>
-              
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {#each participant.validator.contribution_types as type}
-                  <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div class="flex flex-col h-full">
-                      <div class="flex items-start justify-between mb-3">
-                        <div class="flex items-center gap-2 flex-1 min-w-0">
-                          <div class="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 bg-sky-500">
-                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
-                            </svg>
-                          </div>
-                          <h3 class="text-sm font-semibold text-gray-900 truncate">
-                            <button
-                              class="hover:text-sky-600 transition-colors"
-                              onclick={() => push(`/contribution-type/${type.id}`)}
-                            >
-                              {type.name}
-                            </button>
-                          </h3>
-                        </div>
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-sky-100 text-sky-800 ml-2 flex-shrink-0">
-                          {type.total_points} pts
-                        </span>
-                      </div>
-                      
-                      <div class="text-xs text-gray-500 mb-2">
-                        {#if type.count > 1}
-                          × {type.count} contributions
-                        {:else}
-                          × 1 contribution
-                        {/if}
-                      </div>
-                      
-                      <div class="flex items-center gap-2 mt-auto">
-                        <div class="flex-1 bg-gray-200 rounded-full h-2">
-                          <div 
-                            class="h-2 rounded-full transition-all duration-300"
-                            class:bg-purple-500={type.percentage >= 40}
-                            class:bg-blue-500={type.percentage >= 25 && type.percentage < 40}
-                            class:bg-green-500={type.percentage >= 10 && type.percentage < 25}
-                            class:bg-gray-400={type.percentage < 10}
-                            style={`width: ${type.percentage}%`}
-                          ></div>
-                        </div>
-                        <span class="text-xs text-gray-600 font-medium min-w-[2.5rem] text-right">
-                          {type.percentage.toFixed(0)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                {/each}
-              </div>
+              <ContributionBreakdown
+                contributionTypes={participant.validator.contribution_types}
+                colorTheme="sky"
+              />
             </div>
           {/if}
           
@@ -1005,52 +949,30 @@
         
         <!-- Content -->
         <div class="p-6">
-          <!-- Stats Cards -->
-          {#if contributionStats}
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              <div class="bg-white rounded-lg p-4 border border-sky-200">
-                <div class="flex items-center">
-                  <div class="p-3 bg-sky-100 rounded-lg mr-4">
-                    <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="text-xs text-gray-500">Contributions</p>
-                    <p class="text-2xl font-bold text-gray-900">{contributionStats.totalContributions || 0}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="bg-white rounded-lg p-4 border border-sky-200">
-                <div class="flex items-center">
-                  <div class="p-3 bg-sky-100 rounded-lg mr-4">
-                    <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="text-xs text-gray-500">Total Points</p>
-                    <p class="text-2xl font-bold text-gray-900">{contributionStats.totalPoints || 0}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="bg-white rounded-lg p-4 border border-sky-200 sm:col-span-2 lg:col-span-1">
-                <div class="flex items-center">
-                  <div class="p-3 bg-sky-100 rounded-lg mr-4">
-                    <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="text-xs text-gray-500">Waitlist Rank</p>
-                    <p class="text-2xl font-bold text-gray-900">#{participant.waitlist_entry?.rank || 'N/A'}</p>
-                  </div>
-                </div>
+          <!-- Stats -->
+          <div class="mb-4">
+            <ProfileStats
+              contributions={validatorStats.totalContributions || 0}
+              points={validatorStats.totalPoints || 20}
+              rank={participant.waitlist_entry?.rank || participant.has_validator_waitlist?.rank}
+              colorTheme="sky"
+            />
+          </div>
+          
+          <!-- Call to Action -->
+          {#if isOwnProfile}
+            <div class="bg-sky-50 border-l-4 border-sky-400 px-4 py-3 mb-6">
+              <div class="flex items-center">
+                <svg class="h-5 w-5 text-sky-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                </svg>
+                <p class="text-sm font-medium text-sky-800">
+                  Climb the ranks and get invited to validate on Testnet Asimov
+                </p>
               </div>
             </div>
           {/if}
+          
           <!-- Featured Section -->
           <FeaturedContributions
             userId={participant.address}
@@ -1059,74 +981,22 @@
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
-            hideWhenEmpty={false}
+            hideWhenEmpty={!isOwnProfile}
+            category="validator"
+            colorTheme="sky"
           />
           
-          <!-- Contribution Breakdown - Filter for validator category only -->
-          {#if contributionStats.contributionTypes && contributionStats.contributionTypes.length > 0}
-            {@const validatorTypes = contributionStats.contributionTypes.filter(type => 
-              type.category_slug === 'validator'
-            )}
-            {#if validatorTypes.length > 0}
-              <div class="mt-6">
-                <h3 class="text-base font-semibold text-gray-900 mb-3">Validator Contribution Breakdown</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {#each validatorTypes as type}
-                    <div class="bg-white border border-sky-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                      <div class="flex flex-col h-full">
-                        <div class="flex items-start justify-between mb-3">
-                          <div class="flex items-center gap-2 flex-1 min-w-0">
-                            <div class="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 bg-sky-500">
-                              <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
-                              </svg>
-                            </div>
-                            <h3 class="text-sm font-semibold text-gray-900 truncate">
-                              <button
-                                class="hover:text-sky-600 transition-colors"
-                                onclick={() => push(`/contribution-type/${type.id}`)}
-                              >
-                                {type.name}
-                              </button>
-                            </h3>
-                          </div>
-                          <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-sky-100 text-sky-800 ml-2 flex-shrink-0">
-                            {type.total_points} pts
-                          </span>
-                        </div>
-                        
-                        <div class="text-xs text-gray-500 mb-2">
-                          {#if type.count > 1}
-                            × {type.count} contributions
-                          {:else}
-                            × 1 contribution
-                          {/if}
-                        </div>
-                        
-                        <div class="flex items-center gap-2 mt-auto">
-                          <div class="flex-1 bg-gray-200 rounded-full h-2">
-                            <div 
-                              class="h-2 rounded-full transition-all duration-300"
-                              class:bg-purple-500={type.percentage >= 40}
-                              class:bg-blue-500={type.percentage >= 25 && type.percentage < 40}
-                              class:bg-green-500={type.percentage >= 10 && type.percentage < 25}
-                              class:bg-gray-400={type.percentage < 10}
-                              style={`width: ${type.percentage}%`}
-                            ></div>
-                          </div>
-                          <span class="text-xs text-gray-600 font-medium min-w-[2.5rem] text-right">
-                            {type.percentage.toFixed(0)}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              </div>
-            {/if}
+          <!-- Contribution Breakdown -->
+          {#if validatorStats.contributionTypes && validatorStats.contributionTypes.length > 0}
+            <div class="mt-6">
+              <ContributionBreakdown
+                contributionTypes={validatorStats.contributionTypes}
+                colorTheme="sky"
+              />
+            </div>
           {/if}
           
-          <!-- Contributions List - Filter by validator category -->
+          <!-- Contributions List -->
           <div class="mt-6">
             <UserContributions
               userAddress={participant.address}
@@ -1155,11 +1025,48 @@
         <!-- Content -->
         <div class="p-6">
           <p class="text-orange-700 mb-4">Welcome to the builder community! Deploy contracts to level up.</p>
-          <div class="inline-flex items-center px-3 py-1 rounded-full bg-orange-200 text-orange-900 text-sm font-medium">
-            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-            </svg>
-            +20 Points Earned
+          
+          <!-- Stats -->
+          <div class="mb-6">
+            <ProfileStats
+              contributions={builderStats.totalContributions || 0}
+              points={builderStats.totalPoints || 20}
+              rank={participant.has_builder_welcome?.rank}
+              colorTheme="orange"
+            />
+          </div>
+          
+          <!-- Featured Section -->
+          <FeaturedContributions
+            userId={participant.address}
+            limit={3}
+            title="Featured"
+            cardStyle="compact"
+            showViewAll={false}
+            isOwnProfile={isOwnProfile}
+            hideWhenEmpty={!isOwnProfile}
+            category="builder"
+            colorTheme="orange"
+          />
+          
+          <!-- Contribution Breakdown -->
+          {#if builderStats.contributionTypes && builderStats.contributionTypes.length > 0}
+            <div class="mt-6">
+              <ContributionBreakdown
+                contributionTypes={builderStats.contributionTypes}
+                colorTheme="orange"
+              />
+            </div>
+          {/if}
+          
+          <!-- Contributions List -->
+          <div class="mt-6">
+            <UserContributions
+              userAddress={participant.address}
+              userName={participant.name || 'Participant'}
+              category="builder"
+              compact={true}
+            />
           </div>
         </div>
       </div>
@@ -1180,20 +1087,14 @@
         
         <!-- Content -->
         <div class="p-6">
-          <!-- Stats Row -->
-          <div class="grid grid-cols-3 gap-4 mb-6">
-            <div>
-              <p class="text-xs text-gray-500">Total Contributions</p>
-              <p class="text-2xl font-bold text-gray-900">{participant.builder?.total_contributions || 0}</p>
-            </div>
-            <div>
-              <p class="text-xs text-gray-500">Total Points</p>
-              <p class="text-2xl font-bold text-gray-900">{participant.builder?.total_points || 0}</p>
-            </div>
-            <div>
-              <p class="text-xs text-gray-500">Builder Rank</p>
-              <p class="text-2xl font-bold text-gray-900">#{participant.builder?.rank || 'N/A'}</p>
-            </div>
+          <!-- Stats -->
+          <div class="mb-6">
+            <ProfileStats
+              contributions={participant.builder?.total_contributions || 0}
+              points={participant.builder?.total_points || 0}
+              rank={participant.builder?.rank}
+              colorTheme="orange"
+            />
           </div>
           
           <!-- Featured Section -->
@@ -1204,9 +1105,20 @@
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
-            hideWhenEmpty={false}
+            hideWhenEmpty={!isOwnProfile}
             category="builder"
+            colorTheme="orange"
           />
+          
+          <!-- Contribution Breakdown -->
+          {#if participant.builder?.contribution_types && participant.builder.contribution_types.length > 0}
+            <div class="mt-6">
+              <ContributionBreakdown
+                contributionTypes={participant.builder.contribution_types}
+                colorTheme="orange"
+              />
+            </div>
+          {/if}
           
           <!-- Contributions -->
           <div class="mt-6">

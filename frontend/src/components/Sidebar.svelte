@@ -257,7 +257,11 @@
         <div class="border-t border-gray-200 mb-3"></div>
         <button
           onclick={handleProfileClick}
-          class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors hover:bg-gray-50"
+          class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors {
+            getActiveSection() === 'profile'
+              ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+              : 'hover:bg-gray-50'
+          }"
         >
           <Icon 
             name="profile"
@@ -432,7 +436,11 @@
           <div class="border-t border-gray-200 mb-3"></div>
           <button
             onclick={handleProfileClick}
-            class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors hover:bg-gray-50"
+            class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors {
+              getActiveSection() === 'profile'
+                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                : 'hover:bg-gray-50'
+            }"
           >
             <Icon 
               name="profile"

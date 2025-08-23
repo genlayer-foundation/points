@@ -55,7 +55,8 @@ export const usersAPI = {
     data: { count: res.data.participant_count }
   })),
   getCurrentUser: () => api.get('/users/me/'),
-  updateUserProfile: (data) => api.patch('/users/me/', data)
+  updateUserProfile: (data) => api.patch('/users/me/', data),
+  getAccountBalance: () => api.get('/users/balance/')
 };
 
 // API endpoints for contributions
@@ -102,7 +103,10 @@ export const leaderboardAPI = {
 // Stats API
 export const statsAPI = {
   getDashboardStats: () => api.get('/leaderboard/stats/'),
-  getUserStats: (address) => api.get(`/leaderboard/user_stats/by-address/${address}/`)
+  getUserStats: (address, category = null) => {
+    const params = category ? { category } : {};
+    return api.get(`/leaderboard/user_stats/by-address/${address}/`, { params });
+  }
 };
 
 // Validators API
