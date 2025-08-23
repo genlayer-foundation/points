@@ -89,11 +89,11 @@
                   class:bg-blue-500={type.percentage >= 25 && type.percentage < 40}
                   class:bg-green-500={type.percentage >= 10 && type.percentage < 25}
                   class:bg-gray-400={type.percentage < 10}
-                  style={`width: ${type.percentage}%`}
+                  style={`width: ${type.percentage || 0}%`}
                 ></div>
               </div>
               <span class="text-xs text-gray-600 font-medium min-w-[2.5rem] text-right">
-                {type.percentage.toFixed(0)}%
+                {type.percentage != null ? type.percentage.toFixed(0) : 0}%
               </span>
             </div>
           </div>

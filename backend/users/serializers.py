@@ -227,10 +227,12 @@ class BuilderSerializer(serializers.ModelSerializer):
     """
     total_points = serializers.SerializerMethodField()
     rank = serializers.SerializerMethodField()
+    total_contributions = serializers.SerializerMethodField()
+    contribution_types = serializers.SerializerMethodField()
     
     class Meta:
         model = Builder
-        fields = ['total_points', 'rank', 'created_at', 'updated_at']
+        fields = ['total_points', 'rank', 'total_contributions', 'contribution_types', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
     
     def get_total_points(self, obj):
@@ -250,6 +252,54 @@ class BuilderSerializer(serializers.ModelSerializer):
             return leaderboard.rank if leaderboard else None
         except Category.DoesNotExist:
             return None
+    
+    def get_total_contributions(self, obj):
+        """Get total number of builder-related contributions."""
+        from contributions.models import Contribution, ContributionType
+        
+        # Count all builder-related contributions
+        builder_slugs = ['builder', 'builder-welcome', 'create-intelligent-contracts']
+        contribution_types = ContributionType.objects.filter(slug__in=builder_slugs)
+        
+        return Contribution.objects.filter(
+            user=obj.user,
+            contribution_type__in=contribution_types
+        ).count()
+    
+    def get_contribution_types(self, obj):
+        """Get breakdown of contribution types for builder."""
+        from contributions.models import Contribution, ContributionType
+        from django.db.models import Count, Sum
+        
+        # Get all builder-related contribution types
+        builder_slugs = ['builder', 'builder-welcome', 'create-intelligent-contracts']
+        contribution_types = ContributionType.objects.filter(slug__in=builder_slugs)
+        
+        contributions = Contribution.objects.filter(
+            user=obj.user,
+            contribution_type__in=contribution_types
+        ).values('contribution_type__id', 'contribution_type__name', 'contribution_type__slug').annotate(
+            count=Count('id'),
+            total_points=Sum('frozen_global_points')
+        ).order_by('-total_points')
+        
+        # Calculate total points for percentage
+        total_points = sum(c['total_points'] or 0 for c in contributions)
+        
+        # Format the response with percentage
+        result = []
+        for contrib in contributions:
+            points = contrib['total_points'] or 0
+            result.append({
+                'id': contrib['contribution_type__id'],
+                'name': contrib['contribution_type__name'],
+                'slug': contrib['contribution_type__slug'],
+                'count': contrib['count'],
+                'total_points': points,
+                'percentage': round((points / total_points * 100) if total_points > 0 else 0, 1)
+            })
+        
+        return result
 
 
 class StewardSerializer(serializers.ModelSerializer):
