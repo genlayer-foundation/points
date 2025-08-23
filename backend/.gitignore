@@ -49,3 +49,5 @@ ENV/
 .vscode/
 *.swp
 *.swo
+rds_dump_*
+*.sqlite3*
