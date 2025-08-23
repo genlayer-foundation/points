@@ -2,6 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import ContributionCard from './ContributionCard.svelte';
+  import ContributionSelection from '../lib/components/ContributionSelection.svelte';
   
   let { 
     submission,
@@ -26,6 +27,10 @@
   let highlightTitle = $state(reviewData?.highlight_title || '');
   let highlightDescription = $state(reviewData?.highlight_description || '');
   
+  // For ContributionSelection component
+  let selectedCategory = $state(submission.contribution_type_details?.category || 'validator');
+  let selectedContributionTypeObj = $state(null);
+  
   // Reset form when submission changes
   $effect(() => {
     if (submission) {
@@ -39,9 +44,26 @@
         createHighlight = false;
         highlightTitle = '';
         highlightDescription = '';
+        selectedCategory = submission.contribution_type_details?.category || 'validator';
       }
     }
   });
+  
+  // Sync selected contribution type with the ContributionSelection component
+  $effect(() => {
+    if (selectedContributionTypeObj) {
+      selectedType = selectedContributionTypeObj.id;
+      // Update points to the minimum of the new type
+      const type = contributionTypes.find(t => t.id === selectedType);
+      if (type) {
+        points = type.min_points;
+      }
+    }
+  });
+  
+  function handleContributionSelectionChange(category, contributionType) {
+    console.log('Contribution selection changed:', { category, contributionType });
+  }
   
   function getStateClass(state) {
     switch (state) {
@@ -274,19 +296,17 @@
                   {/if}
                   
                   <div>
-                    <label class="block text-sm font-medium text-gray-700">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
                       Contribution Type
                     </label>
-                    <select
-                      bind:value={selectedType}
-                      class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
-                    >
-                      {#each contributionTypes as type}
-                        <option value={type.id}>
-                          {type.name} {multipliers[type.id] && multipliers[type.id] !== 1 ? `(×${multipliers[type.id]})` : ''}
-                        </option>
-                      {/each}
-                    </select>
+                    <ContributionSelection
+                      bind:selectedCategory
+                      bind:selectedContributionType={selectedContributionTypeObj}
+                      defaultContributionType={submission.contribution_type}
+                      onlySubmittable={false}
+                      stewardMode={true}
+                      onSelectionChange={handleContributionSelectionChange}
+                    />
                   </div>
                   
                   <div class="grid grid-cols-2 gap-4">

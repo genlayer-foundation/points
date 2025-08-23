@@ -40,6 +40,11 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         category = self.request.query_params.get('category')
         if category:
             queryset = queryset.filter(category__slug=category)
+        
+        # Filter by is_submittable if provided (for user submission forms)
+        is_submittable = self.request.query_params.get('is_submittable')
+        if is_submittable is not None:
+            queryset = queryset.filter(is_submittable=is_submittable.lower() == 'true')
             
         return queryset
         
