@@ -528,13 +528,14 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             validators = contract.functions.getValidatorsAtCurrentEpoch().call()
             
             # Filter out invalid addresses (0x0, 0x000, etc.)
+            # Keep original case from blockchain but ensure consistent format
             valid_validators = [
                 addr for addr in validators 
                 if addr and 
                 addr.lower() not in ['0x0', '0x000', '0x0000000000000000000000000000000000000000']
             ]
             
-            # Return the filtered list of addresses
+            # Return the filtered list of addresses (keeping original case from blockchain)
             return Response(valid_validators, status=status.HTTP_200_OK)
             
         except Exception as e:

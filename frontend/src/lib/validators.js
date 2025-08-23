@@ -34,7 +34,7 @@ export async function fetchValidatorsData(category = 'validator') {
   const leaderboardRes = await leaderboardAPI.getLeaderboard(leaderboardParams);
   const leaderboardEntries = leaderboardRes.data || [];
   
-  // Create a map for quick lookups
+  // Create a map for quick lookups (ensure all addresses are lowercase for comparison)
   const activeValidatorsSet = new Set(activeValidators.map(addr => addr.toLowerCase()));
   const bannedValidatorsSet = new Set(filteredBannedValidators.map(addr => addr.toLowerCase()));
   
