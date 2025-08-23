@@ -78,13 +78,23 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             .order_by('-first_uptime_date')[:limit]
         )
         
-        # Build result with user details
+        # Build result with full user details including role indicators
+        from users.models import User
+        from users.serializers import UserSerializer
+        
         result = []
         for validator in validators_with_first_uptime:
-            result.append({
-                'address': validator['user__address'],
-                'name': validator['user__name'],
-                'first_uptime_date': validator['first_uptime_date']
-            })
+            try:
+                user = User.objects.get(id=validator['user'])
+                user_data = UserSerializer(user).data
+                user_data['first_uptime_date'] = validator['first_uptime_date']
+                result.append(user_data)
+            except User.DoesNotExist:
+                # Fallback to simple data if user not found
+                result.append({
+                    'address': validator['user__address'],
+                    'name': validator['user__name'],
+                    'first_uptime_date': validator['first_uptime_date']
+                })
         
         return Response(result)

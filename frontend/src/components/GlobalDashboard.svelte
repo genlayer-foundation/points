@@ -4,6 +4,7 @@
   import { format } from 'date-fns';
   import TopLeaderboard from './TopLeaderboard.svelte';
   import FeaturedContributions from './FeaturedContributions.svelte';
+  import Avatar from './Avatar.svelte';
   import { contributionsAPI, leaderboardAPI, usersAPI, validatorsAPI } from '../lib/api';
   
   // State management
@@ -247,12 +248,12 @@
           <div class="bg-white rounded-lg divide-y divide-gray-200">
             {#each newestValidators as validator}
               <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                <div class="flex items-center gap-2">
-                  <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center flex-shrink-0">
-                    <span class="text-sm font-bold text-blue-600">
-                      {validator.name ? validator.name.charAt(0).toUpperCase() : '#'}
-                    </span>
-                  </div>
+                <div class="flex items-center gap-3">
+                  <Avatar 
+                    user={validator}
+                    size="sm"
+                    clickable={true}
+                  />
                   <div class="min-w-0">
                     <button
                       class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors truncate"
@@ -399,12 +400,12 @@
           <div class="bg-white rounded-lg divide-y divide-gray-200">
             {#each newestBuilders as builder}
               <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                <div class="flex items-center gap-2">
-                  <div class="w-10 h-10 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center flex-shrink-0">
-                    <span class="text-sm font-bold text-orange-600">
-                      {builder.name ? builder.name.charAt(0).toUpperCase() : '#'}
-                    </span>
-                  </div>
+                <div class="flex items-center gap-3">
+                  <Avatar 
+                    user={builder}
+                    size="sm"
+                    clickable={true}
+                  />
                   <div class="min-w-0">
                     <button
                       class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors truncate"
