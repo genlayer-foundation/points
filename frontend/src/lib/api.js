@@ -76,6 +76,7 @@ export const contributionsAPI = {
   getContributionTypeMultipliers: (typeId) => api.get(`/contribution-type-multipliers/?contribution_type=${typeId}`),
   getContributionTypeStatistics: (params) => api.get('/contribution-types/statistics/', { params }),
   getContributionTypeTopContributors: (id) => api.get(`/contribution-types/${id}/top_contributors/`),
+  getHighlights: (params) => api.get('/contributions/highlights/', { params }),
   getContributionTypeRecentContributions: (id) => api.get(`/contribution-types/${id}/recent_contributions/`),
   getContributionTypeHighlights: (id) => api.get(`/contribution-types/${id}/highlights/`),
   getAllHighlights: (params) => api.get('/contributions/highlights/', { params }),
@@ -87,12 +88,16 @@ export const contributionsAPI = {
 // API endpoints for leaderboard
 export const leaderboardAPI = {
   getLeaderboard: (params) => api.get('/leaderboard/', { params }),
+  getLeaderboardByType: (type, order = 'asc') => 
+    api.get('/leaderboard/', { params: { type, order } }),
   getLeaderboardEntry: (address) => api.get(`/leaderboard/?user_address=${address}`),
-  getCategoryLeaderboard: (category) => api.get(`/leaderboard/category/${category}/`),
   getMultipliers: () => api.get('/multipliers/'),
   getActiveMultipliers: () => api.get('/multipliers/active/'),
   getMultiplierPeriods: (multiplier_id) => api.get(`/multiplier-periods/?multiplier=${multiplier_id}`),
-  getStats: () => api.get('/leaderboard/stats/')
+  getStats: () => api.get('/leaderboard/stats/'),
+  getWaitlistStats: () => api.get('/leaderboard/validator-waitlist-stats/'),
+  getTypes: () => api.get('/leaderboard/types/'),
+  recalculateAll: () => api.post('/leaderboard/recalculate/')
 };
 
 // Stats API

@@ -79,16 +79,38 @@ class ValidatorAdmin:
         
         # Create Validator profile if it doesn't exist
         from validators.models import Validator
-        validator, validator_created = Validator.objects.get_or_create(
-            user=user
-        )
-        
-        # Get selected contributions
-        contributions_data = form.get_selected_contributions()
+        try:
+            validator = Validator.objects.get(user=user)
+            validator_created = False
+        except Validator.DoesNotExist:
+            validator = Validator.objects.create(user=user)
+            validator_created = True
         
         # Convert date to datetime
         contribution_datetime = datetime.combine(contribution_date, datetime.min.time())
         contribution_datetime = timezone.make_aware(contribution_datetime)
+        
+        # Ensure validator contribution exists
+        validator_contribution_type = ContributionType.objects.filter(slug='validator').first()
+        if validator_contribution_type:
+            # Check if validator contribution already exists
+            validator_contrib_exists = Contribution.objects.filter(
+                user=user,
+                contribution_type=validator_contribution_type
+            ).exists()
+            
+            if not validator_contrib_exists:
+                # Create validator contribution with 1 point (as required)
+                Contribution.objects.create(
+                    user=user,
+                    contribution_type=validator_contribution_type,
+                    points=1,  # Validator badge requires exactly 1 point
+                    contribution_date=contribution_datetime,
+                    notes=f'Validator badge created via admin on {timezone.now().strftime("%Y-%m-%d %H:%M")}'
+                )
+        
+        # Get selected contributions
+        contributions_data = form.get_selected_contributions()
         
         # Create contributions
         created_contributions = []

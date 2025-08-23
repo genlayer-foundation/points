@@ -32,6 +32,7 @@
   import StewardDashboard from './routes/StewardDashboard.svelte';
   import StewardSubmissions from './routes/StewardSubmissions.svelte';
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
+  import Waitlist from './routes/Waitlist.svelte';
   import BuilderWelcome from './routes/BuilderWelcome.svelte';
   
   // Define routes
@@ -60,6 +61,7 @@
     '/validators/highlights': Highlights,
     '/validators/leaderboard': Leaderboard,
     '/validators/participants': Validators,
+    '/validators/waitlist': Waitlist,
     '/validators/waitlist/join': ValidatorWaitlist,
     
     // Shared routes

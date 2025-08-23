@@ -170,10 +170,23 @@
         const leaderboardRes = await leaderboardAPI.getLeaderboardEntry(participantAddress);
         console.log("Leaderboard data received:", leaderboardRes.data);
         
-        // If the leaderboard entry isn't included in the user data, add it
-        if (!participant.leaderboard_entry && leaderboardRes.data.results && leaderboardRes.data.results.length > 0) {
-          participant.leaderboard_entry = leaderboardRes.data.results[0];
-          console.log("Added leaderboard entry from separate request:", participant.leaderboard_entry);
+        // Store all leaderboard entries (user can be on multiple leaderboards)
+        if (leaderboardRes.data && Array.isArray(leaderboardRes.data)) {
+          participant.leaderboard_entries = leaderboardRes.data;
+          
+          // Find the waitlist entry if they're on the waitlist
+          participant.waitlist_entry = leaderboardRes.data.find(entry => 
+            entry.type === 'validator-waitlist'
+          );
+          
+          // Find the validator entry if they're a validator
+          participant.validator_entry = leaderboardRes.data.find(entry => 
+            entry.type === 'validator'
+          );
+          
+          console.log("Added leaderboard entries from separate request:", participant.leaderboard_entries);
+          console.log("Waitlist entry:", participant.waitlist_entry);
+          console.log("Validator entry:", participant.validator_entry);
         }
       } catch (leaderboardError) {
         console.warn('Leaderboard API error:', leaderboardError);
@@ -799,7 +812,7 @@
               <ProfileStats
                 contributions={participant.validator?.total_contributions || 0}
                 points={participant.validator?.total_points || 0}
-                rank={participant.validator?.rank}
+                rank={participant.validator_entry?.rank || participant.validator?.rank}
                 colorTheme="sky"
               />
             </div>
@@ -941,7 +954,7 @@
             <ProfileStats
               contributions={validatorStats.totalContributions || 0}
               points={validatorStats.totalPoints || 20}
-              rank={participant.has_validator_waitlist?.rank}
+              rank={participant.waitlist_entry?.rank || participant.has_validator_waitlist?.rank}
               colorTheme="sky"
             />
           </div>

@@ -19,5 +19,5 @@ class LeaderboardEntrySerializer(serializers.ModelSerializer):
     
     class Meta:
         model = LeaderboardEntry
-        fields = ['id', 'user', 'user_details', 'total_points', 'rank', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'total_points', 'rank', 'created_at', 'updated_at']
+        fields = ['id', 'user', 'user_details', 'type', 'total_points', 'rank', 'graduation_date', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'type', 'total_points', 'rank', 'graduation_date', 'created_at', 'updated_at']

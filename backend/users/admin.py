@@ -90,20 +90,77 @@ class UserAdmin(BaseUserAdmin):
     set_as_builder.short_description = "Set selected users as builders"
     
     def set_as_validator(self, request, queryset):
-        """Action to set selected users as validators."""
+        """Action to set selected users as validators and track graduation if from waitlist."""
+        from django.utils import timezone
+        from contributions.models import Contribution, ContributionType
+        from leaderboard.models import LeaderboardEntry
+        
         count = 0
+        graduated_count = 0
+        
         for user in queryset:
             # Check if already a validator
             if hasattr(user, 'validator'):
                 self.message_user(request, f"{user.email} is already a validator.", level=messages.WARNING)
                 continue
             
-            # Create validator profile
-            Validator.objects.create(user=user)
+            # Check if user has validator-waitlist badge
+            has_waitlist = False
+            current_points = 0
+            
+            try:
+                waitlist_type = ContributionType.objects.get(slug='validator-waitlist')
+                has_waitlist = Contribution.objects.filter(
+                    user=user,
+                    contribution_type=waitlist_type
+                ).exists()
+                
+                # Get current total points from validator-waitlist leaderboard
+                leaderboard_entry = LeaderboardEntry.objects.filter(
+                    user=user,
+                    type='validator-waitlist'
+                ).first()
+                
+                if leaderboard_entry:
+                    current_points = leaderboard_entry.total_points
+            except (ContributionType.DoesNotExist, LeaderboardEntry.DoesNotExist):
+                pass
+            
+            # Create validator profile with graduation info if from waitlist
+            if has_waitlist:
+                validator = Validator.objects.create(
+                    user=user,
+                    points_at_waitlist_graduation=current_points
+                )
+                graduated_count += 1
+                self.message_user(
+                    request, 
+                    f"{user.email} graduated from waitlist with {current_points} points.", 
+                    level=messages.SUCCESS
+                )
+            else:
+                validator = Validator.objects.create(user=user)
+            
+            # Add validator badge contribution
+            try:
+                validator_type = ContributionType.objects.get(slug='validator')
+                Contribution.objects.create(
+                    user=user,
+                    contribution_type=validator_type,
+                    points=validator_type.min_points or 200,
+                    contribution_date=timezone.now(),
+                    notes="Validator badge awarded"
+                )
+            except ContributionType.DoesNotExist:
+                pass
+            
             count += 1
         
         if count > 0:
-            self.message_user(request, f"Successfully set {count} user(s) as validator(s).", level=messages.SUCCESS)
+            msg = f"Successfully set {count} user(s) as validator(s)."
+            if graduated_count > 0:
+                msg += f" {graduated_count} graduated from waitlist."
+            self.message_user(request, msg, level=messages.SUCCESS)
     set_as_validator.short_description = "Set selected users as validators"
     
     def set_as_steward(self, request, queryset):

@@ -134,7 +134,8 @@
       items: [
         { name: 'Contributions', path: '/validators/contributions', iconName: 'contributions' },
         { name: 'Leaderboard', path: '/validators/leaderboard', iconName: 'leaderboard' },
-        { name: 'Participants', path: '/validators/participants', iconName: 'participants' }
+        { name: 'Participants', path: '/validators/participants', iconName: 'participants' },
+        { name: 'Waitlist', path: '/validators/waitlist', iconName: 'waitlist' }
       ]
     }
   ];

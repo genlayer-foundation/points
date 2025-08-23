@@ -8,7 +8,7 @@ from leaderboard.models import (
     LeaderboardEntry, 
     GlobalLeaderboardMultiplier,
     update_all_ranks,
-    update_user_leaderboard_entry
+    update_user_leaderboard_entries
 )
 from contributions.models import Contribution, ContributionType
 
@@ -178,8 +178,8 @@ class LeaderboardEntryTest(TestCase):
         self.assertEqual(total_points, 0)
         self.assertEqual(entry.total_points, 0)
     
-    def test_update_user_leaderboard_entry_triggers_ranking(self):
-        """Test that update_user_leaderboard_entry updates both points and ranks."""
+    def test_update_user_leaderboard_entries_triggers_ranking(self):
+        """Test that update_user_leaderboard_entries updates both points and ranks."""
         # Create contributions
         Contribution.objects.create(
             user=self.user1,
@@ -200,7 +200,7 @@ class LeaderboardEntryTest(TestCase):
         )
         
         # Update user1's leaderboard (this should trigger ranking)
-        update_user_leaderboard_entry(self.user1)
+        update_user_leaderboard_entries(self.user1)
         
         # Check that entry exists with correct points and rank
         entry1 = LeaderboardEntry.objects.get(user=self.user1)
@@ -208,7 +208,7 @@ class LeaderboardEntryTest(TestCase):
         self.assertIsNotNone(entry1.rank)
         
         # Update user2's leaderboard
-        update_user_leaderboard_entry(self.user2)
+        update_user_leaderboard_entries(self.user2)
         
         # Check rankings are correct
         entry1.refresh_from_db()
