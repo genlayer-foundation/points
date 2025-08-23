@@ -25,29 +25,38 @@
   };
   
   async function fetchGlobalData() {
-    // Fetch validator stats
+    // Fetch validator and builder stats
     try {
       statsLoading = true;
       
-      // Fetch category-specific leaderboard data
-      const [validatorLeaderboard, builderLeaderboard] = await Promise.all([
-        leaderboardAPI.getCategoryLeaderboard('validator'),
-        leaderboardAPI.getCategoryLeaderboard('builder')
+      // Fetch all users to count validators (matching Validators.svelte logic)
+      const [usersRes, builderLeaderboardRes, validatorContribRes, builderContribRes] = await Promise.all([
+        usersAPI.getUsers(),
+        leaderboardAPI.getLeaderboardByType('builder'),
+        contributionsAPI.getContributions({ category: 'validator', limit: 1 }),
+        contributionsAPI.getContributions({ category: 'builder', limit: 1 })
       ]);
       
-      // Calculate stats from leaderboard entries
-      const validatorEntries = validatorLeaderboard.data.entries || [];
-      const builderEntries = builderLeaderboard.data.entries || [];
+      // Get validator leaderboard for points calculation
+      const validatorLeaderboardRes = await leaderboardAPI.getLeaderboardByType('validator');
+      const validatorEntries = Array.isArray(validatorLeaderboardRes.data) ? validatorLeaderboardRes.data : [];
+      
+      // Count all users with validator profiles (matching Validators.svelte)
+      const allUsers = usersRes.data.results || [];
+      const validatorCount = allUsers.filter(user => user.validator && user.address).length;
       
       validatorStats = {
-        total: validatorEntries.length,
-        contributions: 0, // Will be updated if we have contribution counts
+        total: validatorCount,
+        contributions: validatorContribRes.data?.count || 0,
         points: validatorEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0)
       };
       
+      // Process builder stats from leaderboard entries
+      const builderEntries = Array.isArray(builderLeaderboardRes.data) ? builderLeaderboardRes.data : [];
+      
       builderStats = {
         total: builderEntries.length,
-        contributions: 0, // Will be updated if we have contribution counts
+        contributions: builderContribRes.data?.count || 0,
         points: builderEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0)
       };
       

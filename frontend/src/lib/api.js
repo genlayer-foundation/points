@@ -113,7 +113,8 @@ export const statsAPI = {
 
 // Validators API
 export const validatorsAPI = {
-  getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } })
+  getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } }),
+  getActiveValidators: () => api.get('/users/validators/')
 };
 
 // Journey API

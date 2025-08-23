@@ -527,8 +527,15 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             # Call getValidatorsAtCurrentEpoch function
             validators = contract.functions.getValidatorsAtCurrentEpoch().call()
             
-            # Just return the list of addresses without case conversion
-            return Response(validators, status=status.HTTP_200_OK)
+            # Filter out invalid addresses (0x0, 0x000, etc.)
+            valid_validators = [
+                addr for addr in validators 
+                if addr and 
+                addr.lower() not in ['0x0', '0x000', '0x0000000000000000000000000000000000000000']
+            ]
+            
+            # Return the filtered list of addresses
+            return Response(valid_validators, status=status.HTTP_200_OK)
             
         except Exception as e:
             return Response({
