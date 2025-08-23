@@ -151,15 +151,33 @@
         }
       }
       
-      // Also try to fetch the leaderboard entry directly
+      // Also try to fetch the leaderboard entries directly
       try {
         const leaderboardRes = await leaderboardAPI.getLeaderboardEntry(participantAddress);
-        console.log("Leaderboard data received:", leaderboardRes.data);
+        console.log("Leaderboard data received at", new Date().toISOString(), ":", leaderboardRes.data);
         
-        // If the leaderboard entry isn't included in the user data, add it
-        if (!participant.leaderboard_entry && leaderboardRes.data.results && leaderboardRes.data.results.length > 0) {
-          participant.leaderboard_entry = leaderboardRes.data.results[0];
-          console.log("Added leaderboard entry from separate request:", participant.leaderboard_entry);
+        // Store all leaderboard entries (user can be on multiple leaderboards)
+        if (leaderboardRes.data && Array.isArray(leaderboardRes.data)) {
+          participant.leaderboard_entries = leaderboardRes.data;
+          
+          // Find the waitlist entry if they're on the waitlist
+          participant.waitlist_entry = leaderboardRes.data.find(entry => 
+            entry.type === 'validator-waitlist'
+          );
+          
+          // Find the validator entry if they're a validator
+          participant.validator_entry = leaderboardRes.data.find(entry => 
+            entry.type === 'validator'
+          );
+          
+          // Keep the first entry for backward compatibility
+          participant.leaderboard_entry = leaderboardRes.data[0];
+          
+          console.log("Leaderboard entries processed:", {
+            all: participant.leaderboard_entries,
+            waitlist: participant.waitlist_entry,
+            validator: participant.validator_entry
+          });
         }
       } catch (leaderboardError) {
         console.warn('Leaderboard API error:', leaderboardError);
@@ -630,7 +648,7 @@
               </li>
             </ul>
             <button
-              onclick={() => push('/profile')}
+              onclick={() => push('/validators/waitlist/join')}
               class="w-full flex items-center justify-center px-4 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-semibold group-hover:shadow-md"
             >
               <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
@@ -793,7 +811,7 @@
                   </div>
                   <div>
                     <p class="text-xs text-gray-500">Current Rank</p>
-                    <p class="text-2xl font-bold text-gray-900">#{participant.validator?.rank || 'N/A'}</p>
+                    <p class="text-2xl font-bold text-gray-900">#{participant.validator_entry?.rank || participant.validator?.rank || 'N/A'}</p>
                   </div>
                 </div>
               </div>
@@ -987,6 +1005,52 @@
         
         <!-- Content -->
         <div class="p-6">
+          <!-- Stats Cards -->
+          {#if contributionStats}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              <div class="bg-white rounded-lg p-4 border border-sky-200">
+                <div class="flex items-center">
+                  <div class="p-3 bg-sky-100 rounded-lg mr-4">
+                    <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">Contributions</p>
+                    <p class="text-2xl font-bold text-gray-900">{contributionStats.totalContributions || 0}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="bg-white rounded-lg p-4 border border-sky-200">
+                <div class="flex items-center">
+                  <div class="p-3 bg-sky-100 rounded-lg mr-4">
+                    <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">Total Points</p>
+                    <p class="text-2xl font-bold text-gray-900">{contributionStats.totalPoints || 0}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="bg-white rounded-lg p-4 border border-sky-200 sm:col-span-2 lg:col-span-1">
+                <div class="flex items-center">
+                  <div class="p-3 bg-sky-100 rounded-lg mr-4">
+                    <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">Waitlist Rank</p>
+                    <p class="text-2xl font-bold text-gray-900">#{participant.waitlist_entry?.rank || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {/if}
           <!-- Featured Section -->
           <FeaturedContributions
             userId={participant.address}
@@ -998,26 +1062,76 @@
             hideWhenEmpty={false}
           />
           
-          <!-- Contribution Breakdown -->
+          <!-- Contribution Breakdown - Filter for validator category only -->
           {#if contributionStats.contributionTypes && contributionStats.contributionTypes.length > 0}
-            <div class="mt-6">
-              <h3 class="text-base font-semibold text-gray-900 mb-3">Breakdown</h3>
-              <div class="space-y-2">
-                {#each contributionStats.contributionTypes as type}
-                  <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span class="text-sm text-gray-700">{type.name}</span>
-                    <span class="text-sm font-medium text-gray-900">{type.total_points} pts</span>
-                  </div>
-                {/each}
+            {@const validatorTypes = contributionStats.contributionTypes.filter(type => 
+              type.category_slug === 'validator'
+            )}
+            {#if validatorTypes.length > 0}
+              <div class="mt-6">
+                <h3 class="text-base font-semibold text-gray-900 mb-3">Validator Contribution Breakdown</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {#each validatorTypes as type}
+                    <div class="bg-white border border-sky-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div class="flex flex-col h-full">
+                        <div class="flex items-start justify-between mb-3">
+                          <div class="flex items-center gap-2 flex-1 min-w-0">
+                            <div class="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 bg-sky-500">
+                              <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
+                              </svg>
+                            </div>
+                            <h3 class="text-sm font-semibold text-gray-900 truncate">
+                              <button
+                                class="hover:text-sky-600 transition-colors"
+                                onclick={() => push(`/contribution-type/${type.id}`)}
+                              >
+                                {type.name}
+                              </button>
+                            </h3>
+                          </div>
+                          <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-sky-100 text-sky-800 ml-2 flex-shrink-0">
+                            {type.total_points} pts
+                          </span>
+                        </div>
+                        
+                        <div class="text-xs text-gray-500 mb-2">
+                          {#if type.count > 1}
+                            × {type.count} contributions
+                          {:else}
+                            × 1 contribution
+                          {/if}
+                        </div>
+                        
+                        <div class="flex items-center gap-2 mt-auto">
+                          <div class="flex-1 bg-gray-200 rounded-full h-2">
+                            <div 
+                              class="h-2 rounded-full transition-all duration-300"
+                              class:bg-purple-500={type.percentage >= 40}
+                              class:bg-blue-500={type.percentage >= 25 && type.percentage < 40}
+                              class:bg-green-500={type.percentage >= 10 && type.percentage < 25}
+                              class:bg-gray-400={type.percentage < 10}
+                              style={`width: ${type.percentage}%`}
+                            ></div>
+                          </div>
+                          <span class="text-xs text-gray-600 font-medium min-w-[2.5rem] text-right">
+                            {type.percentage.toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
               </div>
-            </div>
+            {/if}
           {/if}
           
-          <!-- Contributions List -->
+          <!-- Contributions List - Filter by validator category -->
           <div class="mt-6">
             <UserContributions
               userAddress={participant.address}
               userName={participant.name || 'Participant'}
+              category="validator"
               compact={true}
             />
           </div>
