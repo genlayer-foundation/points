@@ -505,12 +505,6 @@
           </h2>
           <div class="text-sm text-orange-800">
             <p>You're building on GenLayer! Keep creating.</p>
-            {#if user.builder.total_points}
-              <p class="mt-1">Total Points: <span class="font-bold text-orange-900">{user.builder.total_points}</span></p>
-            {/if}
-            {#if user.builder.rank}
-              <p>Builder Rank: <span class="font-bold text-orange-900">#{user.builder.rank}</span></p>
-            {/if}
           </div>
         </div>
       {/if}
@@ -579,10 +573,6 @@
             Builder Welcome
           </h2>
           <p class="text-sm text-orange-800">You've started building! Keep deploying contracts to level up.</p>
-          <div class="mt-3 inline-flex items-center px-2 py-1 rounded-full bg-orange-200 text-orange-900 text-xs">
-            <Icon name="star" size="xs" className="mr-1" />
-            Points Earned
-          </div>
         </div>
       {/if}
       
@@ -593,10 +583,6 @@
             Validator Waitlist
           </h2>
           <p class="text-sm text-sky-800">You're on the waitlist! Keep earning points to become a validator.</p>
-          <div class="mt-3 inline-flex items-center px-2 py-1 rounded-full bg-sky-200 text-sky-900 text-xs">
-            <Icon name="star" size="xs" className="mr-1" />
-            Points Earned
-          </div>
         </div>
       {/if}
       

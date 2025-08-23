@@ -127,19 +127,16 @@ class UserAdmin(BaseUserAdmin):
                 pass
             
             # Create validator profile with graduation info if from waitlist
+            validator = Validator.objects.create(
+                user=user,
+            )
             if has_waitlist:
-                validator = Validator.objects.create(
-                    user=user,
-                    points_at_waitlist_graduation=current_points
-                )
                 graduated_count += 1
                 self.message_user(
                     request, 
                     f"{user.email} graduated from waitlist with {current_points} points.", 
                     level=messages.SUCCESS
                 )
-            else:
-                validator = Validator.objects.create(user=user)
             
             # Add validator badge contribution
             try:

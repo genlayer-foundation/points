@@ -606,7 +606,6 @@
           <p>The Validator Journey tracks participants who have joined the waitlist and are working towards becoming active validators on the GenLayer network.</p>
           <ul class="list-disc list-inside mt-2 space-y-1">
             <li>Complete tasks and earn points to climb the leaderboard</li>
-            <li>Keep your node version up to date to show readiness</li>
             <li>Graduates become active validators on Testnet Asimov</li>
             <li>Track your progress in the Race to Testnet Asimov</li>
           </ul>

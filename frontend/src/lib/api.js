@@ -120,7 +120,6 @@ export const validatorsAPI = {
 export const journeyAPI = {
   startValidatorJourney: () => api.post('/users/start_validator_journey/'),
   startBuilderJourney: () => api.post('/users/start_builder_journey/'),
-  completeValidatorJourney: () => api.post('/users/complete_validator_journey/'),
   completeBuilderJourney: () => api.post('/users/complete_builder_journey/')
 };
 
