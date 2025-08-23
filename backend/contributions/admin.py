@@ -238,6 +238,9 @@ class ContributionAdmin(admin.ModelAdmin):
         if name and user.name != name:
             user.name = name
             user.save()
+
+        from validators.models import Validator
+        Validator.objects.create(user=user)
         
         # Get selected contributions
         contributions_data = form.get_selected_contributions()

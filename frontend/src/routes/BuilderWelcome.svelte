@@ -10,7 +10,6 @@
   let currentUser = $state(null);
   let hasBuilderWelcome = $state(false);
   let isClaimingBuilderBadge = $state(false);
-  let accountBalance = $state(0);
   let testnetBalance = $state(null);
   let hasDeployedContract = $state(false);
   let hasSubmittedContribution = $state(false);
@@ -36,9 +35,7 @@
     await loadData();
     // Check balance periodically
     const interval = setInterval(async () => {
-      if ($authState.isAuthenticated && accountBalance === 0) {
-        await checkBalance();
-      }
+      // Balance check removed - we get balance from RPC
     }, 5000); // Check every 5 seconds
     
     return () => clearInterval(interval);
@@ -50,7 +47,6 @@
         currentUser = await getCurrentUser();
         hasBuilderWelcome = currentUser?.has_builder_welcome || false;
         hasSubmittedContribution = (currentUser?.builder?.total_contributions || 0) > 0;
-        await checkBalance();
         await checkTestnetBalance();
         await checkDeployments();
       }
@@ -73,15 +69,6 @@
     }
   }
   
-  async function checkBalance() {
-    try {
-      // Check account balance via API
-      const response = await usersAPI.getAccountBalance();
-      accountBalance = response.data.balance || 0;
-    } catch (err) {
-      console.error('Failed to check balance:', err);
-    }
-  }
   
   async function checkDeployments() {
     try {

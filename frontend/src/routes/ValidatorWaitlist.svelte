@@ -43,7 +43,7 @@
     error = '';
     
     try {
-      await journeyAPI.completeValidatorJourney();
+      await journeyAPI.startValidatorJourney();
       // Store success message and redirect to profile
       sessionStorage.setItem('journeySuccess', 'Successfully joined Testnet Asimov Validator Waitlist!');
       push(`/participant/${$authState.address}`);

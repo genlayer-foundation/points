@@ -390,55 +390,6 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             )
     
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
-    def complete_validator_journey(self, request):
-        """
-        Award the validator waitlist badge to the user.
-        This should be called after the user completes the validator journey requirements.
-        """
-        from contributions.models import Contribution, ContributionType
-        from leaderboard.models import GlobalLeaderboardMultiplier
-        from django.utils import timezone
-        
-        user = request.user
-        
-        # Check if user already has the badge
-        try:
-            waitlist_type = ContributionType.objects.get(slug='validator-waitlist')
-        except ContributionType.DoesNotExist:
-            return Response(
-                {'error': 'Validator waitlist contribution type not configured'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-        
-        if Contribution.objects.filter(user=user, contribution_type=waitlist_type).exists():
-            return Response(
-                {'message': 'You already have the validator waitlist badge'},
-                status=status.HTTP_200_OK
-            )
-        
-        # Create the contribution to award the badge
-        try:
-            contribution = Contribution.objects.create(
-                user=user,
-                contribution_type=waitlist_type,
-                points=20,
-                contribution_date=timezone.now(),
-                notes='Completed validator journey and joined the waitlist'
-            )
-            
-            serializer = self.get_serializer(user)
-            return Response({
-                'message': 'Validator waitlist badge awarded successfully!',
-                'user': serializer.data
-            }, status=status.HTTP_201_CREATED)
-            
-        except Exception as e:
-            return Response(
-                {'error': f'Failed to award badge: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def complete_builder_journey(self, request):
         """
         Check if user meets builder journey requirements and award the builder contribution.
