@@ -4,6 +4,7 @@
   import { format } from 'date-fns';
   import TopLeaderboard from './TopLeaderboard.svelte';
   import FeaturedContributions from './FeaturedContributions.svelte';
+  import Avatar from './Avatar.svelte';
   import { contributionsAPI, leaderboardAPI, usersAPI, validatorsAPI } from '../lib/api';
   
   // State management
@@ -25,29 +26,38 @@
   };
   
   async function fetchGlobalData() {
-    // Fetch validator stats
+    // Fetch validator and builder stats
     try {
       statsLoading = true;
       
-      // Fetch category-specific leaderboard data
-      const [validatorLeaderboard, builderLeaderboard] = await Promise.all([
-        leaderboardAPI.getCategoryLeaderboard('validator'),
-        leaderboardAPI.getCategoryLeaderboard('builder')
+      // Fetch all users to count validators (matching Validators.svelte logic)
+      const [usersRes, builderLeaderboardRes, validatorContribRes, builderContribRes] = await Promise.all([
+        usersAPI.getUsers(),
+        leaderboardAPI.getLeaderboardByType('builder'),
+        contributionsAPI.getContributions({ category: 'validator', limit: 1 }),
+        contributionsAPI.getContributions({ category: 'builder', limit: 1 })
       ]);
       
-      // Calculate stats from leaderboard entries
-      const validatorEntries = validatorLeaderboard.data.entries || [];
-      const builderEntries = builderLeaderboard.data.entries || [];
+      // Get validator leaderboard for points calculation
+      const validatorLeaderboardRes = await leaderboardAPI.getLeaderboardByType('validator');
+      const validatorEntries = Array.isArray(validatorLeaderboardRes.data) ? validatorLeaderboardRes.data : [];
+      
+      // Count all users with validator profiles (matching Validators.svelte)
+      const allUsers = usersRes.data.results || [];
+      const validatorCount = allUsers.filter(user => user.validator && user.address).length;
       
       validatorStats = {
-        total: validatorEntries.length,
-        contributions: 0, // Will be updated if we have contribution counts
+        total: validatorCount,
+        contributions: validatorContribRes.data?.count || 0,
         points: validatorEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0)
       };
       
+      // Process builder stats from leaderboard entries
+      const builderEntries = Array.isArray(builderLeaderboardRes.data) ? builderLeaderboardRes.data : [];
+      
       builderStats = {
         total: builderEntries.length,
-        contributions: 0, // Will be updated if we have contribution counts
+        contributions: builderContribRes.data?.count || 0,
         points: builderEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0)
       };
       
@@ -238,12 +248,12 @@
           <div class="bg-white rounded-lg divide-y divide-gray-200">
             {#each newestValidators as validator}
               <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                <div class="flex items-center gap-2">
-                  <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center flex-shrink-0">
-                    <span class="text-sm font-bold text-blue-600">
-                      {validator.name ? validator.name.charAt(0).toUpperCase() : '#'}
-                    </span>
-                  </div>
+                <div class="flex items-center gap-3">
+                  <Avatar 
+                    user={validator}
+                    size="sm"
+                    clickable={true}
+                  />
                   <div class="min-w-0">
                     <button
                       class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors truncate"
@@ -390,12 +400,12 @@
           <div class="bg-white rounded-lg divide-y divide-gray-200">
             {#each newestBuilders as builder}
               <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                <div class="flex items-center gap-2">
-                  <div class="w-10 h-10 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center flex-shrink-0">
-                    <span class="text-sm font-bold text-orange-600">
-                      {builder.name ? builder.name.charAt(0).toUpperCase() : '#'}
-                    </span>
-                  </div>
+                <div class="flex items-center gap-3">
+                  <Avatar 
+                    user={builder}
+                    size="sm"
+                    clickable={true}
+                  />
                   <div class="min-w-0">
                     <button
                       class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors truncate"

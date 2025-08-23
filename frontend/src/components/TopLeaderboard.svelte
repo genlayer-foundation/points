@@ -11,7 +11,7 @@
     showViewAll = true,
     viewAllPath = '/leaderboard',
     viewAllText = 'View All →',
-    compact = true,
+    compact = false,  // Changed to false to show avatars by default
     hideAddress = true,
     showHeader = false,
     className = '',

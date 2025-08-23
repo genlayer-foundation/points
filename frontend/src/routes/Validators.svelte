@@ -1,8 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
-  import api, { usersAPI, leaderboardAPI } from '../lib/api';
-  import { getBannedValidators } from '../lib/blockchain';
+  import { fetchValidatorsData, getValidatorStatus } from '../lib/validators';
   import { currentCategory, categoryTheme } from '../stores/category.js';
   import Avatar from '../components/Avatar.svelte';
   
@@ -10,6 +9,7 @@
   let validators = $state([]);
   let loading = $state(true);
   let error = $state(null);
+  let stats = $state({});
   
   onMount(async () => {
     await fetchValidators();
@@ -27,155 +27,29 @@
       loading = true;
       error = null;
       
-      // For validators category, fetch from blockchain
+      // Use the shared validators utility
+      const result = await fetchValidatorsData($currentCategory);
+      
+      // Filter based on category
       if ($currentCategory === 'validator') {
-        // Fetch active validators from backend and banned validators from blockchain in parallel
-        const [activeRes, bannedValidators] = await Promise.all([
-          api.get('/users/validators/'),
-          getBannedValidators()
-        ]);
-        
-        const activeValidators = activeRes.data;
-      
-      // Filter out 0x000 addresses and get all unique validator addresses
-      const isValidAddress = (addr) => {
-        return addr && 
-               addr.toLowerCase() !== '0x0000000000000000000000000000000000000000' &&
-               addr.toLowerCase() !== '0x000' &&
-               addr !== '0x0';
-      };
-      
-      const filteredActiveValidators = activeValidators.filter(isValidAddress);
-      const filteredBannedValidators = bannedValidators.filter(isValidAddress);
-      
-      const allAddresses = [...new Set([...filteredActiveValidators, ...filteredBannedValidators])];
-      
-      // Prepare validators with status
-      const validatorsWithStatus = allAddresses.map(address => ({
-        address,
-        isActive: filteredActiveValidators.includes(address),
-        isBanned: filteredBannedValidators.includes(address),
-        user: null,
-        score: null
-      }));
-      
-        // Get user data for validators
-        const usersRes = await usersAPI.getUsers();
-        const users = usersRes.data.results || [];
-        
-        // Get leaderboard data for category
-        const leaderboardParams = $currentCategory !== 'global' ? { category: $currentCategory } : {};
-        const leaderboardRes = await leaderboardAPI.getLeaderboard(leaderboardParams);
-        const leaderboardEntries = leaderboardRes.data || [];
-      
-        // Merge data
-        validatorsWithStatus.forEach(validator => {
-        // Find user
-        const user = users.find(u => u.address && u.address.toLowerCase() === validator.address.toLowerCase());
-        if (user) {
-          validator.user = user;
-          // Add validator info if present
-          if (user.validator) {
-            validator.nodeVersion = user.validator.node_version;
-            validator.matchesTarget = user.validator.matches_target;
-            validator.targetVersion = user.validator.target_version;
-          }
-        }
-        
-        // Find leaderboard entry
-        const leaderboardEntry = leaderboardEntries.find(entry => {
-          // The leaderboard entry has user_details object with the address
-          const userAddress = entry.user_details?.address || entry.user?.address;
-          return userAddress && userAddress.toLowerCase() === validator.address.toLowerCase();
-        });
-        if (leaderboardEntry) {
-          validator.score = leaderboardEntry.total_points;
-          validator.rank = leaderboardEntry.rank;
-        }
-      });
-      
-        // Sort by active first, then rank or address
-        validators = validatorsWithStatus.sort((a, b) => {
-        // Active validators first
-        if (a.isActive !== b.isActive) {
-          return a.isActive ? -1 : 1;
-        }
-        
-        // Then by banned status
-        if (a.isBanned !== b.isBanned) {
-          return a.isBanned ? 1 : -1;
-        }
-        
-        // Then by rank (if available)
-        if (a.rank && b.rank) {
-          return a.rank - b.rank;
-        }
-        
-        // Then by score
-        if (a.score !== b.score) {
-          return b.score - a.score;
-        }
-        
-        // Finally by address
-        return a.address.localeCompare(b.address);
-      });
-      
-        loading = false;
+        // Show all validators (whitelisted and non-whitelisted)
+        validators = result.validators;
       } else {
-        // For builders and other categories, fetch users with that profile type
-        const usersRes = await usersAPI.getUsers();
-        const allUsers = usersRes.data.results || [];
-        
-        // Filter users based on category
-        let categoryUsers = [];
-        if ($currentCategory === 'builder') {
-          categoryUsers = allUsers.filter(u => u.builder);
-        } else if ($currentCategory === 'steward') {
-          categoryUsers = allUsers.filter(u => u.steward);
-        } else {
-          // For global, show all users
-          categoryUsers = allUsers;
-        }
-        
-        // Get leaderboard data for category
-        const leaderboardParams = $currentCategory !== 'global' ? { category: $currentCategory } : {};
-        const leaderboardRes = await leaderboardAPI.getLeaderboard(leaderboardParams);
-        const leaderboardEntries = leaderboardRes.data || [];
-        
-        // Format users as validators structure for consistency
-        validators = categoryUsers.map(user => {
-          const leaderboardEntry = leaderboardEntries.find(entry => {
-            const userAddress = entry.user_details?.address || entry.user?.address;
-            return userAddress && userAddress.toLowerCase() === user.address?.toLowerCase();
-          });
-          
-          return {
-            address: user.address,
-            isActive: true,
-            isBanned: false,
-            user: user,
-            score: leaderboardEntry?.total_points || null,
-            rank: leaderboardEntry?.rank || null
-          };
-        }).sort((a, b) => {
-          // Sort by rank first if available
-          if (a.rank && b.rank) {
-            return a.rank - b.rank;
+        // For other categories, filter by category type
+        validators = result.validators.filter(v => {
+          if (!v.user) return false;
+          if ($currentCategory === 'builder') {
+            return v.user.builder !== null;
           }
-          if (a.rank) return -1;
-          if (b.rank) return 1;
-          
-          // Then by score
-          if (a.score !== b.score) {
-            return (b.score || 0) - (a.score || 0);
+          if ($currentCategory === 'steward') {
+            return v.user.steward !== null;
           }
-          
-          // Finally by address
-          return (a.address || '').localeCompare(b.address || '');
+          return false;
         });
-        
-        loading = false;
       }
+      
+      stats = result.stats;
+      loading = false;
     } catch (err) {
       error = err.message || 'Failed to load participants';
       loading = false;
@@ -183,15 +57,11 @@
   }
   
   function getStatusClass(validator) {
-    if (validator.isBanned) return 'bg-red-100 text-red-800';
-    if (validator.isActive) return 'bg-green-100 text-green-800';
-    return 'bg-gray-100 text-gray-800';
+    return getValidatorStatus(validator).class;
   }
   
   function getStatusText(validator) {
-    if (validator.isBanned) return 'Banned';
-    if (validator.isActive) return 'Active';
-    return 'Inactive';
+    return getValidatorStatus(validator).text;
   }
   
   function truncateAddress(address) {
