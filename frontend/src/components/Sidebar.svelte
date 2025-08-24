@@ -207,50 +207,50 @@
         </div>
       {/each}
       
-      <!-- Stewards - Only show if user is a steward -->
-      {#if $userStore.user?.steward}
-        <div>
-          <div class="border-t border-gray-200 pt-4"></div>
-          <button
-            onclick={() => changeCategory('steward', '/stewards')}
-            class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors {
-              isActive('/stewards') && $currentCategory === 'steward'
-                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
-                : 'hover:bg-gray-50'
-            }"
-          >
-            <span class="mr-2 text-green-600">🌱</span>
-            <h3 class="text-xs font-medium uppercase tracking-wider flex-1 text-left {$currentCategory === 'steward' ? 'text-green-700' : 'text-gray-700'}">
-              STEWARDS
-            </h3>
+      <!-- Stewards - Show for all users, submissions only for stewards -->
+      <div>
+        <div class="border-t border-gray-200 pt-4"></div>
+        <button
+          onclick={() => changeCategory('steward', '/stewards')}
+          class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors {
+            isActive('/stewards') && $currentCategory === 'steward'
+              ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+              : 'hover:bg-gray-50'
+          }"
+        >
+          <span class="mr-2 text-green-600">🌱</span>
+          <h3 class="text-xs font-medium uppercase tracking-wider flex-1 text-left {$currentCategory === 'steward' ? 'text-green-700' : 'text-gray-700'}">
+            STEWARDS
+          </h3>
+          {#if $userStore.user?.steward}
             <Icon 
               name={getActiveSection() === 'steward' ? "chevronDown" : "chevronRight"}
               size="xs"
               className="text-gray-400 transition-transform duration-200"
             />
-          </button>
-          {#if getActiveSection() === 'steward'}
-          <div class="space-y-0.5 pl-2">
-            <a
-              href="/stewards/submissions"
-              onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
-              class="group flex items-center px-3 py-1.5 text-sm rounded-md {
-                isActive('/stewards/submissions') || $location.startsWith('/stewards/submissions/')
-                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-              }"
-            >
-              <Icon 
-                name="contributions"
-                size="sm"
-                className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
-              />
-              Contribution Submissions
-            </a>
-          </div>
           {/if}
+        </button>
+        {#if getActiveSection() === 'steward' && $userStore.user?.steward}
+        <div class="space-y-0.5 pl-2">
+          <a
+            href="/stewards/submissions"
+            onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
+            class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+              isActive('/stewards/submissions') || $location.startsWith('/stewards/submissions/')
+                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            }"
+          >
+            <Icon 
+              name="contributions"
+              size="sm"
+              className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
+            />
+            Contribution Submissions
+          </a>
         </div>
-      {/if}
+        {/if}
+      </div>
       
       <!-- Profile section -->
       <div>
@@ -393,43 +393,43 @@
           </div>
         {/each}
         
-        <!-- Stewards - Only show if user is a steward -->
-        {#if $userStore.user?.steward}
-          <div>
-            <div class="border-t border-gray-200 pt-4"></div>
-            <button
-              onclick={() => changeCategory('steward', '/stewards')}
-              class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors {
-                isActive('/stewards') && $currentCategory === 'steward'
-                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
-                  : 'hover:bg-gray-50'
+        <!-- Stewards - Show for all users, submissions only for stewards -->
+        <div>
+          <div class="border-t border-gray-200 pt-4"></div>
+          <button
+            onclick={() => changeCategory('steward', '/stewards')}
+            class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors {
+              isActive('/stewards') && $currentCategory === 'steward'
+                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                : 'hover:bg-gray-50'
+            }"
+          >
+            <span class="mr-2 text-green-600">🌱</span>
+            <h3 class="text-sm font-medium uppercase tracking-wider {$currentCategory === 'steward' ? 'text-green-700' : 'text-gray-700'}">
+              STEWARDS
+            </h3>
+          </button>
+          {#if $userStore.user?.steward}
+          <div class="space-y-0.5 pl-2">
+            <a
+              href="/stewards/submissions"
+              onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
+              class="group flex items-center px-3 py-1.5 text-base rounded-md {
+                isActive('/stewards/submissions') || $location.startsWith('/stewards/submissions/')
+                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
               }"
             >
-              <span class="mr-2 text-green-600">🌱</span>
-              <h3 class="text-sm font-medium uppercase tracking-wider {$currentCategory === 'steward' ? 'text-green-700' : 'text-gray-700'}">
-                STEWARDS
-              </h3>
-            </button>
-            <div class="space-y-0.5 pl-2">
-              <a
-                href="/stewards/submissions"
-                onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
-                class="group flex items-center px-3 py-1.5 text-base rounded-md {
-                  isActive('/stewards/submissions') || $location.startsWith('/stewards/submissions/')
-                    ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                }"
-              >
-                <Icon 
-                  name="contributions"
-                  size="sm"
-                  className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
-                />
-                Contribution Submissions
-              </a>
-            </div>
+              <Icon 
+                name="contributions"
+                size="sm"
+                className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
+              />
+              Contribution Submissions
+            </a>
           </div>
-        {/if}
+          {/if}
+        </div>
         
         <!-- Profile section -->
         <div>

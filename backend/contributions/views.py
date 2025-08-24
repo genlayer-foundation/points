@@ -613,6 +613,15 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'contribution_date']
     ordering = ['-created_at']
     
+    def get_permissions(self):
+        """
+        Instantiates and returns the list of permissions that this view requires.
+        Stats endpoint is public, all others require steward permission.
+        """
+        if self.action == 'stats':
+            return [permissions.AllowAny()]
+        return super().get_permissions()
+    
     def get_queryset(self):
         """Get all submissions for steward review."""
         queryset = SubmittedContribution.objects.all()
@@ -698,25 +707,48 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     def stats(self, request):
         """Get statistics for steward dashboard."""
         total_pending = SubmittedContribution.objects.filter(state='pending').count()
-        total_reviewed = SubmittedContribution.objects.filter(
-            reviewed_by=request.user
-        ).count()
         
-        # Get last review time
-        last_review = SubmittedContribution.objects.filter(
-            reviewed_by=request.user
-        ).order_by('-reviewed_at').first()
-        
-        last_review_time = last_review.reviewed_at if last_review else None
-        
-        # Get acceptance rate
-        user_reviews = SubmittedContribution.objects.filter(
-            reviewed_by=request.user
-        ).exclude(state='pending')
-        
-        total_decisions = user_reviews.count()
-        accepted = user_reviews.filter(state='accepted').count()
-        acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
+        # Stats specific to authenticated steward (if logged in)
+        if request.user and request.user.is_authenticated:
+            total_reviewed = SubmittedContribution.objects.filter(
+                reviewed_by=request.user
+            ).count()
+            
+            # Get last review time
+            last_review = SubmittedContribution.objects.filter(
+                reviewed_by=request.user
+            ).order_by('-reviewed_at').first()
+            
+            last_review_time = last_review.reviewed_at if last_review else None
+            
+            # Get acceptance rate
+            user_reviews = SubmittedContribution.objects.filter(
+                reviewed_by=request.user
+            ).exclude(state='pending')
+            
+            total_decisions = user_reviews.count()
+            accepted = user_reviews.filter(state='accepted').count()
+            total_rejected = user_reviews.filter(state='rejected').count()
+            total_info_requested = user_reviews.filter(state='more_info_needed').count()
+            acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
+        else:
+            # Public stats - show overall system stats
+            total_reviewed = SubmittedContribution.objects.exclude(state='pending').count()
+            
+            # Get last review time (system-wide)
+            last_review = SubmittedContribution.objects.exclude(
+                reviewed_at__isnull=True
+            ).order_by('-reviewed_at').first()
+            
+            last_review_time = last_review.reviewed_at if last_review else None
+            
+            # Get overall acceptance rate
+            all_reviews = SubmittedContribution.objects.exclude(state='pending')
+            total_decisions = all_reviews.count()
+            accepted = all_reviews.filter(state='accepted').count()
+            total_rejected = all_reviews.filter(state='rejected').count()
+            total_info_requested = all_reviews.filter(state='more_info_needed').count()
+            acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
         
         return Response({
             'pending_count': total_pending,
@@ -724,8 +756,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'last_review': last_review_time,
             'acceptance_rate': round(acceptance_rate, 1),
             'total_accepted': accepted,
-            'total_rejected': user_reviews.filter(state='rejected').count(),
-            'total_info_requested': user_reviews.filter(state='more_info_needed').count()
+            'total_rejected': total_rejected,
+            'total_info_requested': total_info_requested
         })
     
     @action(detail=False, methods=['get'], url_path='users')

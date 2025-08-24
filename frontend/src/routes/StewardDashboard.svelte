@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
+  import { userStore } from '../lib/userStore.js';
   import { stewardAPI, usersAPI, leaderboardAPI } from '../lib/api.js';
   import { format, formatDistanceToNow } from 'date-fns';
   import { categoryTheme } from '../stores/category.js';
@@ -22,14 +23,10 @@
   let loading = $state(true);
   let error = $state(null);
   let stewardsLoading = $state(true);
+  let isSteward = $derived($userStore.user?.steward ? true : false);
   
   onMount(async () => {
-    // Check if user is authenticated and is a steward
-    if (!$authState.isAuthenticated) {
-      push('/');
-      return;
-    }
-    
+    // Load both stats and stewards for everyone
     await Promise.all([
       loadStats(),
       loadStewards()
@@ -91,7 +88,7 @@
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
     </div>
-  {:else if error}
+  {:else if error && isSteward}
     <div class="bg-red-50 border-l-4 border-red-400 p-4">
       <div class="flex">
         <div class="flex-shrink-0">
@@ -106,7 +103,7 @@
     </div>
   {:else}
     <div class="space-y-6">
-      <!-- Submission Statistics Cards -->
+      <!-- Submission Statistics Cards - Show for everyone -->
       <div class="space-y-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
@@ -117,15 +114,17 @@
             </div>
             <h2 class="text-lg font-semibold text-gray-900">Contribution Submissions</h2>
           </div>
-          <button
-            onclick={() => push('/stewards/submissions')}
-            class="text-sm text-gray-500 hover:{$categoryTheme.text} transition-colors"
-          >
-            Manage submissions
-            <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-            </svg>
-          </button>
+          {#if isSteward}
+            <button
+              onclick={() => push('/stewards/submissions')}
+              class="text-sm text-gray-500 hover:{$categoryTheme.text} transition-colors"
+            >
+              Manage submissions
+              <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          {/if}
         </div>
         
         <!-- Stats Grid -->
@@ -143,7 +142,7 @@
                   <p class="text-sm text-gray-500">Pending Review</p>
                   <p class="text-2xl font-bold text-gray-900">{stats.pending_count}</p>
                 </div>
-                {#if stats.pending_count > 0}
+                {#if stats.pending_count > 0 && isSteward}
                   <button
                     onclick={() => push('/stewards/submissions')}
                     class="text-xs {$categoryTheme.text} hover:text-green-700 font-medium pb-1"
@@ -267,12 +266,12 @@
                   </div>
                 </div>
               {/each}
-            </div>
-          {/if}
-        </div>
-        
-        <!-- Working Groups Section -->
-        <div class="space-y-4">
+          </div>
+        {/if}
+      </div>
+      
+      <!-- Working Groups Section -->
+      <div class="space-y-4">
           <div class="flex items-center gap-2">
             <div class="p-1.5 bg-gray-100 rounded-lg">
               <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
