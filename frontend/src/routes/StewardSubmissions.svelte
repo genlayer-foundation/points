@@ -4,7 +4,7 @@
   import { authState } from '../lib/auth.js';
   import { stewardAPI, contributionsAPI, leaderboardAPI } from '../lib/api.js';
   import { format } from 'date-fns';
-  import Pagination from '../components/Pagination.svelte';
+  import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
   import SubmissionCard from '../components/SubmissionCard.svelte';
   
   let submissions = $state([]);
@@ -14,7 +14,7 @@
   let error = $state(null);
   let currentPage = $state(1);
   let totalCount = $state(0);
-  let pageSize = 10;
+  let pageSize = $state(10);
   
   // Filters
   let stateFilter = $state('pending');
@@ -174,8 +174,14 @@
     }
   }
   
-  function handlePageChange(newPage) {
-    currentPage = newPage;
+  function handlePageChange(event) {
+    currentPage = event.detail;
+    loadSubmissions();
+  }
+  
+  function handlePageSizeChange(event) {
+    pageSize = event.detail;
+    currentPage = 1; // Reset to first page
     loadSubmissions();
   }
   
@@ -232,8 +238,8 @@
       </div>
       
       <div class="flex items-end">
-        <div class="text-sm text-gray-500">
-          Showing {submissions.length} of {totalCount} submissions
+        <div class="text-sm text-gray-600">
+          Total: <span class="font-semibold text-gray-900">{totalCount}</span> submissions
         </div>
       </div>
     </div>
@@ -252,6 +258,21 @@
       <p class="text-gray-600">No submissions found matching your filters.</p>
     </div>
   {:else}
+    <!-- Top Pagination -->
+    {#if totalCount > 10}
+      <div class="mb-4">
+        <PaginationEnhanced
+          {currentPage}
+          totalItems={totalCount}
+          itemsPerPage={pageSize}
+          pageSizeOptions={[10, 25, 50, 100]}
+          showPageSize={true}
+          on:pageChange={handlePageChange}
+          on:pageSizeChange={handlePageSizeChange}
+        />
+      </div>
+    {/if}
+    
     <div class="space-y-4">
       {#each submissions as submission}
         <SubmissionCard 
@@ -269,13 +290,17 @@
       {/each}
     </div>
     
-    {#if totalCount > pageSize}
-      <div class="mt-8">
-        <Pagination
-          currentPage={currentPage}
+    <!-- Bottom Pagination -->
+    {#if totalCount > 10}
+      <div class="mt-6">
+        <PaginationEnhanced
+          {currentPage}
           totalItems={totalCount}
           itemsPerPage={pageSize}
-          onPageChange={handlePageChange}
+          pageSizeOptions={[10, 25, 50, 100]}
+          showPageSize={false}
+          on:pageChange={handlePageChange}
+          on:pageSizeChange={handlePageSizeChange}
         />
       </div>
     {/if}

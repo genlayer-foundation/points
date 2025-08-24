@@ -9,10 +9,10 @@ class SafePageNumberPagination(PageNumberPagination):
     A custom pagination class that safely handles invalid decimal values
     in querysets by filtering them out before pagination.
     """
-    # Default page size
-    page_size = 100
-    # Enable client to control page size using 'limit' query parameter
-    page_size_query_param = 'limit'
+    # Default page size - uses settings.REST_FRAMEWORK['PAGE_SIZE'] if not overridden
+    page_size = 10
+    # Enable client to control page size using 'page_size' query parameter
+    page_size_query_param = 'page_size'
     # Set maximum page size to prevent abuse
     max_page_size = 100
     
