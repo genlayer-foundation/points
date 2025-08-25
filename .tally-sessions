@@ -1,8 +1,0 @@
-{
-  "node-upgrade": {
-    "backend_port": 8000,
-    "frontend_port": 5000,
-    "worktree": "/Users/rasca/Dev/tally-node-upgrade",
-    "branch": "node-upgrade"
-  }
-}
