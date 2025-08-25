@@ -13,7 +13,7 @@ class TargetNodeVersion(BaseModel):
         help_text="Target node version (e.g., 1.2.3)"
     )
     target_date = models.DateTimeField(
-        help_text="Date by which validators should upgrade"
+        help_text="Date when this version becomes available for upgrade (used for early upgrade bonus calculation)"
     )
     is_active = models.BooleanField(
         default=True,
@@ -27,7 +27,7 @@ class TargetNodeVersion(BaseModel):
     
     def __str__(self):
         status = "Active" if self.is_active else "Inactive"
-        return f"Target: {self.version} (by {self.target_date.strftime('%Y-%m-%d')}) - {status}"
+        return f"Target: {self.version} (available from {self.target_date.strftime('%Y-%m-%d')}) - {status}"
     
     def save(self, *args, **kwargs):
         """
