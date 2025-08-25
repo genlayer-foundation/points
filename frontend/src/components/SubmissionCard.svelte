@@ -51,7 +51,8 @@
   
   // Sync selected contribution type with the ContributionSelection component
   $effect(() => {
-    if (selectedContributionTypeObj) {
+    if (selectedContributionTypeObj && selectedContributionTypeObj.id !== selectedType) {
+      // Only update if the type actually changed
       selectedType = selectedContributionTypeObj.id;
       // Update points to the minimum of the new type
       const type = contributionTypes.find(t => t.id === selectedType);
@@ -62,7 +63,7 @@
   });
   
   function handleContributionSelectionChange(category, contributionType) {
-    console.log('Contribution selection changed:', { category, contributionType });
+    // Handle contribution selection change
   }
   
   function getStateClass(state) {
@@ -305,6 +306,7 @@
                       defaultContributionType={submission.contribution_type}
                       onlySubmittable={false}
                       stewardMode={true}
+                      providedContributionTypes={contributionTypes}
                       onSelectionChange={handleContributionSelectionChange}
                     />
                   </div>
