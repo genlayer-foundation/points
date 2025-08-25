@@ -1,0 +1,51 @@
+name: Deploy Backend to App Runner (Dev)
+
+on:
+  push:
+    branches: [ dev ]
+    paths: 
+      - 'backend/**'
+  workflow_dispatch: # Allow manual triggering
+
+env:
+  AWS_REGION: us-east-1
+  SERVICE_NAME: tally-backend-dev
+  SSM_PREFIX: /tally-backend
+  SSM_ENV: dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: dev  # Use the dev environment
+    permissions:
+      id-token: write   # Required for OIDC
+      contents: read    # Required to checkout code
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Deploy to App Runner
+      working-directory: ./backend
+      run: |
+        # Make the script executable
+        chmod +x deploy-apprunner-dev.sh
+        
+        # Run deployment for dev environment
+        ./deploy-apprunner-dev.sh
+
+    - name: Deployment Summary
+      run: |
+        echo "🎉 Backend DEV deployment initiated successfully!"
+        echo "Monitor progress in AWS App Runner console"
+        echo "Service: ${{ env.SERVICE_NAME }}"
+        echo "Environment: DEV"
