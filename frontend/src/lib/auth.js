@@ -225,13 +225,18 @@ export async function signInWithEthereum() {
       verifyAuth();
     }, 100);
     
-    // Check for redirect after login
+    // Check for redirect after login, default to user's public profile
     const redirectPath = sessionStorage.getItem('redirectAfterLogin');
     if (redirectPath) {
       sessionStorage.removeItem('redirectAfterLogin');
       // Import push dynamically to avoid circular dependencies
       import('svelte-spa-router').then(({ push }) => {
         push(redirectPath);
+      });
+    } else {
+      // Default to user's public profile
+      import('svelte-spa-router').then(({ push }) => {
+        push(`/participant/${address}`);
       });
     }
     
