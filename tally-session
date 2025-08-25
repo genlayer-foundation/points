@@ -76,6 +76,51 @@ add_session() {
         exit 1
     fi
     
+    # Check if current branch is up to date with remote
+    echo "Checking if branch is up to date..."
+    cd "$TALLY_ROOT"
+    
+    # Fetch latest changes from remote
+    git fetch origin main 2>/dev/null
+    
+    # Check if local branch is behind remote
+    LOCAL=$(git rev-parse main)
+    REMOTE=$(git rev-parse origin/main)
+    
+    if [ "$LOCAL" != "$REMOTE" ]; then
+        echo ""
+        echo "⚠️  Warning: Your local main branch is not up to date with origin/main"
+        echo ""
+        echo "Local:  $(git log --oneline -1 main)"
+        echo "Remote: $(git log --oneline -1 origin/main)"
+        echo ""
+        echo "It's recommended to pull the latest changes before creating a new session."
+        echo ""
+        read -p "Do you want to pull the latest changes now? (y/n) [y]: " pull_choice
+        pull_choice=${pull_choice:-y}
+        
+        if [ "$pull_choice" = "y" ] || [ "$pull_choice" = "Y" ]; then
+            echo "Pulling latest changes..."
+            git pull origin main
+            if [ $? -ne 0 ]; then
+                echo "Error: Failed to pull latest changes. Please resolve any conflicts and try again."
+                exit 1
+            fi
+            echo "Successfully pulled latest changes."
+        else
+            read -p "Continue creating session with outdated branch? (y/n) [n]: " continue_choice
+            continue_choice=${continue_choice:-n}
+            
+            if [ "$continue_choice" != "y" ] && [ "$continue_choice" != "Y" ]; then
+                echo "Session creation cancelled."
+                exit 0
+            fi
+            echo "Continuing with outdated branch..."
+        fi
+    else
+        echo "✓ Branch is up to date"
+    fi
+    
     # Get available ports
     read backend_port frontend_port <<< $(find_available_ports)
     
