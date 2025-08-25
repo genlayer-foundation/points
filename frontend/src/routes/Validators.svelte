@@ -27,15 +27,33 @@
       loading = true;
       error = null;
       
-      // Use the shared validators utility
-      const result = await fetchValidatorsData($currentCategory);
+      // Define callback for when RPC data is ready
+      const handleRpcDataReady = (enhancedData) => {
+        // Update validators with enhanced RPC data
+        if ($currentCategory === 'validator') {
+          validators = enhancedData.validators;
+        } else {
+          validators = enhancedData.validators.filter(v => {
+            if (!v.user) return false;
+            if ($currentCategory === 'builder') {
+              return v.user.builder !== null;
+            }
+            if ($currentCategory === 'steward') {
+              return v.user.steward !== null;
+            }
+            return false;
+          });
+        }
+        stats = enhancedData.stats;
+      };
       
-      // Filter based on category
+      // Use the shared validators utility with callback
+      const result = await fetchValidatorsData($currentCategory, handleRpcDataReady);
+      
+      // Show initial data immediately
       if ($currentCategory === 'validator') {
-        // Show all validators (whitelisted and non-whitelisted)
         validators = result.validators;
       } else {
-        // For other categories, filter by category type
         validators = result.validators.filter(v => {
           if (!v.user) return false;
           if ($currentCategory === 'builder') {
