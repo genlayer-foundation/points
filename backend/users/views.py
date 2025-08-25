@@ -474,7 +474,11 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         # Check requirement 3: Has deployed at least one contract
         try:
             genlayer_service = GenLayerDeploymentService()
-            deployment_result = genlayer_service.get_user_deployments(user.address)
+            
+            # Convert address to checksum format for GenLayer API
+            checksum_address = Web3.to_checksum_address(user.address)
+            
+            deployment_result = genlayer_service.get_user_deployments(checksum_address)
             
             if not deployment_result.get('has_deployments', False):
                 return Response(
@@ -584,8 +588,12 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             # Initialize GenLayer service
             genlayer_service = GenLayerDeploymentService()
             
+            # Convert address to checksum format for GenLayer API
+            from web3 import Web3
+            checksum_address = Web3.to_checksum_address(user.address)
+            
             # Check for deployments
-            deployment_result = genlayer_service.get_user_deployments(user.address)
+            deployment_result = genlayer_service.get_user_deployments(checksum_address)
             
             # Log the check for monitoring
             logger.info(f"Deployment check for user {user.id} (address: {user.address}): "
@@ -617,7 +625,12 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         
         try:
             genlayer_service = GenLayerDeploymentService()
-            deployment_result = genlayer_service.get_user_deployments(user.address)
+            
+            # Convert address to checksum format for GenLayer API
+            from web3 import Web3
+            checksum_address = Web3.to_checksum_address(user.address)
+            
+            deployment_result = genlayer_service.get_user_deployments(checksum_address)
             
             return Response({
                 'has_deployments': deployment_result.get('has_deployments', False),
