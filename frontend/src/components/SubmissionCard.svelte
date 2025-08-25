@@ -21,7 +21,7 @@
   let reviewAction = $state(reviewData?.action || 'accept');
   let selectedUser = $state(reviewData?.user || submission.user);
   let selectedType = $state(reviewData?.contribution_type || submission.contribution_type);
-  let points = $state(reviewData?.points || submission.contribution_type_details?.min_points || 0);
+  let points = $state(reviewData?.points || submission.suggested_points || submission.contribution_type_details?.min_points || 0);
   let staffReply = $state(reviewData?.staff_reply || '');
   let createHighlight = $state(reviewData?.create_highlight || false);
   let highlightTitle = $state(reviewData?.highlight_title || '');
