@@ -241,6 +241,13 @@ class SubmittedContribution(BaseModel):
         default='pending'
     )
     
+    # Suggested points for automatic submissions
+    suggested_points = models.PositiveIntegerField(
+        null=True, 
+        blank=True,
+        help_text="Pre-calculated points for automatic submissions (e.g., node upgrades)"
+    )
+    
     # Review fields
     staff_reply = models.TextField(
         blank=True,

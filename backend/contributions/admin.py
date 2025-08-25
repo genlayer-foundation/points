@@ -360,18 +360,18 @@ class ContributionAdmin(admin.ModelAdmin):
 
 @admin.register(SubmittedContribution)
 class SubmittedContributionAdmin(admin.ModelAdmin):
-    list_display = ('user', 'contribution_type', 'state', 'contribution_date', 
+    list_display = ('user', 'contribution_type', 'suggested_points', 'state', 'contribution_date', 
                    'created_at', 'reviewed_by')
     list_filter = ('state', 'contribution_type__category', 'contribution_type', 'created_at', 'reviewed_at')
     search_fields = ('user__email', 'user__name', 'notes', 'staff_reply')
     date_hierarchy = 'created_at'
     readonly_fields = ('id', 'created_at', 'updated_at', 'last_edited_at', 
-                      'converted_contribution_link', 'contribution_type_info')
+                      'converted_contribution_link', 'contribution_type_info', 'suggested_points')
     inlines = [EvidenceInline]
     
     fieldsets = (
         ('Submission Info', {
-            'fields': ('id', 'user', 'contribution_type', 'contribution_type_info', 'contribution_date', 'notes')
+            'fields': ('id', 'user', 'contribution_type', 'contribution_type_info', 'suggested_points', 'contribution_date', 'notes')
         }),
         ('Review Status', {
             'fields': ('state', 'staff_reply', 'reviewed_by', 'reviewed_at')

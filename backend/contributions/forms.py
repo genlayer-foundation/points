@@ -31,6 +31,11 @@ class SubmissionReviewForm(forms.ModelForm):
         # Add help text for state field
         self.fields['state'].help_text = "Select action to take on this submission"
         
+        # Pre-populate points if suggested_points exists
+        if self.instance and self.instance.suggested_points:
+            self.initial['points'] = self.instance.suggested_points
+            self.fields['points'].help_text = f"Suggested: {self.instance.suggested_points} points (auto-calculated)"
+        
     def clean(self):
         cleaned_data = super().clean()
         state = cleaned_data.get('state')

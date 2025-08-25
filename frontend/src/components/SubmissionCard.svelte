@@ -21,7 +21,7 @@
   let reviewAction = $state(reviewData?.action || 'accept');
   let selectedUser = $state(reviewData?.user || submission.user);
   let selectedType = $state(reviewData?.contribution_type || submission.contribution_type);
-  let points = $state(reviewData?.points || submission.contribution_type_details?.min_points || 0);
+  let points = $state(reviewData?.points || submission.suggested_points || submission.contribution_type_details?.min_points || 0);
   let staffReply = $state(reviewData?.staff_reply || '');
   let createHighlight = $state(reviewData?.create_highlight || false);
   let highlightTitle = $state(reviewData?.highlight_title || '');
@@ -51,7 +51,8 @@
   
   // Sync selected contribution type with the ContributionSelection component
   $effect(() => {
-    if (selectedContributionTypeObj) {
+    if (selectedContributionTypeObj && selectedContributionTypeObj.id !== selectedType) {
+      // Only update if the type actually changed
       selectedType = selectedContributionTypeObj.id;
       // Update points to the minimum of the new type
       const type = contributionTypes.find(t => t.id === selectedType);
@@ -62,7 +63,7 @@
   });
   
   function handleContributionSelectionChange(category, contributionType) {
-    console.log('Contribution selection changed:', { category, contributionType });
+    // Handle contribution selection change
   }
   
   function getStateClass(state) {
@@ -241,9 +242,16 @@
         {/if}
       </div>
       
-      <!-- Right Column - Action Forms or Status -->
+      <!-- Right Column - Action Forms or Status or Contribution Card -->
       <div>
-        {#if showReviewForm && (submission.state === 'pending' || submission.state === 'more_info_needed')}
+        {#if submission.state === 'accepted' && submission.contribution && isOwnSubmission}
+          <!-- Show contribution card for accepted submissions in My Submissions -->
+          <ContributionCard 
+            contribution={submission.contribution}
+            showUser={false}
+            variant="compact"
+          />
+        {:else if showReviewForm && (submission.state === 'pending' || submission.state === 'more_info_needed')}
           <div class="border {reviewAction === 'accept' ? 'border-green-200' : reviewAction === 'reject' ? 'border-red-200' : 'border-blue-200'} rounded-lg">
             <!-- Action Toggle Buttons -->
             <div class="flex">
@@ -305,6 +313,7 @@
                       defaultContributionType={submission.contribution_type}
                       onlySubmittable={false}
                       stewardMode={true}
+                      providedContributionTypes={contributionTypes}
                       onSelectionChange={handleContributionSelectionChange}
                     />
                   </div>
