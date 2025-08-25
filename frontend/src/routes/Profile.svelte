@@ -268,22 +268,24 @@
       console.log("Leaderboard entry data:", res.data.leaderboard_entry);
       participant = res.data;
       
-      // Fetch validator balance
+      // Set loading to false immediately to show UI progressively
+      loading = false;
+      
+      // Fetch balance asynchronously (don't block UI)
       if (participant.address) {
         loadingBalance = true;
-        try {
-          balance = await getValidatorBalance(participant.address);
-        } catch (err) {
-          console.error('Failed to fetch balance:', err);
-          // Don't show error, just leave balance as null
-        } finally {
+        getValidatorBalance(participant.address).then(result => {
+          balance = result;
           loadingBalance = false;
-        }
+        }).catch(err => {
+          console.error('Failed to fetch balance:', err);
+          loadingBalance = false;
+          // Don't show error, just leave balance as null
+        });
       }
       
-      // Also try to fetch the leaderboard entry directly
-      try {
-        const leaderboardRes = await leaderboardAPI.getLeaderboardEntry(participantAddress);
+      // Fetch leaderboard entry asynchronously
+      leaderboardAPI.getLeaderboardEntry(participantAddress).then(leaderboardRes => {
         console.log("Leaderboard data received:", leaderboardRes.data);
         
         // Store all leaderboard entries (user can be on multiple leaderboards)
@@ -304,52 +306,46 @@
           console.log("Waitlist entry:", participant.waitlist_entry);
           console.log("Validator entry:", participant.validator_entry);
         }
-      } catch (leaderboardError) {
+      }).catch(leaderboardError => {
         console.warn('Leaderboard API error:', leaderboardError);
-      }
+      });
       
-      // Fetch participant stats
-      try {
-        const statsRes = await statsAPI.getUserStats(participantAddress);
+      // Fetch participant stats asynchronously
+      statsAPI.getUserStats(participantAddress).then(statsRes => {
         if (statsRes.data) {
           contributionStats = statsRes.data;
           console.log("Stats data received:", statsRes.data);
         }
-      } catch (statsError) {
+      }).catch(statsError => {
         console.warn('Stats API error, will use basic data:', statsError);
         statsError = statsError.message || 'Failed to load participant statistics';
-      }
+      });
       
       // Fetch validator-specific stats if user has validator waitlist
       if (participant.has_validator_waitlist) {
-        try {
-          const validatorStatsRes = await statsAPI.getUserStats(participantAddress, 'validator');
+        statsAPI.getUserStats(participantAddress, 'validator').then(validatorStatsRes => {
           if (validatorStatsRes.data) {
             validatorStats = validatorStatsRes.data;
             console.log("Validator stats data received:", validatorStatsRes.data);
           }
-        } catch (error) {
+        }).catch(error => {
           console.warn('Validator stats API error:', error);
-        }
+        });
       }
       
       // Fetch builder-specific stats if user has builder welcome
       if (participant.has_builder_welcome) {
-        try {
-          const builderStatsRes = await statsAPI.getUserStats(participantAddress, 'builder');
+        statsAPI.getUserStats(participantAddress, 'builder').then(builderStatsRes => {
           if (builderStatsRes.data) {
             builderStats = builderStatsRes.data;
             console.log("Builder stats data received:", builderStatsRes.data);
           }
-        } catch (error) {
+        }).catch(error => {
           console.warn('Builder stats API error:', error);
-        }
+        });
       }
       
-      // Set loading to false first to show the UI progressively
-      loading = false;
-      
-      // Then load additional data asynchronously for own profile
+      // Load additional data asynchronously for own profile
       if (isOwnProfile && participant.has_builder_welcome) {
         // Check testnet balance asynchronously
         getValidatorBalance(participant.address).then(result => {
@@ -715,32 +711,31 @@
     </div>
     
     <!-- Balance and Joined Cards -->
-    {#if !isValidatorOnly && (participant.created_at || balance !== null)}
+    {#if !isValidatorOnly}
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <!-- Balance Card -->
-        {#if balance !== null || loadingBalance}
-          <div class="bg-white shadow rounded-lg p-4">
-            <div class="flex items-center">
-              <div class="flex-shrink-0 p-3 rounded-lg mr-4 bg-green-50 text-green-500">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-              </div>
-              <div class="flex-1">
-                <p class="text-sm text-gray-500">Balance</p>
-                <p class="text-xl font-bold text-gray-900">
-                  {#if loadingBalance}
-                    Loading...
-                  {:else if balance}
-                    {balance.formatted} GEN
-                  {:else}
-                    0 GEN
-                  {/if}
-                </p>
+        <div class="bg-white shadow rounded-lg p-4">
+          <div class="flex items-center">
+            <div class="flex-shrink-0 p-3 rounded-lg mr-4 bg-green-50 text-green-500">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <p class="text-sm text-gray-500">Balance</p>
+              <div class="flex items-center">
+                {#if loadingBalance}
+                  <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600 mr-2"></div>
+                  <span class="text-gray-500">Loading...</span>
+                {:else if balance}
+                  <p class="text-xl font-bold text-gray-900">{balance.formatted} GEN</p>
+                {:else}
+                  <p class="text-xl font-bold text-gray-900">0 GEN</p>
+                {/if}
               </div>
             </div>
           </div>
-        {/if}
+        </div>
         
         <!-- Joined Date Card -->
         {#if participant.created_at}
@@ -1319,7 +1314,7 @@
                   </li>
                 </ul>
                 <button
-                  onclick={() => push('/profile')}
+                  onclick={() => push('/validators/waitlist/join')}
                   class="w-full flex items-center justify-center px-4 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-semibold group-hover:shadow-md"
                 >
                   <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">

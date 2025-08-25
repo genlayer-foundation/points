@@ -16,29 +16,29 @@
   let error = $state('');
   let loading = $state(true);
   let isRefreshingBalance = $state(false);
+  let isCheckingDeployments = $state(false);
+  let hasCheckedDeploymentsOnce = $state(false);
+  let showStudioInstructions = $state(false);
+  let isCompletingJourney = $state(false);
   
   // Derived states for requirements
   let requirement1Met = $derived(hasBuilderWelcome);
   let requirement2Met = $derived(testnetBalance > 0);
-  let allRequirementsMet = $derived(requirement1Met && requirement2Met);
+  let requirement3Met = $derived(hasDeployedContract);
+  let allRequirementsMet = $derived(requirement1Met && requirement2Met && requirement3Met);
   let hasCalledComplete = $state(false);
   
   // Auto-complete journey when all requirements are met
   $effect(() => {
-    if (allRequirementsMet && !hasCalledComplete && $authState.isAuthenticated) {
+    if (allRequirementsMet && !hasCalledComplete && $authState.isAuthenticated && !isCompletingJourney) {
       hasCalledComplete = true;
+      // If we already know deployments exist, just complete immediately
       completeBuilderJourney();
     }
   });
   
   onMount(async () => {
     await loadData();
-    // Check balance periodically
-    const interval = setInterval(async () => {
-      // Balance check removed - we get balance from RPC
-    }, 5000); // Check every 5 seconds
-    
-    return () => clearInterval(interval);
   });
   
   async function loadData() {
@@ -47,8 +47,11 @@
         currentUser = await getCurrentUser();
         hasBuilderWelcome = currentUser?.has_builder_welcome || false;
         hasSubmittedContribution = (currentUser?.builder?.total_contributions || 0) > 0;
-        await checkTestnetBalance();
-        await checkDeployments();
+        // Check all requirements in parallel
+        await Promise.all([
+          checkTestnetBalance(),
+          checkDeployments()
+        ]);
       }
     } catch (err) {
       console.error('Failed to load user data:', err);
@@ -71,13 +74,51 @@
   
   
   async function checkDeployments() {
+    // Show spinner on first check
+    if (!hasCheckedDeploymentsOnce) {
+      isCheckingDeployments = true;
+    }
+    
     try {
       const response = await usersAPI.getDeploymentStatus();
       hasDeployedContract = response.data.has_deployments || false;
+      
+      // If deployments found, log for debugging
+      if (hasDeployedContract) {
+        console.log('Contract deployments detected');
+      }
     } catch (err) {
       console.error('Failed to check deployments:', err);
       hasDeployedContract = false;
+    } finally {
+      hasCheckedDeploymentsOnce = true;
+      isCheckingDeployments = false;
     }
+  }
+  
+  async function refreshDeployments() {
+    // Manual refresh of deployment status
+    isCheckingDeployments = true;
+    try {
+      await checkDeployments();
+      
+      // If deployments detected and all requirements met, complete immediately
+      if (hasDeployedContract && requirement1Met && requirement2Met && !hasCalledComplete) {
+        hasCalledComplete = true;
+        await completeBuilderJourney();
+      }
+      // Show instructions if still no deployments after manual check
+      else if (!hasDeployedContract && hasCheckedDeploymentsOnce) {
+        showStudioInstructions = true;
+      }
+    } finally {
+      isCheckingDeployments = false;
+    }
+  }
+  
+  function openStudioWithInstructions() {
+    // Show instructions popup (Studio will be opened from the popup button)
+    showStudioInstructions = true;
   }
   
   async function refreshBalance() {
@@ -95,6 +136,14 @@
     } finally {
       isRefreshingBalance = false;
     }
+  }
+  
+  async function checkRequirements() {
+    // Check balance and deployments
+    await Promise.all([
+      refreshBalance(),
+      checkDeployments()
+    ]);
   }
 
   async function claimBuilderWelcome() {
@@ -123,6 +172,10 @@
       return;
     }
     
+    // Don't re-check deployments if we already know they exist
+    // Just proceed with completion
+    isCompletingJourney = true;
+    
     try {
       const response = await journeyAPI.completeBuilderJourney();
       
@@ -144,6 +197,8 @@
         // Reset flag to allow retry
         hasCalledComplete = false;
       }
+    } finally {
+      isCompletingJourney = false;
     }
   }
   
@@ -306,10 +361,15 @@
       isClaimingBuilderBadge={isClaimingBuilderBadge}
       onRefreshBalance={refreshBalance}
       isRefreshingBalance={isRefreshingBalance}
+      onCheckRequirements={checkRequirements}
+      isCheckingRequirements={false}
+      onCheckDeployments={refreshDeployments}
+      isCheckingDeployments={isCheckingDeployments}
+      onOpenStudio={openStudioWithInstructions}
     />
 
       <!-- Status Message -->
-      {#if allRequirementsMet && !hasCalledComplete}
+      {#if isCompletingJourney}
         <div class="pt-4">
           <div class="w-full inline-flex items-center justify-center px-8 py-3 bg-green-100 text-green-800 rounded-lg font-medium shadow-sm">
             <svg class="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -336,3 +396,69 @@
       {/if}
     </div>
   </div>
+
+  <!-- Studio Instructions Modal -->
+  {#if showStudioInstructions}
+    <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" onclick={() => showStudioInstructions = false}>
+      <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white" onclick={(e) => e.stopPropagation()}>
+        <div class="mt-3">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">
+              Connect Your Wallet in Studio
+            </h3>
+            <button
+              onclick={() => showStudioInstructions = false}
+              class="text-gray-400 hover:text-gray-500"
+            >
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+          
+          <div class="mt-2 px-2 py-3">
+            <p class="text-sm text-gray-600 mb-4">
+              To deploy contracts on GenLayer Studio, you need to:
+            </p>
+            
+            <ol class="text-sm text-gray-600 space-y-3 list-decimal list-inside">
+              <li>
+                <span class="font-medium">Connect your wallet</span> in GenLayer Studio using the same address: 
+                <code class="text-xs bg-gray-100 px-1 py-0.5 rounded break-all">{$authState.address}</code>
+              </li>
+              <li>
+                <span class="font-medium">Deploy your contract</span> using the Studio interface
+              </li>
+              <li>
+                <span class="font-medium">Return here and click refresh</span> to verify your deployment
+              </li>
+            </ol>
+            
+            <div class="mt-4 p-3 bg-orange-50 rounded-md">
+              <p class="text-xs text-orange-800">
+                <strong>Important:</strong> Make sure to use the same wallet address in Studio that you're using here.
+              </p>
+            </div>
+          </div>
+          
+          <div class="flex gap-3 mt-5">
+            <button
+              onclick={() => showStudioInstructions = false}
+              class="flex-1 px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300"
+            >
+              Close
+            </button>
+            <button
+              onclick={() => {
+                showStudioInstructions = false;
+                window.open('https://studio.genlayer.com', '_blank', 'noopener,noreferrer');
+              }}
+              class="flex-1 px-4 py-2 bg-orange-600 text-white text-base font-medium rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300"
+            >
+              Open Studio
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}

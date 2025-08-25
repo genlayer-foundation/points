@@ -102,7 +102,7 @@
             action: 'accept',
             user: sub.user,
             contribution_type: sub.contribution_type,
-            points: sub.contribution_type_details?.min_points || 0,
+            points: sub.suggested_points || sub.contribution_type_details?.min_points || 0,
             staff_reply: '',
             create_highlight: false,
             highlight_title: '',

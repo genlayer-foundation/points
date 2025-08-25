@@ -8,6 +8,7 @@
 		defaultContributionType = null,
 		onlySubmittable = true,
 		stewardMode = false,
+		providedContributionTypes = null,  // Allow passing types from parent
 		onSelectionChange = () => {}
 	} = $props();
 
@@ -18,7 +19,23 @@
 	let loading = $state(true);
 
 	onMount(async () => {
-		await loadContributionTypes();
+		if (providedContributionTypes) {
+			// Use provided types instead of loading
+			contributionTypes = providedContributionTypes;
+			loading = false;
+			filterTypes();
+			
+			// Set default if provided
+			if (defaultContributionType) {
+				const defaultType = contributionTypes.find(t => t.id === defaultContributionType);
+				if (defaultType) {
+					selectedContributionType = defaultType;
+				}
+			}
+		} else {
+			// Load types only if not provided
+			await loadContributionTypes();
+		}
 	});
 
 	async function loadContributionTypes() {

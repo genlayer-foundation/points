@@ -244,11 +244,6 @@
 </script>
 
 <div class="container mx-auto px-4 py-8">
-  <div class="mb-5">
-    <a href="/" onclick={(e) => { e.preventDefault(); push('/'); }} class="text-primary-600 hover:text-primary-700">
-      ← Back to Dashboard
-    </a>
-  </div>
 
   {#if journeySuccessMessage}
     <div class="bg-green-50 border-l-4 border-green-400 p-4 mb-6">
@@ -621,7 +616,7 @@
                 onclick={startValidatorJourney}
                 class="px-3 py-1.5 bg-sky-600 text-white rounded text-sm hover:bg-sky-700 transition-colors"
               >
-                Start Validator Journey →
+                Join the Waitlist →
               </button>
             </div>
           {/if}

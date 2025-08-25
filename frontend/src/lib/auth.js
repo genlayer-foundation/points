@@ -10,7 +10,8 @@ const createAuthStore = () => {
     isAuthenticated: false,
     address: null,
     loading: false,
-    error: null
+    error: null,
+    hasVerified: false  // Track if we've verified in this session
   };
   
   // Try to load from localStorage
@@ -20,6 +21,7 @@ const createAuthStore = () => {
       const { isAuthenticated, address } = JSON.parse(savedAuth);
       initialState.isAuthenticated = isAuthenticated;
       initialState.address = address;
+      // If we have saved auth, we still need to verify once per session
     }
   } catch (e) {
     console.error('Error loading auth state from localStorage:', e);
@@ -39,12 +41,15 @@ const createAuthStore = () => {
       return currentState;
     },
     setAuthenticated: (isAuthenticated, address = null) => {
-      update(state => ({ ...state, isAuthenticated, address }));
+      update(state => ({ ...state, isAuthenticated, address, hasVerified: true }));
       if (isAuthenticated && address) {
         localStorage.setItem('tally-auth', JSON.stringify({ isAuthenticated, address }));
       } else {
         localStorage.removeItem('tally-auth');
       }
+    },
+    resetVerification: () => {
+      update(state => ({ ...state, hasVerified: false }));
     },
     setLoading: (loading) => update(state => ({ ...state, loading })),
     setError: (error) => {
@@ -220,13 +225,18 @@ export async function signInWithEthereum() {
       verifyAuth();
     }, 100);
     
-    // Check for redirect after login
+    // Check for redirect after login, default to user's public profile
     const redirectPath = sessionStorage.getItem('redirectAfterLogin');
     if (redirectPath) {
       sessionStorage.removeItem('redirectAfterLogin');
       // Import push dynamically to avoid circular dependencies
       import('svelte-spa-router').then(({ push }) => {
         push(redirectPath);
+      });
+    } else {
+      // Default to user's public profile
+      import('svelte-spa-router').then(({ push }) => {
+        push(`/participant/${address}`);
       });
     }
     
@@ -240,11 +250,38 @@ export async function signInWithEthereum() {
   }
 }
 
+// Track verification promise to prevent duplicate calls
+let verificationInProgress = null;
+
 /**
- * Verify authentication status
+ * Verify authentication status - only once per session
  * @returns {Promise<boolean>} Authentication status
  */
 export async function verifyAuth() {
+  const state = authState.get();
+  
+  // If we've already verified in this session, return the current state
+  if (state.hasVerified) {
+    return Promise.resolve(state.isAuthenticated);
+  }
+  
+  // If verification is already in progress, return the existing promise
+  if (verificationInProgress) {
+    return verificationInProgress;
+  }
+  
+  // Start new verification
+  verificationInProgress = performVerification();
+  
+  try {
+    const result = await verificationInProgress;
+    return result;
+  } finally {
+    verificationInProgress = null;
+  }
+}
+
+async function performVerification() {
   try {
     console.log('Verifying auth at:', API_ENDPOINTS.VERIFY);
     const response = await authAxios.get(API_ENDPOINTS.VERIFY);
@@ -284,6 +321,8 @@ export async function logout() {
   } finally {
     // Clear auth state using our store method
     authState.setAuthenticated(false, null);
+    // Reset verification flag so next session will verify
+    authState.resetVerification();
     // Clear user data from store
     userStore.clearUser();
   }
