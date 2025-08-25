@@ -396,6 +396,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         Requirements:
         1. Has at least one contribution (any type)
         2. Has testnet balance > 0
+        3. Has deployed at least one contract on GenLayer
         
         Also creates Builder profile if it doesn't exist.
         """
@@ -469,6 +470,30 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             logger.warning(f"Failed to check balance for {user.address}: {str(e)}")
             # If we can't check balance, we'll allow proceeding (fail open)
             pass
+        
+        # Check requirement 3: Has deployed at least one contract
+        try:
+            genlayer_service = GenLayerDeploymentService()
+            
+            # Convert address to checksum format for GenLayer API
+            checksum_address = Web3.to_checksum_address(user.address)
+            
+            deployment_result = genlayer_service.get_user_deployments(checksum_address)
+            
+            if not deployment_result.get('has_deployments', False):
+                return Response(
+                    {'error': 'You need to deploy at least one contract to complete the builder journey. Use GenLayer Studio to deploy your first contract.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            logger.info(f"User {user.id} has {deployment_result.get('deployment_count', 0)} deployments")
+            
+        except Exception as e:
+            logger.error(f"Failed to check deployments for {user.address}: {str(e)}")
+            return Response(
+                {'error': 'Failed to verify contract deployments. Please try again later.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
         # All requirements met, create the BUILDER contribution and Builder profile atomically
         try:
@@ -563,8 +588,12 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             # Initialize GenLayer service
             genlayer_service = GenLayerDeploymentService()
             
+            # Convert address to checksum format for GenLayer API
+            from web3 import Web3
+            checksum_address = Web3.to_checksum_address(user.address)
+            
             # Check for deployments
-            deployment_result = genlayer_service.get_user_deployments(user.address)
+            deployment_result = genlayer_service.get_user_deployments(checksum_address)
             
             # Log the check for monitoring
             logger.info(f"Deployment check for user {user.id} (address: {user.address}): "
@@ -596,7 +625,12 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         
         try:
             genlayer_service = GenLayerDeploymentService()
-            deployment_result = genlayer_service.get_user_deployments(user.address)
+            
+            # Convert address to checksum format for GenLayer API
+            from web3 import Web3
+            checksum_address = Web3.to_checksum_address(user.address)
+            
+            deployment_result = genlayer_service.get_user_deployments(checksum_address)
             
             return Response({
                 'has_deployments': deployment_result.get('has_deployments', False),
