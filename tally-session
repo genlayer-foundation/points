@@ -104,6 +104,13 @@ add_session() {
         cp "$TALLY_ROOT/backend/.env" "$HOME/Dev/tally-$name/backend/.env"
     fi
     
+    # Copy Claude settings if it exists
+    if [ -f "$TALLY_ROOT/.claude/settings.local.json" ]; then
+        echo "Copying Claude settings..."
+        mkdir -p "$HOME/Dev/tally-$name/.claude"
+        cp "$TALLY_ROOT/.claude/settings.local.json" "$HOME/Dev/tally-$name/.claude/settings.local.json"
+    fi
+    
     # Copy frontend .env and update backend URL
     if [ -f "$TALLY_ROOT/frontend/.env" ]; then
         echo "Copying and updating frontend .env..."
