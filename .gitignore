@@ -176,6 +176,7 @@ cython_debug/
 .pypirc
 
 **/.claude/settings.local.json
+.tally-sessions
 
 **/node_modules
 
