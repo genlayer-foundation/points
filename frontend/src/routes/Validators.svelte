@@ -1,5 +1,4 @@
 <script>
-  import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { fetchValidatorsData, getValidatorStatus } from '../lib/validators';
   import { currentCategory, categoryTheme } from '../stores/category.js';
@@ -11,13 +10,12 @@
   let error = $state(null);
   let stats = $state({});
   
-  onMount(async () => {
-    await fetchValidators();
-  });
+  let previousCategory = null;
   
-  // Re-fetch when category changes
+  // Fetch validators when component mounts or category changes
   $effect(() => {
-    if ($currentCategory) {
+    if ($currentCategory && $currentCategory !== previousCategory) {
+      previousCategory = $currentCategory;
       fetchValidators();
     }
   });
