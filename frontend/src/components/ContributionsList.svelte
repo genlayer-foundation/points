@@ -146,7 +146,8 @@
         if (contrib.user_details) {
           currentGroup.users = [{
             address: contrib.user_details.address,
-            name: contrib.user_details.name
+            name: contrib.user_details.name,
+            profile_image_url: contrib.user_details.profile_image_url
           }];
         }
         
@@ -166,7 +167,8 @@
           if (!userExists) {
             currentGroup.users.push({
               address: contrib.user_details.address,
-              name: contrib.user_details.name
+              name: contrib.user_details.name,
+              profile_image_url: contrib.user_details.profile_image_url
             });
           }
         }
