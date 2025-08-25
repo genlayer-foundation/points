@@ -81,18 +81,18 @@ add_session() {
     cd "$TALLY_ROOT"
     
     # Fetch latest changes from remote
-    git fetch origin main 2>/dev/null
+    git fetch origin dev 2>/dev/null
     
     # Check if local branch is behind remote
-    LOCAL=$(git rev-parse main)
-    REMOTE=$(git rev-parse origin/main)
+    LOCAL=$(git rev-parse dev)
+    REMOTE=$(git rev-parse origin/dev)
     
     if [ "$LOCAL" != "$REMOTE" ]; then
         echo ""
-        echo "⚠️  Warning: Your local main branch is not up to date with origin/main"
+        echo "⚠️  Warning: Your local dev branch is not up to date with origin/dev"
         echo ""
-        echo "Local:  $(git log --oneline -1 main)"
-        echo "Remote: $(git log --oneline -1 origin/main)"
+        echo "Local:  $(git log --oneline -1 dev)"
+        echo "Remote: $(git log --oneline -1 origin/dev)"
         echo ""
         echo "It's recommended to pull the latest changes before creating a new session."
         echo ""
@@ -101,7 +101,7 @@ add_session() {
         
         if [ "$pull_choice" = "y" ] || [ "$pull_choice" = "Y" ]; then
             echo "Pulling latest changes..."
-            git pull origin main
+            git pull origin dev
             if [ $? -ne 0 ]; then
                 echo "Error: Failed to pull latest changes. Please resolve any conflicts and try again."
                 exit 1
@@ -131,7 +131,7 @@ add_session() {
     # Create git worktree
     echo "Creating git worktree..."
     cd "$TALLY_ROOT"
-    git worktree add -b "$name" "../tally-$name" main
+    git worktree add -b "$name" "../tally-$name" dev
     
     # Create symlink for node_modules
     echo "Creating symlink for node_modules..."
