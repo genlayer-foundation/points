@@ -20,7 +20,8 @@
   // Derived states for requirements
   let requirement1Met = $derived(hasBuilderWelcome);
   let requirement2Met = $derived(testnetBalance > 0);
-  let allRequirementsMet = $derived(requirement1Met && requirement2Met);
+  let requirement3Met = $derived(hasDeployedContract);
+  let allRequirementsMet = $derived(requirement1Met && requirement2Met && requirement3Met);
   let hasCalledComplete = $state(false);
   
   // Auto-complete journey when all requirements are met
@@ -95,6 +96,14 @@
     } finally {
       isRefreshingBalance = false;
     }
+  }
+  
+  async function checkRequirements() {
+    // Check balance and deployments
+    await Promise.all([
+      refreshBalance(),
+      checkDeployments()
+    ]);
   }
 
   async function claimBuilderWelcome() {
@@ -306,6 +315,8 @@
       isClaimingBuilderBadge={isClaimingBuilderBadge}
       onRefreshBalance={refreshBalance}
       isRefreshingBalance={isRefreshingBalance}
+      onCheckRequirements={checkRequirements}
+      isCheckingRequirements={false}
     />
 
       <!-- Status Message -->
