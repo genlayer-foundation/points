@@ -242,9 +242,16 @@
         {/if}
       </div>
       
-      <!-- Right Column - Action Forms or Status -->
+      <!-- Right Column - Action Forms or Status or Contribution Card -->
       <div>
-        {#if showReviewForm && (submission.state === 'pending' || submission.state === 'more_info_needed')}
+        {#if submission.state === 'accepted' && submission.contribution && isOwnSubmission}
+          <!-- Show contribution card for accepted submissions in My Submissions -->
+          <ContributionCard 
+            contribution={submission.contribution}
+            showUser={false}
+            variant="compact"
+          />
+        {:else if showReviewForm && (submission.state === 'pending' || submission.state === 'more_info_needed')}
           <div class="border {reviewAction === 'accept' ? 'border-green-200' : reviewAction === 'reject' ? 'border-red-200' : 'border-blue-200'} rounded-lg">
             <!-- Action Toggle Buttons -->
             <div class="flex">

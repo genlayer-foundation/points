@@ -99,18 +99,22 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
     """Serializer for submitted contributions (user submissions)."""
     user_details = UserSerializer(source='user', read_only=True)
     contribution_type_name = serializers.ReadOnlyField(source='contribution_type.name')
+    contribution_type_details = ContributionTypeSerializer(source='contribution_type', read_only=True)
     evidence_items = serializers.SerializerMethodField()
     state_display = serializers.CharField(source='get_state_display', read_only=True)
     can_edit = serializers.SerializerMethodField()
+    contribution = serializers.SerializerMethodField()
     
     class Meta:
         model = SubmittedContribution
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name',
-                  'contribution_date', 'notes', 'state', 'state_display', 'staff_reply',
-                  'reviewed_by', 'reviewed_at', 'evidence_items', 'can_edit',
+                  'contribution_type_details', 'contribution_date', 'notes', 'state', 'state_display', 
+                  'staff_reply', 'reviewed_by', 'reviewed_at', 'evidence_items', 'can_edit',
+                  'suggested_points', 'converted_contribution', 'contribution',
                   'created_at', 'updated_at', 'last_edited_at']
         read_only_fields = ['id', 'user', 'state', 'staff_reply', 'reviewed_by', 
-                          'reviewed_at', 'created_at', 'updated_at', 'last_edited_at']
+                          'reviewed_at', 'created_at', 'updated_at', 'last_edited_at', 
+                          'suggested_points', 'converted_contribution']
     
     def get_evidence_items(self, obj):
         """Returns serialized evidence items for this submission."""
@@ -120,6 +124,12 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
     def get_can_edit(self, obj):
         """Check if the submission can be edited."""
         return obj.state == 'more_info_needed'
+    
+    def get_contribution(self, obj):
+        """Get the created contribution if submission was accepted."""
+        if obj.converted_contribution:
+            return ContributionSerializer(obj.converted_contribution, context=self.context).data
+        return None
     
     def create(self, validated_data):
         """Create a new submission with the current user."""
