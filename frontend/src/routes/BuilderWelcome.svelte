@@ -16,6 +16,7 @@
   let error = $state('');
   let loading = $state(true);
   let isRefreshingBalance = $state(false);
+  let isCheckingDeployments = $state(false);
   
   // Derived states for requirements
   let requirement1Met = $derived(hasBuilderWelcome);
@@ -75,9 +76,24 @@
     try {
       const response = await usersAPI.getDeploymentStatus();
       hasDeployedContract = response.data.has_deployments || false;
+      
+      // If deployments found, log for debugging
+      if (hasDeployedContract) {
+        console.log('Contract deployments detected');
+      }
     } catch (err) {
       console.error('Failed to check deployments:', err);
       hasDeployedContract = false;
+    }
+  }
+  
+  async function refreshDeployments() {
+    // Manual refresh of deployment status
+    isCheckingDeployments = true;
+    try {
+      await checkDeployments();
+    } finally {
+      isCheckingDeployments = false;
     }
   }
   
@@ -317,6 +333,8 @@
       isRefreshingBalance={isRefreshingBalance}
       onCheckRequirements={checkRequirements}
       isCheckingRequirements={false}
+      onCheckDeployments={refreshDeployments}
+      isCheckingDeployments={isCheckingDeployments}
     />
 
       <!-- Status Message -->
