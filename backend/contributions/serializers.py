@@ -243,30 +243,18 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
     state_display = serializers.CharField(source='get_state_display', read_only=True)
     contribution = serializers.SerializerMethodField()
     
-    # Additional fields for steward context
-    similar_contributions = serializers.SerializerMethodField()
-    
     class Meta:
         model = SubmittedContribution
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_details',
                   'contribution_date', 'notes', 'state', 'state_display', 'staff_reply',
-                  'reviewed_by', 'reviewed_at', 'evidence_items', 'similar_contributions',
+                  'reviewed_by', 'reviewed_at', 'evidence_items', 'suggested_points',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'suggested_points']
     
     def get_evidence_items(self, obj):
         """Returns serialized evidence items for this submission."""
         evidence_items = obj.evidence_items.all().order_by('-created_at')
         return EvidenceSerializer(evidence_items, many=True, context=self.context).data
-    
-    def get_similar_contributions(self, obj):
-        """Get recent similar contributions for context."""
-        # Get last 5 accepted contributions of the same type
-        similar = Contribution.objects.filter(
-            contribution_type=obj.contribution_type
-        ).order_by('-contribution_date')[:5].values('points', 'contribution_date')
-        
-        return list(similar)
     
     def get_contribution(self, obj):
         """Get the created contribution if submission was accepted."""
