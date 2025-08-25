@@ -1,6 +1,6 @@
 // Shared utility for fetching and processing validator data
 import { validatorsAPI, usersAPI, leaderboardAPI } from './api';
-import { getBannedValidators } from './blockchain';
+import { getBannedValidators, getActiveValidators } from './blockchain';
 
 /**
  * Fetches all validator data including active, banned, and user information
@@ -76,11 +76,9 @@ export async function fetchValidatorsData(category = 'validator', onRpcDataReady
   // Fetch RPC data in the background
   if (onRpcDataReady) {
     Promise.all([
-      validatorsAPI.getActiveValidators(),
+      getActiveValidators(),  // Call directly from frontend blockchain.js
       getBannedValidators()
-    ]).then(([activeRes, bannedValidators]) => {
-      const activeValidators = activeRes.data || [];
-      
+    ]).then(([activeValidators, bannedValidators]) => {
       // Filter out invalid addresses from RPC data (banned validators)
       const isValidAddress = (addr) => {
         return addr && 
