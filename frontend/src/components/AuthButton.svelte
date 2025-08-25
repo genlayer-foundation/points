@@ -2,7 +2,7 @@
 <script>
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
-  import { authState, signInWithEthereum, logout, verifyAuth } from '../lib/auth';
+  import { authState, signInWithEthereum, logout } from '../lib/auth';
   import { userStore } from '../lib/userStore';
   
   // Use $: to access the store values reactively
@@ -26,12 +26,9 @@
     }, 5000);
   }
   
-  onMount(async () => {
-    try {
-      await verifyAuth();
-    } catch (err) {
-      console.error('Auth verification error:', err);
-    }
+  onMount(() => {
+    // Auth verification is already done in auth.js on module load
+    // No need to verify again here
     
     return () => {
       if (errorTimeout) clearTimeout(errorTimeout);
