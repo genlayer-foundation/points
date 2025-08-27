@@ -113,7 +113,7 @@ class ContributionAdmin(admin.ModelAdmin):
                   ('evidence_items', admin.EmptyFieldListFilter))
     search_fields = ('user__email', 'user__name', 'user__address', 'contribution_type__name', 
                     'notes', 'evidence_items__description', 'evidence_items__url')
-    readonly_fields = ('frozen_global_points', 'multiplier_at_creation', 'created_at', 'updated_at', 
+    readonly_fields = ('created_at', 'updated_at', 
                       'source_submission_link', 'contribution_type_info')
     ordering = ('-contribution_date', '-created_at')  # Most recent contributions first
     inlines = [ContributionHighlightInline, EvidenceInline]
