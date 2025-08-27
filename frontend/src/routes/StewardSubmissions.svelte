@@ -96,6 +96,14 @@
       submissions = response.data.results || [];
       totalCount = response.data.count || 0;
       
+      // If we got no results and we're not on page 1, it means this page doesn't exist anymore
+      // Try going to the previous page
+      if (submissions.length === 0 && currentPage > 1 && totalCount > 0) {
+        currentPage = currentPage - 1;
+        // Recursively call loadSubmissions with the new page
+        return loadSubmissions();
+      }
+      
       // Initialize review data for each submission
       submissions.forEach(sub => {
         if (!reviewData[sub.id]) {
