@@ -70,30 +70,7 @@
       dispatch('pageChange', 1);
     }
   }
-  
-  function handleKeyPress(event) {
-    // Don't handle arrow keys if user is typing in an input, textarea, or select element
-    const activeElement = document.activeElement;
-    const isTyping = activeElement && (
-      activeElement.tagName === 'INPUT' ||
-      activeElement.tagName === 'TEXTAREA' ||
-      activeElement.tagName === 'SELECT' ||
-      activeElement.contentEditable === 'true'
-    );
-    
-    if (isTyping) {
-      return; // Let the input handle the arrow keys naturally
-    }
-    
-    if (event.key === 'ArrowLeft' && currentPage > 1) {
-      changePage(currentPage - 1);
-    } else if (event.key === 'ArrowRight' && currentPage < totalPages) {
-      changePage(currentPage + 1);
-    }
-  }
 </script>
-
-<svelte:window on:keydown={handleKeyPress} />
 
 {#if totalItems > 0}
   <div class="bg-white px-4 sm:px-6 py-4 border border-gray-200 rounded-xl shadow-sm {className}">
