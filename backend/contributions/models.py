@@ -108,8 +108,16 @@ class Contribution(BaseModel):
         related_name='contributions'
     )
     points = models.PositiveIntegerField(default=0)
-    frozen_global_points = models.PositiveIntegerField(default=0)
-    multiplier_at_creation = models.DecimalField(max_digits=5, decimal_places=2, null=True)
+    frozen_global_points = models.PositiveIntegerField(
+        default=0,
+        help_text="Global points calculated as points × multiplier."
+    )
+    multiplier_at_creation = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        null=True,
+        help_text="Multiplier value at the time of contribution creation."
+    )
     contribution_date = models.DateTimeField(null=True, blank=True, help_text="Date when the contribution was made. Defaults to creation time if not specified.")
     notes = models.TextField(blank=True)
 
@@ -353,7 +361,7 @@ class ContributionHighlight(BaseModel):
     )
     
     class Meta:
-        ordering = ['-created_at']
+        ordering = ['-contribution__contribution_date']
         verbose_name = "Contribution Highlight"
         verbose_name_plural = "Contribution Highlights"
     
@@ -364,14 +372,14 @@ class ContributionHighlight(BaseModel):
     def get_active_highlights(cls, contribution_type=None, user=None, limit=5):
         """
         Get highlights, optionally filtered by contribution type or user.
-        Ordered by creation date (newest first).
+        Ordered by contribution date (newest first).
         
         Args:
             contribution_type: Optional ContributionType to filter by
             user: Optional User to filter by
             limit: Maximum number of highlights to return (default 5)
         """
-        queryset = cls.objects.all()
+        queryset = cls.objects.all().order_by('-contribution__contribution_date')
         
         # Filter by contribution type if provided
         if contribution_type:

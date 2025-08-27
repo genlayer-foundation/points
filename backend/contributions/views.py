@@ -376,12 +376,12 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                 # No validator type, just filter by waitlist users
                 queryset = queryset.filter(contribution__user_id__in=waitlist_users)
         
-        # Order by created_at descending and apply limit
+        # Order by contribution date descending and apply limit
         highlights = queryset.select_related(
             'contribution__user',
             'contribution__contribution_type',
             'contribution__contribution_type__category'
-        ).order_by('-created_at')[:limit]
+        ).order_by('-contribution__contribution_date')[:limit]
         
         serializer = ContributionHighlightSerializer(highlights, many=True)
         return Response(serializer.data)
