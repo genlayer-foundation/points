@@ -9,7 +9,12 @@ import api from '../api.js';
  */
 export async function getContributionTypes(params = {}) {
 	try {
-		const response = await api.get('/contribution-types/', { params });
+		// Set a high page_size to get all contribution types in one request
+		const enhancedParams = {
+			page_size: 100,
+			...params
+		};
+		const response = await api.get('/contribution-types/', { params: enhancedParams });
 		// Handle paginated response
 		return response.data.results || response.data;
 	} catch (error) {
