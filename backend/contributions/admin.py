@@ -482,11 +482,11 @@ class EvidenceAdmin(admin.ModelAdmin):
 
 @admin.register(ContributionHighlight)
 class ContributionHighlightAdmin(admin.ModelAdmin):
-    list_display = ('title', 'contribution_id_display', 'contribution_type', 'user_display', 'points_display', 'created_at')
+    list_display = ('title', 'contribution_id_display', 'contribution_type', 'user_display', 'points_display', 'contribution_date_display', 'created_at')
     list_filter = ('contribution__contribution_type', 'created_at')
     search_fields = ('title', 'description', 'contribution__id', 'contribution__user__name', 
                      'contribution__user__email', 'contribution__notes')
-    ordering = ['-created_at']
+    ordering = ['-contribution__contribution_date']
     readonly_fields = ('created_at', 'updated_at', 'contribution_details')
     raw_id_fields = ('contribution',)  # Show only ID in the field
     
@@ -540,6 +540,13 @@ class ContributionHighlightAdmin(admin.ModelAdmin):
             return obj.contribution.contribution_type.name
         return '-'
     contribution_type.short_description = 'Type'
+    
+    def contribution_date_display(self, obj):
+        """Display the contribution date."""
+        if obj.contribution:
+            return obj.contribution.contribution_date
+        return '-'
+    contribution_date_display.short_description = 'Contribution Date'
     
     def contribution_details(self, obj):
         """Display detailed information about the contribution."""
