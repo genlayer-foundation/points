@@ -48,7 +48,8 @@
   
   async function loadContributionTypes() {
     try {
-      const response = await contributionsAPI.getContributionTypes();
+      // Fetch all contribution types by setting a high page_size
+      const response = await contributionsAPI.getContributionTypes({ page_size: 100 });
       contributionTypes = response.data.results || response.data;
       
       // Load active multipliers

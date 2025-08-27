@@ -73,7 +73,14 @@ export const contributionsAPI = {
   },
   getContribution: (id) => api.get(`/contributions/${id}/`),
   getContributionsByUser: (address) => api.get(`/contributions/?user_address=${address}&group_consecutive=true`),
-  getContributionTypes: (params) => api.get('/contribution-types/', { params }),
+  getContributionTypes: (params) => {
+    // Set a high page_size to get all contribution types in one request
+    const enhancedParams = {
+      page_size: 100,
+      ...params
+    };
+    return api.get('/contribution-types/', { params: enhancedParams });
+  },
   getContributionType: (id) => api.get(`/contribution-types/${id}/`),
   getContributionTypeMultipliers: (typeId) => api.get(`/contribution-type-multipliers/?contribution_type=${typeId}`),
   getContributionTypeStatistics: (params) => api.get('/contribution-types/statistics/', { params }),
