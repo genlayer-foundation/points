@@ -172,7 +172,16 @@
           {#if isOwnSubmission}
             {submission.contribution_type_name || getTypeName(submission.contribution_type)}
           {:else}
-            {submission.user_details?.name || submission.user_details?.address?.slice(0, 8) + '...'}
+            <a 
+              href="#/participant/{submission.user_details?.address}"
+              class="text-primary-600 hover:text-primary-700 hover:underline"
+              onclick={(e) => {
+                e.preventDefault();
+                push(`/participant/${submission.user_details?.address}`);
+              }}
+            >
+              {submission.user_details?.name || submission.user_details?.address?.slice(0, 8) + '...'}
+            </a>
           {/if}
         </h3>
         <p class="text-sm text-gray-600">
