@@ -70,17 +70,7 @@
       dispatch('pageChange', 1);
     }
   }
-  
-  function handleKeyPress(event) {
-    if (event.key === 'ArrowLeft' && currentPage > 1) {
-      changePage(currentPage - 1);
-    } else if (event.key === 'ArrowRight' && currentPage < totalPages) {
-      changePage(currentPage + 1);
-    }
-  }
 </script>
-
-<svelte:window on:keydown={handleKeyPress} />
 
 {#if totalItems > 0}
   <div class="bg-white px-4 sm:px-6 py-4 border border-gray-200 rounded-xl shadow-sm {className}">

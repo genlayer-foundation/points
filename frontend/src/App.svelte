@@ -1,6 +1,7 @@
 <script>
   import Router from 'svelte-spa-router';
   import { wrap } from 'svelte-spa-router/wrap';
+  import { push } from 'svelte-spa-router';
   import { onMount } from 'svelte';
   import Navbar from './components/Navbar.svelte';
   import Sidebar from './components/Sidebar.svelte';

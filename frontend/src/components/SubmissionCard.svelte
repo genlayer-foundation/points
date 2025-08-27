@@ -3,6 +3,7 @@
   import { format } from 'date-fns';
   import ContributionCard from './ContributionCard.svelte';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
+  import Link from '../lib/components/Link.svelte';
   
   let { 
     submission,
@@ -191,6 +192,21 @@
       <!-- Left Column - Submission Details -->
       <div class="space-y-4">
         {#if !isOwnSubmission}
+          <div>
+            <h4 class="text-sm font-medium text-gray-700">User</h4>
+            <div class="mt-1 flex items-center gap-3">
+              <span class="text-sm text-gray-900">
+                {submission.user_details?.name || submission.user_details?.address?.slice(0, 8) + '...'}
+              </span>
+              <Link 
+                href="/participant/{submission.user_details?.address}"
+                class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
+              >
+                View Profile →
+              </Link>
+            </div>
+          </div>
+          
           <div>
             <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
             <p class="mt-1 text-sm text-gray-900">
