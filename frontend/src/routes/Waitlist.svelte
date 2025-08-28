@@ -385,6 +385,11 @@
           {#each featuredContributions.slice(0, 3) as highlight}
             <ContributionCard 
               contribution={highlight.contribution}
+              submission={{
+                notes: highlight.contribution?.notes,
+                evidence_items: highlight.contribution?.evidence_items
+              }}
+              showExpand={highlight.contribution?.evidence_items?.length > 0 || highlight.contribution?.notes}
               showUser={true}
               compact={true}
               highlighted={true}
