@@ -105,27 +105,33 @@ const API_ENDPOINTS = {
 };
 
 /**
- * Connect to MetaMask wallet
+ * Connect to wallet with specific provider
+ * @param {Object} provider - Ethereum provider (window.ethereum or specific wallet provider)
+ * @param {string} walletName - Name of the wallet for error messages
  * @returns {Promise<string>} Ethereum address
  */
-export async function connectWallet() {
+export async function connectWallet(provider = null, walletName = 'wallet') {
   authState.setLoading(true);
   authState.setError(null);
   
   try {
-    if (!window.ethereum) {
-      throw new Error('MetaMask is not installed. Please install MetaMask to continue.');
+    // Use provided provider or default to window.ethereum
+    const ethereumProvider = provider || window.ethereum;
+    
+    if (!ethereumProvider) {
+      throw new Error(`No wallet detected. Please install ${walletName} to continue.`);
     }
 
-    // Request account access
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    // Request account access using the specific provider
+    const accounts = await ethereumProvider.request({ method: 'eth_requestAccounts' });
     const address = accounts[0];
     
     if (!address) {
-      throw new Error('No Ethereum accounts found. Please unlock your MetaMask wallet.');
+      throw new Error(`No Ethereum accounts found. Please unlock your ${walletName}.`);
     }
     
-    authState.update(state => ({ ...state, address }));
+    // Store the provider for later use in signing
+    authState.update(state => ({ ...state, address, provider: ethereumProvider }));
     return address;
   } catch (error) {
     // Pass the error object to let setError handle it
@@ -155,9 +161,10 @@ export async function getNonce() {
  * Create and sign a SIWE message
  * @param {string} address - Ethereum address
  * @param {string} nonce - Server-provided nonce
+ * @param {Object} provider - Ethereum provider to use for signing
  * @returns {Promise<Object>} Signed message and signature
  */
-export async function createAndSignMessage(address, nonce) {
+export async function createAndSignMessage(address, nonce, provider = null) {
   const domain = window.location.host;
   const origin = window.location.origin;
   
@@ -173,9 +180,12 @@ Chain ID: 1
 Nonce: ${nonce}
 Issued At: ${new Date().toISOString()}`;
   
+  // Use provided provider or default to window.ethereum
+  const ethereumProvider = provider || window.ethereum;
+  
   // Request signature from wallet
-  const provider = new ethers.BrowserProvider(window.ethereum);
-  const signer = await provider.getSigner();
+  const ethersProvider = new ethers.BrowserProvider(ethereumProvider);
+  const signer = await ethersProvider.getSigner();
   const signature = await signer.signMessage(messageToSign);
   
   return {
@@ -186,21 +196,27 @@ Issued At: ${new Date().toISOString()}`;
 
 /**
  * Sign in with Ethereum
+ * @param {Object} provider - Ethereum provider to use
+ * @param {string} walletName - Name of the wallet being used
  * @returns {Promise<Object>} Authentication result
  */
-export async function signInWithEthereum() {
+export async function signInWithEthereum(provider = null, walletName = 'wallet') {
   authState.setLoading(true);
   authState.setError(null);
   
   try {
     // Connect to wallet and get address
-    const address = await connectWallet();
+    const address = await connectWallet(provider, walletName);
+    
+    // Get the provider from state (was stored in connectWallet)
+    const state = authState.get();
+    const ethereumProvider = state.provider || provider || window.ethereum;
     
     // Get nonce from server
     const nonce = await getNonce();
     
-    // Create and sign the message
-    const { message, signature } = await createAndSignMessage(address, nonce);
+    // Create and sign the message with the specific provider
+    const { message, signature } = await createAndSignMessage(address, nonce, ethereumProvider);
     
     // Send to backend for verification
     console.log('Sending login request to:', API_ENDPOINTS.LOGIN);
