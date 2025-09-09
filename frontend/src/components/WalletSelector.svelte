@@ -11,61 +11,182 @@
   
   let availableWallets = $state([]);
   let loading = $state(true);
+  let detectedProviders = $state(new Map()); // Store providers detected via EIP-6963
   
   // Wallet configurations with SVG icons
   const walletConfigs = {
     metamask: {
       name: 'MetaMask',
       checkInstalled: () => {
-        return window.ethereum?.isMetaMask === true;
-      },
-      getProvider: () => {
-        if (window.ethereum?.providers?.length) {
-          return window.ethereum.providers.find(p => p.isMetaMask) || window.ethereum;
+        // First check EIP-6963 detected providers
+        if (detectedProviders.has('metamask')) {
+          return true;
         }
-        return window.ethereum;
+        // Fallback to traditional detection
+        if (window.ethereum?._metamask) {
+          return true;
+        }
+        if (window.ethereum?.providers?.length) {
+          return window.ethereum.providers.some(p => p.isMetaMask === true && !p.isTrust);
+        }
+        return window.ethereum?.isMetaMask === true && !window.ethereum?.isTrust;
+      },
+      getProvider: async () => {
+        // Priority 1: Use EIP-6963 detected MetaMask provider
+        const eip6963Provider = detectedProviders.get('metamask');
+        if (eip6963Provider?.provider) {
+          console.log('Using EIP-6963 detected MetaMask provider');
+          return eip6963Provider.provider;
+        }
+        
+        // Priority 2: Check for providers array with real MetaMask
+        if (window.ethereum?.providers?.length) {
+          const realMetamask = window.ethereum.providers.find(p => p._metamask && !p.isTrust);
+          if (realMetamask) return realMetamask;
+          
+          const metamaskProvider = window.ethereum.providers.find(p => p.isMetaMask === true && !p.isTrust);
+          if (metamaskProvider) return metamaskProvider;
+        }
+        
+        // Priority 3: If window.ethereum has _metamask object and not Trust
+        if (window.ethereum?._metamask && !window.ethereum?.isTrust) {
+          return window.ethereum;
+        }
+        
+        // Priority 4: Conflict case
+        if (window.ethereum?.isMetaMask && window.ethereum?.isTrust) {
+          return 'conflict';
+        }
+        
+        return null;
       }
     },
     trust: {
-      name: 'Trust Wallet',
+      name: 'Trust Wallet', 
       checkInstalled: () => {
-        return window.ethereum?.isTrust === true || window.trustwallet?.isTokenPocket === true;
-      },
-      getProvider: () => {
-        if (window.ethereum?.providers?.length) {
-          return window.ethereum.providers.find(p => p.isTrust) || window.ethereum;
+        // First check EIP-6963 detected providers
+        if (detectedProviders.has('trust')) {
+          return true;
         }
-        return window.trustwallet || window.ethereum;
+        // Fallback to traditional detection
+        if (window.ethereum?.providers?.length) {
+          return window.ethereum.providers.some(p => p.isTrust === true || p.isTrustWallet === true);
+        }
+        return window.ethereum?.isTrust === true || window.ethereum?.isTrustWallet === true || window.trustwallet !== undefined;
+      },
+      getProvider: async () => {
+        // Priority 1: Use EIP-6963 detected Trust provider
+        const eip6963Provider = detectedProviders.get('trust');
+        if (eip6963Provider?.provider) {
+          console.log('Using EIP-6963 detected Trust Wallet provider');
+          return eip6963Provider.provider;
+        }
+        
+        // Priority 2: Check providers array
+        if (window.ethereum?.providers?.length) {
+          const trustProvider = window.ethereum.providers.find(p => p.isTrust === true || p.isTrustWallet === true);
+          if (trustProvider) return trustProvider;
+        }
+        
+        // Priority 3: Standalone Trust Wallet object
+        if (window.trustwallet) {
+          return window.trustwallet;
+        }
+        
+        // Priority 4: If window.ethereum is Trust Wallet
+        if (window.ethereum?.isTrust === true || window.ethereum?.isTrustWallet === true) {
+          return window.ethereum;
+        }
+        
+        return null;
       }
     },
     coinbase: {
       name: 'Coinbase Wallet',
       checkInstalled: () => {
+        // First check EIP-6963 detected providers
+        if (detectedProviders.has('coinbase')) {
+          return true;
+        }
+        // Fallback to traditional detection
+        if (window.ethereum?.providers?.length) {
+          return window.ethereum.providers.some(p => p.isCoinbaseWallet === true);
+        }
         return window.ethereum?.isCoinbaseWallet === true;
       },
-      getProvider: () => {
-        if (window.ethereum?.providers?.length) {
-          return window.ethereum.providers.find(p => p.isCoinbaseWallet) || window.ethereum;
+      getProvider: async () => {
+        // Priority 1: Use EIP-6963 detected Coinbase provider
+        const eip6963Provider = detectedProviders.get('coinbase');
+        if (eip6963Provider?.provider) {
+          console.log('Using EIP-6963 detected Coinbase Wallet provider');
+          return eip6963Provider.provider;
         }
-        return window.ethereum;
+        
+        // Priority 2: Check providers array
+        if (window.ethereum?.providers?.length) {
+          const coinbaseProvider = window.ethereum.providers.find(p => p.isCoinbaseWallet === true);
+          if (coinbaseProvider) return coinbaseProvider;
+        }
+        
+        // Priority 3: Direct window.ethereum
+        if (window.ethereum?.isCoinbaseWallet === true) {
+          return window.ethereum;
+        }
+        
+        return null;
       }
     },
-    brave: {
-      name: 'Brave Wallet',
-      checkInstalled: () => {
-        return window.ethereum?.isBraveWallet === true;
-      },
-      getProvider: () => {
-        if (window.ethereum?.providers?.length) {
-          return window.ethereum.providers.find(p => p.isBraveWallet) || window.ethereum;
-        }
-        return window.ethereum;
-      }
-    }
   };
   
   onMount(() => {
-    detectWallets();
+    // Set up EIP-6963 listener for wallet detection
+    function handleProviderAnnouncement(event) {
+      const providerDetail = event.detail;
+      const provider = providerDetail?.provider;
+      const info = providerDetail?.info;
+      
+      console.log('EIP-6963 Provider announced:', {
+        name: info?.name,
+        uuid: info?.uuid,
+        isMetaMask: provider?.isMetaMask,
+        isTrust: provider?.isTrust,
+        isTrustWallet: provider?.isTrustWallet,
+        hasTrustWallet: !!provider?.isTrust || !!provider?.isTrustWallet
+      });
+      
+      if (!provider) return;
+      
+      // Store provider with its info - be more specific about detection
+      if (provider.isMetaMask && !provider.isTrust && !provider.isTrustWallet) {
+        console.log('Detected real MetaMask via EIP-6963');
+        detectedProviders.set('metamask', { provider, info });
+      } else if (provider.isTrust || provider.isTrustWallet) {
+        console.log('Detected Trust Wallet via EIP-6963');
+        detectedProviders.set('trust', { provider, info });
+      } else if (provider.isCoinbaseWallet) {
+        console.log('Detected Coinbase Wallet via EIP-6963');
+        detectedProviders.set('coinbase', { provider, info });
+      }
+      
+      // Re-detect wallets after provider announcement
+      detectWallets();
+    }
+    
+    // Listen for wallet announcements
+    window.addEventListener('eip6963:announceProvider', handleProviderAnnouncement);
+    
+    // Request providers to announce themselves
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
+    
+    // Also do traditional detection after a small delay
+    setTimeout(() => {
+      detectWallets();
+    }, 100);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('eip6963:announceProvider', handleProviderAnnouncement);
+    };
   });
   
   function detectWallets() {
@@ -91,7 +212,7 @@
                             !walletConfigs.trust.checkInstalled() && 
                             !walletConfigs.coinbase.checkInstalled();
       
-      if (hasOtherWallet || walletConfigs.brave.checkInstalled()) {
+      if (hasOtherWallet) {
         wallets.push({
           id: 'other',
           name: 'Other Wallets',
@@ -105,7 +226,7 @@
     loading = false;
   }
   
-  function selectWallet(wallet) {
+  async function selectWallet(wallet) {
     if (!wallet.installed) {
       // If wallet not installed, open appropriate installation page
       const installUrls = {
@@ -120,7 +241,33 @@
       return;
     }
     
-    const provider = wallet.getProvider();
+    // Get the provider (now async)
+    const provider = await wallet.getProvider();
+    
+    // Handle special conflict case for MetaMask
+    if (provider === 'conflict' && wallet.id === 'metamask') {
+      // Trust Wallet is hijacking the connection
+      const response = confirm(
+        'Trust Wallet is interfering with MetaMask connection.\n\n' +
+        'To use MetaMask, you have two options:\n' +
+        '1. Click OK to try anyway (may connect to Trust Wallet instead)\n' +
+        '2. Click Cancel, then disable Trust Wallet extension and refresh the page\n\n' +
+        'Continue anyway?'
+      );
+      
+      if (response) {
+        // Try with the conflicted provider
+        onSelect(window.ethereum, wallet.name);
+        isOpen = false;
+      }
+      return;
+    }
+    
+    if (!provider) {
+      alert(`Could not connect to ${wallet.name}. Please ensure the extension is enabled and try refreshing the page.`);
+      return;
+    }
+    
     onSelect(provider, wallet.name);
     isOpen = false;
   }
