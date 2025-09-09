@@ -229,6 +229,9 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet')
     // Update auth state
     authState.setAuthenticated(true, address);
     
+    // Set up wallet listeners after successful connection
+    setupWalletListeners();
+    
     // Load user data into the store
     try {
       await userStore.loadUser();
@@ -359,10 +362,119 @@ export async function refreshSession() {
   }
 }
 
+// Store listener functions for cleanup
+let accountsChangedHandler = null;
+let chainChangedHandler = null;
+
+/**
+ * Handle account changes from wallet
+ */
+async function handleAccountsChanged(accounts) {
+  console.log('Accounts changed:', accounts);
+  const state = authState.get();
+  
+  if (accounts.length === 0) {
+    // User disconnected their wallet or revoked permissions
+    console.log('Wallet disconnected');
+    await logout();
+    authState.setError('Wallet disconnected. Please reconnect to continue.');
+  } else if (state.isAuthenticated && accounts[0].toLowerCase() !== state.address?.toLowerCase()) {
+    // User switched to a different account
+    const newAccount = accounts[0];
+    console.log('Account switched from', state.address, 'to', newAccount);
+    
+    // Since our backend session is tied to the signed message from the original account,
+    // we need to re-authenticate with the new account
+    try {
+      // First logout the old session
+      await logout();
+      
+      // Automatically start re-authentication with the new account
+      // Get the current provider (should still be available)
+      const provider = window.ethereum;
+      
+      if (provider) {
+        // Show user-friendly message
+        authState.setError(
+          `Switched to ${newAccount.substring(0, 6)}...${newAccount.substring(newAccount.length - 4)}. Reconnecting...`
+        );
+        
+        // Re-authenticate with the new account
+        await signInWithEthereum(provider, 'MetaMask');
+      } else {
+        // Fallback: prompt manual reconnection
+        authState.setError(
+          `Account changed to ${newAccount.substring(0, 6)}...${newAccount.substring(newAccount.length - 4)}. Please reconnect.`
+        );
+        
+        // Open wallet selector after short delay
+        setTimeout(() => {
+          const authButton = document.querySelector('[data-auth-button]');
+          if (authButton && !authState.get().isAuthenticated) {
+            authButton.click();
+          }
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Failed to reconnect with new account:', error);
+      authState.setError('Failed to connect with new account. Please try again.');
+    }
+  }
+}
+
+/**
+ * Handle chain/network changes
+ */
+function handleChainChanged(chainId) {
+  console.log('Chain changed to:', chainId);
+  // Reload the page to reset the app state with the new chain
+  // This is recommended by MetaMask docs
+  window.location.reload();
+}
+
+/**
+ * Set up listeners for account and chain changes
+ */
+function setupWalletListeners() {
+  if (!window.ethereum || accountsChangedHandler) return;
+  
+  // Create handlers
+  accountsChangedHandler = handleAccountsChanged;
+  chainChangedHandler = handleChainChanged;
+  
+  // Add listeners
+  window.ethereum.on('accountsChanged', accountsChangedHandler);
+  window.ethereum.on('chainChanged', chainChangedHandler);
+  
+  console.log('Wallet event listeners set up');
+}
+
+/**
+ * Remove wallet event listeners (cleanup)
+ */
+export function removeWalletListeners() {
+  if (!window.ethereum) return;
+  
+  if (accountsChangedHandler) {
+    window.ethereum.removeListener('accountsChanged', accountsChangedHandler);
+    accountsChangedHandler = null;
+  }
+  
+  if (chainChangedHandler) {
+    window.ethereum.removeListener('chainChanged', chainChangedHandler);
+    chainChangedHandler = null;
+  }
+  
+  console.log('Wallet event listeners removed');
+}
+
 // Initialize auth state on page load
 if (typeof window !== 'undefined') {
   // Only verify auth in browser environment
   verifyAuth().catch(console.error);
+  
+  // Set up wallet event listeners
+  setupWalletListeners();
   
   // Set up periodic session refresh to keep user logged in
   setInterval(async () => {
