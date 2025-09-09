@@ -12,6 +12,7 @@
   let availableWallets = $state([]);
   let loading = $state(true);
   let detectedProviders = $state(new Map()); // Store providers detected via EIP-6963
+  let connectingWallet = $state(null); // Track which wallet is currently connecting
   
   // Wallet configurations with SVG icons
   const walletConfigs = {
@@ -241,45 +242,59 @@
       return;
     }
     
-    // Get the provider (now async)
-    const provider = await wallet.getProvider();
+    // Set connecting state
+    connectingWallet = wallet;
     
-    // Handle special conflict case for MetaMask
-    if (provider === 'conflict' && wallet.id === 'metamask') {
-      // Trust Wallet is hijacking the connection
-      const response = confirm(
-        'Trust Wallet is interfering with MetaMask connection.\n\n' +
-        'To use MetaMask, you have two options:\n' +
-        '1. Click OK to try anyway (may connect to Trust Wallet instead)\n' +
-        '2. Click Cancel, then disable Trust Wallet extension and refresh the page\n\n' +
-        'Continue anyway?'
-      );
+    try {
+      // Get the provider (now async)
+      const provider = await wallet.getProvider();
       
-      if (response) {
-        // Try with the conflicted provider
-        onSelect(window.ethereum, wallet.name);
-        isOpen = false;
+      // Handle special conflict case for MetaMask
+      if (provider === 'conflict' && wallet.id === 'metamask') {
+        connectingWallet = null; // Clear connecting state
+        
+        // Trust Wallet is hijacking the connection
+        const response = confirm(
+          'Trust Wallet is interfering with MetaMask connection.\n\n' +
+          'To use MetaMask, you have two options:\n' +
+          '1. Click OK to try anyway (may connect to Trust Wallet instead)\n' +
+          '2. Click Cancel, then disable Trust Wallet extension and refresh the page\n\n' +
+          'Continue anyway?'
+        );
+        
+        if (response) {
+          connectingWallet = wallet; // Set connecting state again
+          // Try with the conflicted provider
+          await onSelect(window.ethereum, wallet.name);
+          // Don't close here - let parent component handle it
+        }
+        return;
       }
-      return;
+      
+      if (!provider) {
+        alert(`Could not connect to ${wallet.name}. Please ensure the extension is enabled and try refreshing the page.`);
+        return;
+      }
+      
+      // Call onSelect and wait for it to complete
+      await onSelect(provider, wallet.name);
+      // Don't close here - let parent component handle closing after successful connection
+    } finally {
+      // Always clear connecting state
+      connectingWallet = null;
     }
-    
-    if (!provider) {
-      alert(`Could not connect to ${wallet.name}. Please ensure the extension is enabled and try refreshing the page.`);
-      return;
-    }
-    
-    onSelect(provider, wallet.name);
-    isOpen = false;
   }
   
   function handleBackdropClick(e) {
-    if (e.target === e.currentTarget) {
+    // Don't close if currently connecting
+    if (e.target === e.currentTarget && !connectingWallet) {
       isOpen = false;
     }
   }
   
   function handleKeyDown(e) {
-    if (e.key === 'Escape') {
+    // Don't close if currently connecting
+    if (e.key === 'Escape' && !connectingWallet) {
       isOpen = false;
     }
   }
@@ -298,7 +313,8 @@
         <h2 class="wallet-selector-title">Connect Wallet</h2>
         <button 
           class="wallet-selector-close"
-          onclick={() => isOpen = false}
+          onclick={() => !connectingWallet && (isOpen = false)}
+          disabled={connectingWallet !== null}
           aria-label="Close"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -313,12 +329,38 @@
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <p class="text-gray-500 mt-3">Detecting wallets...</p>
           </div>
+        {:else if connectingWallet}
+          <div class="wallet-selector-loading">
+            <div class="connecting-wallet-container">
+              <div class="connecting-wallet-logo">
+                {#if connectingWallet.id === 'metamask'}
+                  <img src={metamaskLogo} alt="MetaMask" class="connecting-logo" />
+                {:else if connectingWallet.id === 'trust'}
+                  <img src={trustLogo} alt="Trust Wallet" class="connecting-logo" />
+                {:else if connectingWallet.id === 'coinbase'}
+                  <img src={coinbaseLogo} alt="Coinbase Wallet" class="connecting-logo" />
+                {:else}
+                  <svg class="connecting-logo" width="60" height="60" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="40" height="40" rx="8" fill="#F3F4F6"/>
+                    <rect x="12" y="12" width="6" height="6" rx="1" fill="#9CA3AF"/>
+                    <rect x="22" y="12" width="6" height="6" rx="1" fill="#9CA3AF"/>
+                    <rect x="12" y="22" width="6" height="6" rx="1" fill="#9CA3AF"/>
+                    <rect x="22" y="22" width="6" height="6" rx="1" fill="#9CA3AF"/>
+                  </svg>
+                {/if}
+                <div class="connecting-spinner"></div>
+              </div>
+              <p class="text-gray-700 mt-4 font-medium">Connecting to {connectingWallet.name}...</p>
+              <p class="text-gray-500 text-sm mt-2">Please confirm in your wallet</p>
+            </div>
+          </div>
         {:else}
           <div class="wallet-selector-list">
             {#each availableWallets as wallet}
               <button
                 class="wallet-option {!wallet.installed ? 'wallet-not-installed' : ''}"
                 onclick={() => selectWallet(wallet)}
+                disabled={connectingWallet !== null}
               >
                 <div class="wallet-icon-wrapper">
                   {#if wallet.id === 'metamask'}
@@ -456,6 +498,42 @@
     align-items: center;
     justify-content: center;
     padding: 3rem 2rem;
+  }
+  
+  .connecting-wallet-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .connecting-wallet-logo {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .connecting-logo {
+    width: 60px;
+    height: 60px;
+    border-radius: 0.75rem;
+    z-index: 1;
+  }
+  
+  .connecting-spinner {
+    position: absolute;
+    inset: -8px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
   
   .wallet-selector-empty {

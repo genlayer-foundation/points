@@ -52,10 +52,12 @@
     // Start the connection process with selected wallet
     loading = true;
     error = null;
-    showWalletSelector = false;
+    // Keep the wallet selector open during connection
     
     try {
       await signInWithEthereum(provider, walletName);
+      // Only close on successful connection
+      showWalletSelector = false;
     } catch (err) {
       console.error('Auth error:', err);
       // Create a curated error message
@@ -70,6 +72,7 @@
       } else {
         error = 'Connection failed';
       }
+      // Keep modal open on error so user can try again
     } finally {
       loading = false;
     }
