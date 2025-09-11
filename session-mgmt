@@ -437,14 +437,22 @@ checkout_pr() {
     echo "  Backend port:  $backend_port"
     echo "  Frontend port: $frontend_port"
     
-    # Checkout the PR branch in main repo first
+    # Fetch PR branch without changing current branch
     echo "Fetching PR branch..."
     cd "$TALLY_ROOT"
-    gh pr checkout "$pr_number" -b "$name-branch" --force
+    
+    # Store current branch to restore later
+    current_branch=$(git branch --show-current)
+    
+    # Fetch the PR ref directly and create a local branch
+    git fetch origin "pull/$pr_number/head:$name-branch"
     
     # Create git worktree from the PR branch
     echo "Creating git worktree..."
     git worktree add "../tally-$name" "$name-branch"
+    
+    # Make sure we're still on the original branch
+    git checkout "$current_branch" 2>/dev/null || true
     
     # Create symlink for node_modules
     echo "Creating symlink for node_modules..."
