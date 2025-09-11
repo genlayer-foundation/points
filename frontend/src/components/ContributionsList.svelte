@@ -61,7 +61,9 @@
               typeId: contrib.contribution_type_details?.id || contrib.contribution_type,
               count: 1,
               end_date: contrib.contribution_date,
-              users: contrib.user_details ? [contrib.user_details] : []
+              users: contrib.user_details ? [contrib.user_details] : [],
+              evidence_items: contrib.evidence_items,
+              notes: contrib.notes
             });
           } else {
             // Non-highlighted contribution - add to current subgroup
@@ -81,7 +83,9 @@
                 typeId: contrib.contribution_type_details?.id || contrib.contribution_type,
                 count: 1,
                 end_date: contrib.contribution_date,
-                users: contrib.user_details ? [contrib.user_details] : []
+                users: contrib.user_details ? [contrib.user_details] : [],
+                evidence_items: contrib.evidence_items,
+                notes: contrib.notes
               };
             } else {
               // Add to existing subgroup
@@ -140,7 +144,9 @@
           typeId: typeId,
           count: 1,
           end_date: contrib.contribution_date,
-          users: []
+          users: [],
+          evidence_items: contrib.evidence_items,
+          notes: contrib.notes
         };
         
         if (contrib.user_details) {
@@ -262,7 +268,15 @@
   {:else}
     <div class="space-y-3">
       {#each processedContributions as contribution}
-        <ContributionCard {contribution} {showUser} />
+        <ContributionCard 
+          {contribution} 
+          {showUser}
+          submission={{
+            notes: contribution.notes,
+            evidence_items: contribution.evidence_items
+          }}
+          showExpand={contribution.evidence_items?.length > 0 || contribution.notes}
+        />
       {/each}
     </div>
     
