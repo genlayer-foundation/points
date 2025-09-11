@@ -1,6 +1,6 @@
-# Tally Roadmap
+# Points Roadmap
 
-This document outlines the development plan for Tally, the points and contribution
+This document outlines the development plan for Points, the points and contribution
 tracking system for the GenLayer Foundation's Testnet Program.
 
 - User Profiles: Add contact methods (email, Telegram, Discord handles)

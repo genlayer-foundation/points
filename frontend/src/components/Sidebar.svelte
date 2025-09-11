@@ -306,7 +306,7 @@
   <div class="p-4 border-t border-gray-200 bg-white">
       <div class="flex flex-col items-center space-y-2 text-xs text-gray-500">
         <a 
-          href="https://github.com/genlayer-foundation/tally" 
+          href="https://github.com/genlayer-foundation/points" 
           target="_blank" 
           rel="noopener noreferrer"
           class="flex items-center hover:text-gray-700 transition-colors"
@@ -478,7 +478,7 @@
     <div class="p-4 border-t border-gray-200 bg-white">
         <div class="flex flex-col items-center space-y-2 text-xs text-gray-500">
           <a 
-            href="https://github.com/genlayer-foundation/tally" 
+            href="https://github.com/genlayer-foundation/points" 
             target="_blank" 
             rel="noopener noreferrer"
             class="flex items-center hover:text-gray-700 transition-colors"

@@ -1,11 +1,11 @@
-# Tally
+# Points
 
 A points and contribution tracking system for the GenLayer Foundation's Testnet 
 Program.
 
 ## Overview
 
-Tally is a comprehensive tracking system for the GenLayer Testnet Program 
+Points is a comprehensive tracking system for the GenLayer Testnet Program 
 incentives. It enables transparent monitoring of community contributions, with 
 each action earning participants badges and points. The system serves as an 
 experiment for developing autonomous and trustless GLF programs that will 
@@ -67,8 +67,8 @@ eventually be part of the Deepthought DAO.
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/tally.git
-   cd tally
+   git clone https://github.com/yourusername/points.git
+   cd points
    ```
 
 2. Create and activate a virtual environment:
