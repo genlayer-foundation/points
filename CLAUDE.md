@@ -1,15 +1,15 @@
-# Tally: GenLayer Testnet Program Tracking System
+# Points: GenLayer Testnet Program Tracking System
 
 ## 📚 Quick Reference Documentation
 **Important**: This project has detailed documentation for faster development:
 - **Backend Documentation**: See `backend/CLAUDE.md` for Django structure, API endpoints, models, and patterns
 - **Frontend Documentation**: See `frontend/CLAUDE.md` for Svelte 5 structure, routes, components, and API integration
-- **Session Management**: See `TALLY_SESSIONS.md` for the Git worktree-based development session system
+- **Session Management**: See `SESSIONS.md` for the Git worktree-based development session system
 
 ⚠️ **Keep documentation updated**: When making changes to the codebase, update the relevant CLAUDE.md file to help future development sessions.
 
 ## Development Sessions & Worktrees
-This project uses a custom session management system with Git worktrees. See `TALLY_SESSIONS.md` for complete documentation on:
+This project uses a custom session management system with Git worktrees. See `SESSIONS.md` for complete documentation on:
 - Creating and managing parallel development sessions
 - Port allocation and tmux window management
 - Claude Code session persistence across worktrees
@@ -17,10 +17,10 @@ This project uses a custom session management system with Git worktrees. See `TA
 
 Quick commands:
 ```bash
-./tally-session add <name>     # Create new session
-./tally-session list            # Show all sessions
-./tally-session resume [name]   # Resume after restart
-./tally-session remove <name>   # Remove session
+./session-mgmt add <name>     # Create new session
+./session-mgmt list            # Show all sessions
+./session-mgmt resume [name]   # Resume after restart
+./session-mgmt remove <name>   # Remove session
 ```
 
 ## Svelte 5 Important Notes
@@ -65,7 +65,7 @@ When working with the frontend, always activate the Node.js environment before u
 
 ```bash
 # Activate the environment before using npm
-cd [..]/tally/frontend
+cd [..]/points/frontend
 source ../backend/env/bin/activate
 # Then run npm commands
 npm install
@@ -78,7 +78,7 @@ For backend development, activate the Python virtual environment:
 
 ```bash
 # Activate the Python virtual environment
-cd [..]/tally/backend
+cd [..]/points/backend
 source env/bin/activate
 # Then run Python/Django commands
 python manage.py runserver
@@ -86,7 +86,7 @@ python manage.py runserver
 
 ## Project Overview
 
-Tally is a points and contribution tracking system specifically designed for the 
+Points is a points and contribution tracking system specifically designed for the 
 GenLayer Foundation's Testnet Program. It serves as a comprehensive platform that 
 tracks, rewards, and visualizes community contributions to the GenLayer ecosystem. 
 Each participant action earns badges and points, with the system applying dynamic 

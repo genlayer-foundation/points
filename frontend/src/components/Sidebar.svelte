@@ -142,7 +142,7 @@
 </script>
 
 <!-- Desktop Sidebar -->
-<aside class="hidden md:flex flex-col w-64 bg-white shadow-md min-h-screen sticky top-0 overflow-y-auto">
+<aside class="hidden md:flex flex-col w-64 bg-white shadow-md h-full overflow-y-auto">
   <!-- Navigation content - takes only what it needs -->
   <div class="px-4 pt-8 pb-4">
     <nav class="space-y-2">
@@ -306,7 +306,7 @@
   <div class="p-4 border-t border-gray-200 bg-white">
       <div class="flex flex-col items-center space-y-2 text-xs text-gray-500">
         <a 
-          href="https://github.com/genlayer-foundation/tally" 
+          href="https://github.com/genlayer-foundation/points" 
           target="_blank" 
           rel="noopener noreferrer"
           class="flex items-center hover:text-gray-700 transition-colors"
@@ -478,7 +478,7 @@
     <div class="p-4 border-t border-gray-200 bg-white">
         <div class="flex flex-col items-center space-y-2 text-xs text-gray-500">
           <a 
-            href="https://github.com/genlayer-foundation/tally" 
+            href="https://github.com/genlayer-foundation/points" 
             target="_blank" 
             rel="noopener noreferrer"
             class="flex items-center hover:text-gray-700 transition-colors"

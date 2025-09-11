@@ -1,18 +1,18 @@
-# Tally Session Management System Documentation
+# Points Session Management System Documentation
 
 ## Overview
-The Tally project uses a custom session management system that allows multiple parallel development sessions using Git worktrees, tmux, and Claude Code. Each session gets its own isolated environment with dedicated ports and persistent Claude conversations.
+The Points project uses a custom session management system that allows multiple parallel development sessions using Git worktrees, tmux, and Claude Code. Each session gets its own isolated environment with dedicated ports and persistent Claude conversations.
 
 ## Key Components
 
-### 1. The `tally-session` Script
-Location: `/Users/rasca/Dev/tally/tally-session`
+### 1. The `session-mgmt` Script
+Location: `/Users/rasca/Dev/tally/session-mgmt`
 
 This is the main management script with the following commands:
-- `./tally-session add <name>` - Creates a new session with worktree, branch, and tmux windows
-- `./tally-session remove <name>` - Removes a session completely (worktree, branch, tmux)
-- `./tally-session resume [name]` - Resumes session(s) after system restart
-- `./tally-session list` - Shows all active sessions with their ports
+- `./session-mgmt add <name>` - Creates a new session with worktree, branch, and tmux windows
+- `./session-mgmt remove <name>` - Removes a session completely (worktree, branch, tmux)
+- `./session-mgmt resume [name]` - Resumes session(s) after system restart
+- `./session-mgmt list` - Shows all active sessions with their ports
 
 ### 2. Session Structure
 Each session consists of:
