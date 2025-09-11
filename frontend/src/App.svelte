@@ -224,11 +224,11 @@
   }
 </script>
 
-<div class="min-h-screen {$categoryTheme.bg} transition-colors duration-300">
+<div class="h-screen flex flex-col {$categoryTheme.bg} transition-colors duration-300">
   <Navbar {toggleSidebar} {sidebarOpen} />
-  <div class="flex">
+  <div class="flex-1 flex overflow-hidden">
     <Sidebar bind:isOpen={sidebarOpen} />
-    <main class="flex-1 container mx-auto px-4 py-4 md:py-6 lg:py-8">
+    <main class="flex-1 overflow-y-auto container mx-auto px-4 py-4 md:py-6 lg:py-8">
       <Router 
         {routes} 
         on:conditionsFailed={hideTooltips}

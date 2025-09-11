@@ -142,7 +142,7 @@
 </script>
 
 <!-- Desktop Sidebar -->
-<aside class="hidden md:flex flex-col w-64 bg-white shadow-md min-h-screen sticky top-0 overflow-y-auto">
+<aside class="hidden md:flex flex-col w-64 bg-white shadow-md h-full overflow-y-auto">
   <!-- Navigation content - takes only what it needs -->
   <div class="px-4 pt-8 pb-4">
     <nav class="space-y-2">
