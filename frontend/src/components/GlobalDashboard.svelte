@@ -48,7 +48,7 @@
       
       validatorStats = {
         total: validatorCount,
-        contributions: validatorContribRes.data?.count || 0,
+        contributions: validatorContribRes.data.count || 0,
         points: validatorEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0)
       };
       
@@ -57,7 +57,7 @@
       
       builderStats = {
         total: builderEntries.length,
-        contributions: builderContribRes.data?.count || 0,
+        contributions: builderContribRes.data.count || 0,
         points: builderEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0)
       };
       
