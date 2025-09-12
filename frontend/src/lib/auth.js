@@ -122,7 +122,20 @@ export async function connectWallet(provider = null, walletName = 'wallet') {
       throw new Error(`No wallet detected. Please install ${walletName} to continue.`);
     }
 
-    // First, get the currently connected accounts
+    // First, try to request permissions to trigger account selection dialog
+    // This works with MetaMask and wallets that support wallet_requestPermissions
+    try {
+      await ethereumProvider.request({
+        method: 'wallet_requestPermissions',
+        params: [{ eth_accounts: {} }]
+      });
+    } catch (permissionError) {
+      // If the wallet doesn't support wallet_requestPermissions or user rejected,
+      // we'll continue with the normal flow
+      console.log('wallet_requestPermissions not supported or rejected:', permissionError);
+    }
+
+    // Now get the accounts (either newly selected or existing)
     let accounts = await ethereumProvider.request({ method: 'eth_accounts' });
     
     // If no accounts are connected, request access
@@ -130,7 +143,7 @@ export async function connectWallet(provider = null, walletName = 'wallet') {
       accounts = await ethereumProvider.request({ method: 'eth_requestAccounts' });
     }
     
-    // Always use the first account (currently selected in MetaMask)
+    // Always use the first account (currently selected)
     const address = accounts[0];
     
     if (!address) {
