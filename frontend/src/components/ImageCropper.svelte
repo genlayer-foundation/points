@@ -188,19 +188,34 @@
   }
   
   function getCursorForPosition(x, y) {
-    const handleSize = 20; // Larger hit area for better UX
+    const handleSize = 10; // Match the visual handle size from drawCanvas
+    const buffer = 3; // Small buffer for easier clicking
+    const halfSize = handleSize / 2 + buffer;
     
-    // Check corners
-    if (Math.abs(x - cropBox.x) < handleSize && Math.abs(y - cropBox.y) < handleSize) {
+    // Check if mouse is within the actual drawn handle rectangle
+    // Handles are drawn centered on the corner positions
+    
+    // Northwest corner
+    if (x >= cropBox.x - halfSize && x <= cropBox.x + halfSize &&
+        y >= cropBox.y - halfSize && y <= cropBox.y + halfSize) {
       return 'nw-resize';
     }
-    if (Math.abs(x - (cropBox.x + cropBox.width)) < handleSize && Math.abs(y - cropBox.y) < handleSize) {
+    
+    // Northeast corner
+    if (x >= cropBox.x + cropBox.width - halfSize && x <= cropBox.x + cropBox.width + halfSize &&
+        y >= cropBox.y - halfSize && y <= cropBox.y + halfSize) {
       return 'ne-resize';
     }
-    if (Math.abs(x - cropBox.x) < handleSize && Math.abs(y - (cropBox.y + cropBox.height)) < handleSize) {
+    
+    // Southwest corner
+    if (x >= cropBox.x - halfSize && x <= cropBox.x + halfSize &&
+        y >= cropBox.y + cropBox.height - halfSize && y <= cropBox.y + cropBox.height + halfSize) {
       return 'sw-resize';
     }
-    if (Math.abs(x - (cropBox.x + cropBox.width)) < handleSize && Math.abs(y - (cropBox.y + cropBox.height)) < handleSize) {
+    
+    // Southeast corner
+    if (x >= cropBox.x + cropBox.width - halfSize && x <= cropBox.x + cropBox.width + halfSize &&
+        y >= cropBox.y + cropBox.height - halfSize && y <= cropBox.y + cropBox.height + halfSize) {
       return 'se-resize';
     }
     
@@ -213,18 +228,34 @@
   }
   
   function getHoveredHandle(x, y) {
-    const handleSize = 20;
+    const handleSize = 10; // Match the visual handle size from drawCanvas
+    const buffer = 3; // Small buffer for easier clicking
+    const halfSize = handleSize / 2 + buffer;
     
-    if (Math.abs(x - cropBox.x) < handleSize && Math.abs(y - cropBox.y) < handleSize) {
+    // Check if mouse is within the actual drawn handle rectangle
+    // Handles are drawn centered on the corner positions
+    
+    // Northwest corner
+    if (x >= cropBox.x - halfSize && x <= cropBox.x + halfSize &&
+        y >= cropBox.y - halfSize && y <= cropBox.y + halfSize) {
       return 'nw';
     }
-    if (Math.abs(x - (cropBox.x + cropBox.width)) < handleSize && Math.abs(y - cropBox.y) < handleSize) {
+    
+    // Northeast corner
+    if (x >= cropBox.x + cropBox.width - halfSize && x <= cropBox.x + cropBox.width + halfSize &&
+        y >= cropBox.y - halfSize && y <= cropBox.y + halfSize) {
       return 'ne';
     }
-    if (Math.abs(x - cropBox.x) < handleSize && Math.abs(y - (cropBox.y + cropBox.height)) < handleSize) {
+    
+    // Southwest corner
+    if (x >= cropBox.x - halfSize && x <= cropBox.x + halfSize &&
+        y >= cropBox.y + cropBox.height - halfSize && y <= cropBox.y + cropBox.height + halfSize) {
       return 'sw';
     }
-    if (Math.abs(x - (cropBox.x + cropBox.width)) < handleSize && Math.abs(y - (cropBox.y + cropBox.height)) < handleSize) {
+    
+    // Southeast corner
+    if (x >= cropBox.x + cropBox.width - halfSize && x <= cropBox.x + cropBox.width + halfSize &&
+        y >= cropBox.y + cropBox.height - halfSize && y <= cropBox.y + cropBox.height + halfSize) {
       return 'se';
     }
     
@@ -316,8 +347,11 @@
   
   function handleMouseDown(event) {
     const rect = canvasRef.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    // Scale mouse coordinates to match canvas internal coordinates
+    const scaleX = canvasRef.width / rect.width;
+    const scaleY = canvasRef.height / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
     
     // Only allow interaction within image bounds
     if (x < imageBounds.x || x > imageBounds.x + imageBounds.width ||
@@ -341,8 +375,11 @@
   
   function handleMouseMove(event) {
     const rect = canvasRef.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    // Scale mouse coordinates to match canvas internal coordinates
+    const scaleX = canvasRef.width / rect.width;
+    const scaleY = canvasRef.height / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
     
     // Update cursor and hover state
     if (!isDragging && !isResizing) {
