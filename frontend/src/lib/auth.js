@@ -122,8 +122,15 @@ export async function connectWallet(provider = null, walletName = 'wallet') {
       throw new Error(`No wallet detected. Please install ${walletName} to continue.`);
     }
 
-    // Request account access using the specific provider
-    const accounts = await ethereumProvider.request({ method: 'eth_requestAccounts' });
+    // First, get the currently connected accounts
+    let accounts = await ethereumProvider.request({ method: 'eth_accounts' });
+    
+    // If no accounts are connected, request access
+    if (!accounts || accounts.length === 0) {
+      accounts = await ethereumProvider.request({ method: 'eth_requestAccounts' });
+    }
+    
+    // Always use the first account (currently selected in MetaMask)
     const address = accounts[0];
     
     if (!address) {
@@ -342,6 +349,8 @@ export async function logout() {
     authState.setAuthenticated(false, null);
     // Reset verification flag so next session will verify
     authState.resetVerification();
+    // Clear any cached provider
+    authState.update(state => ({ ...state, provider: null }));
     // Clear user data from store
     userStore.clearUser();
   }
@@ -379,7 +388,7 @@ async function handleAccountsChanged(accounts) {
     await logout();
     authState.setError('Wallet disconnected. Please reconnect to continue.');
   } else if (state.isAuthenticated && accounts[0].toLowerCase() !== state.address?.toLowerCase()) {
-    // User switched to a different account
+    // User switched to a different account while authenticated
     const newAccount = accounts[0];
     console.log('Account switched from', state.address, 'to', newAccount);
     
@@ -388,6 +397,9 @@ async function handleAccountsChanged(accounts) {
     try {
       // First logout the old session
       await logout();
+      
+      // Clear any cached provider state
+      authState.update(state => ({ ...state, provider: null }));
       
       // Automatically start re-authentication with the new account
       // Get the current provider (should still be available)
@@ -398,6 +410,9 @@ async function handleAccountsChanged(accounts) {
         authState.setError(
           `Switched to ${newAccount.substring(0, 6)}...${newAccount.substring(newAccount.length - 4)}. Reconnecting...`
         );
+        
+        // Small delay to ensure state is cleared
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         // Re-authenticate with the new account
         await signInWithEthereum(provider, 'MetaMask');
@@ -419,6 +434,11 @@ async function handleAccountsChanged(accounts) {
       console.error('Failed to reconnect with new account:', error);
       authState.setError('Failed to connect with new account. Please try again.');
     }
+  } else if (!state.isAuthenticated && accounts.length > 0) {
+    // Account changed while not authenticated - just update the stored address
+    console.log('Account changed while not authenticated:', accounts[0]);
+    // This ensures next connection attempt uses the current account
+    authState.update(state => ({ ...state, address: null, provider: null }));
   }
 }
 

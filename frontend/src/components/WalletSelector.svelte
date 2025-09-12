@@ -3,6 +3,7 @@
   import metamaskLogo from '../assets/wallets/metamask.svg';
   import trustLogo from '../assets/wallets/trust.svg';
   import coinbaseLogo from '../assets/wallets/coinbase.svg';
+  import phantomLogo from '../assets/wallets/phantom.svg';
   
   let { 
     isOpen = $bindable(false),
@@ -14,48 +15,77 @@
   let detectedProviders = $state(new Map()); // Store providers detected via EIP-6963
   let connectingWallet = $state(null); // Track which wallet is currently connecting
   
+  // Constants
+  const INSTALL_URLS = {
+    phantom: 'https://phantom.app/download',
+    metamask: 'https://metamask.io/download/',
+    trust: 'https://trustwallet.com/download',
+    coinbase: 'https://www.coinbase.com/wallet/downloads'
+  };
+  
+  const WALLET_LOGOS = {
+    phantom: phantomLogo,
+    metamask: metamaskLogo,
+    trust: trustLogo,
+    coinbase: coinbaseLogo
+  };
+  
+  // Helper function to get EIP-6963 provider
+  function getEIP6963Provider(walletId) {
+    const provider = detectedProviders.get(walletId);
+    if (provider?.provider) {
+      console.log(`Using EIP-6963 detected ${walletId} provider`);
+      return provider.provider;
+    }
+    return null;
+  }
+  
+  // Helper function to check provider in array
+  function findProviderInArray(checkFn) {
+    if (window.ethereum?.providers?.length) {
+      return window.ethereum.providers.find(checkFn);
+    }
+    return null;
+  }
+  
   // Wallet configurations with SVG icons
   const walletConfigs = {
+    phantom: {
+      name: 'Phantom',
+      checkInstalled: () => {
+        return detectedProviders.has('phantom') ||
+               window.phantom?.ethereum ||
+               window.ethereum?.providers?.some(p => p.isPhantom) ||
+               window.ethereum?.isPhantom === true;
+      },
+      getProvider: async () => {
+        return getEIP6963Provider('phantom') ||
+               window.phantom?.ethereum ||
+               findProviderInArray(p => p.isPhantom) ||
+               (window.ethereum?.isPhantom ? window.ethereum : null);
+      }
+    },
     metamask: {
       name: 'MetaMask',
       checkInstalled: () => {
-        // First check EIP-6963 detected providers
-        if (detectedProviders.has('metamask')) {
-          return true;
-        }
-        // Fallback to traditional detection
-        if (window.ethereum?._metamask) {
-          return true;
-        }
-        if (window.ethereum?.providers?.length) {
-          return window.ethereum.providers.some(p => p.isMetaMask === true && !p.isTrust);
-        }
-        return window.ethereum?.isMetaMask === true && !window.ethereum?.isTrust;
+        return detectedProviders.has('metamask') ||
+               (window.ethereum?._metamask && !window.ethereum?.isPhantom && !window.ethereum?.isTrust) ||
+               window.ethereum?.providers?.some(p => p.isMetaMask && !p.isTrust && !p.isPhantom) ||
+               (window.ethereum?.isMetaMask && !window.ethereum?.isTrust && !window.ethereum?.isPhantom);
       },
       getProvider: async () => {
-        // Priority 1: Use EIP-6963 detected MetaMask provider
-        const eip6963Provider = detectedProviders.get('metamask');
-        if (eip6963Provider?.provider) {
-          console.log('Using EIP-6963 detected MetaMask provider');
-          return eip6963Provider.provider;
-        }
+        const eip6963 = getEIP6963Provider('metamask');
+        if (eip6963) return eip6963;
         
-        // Priority 2: Check for providers array with real MetaMask
-        if (window.ethereum?.providers?.length) {
-          const realMetamask = window.ethereum.providers.find(p => p._metamask && !p.isTrust);
-          if (realMetamask) return realMetamask;
-          
-          const metamaskProvider = window.ethereum.providers.find(p => p.isMetaMask === true && !p.isTrust);
-          if (metamaskProvider) return metamaskProvider;
-        }
+        const provider = findProviderInArray(p => p._metamask && !p.isTrust && !p.isPhantom) ||
+                        findProviderInArray(p => p.isMetaMask && !p.isTrust && !p.isPhantom);
+        if (provider) return provider;
         
-        // Priority 3: If window.ethereum has _metamask object and not Trust
-        if (window.ethereum?._metamask && !window.ethereum?.isTrust) {
+        if (window.ethereum?._metamask && !window.ethereum?.isTrust && !window.ethereum?.isPhantom) {
           return window.ethereum;
         }
         
-        // Priority 4: Conflict case
-        if (window.ethereum?.isMetaMask && window.ethereum?.isTrust) {
+        if (window.ethereum?.isMetaMask && (window.ethereum?.isTrust || window.ethereum?.isPhantom)) {
           return 'conflict';
         }
         
@@ -65,76 +95,30 @@
     trust: {
       name: 'Trust Wallet', 
       checkInstalled: () => {
-        // First check EIP-6963 detected providers
-        if (detectedProviders.has('trust')) {
-          return true;
-        }
-        // Fallback to traditional detection
-        if (window.ethereum?.providers?.length) {
-          return window.ethereum.providers.some(p => p.isTrust === true || p.isTrustWallet === true);
-        }
-        return window.ethereum?.isTrust === true || window.ethereum?.isTrustWallet === true || window.trustwallet !== undefined;
+        return detectedProviders.has('trust') ||
+               window.ethereum?.providers?.some(p => p.isTrust || p.isTrustWallet) ||
+               window.ethereum?.isTrust ||
+               window.ethereum?.isTrustWallet ||
+               window.trustwallet !== undefined;
       },
       getProvider: async () => {
-        // Priority 1: Use EIP-6963 detected Trust provider
-        const eip6963Provider = detectedProviders.get('trust');
-        if (eip6963Provider?.provider) {
-          console.log('Using EIP-6963 detected Trust Wallet provider');
-          return eip6963Provider.provider;
-        }
-        
-        // Priority 2: Check providers array
-        if (window.ethereum?.providers?.length) {
-          const trustProvider = window.ethereum.providers.find(p => p.isTrust === true || p.isTrustWallet === true);
-          if (trustProvider) return trustProvider;
-        }
-        
-        // Priority 3: Standalone Trust Wallet object
-        if (window.trustwallet) {
-          return window.trustwallet;
-        }
-        
-        // Priority 4: If window.ethereum is Trust Wallet
-        if (window.ethereum?.isTrust === true || window.ethereum?.isTrustWallet === true) {
-          return window.ethereum;
-        }
-        
-        return null;
+        return getEIP6963Provider('trust') ||
+               findProviderInArray(p => p.isTrust || p.isTrustWallet) ||
+               window.trustwallet ||
+               ((window.ethereum?.isTrust || window.ethereum?.isTrustWallet) ? window.ethereum : null);
       }
     },
     coinbase: {
       name: 'Coinbase Wallet',
       checkInstalled: () => {
-        // First check EIP-6963 detected providers
-        if (detectedProviders.has('coinbase')) {
-          return true;
-        }
-        // Fallback to traditional detection
-        if (window.ethereum?.providers?.length) {
-          return window.ethereum.providers.some(p => p.isCoinbaseWallet === true);
-        }
-        return window.ethereum?.isCoinbaseWallet === true;
+        return detectedProviders.has('coinbase') ||
+               window.ethereum?.providers?.some(p => p.isCoinbaseWallet) ||
+               window.ethereum?.isCoinbaseWallet === true;
       },
       getProvider: async () => {
-        // Priority 1: Use EIP-6963 detected Coinbase provider
-        const eip6963Provider = detectedProviders.get('coinbase');
-        if (eip6963Provider?.provider) {
-          console.log('Using EIP-6963 detected Coinbase Wallet provider');
-          return eip6963Provider.provider;
-        }
-        
-        // Priority 2: Check providers array
-        if (window.ethereum?.providers?.length) {
-          const coinbaseProvider = window.ethereum.providers.find(p => p.isCoinbaseWallet === true);
-          if (coinbaseProvider) return coinbaseProvider;
-        }
-        
-        // Priority 3: Direct window.ethereum
-        if (window.ethereum?.isCoinbaseWallet === true) {
-          return window.ethereum;
-        }
-        
-        return null;
+        return getEIP6963Provider('coinbase') ||
+               findProviderInArray(p => p.isCoinbaseWallet) ||
+               (window.ethereum?.isCoinbaseWallet ? window.ethereum : null);
       }
     },
   };
@@ -158,7 +142,10 @@
       if (!provider) return;
       
       // Store provider with its info - be more specific about detection
-      if (provider.isMetaMask && !provider.isTrust && !provider.isTrustWallet) {
+      if (provider.isPhantom) {
+        console.log('Detected Phantom via EIP-6963');
+        detectedProviders.set('phantom', { provider, info });
+      } else if (provider.isMetaMask && !provider.isTrust && !provider.isTrustWallet && !provider.isPhantom) {
         console.log('Detected real MetaMask via EIP-6963');
         detectedProviders.set('metamask', { provider, info });
       } else if (provider.isTrust || provider.isTrustWallet) {
@@ -194,8 +181,8 @@
     loading = true;
     const wallets = [];
     
-    // Always show these three wallets
-    const primaryWallets = ['metamask', 'trust', 'coinbase'];
+    // Always show these wallets in priority order
+    const primaryWallets = ['metamask', 'phantom', 'trust', 'coinbase'];
     
     for (const walletId of primaryWallets) {
       const config = walletConfigs[walletId];
@@ -227,27 +214,42 @@
     loading = false;
   }
   
+  let connectionAborted = $state(false);
+  let connectionController = null;
+  let isConnecting = $state(false);
+  
   async function selectWallet(wallet) {
+    // Prevent double connections
+    if (isConnecting) {
+      console.log('Connection already in progress');
+      return;
+    }
+    
     if (!wallet.installed) {
       // If wallet not installed, open appropriate installation page
-      const installUrls = {
-        metamask: 'https://metamask.io/download/',
-        trust: 'https://trustwallet.com/download',
-        coinbase: 'https://www.coinbase.com/wallet/downloads'
-      };
-      
-      if (installUrls[wallet.id]) {
-        window.open(installUrls[wallet.id], '_blank');
+      if (INSTALL_URLS[wallet.id]) {
+        window.open(INSTALL_URLS[wallet.id], '_blank');
       }
       return;
     }
     
-    // Set connecting state
+    // Reset abort flag and set connecting state
+    connectionAborted = false;
     connectingWallet = wallet;
+    isConnecting = true;
+    
+    // Create new AbortController for this connection attempt
+    connectionController = new AbortController();
     
     try {
       // Get the provider (now async)
       const provider = await wallet.getProvider();
+      
+      // Check if user aborted
+      if (connectionAborted) {
+        console.log('Connection aborted by user');
+        return;
+      }
       
       // Handle special conflict case for MetaMask
       if (provider === 'conflict' && wallet.id === 'metamask') {
@@ -276,13 +278,55 @@
         return;
       }
       
-      // Call onSelect and wait for it to complete
-      await onSelect(provider, wallet.name);
+      // Check again if user aborted before calling onSelect
+      if (connectionAborted) {
+        console.log('Connection aborted by user');
+        return;
+      }
+      
+      // Call onSelect with abort signal support
+      const connectionPromise = onSelect(provider, wallet.name);
+      
+      // Race between connection and abort signal
+      await Promise.race([
+        connectionPromise,
+        new Promise((_, reject) => {
+          connectionController.signal.addEventListener('abort', () => {
+            reject(new Error('Connection aborted by user'));
+          });
+        })
+      ]);
       // Don't close here - let parent component handle closing after successful connection
+    } catch (error) {
+      // Check if error is user rejection (MetaMask error code 4001)
+      const isUserRejection = error?.code === 4001 || 
+                             error?.message?.includes('User rejected') || 
+                             error?.message?.includes('User denied');
+      
+      // Only show error if not aborted and not user rejection
+      if (!connectionAborted && !isUserRejection && error?.message !== 'Connection aborted by user') {
+        console.error('Wallet connection error:', error);
+      }
     } finally {
       // Always clear connecting state
       connectingWallet = null;
+      connectionAborted = false;
+      connectionController = null;
+      isConnecting = false;
     }
+  }
+  
+  function cancelConnection() {
+    connectionAborted = true;
+    
+    // Abort the connection controller if it exists
+    if (connectionController) {
+      connectionController.abort();
+    }
+    
+    connectingWallet = null;
+    isConnecting = false;
+    isOpen = false;
   }
   
   function handleBackdropClick(e) {
@@ -299,6 +343,20 @@
     }
   }
 </script>
+
+{#snippet walletIcon(walletId)}
+  {#if WALLET_LOGOS[walletId]}
+    <img src={WALLET_LOGOS[walletId]} alt={walletConfigs[walletId]?.name || walletId} class="wallet-icon" />
+  {:else}
+    <svg class="wallet-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="40" height="40" rx="8" fill="#F3F4F6"/>
+      <rect x="12" y="12" width="6" height="6" rx="1" fill="#9CA3AF"/>
+      <rect x="22" y="12" width="6" height="6" rx="1" fill="#9CA3AF"/>
+      <rect x="12" y="22" width="6" height="6" rx="1" fill="#9CA3AF"/>
+      <rect x="22" y="22" width="6" height="6" rx="1" fill="#9CA3AF"/>
+    </svg>
+  {/if}
+{/snippet}
 
 {#if isOpen}
   <div 
@@ -333,21 +391,9 @@
           <div class="wallet-selector-loading">
             <div class="connecting-wallet-container">
               <div class="connecting-wallet-logo">
-                {#if connectingWallet.id === 'metamask'}
-                  <img src={metamaskLogo} alt="MetaMask" class="connecting-logo" />
-                {:else if connectingWallet.id === 'trust'}
-                  <img src={trustLogo} alt="Trust Wallet" class="connecting-logo" />
-                {:else if connectingWallet.id === 'coinbase'}
-                  <img src={coinbaseLogo} alt="Coinbase Wallet" class="connecting-logo" />
-                {:else}
-                  <svg class="connecting-logo" width="60" height="60" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect width="40" height="40" rx="8" fill="#F3F4F6"/>
-                    <rect x="12" y="12" width="6" height="6" rx="1" fill="#9CA3AF"/>
-                    <rect x="22" y="12" width="6" height="6" rx="1" fill="#9CA3AF"/>
-                    <rect x="12" y="22" width="6" height="6" rx="1" fill="#9CA3AF"/>
-                    <rect x="22" y="22" width="6" height="6" rx="1" fill="#9CA3AF"/>
-                  </svg>
-                {/if}
+                <div class="connecting-logo">
+                  {@render walletIcon(connectingWallet.id)}
+                </div>
                 <div class="connecting-spinner"></div>
               </div>
               <p class="text-gray-700 mt-4 font-medium">Connecting to {connectingWallet.name}...</p>
@@ -363,21 +409,7 @@
                 disabled={connectingWallet !== null}
               >
                 <div class="wallet-icon-wrapper">
-                  {#if wallet.id === 'metamask'}
-                    <img src={metamaskLogo} alt="MetaMask" class="wallet-icon" />
-                  {:else if wallet.id === 'trust'}
-                    <img src={trustLogo} alt="Trust Wallet" class="wallet-icon" />
-                  {:else if wallet.id === 'coinbase'}
-                    <img src={coinbaseLogo} alt="Coinbase Wallet" class="wallet-icon" />
-                  {:else}
-                    <svg class="wallet-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <rect width="40" height="40" rx="8" fill="#F3F4F6"/>
-                      <rect x="12" y="12" width="6" height="6" rx="1" fill="#9CA3AF"/>
-                      <rect x="22" y="12" width="6" height="6" rx="1" fill="#9CA3AF"/>
-                      <rect x="12" y="22" width="6" height="6" rx="1" fill="#9CA3AF"/>
-                      <rect x="22" y="22" width="6" height="6" rx="1" fill="#9CA3AF"/>
-                    </svg>
-                  {/if}
+                  {@render walletIcon(wallet.id)}
                 </div>
                 <span class="wallet-name">
                   {wallet.name}
@@ -483,9 +515,15 @@
     transition: all 0.15s;
   }
   
-  .wallet-selector-close:hover {
+  .wallet-selector-close:hover:not(:disabled) {
     background-color: #F3F4F6;
     color: #6B7280;
+  }
+  
+  .wallet-selector-close:disabled {
+    cursor: not-allowed;
+    opacity: 0.3;
+    color: #D1D5DB;
   }
   
   .wallet-selector-body {
@@ -519,8 +557,14 @@
   .connecting-logo {
     width: 60px;
     height: 60px;
-    border-radius: 0.75rem;
-    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .connecting-logo .wallet-icon {
+    width: 60px;
+    height: 60px;
   }
   
   .connecting-spinner {
@@ -536,27 +580,7 @@
     to { transform: rotate(360deg); }
   }
   
-  .wallet-selector-empty {
-    text-align: center;
-    padding: 3rem 2rem;
-  }
-  
-  .wallet-install-link {
-    display: inline-block;
-    padding: 0.625rem 1.25rem;
-    background-color: #2563EB;
-    color: white;
-    border-radius: 0.5rem;
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 0.875rem;
-    transition: all 0.15s;
-  }
-  
-  .wallet-install-link:hover {
-    background-color: #1D4ED8;
-    transform: translateY(-1px);
-  }
+  /* Removed unused CSS rules for wallet-selector-empty and wallet-install-link */
   
   .wallet-selector-list {
     display: flex;
@@ -618,10 +642,6 @@
   
   .wallet-option.wallet-not-installed:hover {
     opacity: 1;
-  }
-  
-  .wallet-option.wallet-not-installed .wallet-status {
-    color: #6B7280;
   }
   
   .wallet-selector-footer {
