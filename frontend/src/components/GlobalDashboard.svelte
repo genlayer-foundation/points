@@ -32,7 +32,7 @@
       
       // Fetch all users to count validators (matching Validators.svelte logic)
       const [usersRes, builderLeaderboardRes, validatorContribRes, builderContribRes] = await Promise.all([
-        usersAPI.getUsers(),
+        usersAPI.getUsers({ page_size: 1000 }),
         leaderboardAPI.getLeaderboardByType('builder'),
         contributionsAPI.getContributions({ category: 'validator', limit: 1 }),
         contributionsAPI.getContributions({ category: 'builder', limit: 1 })
