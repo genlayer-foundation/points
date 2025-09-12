@@ -204,7 +204,7 @@
             {/if}
           </div>
           <div>
-            <p class="text-sm font-medium text-gray-900">Connect your MetaMask wallet</p>
+            <p class="text-sm font-medium text-gray-900">Connect your wallet</p>
             <p class="text-xs text-gray-500">
               {#if walletAddress}
                 Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
@@ -293,7 +293,7 @@
             {/if}
           </div>
           <div>
-            <p class="text-sm font-medium text-gray-900">Add GenLayer Asimov Network to MetaMask</p>
+            <p class="text-sm font-medium text-gray-900">Add GenLayer Asimov Network to your wallet</p>
             <p class="text-xs text-gray-500">
               {#if hasAsimovNetwork}
                 Network configured in your wallet
