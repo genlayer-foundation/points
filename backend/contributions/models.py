@@ -79,6 +79,21 @@ class ContributionType(BaseModel):
     max_points = models.PositiveIntegerField(default=100, help_text="Maximum points allowed for this contribution type")
     is_default = models.BooleanField(default=False, help_text="Include this contribution type by default when creating validators")
     is_submittable = models.BooleanField(default=True, help_text="Whether this contribution type can be submitted by users")
+    is_highlight = models.BooleanField(
+        default=False,
+        help_text="Marks this type as a highlight category/type"
+    )
+    icon = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Icon identifier (e.g., 'mdi:star', 'fa-solid fa-star')"
+    )
+    examples = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Example entries for this contribution type (array of short strings)"
+    )
 
     def __str__(self):
         return self.name

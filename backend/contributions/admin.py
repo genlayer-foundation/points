@@ -33,12 +33,20 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
 
 @admin.register(ContributionType)
 class ContributionTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'is_default', 'is_submittable', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
+    list_display = (
+        'name', 'category', 'is_default', 'is_submittable', 'is_highlight', 'get_current_multiplier',
+        'min_points', 'max_points', 'icon', 'description', 'created_at'
+    )
     list_display_links = ('get_current_multiplier',)
-    list_editable = ('name', 'is_default', 'is_submittable', 'description')
+    # Enable quick edits for common fields directly from the list view
+    list_editable = (
+        'name', 'category', 'is_default', 'is_submittable', 'is_highlight', 'min_points', 'max_points', 'icon', 'description'
+    )
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at')
-    list_filter = ('category', 'is_default', 'is_submittable')
+    list_filter = ('category', 'is_default', 'is_submittable', 'is_highlight')
+    # Auto-fill slug from name on the edit page
+    prepopulated_fields = { 'slug': ('name',) }
     inlines = [GlobalLeaderboardMultiplierInline]
     
     def get_current_multiplier(self, obj):
