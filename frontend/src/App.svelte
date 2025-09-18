@@ -32,6 +32,7 @@
   import LoaderShowcase from './routes/LoaderShowcase.svelte';
   import StewardDashboard from './routes/StewardDashboard.svelte';
   import StewardSubmissions from './routes/StewardSubmissions.svelte';
+  import StewardManageUsers from './routes/StewardManageUsers.svelte';
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
   import BuilderWelcome from './routes/BuilderWelcome.svelte';
@@ -79,7 +80,8 @@
     // Steward routes
     '/stewards': StewardDashboard,
     '/stewards/submissions': StewardSubmissions,
-    
+    '/stewards/manage-users': StewardManageUsers,
+
     '*': NotFound
   };
   

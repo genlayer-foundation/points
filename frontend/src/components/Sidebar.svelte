@@ -237,16 +237,32 @@
             onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
             class="group flex items-center px-3 py-1.5 text-sm rounded-md {
               isActive('/stewards/submissions') || $location.startsWith('/stewards/submissions/')
-                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
+                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
                 : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
             }"
           >
-            <Icon 
+            <Icon
               name="contributions"
               size="sm"
-              className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
+              className="mr-2 text-green-600"
             />
             Contribution Submissions
+          </a>
+          <a
+            href="/stewards/manage-users"
+            onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}
+            class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+              isActive('/stewards/manage-users') || $location.startsWith('/stewards/manage-users/')
+                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            }"
+          >
+            <Icon
+              name="participants"
+              size="sm"
+              className="mr-2 text-green-600"
+            />
+            Manage Users
           </a>
         </div>
         {/if}
@@ -416,16 +432,32 @@
               onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
               class="group flex items-center px-3 py-1.5 text-base rounded-md {
                 isActive('/stewards/submissions') || $location.startsWith('/stewards/submissions/')
-                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
+                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
                   : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
               }"
             >
-              <Icon 
+              <Icon
                 name="contributions"
                 size="sm"
-                className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
+                className="mr-2 text-green-600"
               />
               Contribution Submissions
+            </a>
+            <a
+              href="/stewards/manage-users"
+              onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}
+              class="group flex items-center px-3 py-1.5 text-base rounded-md {
+                isActive('/stewards/manage-users') || $location.startsWith('/stewards/manage-users/')
+                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+              }"
+            >
+              <Icon
+                name="participants"
+                size="sm"
+                className="mr-2 text-green-600"
+              />
+              Manage Users
             </a>
           </div>
           {/if}

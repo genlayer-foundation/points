@@ -147,9 +147,21 @@ export const stewardAPI = {
   
   // Get steward statistics
   getStats: () => api.get('/steward-submissions/stats/'),
-  
+
   // Get list of all stewards
-  getStewards: () => api.get('/stewards/')
+  getStewards: () => api.get('/stewards/'),
+
+  // Get banned validators for management
+  getBannedValidators: () => api.get('/stewards/banned-validators/'),
+
+  // Get specific banned validator details
+  getBannedValidatorDetails: (address) => api.get(`/stewards/banned-validators/${address}/`),
+
+  // Future: Unban a single validator
+  unbanValidator: (address) => api.post(`/stewards/banned-validators/${address}/unban/`),
+
+  // Future: Unban all validators
+  unbanAllValidators: () => api.post('/stewards/banned-validators/unban-all/')
 };
 
 // Image upload API
