@@ -307,7 +307,7 @@ class ValidatorBlockchainService:
             logger.error(f"Error fetching active validators: {str(e)}")
             return []
 
-    # Future functionality for unbanning validators
+    # Unban functionality for validators
     def unban_validator(self, address: str, private_key: str) -> Dict[str, Any]:
         """
         Unban a specific validator (requires private key for transaction signing).
@@ -327,15 +327,68 @@ class ValidatorBlockchainService:
                         'error': 'Contract initialization failed'
                     }
 
-            # This would require implementing transaction signing and gas estimation
-            # For now, return a placeholder
+            # Validate inputs
+            if not address or not private_key:
+                return {
+                    'success': False,
+                    'error': 'Address and private key are required'
+                }
+
+            # Create account from private key
+            try:
+                account = self.w3.eth.account.from_key(private_key)
+                logger.info(f"Created account from private key: {account.address}")
+            except Exception as e:
+                return {
+                    'success': False,
+                    'error': f'Invalid private key: {str(e)}'
+                }
+
+            # Get current nonce for the account
+            nonce = self.w3.eth.get_transaction_count(account.address)
+
+            # Build the transaction
+            function = self.contract.functions.removeValidatorBan(Web3.to_checksum_address(address))
+
+            # Build transaction with fixed gas limit (no estimation)
+            transaction = function.build_transaction({
+                'from': account.address,
+                'nonce': nonce,
+                'gas': 100000,  # Fixed gas limit - steward pays anyway
+                'gasPrice': self.w3.eth.gas_price
+            })
+
+            logger.info(f"Built transaction: gas={transaction['gas']}, gasPrice={transaction['gasPrice']}")
+
+            # Sign the transaction
+            signed_txn = self.w3.eth.account.sign_transaction(transaction, private_key=private_key)
+
+            # Send the transaction
+            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            tx_hash_hex = tx_hash.hex()
+
+            logger.info(f"Sent unban transaction: {tx_hash_hex}")
+
+            # Clear private key from memory immediately
+            private_key = None
+            del private_key
+
             return {
-                'success': False,
-                'error': 'Unban functionality not yet implemented'
+                'success': True,
+                'transaction_hash': tx_hash_hex,
+                'message': 'Unban transaction sent successfully',
+                'gas_limit': transaction['gas'],
+                'gas_price': transaction['gasPrice']
             }
 
         except Exception as e:
             logger.error(f"Error unbanning validator {address}: {str(e)}")
+            # Clear private key from memory on error too
+            try:
+                private_key = None
+                del private_key
+            except:
+                pass
             return {
                 'success': False,
                 'error': str(e)
@@ -359,15 +412,68 @@ class ValidatorBlockchainService:
                         'error': 'Contract initialization failed'
                     }
 
-            # This would require implementing transaction signing and gas estimation
-            # For now, return a placeholder
+            # Validate inputs
+            if not private_key:
+                return {
+                    'success': False,
+                    'error': 'Private key is required'
+                }
+
+            # Create account from private key
+            try:
+                account = self.w3.eth.account.from_key(private_key)
+                logger.info(f"Created account from private key: {account.address}")
+            except Exception as e:
+                return {
+                    'success': False,
+                    'error': f'Invalid private key: {str(e)}'
+                }
+
+            # Get current nonce for the account
+            nonce = self.w3.eth.get_transaction_count(account.address)
+
+            # Build the transaction
+            function = self.contract.functions.removeAllValidatorBans()
+
+            # Build transaction with higher fixed gas limit for bulk operation
+            transaction = function.build_transaction({
+                'from': account.address,
+                'nonce': nonce,
+                'gas': 300000,  # Higher gas limit for bulk operation
+                'gasPrice': self.w3.eth.gas_price
+            })
+
+            logger.info(f"Built unban all transaction: gas={transaction['gas']}, gasPrice={transaction['gasPrice']}")
+
+            # Sign the transaction
+            signed_txn = self.w3.eth.account.sign_transaction(transaction, private_key=private_key)
+
+            # Send the transaction
+            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            tx_hash_hex = tx_hash.hex()
+
+            logger.info(f"Sent unban all transaction: {tx_hash_hex}")
+
+            # Clear private key from memory immediately
+            private_key = None
+            del private_key
+
             return {
-                'success': False,
-                'error': 'Unban all functionality not yet implemented'
+                'success': True,
+                'transaction_hash': tx_hash_hex,
+                'message': 'Unban all transaction sent successfully',
+                'gas_limit': transaction['gas'],
+                'gas_price': transaction['gasPrice']
             }
 
         except Exception as e:
             logger.error(f"Error unbanning all validators: {str(e)}")
+            # Clear private key from memory on error too
+            try:
+                private_key = None
+                del private_key
+            except:
+                pass
             return {
                 'success': False,
                 'error': str(e)

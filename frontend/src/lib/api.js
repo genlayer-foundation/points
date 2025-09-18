@@ -157,11 +157,11 @@ export const stewardAPI = {
   // Get specific banned validator details
   getBannedValidatorDetails: (address) => api.get(`/stewards/banned-validators/${address}/`),
 
-  // Future: Unban a single validator
-  unbanValidator: (address) => api.post(`/stewards/banned-validators/${address}/unban/`),
+  // Unban a single validator
+  unbanValidator: (address, data) => api.post(`/stewards/banned-validators/${address}/unban/`, data),
 
-  // Future: Unban all validators
-  unbanAllValidators: () => api.post('/stewards/banned-validators/unban-all/')
+  // Unban all validators
+  unbanAllValidators: (data) => api.post('/stewards/banned-validators/unban-all/', data)
 };
 
 // Image upload API

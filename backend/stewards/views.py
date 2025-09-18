@@ -166,9 +166,9 @@ class StewardViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='banned-validators/(?P<address>[^/.]+)/unban')
     def unban_validator(self, request, address=None):
         """
-        Unban a specific validator.
+        Log steward unban attempt for a specific validator.
         Only accessible by stewards.
-        Future functionality - currently returns not implemented.
+        Note: Actual transaction signing is handled on the frontend with wallet integration.
         """
         # Check steward permission
         if not self._check_steward_permission(request):
@@ -183,24 +183,22 @@ class StewardViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        logger.info(f"Steward {request.user.address} attempting to unban validator {address}")
+        logger.info(f"Steward {request.user.address} initiated unban action for validator {address}")
 
-        # For now, return not implemented
-        return Response(
-            {
-                'success': False,
-                'error': 'Unban functionality not yet implemented',
-                'message': 'This feature will be available in a future update'
-            },
-            status=status.HTTP_501_NOT_IMPLEMENTED
-        )
+        # Return success for logging purposes
+        # The actual transaction is handled by frontend wallet integration
+        return Response({
+            'success': True,
+            'message': f'Unban action logged for validator {address}',
+            'note': 'Transaction must be completed via wallet integration'
+        }, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='banned-validators/unban-all')
     def unban_all_validators(self, request):
         """
-        Unban all validators.
+        Log steward unban all attempt.
         Only accessible by stewards.
-        Future functionality - currently returns not implemented.
+        Note: Actual transaction signing is handled on the frontend with wallet integration.
         """
         # Check steward permission
         if not self._check_steward_permission(request):
@@ -209,14 +207,12 @@ class StewardViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        logger.info(f"Steward {request.user.address} attempting to unban all validators")
+        logger.info(f"Steward {request.user.address} initiated unban all action")
 
-        # For now, return not implemented
-        return Response(
-            {
-                'success': False,
-                'error': 'Unban all functionality not yet implemented',
-                'message': 'This feature will be available in a future update'
-            },
-            status=status.HTTP_501_NOT_IMPLEMENTED
-        )
+        # Return success for logging purposes
+        # The actual transaction is handled by frontend wallet integration
+        return Response({
+            'success': True,
+            'message': 'Unban all action logged',
+            'note': 'Transaction must be completed via wallet integration'
+        }, status=status.HTTP_200_OK)
