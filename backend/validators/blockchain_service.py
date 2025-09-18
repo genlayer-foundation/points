@@ -9,6 +9,74 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+# Full contract ABI with relevant functions for validator management
+# This is the single source of truth for the contract interface
+VALIDATOR_CONTRACT_ABI = [
+    {
+        "inputs": [],
+        "name": "getAllBannedValidators",
+        "outputs": [{"internalType": "address[]", "name": "", "type": "address[]"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [{"internalType": "address", "name": "_validator", "type": "address"}],
+        "name": "isValidatorBanned",
+        "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [{"internalType": "address", "name": "_validator", "type": "address"}],
+        "name": "getValidatorBannedIndex",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [{"internalType": "uint256", "name": "_index", "type": "uint256"}],
+        "name": "getValidatorBannedTimestampForIndex",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [{"internalType": "address", "name": "", "type": "address"}],
+        "name": "validatorBannedTimestamp",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getValidatorBansCount",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [{"internalType": "address", "name": "_validator", "type": "address"}],
+        "name": "removeValidatorBan",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "removeAllValidatorBans",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getValidatorsAtCurrentEpoch",
+        "outputs": [{"internalType": "address[]", "name": "", "type": "address[]"}],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]
+
 
 class ValidatorBlockchainService:
     """
@@ -32,80 +100,13 @@ class ValidatorBlockchainService:
                 logger.error("Failed to connect to blockchain RPC")
                 return False
 
-            # Contract address and ABI
+            # Contract address
             contract_address = settings.VALIDATOR_CONTRACT_ADDRESS
 
-            # Full contract ABI with relevant functions for banned validator management
-            contract_abi = [
-                {
-                    "inputs": [],
-                    "name": "getAllBannedValidators",
-                    "outputs": [{"internalType": "address[]", "name": "", "type": "address[]"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [{"internalType": "address", "name": "_validator", "type": "address"}],
-                    "name": "isValidatorBanned",
-                    "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [{"internalType": "address", "name": "_validator", "type": "address"}],
-                    "name": "getValidatorBannedIndex",
-                    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [{"internalType": "uint256", "name": "_index", "type": "uint256"}],
-                    "name": "getValidatorBannedTimestampForIndex",
-                    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [{"internalType": "address", "name": "", "type": "address"}],
-                    "name": "validatorBannedTimestamp",
-                    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [],
-                    "name": "getValidatorBansCount",
-                    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [{"internalType": "address", "name": "_validator", "type": "address"}],
-                    "name": "removeValidatorBan",
-                    "outputs": [],
-                    "stateMutability": "nonpayable",
-                    "type": "function"
-                },
-                {
-                    "inputs": [],
-                    "name": "removeAllValidatorBans",
-                    "outputs": [],
-                    "stateMutability": "nonpayable",
-                    "type": "function"
-                },
-                {
-                    "inputs": [],
-                    "name": "getValidatorsAtCurrentEpoch",
-                    "outputs": [{"internalType": "address[]", "name": "", "type": "address[]"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                }
-            ]
-
-            # Create contract instance
+            # Create contract instance using the module-level ABI constant
             self.contract = self.w3.eth.contract(
                 address=Web3.to_checksum_address(contract_address),
-                abi=contract_abi
+                abi=VALIDATOR_CONTRACT_ABI
             )
 
             logger.info(f"Validator blockchain service initialized successfully")
