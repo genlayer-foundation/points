@@ -5,6 +5,7 @@
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import LeaderboardTable from '../components/LeaderboardTable.svelte';
   import StatCard from '../components/StatCard.svelte';
+  import Icons from '../components/Icons.svelte';
   import { contributionsAPI } from '../lib/api';
   import { push } from 'svelte-spa-router';
   import { getCategoryColors, getPioneerColors } from '../lib/categoryColors';
@@ -124,6 +125,24 @@
       {#if contributionType.description}
         <p class="text-sm sm:text-base text-gray-600 mb-4">{contributionType.description}</p>
       {/if}
+      
+      <!-- Ideas Section -->
+      {#if Array.isArray(contributionType.examples) && contributionType.examples.length}
+        <div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div class="flex items-center gap-2 mb-3">
+            <Icons name="lightbulb" size="sm" className="text-yellow-600" />
+            <h3 class="text-sm font-semibold text-yellow-800">Ideas</h3>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            {#each contributionType.examples as example}
+              <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-300">
+                {example}
+              </span>
+            {/each}
+          </div>
+        </div>
+      {/if}
+      
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 border-t pt-4">
         <p class="text-sm text-gray-500">Added on {formatDate(contributionType.created_at)}</p>
         <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">

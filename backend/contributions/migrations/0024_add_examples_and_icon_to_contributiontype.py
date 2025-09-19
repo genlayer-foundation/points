@@ -10,12 +10,12 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name='contributiontype',
-            name='is_highlight',
-            field=models.BooleanField(default=False, help_text='Marks this type as a highlight category/type'),
+            name='icon',
+            field=models.CharField(blank=True, default='', help_text="Icon identifier (e.g., 'mdi:star', 'fa-solid fa-star')", max_length=100),
         ),
         migrations.AddField(
             model_name='contributiontype',
-            name='icon',
-            field=models.CharField(blank=True, default='', help_text="Icon identifier (e.g., 'mdi:star', 'fa-solid fa-star')", max_length=100),
+            name='examples',
+            field=models.JSONField(blank=True, default=list, help_text='Example entries for this contribution type (array of short strings)'),
         ),
     ]
