@@ -5,7 +5,8 @@
   import Badge from './Badge.svelte';
   import { contributionsAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
-  
+  import { getPioneerContributionsColors } from '../lib/categoryColors.js';
+
   // State management
   let typeStats = $state([]);
   let loading = $state(true);
@@ -23,7 +24,10 @@
       })
   );
   let activeTypes = $derived(typeStats.filter(stats => stats.count > 0));
-  
+
+  // Get colors based on current category
+  let pioneerColors = $derived(getPioneerContributionsColors($currentCategory));
+
   onMount(async () => {
     await fetchTypeStatistics();
   });
@@ -67,17 +71,17 @@
 
 <div class="space-y-6">
   {#if opportunityTypes.length > 0}
-    <div class="bg-blue-50 border border-blue-200 shadow overflow-hidden rounded-lg mb-6">
-      <div class="px-4 py-5 sm:px-6 bg-blue-100 border-b border-blue-200">
+    <div class="{pioneerColors.containerBg} border {pioneerColors.containerBorder} shadow overflow-hidden rounded-lg mb-6">
+      <div class="px-4 py-5 sm:px-6 {pioneerColors.headerBg} border-b {pioneerColors.headerBorder}">
         <div class="flex items-center flex-wrap gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6 {pioneerColors.headerIcon}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
-          <h3 class="text-base sm:text-lg leading-6 font-medium text-blue-900">
+          <h3 class="text-base sm:text-lg leading-6 font-medium {pioneerColors.headerText}">
             Pioneer Opportunities
           </h3>
         </div>
-        <p class="mt-1 max-w-2xl text-xs sm:text-sm text-blue-700">
+        <p class="mt-1 max-w-2xl text-xs sm:text-sm {pioneerColors.descriptionText}">
           Be the first to make these contributions and earn extra points!
         </p>
       </div>
@@ -92,26 +96,26 @@
         </div>
       {:else}
         <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-blue-200">
-            <thead class="bg-blue-50">
+          <table class="min-w-full divide-y {pioneerColors.containerBorder}">
+            <thead class="{pioneerColors.tableHeaderBg}">
               <tr>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium {pioneerColors.tableHeaderText} uppercase tracking-wider">
                   Type
                 </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium {pioneerColors.tableHeaderText} uppercase tracking-wider">
                   Description
                 </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium {pioneerColors.tableHeaderText} uppercase tracking-wider">
                   Points
                 </th>
               </tr>
             </thead>
-            <tbody class="bg-white divide-y divide-blue-100">
+            <tbody class="bg-white divide-y {pioneerColors.tableBorder}">
               {#each opportunityTypes as stats, i}
-                <tr class="bg-blue-50 hover:bg-blue-100 transition-colors duration-150">
+                <tr class="{pioneerColors.tableRowBg} {pioneerColors.tableRowHover} transition-colors duration-150">
                   <td class="px-6 py-4">
                     <div class="flex items-center">
-                      <div class="text-sm font-medium text-blue-900">
+                      <div class="text-sm font-medium {pioneerColors.titleText}">
                         <Badge
                           badge={{
                             id: stats.id,
@@ -122,19 +126,19 @@
                             actionName: stats.name,
                             evidenceUrl: ''
                           }}
-                          color="blue"
+                          color={pioneerColors.badgeColor}
                           clickable={true}
                         />
                       </div>
                     </div>
                   </td>
                   <td class="px-6 py-4">
-                    <div class="text-sm text-blue-800">
+                    <div class="text-sm {pioneerColors.contentText}">
                       {stats.description || 'No description available'}
                     </div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-bold text-blue-900">
+                    <div class="text-sm font-bold {pioneerColors.pointsText}">
                       {#if stats.min_points != null && stats.max_points != null && stats.current_multiplier != null}
                         {#if stats.min_points === stats.max_points}
                           {Math.round(stats.min_points * stats.current_multiplier)}
