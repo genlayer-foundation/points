@@ -353,6 +353,81 @@ class Evidence(BaseModel):
         verbose_name_plural = "Evidence Items"
 
 
+class Highlight(BaseModel):
+    """
+    Represents a highlight to be featured on the dashboard and contribution type pages.
+    Staff can create highlights with custom descriptions and time periods.
+    """
+    name = models.CharField(
+        max_length=200,
+        help_text="Name of the highlight"
+    )
+    short_description = models.CharField(
+        max_length=300,
+        help_text="Brief description shown on cards"
+    )
+    expanded_description = models.TextField(
+        help_text="Detailed description shown in modal"
+    )
+    start_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this highlight becomes active (optional)"
+    )
+    end_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this highlight expires (optional)"
+    )
+    contribution_type = models.ForeignKey(
+        ContributionType,
+        on_delete=models.CASCADE,
+        related_name='highlights',
+        help_text="The contribution type this highlight is related to"
+    )
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Highlight"
+        verbose_name_plural = "Highlights"
+    
+    def is_active(self):
+        """
+        Check if this highlight is currently active based on start/end dates.
+        """
+        from django.utils import timezone
+        now = timezone.now()
+        
+        # If start_date is set and we haven't reached it yet, not active
+        if self.start_date and now < self.start_date:
+            return False
+        
+        # If end_date is set and we've passed it, not active
+        if self.end_date and now > self.end_date:
+            return False
+        
+        return True
+    
+    @classmethod
+    def get_active_highlights(cls, limit=10):
+        """
+        Get currently active highlights.
+        """
+        from django.utils import timezone
+        now = timezone.now()
+        
+        queryset = cls.objects.filter(
+            models.Q(start_date__isnull=True) | models.Q(start_date__lte=now)
+        ).filter(
+            models.Q(end_date__isnull=True) | models.Q(end_date__gt=now)
+        ).select_related('contribution_type', 'contribution_type__category')
+        
+        return queryset[:limit]
+    
+    def __str__(self):
+        return f"{self.name} - {self.contribution_type.name}"
+
+
 class ContributionHighlight(BaseModel):
     """
     Represents a highlighted contribution to be featured on the dashboard and contribution type pages.

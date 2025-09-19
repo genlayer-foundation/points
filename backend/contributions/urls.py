@@ -2,7 +2,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     ContributionTypeViewSet, ContributionViewSet, EvidenceViewSet,
-    SubmittedContributionViewSet, SubmissionListView, submission_review_view
+    SubmittedContributionViewSet, SubmissionListView, submission_review_view,
+    HighlightViewSet
 )
 
 app_name = 'contributions'
@@ -13,6 +14,7 @@ router.register(r'types', ContributionTypeViewSet)
 router.register(r'contributions', ContributionViewSet)
 router.register(r'evidence', EvidenceViewSet)
 router.register(r'submissions', SubmittedContributionViewSet, basename='submission')
+router.register(r'highlights', HighlightViewSet, basename='highlight')
 
 urlpatterns = [
     # API URLs

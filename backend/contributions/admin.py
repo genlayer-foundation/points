@@ -10,7 +10,7 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from datetime import datetime
-from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight
+from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Highlight
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
 
@@ -589,3 +589,36 @@ class ContributionHighlightAdmin(admin.ModelAdmin):
             'contribution__user',
             'contribution__contribution_type'
         )
+
+
+@admin.register(Highlight)
+class HighlightAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'contribution_type', 'get_status', 'start_date', 'end_date', 'created_at')
+    list_filter = ('contribution_type', 'start_date', 'end_date', 'created_at')
+    search_fields = ('name', 'short_description', 'expanded_description')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    list_editable = ()
+
+    fieldsets = (
+        (None, {
+            'fields': ('id', 'name', 'contribution_type', 'short_description')
+        }),
+        ('Details', {
+            'fields': ('expanded_description',)
+        }),
+        ('Schedule', {
+            'fields': ('start_date', 'end_date'),
+            'description': 'Optional: Set dates to control when this highlight is active'
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_status(self, obj):
+        if obj.is_active():
+            return format_html('<span style="color: green;">●</span> Active')
+        else:
+            return format_html('<span style="color: red;">●</span> Inactive')
+    get_status.short_description = 'Status'

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight
+from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Highlight
 from users.serializers import UserSerializer
 from users.models import User
 import decimal
@@ -296,3 +296,20 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
             
             return contribution_data
         return None
+
+
+class HighlightSerializer(serializers.ModelSerializer):
+    contribution_type_details = ContributionTypeSerializer(source='contribution_type', read_only=True)
+    is_active = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Highlight
+        fields = [
+            'id', 'name', 'short_description', 'expanded_description',
+            'start_date', 'end_date', 'contribution_type', 'contribution_type_details',
+            'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_is_active(self, obj):
+        return obj.is_active()

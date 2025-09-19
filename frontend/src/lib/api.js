@@ -85,14 +85,16 @@ export const contributionsAPI = {
   getContributionTypeMultipliers: (typeId) => api.get(`/contribution-type-multipliers/?contribution_type=${typeId}`),
   getContributionTypeStatistics: (params) => api.get('/contribution-types/statistics/', { params }),
   getContributionTypeTopContributors: (id) => api.get(`/contribution-types/${id}/top_contributors/`),
-  getHighlights: (params) => api.get('/contributions/highlights/', { params }),
   getContributionTypeRecentContributions: (id) => api.get(`/contribution-types/${id}/recent_contributions/`),
   getContributionTypeHighlights: (id) => api.get(`/contribution-types/${id}/highlights/`),
   getAllHighlights: (params) => api.get('/contributions/highlights/', { params }),
   getContributionCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.contribution_count }
-  }))
+  })),
+  getHighlights: (params) => api.get('/highlights/', { params }),
+  getHighlight: (id) => api.get(`/highlights/${id}/`)
 };
+
 
 // API endpoints for leaderboard
 export const leaderboardAPI = {
