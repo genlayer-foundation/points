@@ -120,11 +120,20 @@
     </div>
   {:else if contributionType}
     <div class="{categoryColors.headerBg} shadow rounded-lg p-4 sm:p-6 border-2 {categoryColors.borderLight}">
-      <h1 class="text-xl sm:text-2xl font-bold {categoryColors.textDark} mb-2">{contributionType.name}</h1>
-      {#if contributionType.description}
-        <p class="text-sm sm:text-base text-gray-600 mb-4">{contributionType.description}</p>
-      {/if}
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 border-t pt-4">
+      <div class="flex items-start gap-4">
+        {#if contributionType.icon}
+          <div class="flex-shrink-0 w-12 h-12 {categoryColors.statBg} rounded-xl flex items-center justify-center text-2xl">
+            {contributionType.icon}
+          </div>
+        {/if}
+        <div class="flex-1">
+          <h1 class="text-xl sm:text-2xl font-bold {categoryColors.textDark} mb-2">{contributionType.name}</h1>
+          {#if contributionType.description}
+            <p class="text-sm sm:text-base text-gray-600">{contributionType.description}</p>
+          {/if}
+        </div>
+      </div>
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 border-t pt-4 mt-4">
         <p class="text-sm text-gray-500">Added on {formatDate(contributionType.created_at)}</p>
         <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
           <span class="text-sm text-gray-500">Points per contribution:</span>
