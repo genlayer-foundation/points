@@ -146,6 +146,130 @@ export const getPioneerColors = (category) => {
 };
 
 /**
+ * Get colors for pioneer contributions section (opportunities with zero contributions)
+ */
+export const getPioneerContributionsColors = (category) => {
+  switch (category) {
+    case 'builder':
+      return {
+        // Container colors
+        containerBg: 'bg-orange-50',
+        containerBorder: 'border-orange-200',
+
+        // Header colors
+        headerBg: 'bg-orange-100',
+        headerBorder: 'border-orange-200',
+        headerText: 'text-orange-900',
+        headerIcon: 'text-orange-600',
+        descriptionText: 'text-orange-700',
+
+        // Table colors
+        tableHeaderBg: 'bg-orange-50',
+        tableHeaderText: 'text-orange-700',
+        tableRowBg: 'bg-orange-50',
+        tableRowHover: 'hover:bg-orange-100',
+        tableBorder: 'divide-orange-100',
+
+        // Text colors
+        titleText: 'text-orange-900',
+        contentText: 'text-orange-800',
+        pointsText: 'text-orange-900',
+
+        // Badge color
+        badgeColor: 'orange'
+      };
+
+    case 'validator':
+      return {
+        // Container colors
+        containerBg: 'bg-blue-50',
+        containerBorder: 'border-blue-200',
+
+        // Header colors
+        headerBg: 'bg-blue-100',
+        headerBorder: 'border-blue-200',
+        headerText: 'text-blue-900',
+        headerIcon: 'text-blue-600',
+        descriptionText: 'text-blue-700',
+
+        // Table colors
+        tableHeaderBg: 'bg-blue-50',
+        tableHeaderText: 'text-blue-700',
+        tableRowBg: 'bg-blue-50',
+        tableRowHover: 'hover:bg-blue-100',
+        tableBorder: 'divide-blue-100',
+
+        // Text colors
+        titleText: 'text-blue-900',
+        contentText: 'text-blue-800',
+        pointsText: 'text-blue-900',
+
+        // Badge color
+        badgeColor: 'blue'
+      };
+
+    case 'steward':
+      return {
+        // Container colors
+        containerBg: 'bg-green-50',
+        containerBorder: 'border-green-200',
+
+        // Header colors
+        headerBg: 'bg-green-100',
+        headerBorder: 'border-green-200',
+        headerText: 'text-green-900',
+        headerIcon: 'text-green-600',
+        descriptionText: 'text-green-700',
+
+        // Table colors
+        tableHeaderBg: 'bg-green-50',
+        tableHeaderText: 'text-green-700',
+        tableRowBg: 'bg-green-50',
+        tableRowHover: 'hover:bg-green-100',
+        tableBorder: 'divide-green-100',
+
+        // Text colors
+        titleText: 'text-green-900',
+        contentText: 'text-green-800',
+        pointsText: 'text-green-900',
+
+        // Badge color
+        badgeColor: 'green'
+      };
+
+    case 'global':
+    default:
+      return {
+        // Container colors
+        containerBg: 'bg-gray-50',
+        containerBorder: 'border-gray-200',
+
+        // Header colors
+        headerBg: 'bg-gray-100',
+        headerBorder: 'border-gray-200',
+        headerText: 'text-gray-900',
+        headerIcon: 'text-gray-600',
+        descriptionText: 'text-gray-700',
+
+        // Table colors
+        tableHeaderBg: 'bg-gray-50',
+        tableHeaderText: 'text-gray-700',
+        tableRowBg: 'bg-gray-50',
+        tableRowHover: 'hover:bg-gray-100',
+        tableBorder: 'divide-gray-100',
+
+        // Text colors
+        titleText: 'text-gray-900',
+        contentText: 'text-gray-800',
+        pointsText: 'text-gray-900',
+
+        // Badge color
+        badgeColor: 'gray'
+      };
+  }
+};
+
+/**
  * Get simple icon color for sidebar and navigation
  */
 export const getCategoryIconColor = (category) => {
