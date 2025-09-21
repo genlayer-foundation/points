@@ -58,7 +58,8 @@ export const usersAPI = {
   updateUserProfile: (data) => api.patch('/users/me/', data),
   getAccountBalance: () => api.get('/users/balance/'),
   checkDeployments: () => api.get('/users/check_deployments/'),
-  getDeploymentStatus: () => api.get('/users/deployment_status/')
+  getDeploymentStatus: () => api.get('/users/deployment_status/'),
+  getActiveValidators: () => api.get('/users/validators/')
 };
 
 // API endpoints for contributions
@@ -120,8 +121,7 @@ export const statsAPI = {
 
 // Validators API
 export const validatorsAPI = {
-  getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } }),
-  getActiveValidators: () => api.get('/users/validators/')
+  getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } })
 };
 
 // Journey API

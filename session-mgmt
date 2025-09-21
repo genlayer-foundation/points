@@ -373,6 +373,228 @@ except:
     ./tally-session list
 }
 
+# Function to checkout PR and create session
+checkout_pr() {
+    local pr_number=$1
+    
+    if [ -z "$pr_number" ]; then
+        echo "Error: PR number required"
+        echo "Usage: $0 pr <pr-number>"
+        exit 1
+    fi
+    
+    # Validate PR number is numeric
+    if ! [[ "$pr_number" =~ ^[0-9]+$ ]]; then
+        echo "Error: PR number must be numeric"
+        exit 1
+    fi
+    
+    local name="pr-$pr_number"
+    
+    # Check if session already exists
+    if cat "$SESSIONS_FILE" | grep -q "\"$name\":"; then
+        echo "Error: Session '$name' already exists"
+        echo "Use 'update-pr $pr_number' to update an existing PR session"
+        exit 1
+    fi
+    
+    # Fetch PR metadata
+    echo "Fetching PR #$pr_number metadata..."
+    pr_info=$(gh pr view "$pr_number" --json number,title,headRefName,author,url,state 2>/dev/null)
+    
+    if [ -z "$pr_info" ]; then
+        echo "Error: Could not fetch PR #$pr_number"
+        echo "Make sure the PR exists and you have access to it"
+        exit 1
+    fi
+    
+    # Extract PR details
+    pr_branch=$(echo "$pr_info" | python3 -c "import json, sys; print(json.load(sys.stdin)['headRefName'])")
+    pr_title=$(echo "$pr_info" | python3 -c "import json, sys; print(json.load(sys.stdin)['title'])")
+    pr_author=$(echo "$pr_info" | python3 -c "import json, sys; print(json.load(sys.stdin)['author']['login'])")
+    pr_url=$(echo "$pr_info" | python3 -c "import json, sys; print(json.load(sys.stdin)['url'])")
+    pr_state=$(echo "$pr_info" | python3 -c "import json, sys; print(json.load(sys.stdin)['state'])")
+    
+    if [ "$pr_state" != "OPEN" ]; then
+        echo "Warning: PR #$pr_number is $pr_state"
+        read -p "Continue anyway? (y/n) [n]: " continue_choice
+        continue_choice=${continue_choice:-n}
+        if [ "$continue_choice" != "y" ] && [ "$continue_choice" != "Y" ]; then
+            echo "Session creation cancelled."
+            exit 0
+        fi
+    fi
+    
+    echo "PR #$pr_number: $pr_title"
+    echo "Author: $pr_author"
+    echo "Branch: $pr_branch"
+    echo ""
+    
+    # Get available ports
+    read backend_port frontend_port <<< $(find_available_ports)
+    
+    echo "Creating PR session '$name' with:"
+    echo "  Backend port:  $backend_port"
+    echo "  Frontend port: $frontend_port"
+    
+    # Fetch PR branch without changing current branch
+    echo "Fetching PR branch..."
+    cd "$TALLY_ROOT"
+    
+    # Store current branch to restore later
+    current_branch=$(git branch --show-current)
+    
+    # Fetch the PR ref directly and create a local branch
+    git fetch origin "pull/$pr_number/head:$name-branch"
+    
+    # Create git worktree from the PR branch
+    echo "Creating git worktree..."
+    git worktree add "../tally-$name" "$name-branch"
+    
+    # Make sure we're still on the original branch
+    git checkout "$current_branch" 2>/dev/null || true
+    
+    # Create symlink for node_modules
+    echo "Creating symlink for node_modules..."
+    ln -s "$TALLY_ROOT/frontend/node_modules" "$HOME/Dev/tally-$name/frontend/node_modules"
+    
+    # Copy database (not symlink) so each session has its own
+    echo "Copying database..."
+    if [ -f "$TALLY_ROOT/backend/db.sqlite3" ]; then
+        cp "$TALLY_ROOT/backend/db.sqlite3" "$HOME/Dev/tally-$name/backend/db.sqlite3"
+    fi
+    
+    # Copy backend .env if it exists
+    if [ -f "$TALLY_ROOT/backend/.env" ]; then
+        echo "Copying backend .env..."
+        cp "$TALLY_ROOT/backend/.env" "$HOME/Dev/tally-$name/backend/.env"
+    fi
+    
+    # Copy Claude settings if it exists
+    if [ -f "$TALLY_ROOT/.claude/settings.local.json" ]; then
+        echo "Copying Claude settings..."
+        mkdir -p "$HOME/Dev/tally-$name/.claude"
+        cp "$TALLY_ROOT/.claude/settings.local.json" "$HOME/Dev/tally-$name/.claude/settings.local.json"
+    fi
+    
+    # Copy frontend .env and update backend URL
+    if [ -f "$TALLY_ROOT/frontend/.env" ]; then
+        echo "Copying and updating frontend .env..."
+        cp "$TALLY_ROOT/frontend/.env" "$HOME/Dev/tally-$name/frontend/.env"
+        
+        # Add or update VITE_API_URL to point to this session's backend
+        if grep -q "^VITE_API_URL=" "$HOME/Dev/tally-$name/frontend/.env"; then
+            # Update existing VITE_API_URL
+            sed -i '' "s|^VITE_API_URL=.*|VITE_API_URL=http://localhost:$backend_port|" "$HOME/Dev/tally-$name/frontend/.env"
+        else
+            # Add VITE_API_URL on a new line
+            echo "" >> "$HOME/Dev/tally-$name/frontend/.env"
+            echo "VITE_API_URL=http://localhost:$backend_port" >> "$HOME/Dev/tally-$name/frontend/.env"
+        fi
+    else
+        # Create minimal .env with backend URL
+        echo "Creating frontend .env with backend URL..."
+        echo "VITE_API_URL=http://localhost:$backend_port" > "$HOME/Dev/tally-$name/frontend/.env"
+    fi
+    
+    # Save session info to file (using python for JSON handling)
+    python3 -c "
+import json
+with open('$SESSIONS_FILE', 'r') as f:
+    sessions = json.load(f)
+sessions['$name'] = {
+    'backend_port': $backend_port,
+    'frontend_port': $frontend_port,
+    'worktree': '$HOME/Dev/tally-$name',
+    'branch': '$name-branch',
+    'pr_number': $pr_number,
+    'pr_title': '''$pr_title''',
+    'pr_author': '$pr_author',
+    'pr_url': '$pr_url'
+}
+with open('$SESSIONS_FILE', 'w') as f:
+    json.dump(sessions, f, indent=2)
+"
+    
+    # Create tmux session with 5 windows
+    echo "Creating tmux session..."
+    tmux new-session -d -s "tally-$name" -c "$HOME/Dev/tally-$name/backend" -n "backend:$backend_port"
+    tmux send-keys -t "tally-$name:backend:$backend_port" "workon tally && cd $HOME/Dev/tally-$name/backend && python manage.py runserver $backend_port" C-m
+    
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name/frontend" -n "frontend:$frontend_port"
+    tmux send-keys -t "tally-$name:frontend:$frontend_port" "workon tally && cd $HOME/Dev/tally-$name/frontend && npm run dev -- --port $frontend_port" C-m
+    
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name" -n claude
+    tmux send-keys -t "tally-$name:claude" "workon tally && cd $HOME/Dev/tally-$name && claude tally-$name" C-m
+    
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name" -n shell
+    tmux send-keys -t "tally-$name:shell" "workon tally && cd $HOME/Dev/tally-$name" C-m
+    tmux send-keys -t "tally-$name:shell" "clear" C-m
+    
+    tmux new-window -t "tally-$name" -c "$HOME/Dev/tally-$name" -n cli
+    tmux send-keys -t "tally-$name:cli" "workon tally && cd $HOME/Dev/tally-$name"
+    
+    echo ""
+    echo "PR Session '$name' created successfully!"
+    echo "PR: $pr_url"
+    echo "Attach with: tmux attach -t tally-$name"
+    echo "Backend URL: http://localhost:$backend_port"
+    echo "Frontend URL: http://localhost:$frontend_port"
+}
+
+# Function to update PR session with latest changes
+update_pr() {
+    local pr_number=$1
+    
+    if [ -z "$pr_number" ]; then
+        echo "Error: PR number required"
+        echo "Usage: $0 update-pr <pr-number>"
+        exit 1
+    fi
+    
+    local name="pr-$pr_number"
+    
+    # Check if session exists
+    if ! cat "$SESSIONS_FILE" | grep -q "\"$name\":"; then
+        echo "Error: PR session '$name' not found"
+        echo "Use '$0 pr $pr_number' to create a new PR session"
+        exit 1
+    fi
+    
+    # Get the worktree path
+    worktree=$(python3 -c "
+import json
+with open('$SESSIONS_FILE', 'r') as f:
+    sessions = json.load(f)
+    if '$name' in sessions:
+        print(sessions['$name']['worktree'])
+")
+    
+    if [ -z "$worktree" ] || [ ! -d "$worktree" ]; then
+        echo "Error: Worktree not found at $worktree"
+        exit 1
+    fi
+    
+    echo "Updating PR #$pr_number in $worktree..."
+    cd "$worktree"
+    
+    # Fetch latest changes
+    echo "Fetching latest changes from PR..."
+    gh pr checkout "$pr_number" --force
+    
+    if [ $? -eq 0 ]; then
+        echo "PR #$pr_number updated successfully!"
+        
+        # Show what changed
+        echo ""
+        echo "Recent commits:"
+        git log --oneline -5
+    else
+        echo "Error: Failed to update PR #$pr_number"
+        exit 1
+    fi
+}
+
 # Function to list all sessions
 list_sessions() {
     echo "Active Tally Sessions:"
@@ -392,6 +614,13 @@ try:
             print(f\"  Frontend: http://localhost:{info['frontend_port']}\")
             print(f\"  Worktree: {info['worktree']}\")
             print(f\"  Branch:   {info['branch']}\")
+            
+            # Show PR info if it's a PR session
+            if 'pr_number' in info:
+                print(f\"  PR:       #{info['pr_number']} - {info['pr_title']}\")
+                print(f\"  Author:   {info['pr_author']}\")
+                print(f\"  URL:      {info['pr_url']}\")
+            
             print(f\"  Attach:   tmux attach -t tally-{name}\")
 except:
     print('No active sessions')
@@ -407,6 +636,12 @@ except:
 case "$1" in
     add)
         add_session "$2"
+        ;;
+    pr)
+        checkout_pr "$2"
+        ;;
+    update-pr)
+        update_pr "$2"
         ;;
     remove|rm)
         remove_session "$2"
@@ -427,13 +662,17 @@ case "$1" in
         echo "Usage: $0 <command> [args]"
         echo ""
         echo "Commands:"
-        echo "  add <name>     Create a new session with git worktree and tmux"
-        echo "  remove <name>  Remove a session and its worktree"
-        echo "  resume [name]  Resume a session (or all sessions if no name given)"
-        echo "  list           List all active sessions"
+        echo "  add <name>        Create a new session with git worktree and tmux"
+        echo "  pr <number>       Create a session from a pull request"
+        echo "  update-pr <num>   Update PR session with latest changes"
+        echo "  remove <name>     Remove a session and its worktree"
+        echo "  resume [name]     Resume a session (or all sessions if no name given)"
+        echo "  list              List all active sessions"
         echo ""
         echo "Examples:"
         echo "  $0 add feature-auth      # Create new session"
+        echo "  $0 pr 122                 # Create session from PR #122"
+        echo "  $0 update-pr 122          # Update PR #122 with latest changes"
         echo "  $0 resume feature-auth    # Resume specific session after restart"
         echo "  $0 resume                 # Resume all sessions after restart"
         echo "  $0 remove feature-auth    # Remove session completely"
