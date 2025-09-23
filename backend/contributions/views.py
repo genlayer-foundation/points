@@ -198,17 +198,25 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         # Get the queryset and apply pagination before grouping
         queryset = self.filter_queryset(self.get_queryset())
         
+        # Get the total count of actual contributions (not groups)
+        total_contributions_count = queryset.count()
+        
         # Apply regular pagination first to get raw contributions
         page_size = int(request.query_params.get('limit', 10))
         page_number = int(request.query_params.get('page', 1))
         
         # We need to fetch more records to ensure we have enough after grouping
-        # Fetch 3x the page size to account for grouping
-        extended_limit = page_size * 3
+        # For efficiency, don't load all contributions - use a reasonable limit
+        # that ensures we get enough groups after consecutive grouping
+        extended_limit = min(page_size * 50, 500)  # Fetch up to 50x page size or 500 records
         start_index = (page_number - 1) * page_size
         
+        # Calculate the offset for fetching contributions
+        # We need to estimate where to start fetching based on previous pages
+        fetch_offset = (page_number - 1) * extended_limit if page_number > 1 else 0
+        
         # Get contributions with extended limit
-        all_contributions = list(queryset)
+        all_contributions = list(queryset[fetch_offset:fetch_offset + extended_limit])
         
         # Group consecutive contributions
         grouped = []
@@ -292,14 +300,18 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         # Apply pagination to grouped results
         paginated_groups = grouped[start_index:start_index + page_size]
         
-        # Calculate total count - this is approximate
-        # In a real implementation, you might want to do a more accurate count
-        total_count = len(grouped)
+        # Use the actual contribution count, not the grouped count
+        # This ensures stats show the correct total number of contributions
+        total_count = total_contributions_count
         
-        # Return paginated response
+        # For pagination, we need to track the number of groups for next/prev links
+        total_groups = len(grouped)
+        
+        # Return paginated response with the actual contribution count
         return Response({
-            'count': total_count,
-            'next': None if (start_index + page_size) >= total_count else f"?page={page_number + 1}&limit={page_size}&group_consecutive=true",
+            'count': total_count,  # Return actual contribution count for stats
+            'grouped_count': total_groups,  # Also include grouped count if needed
+            'next': None if (start_index + page_size) >= total_groups else f"?page={page_number + 1}&limit={page_size}&group_consecutive=true",
             'previous': None if page_number == 1 else f"?page={page_number - 1}&limit={page_size}&group_consecutive=true",
             'results': paginated_groups
         })
