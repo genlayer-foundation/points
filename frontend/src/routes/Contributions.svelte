@@ -3,7 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import ContributionTypeStats from '../components/ContributionTypeStats.svelte';
-  import ContributionTypeHighlights from '../components/ContributionTypeHighlights.svelte';
+  import Missions from '../components/Missions.svelte';
   import Badge from '../components/Badge.svelte';
   import Pagination from '../components/Pagination.svelte';
   import { contributionsAPI, usersAPI } from '../lib/api';
@@ -137,7 +137,7 @@
     <h1 class="text-2xl font-bold text-gray-900">Contributions</h1>
   </div>
   
-  <ContributionTypeHighlights />
+  <Missions />
 
   <!-- Connection error message if needed -->
   {#if error || typesError}

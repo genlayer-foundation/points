@@ -10,12 +10,12 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.generic import ListView
 from django.utils.decorators import method_decorator
-from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Highlight
-from .serializers import (ContributionTypeSerializer, ContributionSerializer, 
+from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission
+from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
                          StewardSubmissionSerializer, StewardSubmissionReviewSerializer,
-                         HighlightSerializer)
+                         MissionSerializer)
 from .forms import SubmissionReviewForm
 from .permissions import IsSteward
 from leaderboard.models import GlobalLeaderboardMultiplier
@@ -145,12 +145,12 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         """
         contribution_type = self.get_object()
         limit = int(request.query_params.get('limit', 5))
-        
+
         highlights = ContributionHighlight.get_active_highlights(
             contribution_type=contribution_type,
             limit=limit
         )
-        
+
         serializer = ContributionHighlightSerializer(highlights, many=True)
         return Response(serializer.data)
     
@@ -794,12 +794,12 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         return Response(user_data)
 
 
-class HighlightViewSet(viewsets.ReadOnlyModelViewSet):
+class MissionViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    ViewSet for retrieving highlights.
-    Only active highlights are returned by default.
+    ViewSet for retrieving missions.
+    Only missions are returned by default.
     """
-    serializer_class = HighlightSerializer
+    serializer_class = MissionSerializer
 
     def get_queryset(self):
         """
@@ -812,7 +812,7 @@ class HighlightViewSet(viewsets.ReadOnlyModelViewSet):
         now = timezone.now()
 
         # Get base queryset of active highlights (without slicing)
-        queryset = Highlight.objects.filter(
+        queryset = Mission.objects.filter(
             models.Q(start_date__isnull=True) | models.Q(start_date__lte=now)
         ).filter(
             models.Q(end_date__isnull=True) | models.Q(end_date__gt=now)

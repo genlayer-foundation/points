@@ -6,23 +6,26 @@
   import LeaderboardTable from '../components/LeaderboardTable.svelte';
   import StatCard from '../components/StatCard.svelte';
   import Icons from '../components/Icons.svelte';
+  import Badge from '../components/Badge.svelte';
   import { contributionsAPI } from '../lib/api';
   import { push } from 'svelte-spa-router';
-  import { getCategoryColors, getPioneerColors } from '../lib/categoryColors';
+  import { getCategoryColors, getPioneerColors, getPioneerContributionsColors } from '../lib/categoryColors';
 
   // This will be set by the router
-  export let params = {};
+  let { params = {} } = $props();
 
-  let contributionType = null;
-  let contributions = [];
-  let statistics = {};
-  let topContributors = [];
-  let loading = true;
-  let error = null;
-  
+  let contributionType = $state(null);
+  let contributions = $state([]);
+  let statistics = $state({});
+  let topContributors = $state([]);
+  let missions = $state([]);
+  let loading = $state(true);
+  let error = $state(null);
+  let expandedMissions = $state(new Set());
+
   // Determine category colors based on contribution type
-  $: categoryColors = contributionType ? getCategoryColors(contributionType.category) : getCategoryColors('global');
-  $: pioneerColors = contributionType ? getPioneerColors(contributionType.category) : getPioneerColors('global');
+  let categoryColors = $derived(contributionType ? getCategoryColors(contributionType.category) : getCategoryColors('global'));
+  let pioneerColors = $derived(contributionType ? getPioneerColors(contributionType.category) : getPioneerColors('global'));
 
   // Get contribution type details
   const fetchContributionType = async () => {
@@ -73,6 +76,24 @@
     }
   };
 
+  // Get missions for this contribution type
+  const fetchMissions = async () => {
+    try {
+      const response = await contributionsAPI.getMissions({
+        contribution_type: params.id
+      });
+
+      if (response.data?.results !== undefined) {
+        return response.data.results || [];
+      } else {
+        return response.data || [];
+      }
+    } catch (err) {
+      console.error('Error fetching missions:', err);
+      return [];
+    }
+  };
+
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -83,23 +104,36 @@
     }
   };
 
+  // Toggle expanded state for missions
+  function toggleMissionExpanded(missionId) {
+    const newExpanded = new Set(expandedMissions);
+    if (newExpanded.has(missionId)) {
+      newExpanded.delete(missionId);
+    } else {
+      newExpanded.add(missionId);
+    }
+    expandedMissions = newExpanded;
+  }
+
   onMount(async () => {
     loading = true;
     error = null;
 
     try {
       // Fetch all data in parallel
-      const [typeData, statsData, contributionsData, topContributorsData] = await Promise.all([
+      const [typeData, statsData, contributionsData, topContributorsData, missionsData] = await Promise.all([
         fetchContributionType(),
         fetchStatistics(),
         fetchContributions(),
-        fetchTopContributors()
+        fetchTopContributors(),
+        fetchMissions()
       ]);
 
       contributionType = typeData;
       statistics = statsData || {};
       contributions = contributionsData.results || [];
       topContributors = topContributorsData;
+      missions = missionsData;
     } catch (err) {
       error = err.message;
     } finally {
@@ -107,6 +141,21 @@
     }
   });
 </script>
+
+<style>
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .smooth-expand {
+    transition: max-height 0.3s ease-out;
+    overflow: hidden;
+  }
+</style>
 
 <div class="min-h-screen {categoryColors.pageBg} -m-8 p-8">
   <div class="space-y-6 sm:space-y-8">
@@ -120,6 +169,112 @@
       <p>{error}</p>
     </div>
   {:else if contributionType}
+    <!-- Missions for this Contribution Type - At the top -->
+    {#if missions && missions.length > 0}
+      {@const missionColors = getPioneerContributionsColors(contributionType?.category || 'global')}
+
+      <div class="{missionColors.containerBg} border {missionColors.containerBorder} shadow overflow-hidden rounded-lg">
+        <div class="px-4 py-5 sm:px-6 {missionColors.headerBg} border-b {missionColors.headerBorder}">
+          <div class="flex items-center">
+            <Icons name="sparkle" size="md" className="{missionColors.headerIcon} mr-2" />
+            <h3 class="text-lg leading-6 font-medium {missionColors.headerText}">
+              Missions
+            </h3>
+          </div>
+          <p class="mt-1 max-w-2xl text-sm {missionColors.descriptionText}">
+            Special missions for {contributionType?.name || 'this contribution type'}.
+          </p>
+        </div>
+
+        <div class="bg-white">
+          <table class="w-full">
+            <thead class="{missionColors.tableHeaderBg}">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium {missionColors.tableHeaderText} uppercase tracking-wider w-1/5">
+                  Mission
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium {missionColors.tableHeaderText} uppercase tracking-wider w-3/5">
+                  Description
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium {missionColors.tableHeaderText} uppercase tracking-wider w-1/5">
+                  End Date
+                </th>
+                <th class="px-4 py-3 text-right text-xs font-medium {missionColors.tableHeaderText} uppercase tracking-wider">
+                  Action
+                </th>
+              </tr>
+            </thead>
+            <tbody class="divide-y {missionColors.tableBorder}">
+              {#each missions as mission}
+                {@const isExpanded = expandedMissions.has(mission.id)}
+                {@const hasLongText = mission.long_description && mission.long_description.length > 150}
+                <tr class="hover:bg-gray-50">
+                  <td class="px-6 py-4">
+                    <Badge
+                      badge={{
+                        id: mission.id,
+                        name: mission.name,
+                        description: '',
+                        points: 0,
+                        actionId: mission.id,
+                        actionName: mission.name,
+                        evidenceUrl: ''
+                      }}
+                      color={missionColors.badgeColor}
+                      clickable={false}
+                    />
+                  </td>
+                  <td class="px-6 py-4">
+                    <div class="flex items-start">
+                      <div class="flex-1 text-sm {missionColors.contentText} prose prose-sm max-w-none">
+                        <div class="{!isExpanded && hasLongText ? 'line-clamp-2' : ''}">
+                          {@html (mission.long_description || mission.short_description || '').replace(/\n/g, '<br>')}
+                        </div>
+                      </div>
+                      {#if hasLongText}
+                        <button
+                          onclick={() => toggleMissionExpanded(mission.id)}
+                          class="ml-2 flex-shrink-0 text-gray-400 hover:text-gray-600"
+                          aria-label="Toggle description"
+                        >
+                          <svg
+                            class="h-4 w-4 transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                      {/if}
+                    </div>
+                  </td>
+                  <td class="px-6 py-4 text-sm {missionColors.contentText}">
+                    {#if mission.end_date}
+                      {formatDate(mission.end_date)}
+                    {:else}
+                      Ongoing
+                    {/if}
+                  </td>
+                  <td class="px-4 py-4 text-right">
+                    <button
+                      onclick={() => push(`/submit-contribution?type=${params.id}`)}
+                      class="inline-flex items-center text-sm font-medium {missionColors.titleText} hover:opacity-80"
+                    >
+                      Submit
+                      <svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {/if}
+
     <div class="{categoryColors.headerBg} shadow rounded-lg p-4 sm:p-6 border-2 {categoryColors.borderLight}">
       <h1 class="text-xl sm:text-2xl font-bold {categoryColors.textDark} mb-2">{contributionType.name}</h1>
       {#if contributionType.description}
@@ -217,10 +372,10 @@
       </div>
     </div>
 
-    <!-- Highlights Section -->
+    <!-- Featured User Contributions -->
     <FeaturedContributions
       contributionTypeId={params.id}
-      title="Featured Highlights"
+      title="Featured Contributions"
       cardStyle="compact"
       showViewAll={false}
       className="mb-6"

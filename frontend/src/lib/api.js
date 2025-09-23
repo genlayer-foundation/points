@@ -48,6 +48,7 @@ export const usersAPI = {
   getUser: (address) => api.get(`/users/${address}/`),
   getUserByAddress: (address) => api.get(`/users/by-address/${address}/`),
   getUserHighlights: (address, params) => api.get(`/users/by-address/${address}/highlights/`, { params }),
+  getUserMissions: (address, params) => api.get(`/users/by-address/${address}/missions/`, { params }),
   getUserCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.participant_count }
   })),
@@ -92,8 +93,8 @@ export const contributionsAPI = {
   getContributionCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.contribution_count }
   })),
-  getHighlights: (params) => api.get('/highlights/', { params }),
-  getHighlight: (id) => api.get(`/highlights/${id}/`)
+  getMissions: (params) => api.get('/missions/', { params }),
+  getMission: (id) => api.get(`/missions/${id}/`)
 };
 
 

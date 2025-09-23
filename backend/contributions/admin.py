@@ -10,7 +10,7 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from datetime import datetime
-from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Highlight
+from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
 
@@ -33,15 +33,9 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
 
 @admin.register(ContributionType)
 class ContributionTypeAdmin(admin.ModelAdmin):
-    list_display = (
-        'name', 'category', 'is_default', 'is_submittable', 'get_current_multiplier',
-        'min_points', 'max_points', 'icon', 'description', 'examples', 'created_at'
-    )
+    list_display = ('name', 'category', 'is_default', 'is_submittable', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
     list_display_links = ('get_current_multiplier',)
-    # Enable quick edits for common fields directly from the list view
-    list_editable = (
-        'name', 'category', 'is_default', 'is_submittable', 'min_points', 'max_points', 'icon', 'description', 'examples'
-    )
+    list_editable = ('name', 'is_default', 'is_submittable', 'description')
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at')
     list_filter = ('category', 'is_default', 'is_submittable')
@@ -591,11 +585,11 @@ class ContributionHighlightAdmin(admin.ModelAdmin):
         )
 
 
-@admin.register(Highlight)
-class HighlightAdmin(admin.ModelAdmin):
+@admin.register(Mission)
+class MissionAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'contribution_type', 'get_status', 'start_date', 'end_date', 'created_at')
     list_filter = ('contribution_type', 'start_date', 'end_date', 'created_at')
-    search_fields = ('name', 'short_description', 'expanded_description')
+    search_fields = ('name', 'short_description', 'long_description')
     readonly_fields = ('id', 'created_at', 'updated_at')
     list_editable = ()
 
@@ -604,18 +598,18 @@ class HighlightAdmin(admin.ModelAdmin):
             'fields': ('id', 'name', 'contribution_type', 'short_description')
         }),
         ('Details', {
-            'fields': ('expanded_description',)
+            'fields': ('long_description',)
         }),
         ('Schedule', {
             'fields': ('start_date', 'end_date'),
-            'description': 'Optional: Set dates to control when this highlight is active'
+            'description': 'Optional: Set dates to control when this mission is active'
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
-    
+
     def get_status(self, obj):
         if obj.is_active():
             return format_html('<span style="color: green;">●</span> Active')

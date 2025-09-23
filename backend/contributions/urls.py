@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ContributionTypeViewSet, ContributionViewSet, EvidenceViewSet,
     SubmittedContributionViewSet, SubmissionListView, submission_review_view,
-    HighlightViewSet
+    MissionViewSet
 )
 
 app_name = 'contributions'
@@ -14,7 +14,7 @@ router.register(r'types', ContributionTypeViewSet)
 router.register(r'contributions', ContributionViewSet)
 router.register(r'evidence', EvidenceViewSet)
 router.register(r'submissions', SubmittedContributionViewSet, basename='submission')
-router.register(r'highlights', HighlightViewSet, basename='highlight')
+router.register(r'missions', MissionViewSet, basename='mission')
 
 urlpatterns = [
     # API URLs
