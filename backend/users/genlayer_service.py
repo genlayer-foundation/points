@@ -89,21 +89,19 @@ class GenLayerDeploymentService:
                     
                     to_address = tx.get('to')
                     tx_type = tx.get('type')
-                    deployed_contract = tx.get('deployed_contract_address')
+                    # In GenLayer, contract address is in the data field
+                    deployed_contract = tx.get('data', {}).get('contract_address') if isinstance(tx.get('data'), dict) else None
                     tx_hash = tx.get('hash', 'Unknown')
-                    
+
+                    # Debug logging for transaction analysis
+                    logger.debug(f"Transaction {tx_hash}: to={to_address}, type={tx_type}, contract_address={deployed_contract}")
+
                     # Check if this is a deployment
-                    is_deployment = False
-                    
-                    # Multiple ways to identify a deployment
-                    if deployed_contract:
-                        is_deployment = True
-                    elif to_address is None or to_address == '' or to_address == '0x0000000000000000000000000000000000000000':
-                        is_deployment = True
-                    elif tx_type == 1:  # Type 1 appears to be deployment in GenLayer
-                        is_deployment = True
-                    
+                    # In GenLayer, deployments have a contract_address in the data field
+                    is_deployment = bool(deployed_contract)
+
                     if is_deployment:
+                        logger.debug(f"Transaction {tx_hash} identified as deployment via data.contract_address: {deployed_contract}")
                         deployment_info = {
                             'transaction_hash': tx_hash,
                             'block_number': tx.get('block_number'),
