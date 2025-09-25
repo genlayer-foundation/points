@@ -447,9 +447,9 @@ checkout_pr() {
     # Fetch the PR ref directly and create a local branch
     git fetch origin "pull/$pr_number/head:$name-branch"
     
-    # Create git worktree from the PR branch
+    # Create git worktree using the actual PR branch
     echo "Creating git worktree..."
-    git worktree add "../tally-$name" "$name-branch"
+    git worktree add "../tally-$name" "$pr_branch"
     
     # Make sure we're still on the original branch
     git checkout "$current_branch" 2>/dev/null || true
@@ -506,7 +506,7 @@ sessions['$name'] = {
     'backend_port': $backend_port,
     'frontend_port': $frontend_port,
     'worktree': '$HOME/Dev/tally-$name',
-    'branch': '$name-branch',
+    'branch': '$pr_branch',
     'pr_number': $pr_number,
     'pr_title': '''$pr_title''',
     'pr_author': '$pr_author',
