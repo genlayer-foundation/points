@@ -105,27 +105,53 @@ const API_ENDPOINTS = {
 };
 
 /**
- * Connect to MetaMask wallet
+ * Connect to wallet with specific provider
+ * @param {Object} provider - Ethereum provider (window.ethereum or specific wallet provider)
+ * @param {string} walletName - Name of the wallet for error messages
  * @returns {Promise<string>} Ethereum address
  */
-export async function connectWallet() {
+export async function connectWallet(provider = null, walletName = 'wallet') {
   authState.setLoading(true);
   authState.setError(null);
   
   try {
-    if (!window.ethereum) {
-      throw new Error('MetaMask is not installed. Please install MetaMask to continue.');
+    // Use provided provider or default to window.ethereum
+    const ethereumProvider = provider || window.ethereum;
+    
+    if (!ethereumProvider) {
+      throw new Error(`No wallet detected. Please install ${walletName} to continue.`);
     }
 
-    // Request account access
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    // First, try to request permissions to trigger account selection dialog
+    // This works with MetaMask and wallets that support wallet_requestPermissions
+    try {
+      await ethereumProvider.request({
+        method: 'wallet_requestPermissions',
+        params: [{ eth_accounts: {} }]
+      });
+    } catch (permissionError) {
+      // If the wallet doesn't support wallet_requestPermissions or user rejected,
+      // we'll continue with the normal flow
+      console.log('wallet_requestPermissions not supported or rejected:', permissionError);
+    }
+
+    // Now get the accounts (either newly selected or existing)
+    let accounts = await ethereumProvider.request({ method: 'eth_accounts' });
+    
+    // If no accounts are connected, request access
+    if (!accounts || accounts.length === 0) {
+      accounts = await ethereumProvider.request({ method: 'eth_requestAccounts' });
+    }
+    
+    // Always use the first account (currently selected)
     const address = accounts[0];
     
     if (!address) {
-      throw new Error('No Ethereum accounts found. Please unlock your MetaMask wallet.');
+      throw new Error(`No Ethereum accounts found. Please unlock your ${walletName}.`);
     }
     
-    authState.update(state => ({ ...state, address }));
+    // Store the provider for later use in signing
+    authState.update(state => ({ ...state, address, provider: ethereumProvider }));
     return address;
   } catch (error) {
     // Pass the error object to let setError handle it
@@ -155,9 +181,10 @@ export async function getNonce() {
  * Create and sign a SIWE message
  * @param {string} address - Ethereum address
  * @param {string} nonce - Server-provided nonce
+ * @param {Object} provider - Ethereum provider to use for signing
  * @returns {Promise<Object>} Signed message and signature
  */
-export async function createAndSignMessage(address, nonce) {
+export async function createAndSignMessage(address, nonce, provider = null) {
   const domain = window.location.host;
   const origin = window.location.origin;
   
@@ -173,9 +200,12 @@ Chain ID: 1
 Nonce: ${nonce}
 Issued At: ${new Date().toISOString()}`;
   
+  // Use provided provider or default to window.ethereum
+  const ethereumProvider = provider || window.ethereum;
+  
   // Request signature from wallet
-  const provider = new ethers.BrowserProvider(window.ethereum);
-  const signer = await provider.getSigner();
+  const ethersProvider = new ethers.BrowserProvider(ethereumProvider);
+  const signer = await ethersProvider.getSigner();
   const signature = await signer.signMessage(messageToSign);
   
   return {
@@ -186,21 +216,27 @@ Issued At: ${new Date().toISOString()}`;
 
 /**
  * Sign in with Ethereum
+ * @param {Object} provider - Ethereum provider to use
+ * @param {string} walletName - Name of the wallet being used
  * @returns {Promise<Object>} Authentication result
  */
-export async function signInWithEthereum() {
+export async function signInWithEthereum(provider = null, walletName = 'wallet') {
   authState.setLoading(true);
   authState.setError(null);
   
   try {
     // Connect to wallet and get address
-    const address = await connectWallet();
+    const address = await connectWallet(provider, walletName);
+    
+    // Get the provider from state (was stored in connectWallet)
+    const state = authState.get();
+    const ethereumProvider = state.provider || provider || window.ethereum;
     
     // Get nonce from server
     const nonce = await getNonce();
     
-    // Create and sign the message
-    const { message, signature } = await createAndSignMessage(address, nonce);
+    // Create and sign the message with the specific provider
+    const { message, signature } = await createAndSignMessage(address, nonce, ethereumProvider);
     
     // Send to backend for verification
     console.log('Sending login request to:', API_ENDPOINTS.LOGIN);
@@ -212,6 +248,9 @@ export async function signInWithEthereum() {
     
     // Update auth state
     authState.setAuthenticated(true, address);
+    
+    // Set up wallet listeners after successful connection
+    setupWalletListeners();
     
     // Load user data into the store
     try {
@@ -323,6 +362,8 @@ export async function logout() {
     authState.setAuthenticated(false, null);
     // Reset verification flag so next session will verify
     authState.resetVerification();
+    // Clear any cached provider
+    authState.update(state => ({ ...state, provider: null }));
     // Clear user data from store
     userStore.clearUser();
   }
@@ -343,10 +384,130 @@ export async function refreshSession() {
   }
 }
 
+// Store listener functions for cleanup
+let accountsChangedHandler = null;
+let chainChangedHandler = null;
+
+/**
+ * Handle account changes from wallet
+ */
+async function handleAccountsChanged(accounts) {
+  console.log('Accounts changed:', accounts);
+  const state = authState.get();
+  
+  if (accounts.length === 0) {
+    // User disconnected their wallet or revoked permissions
+    console.log('Wallet disconnected');
+    await logout();
+    authState.setError('Wallet disconnected. Please reconnect to continue.');
+  } else if (state.isAuthenticated && accounts[0].toLowerCase() !== state.address?.toLowerCase()) {
+    // User switched to a different account while authenticated
+    const newAccount = accounts[0];
+    console.log('Account switched from', state.address, 'to', newAccount);
+    
+    // Since our backend session is tied to the signed message from the original account,
+    // we need to re-authenticate with the new account
+    try {
+      // First logout the old session
+      await logout();
+      
+      // Clear any cached provider state
+      authState.update(state => ({ ...state, provider: null }));
+      
+      // Automatically start re-authentication with the new account
+      // Get the current provider (should still be available)
+      const provider = window.ethereum;
+      
+      if (provider) {
+        // Show user-friendly message
+        authState.setError(
+          `Switched to ${newAccount.substring(0, 6)}...${newAccount.substring(newAccount.length - 4)}. Reconnecting...`
+        );
+        
+        // Small delay to ensure state is cleared
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Re-authenticate with the new account
+        await signInWithEthereum(provider, 'MetaMask');
+      } else {
+        // Fallback: prompt manual reconnection
+        authState.setError(
+          `Account changed to ${newAccount.substring(0, 6)}...${newAccount.substring(newAccount.length - 4)}. Please reconnect.`
+        );
+        
+        // Open wallet selector after short delay
+        setTimeout(() => {
+          const authButton = document.querySelector('[data-auth-button]');
+          if (authButton && !authState.get().isAuthenticated) {
+            authButton.click();
+          }
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Failed to reconnect with new account:', error);
+      authState.setError('Failed to connect with new account. Please try again.');
+    }
+  } else if (!state.isAuthenticated && accounts.length > 0) {
+    // Account changed while not authenticated - just update the stored address
+    console.log('Account changed while not authenticated:', accounts[0]);
+    // This ensures next connection attempt uses the current account
+    authState.update(state => ({ ...state, address: null, provider: null }));
+  }
+}
+
+/**
+ * Handle chain/network changes
+ */
+function handleChainChanged(chainId) {
+  console.log('Chain changed to:', chainId);
+  // Reload the page to reset the app state with the new chain
+  // This is recommended by MetaMask docs
+  window.location.reload();
+}
+
+/**
+ * Set up listeners for account and chain changes
+ */
+function setupWalletListeners() {
+  if (!window.ethereum || accountsChangedHandler) return;
+  
+  // Create handlers
+  accountsChangedHandler = handleAccountsChanged;
+  chainChangedHandler = handleChainChanged;
+  
+  // Add listeners
+  window.ethereum.on('accountsChanged', accountsChangedHandler);
+  window.ethereum.on('chainChanged', chainChangedHandler);
+  
+  console.log('Wallet event listeners set up');
+}
+
+/**
+ * Remove wallet event listeners (cleanup)
+ */
+export function removeWalletListeners() {
+  if (!window.ethereum) return;
+  
+  if (accountsChangedHandler) {
+    window.ethereum.removeListener('accountsChanged', accountsChangedHandler);
+    accountsChangedHandler = null;
+  }
+  
+  if (chainChangedHandler) {
+    window.ethereum.removeListener('chainChanged', chainChangedHandler);
+    chainChangedHandler = null;
+  }
+  
+  console.log('Wallet event listeners removed');
+}
+
 // Initialize auth state on page load
 if (typeof window !== 'undefined') {
   // Only verify auth in browser environment
   verifyAuth().catch(console.error);
+  
+  // Set up wallet event listeners
+  setupWalletListeners();
   
   // Set up periodic session refresh to keep user logged in
   setInterval(async () => {
