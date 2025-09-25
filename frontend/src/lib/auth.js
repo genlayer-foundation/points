@@ -9,11 +9,12 @@ const createAuthStore = () => {
   const initialState = {
     isAuthenticated: false,
     address: null,
+    provider: null,
     loading: false,
     error: null,
     hasVerified: false  // Track if we've verified in this session
   };
-  
+
   // Try to load from localStorage
   try {
     const savedAuth = localStorage.getItem('tally-auth');
@@ -21,7 +22,10 @@ const createAuthStore = () => {
       const { isAuthenticated, address } = JSON.parse(savedAuth);
       initialState.isAuthenticated = isAuthenticated;
       initialState.address = address;
-      // If we have saved auth, we still need to verify once per session
+      // If we have saved auth, restore the provider if available
+      if (isAuthenticated && typeof window !== 'undefined' && window.ethereum) {
+        initialState.provider = window.ethereum;
+      }
     }
   } catch (e) {
     console.error('Error loading auth state from localStorage:', e);
@@ -103,6 +107,19 @@ const API_ENDPOINTS = {
   LOGOUT: `${API_BASE_URL}/api/auth/logout/`,
   REFRESH: `${API_BASE_URL}/api/auth/refresh/`
 };
+
+/**
+ * Restore provider reference if missing but user is authenticated
+ * @returns {Object|null} Ethereum provider or null
+ */
+function restoreProvider() {
+  const state = authState.get();
+  if (state.isAuthenticated && !state.provider && typeof window !== 'undefined' && window.ethereum) {
+    authState.update(currentState => ({ ...currentState, provider: window.ethereum }));
+    return window.ethereum;
+  }
+  return state.provider;
+}
 
 /**
  * Connect to wallet with specific provider
@@ -327,19 +344,21 @@ async function performVerification() {
     console.log('Auth verification response:', response.data);
     const isAuthenticated = response.data.authenticated;
     const address = response.data.address || null;
-    
+
     // Update auth state with verification result
     authState.setAuthenticated(isAuthenticated, address);
-    
-    // Load user data if authenticated
+
+    // If authenticated, restore provider if missing
     if (isAuthenticated) {
+      restoreProvider();
+
       try {
         await userStore.loadUser();
       } catch (err) {
         console.error('Failed to load user data during auth verification:', err);
       }
     }
-    
+
     return isAuthenticated;
   } catch (error) {
     console.error('Auth verification failed:', error);
