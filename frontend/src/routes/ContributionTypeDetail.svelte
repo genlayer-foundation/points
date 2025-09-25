@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { format } from 'date-fns';
+  import { marked } from 'marked';
   import RecentContributions from '../components/RecentContributions.svelte';
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import LeaderboardTable from '../components/LeaderboardTable.svelte';
@@ -22,6 +23,14 @@
   let loading = $state(true);
   let error = $state(null);
   let expandedMissions = $state(new Set());
+
+  // Configure marked options for security
+  marked.setOptions({
+    breaks: true,
+    gfm: true,
+    headerIds: false,
+    mangle: false
+  });
 
   // Determine category colors based on contribution type
   let categoryColors = $derived(contributionType ? getCategoryColors(contributionType.category) : getCategoryColors('global'));
@@ -115,6 +124,17 @@
     expandedMissions = newExpanded;
   }
 
+  // Render markdown content
+  function renderMarkdown(text) {
+    if (!text) return '';
+    try {
+      return marked.parse(text);
+    } catch (error) {
+      console.error('Error parsing markdown:', error);
+      return text;
+    }
+  }
+
   onMount(async () => {
     loading = true;
     error = null;
@@ -154,6 +174,61 @@
   .smooth-expand {
     transition: max-height 0.3s ease-out;
     overflow: hidden;
+  }
+
+  .prose :global(p) {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+  }
+  
+  .prose :global(p:last-child) {
+    margin-bottom: 0;
+  }
+
+  .prose :global(strong) {
+    font-weight: 600;
+  }
+
+  .prose :global(em) {
+    font-style: italic;
+  }
+
+  .prose :global(h1),
+  .prose :global(h2),
+  .prose :global(h3),
+  .prose :global(h4),
+  .prose :global(h5),
+  .prose :global(h6) {
+    font-weight: 600;
+    margin-top: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .prose :global(ul),
+  .prose :global(ol) {
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    padding-left: 1.5rem;
+  }
+
+  .prose :global(li) {
+    margin-top: 0.125rem;
+    margin-bottom: 0.125rem;
+  }
+
+  .prose :global(code) {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+  }
+
+  .prose :global(blockquote) {
+    border-left: 3px solid rgba(0, 0, 0, 0.1);
+    padding-left: 1rem;
+    margin-left: 0;
+    margin-right: 0;
+    font-style: italic;
   }
 </style>
 
@@ -304,7 +379,7 @@
             <tbody class="divide-y {missionColors.tableBorder}">
               {#each missions as mission}
                 {@const isExpanded = expandedMissions.has(mission.id)}
-                {@const hasLongText = mission.long_description && mission.long_description.length > 150}
+                {@const hasLongText = mission.description && mission.description.length > 150}
                 <tr class="hover:bg-gray-50">
                   <td class="px-6 py-4">
                     <Badge
@@ -325,7 +400,7 @@
                     <div class="flex items-start">
                       <div class="flex-1 text-sm {missionColors.contentText} prose prose-sm max-w-none">
                         <div class="{!isExpanded && hasLongText ? 'line-clamp-2' : ''}">
-                          {@html (mission.long_description || mission.short_description || '').replace(/\n/g, '<br>')}
+                          {@html renderMarkdown(mission.description || '')}
                         </div>
                       </div>
                       {#if hasLongText}

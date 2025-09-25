@@ -305,7 +305,7 @@ class MissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Mission
         fields = [
-            'id', 'name', 'short_description', 'long_description',
+            'id', 'name', 'description',
             'start_date', 'end_date', 'contribution_type', 'contribution_type_details',
             'is_active', 'created_at', 'updated_at'
         ]

@@ -356,12 +356,8 @@ class Mission(BaseModel):
         max_length=200,
         help_text="Name of the mission"
     )
-    short_description = models.CharField(
-        max_length=300,
-        help_text="Brief description shown on cards"
-    )
-    long_description = models.TextField(
-        help_text="Detailed description shown on dedicated page"
+    description = models.TextField(
+        help_text="Description of the mission (supports Markdown)"
     )
     start_date = models.DateTimeField(
         null=True,

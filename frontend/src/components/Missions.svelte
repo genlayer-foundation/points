@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { push } from 'svelte-spa-router';
+  import { marked } from 'marked';
   import { contributionsAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
   import { getPioneerContributionsColors } from '../lib/categoryColors.js';
@@ -12,6 +13,18 @@
   let loading = $state(true);
   let countdowns = $state({});
   let countdownInterval = null;
+  let expandedMissions = $state(new Set());
+
+  // Character limit for truncating description
+  const DESCRIPTION_CHAR_LIMIT = 150;
+
+  // Configure marked options for security
+  marked.setOptions({
+    breaks: true,
+    gfm: true,
+    headerIds: false,
+    mangle: false
+  });
 
   async function fetchMissions() {
     try {
@@ -76,6 +89,35 @@
     }
   }
 
+  function toggleMissionExpanded(missionId) {
+    const newExpanded = new Set(expandedMissions);
+    if (newExpanded.has(missionId)) {
+      newExpanded.delete(missionId);
+    } else {
+      newExpanded.add(missionId);
+    }
+    expandedMissions = newExpanded;
+  }
+
+  function renderMarkdown(text) {
+    if (!text) return '';
+    try {
+      return marked.parse(text);
+    } catch (error) {
+      console.error('Error parsing markdown:', error);
+      return text;
+    }
+  }
+
+  function needsExpansion(text) {
+    return text && text.length > DESCRIPTION_CHAR_LIMIT;
+  }
+
+  function truncateText(text, limit) {
+    if (!text || text.length <= limit) return text;
+    return text.substring(0, limit) + '...';
+  }
+
   onMount(() => {
     fetchMissions();
     // Update countdown every minute
@@ -94,6 +136,71 @@
     }
   });
 </script>
+
+<style>
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .prose :global(p) {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+  }
+  
+  .prose :global(p:last-child) {
+    margin-bottom: 0;
+  }
+
+  .prose :global(strong) {
+    font-weight: 600;
+  }
+
+  .prose :global(em) {
+    font-style: italic;
+  }
+
+  .prose :global(h1),
+  .prose :global(h2),
+  .prose :global(h3),
+  .prose :global(h4),
+  .prose :global(h5),
+  .prose :global(h6) {
+    font-weight: 600;
+    margin-top: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .prose :global(ul),
+  .prose :global(ol) {
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    padding-left: 1.5rem;
+  }
+
+  .prose :global(li) {
+    margin-top: 0.125rem;
+    margin-bottom: 0.125rem;
+  }
+
+  .prose :global(code) {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+  }
+
+  .prose :global(blockquote) {
+    border-left: 3px solid rgba(0, 0, 0, 0.1);
+    padding-left: 1rem;
+    margin-left: 0;
+    margin-right: 0;
+    font-style: italic;
+  }
+</style>
 
 {#if !loading && missions.length > 0}
   {@const colors = getPioneerContributionsColors($currentCategory)}
@@ -135,9 +242,11 @@
         </thead>
         <tbody class="bg-white divide-y {colors.tableBorder}">
           {#each missions as mission, i}
+            {@const isExpanded = expandedMissions.has(mission.id)}
+            {@const hasLongText = needsExpansion(mission.description)}
             <tr class="{colors.tableHeaderBg}">
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium {colors.titleText}">
+                <div class="text-sm font-bold {colors.titleText}">
                   {mission.name}
                 </div>
               </td>
@@ -161,8 +270,32 @@
                 {/if}
               </td>
               <td class="px-6 py-4">
-                <div class="text-sm {colors.contentText} max-w-md">
-                  {mission.short_description}
+                <div class="flex items-start">
+                  <div class="flex-1 text-sm {colors.contentText} prose prose-sm max-w-md">
+                    {#if hasLongText && !isExpanded}
+                      <div class="line-clamp-2">
+                        {@html renderMarkdown(truncateText(mission.description, DESCRIPTION_CHAR_LIMIT))}
+                      </div>
+                    {:else}
+                      {@html renderMarkdown(mission.description)}
+                    {/if}
+                  </div>
+                  {#if hasLongText}
+                    <button
+                      onclick={() => toggleMissionExpanded(mission.id)}
+                      class="ml-2 flex-shrink-0 text-gray-400 hover:text-gray-600"
+                      aria-label="Toggle description"
+                    >
+                      <svg
+                        class="h-4 w-4 transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  {/if}
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">

@@ -589,16 +589,16 @@ class ContributionHighlightAdmin(admin.ModelAdmin):
 class MissionAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'contribution_type', 'get_status', 'start_date', 'end_date', 'created_at')
     list_filter = ('contribution_type', 'start_date', 'end_date', 'created_at')
-    search_fields = ('name', 'short_description', 'long_description')
+    search_fields = ('name', 'description')
     readonly_fields = ('id', 'created_at', 'updated_at')
     list_editable = ()
 
     fieldsets = (
         (None, {
-            'fields': ('id', 'name', 'contribution_type', 'short_description')
+            'fields': ('id', 'name', 'contribution_type')
         }),
         ('Details', {
-            'fields': ('long_description',)
+            'fields': ('description',)
         }),
         ('Schedule', {
             'fields': ('start_date', 'end_date'),
