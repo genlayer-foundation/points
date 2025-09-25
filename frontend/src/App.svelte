@@ -5,6 +5,7 @@
   import { onMount } from 'svelte';
   import Navbar from './components/Navbar.svelte';
   import Sidebar from './components/Sidebar.svelte';
+  import ToastContainer from './components/ToastContainer.svelte';
   import { categoryTheme, currentCategory, detectCategoryFromRoute } from './stores/category.js';
   import { location } from 'svelte-spa-router';
   
@@ -236,4 +237,6 @@
       />
     </main>
   </div>
+  <!-- Global toast container -->
+  <ToastContainer />
 </div>
