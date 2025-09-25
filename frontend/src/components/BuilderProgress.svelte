@@ -57,8 +57,8 @@
   
   // Check if networks are configured
   async function checkNetworks() {
-    // Get the connected wallet's provider from authState
-    const provider = $authState.provider;
+    // Get the connected wallet's provider from authState or fallback to window.ethereum
+    const provider = $authState.provider || window.ethereum;
     if (!provider || !walletAddress) {
       return;
     }
@@ -111,8 +111,8 @@
   
   // Add network to wallet
   async function addNetwork(network, isStudio = false) {
-    // Get the connected wallet's provider from authState
-    const provider = $authState.provider;
+    // Get the connected wallet's provider from authState or fallback to window.ethereum
+    const provider = $authState.provider || window.ethereum;
     if (!provider) {
       alert('Please connect your wallet first');
       return;
