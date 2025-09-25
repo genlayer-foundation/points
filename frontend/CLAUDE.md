@@ -411,6 +411,9 @@ try {
 ## Environment Variables
 Set in `.env` file:
 - `VITE_API_URL` - Backend API URL
+- `VITE_VALIDATOR_RPC_URL` - Blockchain RPC endpoint for Asimov testnet
+- `VITE_VALIDATOR_CONTRACT_ADDRESS` - Validator contract address
+- `VITE_EXPLORER_URL` - Blockchain explorer URL
 
 ## Common Commands
 ```bash

@@ -213,7 +213,7 @@ Sign in with Ethereum to GenLayer Testnet Contributions
 
 URI: ${origin}
 Version: 1
-Chain ID: 1
+Chain ID: 4221
 Nonce: ${nonce}
 Issued At: ${new Date().toISOString()}`;
   

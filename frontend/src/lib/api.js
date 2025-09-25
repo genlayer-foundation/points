@@ -150,9 +150,10 @@ export const stewardAPI = {
   
   // Get steward statistics
   getStats: () => api.get('/steward-submissions/stats/'),
-  
+
   // Get list of all stewards
-  getStewards: () => api.get('/stewards/')
+  getStewards: () => api.get('/stewards/'),
+
 };
 
 // Image upload API

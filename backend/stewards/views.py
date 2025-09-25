@@ -4,6 +4,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Steward
 from users.serializers import StewardSerializer
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class StewardViewSet(viewsets.ModelViewSet):
@@ -67,3 +70,20 @@ class StewardViewSet(viewsets.ModelViewSet):
                 serializer.save()
                 return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def _check_steward_permission(self, request):
+        """
+        Helper method to check if the current user is a steward.
+        """
+        if not request.user.is_authenticated:
+            return False
+
+        try:
+            steward = Steward.objects.get(user=request.user)
+            return True
+        except Steward.DoesNotExist:
+            return False
+
+
+
+
