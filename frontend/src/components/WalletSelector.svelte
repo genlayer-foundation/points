@@ -34,7 +34,6 @@
   function getEIP6963Provider(walletId) {
     const provider = detectedProviders.get(walletId);
     if (provider?.provider) {
-      console.log(`Using EIP-6963 detected ${walletId} provider`);
       return provider.provider;
     }
     return null;
@@ -130,29 +129,17 @@
       const provider = providerDetail?.provider;
       const info = providerDetail?.info;
       
-      console.log('EIP-6963 Provider announced:', {
-        name: info?.name,
-        uuid: info?.uuid,
-        isMetaMask: provider?.isMetaMask,
-        isTrust: provider?.isTrust,
-        isTrustWallet: provider?.isTrustWallet,
-        hasTrustWallet: !!provider?.isTrust || !!provider?.isTrustWallet
-      });
       
       if (!provider) return;
       
       // Store provider with its info - be more specific about detection
       if (provider.isPhantom) {
-        console.log('Detected Phantom via EIP-6963');
         detectedProviders.set('phantom', { provider, info });
       } else if (provider.isMetaMask && !provider.isTrust && !provider.isTrustWallet && !provider.isPhantom) {
-        console.log('Detected real MetaMask via EIP-6963');
         detectedProviders.set('metamask', { provider, info });
       } else if (provider.isTrust || provider.isTrustWallet) {
-        console.log('Detected Trust Wallet via EIP-6963');
         detectedProviders.set('trust', { provider, info });
       } else if (provider.isCoinbaseWallet) {
-        console.log('Detected Coinbase Wallet via EIP-6963');
         detectedProviders.set('coinbase', { provider, info });
       }
       

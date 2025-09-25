@@ -256,12 +256,10 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet')
     const { message, signature } = await createAndSignMessage(address, nonce, ethereumProvider);
     
     // Send to backend for verification
-    console.log('Sending login request to:', API_ENDPOINTS.LOGIN);
     const response = await authAxios.post(API_ENDPOINTS.LOGIN, {
       message,
       signature
     });
-    console.log('Login response:', response.data);
     
     // Update auth state
     authState.setAuthenticated(true, address);
@@ -339,9 +337,7 @@ export async function verifyAuth() {
 
 async function performVerification() {
   try {
-    console.log('Verifying auth at:', API_ENDPOINTS.VERIFY);
     const response = await authAxios.get(API_ENDPOINTS.VERIFY);
-    console.log('Auth verification response:', response.data);
     const isAuthenticated = response.data.authenticated;
     const address = response.data.address || null;
 
@@ -411,18 +407,15 @@ let chainChangedHandler = null;
  * Handle account changes from wallet
  */
 async function handleAccountsChanged(accounts) {
-  console.log('Accounts changed:', accounts);
   const state = authState.get();
   
   if (accounts.length === 0) {
     // User disconnected their wallet or revoked permissions
-    console.log('Wallet disconnected');
     await logout();
     authState.setError('Wallet disconnected. Please reconnect to continue.');
   } else if (state.isAuthenticated && accounts[0].toLowerCase() !== state.address?.toLowerCase()) {
     // User switched to a different account while authenticated
     const newAccount = accounts[0];
-    console.log('Account switched from', state.address, 'to', newAccount);
     
     // Since our backend session is tied to the signed message from the original account,
     // we need to re-authenticate with the new account
@@ -468,7 +461,6 @@ async function handleAccountsChanged(accounts) {
     }
   } else if (!state.isAuthenticated && accounts.length > 0) {
     // Account changed while not authenticated - just update the stored address
-    console.log('Account changed while not authenticated:', accounts[0]);
     // This ensures next connection attempt uses the current account
     authState.update(state => ({ ...state, address: null, provider: null }));
   }
@@ -478,7 +470,6 @@ async function handleAccountsChanged(accounts) {
  * Handle chain/network changes
  */
 function handleChainChanged(chainId) {
-  console.log('Chain changed to:', chainId);
   // Reload the page to reset the app state with the new chain
   // This is recommended by MetaMask docs
   window.location.reload();
@@ -497,8 +488,6 @@ function setupWalletListeners() {
   // Add listeners
   window.ethereum.on('accountsChanged', accountsChangedHandler);
   window.ethereum.on('chainChanged', chainChangedHandler);
-  
-  console.log('Wallet event listeners set up');
 }
 
 /**
@@ -516,8 +505,6 @@ export function removeWalletListeners() {
     window.ethereum.removeListener('chainChanged', chainChangedHandler);
     chainChangedHandler = null;
   }
-  
-  console.log('Wallet event listeners removed');
 }
 
 // Initialize auth state on page load
