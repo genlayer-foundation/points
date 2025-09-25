@@ -1,89 +1,98 @@
 import { createPublicClient, http } from 'viem';
 import { ethers } from 'ethers';
 
-// Contract info cache - fetched from backend on first use
-let contractInfoCache = null;
-let contractInfoPromise = null;
+// Contract configuration - frontend-only
+const CONTRACT_INFO = {
+  contract_address: import.meta.env.VITE_VALIDATOR_CONTRACT_ADDRESS || '0x10eCB157734c8152f1d84D00040c8AA46052CB27',
+  rpc_url: import.meta.env.VITE_VALIDATOR_RPC_URL || 'https://genlayer-testnet.rpc.caldera.xyz/http',
+  abi: [
+    // Essential functions for validator management
+    {
+      inputs: [],
+      name: 'getAllBannedValidators',
+      outputs: [{ type: 'address[]', name: '' }],
+      stateMutability: 'view',
+      type: 'function'
+    },
+    {
+      inputs: [{ type: 'address', name: '_validator' }],
+      name: 'removeValidatorBan',
+      outputs: [],
+      stateMutability: 'nonpayable',
+      type: 'function'
+    },
+    {
+      inputs: [],
+      name: 'removeAllValidatorBans',
+      outputs: [],
+      stateMutability: 'nonpayable',
+      type: 'function'
+    },
+    {
+      inputs: [],
+      name: 'getValidatorsAtCurrentEpoch',
+      outputs: [{ type: 'address[]', name: '' }],
+      stateMutability: 'view',
+      type: 'function'
+    }
+  ]
+};
+
+// Asimov network configuration for unbanning
+const ASIMOV_NETWORK = {
+  chainId: '0x107D', // 4221 in hex
+  chainName: 'GenLayer Asimov Testnet',
+  nativeCurrency: {
+    name: 'GEN',
+    symbol: 'GEN',
+    decimals: 18
+  },
+  rpcUrls: ['https://genlayer-testnet.rpc.caldera.xyz/http'],
+  blockExplorerUrls: ['https://genlayer-testnet.explorer.caldera.xyz']
+};
 
 /**
- * Fetch validator contract information from the backend
+ * Ensure the wallet is connected to the Asimov network
+ * @returns {Promise<void>}
+ */
+async function ensureAsimovNetwork() {
+  if (!window.ethereum) {
+    throw new Error('MetaMask is not installed');
+  }
+
+  try {
+    // Get current chain ID
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+
+    // If already on Asimov, return
+    if (chainId === ASIMOV_NETWORK.chainId) {
+      return;
+    }
+
+    // Try to switch to Asimov network
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: ASIMOV_NETWORK.chainId }],
+    });
+  } catch (error) {
+    // If network doesn't exist (error 4902), add it first
+    if (error.code === 4902) {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [ASIMOV_NETWORK],
+      });
+    } else {
+      throw error;
+    }
+  }
+}
+
+/**
+ * Get validator contract information
  * @returns {Promise<{contract_address: string, abi: Array, rpc_url: string}>}
  */
 async function getContractInfo() {
-  // Return cached info if available
-  if (contractInfoCache) {
-    return contractInfoCache;
-  }
-
-  // If a request is already in progress, wait for it
-  if (contractInfoPromise) {
-    return contractInfoPromise;
-  }
-
-  // Start new request
-  contractInfoPromise = (async () => {
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${apiUrl}/api/v1/validators/contract-info/`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const contractInfo = await response.json();
-
-      // Validate response structure
-      if (!contractInfo.contract_address || !contractInfo.abi || !contractInfo.rpc_url) {
-        throw new Error('Invalid contract info response structure');
-      }
-
-      // Cache the result
-      contractInfoCache = contractInfo;
-      return contractInfo;
-
-    } catch (error) {
-      console.error('Failed to fetch contract info from backend:', error);
-
-      // Fallback to environment variables with hardcoded minimal ABI
-      const fallbackInfo = {
-        contract_address: import.meta.env.VITE_VALIDATOR_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000',
-        rpc_url: import.meta.env.VITE_VALIDATOR_RPC_URL || 'http://localhost:8545',
-        abi: [
-          // Minimal fallback ABI with essential functions
-          {
-            inputs: [],
-            name: 'getAllBannedValidators',
-            outputs: [{ type: 'address[]', name: '' }],
-            stateMutability: 'view',
-            type: 'function'
-          },
-          {
-            inputs: [{ type: 'address', name: '_validator' }],
-            name: 'removeValidatorBan',
-            outputs: [],
-            stateMutability: 'nonpayable',
-            type: 'function'
-          },
-          {
-            inputs: [],
-            name: 'removeAllValidatorBans',
-            outputs: [],
-            stateMutability: 'nonpayable',
-            type: 'function'
-          }
-        ]
-      };
-
-      console.warn('Using fallback contract configuration due to backend error');
-      contractInfoCache = fallbackInfo;
-      return fallbackInfo;
-    } finally {
-      // Clear the promise so future calls can retry
-      contractInfoPromise = null;
-    }
-  })();
-
-  return contractInfoPromise;
+  return CONTRACT_INFO;
 }
 
 /**
@@ -180,6 +189,9 @@ export async function unbanValidator(address) {
       throw new Error('MetaMask is not installed');
     }
 
+    // Ensure wallet is on Asimov network
+    await ensureAsimovNetwork();
+
     // Get contract info from backend
     const contractInfo = await getContractInfo();
 
@@ -220,12 +232,13 @@ export async function unbanValidator(address) {
   } catch (error) {
     console.error('Error unbanning validator:', error);
 
-    let errorMessage = 'Failed to unban validator';
-
-    // Handle specific error types
+    // If user rejected, re-throw the original error for UI to handle
     if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
-      errorMessage = 'Transaction was rejected by user';
-    } else if (error.message?.includes('insufficient funds')) {
+      throw error;
+    }
+
+    let errorMessage = 'Failed to unban validator';
+    if (error.message?.includes('insufficient funds')) {
       errorMessage = 'Insufficient funds to pay for gas';
     } else if (error.message?.includes('execution reverted')) {
       errorMessage = 'Transaction failed: ' + (error.reason || 'Contract execution reverted');
@@ -249,6 +262,9 @@ export async function unbanAllValidators() {
     if (!window.ethereum) {
       throw new Error('MetaMask is not installed');
     }
+
+    // Ensure wallet is on Asimov network
+    await ensureAsimovNetwork();
 
     // Get contract info from backend
     const contractInfo = await getContractInfo();
@@ -290,12 +306,13 @@ export async function unbanAllValidators() {
   } catch (error) {
     console.error('Error unbanning all validators:', error);
 
-    let errorMessage = 'Failed to unban all validators';
-
-    // Handle specific error types
+    // If user rejected, re-throw the original error for UI to handle
     if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
-      errorMessage = 'Transaction was rejected by user';
-    } else if (error.message?.includes('insufficient funds')) {
+      throw error;
+    }
+
+    let errorMessage = 'Failed to unban all validators';
+    if (error.message?.includes('insufficient funds')) {
       errorMessage = 'Insufficient funds to pay for gas';
     } else if (error.message?.includes('execution reverted')) {
       errorMessage = 'Transaction failed: ' + (error.reason || 'Contract execution reverted');

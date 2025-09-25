@@ -151,17 +151,6 @@ export const stewardAPI = {
   // Get list of all stewards
   getStewards: () => api.get('/stewards/'),
 
-  // Get banned validators for management
-  getBannedValidators: () => api.get('/stewards/banned-validators/'),
-
-  // Get specific banned validator details
-  getBannedValidatorDetails: (address) => api.get(`/stewards/banned-validators/${address}/`),
-
-  // Unban a single validator
-  unbanValidator: (address, data) => api.post(`/stewards/banned-validators/${address}/unban/`, data),
-
-  // Unban all validators
-  unbanAllValidators: (data) => api.post('/stewards/banned-validators/unban-all/', data)
 };
 
 // Image upload API

@@ -3,8 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
-  import { stewardAPI } from '../lib/api.js';
-  import { unbanValidator as blockchainUnbanValidator, unbanAllValidators as blockchainUnbanAllValidators } from '../lib/blockchain.js';
+  import { getBannedValidators, unbanValidator as blockchainUnbanValidator, unbanAllValidators as blockchainUnbanAllValidators } from '../lib/blockchain.js';
   import Avatar from '../components/Avatar.svelte';
   import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
   import { format } from 'date-fns';
@@ -67,33 +66,20 @@
     error = null;
 
     try {
-      // Use the backend API to get banned validators
-      const response = await stewardAPI.getBannedValidators();
-      const data = response.data;
+      // Get banned validators directly from blockchain
+      const addresses = await getBannedValidators();
 
-      // Set the banned validators data
-      bannedValidators = data.banned_validators || [];
-
-      // Check for any errors from the backend
-      if (data.error) {
-        error = data.error;
-      }
+      // Convert addresses to validator objects with basic info
+      bannedValidators = addresses.map(address => ({
+        address: address,
+        user: null, // We'll need to handle this in the UI
+        ban_timestamp: null // Blockchain doesn't store this
+      }));
 
       loading = false;
     } catch (err) {
       console.error('Error loading banned validators:', err);
-
-      // Handle different types of errors
-      if (err.response?.status === 403) {
-        error = 'You do not have permission to access this data';
-        // Redirect non-stewards
-        push('/');
-      } else if (err.response?.status === 500) {
-        error = 'Server error while fetching banned validators';
-      } else {
-        error = err.message || 'Failed to load banned validators';
-      }
-
+      error = err.message || 'Failed to load banned validators from blockchain';
       loading = false;
     }
   }
@@ -160,6 +146,7 @@
       if (result?.success) {
         transactionState = 'confirmed';
         transactionHash = result.transaction_hash;
+        modalLoading = false; // Reset loading state on success
 
         // Show success message
         const messageKey = modalData.type === 'single' ? modalData.address : 'all';
@@ -199,13 +186,18 @@
 
     } catch (error) {
       console.error('Error executing unban:', error);
+
+      // If user rejected the transaction, just close modal without showing error
+      if (error.code === 4001 || error.message?.includes('rejected')) {
+        closeModal();
+        return;
+      }
+
       transactionState = 'failed';
       modalLoading = false;
 
       let errorMessage = 'Failed to process transaction';
-      if (error.code === 4001 || error.message?.includes('rejected')) {
-        errorMessage = 'Transaction was rejected by user';
-      } else if (error.message) {
+      if (error.message) {
         errorMessage = error.message;
       }
 
@@ -384,26 +376,19 @@
                 <!-- Name Column -->
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center gap-3">
-                    {#if validator.user}
-                      <Avatar
-                        address={validator.address}
-                        name={validator.user.name}
-                        size="sm"
-                      />
-                      <span class="text-gray-900">{validator.user.name || 'Unnamed'}</span>
-                    {:else}
-                      <span class="text-gray-400">—</span>
-                    {/if}
+                    <Avatar
+                      user={{ address: validator.address, name: null }}
+                      size="sm"
+                    />
+                    <span class="text-gray-400 font-mono text-sm">
+                      {truncateAddress(validator.address)}
+                    </span>
                   </div>
                 </td>
 
                 <!-- Ban Date Column -->
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {#if validator.ban_timestamp}
-                    {format(new Date(validator.ban_timestamp), 'MMM d, yyyy')}
-                  {:else}
-                    <span class="text-gray-400">—</span>
-                  {/if}
+                  <span class="text-gray-400">—</span>
                 </td>
 
                 <!-- Action Column -->
@@ -509,47 +494,26 @@
             <div class="bg-gray-50 p-3 rounded-md">
               <div class="flex items-center space-x-3">
                 <Avatar
-                  address={modalData.address}
-                  name={modalData.validator?.user?.name}
+                  user={{ address: modalData.address, name: null }}
                   size="sm"
                 />
                 <div class="flex-1">
-                  {#if modalData.validator?.user?.name}
-                    <p class="font-medium text-gray-900">{modalData.validator.user.name}</p>
-                    <div class="flex items-center space-x-2">
-                      <p class="text-sm text-gray-500 font-mono" title={modalData.address}>
-                        {truncateAddress(modalData.address)}
-                      </p>
-                      <a
-                        href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${modalData.address}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="text-gray-400 hover:text-blue-600 transition-colors"
-                        title="View in Explorer"
-                      >
-                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </a>
-                    </div>
-                  {:else}
-                    <div class="flex items-center space-x-2">
-                      <p class="font-medium text-gray-900 font-mono" title={modalData.address}>
-                        {truncateAddress(modalData.address)}
-                      </p>
-                      <a
-                        href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${modalData.address}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="text-gray-400 hover:text-blue-600 transition-colors"
-                        title="View in Explorer"
-                      >
-                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </a>
-                    </div>
-                  {/if}
+                  <div class="flex items-center space-x-2">
+                    <p class="font-medium text-gray-900 font-mono" title={modalData.address}>
+                      {truncateAddress(modalData.address)}
+                    </p>
+                    <a
+                      href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${modalData.address}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-gray-400 hover:text-blue-600 transition-colors"
+                      title="View in Explorer"
+                    >
+                      <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
@@ -606,9 +570,27 @@
                     {/if}
                   </p>
                   {#if transactionHash}
-                    <p class="text-xs text-gray-600 mt-1 font-mono">
-                      TX: {transactionHash}
-                    </p>
+                    <div class="mt-2">
+                      <p class="text-xs text-gray-600 font-mono mb-1">
+                        Transaction Hash:
+                      </p>
+                      <div class="flex items-center space-x-2">
+                        <span class="text-xs text-gray-700 font-mono" title={transactionHash}>
+                          {transactionHash.substring(0, 10)}...{transactionHash.substring(transactionHash.length - 8)}
+                        </span>
+                        <a
+                          href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/tx/${transactionHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="text-blue-600 hover:text-blue-800 transition-colors"
+                          title="View transaction in explorer"
+                        >
+                          <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </a>
+                      </div>
+                    </div>
                   {/if}
                 </div>
               </div>
