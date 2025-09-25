@@ -10,11 +10,12 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.generic import ListView
 from django.utils.decorators import method_decorator
-from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight
-from .serializers import (ContributionTypeSerializer, ContributionSerializer, 
+from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission
+from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
-                         StewardSubmissionSerializer, StewardSubmissionReviewSerializer)
+                         StewardSubmissionSerializer, StewardSubmissionReviewSerializer,
+                         MissionSerializer)
 from .forms import SubmissionReviewForm
 from .permissions import IsSteward
 from leaderboard.models import GlobalLeaderboardMultiplier
@@ -144,12 +145,12 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         """
         contribution_type = self.get_object()
         limit = int(request.query_params.get('limit', 5))
-        
+
         highlights = ContributionHighlight.get_active_highlights(
             contribution_type=contribution_type,
             limit=limit
         )
-        
+
         serializer = ContributionHighlightSerializer(highlights, many=True)
         return Response(serializer.data)
     
@@ -791,3 +792,40 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             })
         
         return Response(user_data)
+
+
+class MissionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for retrieving missions.
+    Only missions are returned by default.
+    """
+    serializer_class = MissionSerializer
+
+    def get_queryset(self):
+        """
+        Return active highlights by default.
+        Supports filtering by contribution_type and category.
+        """
+        from django.utils import timezone
+        from django.db import models
+
+        now = timezone.now()
+
+        # Get base queryset of active highlights (without slicing)
+        queryset = Mission.objects.filter(
+            models.Q(start_date__isnull=True) | models.Q(start_date__lte=now)
+        ).filter(
+            models.Q(end_date__isnull=True) | models.Q(end_date__gt=now)
+        ).select_related('contribution_type', 'contribution_type__category')
+
+        # Filter by contribution type if specified
+        contribution_type = self.request.query_params.get('contribution_type', None)
+        if contribution_type:
+            queryset = queryset.filter(contribution_type_id=contribution_type)
+
+        # Filter by category if specified
+        category = self.request.query_params.get('category', None)
+        if category:
+            queryset = queryset.filter(contribution_type__category__slug=category)
+
+        return queryset
