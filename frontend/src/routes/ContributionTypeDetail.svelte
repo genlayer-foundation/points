@@ -169,7 +169,104 @@
       <p>{error}</p>
     </div>
   {:else if contributionType}
-    <!-- Missions for this Contribution Type - At the top -->
+    <div class="{categoryColors.headerBg} shadow rounded-lg p-4 sm:p-6 border-2 {categoryColors.borderLight}">
+      <h1 class="text-xl sm:text-2xl font-bold {categoryColors.textDark} mb-2">{contributionType.name}</h1>
+      {#if contributionType.description}
+        <p class="text-sm sm:text-base text-gray-600 mb-4">{contributionType.description}</p>
+      {/if}
+      
+      <!-- Ideas Section -->
+      {#if Array.isArray(contributionType.examples) && contributionType.examples.length}
+        <div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div class="flex items-center gap-2 mb-3">
+            <Icons name="lightbulb" size="sm" className="text-yellow-600" />
+            <h3 class="text-sm font-semibold text-yellow-800">Ideas</h3>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            {#each contributionType.examples as example}
+              <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-300">
+                {example}
+              </span>
+            {/each}
+          </div>
+        </div>
+      {/if}
+      
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 border-t pt-4">
+        <p class="text-sm text-gray-500">Added on {formatDate(contributionType.created_at)}</p>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+          <span class="text-sm text-gray-500">Points per contribution:</span>
+          <span class="text-xl sm:text-lg font-bold text-purple-600">
+            {statistics.min_points != null && statistics.max_points != null && statistics.current_multiplier != null
+              ? (statistics.min_points === statistics.max_points 
+                  ? `${Math.round(statistics.min_points * statistics.current_multiplier)}` 
+                  : `${Math.round(statistics.min_points * statistics.current_multiplier)}-${Math.round(statistics.max_points * statistics.current_multiplier)}`)
+              : "0"}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="{categoryColors.cardBg} shadow rounded-lg p-4 border {categoryColors.borderLight}">
+        <div class="flex items-center">
+          <div class="flex-shrink-0 p-3 {categoryColors.statBg} rounded-lg mr-4">
+            <svg class="w-6 h-6 {categoryColors.icon}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <div>
+            <p class="text-sm text-gray-500">Total Contributions</p>
+            <p class="text-2xl font-bold text-gray-900">{statistics.count || 0}</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="{categoryColors.cardBg} shadow rounded-lg p-4 border {categoryColors.borderLight}">
+        <div class="flex items-center">
+          <div class="flex-shrink-0 p-3 {categoryColors.statBg} rounded-lg mr-4">
+            <svg class="w-6 h-6 {categoryColors.icon}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+            </svg>
+          </div>
+          <div>
+            <p class="text-sm text-gray-500">Unique Contributors</p>
+            <p class="text-2xl font-bold text-gray-900">{statistics.participants_count || 0}</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="{categoryColors.cardBg} shadow rounded-lg p-4 border {categoryColors.borderLight}">
+        <div class="flex items-center">
+          <div class="flex-shrink-0 p-3 {categoryColors.statBg} rounded-lg mr-4">
+            <svg class="w-6 h-6 {categoryColors.icon}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+          </div>
+          <div>
+            <p class="text-sm text-gray-500">Total Points Given</p>
+            <p class="text-2xl font-bold text-gray-900">{statistics.total_points_given || 0}</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="{categoryColors.cardBg} shadow rounded-lg p-4 border {categoryColors.borderLight}">
+        <div class="flex items-center">
+          <div class="flex-shrink-0 p-3 {categoryColors.statBg} rounded-lg mr-4">
+            <svg class="w-6 h-6 {categoryColors.icon}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <div>
+            <p class="text-sm text-gray-500">Last Contribution</p>
+            <p class="text-lg font-bold text-gray-900">{statistics.last_earned ? formatDate(statistics.last_earned) : 'Never'}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Missions for this Contribution Type -->
     {#if missions && missions.length > 0}
       {@const missionColors = getPioneerContributionsColors(contributionType?.category || 'global')}
 
@@ -274,103 +371,6 @@
         </div>
       </div>
     {/if}
-
-    <div class="{categoryColors.headerBg} shadow rounded-lg p-4 sm:p-6 border-2 {categoryColors.borderLight}">
-      <h1 class="text-xl sm:text-2xl font-bold {categoryColors.textDark} mb-2">{contributionType.name}</h1>
-      {#if contributionType.description}
-        <p class="text-sm sm:text-base text-gray-600 mb-4">{contributionType.description}</p>
-      {/if}
-      
-      <!-- Ideas Section -->
-      {#if Array.isArray(contributionType.examples) && contributionType.examples.length}
-        <div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <div class="flex items-center gap-2 mb-3">
-            <Icons name="lightbulb" size="sm" className="text-yellow-600" />
-            <h3 class="text-sm font-semibold text-yellow-800">Ideas</h3>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            {#each contributionType.examples as example}
-              <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-300">
-                {example}
-              </span>
-            {/each}
-          </div>
-        </div>
-      {/if}
-      
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 border-t pt-4">
-        <p class="text-sm text-gray-500">Added on {formatDate(contributionType.created_at)}</p>
-        <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-          <span class="text-sm text-gray-500">Points per contribution:</span>
-          <span class="text-xl sm:text-lg font-bold text-purple-600">
-            {statistics.min_points != null && statistics.max_points != null && statistics.current_multiplier != null
-              ? (statistics.min_points === statistics.max_points 
-                  ? `${Math.round(statistics.min_points * statistics.current_multiplier)}` 
-                  : `${Math.round(statistics.min_points * statistics.current_multiplier)}-${Math.round(statistics.max_points * statistics.current_multiplier)}`)
-              : "0"}
-          </span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Statistics Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="{categoryColors.cardBg} shadow rounded-lg p-4 border {categoryColors.borderLight}">
-        <div class="flex items-center">
-          <div class="flex-shrink-0 p-3 {categoryColors.statBg} rounded-lg mr-4">
-            <svg class="w-6 h-6 {categoryColors.icon}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-          </div>
-          <div>
-            <p class="text-sm text-gray-500">Total Contributions</p>
-            <p class="text-2xl font-bold text-gray-900">{statistics.count || 0}</p>
-          </div>
-        </div>
-      </div>
-      
-      <div class="{categoryColors.cardBg} shadow rounded-lg p-4 border {categoryColors.borderLight}">
-        <div class="flex items-center">
-          <div class="flex-shrink-0 p-3 {categoryColors.statBg} rounded-lg mr-4">
-            <svg class="w-6 h-6 {categoryColors.icon}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-            </svg>
-          </div>
-          <div>
-            <p class="text-sm text-gray-500">Unique Contributors</p>
-            <p class="text-2xl font-bold text-gray-900">{statistics.participants_count || 0}</p>
-          </div>
-        </div>
-      </div>
-      
-      <div class="{categoryColors.cardBg} shadow rounded-lg p-4 border {categoryColors.borderLight}">
-        <div class="flex items-center">
-          <div class="flex-shrink-0 p-3 {categoryColors.statBg} rounded-lg mr-4">
-            <svg class="w-6 h-6 {categoryColors.icon}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-            </svg>
-          </div>
-          <div>
-            <p class="text-sm text-gray-500">Total Points Given</p>
-            <p class="text-2xl font-bold text-gray-900">{statistics.total_points_given || 0}</p>
-          </div>
-        </div>
-      </div>
-      
-      <div class="{categoryColors.cardBg} shadow rounded-lg p-4 border {categoryColors.borderLight}">
-        <div class="flex items-center">
-          <div class="flex-shrink-0 p-3 {categoryColors.statBg} rounded-lg mr-4">
-            <svg class="w-6 h-6 {categoryColors.icon}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-          </div>
-          <div>
-            <p class="text-sm text-gray-500">Last Contribution</p>
-            <p class="text-lg font-bold text-gray-900">{statistics.last_earned ? formatDate(statistics.last_earned) : 'Never'}</p>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Featured User Contributions -->
     <FeaturedContributions
