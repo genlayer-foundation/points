@@ -60,7 +60,8 @@ export const usersAPI = {
   getAccountBalance: () => api.get('/users/balance/'),
   checkDeployments: () => api.get('/users/check_deployments/'),
   getDeploymentStatus: () => api.get('/users/deployment_status/'),
-  getActiveValidators: () => api.get('/users/validators/')
+  getActiveValidators: () => api.get('/users/validators/'),
+  getReferralCode: () => api.get('/users/referral-code/')
 };
 
 // API endpoints for contributions
@@ -178,6 +179,11 @@ export const getCurrentUser = async () => {
 
 export const updateUserProfile = async (data) => {
   const response = await usersAPI.updateUserProfile(data);
+  return response.data;
+};
+
+export const getReferralCode = async () => {
+  const response = await usersAPI.getReferralCode();
   return response.data;
 };
 

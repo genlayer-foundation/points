@@ -318,6 +318,10 @@ class UserSerializer(serializers.ModelSerializer):
     has_builder_welcome = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
     
+    # Referral system fields
+    referred_by_info = serializers.SerializerMethodField()
+    total_referrals = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
         fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward', 
@@ -325,8 +329,10 @@ class UserSerializer(serializers.ModelSerializer):
                   # Profile fields
                   'description', 'banner_image_url', 'profile_image_url', 'website',
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
-                  'email', 'is_email_verified']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+                  'email', 'is_email_verified',
+                  # Referral fields
+                  'referral_code', 'referred_by_info', 'total_referrals']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'referral_code']
     
     def get_leaderboard_entry(self, obj):
         """
@@ -377,6 +383,26 @@ class UserSerializer(serializers.ModelSerializer):
         if obj.is_email_verified:
             return obj.email
         return ''
+    
+    def get_referred_by_info(self, obj):
+        """
+        Get information about who referred this user.
+        Returns None if user was not referred.
+        """
+        if obj.referred_by:
+            return {
+                'id': obj.referred_by.id,
+                'name': obj.referred_by.name or 'Anonymous',
+                'address': obj.referred_by.address,
+                'referral_code': obj.referred_by.referral_code
+            }
+        return None
+    
+    def get_total_referrals(self, obj):
+        """
+        Get the total number of users referred by this user.
+        """
+        return User.objects.filter(referred_by=obj).count()
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
