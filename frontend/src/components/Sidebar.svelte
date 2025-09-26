@@ -51,8 +51,16 @@
       if (authButton) authButton.click();
       return;
     }
-    
-    push(path);
+
+    // Navigate to legal pages with refresh
+    if (path === '/terms-of-use' || path === '/privacy-policy') {
+      // Navigate directly and reload to ensure fresh start
+      window.location.href = `#${path}`;
+      window.location.reload();
+    } else {
+      push(path);
+    }
+
     // Close sidebar on mobile after navigation
     if (window.innerWidth < 768) {
       isOpen = false;
@@ -305,9 +313,9 @@
   <!-- Footer - Always at bottom -->
   <div class="p-4 border-t border-gray-200 bg-white">
       <div class="flex flex-col items-center space-y-2 text-xs text-gray-500">
-        <a 
-          href="https://github.com/genlayer-foundation/points" 
-          target="_blank" 
+        <a
+          href="https://github.com/genlayer-foundation/points"
+          target="_blank"
           rel="noopener noreferrer"
           class="flex items-center hover:text-gray-700 transition-colors"
         >
@@ -316,6 +324,11 @@
           </svg>
           GitHub
         </a>
+        <div class="flex items-center space-x-1">
+          <a href="/terms-of-use" onclick={(e) => { e.preventDefault(); navigate('/terms-of-use'); }} class="hover:text-gray-700 transition-colors">Terms of Use</a>
+          <span>·</span>
+          <a href="/privacy-policy" onclick={(e) => { e.preventDefault(); navigate('/privacy-policy'); }} class="hover:text-gray-700 transition-colors">Privacy Policy</a>
+        </div>
         <div class="text-center">
           © {new Date().getFullYear()} GenLayer Foundation
         </div>
@@ -477,9 +490,9 @@
     <!-- Footer (Mobile) - Always at bottom -->
     <div class="p-4 border-t border-gray-200 bg-white">
         <div class="flex flex-col items-center space-y-2 text-xs text-gray-500">
-          <a 
-            href="https://github.com/genlayer-foundation/points" 
-            target="_blank" 
+          <a
+            href="https://github.com/genlayer-foundation/points"
+            target="_blank"
             rel="noopener noreferrer"
             class="flex items-center hover:text-gray-700 transition-colors"
           >
@@ -488,6 +501,11 @@
             </svg>
             GitHub
           </a>
+          <div class="flex items-center space-x-1">
+            <a href="/terms-of-use" onclick={(e) => { e.preventDefault(); navigate('/terms-of-use'); }} class="hover:text-gray-700 transition-colors">Terms of Use</a>
+            <span>·</span>
+            <a href="/privacy-policy" onclick={(e) => { e.preventDefault(); navigate('/privacy-policy'); }} class="hover:text-gray-700 transition-colors">Privacy Policy</a>
+          </div>
           <div class="text-center">
             © {new Date().getFullYear()} GenLayer Foundation
           </div>
