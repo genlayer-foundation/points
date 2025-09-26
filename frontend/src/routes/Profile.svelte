@@ -501,7 +501,7 @@
     </div>
   {:else if participant}
     <!-- Profile Header with Banner and Avatar -->
-    <div class="bg-white shadow rounded-lg overflow-hidden mb-6">
+    <div class="bg-white shadow rounded-lg mb-6">
       <!-- Banner Image -->
       <div class="h-32 md:h-48 relative overflow-hidden">
         {#if participant.banner_image_url}
@@ -518,7 +518,7 @@
       </div>
       
       <!-- Profile Info Section -->
-      <div class="relative px-4 sm:px-6 pb-6">
+      <div class="relative px-4 sm:px-6 pb-6" style="overflow: visible;">
         <!-- Avatar -->
         <div class="-mt-12 sm:-mt-16 mb-4">
           <Avatar 
@@ -568,7 +568,7 @@
             
             {#if participant.address}
               <!-- Address with copy button and referral link -->
-              <div class="flex items-center gap-2 mt-2">
+              <div class="flex items-center gap-2 mt-2" style="overflow: visible;">
                 <code class="text-sm text-gray-600 font-mono">
                   {participant.address.substring(0, 6)}...{participant.address.substring(participant.address.length - 4)}
                 </code>
@@ -721,6 +721,24 @@
     <!-- Balance, Joined, and Referral Cards -->
     {#if !isValidatorOnly}
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+
+        <!-- Total Referrals Card -->
+        <div class="bg-white shadow rounded-lg p-4">
+          <div class="flex items-center">
+            <div class="flex-shrink-0 p-3 rounded-lg mr-4 bg-purple-50 text-purple-500">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <p class="text-sm text-gray-500">Referrals</p>
+              <p class="text-xl font-bold text-gray-900">
+                {participant.total_referrals || 0}
+              </p>
+            </div>
+          </div>
+        </div>
+
         <!-- Balance Card -->
         <div class="bg-white shadow rounded-lg p-4">
           <div class="flex items-center">
@@ -762,8 +780,7 @@
               </div>
             </div>
           </div>
-        {/if}
-        
+        {/if}        
       </div>
     {/if}
     

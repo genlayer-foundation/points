@@ -320,6 +320,7 @@ class UserSerializer(serializers.ModelSerializer):
     
     # Referral system fields
     referred_by_info = serializers.SerializerMethodField()
+    total_referrals = serializers.SerializerMethodField()
     
     class Meta:
         model = User
@@ -330,7 +331,7 @@ class UserSerializer(serializers.ModelSerializer):
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
                   'email', 'is_email_verified',
                   # Referral fields
-                  'referral_code', 'referred_by_info']
+                  'referral_code', 'referred_by_info', 'total_referrals']
         read_only_fields = ['id', 'created_at', 'updated_at', 'referral_code']
     
     def get_leaderboard_entry(self, obj):
@@ -392,9 +393,16 @@ class UserSerializer(serializers.ModelSerializer):
             return {
                 'id': obj.referred_by.id,
                 'name': obj.referred_by.name or 'Anonymous',
-                'address': obj.referred_by.address
+                'address': obj.referred_by.address,
+                'referral_code': obj.referred_by.referral_code
             }
         return None
+    
+    def get_total_referrals(self, obj):
+        """
+        Get the total number of users referred by this user.
+        """
+        return User.objects.filter(referred_by=obj).count()
 
 
 class UserCreateSerializer(serializers.ModelSerializer):

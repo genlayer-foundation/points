@@ -131,15 +131,19 @@ def login(request):
         # Handle referral association for new users
         if created and referral_code:
             try:
-                referrer = User.objects.get(referral_code=referral_code)
+                # Find referrer by referral code
+                referrer = User.objects.get(referral_code=referral_code.upper())
                 # Prevent self-referral (though this shouldn't happen with new users)
                 if referrer != user:
                     user.referred_by = referrer
                     user.save(update_fields=['referred_by'])
-                    print(f"New user {ethereum_address} referred by {referrer.address} (code: {referral_code})")
+                    print(f"New user {ethereum_address} referred by {referrer.address}")
             except User.DoesNotExist:
                 # Invalid referral code, but don't fail the login
                 print(f"Invalid referral code provided during login: {referral_code}")
+        
+        # Refresh user data from database to get referral_code from signal
+        user.refresh_from_db()
         
         # Store the ethereum address in the session
         request.session['ethereum_address'] = ethereum_address
@@ -151,13 +155,20 @@ def login(request):
         print(f"Login - Setting ethereum_address: {ethereum_address}")
         print(f"Login - Session data: {dict(request.session)}")
         
-        # Return the authenticated user
+        # Return the authenticated user with referral data
         return Response({
             'authenticated': True,
             'address': ethereum_address,
             'user_id': user.id,
             'created': created,
-            'session_key': request.session.session_key  # For debugging
+            'session_key': request.session.session_key,  # For debugging
+            'referral_code': user.referral_code,
+            'referred_by': {
+                'id': user.referred_by.id,
+                'name': user.referred_by.name or 'Anonymous',
+                'address': user.referred_by.address,
+                'referral_code': user.referred_by.referral_code
+            } if user.referred_by else None
         })
         
     except Exception as e:

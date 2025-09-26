@@ -1,5 +1,4 @@
 <script>
-  import { getReferralCode } from '../lib/api.js';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
 
@@ -10,20 +9,10 @@
   // Get current user from store
   let user = $derived($userStore.user);
 
-  // Get referral code from user profile or fetch it
-  $effect(async () => {
+  // Get referral code from user store (populated from login response)
+  $effect(() => {
     if (user?.referral_code) {
       referralCode = user.referral_code;
-    } else if ($authState.isAuthenticated && !referralCode) {
-      // Fetch referral code if not in user profile yet
-      try {
-        const response = await getReferralCode();
-        referralCode = response.referral_code;
-        // Update user store to reflect the referral code
-        userStore.updateUser({ referral_code: referralCode });
-      } catch (error) {
-        console.error('Failed to fetch referral code:', error);
-      }
     }
   });
 

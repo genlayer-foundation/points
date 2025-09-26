@@ -283,6 +283,18 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet')
     // Update auth state
     authState.setAuthenticated(true, address);
     
+    // Store referral data from login response immediately
+    if (response.data.referral_code || response.data.referred_by) {
+      userStore.updateUser({
+        referral_code: response.data.referral_code,
+        referred_by_info: response.data.referred_by
+      });
+      console.log('Referral data stored from login:', {
+        referral_code: response.data.referral_code,
+        referred_by: response.data.referred_by
+      });
+    }
+    
     // Set up wallet listeners after successful connection
     setupWalletListeners();
     
