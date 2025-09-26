@@ -1,0 +1,164 @@
+<script>
+  import { onMount } from 'svelte';
+  import { processLegalDocument, extractMetadata } from '../lib/markdownLoader.js';
+  import privacyContent from '../content/legal/privacy-policy.md?raw';
+
+  let pageTitle = 'Privacy Policy';
+  let htmlContent = $state('');
+  let metadata = $state({});
+  let isLoading = $state(true);
+  let hasError = $state(false);
+
+  onMount(async () => {
+    try {
+      isLoading = true;
+      hasError = false;
+
+      // Process the markdown content
+      if (typeof privacyContent === 'string' && privacyContent.length > 0) {
+        htmlContent = processLegalDocument(privacyContent);
+        metadata = extractMetadata(privacyContent);
+      } else {
+        // Try to fetch as fallback if import failed
+        try {
+          const response = await fetch('/src/content/legal/privacy-policy.md');
+          if (response.ok) {
+            const fallbackContent = await response.text();
+            htmlContent = processLegalDocument(fallbackContent);
+            metadata = extractMetadata(fallbackContent);
+          } else {
+            throw new Error('Failed to fetch fallback content');
+          }
+        } catch (fetchError) {
+          hasError = true;
+          htmlContent = `<div class="text-red-600"><h2>Content Loading Error</h2><p>The privacy policy content could not be loaded. Please try refreshing the page.</p></div>`;
+        }
+      }
+
+      document.title = `${pageTitle} - GenLayer Points`;
+    } catch (error) {
+      hasError = true;
+      htmlContent = `<div class="text-red-600"><h2>Unexpected Error</h2><p>An unexpected error occurred. Please try refreshing the page.</p></div>`;
+    } finally {
+      isLoading = false;
+    }
+  });
+</script>
+
+<svelte:head>
+  <title>{pageTitle} - GenLayer Points</title>
+</svelte:head>
+
+<div class="space-y-6">
+  <!-- Header section -->
+  <div class="max-w-4xl mx-auto">
+    <h1 class="text-2xl font-bold text-gray-900">Privacy Policy</h1>
+    <p class="mt-1 text-sm text-gray-500">
+      {#if metadata.lastUpdated}
+        Last updated: {metadata.lastUpdated}
+      {:else}
+        GenLayer Foundation's privacy practices and data handling
+      {/if}
+    </p>
+  </div>
+
+  <!-- Content section -->
+  <div class="legal-content max-w-4xl mx-auto">
+    {#if isLoading}
+      <div class="flex justify-center items-center py-12">
+        <div class="text-center">
+          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+          <p class="text-gray-600">Loading privacy policy...</p>
+        </div>
+      </div>
+    {:else}
+      {@html htmlContent}
+    {/if}
+  </div>
+</div>
+
+<style>
+  /* Legal document typography optimized for readability */
+  .legal-content {
+    @apply text-gray-800 leading-relaxed;
+    line-height: 1.7;
+  }
+
+  /* Hide the first H1 since we show it in the header */
+  .legal-content :global(h1:first-child) {
+    @apply hidden;
+  }
+
+  .legal-content :global(h1) {
+    @apply text-2xl font-bold text-gray-900 mb-4 mt-8;
+  }
+
+  .legal-content :global(h2) {
+    @apply text-xl font-bold text-gray-900 mb-3 mt-8;
+  }
+
+  .legal-content :global(h3) {
+    @apply text-lg font-semibold text-gray-900 mb-3 mt-6;
+  }
+
+  .legal-content :global(h4) {
+    @apply text-base font-semibold text-gray-900 mb-2 mt-5;
+  }
+
+  .legal-content :global(h5) {
+    @apply text-base font-medium text-gray-900 mb-2 mt-4;
+  }
+
+  .legal-content :global(h6) {
+    @apply text-sm font-medium text-gray-900 mb-2 mt-4;
+  }
+
+  .legal-content :global(p) {
+    @apply text-gray-800 leading-relaxed mb-5;
+    font-size: 15px;
+    text-align: justify;
+  }
+
+  .legal-content :global(ul), .legal-content :global(ol) {
+    @apply mb-5 pl-6 space-y-2;
+  }
+
+  .legal-content :global(ul) {
+    @apply list-disc;
+  }
+
+  .legal-content :global(ol) {
+    @apply list-decimal;
+  }
+
+  .legal-content :global(li) {
+    @apply text-gray-800 leading-relaxed;
+    font-size: 15px;
+    text-align: justify;
+  }
+
+  .legal-content :global(a) {
+    @apply text-gray-800 font-medium hover:text-gray-900 no-underline;
+  }
+
+  .legal-content :global(strong) {
+    @apply font-semibold text-gray-900;
+  }
+
+  .legal-content :global(em) {
+    @apply italic text-gray-800;
+  }
+
+  .legal-content :global(code) {
+    @apply bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono text-gray-800;
+  }
+
+  .legal-content :global(blockquote) {
+    @apply border-l-4 border-gray-300 pl-4 italic text-gray-700 my-4;
+  }
+
+  /* Better spacing for nested lists */
+  .legal-content :global(li ul), .legal-content :global(li ol) {
+    @apply mt-2 mb-2;
+  }
+</style>
