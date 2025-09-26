@@ -9,6 +9,7 @@
   import ProfileStats from '../components/ProfileStats.svelte';
   import ContributionBreakdown from '../components/ContributionBreakdown.svelte';
   import BuilderProgress from '../components/BuilderProgress.svelte';
+  import ReferralSection from '../components/ReferralSection.svelte';
   import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, getCurrentUser } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
@@ -566,7 +567,7 @@
             </div>
             
             {#if participant.address}
-              <!-- Address with copy button -->
+              <!-- Address with copy button and referral link -->
               <div class="flex items-center gap-2 mt-2">
                 <code class="text-sm text-gray-600 font-mono">
                   {participant.address.substring(0, 6)}...{participant.address.substring(participant.address.length - 4)}
@@ -587,6 +588,13 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                   </svg>
                 </button>
+                
+                <!-- Referral Section for own profile -->
+                {#if isOwnProfile}
+                  <div class="ml-2">
+                    <ReferralSection />
+                  </div>
+                {/if}
               </div>
             {/if}
             
@@ -710,9 +718,9 @@
       </div>
     </div>
     
-    <!-- Balance and Joined Cards -->
+    <!-- Balance, Joined, and Referral Cards -->
     {#if !isValidatorOnly}
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <!-- Balance Card -->
         <div class="bg-white shadow rounded-lg p-4">
           <div class="flex items-center">
@@ -755,6 +763,7 @@
             </div>
           </div>
         {/if}
+        
       </div>
     {/if}
     

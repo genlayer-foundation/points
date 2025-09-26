@@ -52,9 +52,10 @@ def login(request):
     """
     Authenticate a user with a SIWE message.
     """
-    # Get the SIWE message and signature from the request
+    # Get the SIWE message, signature, and optional referral code from the request
     message = request.data.get('message')
     signature = request.data.get('signature')
+    referral_code = request.data.get('referral_code')
     
     if not message or not signature:
         return Response(
@@ -117,7 +118,6 @@ def login(request):
         nonce.mark_as_used()
         
         # Get or create the user
-        
         user, created = User.objects.get_or_create(
             address__iexact=ethereum_address,
             defaults={
@@ -127,6 +127,19 @@ def login(request):
                 # No name set by default for wallet-based users
             }
         )
+        
+        # Handle referral association for new users
+        if created and referral_code:
+            try:
+                referrer = User.objects.get(referral_code=referral_code)
+                # Prevent self-referral (though this shouldn't happen with new users)
+                if referrer != user:
+                    user.referred_by = referrer
+                    user.save(update_fields=['referred_by'])
+                    print(f"New user {ethereum_address} referred by {referrer.address} (code: {referral_code})")
+            except User.DoesNotExist:
+                # Invalid referral code, but don't fail the login
+                print(f"Invalid referral code provided during login: {referral_code}")
         
         # Store the ethereum address in the session
         request.session['ethereum_address'] = ethereum_address
