@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
-  import { authState } from '../lib/auth.js';
+  import { authState, verifyAuth } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { getBannedValidators, unbanValidator as blockchainUnbanValidator, unbanAllValidators as blockchainUnbanAllValidators } from '../lib/blockchain.js';
   import Avatar from '../components/Avatar.svelte';
@@ -47,12 +47,28 @@
   });
 
   onMount(async () => {
-    // Check authentication and steward status
+    // Wait for auth verification to complete if not already done
+    if (!$authState.hasVerified) {
+      await verifyAuth();
+    }
+
+    // Check authentication
     if (!$authState.isAuthenticated) {
       push('/');
       return;
     }
 
+    // If authenticated but user data not loaded yet, wait for it
+    if (!$userStore.user && $authState.isAuthenticated) {
+      // Give user data time to load (up to 1 second)
+      let attempts = 0;
+      while (!$userStore.user && attempts < 10) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+    }
+
+    // Check steward status
     if (!$userStore.user?.steward) {
       push('/');
       return;
