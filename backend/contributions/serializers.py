@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight
+from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission
 from users.serializers import UserSerializer
 from users.models import User
 import decimal
@@ -11,7 +11,11 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = ContributionType
-        fields = ['id', 'name', 'description', 'category', 'min_points', 'max_points', 'current_multiplier', 'is_submittable', 'created_at', 'updated_at']
+        fields = [
+            'id', 'name', 'description', 'category', 'min_points', 'max_points',
+            'current_multiplier', 'is_submittable', 'examples',
+            'created_at', 'updated_at'
+        ]
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_current_multiplier(self, obj):
@@ -292,3 +296,20 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
             
             return contribution_data
         return None
+
+
+class MissionSerializer(serializers.ModelSerializer):
+    contribution_type_details = ContributionTypeSerializer(source='contribution_type', read_only=True)
+    is_active = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Mission
+        fields = [
+            'id', 'name', 'description',
+            'start_date', 'end_date', 'contribution_type', 'contribution_type_details',
+            'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_is_active(self, obj):
+        return obj.is_active()

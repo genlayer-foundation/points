@@ -30,9 +30,9 @@
     try {
       statsLoading = true;
       
-      // Fetch all users to count validators (matching Validators.svelte logic)
+      // Fetch all users and other data (matching Validators.svelte logic)
       const [usersRes, builderLeaderboardRes, validatorContribRes, builderContribRes] = await Promise.all([
-        usersAPI.getUsers(),
+        usersAPI.getUsers({ page_size: 1000 }),
         leaderboardAPI.getLeaderboardByType('builder'),
         contributionsAPI.getContributions({ category: 'validator', limit: 1 }),
         contributionsAPI.getContributions({ category: 'builder', limit: 1 })
@@ -42,7 +42,7 @@
       const validatorLeaderboardRes = await leaderboardAPI.getLeaderboardByType('validator');
       const validatorEntries = Array.isArray(validatorLeaderboardRes.data) ? validatorLeaderboardRes.data : [];
       
-      // Count all users with validator profiles (matching Validators.svelte)
+      // Count validators the same way Validators.svelte does - users with validator profiles
       const allUsers = usersRes.data.results || [];
       const validatorCount = allUsers.filter(user => user.validator && user.address).length;
       

@@ -57,7 +57,9 @@
   
   // Check if networks are configured
   async function checkNetworks() {
-    if (!window.ethereum || !walletAddress) {
+    // Get the connected wallet's provider from authState or fallback to window.ethereum
+    const provider = $authState.provider || window.ethereum;
+    if (!provider || !walletAddress) {
       return;
     }
     
@@ -65,7 +67,7 @@
     try {
       // Check for Asimov network
       try {
-        await window.ethereum.request({
+        await provider.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: ASIMOV_NETWORK.chainId }],
         });
@@ -80,7 +82,7 @@
       
       // Check for Studio network
       try {
-        await window.ethereum.request({
+        await provider.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: STUDIO_NETWORK.chainId }],
         });
@@ -109,8 +111,10 @@
   
   // Add network to wallet
   async function addNetwork(network, isStudio = false) {
-    if (!window.ethereum) {
-      alert('Please install MetaMask or another Web3 wallet');
+    // Get the connected wallet's provider from authState or fallback to window.ethereum
+    const provider = $authState.provider || window.ethereum;
+    if (!provider) {
+      alert('Please connect your wallet first');
       return;
     }
     
@@ -121,7 +125,7 @@
     }
     
     try {
-      await window.ethereum.request({
+      await provider.request({
         method: 'wallet_addEthereumChain',
         params: [network],
       });
@@ -200,7 +204,7 @@
             {/if}
           </div>
           <div>
-            <p class="text-sm font-medium text-gray-900">Connect your MetaMask wallet</p>
+            <p class="text-sm font-medium text-gray-900">Connect your wallet</p>
             <p class="text-xs text-gray-500">
               {#if walletAddress}
                 Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
@@ -289,7 +293,7 @@
             {/if}
           </div>
           <div>
-            <p class="text-sm font-medium text-gray-900">Add GenLayer Asimov Network to MetaMask</p>
+            <p class="text-sm font-medium text-gray-900">Add GenLayer Asimov Network to your wallet</p>
             <p class="text-xs text-gray-500">
               {#if hasAsimovNetwork}
                 Network configured in your wallet

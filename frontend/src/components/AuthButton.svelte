@@ -4,6 +4,7 @@
   import { push } from 'svelte-spa-router';
   import { authState, signInWithEthereum, logout } from '../lib/auth';
   import { userStore } from '../lib/userStore';
+  import WalletSelector from './WalletSelector.svelte';
   
   // Use $: to access the store values reactively
   $: isAuthenticated = $authState.isAuthenticated;
@@ -15,6 +16,7 @@
   let loading = false;
   let error = null;
   let showDropdown = false;
+  let showWalletSelector = false;
   let errorTimeout;
   
   // Auto-dismiss error messages after 5 seconds
@@ -42,17 +44,25 @@
       return;
     }
     
-    // Otherwise, start the connection process
+    // Show wallet selector modal
+    showWalletSelector = true;
+  }
+  
+  async function handleWalletSelected(provider, walletName) {
+    // Start the connection process with selected wallet
     loading = true;
     error = null;
+    // Keep the wallet selector open during connection
     
     try {
-      await signInWithEthereum();
+      await signInWithEthereum(provider, walletName);
+      // Only close on successful connection
+      showWalletSelector = false;
     } catch (err) {
       console.error('Auth error:', err);
       // Create a curated error message
-      if (err.message?.includes('MetaMask is not installed')) {
-        error = 'Please install MetaMask to connect';
+      if (err.message?.includes('not installed')) {
+        error = `Please install ${walletName} to connect`;
       } else if (err.message?.includes('User rejected') || err.message?.includes('User denied')) {
         error = 'Connection rejected';
       } else if (err.message?.includes('signature')) {
@@ -62,6 +72,7 @@
       } else {
         error = 'Connection failed';
       }
+      // Keep modal open on error so user can try again
     } finally {
       loading = false;
     }
@@ -154,6 +165,9 @@
     </div>
   {/if}
 </div>
+
+<!-- Wallet Selector Modal -->
+<WalletSelector bind:isOpen={showWalletSelector} onSelect={handleWalletSelected} />
 
 <style>
   .auth-dropdown-container {

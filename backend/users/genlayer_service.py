@@ -70,10 +70,40 @@ class GenLayerDeploymentService:
             
             try:
                 # Use the sim_getTransactionsForAddress method to get all transactions
-                response = self.client.provider.make_request(
-                    method="sim_getTransactionsForAddress",
-                    params=[wallet_address]
-                )
+                logger.debug(f"Making request to Studio API for address: {wallet_address}")
+                
+                try:
+                    response = self.client.provider.make_request(
+                        method="sim_getTransactionsForAddress",
+                        params=[wallet_address]
+                    )
+                except Exception as api_error:
+                    # Log the raw error for debugging
+                    logger.error(f"Raw API error for {wallet_address}: {str(api_error)}")
+                    logger.error(f"Error type: {type(api_error).__name__}")
+                    
+                    # Try to get the raw response if available
+                    if hasattr(api_error, 'response'):
+                        logger.error(f"Response status code: {getattr(api_error.response, 'status_code', 'N/A')}")
+                        logger.error(f"Response headers: {getattr(api_error.response, 'headers', 'N/A')}")
+                        try:
+                            logger.error(f"Response text: {api_error.response.text[:500]}")  # First 500 chars
+                        except:
+                            logger.error("Could not get response text")
+                    
+                    # Try to handle common Studio API issues
+                    error_msg = str(api_error).lower()
+                    if "expecting value" in error_msg:
+                        logger.warning(f"Studio API returned empty or non-JSON response for {wallet_address}")
+                        # Return empty deployments but not an error - Studio might not have data
+                        return {
+                            'has_deployments': False,
+                            'deployment_count': 0,
+                            'deployments': [],
+                            'wallet_address': wallet_address,
+                            'note': 'Studio API returned no data for this address'
+                        }
+                    raise  # Re-raise if it's not a known issue
                 
                 # Extract transactions from the response
                 transactions = response.get('result', [])

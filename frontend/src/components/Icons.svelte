@@ -54,6 +54,7 @@
     // Chevron for expanded/collapsed sections
     chevronDown: 'M6 9l6 6 6-6',
     chevronRight: 'M9 6l6 6-6 6',
+    chevronLeft: 'M15 18l-6-6 6-6',
     
     // Stats icons
     users: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
@@ -62,7 +63,11 @@
     
     points: 'M13 10V3L4 14h7v7l9-11h-7z',
     
-    star: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z'
+    star: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z',
+    
+    lightbulb: 'M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7zm2 14h-4v-1h4v1zm0-2h-4v-1h4v1z',
+    
+    sparkle: 'M22 0c0 16.9-9.1 32-22 32c12.9 0 22 15.1 22 32c0-16.9 9.1-32 22-32c-12.9 0-22-15.1-22-32M53 0c0 8.4-4.6 16-11 16c6.4 0 11 7.6 11 16c0-8.4 4.6-16 11-16c-6.4 0-11-7.6-11-16M48 32c0 8.4-4.6 16-11 16c6.4 0 11 7.6 11 16c0-8.4 4.6-16 11-16c-6.4 0-11-7.6-11-16'
   };
 </script>
 
@@ -79,7 +84,7 @@
   };
   
   // Icons that use fill instead of stroke
-  const fillIcons = ['genlayer', 'global', 'builder', 'validator', 'steward', 'leaderboard', 'profile'];
+  const fillIcons = ['genlayer', 'global', 'builder', 'validator', 'steward', 'leaderboard', 'profile', 'lightbulb'];
   
   let sizeClass = $derived(sizes[size] || sizes.md);
   let iconPath = $derived(icons[name] || '');
@@ -97,11 +102,11 @@
     >
       <path d={iconPath} />
     </svg>
-  {:else if name === 'steward'}
+  {:else if name === 'steward' || name === 'sparkle'}
     <!-- Special case for steward icon with different viewBox -->
-    <svg 
-      class="{sizeClass} {className}" 
-      fill="currentColor" 
+    <svg
+      class="{sizeClass} {className}"
+      fill="currentColor"
       viewBox="0 0 64 64"
       aria-hidden="true"
     >
