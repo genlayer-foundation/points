@@ -9,7 +9,6 @@ from .models import Validator
 from users.models import User
 from users.serializers import ValidatorSerializer, UserSerializer
 from contributions.models import Contribution, ContributionType
-from .blockchain_service import validator_blockchain_service, VALIDATOR_CONTRACT_ABI
 
 
 class ValidatorViewSet(viewsets.ModelViewSet):
@@ -23,7 +22,7 @@ class ValidatorViewSet(viewsets.ModelViewSet):
         """
         Allow read-only access without authentication for public endpoints.
         """
-        if self.action in ['newest_validators', 'contract_info']:
+        if self.action in ['newest_validators']:
             return [AllowAny()]
         return [IsAuthenticated()]
     
@@ -100,38 +99,3 @@ class ValidatorViewSet(viewsets.ModelViewSet):
                 })
         
         return Response(result)
-
-    @action(detail=False, methods=['get'], url_path='contract-info')
-    def contract_info(self, request):
-        """
-        Get validator contract information for frontend wallet integration.
-        Returns contract address, ABI, and RPC URL.
-        This endpoint is public as the ABI is not sensitive information.
-        """
-        try:
-            contract_info = {
-                'contract_address': settings.VALIDATOR_CONTRACT_ADDRESS,
-                'abi': VALIDATOR_CONTRACT_ABI,
-                'rpc_url': settings.VALIDATOR_RPC_URL
-            }
-
-            return Response(contract_info, status=status.HTTP_200_OK)
-
-        except AttributeError as e:
-            # Handle missing settings
-            missing_setting = str(e).split("'")[1]
-            return Response(
-                {
-                    'error': f'Contract configuration incomplete: {missing_setting} not configured',
-                    'detail': 'Please check your environment configuration'
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-        except Exception as e:
-            return Response(
-                {
-                    'error': 'Failed to retrieve contract information',
-                    'detail': str(e)
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
