@@ -52,7 +52,7 @@
     <!-- Right section with actions -->
     <div class="flex-1 flex justify-end items-center h-16 px-4">
       <div class="hidden md:flex items-center gap-4">
-        <ReferralSection />
+        <ReferralSection showHelpIcon={true} />
         <button 
           onclick={handleSubmitContribution}
           class="px-4 py-2 {$categoryTheme.button} rounded-md font-medium"

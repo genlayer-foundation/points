@@ -2,6 +2,9 @@
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
 
+  // Props
+  let { showHelpIcon = false } = $props();
+
   // Component state
   let state = $state('success'); // success, copied (simplified states)
   let referralCode = $state(null);
@@ -22,8 +25,12 @@
   async function handleCopyLink() {
     if (!referralUrl) return;
     
+    const copyText = `Build. Earn. Amplify.
+Join GenLayer's Builder Program and earn points for real contributions.
+👉 Start here: ${referralUrl}`;
+    
     try {
-      await navigator.clipboard.writeText(referralUrl);
+      await navigator.clipboard.writeText(copyText);
       state = 'copied';
       
       // Reset state after 2 seconds
@@ -36,7 +43,7 @@
       // Fallback for older browsers
       try {
         const textArea = document.createElement('textarea');
-        textArea.value = referralUrl;
+        textArea.value = copyText;
         document.body.appendChild(textArea);
         textArea.select();
         document.execCommand('copy');
@@ -86,26 +93,28 @@
       {getButtonText()}
     </button>
 
-    <!-- Help Icon with Tooltip -->
-    <div class="relative">
-      <button 
-        class="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors group" 
-        aria-label="How referrals work"
-      >
-        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
-        </svg>
-        
-        <!-- Tooltip positioned below using transform and high z-index -->
-        <div class="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-64" style="z-index: 999999;">
-          <div>
-            <p class="font-semibold mb-1">How Referrals Work</p>
-            <p class="text-xs leading-relaxed">Share your referral link to invite others to GenLayer Points. When they sign up using your link, they'll be connected to you as your referral.</p>
+    <!-- Help Icon with Tooltip (only show in navbar) -->
+    {#if showHelpIcon}
+      <div class="relative">
+        <button 
+          class="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors group" 
+          aria-label="How referrals work"
+        >
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+          </svg>
+          
+          <!-- Tooltip positioned below using transform and high z-index -->
+          <div class="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-64" style="z-index: 999999;">
+            <div>
+              <p class="font-semibold mb-1">Amplify Your Impact</p>
+              <p class="text-xs leading-relaxed">Building is better together. Our referral system rewards you with 10% of points earned by every contribution from your referrals. Invite your friends, colleagues, and community.</p>
+            </div>
+            <!-- Arrow pointing up -->
+            <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-b-gray-800"></div>
           </div>
-          <!-- Arrow pointing up -->
-          <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-b-gray-800"></div>
-        </div>
-      </button>
-    </div>
+        </button>
+      </div>
+    {/if}
   </div>
 {/if}

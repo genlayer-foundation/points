@@ -268,32 +268,17 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet')
     // Add referral code if available
     if (referralCode) {
       loginData.referral_code = referralCode;
-      console.log('Including referral code in login:', referralCode);
     }
     
     const response = await authAxios.post(API_ENDPOINTS.LOGIN, loginData);
-    console.log('Login response:', response.data);
     
     // Clear referral code from localStorage after successful login
     if (referralCode) {
       localStorage.removeItem('referral_code');
-      console.log('Referral code cleared from localStorage');
     }
     
     // Update auth state
     authState.setAuthenticated(true, address);
-    
-    // Store referral data from login response immediately
-    if (response.data.referral_code || response.data.referred_by) {
-      userStore.updateUser({
-        referral_code: response.data.referral_code,
-        referred_by_info: response.data.referred_by
-      });
-      console.log('Referral data stored from login:', {
-        referral_code: response.data.referral_code,
-        referred_by: response.data.referred_by
-      });
-    }
     
     // Set up wallet listeners after successful connection
     setupWalletListeners();

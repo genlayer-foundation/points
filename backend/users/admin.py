@@ -46,8 +46,8 @@ class ContributionInline(admin.TabularInline):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'address', 'referral_code', 'referred_by', 'is_email_verified')
-    list_filter = ('is_staff', 'is_active', 'visible', 'is_email_verified', 'referred_by')
+    list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'address', 'is_email_verified')
+    list_filter = ('is_staff', 'is_active', 'visible', 'is_email_verified')
     search_fields = ('email', 'name', 'address', 'referral_code', 'twitter_handle', 'discord_handle', 'telegram_handle')
     ordering = ('email',)
     

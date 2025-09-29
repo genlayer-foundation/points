@@ -182,9 +182,5 @@ export const updateUserProfile = async (data) => {
   return response.data;
 };
 
-export const getReferralCode = async () => {
-  const response = await usersAPI.getReferralCode();
-  return response.data;
-};
 
 export default api;

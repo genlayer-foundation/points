@@ -27,11 +27,11 @@ def create_referral_code(sender, instance, created, **kwargs):
     """
     Automatically generate a unique referral code for new users.
     """
-    if created and not instance.referral_code:
+    if created or not instance.referral_code:
         try:
             referral_code = generate_unique_referral_code()
             # Use update to avoid triggering the signal again
             User.objects.filter(pk=instance.pk).update(referral_code=referral_code)
-        except ValueError as e:
+        except Exception as e:
             # Log the error but don't fail user creation
-            print(f"Warning: Failed to generate referral code for user {instance.id}: {str(e)}")
+            print(f"Failed to generate referral code for user {instance.id}: {str(e)}")
