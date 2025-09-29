@@ -421,8 +421,8 @@
           
           <div class="wallet-selector-disclaimer">
             By connecting your wallet you agree to the<br>
-            <a href="/#/terms-of-use" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">Terms of Use</a> and
-            <a href="/#/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">Privacy Policy</a>
+            <a href="#/terms-of-use" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">Terms of Use</a> and
+            <a href="#/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">Privacy Policy</a>
           </div>
         {/if}
       </div>

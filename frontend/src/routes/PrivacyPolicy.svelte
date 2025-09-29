@@ -53,13 +53,6 @@
   <!-- Header section -->
   <div class="max-w-4xl mx-auto">
     <h1 class="text-2xl font-bold text-gray-900">Privacy Policy</h1>
-    <p class="mt-1 text-sm text-gray-500">
-      {#if metadata.lastUpdated}
-        Last updated: {metadata.lastUpdated}
-      {:else}
-        GenLayer Foundation's privacy practices and data handling
-      {/if}
-    </p>
   </div>
 
   <!-- Content section -->
