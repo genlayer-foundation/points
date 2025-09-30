@@ -36,6 +36,8 @@
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
   import BuilderWelcome from './routes/BuilderWelcome.svelte';
+  import TermsOfUse from './routes/TermsOfUse.svelte';
+  import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
   
   // Define routes
   const routes = {
@@ -82,6 +84,10 @@
     '/stewards/submissions': StewardSubmissions,
     '/stewards/manage-users': StewardManageUsers,
 
+    // Legal routes
+    '/terms-of-use': TermsOfUse,
+    '/privacy-policy': PrivacyPolicy,
+
     '*': NotFound
   };
   
@@ -95,7 +101,7 @@
   function hideTooltips() {
     const tooltipEl = document.getElementById('custom-tooltip');
     const arrowEl = document.getElementById('custom-tooltip-arrow');
-    
+
     if (tooltipEl) {
       tooltipEl.style.opacity = '0';
       tooltipEl.style.display = 'none'; // Completely hide it
@@ -104,6 +110,12 @@
       arrowEl.style.opacity = '0';
       arrowEl.style.display = 'none'; // Completely hide it
     }
+  }
+
+  // Function to handle route loaded events
+  function handleRouteLoaded() {
+    // Hide tooltips
+    hideTooltips();
   }
 
   // Tooltip handling
@@ -231,10 +243,10 @@
   <div class="flex-1 flex overflow-hidden">
     <Sidebar bind:isOpen={sidebarOpen} />
     <main class="flex-1 overflow-y-auto container mx-auto px-4 py-4 md:py-6 lg:py-8">
-      <Router 
-        {routes} 
+      <Router
+        {routes}
         on:conditionsFailed={hideTooltips}
-        on:routeLoaded={hideTooltips}
+        on:routeLoaded={handleRouteLoaded}
       />
     </main>
   </div>
