@@ -255,11 +255,27 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet')
     // Create and sign the message with the specific provider
     const { message, signature } = await createAndSignMessage(address, nonce, ethereumProvider);
     
+    // Check for referral code in localStorage
+    const referralCode = localStorage.getItem('referral_code');
+    
     // Send to backend for verification
-    const response = await authAxios.post(API_ENDPOINTS.LOGIN, {
+    console.log('Sending login request to:', API_ENDPOINTS.LOGIN);
+    const loginData = {
       message,
       signature
-    });
+    };
+    
+    // Add referral code if available
+    if (referralCode) {
+      loginData.referral_code = referralCode;
+    }
+    
+    const response = await authAxios.post(API_ENDPOINTS.LOGIN, loginData);
+    
+    // Clear referral code from localStorage after successful login
+    if (referralCode) {
+      localStorage.removeItem('referral_code');
+    }
     
     // Update auth state
     authState.setAuthenticated(true, address);

@@ -81,6 +81,13 @@ class User(AbstractUser, BaseModel):
     banner_image_public_id = models.CharField(max_length=255, blank=True,
                                             help_text="Cloudinary public ID for banner image")
     
+    # Referral system
+    referral_code = models.CharField(max_length=8, unique=True, null=True, blank=True,
+                                   help_text="Unique 8-character alphanumeric referral code")
+    referred_by = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='referrals',
+                                   help_text="User who referred this user")
+    
     class Meta:
         constraints = [
             models.UniqueConstraint(

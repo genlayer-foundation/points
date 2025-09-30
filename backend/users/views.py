@@ -11,6 +11,8 @@ from .cloudinary_service import CloudinaryService
 from .genlayer_service import GenLayerDeploymentService
 from web3 import Web3
 import logging
+import secrets
+import string
 
 logger = logging.getLogger(__name__)
 
@@ -645,4 +647,3 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
                 'deployment_count': 0,
                 'error': 'Failed to check deployment status'
             })
-            

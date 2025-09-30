@@ -48,7 +48,7 @@ class ContributionInline(admin.TabularInline):
 class UserAdmin(BaseUserAdmin):
     list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'address', 'is_email_verified')
     list_filter = ('is_staff', 'is_active', 'visible', 'is_email_verified')
-    search_fields = ('email', 'name', 'address', 'twitter_handle', 'discord_handle', 'telegram_handle')
+    search_fields = ('email', 'name', 'address', 'referral_code', 'twitter_handle', 'discord_handle', 'telegram_handle')
     ordering = ('email',)
     
     fieldsets = (
@@ -56,11 +56,12 @@ class UserAdmin(BaseUserAdmin):
         (_('Personal info'), {'fields': ('name', 'address', 'description')}),
         (_('Profile Images'), {'fields': ('profile_image_url', 'banner_image_url', 'profile_image_public_id', 'banner_image_public_id')}),
         (_('Contact & Social'), {'fields': ('website', 'twitter_handle', 'discord_handle', 'telegram_handle')}),
+        (_('Referral System'), {'fields': ('referral_code', 'referred_by')}),
         (_('Visibility'), {'fields': ('visible',)}),
         (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         (_('Important dates'), {'fields': ('last_login', 'date_joined', 'created_at', 'updated_at')}),
     )
-    readonly_fields = ('created_at', 'updated_at', 'profile_image_public_id', 'banner_image_public_id')
+    readonly_fields = ('created_at', 'updated_at', 'profile_image_public_id', 'banner_image_public_id', 'referral_code')
     
     add_fieldsets = (
         (None, {

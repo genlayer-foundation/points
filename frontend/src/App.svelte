@@ -112,6 +112,26 @@
     }
   }
 
+  // Function to capture referral code from URL parameter
+  function captureReferralCode() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const referralCode = urlParams.get('ref');
+      
+      if (referralCode && referralCode.length === 8) {
+        // Store referral code in localStorage for later use during login
+        localStorage.setItem('referral_code', referralCode.toUpperCase());
+        console.log('Referral code captured:', referralCode.toUpperCase());
+        
+        // Clean URL without page reload to remove the ref parameter
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, '', cleanUrl);
+      }
+    } catch (error) {
+      console.error('Error capturing referral code:', error);
+    }
+  }
+  
   // Function to handle route loaded events
   function handleRouteLoaded() {
     // Hide tooltips
@@ -120,6 +140,9 @@
 
   // Tooltip handling
   onMount(() => {
+    // Capture referral code from URL on app load
+    captureReferralCode();
+    
     // Use event delegation for better performance
     document.body.addEventListener('mouseover', handleTooltipPosition);
     
