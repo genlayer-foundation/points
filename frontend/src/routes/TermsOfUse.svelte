@@ -98,37 +98,36 @@
   <title>{pageTitle} - GenLayer Points</title>
 </svelte:head>
 
-<div class="legal-page">
+<div class="space-y-6 sm:space-y-8 pb-8 sm:pb-0">
   <!-- Header section -->
-  <div class="mb-6">
-    <h1 class="text-2xl md:text-3xl font-bold text-gray-900">Terms of Use</h1>
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900">Terms of Use</h1>
     {#if metadata.lastUpdated}
-      <p class="text-sm text-gray-600 mt-2">Last updated: {metadata.lastUpdated}</p>
+      <p class="mt-2 text-xs text-gray-500">Last updated: {metadata.lastUpdated}</p>
     {/if}
   </div>
 
   {#if isLoading}
     <!-- Loading state -->
-    <div class="flex justify-center items-center py-12">
-      <div class="text-center">
-        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-        <p class="text-gray-600">Loading terms of use...</p>
+    <div class="bg-white shadow rounded-lg p-12 max-w-prose">
+      <div class="flex justify-center items-center">
+        <div class="text-center">
+          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+          <p class="text-gray-600">Loading terms of use...</p>
+        </div>
       </div>
     </div>
   {:else}
-    <!-- Content -->
-    <article class="legal-content">
-      {@html htmlContent}
-    </article>
+    <!-- Content Card -->
+    <div class="bg-white shadow rounded-lg p-6 md:p-8 max-w-prose">
+      <article class="legal-content">
+        {@html htmlContent}
+      </article>
+    </div>
   {/if}
 </div>
 
 <style>
-  /* Page container */
-  .legal-page {
-    @apply max-w-prose;
-  }
-
   /* Legal content - narrower for better readability */
   .legal-content {
     @apply text-gray-800 leading-relaxed;
@@ -164,11 +163,11 @@
     @apply text-sm font-medium text-gray-900 mb-2 mt-4;
   }
 
-  /* Paragraphs - justified text */
+  /* Paragraphs - left-aligned text */
   .legal-content :global(p) {
     @apply text-gray-800 leading-relaxed mb-5;
     font-size: 15px;
-    text-align: justify;
+    text-align: left;
   }
 
   .legal-content :global(ul), .legal-content :global(ol) {
@@ -186,11 +185,11 @@
   .legal-content :global(li) {
     @apply text-gray-800 leading-relaxed;
     font-size: 15px;
-    text-align: justify;
+    text-align: left;
   }
 
   .legal-content :global(a) {
-    @apply text-blue-600 font-medium hover:text-blue-800 underline;
+    @apply text-gray-800 font-medium hover:text-gray-900 no-underline;
   }
 
   .legal-content :global(strong) {

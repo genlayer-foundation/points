@@ -15,7 +15,7 @@ Collectively, we refer to these interactions as the “**Services**.”
 - Name
 
 - Email address
- 
+
 - Postal address
 
 - Username and password
@@ -204,8 +204,6 @@ Please note that we may need to retain certain information for recordkeeping pur
 **RETENTION PERIOD**
 
 We retain Personal Information for as long as needed or legally permitted in light of the purpose(s) for which it was obtained and consistent with applicable law.
-
-**‍**
 
 The criteria used to determine our retention periods include:
 
