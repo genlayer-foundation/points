@@ -227,12 +227,12 @@
                     <div class="text-sm text-gray-900">{referral.contributions_count || 0}</div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm text-gray-900 font-medium">{referral.total_points.toLocaleString()}</div>
+                    <div class="text-sm text-gray-900 font-medium">{(referral.total_points ?? 0).toLocaleString()}</div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
                     <div class="flex items-center text-sm font-medium text-purple-600">
                       <Icons name="lightning" size="xs" className="mr-1" />
-                      {referral.bonus_points.toLocaleString()}
+                      {(referral.bonus_points ?? 0).toLocaleString()}
                     </div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
