@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
 from django.db.models import Min, Q
+from django.conf import settings
 from .models import Validator
 from users.models import User
 from users.serializers import ValidatorSerializer, UserSerializer
@@ -19,9 +20,9 @@ class ValidatorViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         """
-        Allow read-only access without authentication for the newest endpoint.
+        Allow read-only access without authentication for public endpoints.
         """
-        if self.action == 'newest_validators':
+        if self.action in ['newest_validators']:
             return [AllowAny()]
         return [IsAuthenticated()]
     

@@ -12,6 +12,8 @@ export default defineConfig({
       }
     }
   },
+  // Explicitly include markdown files as assets for ?raw imports
+  assetsInclude: ['**/*.md'],
   define: {
     global: 'globalThis',
     'process.env': {},
