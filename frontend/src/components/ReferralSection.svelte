@@ -21,13 +21,9 @@
 
   async function handleCopyLink() {
     if (!referralUrl) return;
-
-    const copyText = `Build. Earn. Amplify.
-Join GenLayer's Builder Program and earn points for real contributions.
-👉 Start here: ${referralUrl}`;
-
+    
     try {
-      await navigator.clipboard.writeText(copyText);
+      await navigator.clipboard.writeText(referralUrl);
       state = 'copied';
 
       // Reset state after 2 seconds

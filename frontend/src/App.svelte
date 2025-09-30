@@ -38,6 +38,7 @@
   import BuilderWelcome from './routes/BuilderWelcome.svelte';
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
+  import Referrals from './routes/Referrals.svelte';
   
   // Define routes
   const routes = {
@@ -48,7 +49,8 @@
     '/highlights': Highlights,
     '/leaderboard': Leaderboard,
     '/participants': Validators,
-    
+    '/referrals': Referrals,
+
     // Builders routes
     '/builders': Dashboard,
     '/builders/contributions': Contributions,

@@ -10,6 +10,7 @@
   import ContributionBreakdown from '../components/ContributionBreakdown.svelte';
   import BuilderProgress from '../components/BuilderProgress.svelte';
   import ReferralSection from '../components/ReferralSection.svelte';
+  import Icons from '../components/Icons.svelte';
   import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, getCurrentUser } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
@@ -52,6 +53,8 @@
   let isClaimingBuilderBadge = $state(false);
   let hasCalledComplete = $state(false);
   let showSuccessNotification = $state(false);
+  let referralData = $state(null);
+  let loadingReferrals = $state(false);
   
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
@@ -198,6 +201,23 @@
       testnetBalance = 0;
     } finally {
       isRefreshingBalance = false;
+    }
+  }
+
+  async function fetchReferrals() {
+    if (!isOwnProfile || loadingReferrals) {
+      return;
+    }
+
+    loadingReferrals = true;
+    try {
+      const response = await usersAPI.getReferrals();
+      referralData = response.data;
+    } catch (err) {
+      console.error('Failed to fetch referrals:', err);
+      referralData = null;
+    } finally {
+      loadingReferrals = false;
     }
   }
   
@@ -347,22 +367,27 @@
       }
       
       // Load additional data asynchronously for own profile
-      if (isOwnProfile && participant.has_builder_welcome) {
-        // Check testnet balance asynchronously
-        getValidatorBalance(participant.address).then(result => {
-          testnetBalance = parseFloat(result.formatted);
-        }).catch(err => {
-          console.error('Failed to check testnet balance:', err);
-          testnetBalance = 0;
-        });
-        
-        // Check for contract deployments asynchronously
-        usersAPI.getDeploymentStatus().then(deploymentResult => {
-          hasDeployedContract = deploymentResult.data.has_deployments || false;
-        }).catch(err => {
-          console.error('Failed to check deployments:', err);
-          hasDeployedContract = false;
-        });
+      if (isOwnProfile) {
+        // Fetch referral data
+        fetchReferrals();
+
+        if (participant.has_builder_welcome) {
+          // Check testnet balance asynchronously
+          getValidatorBalance(participant.address).then(result => {
+            testnetBalance = parseFloat(result.formatted);
+          }).catch(err => {
+            console.error('Failed to check testnet balance:', err);
+            testnetBalance = 0;
+          });
+
+          // Check for contract deployments asynchronously
+          usersAPI.getDeploymentStatus().then(deploymentResult => {
+            hasDeployedContract = deploymentResult.data.has_deployments || false;
+          }).catch(err => {
+            console.error('Failed to check deployments:', err);
+            hasDeployedContract = false;
+          });
+        }
       }
     } catch (err) {
       // Check if it's a 404 (user not found) - for validators without accounts
@@ -718,92 +743,158 @@
       </div>
     </div>
     
-    <!-- Balance, Joined, and Referral Cards -->
+    <!-- Metrics Container (structural only) -->
     {#if !isValidatorOnly}
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-
-        <!-- Total Referrals Card -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <!-- Left: Referral Metrics Card -->
         <div class="bg-white shadow rounded-lg p-4">
-          <div class="flex items-center">
-            <div class="flex-shrink-0 p-3 rounded-lg mr-4 bg-purple-50 text-purple-500">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-              </svg>
-            </div>
-            <div class="flex-1">
-              <div class="flex items-center gap-1">
-                <p class="text-sm text-gray-500">Referrals</p>
-                <!-- Help Icon with Tooltip -->
-                <div class="relative">
-                  <button 
-                    class="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors group" 
-                    aria-label="How referrals work"
-                  >
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
-                    </svg>
-                    
-                    <!-- Tooltip positioned below using transform and high z-index -->
-                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-64" style="z-index: 999999;">
-                      <div>
-                        <p class="font-semibold mb-1">Your Impact</p>
-                        <p class="text-xs leading-relaxed">This is how many builders you’ve referred! Each one adds to your reach, and you earn 10% of every contribution they make.</p>
-                      </div>
-                      <!-- Arrow pointing up -->
-                      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-b-gray-800"></div>
+          <!-- Header with Title and View All -->
+          <div class="flex items-center justify-between {loadingReferrals || (referralData && referralData.total_referrals > 0) || (!isOwnProfile && participant?.total_referrals > 0) ? 'mb-8' : 'mb-4'}">
+            <div class="flex items-center gap-1">
+              <h3 class="text-base font-semibold text-gray-900">Referrals</h3>
+              <!-- Help Icon with Tooltip -->
+              <div class="relative">
+                <button
+                  class="p-0.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors group"
+                  aria-label="How referrals work"
+                >
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                  </svg>
+
+                  <!-- Tooltip positioned below using transform and high z-index -->
+                  <div class="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-52" style="z-index: 999999;">
+                    <div>
+                      <p class="font-semibold mb-1">Your Impact</p>
+                      <p class="text-xs leading-relaxed">This is how many builders you've referred! Each one adds to your reach, and you earn 10% of every contribution they make.</p>
                     </div>
-                  </button>
+                    <!-- Arrow pointing up -->
+                    <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-b-gray-800"></div>
+                  </div>
+                </button>
+              </div>
+            </div>
+            {#if isOwnProfile && referralData && referralData.total_referrals > 0}
+              <button
+                onclick={() => push('/referrals')}
+                class="text-sm text-gray-600 hover:text-purple-600 font-medium flex items-center group"
+              >
+                View all
+                <svg class="w-4 h-4 ml-1 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </svg>
+              </button>
+            {/if}
+          </div>
+
+          {#if loadingReferrals || (referralData && referralData.total_referrals > 0) || (!isOwnProfile && participant?.total_referrals > 0)}
+            <!-- Metrics Grid - Side by Side (only show when there are referrals) -->
+            <div class="grid grid-cols-2 gap-3">
+              <!-- Total Referrals Container -->
+              <div class="bg-purple-50/50 border border-purple-100 rounded-lg p-3">
+                <div class="flex items-center">
+                  <div class="flex-shrink-0 p-2.5 rounded-lg bg-purple-100 text-purple-600 mr-3">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                  </div>
+                  <div class="flex-1">
+                    <p class="text-sm text-gray-500">Total Referrals</p>
+                    <p class="text-xl font-bold text-gray-900">
+                      {#if loadingReferrals}
+                        <span class="text-gray-400">...</span>
+                      {:else}
+                        {referralData?.total_referrals || participant.total_referrals || 0}
+                      {/if}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <p class="text-xl font-bold text-gray-900">
-                {participant.total_referrals || 0}
-              </p>
-            </div>
-          </div>
-        </div>
 
-        <!-- Balance Card -->
-        <div class="bg-white shadow rounded-lg p-4">
-          <div class="flex items-center">
-            <div class="flex-shrink-0 p-3 rounded-lg mr-4 bg-green-50 text-green-500">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-            </div>
-            <div class="flex-1">
-              <p class="text-sm text-gray-500">Balance</p>
-              <div class="flex items-center">
-                {#if loadingBalance}
-                  <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600 mr-2"></div>
-                  <span class="text-gray-500">Loading...</span>
-                {:else if balance}
-                  <p class="text-xl font-bold text-gray-900">{balance.formatted} GEN</p>
-                {:else}
-                  <p class="text-xl font-bold text-gray-900">0 GEN</p>
-                {/if}
+              <!-- Referral Points Container -->
+              <div class="bg-purple-50/50 border border-purple-100 rounded-lg p-3">
+                <div class="flex items-center">
+                  <div class="flex-shrink-0 p-2.5 rounded-lg bg-purple-100 text-purple-600 mr-3">
+                    <Icons name="lightning" size="md" />
+                  </div>
+                  <div class="flex-1">
+                    <p class="text-sm text-gray-500">Referral Points</p>
+                    <p class="text-xl font-bold text-gray-900">
+                      {#if loadingReferrals}
+                        <span class="text-gray-400">...</span>
+                      {:else}
+                        {referralData?.total_bonus_points || 0}
+                      {/if}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          {:else if isOwnProfile && !loadingReferrals}
+            <!-- CTA when no referrals (replaces metrics) -->
+            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <div class="flex items-start">
+                <div class="flex-shrink-0">
+                  <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                  </svg>
+                </div>
+                <div class="ml-3 flex-1">
+                  <h4 class="text-sm font-semibold text-purple-900">Start Growing Your Network!</h4>
+                  <p class="mt-1 text-sm text-purple-700">
+                    Invite others to join GenLayer and earn <span class="font-bold">10% of all points</span> they earn from their contributions. The more people you refer, the more you earn!
+                  </p>
+                </div>
+              </div>
+            </div>
+          {/if}
         </div>
-        
-        <!-- Joined Date Card -->
-        {#if participant.created_at}
+
+        <!-- Right: Balance and Joined Date (stacked with justify-between) -->
+        <div class="flex flex-col justify-between gap-4">
+          <!-- Balance Card -->
           <div class="bg-white shadow rounded-lg p-4">
             <div class="flex items-center">
-              <div class="flex-shrink-0 p-3 rounded-lg mr-4 bg-blue-50 text-blue-500">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+              <div class="flex-shrink-0 p-2.5 rounded-lg mr-3 bg-green-50 text-green-500">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
               </div>
               <div class="flex-1">
-                <p class="text-sm text-gray-500">Joined</p>
-                <p class="text-xl font-bold text-gray-900">
-                  {new Date(participant.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                </p>
+                <p class="text-sm text-gray-500">Balance</p>
+                <div class="flex items-center">
+                  {#if loadingBalance}
+                    <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600 mr-2"></div>
+                    <span class="text-gray-500">Loading...</span>
+                  {:else if balance}
+                    <p class="text-xl font-bold text-gray-900">{balance.formatted} GEN</p>
+                  {:else}
+                    <p class="text-xl font-bold text-gray-900">0 GEN</p>
+                  {/if}
+                </div>
               </div>
             </div>
           </div>
-        {/if}        
+
+          <!-- Joined Date Card -->
+          {#if participant.created_at}
+            <div class="bg-white shadow rounded-lg p-4">
+              <div class="flex items-center">
+                <div class="flex-shrink-0 p-2.5 rounded-lg mr-3 bg-blue-50 text-blue-500">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                  </svg>
+                </div>
+                <div class="flex-1">
+                  <p class="text-sm text-gray-500">Joined</p>
+                  <p class="text-xl font-bold text-gray-900">
+                    {new Date(participant.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+            </div>
+          {/if}
+        </div>
       </div>
     {/if}
     
