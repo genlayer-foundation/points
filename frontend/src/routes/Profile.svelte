@@ -9,7 +9,6 @@
   import ProfileStats from '../components/ProfileStats.svelte';
   import ContributionBreakdown from '../components/ContributionBreakdown.svelte';
   import BuilderProgress from '../components/BuilderProgress.svelte';
-  import ReferralSection from '../components/ReferralSection.svelte';
   import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, getCurrentUser } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
@@ -501,7 +500,7 @@
     </div>
   {:else if participant}
     <!-- Profile Header with Banner and Avatar -->
-    <div class="bg-white shadow rounded-lg mb-6">
+    <div class="bg-white shadow rounded-lg overflow-hidden mb-6">
       <!-- Banner Image -->
       <div class="h-32 md:h-48 relative overflow-hidden">
         {#if participant.banner_image_url}
@@ -518,7 +517,7 @@
       </div>
       
       <!-- Profile Info Section -->
-      <div class="relative px-4 sm:px-6 pb-6" style="overflow: visible;">
+      <div class="relative px-4 sm:px-6 pb-6">
         <!-- Avatar -->
         <div class="-mt-12 sm:-mt-16 mb-4">
           <Avatar 
@@ -567,8 +566,8 @@
             </div>
             
             {#if participant.address}
-              <!-- Address with copy button and referral link -->
-              <div class="flex items-center gap-2 mt-2" style="overflow: visible;">
+              <!-- Address with copy button -->
+              <div class="flex items-center gap-2 mt-2">
                 <code class="text-sm text-gray-600 font-mono">
                   {participant.address.substring(0, 6)}...{participant.address.substring(participant.address.length - 4)}
                 </code>
@@ -588,13 +587,6 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                   </svg>
                 </button>
-                
-                <!-- Referral Section for own profile -->
-                {#if isOwnProfile}
-                  <div class="ml-2">
-                    <ReferralSection />
-                  </div>
-                {/if}
               </div>
             {/if}
             
@@ -718,50 +710,9 @@
       </div>
     </div>
     
-    <!-- Balance, Joined, and Referral Cards -->
+    <!-- Balance and Joined Cards -->
     {#if !isValidatorOnly}
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-
-        <!-- Total Referrals Card -->
-        <div class="bg-white shadow rounded-lg p-4">
-          <div class="flex items-center">
-            <div class="flex-shrink-0 p-3 rounded-lg mr-4 bg-purple-50 text-purple-500">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-              </svg>
-            </div>
-            <div class="flex-1">
-              <div class="flex items-center gap-1">
-                <p class="text-sm text-gray-500">Referrals</p>
-                <!-- Help Icon with Tooltip -->
-                <div class="relative">
-                  <button 
-                    class="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors group" 
-                    aria-label="How referrals work"
-                  >
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
-                    </svg>
-                    
-                    <!-- Tooltip positioned below using transform and high z-index -->
-                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-64" style="z-index: 999999;">
-                      <div>
-                        <p class="font-semibold mb-1">Your Impact</p>
-                        <p class="text-xs leading-relaxed">This is how many builders you’ve referred! Each one adds to your reach, and you earn 10% of every contribution they make.</p>
-                      </div>
-                      <!-- Arrow pointing up -->
-                      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-b-gray-800"></div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-              <p class="text-xl font-bold text-gray-900">
-                {participant.total_referrals || 0}
-              </p>
-            </div>
-          </div>
-        </div>
-
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <!-- Balance Card -->
         <div class="bg-white shadow rounded-lg p-4">
           <div class="flex items-center">
@@ -803,7 +754,7 @@
               </div>
             </div>
           </div>
-        {/if}        
+        {/if}
       </div>
     {/if}
     

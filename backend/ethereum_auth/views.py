@@ -52,10 +52,9 @@ def login(request):
     """
     Authenticate a user with a SIWE message.
     """
-    # Get the SIWE message, signature, and optional referral code from the request
+    # Get the SIWE message and signature from the request
     message = request.data.get('message')
     signature = request.data.get('signature')
-    referral_code = request.data.get('referral_code')
     
     if not message or not signature:
         return Response(
@@ -118,6 +117,7 @@ def login(request):
         nonce.mark_as_used()
         
         # Get or create the user
+        
         user, created = User.objects.get_or_create(
             address__iexact=ethereum_address,
             defaults={
@@ -127,23 +127,6 @@ def login(request):
                 # No name set by default for wallet-based users
             }
         )
-        
-        # Handle referral association for new users
-        if created and referral_code:
-            try:
-                # Find referrer by referral code
-                referrer = User.objects.get(referral_code=referral_code.upper())
-                # Prevent self-referral (though this shouldn't happen with new users)
-                if referrer != user:
-                    user.referred_by = referrer
-                    user.save(update_fields=['referred_by'])
-                    print(f"New user {ethereum_address} referred by {referrer.address}")
-            except User.DoesNotExist:
-                # Invalid referral code, but don't fail the login
-                print(f"Invalid referral code provided during login: {referral_code}")
-        
-        # Refresh user data from database to get referral_code from signal
-        user.refresh_from_db()
         
         # Store the ethereum address in the session
         request.session['ethereum_address'] = ethereum_address
@@ -155,20 +138,13 @@ def login(request):
         print(f"Login - Setting ethereum_address: {ethereum_address}")
         print(f"Login - Session data: {dict(request.session)}")
         
-        # Return the authenticated user with referral data
+        # Return the authenticated user
         return Response({
             'authenticated': True,
             'address': ethereum_address,
             'user_id': user.id,
             'created': created,
-            'session_key': request.session.session_key,  # For debugging
-            'referral_code': user.referral_code,
-            'referred_by': {
-                'id': user.referred_by.id,
-                'name': user.referred_by.name or 'Anonymous',
-                'address': user.referred_by.address,
-                'referral_code': user.referred_by.referral_code
-            } if user.referred_by else None
+            'session_key': request.session.session_key  # For debugging
         })
         
     except Exception as e:
