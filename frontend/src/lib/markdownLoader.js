@@ -67,7 +67,17 @@ export function processLegalDocument(markdownContent) {
       // Clean up any trailing whitespace
       .trim();
 
-    return parseMarkdown(cleaned);
+    // Parse markdown to HTML
+    let html = parseMarkdown(cleaned);
+
+    // Add IDs to section headings for anchor navigation
+    // This targets <strong> tags that contain section numbers (e.g., "1. SECTION NAME")
+    html = html.replace(
+      /<strong>(\d+)\\?\.\s+([^<]+)<\/strong>/g,
+      '<strong id="section-$1">$1. $2</strong>'
+    );
+
+    return html;
   } catch (error) {
     return `<div class="text-red-600"><h2>Processing Error</h2><p>There was an error processing this legal document: ${error.message}</p></div>`;
   }
@@ -94,4 +104,37 @@ export function extractMetadata(markdownContent) {
   }
 
   return metadata;
+}
+
+/**
+ * Extract headings from legal document for table of contents
+ * @param {string} markdownContent - Raw markdown content
+ * @returns {Array<{id: string, number: string, title: string, fullTitle: string}>} Array of heading objects
+ */
+export function extractHeadings(markdownContent) {
+  const headings = [];
+
+  // Match bold section headings in the format: **1. SECTION NAME** or **1\. SECTION NAME**
+  // This matches the format used in legal documents
+  const headingRegex = /\*\*(\d+)\\?\.\s+([^*]+)\*\*/g;
+
+  let match;
+  while ((match = headingRegex.exec(markdownContent)) !== null) {
+    const number = match[1];
+    const title = match[2].trim();
+    const fullTitle = `${number}. ${title}`;
+
+    // Create a URL-friendly ID from the heading
+    // Convert to lowercase, replace spaces with hyphens, remove special chars
+    const id = `section-${number}`;
+
+    headings.push({
+      id,
+      number,
+      title,
+      fullTitle
+    });
+  }
+
+  return headings;
 }

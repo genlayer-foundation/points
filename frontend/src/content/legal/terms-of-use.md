@@ -203,3 +203,48 @@ H. These Terms of Use contain the entire agreement between you and the Foundatio
 I. In the event of any conflict between these Terms of Use and any other agreement you may have with us, these Terms of Use will control unless the other agreement specifically identifies these Terms of Use and declares that the other agreement supersedes these Terms of Use.
 
 J. You agree that, except as otherwise expressly provided in this Agreement, there shall be no third-party beneficiaries to the Agreement other than the Indemnified Parties
+
+**18. PARTICIPATION**
+
+By participating in the points program you acknowledge and agree to the following:
+
+A. **Nature of the Program**
+
+- Points are not an investment and do not represent equity, debt, ownership, or any financial interest in the company, its affiliates, or any project.
+- No expectation of profit: Points are provided solely for participation, engagement, or loyalty purposes, not as an opportunity to earn financial returns.
+- Points carry no monetary value and are not legal tender, securities, or a substitute for currency.
+
+B. **Redemption & Conversion**
+
+- No guarantee or expectation of conversion into digital assets, tokens, products, or services.
+- No right of redemption: Any redemption opportunities are discretionary, subject to availability, and may be modified or withdrawn at any time.
+- Points are non-transferable and cannot be sold, traded, assigned, pledged, or otherwise exchanged between users.
+
+C. **Program Changes & Termination**
+
+- Program terms, benefits, rewards, and mechanics are subject to change, suspension, or termination at the company's sole discretion without notice.
+- We have no obligation to continue the program or provide replacement benefits.
+
+D. **Eligibility**
+
+- Age restrictions: Participants must be at least 18 (or local age of majority).
+- KYC / identity verification may be required to claim or redeem rewards.
+- Jurisdictional restrictions: Not available to individuals in jurisdictions where participation is prohibited or restricted by law.
+- Sanctions/OFAC compliance: Not available to individuals or entities on restricted/sanctions lists or located in embargoed jurisdictions.
+- The program is invalid where prohibited by applicable law.
+
+E. **Risk & Liability**
+
+- No guarantee of availability, continuity, or specific outcomes.
+- We disclaim liability for any losses, damages, or missed opportunities arising from participation.
+- Participation is at the user's own risk.
+
+F. **No Solicitation / No Financial Advice**
+
+- Program does not constitute an offer to sell, a solicitation of an offer to buy, or financial advice.
+- Participation should not be construed as investment activity or as advice regarding securities, commodities, or digital assets.
+
+G. **General**
+
+- Participants must comply with all applicable laws and regulations.
+- Participation constitutes acceptance of these Terms & Conditions which are subject to change at any time.

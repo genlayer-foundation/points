@@ -1,13 +1,31 @@
 <script>
   import { onMount } from 'svelte';
-  import { processLegalDocument, extractMetadata } from '../lib/markdownLoader.js';
+  import { processLegalDocument, extractMetadata, extractHeadings } from '../lib/markdownLoader.js';
   import privacyContent from '../content/legal/privacy-policy.md?raw';
 
   let pageTitle = 'Privacy Policy';
   let htmlContent = $state('');
   let metadata = $state({});
+  let headings = $state([]);
   let isLoading = $state(true);
   let hasError = $state(false);
+  let activeSection = $state('');
+  let tocOpen = $state(false);
+
+  function scrollToSection(sectionId) {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      const yOffset = -80; // Offset for fixed header
+      const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+      activeSection = sectionId;
+
+      // Close TOC on mobile after navigation
+      if (window.innerWidth < 768) {
+        tocOpen = false;
+      }
+    }
+  }
 
   onMount(async () => {
     try {
@@ -18,6 +36,7 @@
       if (typeof privacyContent === 'string' && privacyContent.length > 0) {
         htmlContent = processLegalDocument(privacyContent);
         metadata = extractMetadata(privacyContent);
+        headings = extractHeadings(privacyContent);
       } else {
         // Try to fetch as fallback if import failed
         try {
@@ -26,6 +45,7 @@
             const fallbackContent = await response.text();
             htmlContent = processLegalDocument(fallbackContent);
             metadata = extractMetadata(fallbackContent);
+            headings = extractHeadings(fallbackContent);
           } else {
             throw new Error('Failed to fetch fallback content');
           }
@@ -36,6 +56,35 @@
       }
 
       document.title = `${pageTitle} - GenLayer Points`;
+
+      // Set up Intersection Observer for active section tracking
+      const observerOptions = {
+        rootMargin: '-100px 0px -66%',
+        threshold: 0
+      };
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            activeSection = entry.target.id;
+          }
+        });
+      }, observerOptions);
+
+      // Observe all section headings
+      setTimeout(() => {
+        headings.forEach(heading => {
+          const element = document.getElementById(heading.id);
+          if (element) {
+            observer.observe(element);
+          }
+        });
+      }, 100);
+
+      // Cleanup observer on unmount
+      return () => {
+        observer.disconnect();
+      };
     } catch (error) {
       hasError = true;
       htmlContent = `<div class="text-red-600"><h2>Unexpected Error</h2><p>An unexpected error occurred. Please try refreshing the page.</p></div>`;
@@ -49,29 +98,38 @@
   <title>{pageTitle} - GenLayer Points</title>
 </svelte:head>
 
-<div class="space-y-6">
+<div class="legal-page">
   <!-- Header section -->
-  <div class="max-w-4xl mx-auto">
-    <h1 class="text-2xl font-bold text-gray-900">Privacy Policy</h1>
-  </div>
-
-  <!-- Content section -->
-  <div class="legal-content max-w-4xl mx-auto">
-    {#if isLoading}
-      <div class="flex justify-center items-center py-12">
-        <div class="text-center">
-          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-          <p class="text-gray-600">Loading privacy policy...</p>
-        </div>
-      </div>
-    {:else}
-      {@html htmlContent}
+  <div class="mb-6">
+    <h1 class="text-2xl md:text-3xl font-bold text-gray-900">Privacy Policy</h1>
+    {#if metadata.lastUpdated}
+      <p class="text-sm text-gray-600 mt-2">Last updated: {metadata.lastUpdated}</p>
     {/if}
   </div>
+
+  {#if isLoading}
+    <!-- Loading state -->
+    <div class="flex justify-center items-center py-12">
+      <div class="text-center">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+        <p class="text-gray-600">Loading privacy policy...</p>
+      </div>
+    </div>
+  {:else}
+    <!-- Content -->
+    <article class="legal-content">
+      {@html htmlContent}
+    </article>
+  {/if}
 </div>
 
 <style>
-  /* Legal document typography optimized for readability */
+  /* Page container */
+  .legal-page {
+    @apply max-w-prose;
+  }
+
+  /* Legal content - narrower for better readability */
   .legal-content {
     @apply text-gray-800 leading-relaxed;
     line-height: 1.7;
@@ -106,6 +164,7 @@
     @apply text-sm font-medium text-gray-900 mb-2 mt-4;
   }
 
+  /* Paragraphs - justified text */
   .legal-content :global(p) {
     @apply text-gray-800 leading-relaxed mb-5;
     font-size: 15px;
@@ -131,7 +190,7 @@
   }
 
   .legal-content :global(a) {
-    @apply text-gray-800 font-medium hover:text-gray-900 no-underline;
+    @apply text-blue-600 font-medium hover:text-blue-800 underline;
   }
 
   .legal-content :global(strong) {

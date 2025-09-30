@@ -15,7 +15,7 @@ Collectively, we refer to these interactions as the “**Services**.”
 - Name
 
 - Email address
-
+ 
 - Postal address
 
 - Username and password
