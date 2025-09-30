@@ -408,6 +408,36 @@ try {
 }
 ```
 
+### Toast Notifications
+Global toast notification system for success, warning, and error messages:
+
+```javascript
+import { addToast, showSuccess, showError, showWarning } from '../lib/toastStore';
+
+// Basic usage
+addToast('success', 'Profile updated successfully!');
+addToast('error', 'Failed to save changes');
+addToast('warning', 'Session will expire soon');
+
+// With custom duration (milliseconds)
+addToast('info', 'Processing...', 10000); // 10 seconds
+
+// Persistent toast (no auto-dismiss)
+addToast('error', 'Critical error occurred', null);
+
+// Convenience methods
+showSuccess('Operation completed!');
+showError('Something went wrong');
+showWarning('Please review your input');
+```
+
+**Toast System Components:**
+- `lib/toastStore.js` - Store and API functions
+- `components/Toast.svelte` - Individual toast component
+- `components/ToastContainer.svelte` - Container for all toasts
+
+Toasts appear in top-right corner, auto-dismiss after 5 seconds by default, and can be manually closed.
+
 ## Environment Variables
 Set in `.env` file:
 - `VITE_API_URL` - Backend API URL
