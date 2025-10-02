@@ -657,31 +657,31 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         Get list of users referred by the authenticated user.
         Returns summary statistics and detailed list of referred users.
         """
+        from django.db.models import Count, Value, IntegerField
+        from django.db.models.functions import Coalesce
 
         user = request.user
 
-        # Get all users referred by the current user
+        # Get all users referred by the current user with optimized queries
+        # Use separate annotations to avoid JOIN issues between contributions and leaderboard entries
         referred_users = User.objects.filter(
             referred_by=user
-        ).select_related('validator', 'builder', 'steward')
+        ).select_related('validator', 'builder', 'steward').annotate(
+            total_points=Coalesce(
+                Sum('leaderboard_entries__total_points'),
+                Value(0),
+                output_field=IntegerField()
+            ),
+            total_contributions=Count('contributions', distinct=True)
+        )
 
         # Build the referral list with point calculations
         referral_list = []
         total_bonus_points = 0
 
         for referred_user in referred_users:
-            # Get the user's total points from their leaderboard entries
-            user_total_points = LeaderboardEntry.objects.filter(
-                user=referred_user
-            ).aggregate(
-                total=Sum('total_points')
-            )['total'] or 0
-
-            # Get the count of contributions made by this user
-            contributions_count = Contribution.objects.filter(user=referred_user).count()
-
-            # Calculate 10% bonus
-            bonus_points = int(user_total_points * 0.1)
+            # Calculate 10% bonus from annotated total_points
+            bonus_points = int(referred_user.total_points * 0.1)
             total_bonus_points += bonus_points
 
             referral_list.append({
@@ -689,10 +689,10 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
                 'name': referred_user.name or 'Anonymous',
                 'address': referred_user.address,
                 'profile_image_url': referred_user.profile_image_url,
-                'total_points': user_total_points,
+                'total_points': referred_user.total_points,
                 'bonus_points': bonus_points,
                 'created_at': referred_user.created_at,
-                'contributions_count': contributions_count,
+                'total_contributions': referred_user.total_contributions,
                 'is_validator': hasattr(referred_user, 'validator'),
                 'is_builder': hasattr(referred_user, 'builder'),
                 'is_steward': hasattr(referred_user, 'steward'),
