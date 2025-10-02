@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     'validators',
     'builders',
     'stewards',
+    'creators',
 ]
 
 MIDDLEWARE = [
