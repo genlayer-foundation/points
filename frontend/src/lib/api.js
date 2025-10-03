@@ -135,6 +135,11 @@ export const journeyAPI = {
   completeBuilderJourney: () => api.post('/users/complete_builder_journey/')
 };
 
+// Creator API
+export const creatorAPI = {
+  joinAsCreator: () => api.post('/creators/join/')
+};
+
 // Steward API
 export const stewardAPI = {
   // Get all submissions for review

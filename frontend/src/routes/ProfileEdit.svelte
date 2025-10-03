@@ -3,7 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { getCurrentUser, updateUserProfile, imageAPI } from '../lib/api';
   import { authState } from '../lib/auth';
-  import { journeyAPI } from '../lib/api';
+  import { journeyAPI, creatorAPI } from '../lib/api';
   import Icon from '../components/Icons.svelte';
   import ImageCropper from '../components/ImageCropper.svelte';
   import { userStore } from '../lib/userStore';
@@ -160,6 +160,19 @@
   async function startBuilderJourney() {
     // Redirect to builder welcome page
     push('/builders/welcome');
+  }
+
+  async function startCreatorJourney() {
+    try {
+      const response = await creatorAPI.joinAsCreator();
+      if (response.status === 201 || response.status === 200) {
+        // Store success message and reload
+        sessionStorage.setItem('journeySuccess', 'You are now a Creator! Start growing the community through referrals.');
+        loadUserData();
+      }
+    } catch (err) {
+      error = err.response?.data?.message || 'Failed to join as creator';
+    }
   }
   
   
@@ -623,7 +636,7 @@
         </div>
       {/if}
       
-      <!-- Inactive Steward (100% width, last position) -->
+      <!-- Inactive Steward (100% width) -->
       {#if !user.steward}
         <div class="bg-green-50 shadow rounded-lg p-6 border border-green-200 mt-6">
           <h2 class="text-lg font-semibold text-green-900 mb-4 flex items-center">
@@ -634,7 +647,38 @@
           <p class="text-sm text-green-700">Keep building, validating, and supporting the community to unlock this role.</p>
         </div>
       {/if}
-    
+
+      <!-- Creator Profile Card -->
+      {#if user.creator}
+        <div class="bg-purple-100 shadow rounded-lg p-6 border border-purple-300 mt-6">
+          <h2 class="text-lg font-semibold text-purple-900 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+            </svg>
+            Creator
+          </h2>
+          <p class="text-sm text-purple-800 mb-2">You're a Creator! Focus on growing the community through referrals.</p>
+          <p class="text-sm text-purple-700">Earn 10% of points from every contribution your referrals make.</p>
+        </div>
+      {:else if !user.builder && !user.validator && !user.steward}
+        <div class="bg-purple-50 shadow rounded-lg p-6 border border-purple-200 mt-6">
+          <h2 class="text-lg font-semibold text-purple-900 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+            </svg>
+            Creator
+          </h2>
+          <p class="text-sm text-purple-700 mb-2">Focus on growing the community through referrals.</p>
+          <p class="text-sm text-purple-700 mb-4">Earn 10% of points from every contribution your referrals make.</p>
+          <button
+            onclick={startCreatorJourney}
+            class="px-3 py-1.5 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 transition-colors"
+          >
+            Become a Creator →
+          </button>
+        </div>
+      {/if}
+
     <!-- Save/Cancel Buttons -->
     <div class="flex gap-4 mt-6">
       <button

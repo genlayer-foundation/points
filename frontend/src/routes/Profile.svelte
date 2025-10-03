@@ -11,7 +11,7 @@
   import BuilderProgress from '../components/BuilderProgress.svelte';
   import ReferralSection from '../components/ReferralSection.svelte';
   import Icons from '../components/Icons.svelte';
-  import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, getCurrentUser } from '../lib/api';
+  import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, creatorAPI, getCurrentUser } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
   import Avatar from '../components/Avatar.svelte';
@@ -82,6 +82,7 @@
     participant.validator ? 'validator' :
     participant.builder ? 'builder' :
     participant.steward ? 'steward' :
+    participant.creator ? 'creator' :
     'participant'
   );
   
@@ -90,6 +91,7 @@
     participantType === 'validator' ? 'sky' :
     participantType === 'builder' ? 'orange' :
     participantType === 'steward' ? 'green' :
+    participantType === 'creator' ? 'purple' :
     'gray'
   );
   
@@ -98,6 +100,7 @@
     participant?.steward ? 'green' :
     participant?.validator ? 'sky' :
     participant?.builder ? 'orange' :
+    participant?.creator ? 'purple' :
     participant?.has_validator_waitlist ? 'sky-waitlist' :
     participant?.has_builder_welcome ? 'orange-welcome' :
     'purple'
@@ -133,9 +136,20 @@
       participant.steward ||
       participant.validator ||
       participant.builder ||
+      participant.creator ||
       participant.has_validator_waitlist ||
       participant.has_builder_welcome
     )
+  );
+
+  // Check if user is ONLY a creator (no other roles)
+  let isCreatorOnly = $derived(
+    participant?.creator &&
+    !participant.steward &&
+    !participant.validator &&
+    !participant.builder &&
+    !participant.has_validator_waitlist &&
+    !participant.has_builder_welcome
   );
   
   $effect(() => {
@@ -241,14 +255,47 @@
     }
   }
   
+  async function startCreatorJourney() {
+    if (!$authState.isAuthenticated) {
+      return;
+    }
+
+    // Clear any existing error states
+    error = null;
+    successMessage = '';
+
+    try {
+      const response = await creatorAPI.joinAsCreator();
+
+      // If successful, reload the user data
+      if (response.status === 201 || response.status === 200) {
+        // Show a success message
+        successMessage = 'You are now a Creator! Start growing the community through referrals.';
+
+        // Reload participant data to get Creator profile (same pattern as Builder)
+        const updatedUser = await getCurrentUser();
+        participant = updatedUser;
+
+        // Auto-hide success message after 5 seconds
+        setTimeout(() => {
+          successMessage = '';
+        }, 5000);
+      }
+    } catch (err) {
+      console.error('Error joining as creator:', err);
+      error = err.response?.data?.message || 'Failed to join as creator';
+      successMessage = '';
+    }
+  }
+
   async function completeBuilderJourney() {
     if (!$authState.isAuthenticated || !allRequirementsMet) {
       return;
     }
-    
+
     try {
       const response = await journeyAPI.completeBuilderJourney();
-      
+
       // If successful, show success notification and reload data
       if (response.status === 201 || response.status === 200) {
         showSuccessNotification = true;
@@ -564,7 +611,7 @@
               </h1>
               
               <!-- Badges next to name -->
-              {#if participant.steward || participant.validator || participant.builder || participant.has_validator_waitlist || participant.has_builder_welcome}
+              {#if participant.steward || participant.validator || participant.builder || participant.creator || participant.has_validator_waitlist || participant.has_builder_welcome}
                 {#if participant.steward}
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                     Steward
@@ -586,6 +633,11 @@
                 {:else if participant.has_builder_welcome}
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
                     Builder Welcome
+                  </span>
+                {/if}
+                {#if participant.creator}
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    Creator
                   </span>
                 {/if}
               {/if}
@@ -1196,7 +1248,7 @@
         </div>
       </div>
     {/if}
-    
+
     <!-- Welcome Section for Users Without Roles (Only show on own profile) -->
     {#if !hasAnyRole && !isValidatorOnly && isOwnProfile}
       <!-- Welcome Card with Everything Inside -->
@@ -1356,6 +1408,34 @@
                   </svg>
                   Join the Waitlist
                 </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Become a Creator Section (Below the two journey cards) -->
+          <div class="mt-6 pt-6 border-t border-gray-100">
+            <div class="bg-purple-50 border-2 border-purple-200 rounded-lg p-6">
+              <div class="flex items-start mb-4">
+                <div class="flex items-center justify-center w-12 h-12 bg-purple-500 rounded-full mr-4 flex-shrink-0">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                  </svg>
+                </div>
+                <div class="flex-1">
+                  <h3 class="text-lg font-bold text-purple-900 mb-2">Become a Creator</h3>
+                  <p class="text-purple-700 text-sm mb-4">
+                    Focus on growing the community through referrals. Earn 10% of points from every contribution your referrals make.
+                  </p>
+                  <button
+                    onclick={startCreatorJourney}
+                    class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors font-medium"
+                  >
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    Become a Creator
+                  </button>
+                </div>
               </div>
             </div>
           </div>

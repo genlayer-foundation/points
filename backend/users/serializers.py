@@ -3,6 +3,7 @@ from .models import User
 from validators.models import Validator
 from builders.models import Builder
 from stewards.models import Steward
+from creators.models import Creator
 from contributions.node_upgrade.models import TargetNodeVersion
 from leaderboard.models import LeaderboardEntry
 from contributions.models import Category
@@ -292,21 +293,57 @@ class StewardSerializer(serializers.ModelSerializer):
     """
     total_points = serializers.SerializerMethodField()
     rank = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Steward
         fields = ['total_points', 'rank', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
-    
+
     def get_total_points(self, obj):
         """Get total points for user."""
         # Stewards are deprecated, but return 0 for compatibility
         return 0
-    
+
     def get_rank(self, obj):
         """Get rank for user."""
         # Stewards are deprecated, return None for compatibility
         return None
+
+
+class CreatorSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Creator profile.
+    """
+    total_referrals = serializers.SerializerMethodField()
+    referral_points = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Creator
+        fields = ['total_referrals', 'referral_points', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
+
+    def get_total_referrals(self, obj):
+        """Get total number of users referred by this creator."""
+        return obj.user.referrals.count()
+
+    def get_referral_points(self, obj):
+        """Get total points earned from referrals."""
+        from contributions.models import Contribution
+        from django.db.models import Sum
+
+        # Get all contributions from referred users
+        referred_users = obj.user.referrals.all()
+        if not referred_users.exists():
+            return 0
+
+        # Calculate 10% of points from referred users' contributions
+        total_points = Contribution.objects.filter(
+            user__in=referred_users
+        ).aggregate(
+            total=Sum('frozen_global_points')
+        )['total'] or 0
+
+        return int(total_points * 0.1)  # 10% of referred users' points
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -314,6 +351,7 @@ class UserSerializer(serializers.ModelSerializer):
     validator = ValidatorSerializer(read_only=True)
     builder = BuilderSerializer(read_only=True)
     steward = StewardSerializer(read_only=True)
+    creator = CreatorSerializer(read_only=True)
     has_validator_waitlist = serializers.SerializerMethodField()
     has_builder_welcome = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
@@ -324,8 +362,8 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward', 
-                  'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at',
+        fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward',
+                  'creator', 'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at',
                   # Profile fields
                   'description', 'banner_image_url', 'profile_image_url', 'website',
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
