@@ -15,6 +15,8 @@
     sidebarOpen = !sidebarOpen;
   }
   
+  import Overview from './routes/Overview.svelte';
+  import TestnetAsimov from './routes/TestnetAsimov.svelte';
   import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
@@ -42,8 +44,9 @@
   
   // Define routes
   const routes = {
-    // Global/Testnet Asimov routes
-    '/': Dashboard,
+    // Overview and Testnet Asimov routes
+    '/': Overview,
+    '/asimov': TestnetAsimov,
     '/contributions': Contributions,
     '/contributions/highlights': Highlights,
     '/highlights': Highlights,

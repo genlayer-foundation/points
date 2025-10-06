@@ -14,9 +14,9 @@
   // Determine which section should be expanded based on current route
   function getActiveSection() {
     const path = $location;
-    
+
     // Check for specific sections
-    if (path === '/' || path === '/metrics') {
+    if (path === '/' || path === '/asimov' || path === '/metrics') {
       return 'global';
     } else if (path.startsWith('/builders') || (path.startsWith('/contribution-type/') && $currentCategory === 'builder')) {
       return 'builder';
@@ -27,7 +27,7 @@
     } else if (path === '/my-submissions' || path.startsWith('/participant/')) {
       return 'profile';
     }
-    
+
     return null;
   }
   
@@ -110,12 +110,13 @@
   // Define the complete navigation structure
   const navigationStructure = [
     {
-      title: 'Testnet Asimov',
+      title: 'Overview',
       category: 'global',
       iconName: 'genlayer',
       dashboardPath: '/',
       dashboardAction: () => changeCategory('global', '/'),
       items: [
+        { name: 'Testnet Asimov', path: '/asimov', iconName: 'network' },
         { name: 'Metrics', path: '/metrics', iconName: 'metrics' }
       ]
     },
