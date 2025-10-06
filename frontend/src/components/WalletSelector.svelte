@@ -5,15 +5,23 @@
   import coinbaseLogo from '../assets/wallets/coinbase.svg';
   import phantomLogo from '../assets/wallets/phantom.svg';
   
-  let { 
+  let {
     isOpen = $bindable(false),
-    onSelect = () => {}
+    showProfileCompletion = $bindable(false),
+    onSelect = () => {},
+    onProfileCompleted = () => {}
   } = $props();
   
   let availableWallets = $state([]);
   let loading = $state(true);
   let detectedProviders = $state(new Map()); // Store providers detected via EIP-6963
   let connectingWallet = $state(null); // Track which wallet is currently connecting
+
+  // Profile completion form state
+  let email = $state('');
+  let name = $state('');
+  let submittingProfile = $state(false);
+  let profileError = $state('');
   
   // Constants
   const INSTALL_URLS = {
@@ -305,27 +313,73 @@
   
   function cancelConnection() {
     connectionAborted = true;
-    
+
     // Abort the connection controller if it exists
     if (connectionController) {
       connectionController.abort();
     }
-    
+
     connectingWallet = null;
     isConnecting = false;
     isOpen = false;
   }
-  
+
+  async function handleProfileSubmit() {
+    // Validate inputs
+    if (!email || !name) {
+      profileError = 'Please provide both email and display name';
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      profileError = 'Please enter a valid email address';
+      return;
+    }
+
+    submittingProfile = true;
+    profileError = '';
+
+    try {
+      // Import the API function
+      const { updateUserProfile } = await import('../lib/api');
+
+      // Prepare update data
+      const updateData = {};
+      if (email) updateData.email = email;
+      if (name) updateData.name = name;
+
+      // Submit to backend
+      await updateUserProfile(updateData);
+
+      // Update the user store
+      const { userStore } = await import('../lib/userStore');
+      userStore.updateUser(updateData);
+
+      // Call the completion callback
+      onProfileCompleted();
+    } catch (err) {
+      console.error('Profile update error:', err);
+      profileError = err.response?.data?.error || err.message || 'Failed to update profile';
+    } finally {
+      submittingProfile = false;
+    }
+  }
+
+  function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
   function handleBackdropClick(e) {
-    // Don't close if currently connecting
-    if (e.target === e.currentTarget && !connectingWallet) {
+    // Don't close if currently connecting, submitting profile, or profile completion is required
+    if (e.target === e.currentTarget && !connectingWallet && !submittingProfile && !showProfileCompletion) {
       isOpen = false;
     }
   }
-  
+
   function handleKeyDown(e) {
-    // Don't close if currently connecting
-    if (e.key === 'Escape' && !connectingWallet) {
+    // Don't close if currently connecting, submitting profile, or profile completion is required
+    if (e.key === 'Escape' && !connectingWallet && !submittingProfile && !showProfileCompletion) {
       isOpen = false;
     }
   }
@@ -355,11 +409,15 @@
   >
     <div class="wallet-selector-modal">
       <div class="wallet-selector-header">
-        <h2 class="wallet-selector-title">Connect Wallet</h2>
-        <button 
+        <h2 class="wallet-selector-title">{showProfileCompletion ? 'Complete Your Profile' : 'Connect Wallet'}</h2>
+        <button
           class="wallet-selector-close"
-          onclick={() => !connectingWallet && (isOpen = false)}
-          disabled={connectingWallet !== null}
+          onclick={() => {
+            if (!connectingWallet && !submittingProfile && !showProfileCompletion) {
+              isOpen = false;
+            }
+          }}
+          disabled={connectingWallet !== null || submittingProfile || showProfileCompletion}
           aria-label="Close"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -367,9 +425,58 @@
           </svg>
         </button>
       </div>
-      
+
       <div class="wallet-selector-body">
-        {#if loading}
+        {#if showProfileCompletion}
+          <div class="profile-completion-form">
+            <p class="text-gray-600 text-sm mb-6">
+              Please complete your profile to continue.
+            </p>
+
+            {#if profileError}
+              <div class="profile-error">
+                {profileError}
+              </div>
+            {/if}
+
+            <div class="form-group">
+              <label for="email" class="form-label">Email Address</label>
+              <input
+                id="email"
+                type="email"
+                bind:value={email}
+                placeholder="your@email.com"
+                class="form-input"
+                disabled={submittingProfile}
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="name" class="form-label">Display Name</label>
+              <input
+                id="name"
+                type="text"
+                bind:value={name}
+                placeholder="Your name"
+                class="form-input"
+                disabled={submittingProfile}
+              />
+            </div>
+
+            <button
+              onclick={handleProfileSubmit}
+              disabled={submittingProfile || !email || !name}
+              class="profile-submit-button"
+            >
+              {#if submittingProfile}
+                <div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Saving...
+              {:else}
+                Continue
+              {/if}
+            </button>
+          </div>
+        {:else if loading}
           <div class="wallet-selector-loading">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <p class="text-gray-500 mt-3">Detecting wallets...</p>
@@ -661,7 +768,89 @@
     color: #9CA3AF;
     line-height: 1.5;
   }
-  
+
+  /* Profile Completion Form Styles */
+  .profile-completion-form {
+    padding: 0.5rem 0;
+  }
+
+  .profile-error {
+    background-color: #FEE2E2;
+    border: 1px solid #F87171;
+    color: #B91C1C;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+  }
+
+  .form-group {
+    margin-bottom: 1.25rem;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 0.5rem;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    font-size: 0.9375rem;
+    color: #111827;
+    background-color: #FAFAFA;
+    border: 1px solid #E5E7EB;
+    border-radius: 0.75rem;
+    transition: all 0.15s;
+  }
+
+  .form-input:focus {
+    outline: none;
+    background-color: #FFFFFF;
+    border-color: #2563EB;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  .form-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .form-input::placeholder {
+    color: #9CA3AF;
+  }
+
+  .profile-submit-button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.875rem 1rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: white;
+    background-color: #2563EB;
+    border: none;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-top: 0.5rem;
+  }
+
+  .profile-submit-button:hover:not(:disabled) {
+    background-color: #1D4ED8;
+    transform: translateY(-1px);
+  }
+
+  .profile-submit-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
   /* Responsive design */
   @media (max-width: 640px) {
     .wallet-selector-modal {

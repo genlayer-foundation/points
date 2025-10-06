@@ -11,12 +11,13 @@
   $: address = $authState.address;
   $: storeLoading = $authState.loading;
   $: storeError = $authState.error;
-  $: userName = $userStore.user?.name;
-  
+
   let loading = false;
   let error = null;
   let showDropdown = false;
   let showWalletSelector = false;
+  let showProfileCompletion = false;
+  let connectedAddress = null;
   let errorTimeout;
   
   // Auto-dismiss error messages after 5 seconds
@@ -53,11 +54,28 @@
     loading = true;
     error = null;
     // Keep the wallet selector open during connection
-    
+
     try {
-      await signInWithEthereum(provider, walletName);
-      // Only close on successful connection
-      showWalletSelector = false;
+      // Sign in with skipRedirect=true to check profile completeness first
+      const result = await signInWithEthereum(provider, walletName, true);
+      const userData = result?.user;
+      connectedAddress = result?.address;
+
+      // Check if profile is incomplete
+      const needsEmail = !userData?.is_email_verified;
+      const needsName = !userData?.name || userData.name.trim() === '';
+
+      if (needsEmail || needsName) {
+        // Show profile completion form instead of closing
+        showProfileCompletion = true;
+      } else {
+        // Profile is complete, close modal and redirect
+        showWalletSelector = false;
+        // Manually trigger redirect
+        import('svelte-spa-router').then(({ push }) => {
+          push(`/participant/${connectedAddress}`);
+        });
+      }
     } catch (err) {
       console.error('Auth error:', err);
       // Create a curated error message
@@ -78,6 +96,17 @@
     }
   }
   
+  async function handleProfileCompleted() {
+    // Profile completion is done, close modal and redirect
+    showProfileCompletion = false;
+    showWalletSelector = false;
+
+    // Redirect to user's profile
+    import('svelte-spa-router').then(({ push }) => {
+      push(`/participant/${connectedAddress}`);
+    });
+  }
+
   async function handleLogout() {
     showDropdown = false;
     await logout();
@@ -124,7 +153,7 @@
     {#if loading || storeLoading}
       <span class="loading-spinner"></span>
     {:else if isAuthenticated}
-      <span class="address">{userName || formatAddress(address)}</span>
+      <span class="address">{formatAddress(address)}</span>
       <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
       </svg>
@@ -167,7 +196,12 @@
 </div>
 
 <!-- Wallet Selector Modal -->
-<WalletSelector bind:isOpen={showWalletSelector} onSelect={handleWalletSelected} />
+<WalletSelector
+  bind:isOpen={showWalletSelector}
+  bind:showProfileCompletion={showProfileCompletion}
+  onSelect={handleWalletSelected}
+  onProfileCompleted={handleProfileCompleted}
+/>
 
 <style>
   .auth-dropdown-container {
