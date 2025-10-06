@@ -55,9 +55,13 @@ We use consistent vertical spacing throughout the application to create visual h
 ### Typography
 
 #### Font Families
-The application uses two custom fonts:
-- **Switzer Bold**: For all headings, titles, and emphasis (automatically applied to h1-h6)
-- **Volkart Regular**: For all body text (automatically applied to body tag)
+The application uses two custom variable fonts:
+- **Geist**: For all headings and titles (automatically applied to h1-h6)
+  - Variable font supporting all weights (100-900)
+  - Use with font-weight classes: `font-light`, `font-normal`, `font-medium`, `font-semibold`, `font-bold`, `font-extrabold`
+- **Switzer**: For all body text (automatically applied to body tag)
+  - Variable font supporting all weights (100-900) and italic
+  - Use with font-weight and italic classes as needed
 
 **Global Font Configuration:**
 - Fonts are defined in `src/styles.css` using CSS custom properties
