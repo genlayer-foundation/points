@@ -58,12 +58,12 @@
       // Get list of stewards directly
       const stewardsRes = await stewardAPI.getStewards();
       
-      if (stewardsRes.data) {
-        stewards = stewardsRes.data;
-      }
+      // Ensure stewards is always an array
+      stewards = stewardsRes.data || [];
     } catch (err) {
       console.error('Error loading stewards:', err);
-      // Silently fail - steward list is not critical
+      // Keep stewards as empty array on error
+      stewards = [];
     } finally {
       stewardsLoading = false;
     }
@@ -266,8 +266,8 @@
                   </div>
                 </div>
               {/each}
-          </div>
-        {/if}
+            </div>
+          {/if}
       </div>
       
       <!-- Working Groups Section -->
