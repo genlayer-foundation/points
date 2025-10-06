@@ -50,7 +50,7 @@
 <!-- Tooltip - Fixed position to avoid overflow clipping -->
 {#if showTooltip}
   <div
-    class="fixed px-4 py-2 bg-gray-800 text-white text-xs rounded-lg whitespace-normal transform -translate-x-1/2 pointer-events-none"
+    class="fixed px-4 py-2 bg-gray-800 text-white text-xs rounded-lg whitespace-normal transform -translate-x-1/2 pointer-events-none max-w-xs"
     style="top: {position === 'bottom' ? tooltipPosition.top : tooltipPosition.top}px; left: {tooltipPosition.left}px; z-index: 999999; {position === 'top' ? 'transform: translateX(-50%) translateY(-100%);' : ''}"
   >
     <p class="leading-relaxed whitespace-normal">{tooltipText}</p>
