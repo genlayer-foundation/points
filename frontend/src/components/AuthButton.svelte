@@ -62,7 +62,7 @@
       connectedAddress = result?.address;
 
       // Check if profile is incomplete
-      const needsEmail = !userData?.is_email_verified;
+      const needsEmail = !userData?.email || userData.email.trim() === '';
       const needsName = !userData?.name || userData.name.trim() === '';
 
       if (needsEmail || needsName) {
