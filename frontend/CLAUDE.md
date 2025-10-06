@@ -181,6 +181,41 @@ class="mt-4 md:mt-6 lg:mt-8"
 <p class="mt-1">  // After labels/small headings
 ```
 
+### Font Families
+The application uses custom fonts for better visual hierarchy:
+
+**Headers/Headings:** Switzer Bold
+- Applied automatically to all h1-h6 elements
+- Use `font-heading` class only for non-heading elements that should look like titles (e.g., titles in `<div>` or `<span>`)
+
+**Body Text:** Volkart Regular
+- Applied automatically to body tag and inherited everywhere
+- Use `font-body` class only in exceptional cases (very rare)
+
+**To change fonts globally:**
+Update CSS custom properties in `src/styles.css`:
+```css
+:root {
+  --font-heading: 'Switzer', sans-serif;
+  --font-body: 'Volkart', sans-serif;
+}
+```
+
+**Usage examples:**
+```javascript
+// ✅ Headings - automatic font-heading
+<h1 class="text-2xl font-bold">Page Title</h1>
+
+// ✅ Title in non-heading element - add font-heading
+<div class="text-lg font-semibold font-heading">Card Title</div>
+
+// ✅ Large stat values - add font-heading for emphasis
+<p class="text-2xl font-bold font-heading">{totalPoints}</p>
+
+// ✅ Body text - automatic font-body (no class needed)
+<p class="text-sm text-gray-600">Description text</p>
+```
+
 ### Color System
 ```javascript
 // Primary colors (blue/indigo)

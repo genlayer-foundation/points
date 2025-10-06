@@ -68,7 +68,7 @@
                   </button>
                 </h3>
               </div>
-              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getPointsBgColor} ml-2 flex-shrink-0">
+              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium font-heading {getPointsBgColor} ml-2 flex-shrink-0">
                 {type.total_points} pts
               </span>
             </div>

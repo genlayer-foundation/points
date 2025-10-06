@@ -246,7 +246,7 @@
             {@const hasLongText = needsExpansion(mission.description)}
             <tr class="{colors.tableHeaderBg}">
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-bold {colors.titleText}">
+                <div class="text-sm font-bold font-heading {colors.titleText}">
                   {mission.name}
                 </div>
               </td>

@@ -3,6 +3,11 @@ export default {
   content: ['./src/**/*.{html,js,svelte,ts}'],
   theme: {
     extend: {
+      fontFamily: {
+        heading: ['var(--font-heading)'],
+        body: ['var(--font-body)'],
+        sans: ['var(--font-body)'],
+      },
       colors: {
         primary: {
           50: '#f0f9ff',

@@ -43,7 +43,7 @@
     <div class="md:w-64 flex items-center h-16 px-4 md:px-7">
       <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex items-center">
         <Icon name="genlayer" size="lg" className="text-black" />
-        <span class="ml-3 text-sm sm:text-xl font-bold {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">
+        <span class="ml-3 text-sm sm:text-xl font-bold font-heading {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">
           GenLayer <span class="text-xs sm:text-xl">Points</span>
         </span>
       </a>

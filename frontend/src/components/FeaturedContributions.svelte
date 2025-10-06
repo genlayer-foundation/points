@@ -137,7 +137,7 @@
       <div class="py-4">
         <div>
           <p class="text-sm text-gray-700 mb-3">
-            <span class="font-semibold text-gray-900">Get Highlighted!</span> Submit impactful or pioneering work to get featured.
+            <span class="font-heading font-semibold text-gray-900">Get Highlighted!</span> Submit impactful or pioneering work to get featured.
           </p>
           <button
             onclick={() => push('/submit-contribution')}
