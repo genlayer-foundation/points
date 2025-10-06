@@ -412,7 +412,7 @@
         <h2 class="wallet-selector-title">{showProfileCompletion ? 'Complete Your Profile' : 'Connect Wallet'}</h2>
         <button
           class="wallet-selector-close"
-          onclick={() => {
+          on:click={() => {
             if (!connectingWallet && !submittingProfile && !showProfileCompletion) {
               isOpen = false;
             }
