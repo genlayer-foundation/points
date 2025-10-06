@@ -3,26 +3,32 @@
 @tailwind utilities;
 
 @font-face {
-  font-family: 'Switzer';
-  src: url('/fonts/switzer-bold.woff2') format('woff2'),
-       url('/fonts/switzer-bold.woff') format('woff');
-  font-weight: 700;
+  font-family: 'Geist';
+  src: url('/fonts/Geist-VariableFont_wght.woff2') format('woff2-variations');
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Volkart';
-  src: url('/fonts/volkart-regular.woff2') format('woff2'),
-       url('/fonts/volkart-regular.woff') format('woff');
-  font-weight: 400;
+  font-family: 'Switzer';
+  src: url('/fonts/Switzer-Variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/Switzer-VariableItalic.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
-  --font-heading: 'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-body: 'Volkart', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-heading: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 body {

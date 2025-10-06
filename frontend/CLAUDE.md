@@ -182,22 +182,24 @@ class="mt-4 md:mt-6 lg:mt-8"
 ```
 
 ### Font Families
-The application uses custom fonts for better visual hierarchy:
+The application uses custom variable fonts for better visual hierarchy:
 
-**Headers/Headings:** Switzer Bold
+**Headers/Headings:** Geist (variable font, all weights)
 - Applied automatically to all h1-h6 elements
 - Use `font-heading` class only for non-heading elements that should look like titles (e.g., titles in `<div>` or `<span>`)
+- Supports all weights: use `font-light`, `font-normal`, `font-medium`, `font-semibold`, `font-bold`, etc.
 
-**Body Text:** Volkart Regular
+**Body Text:** Switzer (variable font, all weights including italic)
 - Applied automatically to body tag and inherited everywhere
 - Use `font-body` class only in exceptional cases (very rare)
+- Supports all weights and italic variants
 
 **To change fonts globally:**
 Update CSS custom properties in `src/styles.css`:
 ```css
 :root {
-  --font-heading: 'Switzer', sans-serif;
-  --font-body: 'Volkart', sans-serif;
+  --font-heading: 'Geist', sans-serif;
+  --font-body: 'Switzer', sans-serif;
 }
 ```
 
