@@ -136,7 +136,7 @@ export const journeyAPI = {
   completeBuilderJourney: () => api.post('/users/complete_builder_journey/')
 };
 
-// Creator API
+// Supporter API (backend uses 'creator' terminology)
 export const creatorAPI = {
   joinAsCreator: () => api.post('/creators/join/')
 };
