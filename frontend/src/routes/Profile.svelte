@@ -11,6 +11,7 @@
   import BuilderProgress from '../components/BuilderProgress.svelte';
   import ReferralSection from '../components/ReferralSection.svelte';
   import Icons from '../components/Icons.svelte';
+  import Tooltip from '../components/Tooltip.svelte';
   import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, creatorAPI, getCurrentUser } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
@@ -270,9 +271,9 @@
       // If successful, reload the user data
       if (response.status === 201 || response.status === 200) {
         // Show a success message
-        successMessage = 'You are now a Creator! Start growing the community through referrals.';
+        successMessage = 'You are now a Supporter! Start growing the community through referrals.';
 
-        // Reload participant data to get Creator profile (same pattern as Builder)
+        // Reload participant data to get Supporter profile (same pattern as Builder)
         const updatedUser = await getCurrentUser();
         participant = updatedUser;
 
@@ -283,7 +284,7 @@
       }
     } catch (err) {
       console.error('Error joining as creator:', err);
-      error = err.response?.data?.message || 'Failed to join as creator';
+      error = err.response?.data?.message || 'Failed to join as supporter';
       successMessage = '';
     }
   }
@@ -637,7 +638,7 @@
                 {/if}
                 {#if participant.creator}
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                    Creator
+                    Supporter
                   </span>
                 {/if}
               {/if}
@@ -814,9 +815,21 @@
                   <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600 mr-2"></div>
                   <span class="text-gray-500">Loading...</span>
                 {:else if balance}
-                  <p class="text-xl font-bold text-gray-900">{balance.formatted} GEN</p>
+                  <Tooltip tooltipText="Asimov Testnet Tokens are valueless faucet tokens for testing only and provide no right or expectation of profit or redemption.">
+                    {#snippet children()}
+                      <p class="text-xl font-bold text-gray-900 cursor-help">
+                        {balance.formatted} GEN<sup class="text-red-500">*</sup>
+                      </p>
+                    {/snippet}
+                  </Tooltip>
                 {:else}
-                  <p class="text-xl font-bold text-gray-900">0 GEN</p>
+                  <Tooltip tooltipText="Asimov Testnet Tokens are valueless faucet tokens for testing only and provide no right or expectation of profit or redemption.">
+                    {#snippet children()}
+                      <p class="text-xl font-bold text-gray-900 cursor-help">
+                        0 GEN<sup class="text-red-500">*</sup>
+                      </p>
+                    {/snippet}
+                  </Tooltip>
                 {/if}
               </div>
             </div>
@@ -1318,9 +1331,9 @@
           <!-- Journey Selection Cards Inside Welcome Card -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-100">
             <!-- Builder Journey Card -->
-            <div class="group relative bg-orange-50 border-2 border-orange-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
+            <div class="group relative bg-orange-50 border-2 border-orange-200 rounded-xl overflow-hidden hover:shadow-lg transition-all flex flex-col">
               <div class="absolute inset-0 bg-orange-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div class="relative p-6">
+              <div class="relative p-6 flex flex-col flex-1">
                 <div class="flex items-center mb-4">
                   <div class="flex items-center justify-center w-12 h-12 bg-orange-500 rounded-full mr-4 flex-shrink-0">
                     <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -1332,7 +1345,7 @@
                     <p class="text-orange-700 text-sm">Learn GenLayer's basics and deploy your first Intelligent Contract powered by Optimistic Democracy</p>
                   </div>
                 </div>
-                <ul class="space-y-2 mb-6">
+                <ul class="space-y-2 mb-6 flex-1">
                   <li class="flex items-center text-sm text-orange-600">
                     <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
@@ -1354,7 +1367,7 @@
                 </ul>
                 <button
                   onclick={() => push('/builders/welcome')}
-                  class="w-full flex items-center justify-center px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold group-hover:shadow-md"
+                  class="w-full flex items-center justify-center px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold group-hover:shadow-md mt-auto"
                 >
                   <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
@@ -1365,9 +1378,9 @@
             </div>
             
             <!-- Validator Journey Card -->
-            <div class="group relative bg-sky-50 border-2 border-sky-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
+            <div class="group relative bg-sky-50 border-2 border-sky-200 rounded-xl overflow-hidden hover:shadow-lg transition-all flex flex-col">
               <div class="absolute inset-0 bg-sky-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div class="relative p-6">
+              <div class="relative p-6 flex flex-col flex-1">
                 <div class="flex items-center mb-4">
                   <div class="flex items-center justify-center w-12 h-12 bg-sky-500 rounded-full mr-4 flex-shrink-0">
                     <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -1379,7 +1392,7 @@
                     <p class="text-sky-700 text-sm">Validate and judge subjective Intelligent Contracts on Testnet Asimov</p>
                   </div>
                 </div>
-                <ul class="space-y-2 mb-6">
+                <ul class="space-y-2 mb-6 flex-1">
                   <li class="flex items-center text-sm text-sky-600">
                     <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
@@ -1401,7 +1414,7 @@
                 </ul>
                 <button
                   onclick={() => push('/validators/waitlist/join')}
-                  class="w-full flex items-center justify-center px-4 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-semibold group-hover:shadow-md"
+                  class="w-full flex items-center justify-center px-4 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-semibold group-hover:shadow-md mt-auto"
                 >
                   <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
@@ -1412,30 +1425,51 @@
             </div>
           </div>
 
-          <!-- Become a Creator Section (Below the two journey cards) -->
-          <div class="mt-6 pt-6 border-t border-gray-100">
-            <div class="bg-purple-50 border-2 border-purple-200 rounded-lg p-6">
-              <div class="flex items-start mb-4">
-                <div class="flex items-center justify-center w-12 h-12 bg-purple-500 rounded-full mr-4 flex-shrink-0">
-                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                  </svg>
-                </div>
-                <div class="flex-1">
-                  <h3 class="text-lg font-bold text-purple-900 mb-2">Become a Creator</h3>
-                  <p class="text-purple-700 text-sm mb-4">
-                    Focus on growing the community through referrals. Earn 10% of points from every contribution your referrals make.
-                  </p>
-                  <button
-                    onclick={startCreatorJourney}
-                    class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors font-medium"
-                  >
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <!-- Become a Supporter Section (Below the two journey cards) -->
+          <div class="mt-6">
+            <div class="group relative bg-purple-50 border-2 border-purple-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
+              <div class="absolute inset-0 bg-purple-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div class="relative p-6">
+                <div class="flex items-center mb-4">
+                  <div class="flex items-center justify-center w-12 h-12 bg-purple-500 rounded-full mr-4 flex-shrink-0">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
                     </svg>
-                    Become a Creator
-                  </button>
+                  </div>
+                  <div>
+                    <h3 class="text-xl font-bold text-purple-900 mb-1">Become a Supporter</h3>
+                    <p class="text-purple-700 text-sm">Grow the GenLayer community through referrals and earn rewards</p>
+                  </div>
                 </div>
+                <ul class="space-y-2 mb-6">
+                  <li class="flex items-center text-sm text-purple-600">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Refer builders and validators to the program
+                  </li>
+                  <li class="flex items-center text-sm text-purple-600">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Earn 10% of points from every contribution your referrals make
+                  </li>
+                  <li class="flex items-center text-sm text-purple-600">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Receive 500 Discord XP for each valid referral
+                  </li>
+                </ul>
+                <button
+                  onclick={startCreatorJourney}
+                  class="w-full flex items-center justify-center px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold group-hover:shadow-md"
+                >
+                  <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                  </svg>
+                  Become a Supporter
+                </button>
               </div>
             </div>
           </div>
@@ -1444,8 +1478,8 @@
     {/if}
 
     <!-- Referrals Card - Full Width -->
-    {#if !isValidatorOnly && (isOwnProfile || (!isOwnProfile && participant?.total_referrals > 0))}
-      <div class="bg-purple-50 rounded-lg shadow-sm border border-purple-200 overflow-hidden mb-6">
+    {#if !isValidatorOnly && (participant?.builder || participant?.validator || participant?.creator || participant?.total_referrals > 0) && (isOwnProfile || (!isOwnProfile && participant?.total_referrals > 0))}
+      <div class="bg-purple-50 rounded-lg shadow-sm border border-purple-200 overflow-visible mb-6">
         <!-- Header -->
         <div class="bg-purple-100 px-5 py-3 border-b border-purple-200 flex items-center justify-between">
           <h2 class="text-lg font-semibold text-purple-700 uppercase tracking-wider flex items-center">
@@ -1471,7 +1505,7 @@
         <div class="p-6">
           {#if loadingReferrals || (referralData && referralData.total_referrals > 0) || (!isOwnProfile && participant?.total_referrals > 0)}
             <!-- Metrics Grid - Side by Side (only show when there are referrals) -->
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-3 mb-4">
               <!-- Total Referrals Container -->
               <div class="bg-purple-50/50 border border-purple-100 rounded-lg p-3">
                 <div class="flex items-center">
@@ -1512,20 +1546,17 @@
                 </div>
               </div>
             </div>
-          {:else if isOwnProfile && !loadingReferrals}
-            <!-- CTA when no referrals (replaces metrics) -->
-            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
-              <div class="flex items-start">
-                <div class="flex-shrink-0">
-                  <Icons name="network" size="lg" className="text-purple-600" />
-                </div>
-                <div class="ml-3 flex-1">
-                  <h4 class="text-sm font-semibold text-purple-900">Start Growing Your Network!</h4>
-                  <p class="mt-1 text-sm text-purple-700">
-                    Invite others to join GenLayer and earn <span class="font-bold">10% of all points</span> they earn from their contributions. The more people you refer, the more you earn!
-                  </p>
-                </div>
-              </div>
+          {/if}
+
+          {#if isOwnProfile && !loadingReferrals}
+            <!-- Referral link section - always show for own profile -->
+            {#if !referralData || referralData.total_referrals === 0}
+              <p class="text-purple-700 mb-4">
+                Building is better together. Our referral system rewards you with 10% of points earned by every contribution from your referrals.<br><br>Invite your friends, colleagues, and community. We make GenLayer together and the more the merrier.
+              </p>
+            {/if}
+            <div class="flex justify-start" style="overflow: visible;">
+              <ReferralSection />
             </div>
           {/if}
 

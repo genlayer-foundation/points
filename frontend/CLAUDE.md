@@ -277,13 +277,20 @@ frontend/src/
   - Profile link (shows when authenticated)
   - Mobile responsive menu
 - **Sidebar**: `src/components/Sidebar.svelte`
-  - Side navigation (if used)
+  - Side navigation with collapsible sections
+  - Navigation structure:
+    - **Overview** (links to `/`) - Contains Testnet Asimov and Metrics sub-items
+    - **Builders** - Category-specific dashboard and pages
+    - **Validators** - Category-specific dashboard and pages
+    - **Stewards** - Steward management pages (only visible to stewards)
+    - **Profile** - User profile and submissions
 
 ### Routes/Pages
 All routes are defined in `src/App.svelte`:
 ```javascript
 const routes = {
-  '/': Dashboard,
+  '/': Overview,  // Overview page with program information
+  '/asimov': TestnetAsimov,  // Testnet Asimov dashboard (formerly Dashboard at '/')
   '/contributions': Contributions,
   '/leaderboard': Leaderboard,
   '/validators': Validators,
