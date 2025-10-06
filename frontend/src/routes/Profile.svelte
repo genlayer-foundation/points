@@ -1469,11 +1469,11 @@
 
         <!-- Content -->
         <div class="p-6">
-          {#if loadingReferrals || (referralData && referralData.total_referrals > 0) || (!isOwnProfile && participant?.total_referrals > 0)}
-            <!-- Metrics Grid - Side by Side (only show when there are referrals) -->
-            <div class="grid grid-cols-2 gap-3">
+          {#if loadingReferrals || (referralData && referralData.total_referrals > 0) || (!isOwnProfile && (participant?.total_referrals > 0 || participant?.leaderboard_entries?.[0]?.referral_points))}
+            <!-- Metrics Grid - 3 columns (only show when there are referrals) -->
+            <div class="grid grid-cols-3 gap-3">
               <!-- Total Referrals Container -->
-              <div class="bg-purple-50/50 border border-purple-100 rounded-lg p-3">
+              <div class="bg-white border border-gray-200 rounded-lg p-3">
                 <div class="flex items-center">
                   <div class="flex-shrink-0 p-2.5 rounded-lg bg-purple-100 text-purple-600 mr-3">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1493,19 +1493,68 @@
                 </div>
               </div>
 
-              <!-- Referral Points Container -->
-              <div class="bg-purple-50/50 border border-purple-100 rounded-lg p-3">
+              <!-- Builder Referral Points Container -->
+              <div class="bg-white border border-gray-200 rounded-lg p-3">
                 <div class="flex items-center">
-                  <div class="flex-shrink-0 p-2.5 rounded-lg bg-purple-100 text-purple-600 mr-3">
-                    <Icons name="lightning" size="md" />
+                  <div class="flex-shrink-0 p-2.5 rounded-lg bg-orange-100 mr-3">
+                    <Icons name="builder" size="md" className="text-orange-600" />
                   </div>
                   <div class="flex-1">
-                    <p class="text-sm text-gray-500">Referral Points</p>
+                    <div class="flex items-center gap-1.5">
+                      <p class="text-sm text-gray-500">Builder Referral Points</p>
+                      <div class="relative group">
+                        <svg class="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-[260px]">
+                          <div class="text-center">Points earned from referrals' builder contributions</div>
+                          <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                            <div class="border-4 border-transparent border-t-gray-900"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     <p class="text-xl font-bold text-gray-900">
                       {#if loadingReferrals}
                         <span class="text-gray-400">...</span>
+                      {:else if isOwnProfile}
+                        {referralData?.builder_points || 0}
                       {:else}
-                        {referralData?.total_bonus_points || 0}
+                        {participant?.leaderboard_entries?.[0]?.referral_points?.builder_points || 0}
+                      {/if}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Validator Referral Points Container -->
+              <div class="bg-white border border-gray-200 rounded-lg p-3">
+                <div class="flex items-center">
+                  <div class="flex-shrink-0 p-2.5 rounded-lg bg-blue-100 mr-3">
+                    <Icons name="validator" size="md" className="text-blue-600" />
+                  </div>
+                  <div class="flex-1">
+                    <div class="flex items-center gap-1.5">
+                      <p class="text-sm text-gray-500">Validator Referral Points</p>
+                      <div class="relative group">
+                        <svg class="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-[260px]">
+                          <div class="text-center">Points earned from referrals' validator contributions</div>
+                          <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                            <div class="border-4 border-transparent border-t-gray-900"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <p class="text-xl font-bold text-gray-900">
+                      {#if loadingReferrals}
+                        <span class="text-gray-400">...</span>
+                      {:else if isOwnProfile}
+                        {referralData?.validator_points || 0}
+                      {:else}
+                        {participant?.leaderboard_entries?.[0]?.referral_points?.validator_points || 0}
                       {/if}
                     </p>
                   </div>
@@ -1541,16 +1590,10 @@
                         Participant
                       </th>
                       <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Type
+                        Builder Points Earned
                       </th>
                       <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Contributions
-                      </th>
-                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Points Earned
-                      </th>
-                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Your Points
+                        Validator Points Earned
                       </th>
                       <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Joined Date
@@ -1558,7 +1601,7 @@
                     </tr>
                   </thead>
                   <tbody class="bg-white divide-y divide-gray-200">
-                    {#each referralData.referrals.slice(0, 5) as referral, i}
+                    {#each referralData.referrals.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5) as referral, i}
                       <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                         <td class="px-6 py-4 whitespace-nowrap">
                           <div class="flex items-center">
@@ -1583,25 +1626,33 @@
                           </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                          <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            referral.is_validator ? 'bg-blue-100 text-blue-800' :
-                            referral.is_builder ? 'bg-orange-100 text-orange-800' :
-                            referral.is_steward ? 'bg-green-100 text-green-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {referral.is_validator ? 'Validator' : referral.is_builder ? 'Builder' : referral.is_steward ? 'Steward' : 'Undetermined'}
-                          </span>
+                          <div class="flex flex-col gap-1">
+                            {#if referral.builder_contribution_points > 0}
+                              <div class="inline-flex items-center gap-1">
+                                <span class="text-sm text-gray-600">{referral.builder_contribution_points.toLocaleString()}</span>
+                                <span class="text-gray-400">→</span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                  +{Math.round(referral.builder_contribution_points * 0.1)}
+                                </span>
+                              </div>
+                            {:else}
+                              <span class="text-sm text-gray-400">—</span>
+                            {/if}
+                          </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                          <div class="text-sm text-gray-900">{referral.total_contributions || 0}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                          <div class="text-sm text-gray-900 font-medium">{referral.total_points.toLocaleString()}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                          <div class="flex items-center text-sm font-medium text-purple-600">
-                            <Icons name="lightning" size="xs" className="mr-1" />
-                            {referral.bonus_points.toLocaleString()}
+                          <div class="flex flex-col gap-1">
+                            {#if referral.validator_contribution_points > 0}
+                              <div class="inline-flex items-center gap-1">
+                                <span class="text-sm text-gray-600">{referral.validator_contribution_points.toLocaleString()}</span>
+                                <span class="text-gray-400">→</span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  +{Math.round(referral.validator_contribution_points * 0.1)}
+                                </span>
+                              </div>
+                            {:else}
+                              <span class="text-sm text-gray-400">—</span>
+                            {/if}
                           </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

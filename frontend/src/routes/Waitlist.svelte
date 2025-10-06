@@ -7,6 +7,7 @@
   import Avatar from '../components/Avatar.svelte';
   import StatCard from '../components/StatCard.svelte';
   import ContributionCard from '../components/ContributionCard.svelte';
+  import Icon from '../components/Icons.svelte';
   
   // State variables
   let waitlistUsers = $state([]);
@@ -99,7 +100,8 @@
             nodeVersion: fullUser?.validator?.node_version || null,
             matchesTarget: fullUser?.validator?.matches_target || false,
             targetVersion: fullUser?.validator?.target_version || null,
-            joinedWaitlist: waitlistContribution?.contribution_date || fullUser?.created_at
+            joinedWaitlist: waitlistContribution?.contribution_date || fullUser?.created_at,
+            referral_points: entry.referral_points || null
           };
         });
         
@@ -273,8 +275,40 @@
                   >
                     {user.user?.name || truncateAddress(user.address)}
                   </button>
-                  <div class="text-xs text-gray-500">
-                    {user.score} points
+                  <div class="flex items-center gap-3 mt-0.5">
+                    <!-- Contribution Points -->
+                    <div class="flex items-center gap-1 group relative">
+                      <Icon name="lightning" size="sm" className="text-amber-600" />
+                      <span class="text-sm text-gray-700 font-medium">{user.score}</span>
+                      <!-- Tooltip -->
+                      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
+                        <div>Contribution Points</div>
+                        <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                          <div class="border-4 border-transparent border-t-gray-900"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Referral Points -->
+                    {#if user.referral_points}
+                      {@const referralTotal = user.referral_points.builder_points + user.referral_points.validator_points}
+                      {#if referralTotal > 0}
+                        <div class="flex items-center gap-1 group relative">
+                          <Icon name="users" size="sm" className="text-purple-600" />
+                          <span class="text-sm text-purple-600 font-medium">{referralTotal}</span>
+                          <!-- Tooltip -->
+                          <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
+                            <div>Referral Points</div>
+                            <div class="text-xs text-gray-300 mt-1">
+                              Builder: {user.referral_points.builder_points} | Validator: {user.referral_points.validator_points}
+                            </div>
+                            <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                              <div class="border-4 border-transparent border-t-gray-900"></div>
+                            </div>
+                          </div>
+                        </div>
+                      {/if}
+                    {/if}
                   </div>
                 </div>
               </div>

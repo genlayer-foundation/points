@@ -330,6 +330,7 @@ def log_multiplier_creation(sender, instance, created, **kwargs):
 def update_leaderboard_on_contribution(sender, instance, created, **kwargs):
     """
     When a contribution is saved, update all affected leaderboard entries.
+    Also updates referrer's referral points if the user was referred.
     """
     # Only update if points have changed or it's a new contribution
     if created or kwargs.get('update_fields') is None or 'points' in kwargs.get('update_fields', []):
@@ -340,6 +341,10 @@ def update_leaderboard_on_contribution(sender, instance, created, **kwargs):
     
     # Update the user's leaderboard entries
     update_user_leaderboard_entries(instance.user)
+
+    # Update referrer's referral points if applicable
+    if instance.user.referred_by:
+        update_referrer_points(instance.user.referred_by)
 
 
 def update_user_leaderboard_entries(user):
@@ -400,6 +405,61 @@ def update_user_leaderboard_entries(user):
     affected_leaderboards = set(qualified_leaderboards) | removed_leaderboards
     for leaderboard_type in affected_leaderboards:
         LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
+
+
+class ReferralPoints(BaseModel):
+    """
+    Tracks referral points earned from referred users' contributions.
+    Separate from LeaderboardEntry to work regardless of referrer's own status.
+    """
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='referral_points'
+    )
+    builder_points = models.PositiveIntegerField(
+        default=0,
+        help_text="10% of referred users' builder contributions"
+    )
+    validator_points = models.PositiveIntegerField(
+        default=0,
+        help_text="10% of referred users' validator contributions"
+    )
+
+    class Meta:
+        verbose_name = "Referral Points"
+        verbose_name_plural = "Referral Points"
+
+    def __str__(self):
+        return f"{self.user.email} - B:{self.builder_points} V:{self.validator_points}"
+
+
+def update_referrer_points(referrer):
+    """
+    Update referral points when referred user makes contribution.
+    Efficiently calculates points per category.
+    """
+    from users.models import User
+
+    referred_user_ids = User.objects.filter(referred_by=referrer).values_list('id', flat=True)
+    if not referred_user_ids:
+        return
+
+    rp, _ = ReferralPoints.objects.get_or_create(user=referrer)
+
+    # Calculate builder points
+    rp.builder_points = int((Contribution.objects.filter(
+        user_id__in=referred_user_ids,
+        contribution_type__category__slug='builder'
+    ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+
+    # Calculate validator points
+    rp.validator_points = int((Contribution.objects.filter(
+        user_id__in=referred_user_ids,
+        contribution_type__category__slug='validator'
+    ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+
+    rp.save(update_fields=['builder_points', 'validator_points'])
 
 
 def update_all_ranks():

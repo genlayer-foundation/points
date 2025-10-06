@@ -4,7 +4,7 @@ from django.shortcuts import render, redirect
 from django.urls import path, reverse
 from django.http import HttpResponseRedirect
 from django.core.management import call_command
-from .models import LeaderboardEntry, GlobalLeaderboardMultiplier
+from .models import LeaderboardEntry, GlobalLeaderboardMultiplier, ReferralPoints
 from contributions.models import Category, Contribution
 from users.models import User
 
@@ -107,3 +107,18 @@ class LeaderboardEntryAdmin(admin.ModelAdmin):
             'has_change_permission': request.user.has_perm('leaderboard.change_leaderboardentry'),
         }
         return render(request, 'admin/leaderboard/update_leaderboard.html', context)
+
+
+@admin.register(ReferralPoints)
+class ReferralPointsAdmin(admin.ModelAdmin):
+    list_display = ['user', 'builder_points', 'validator_points']
+    search_fields = ['user__email', 'user__name']
+    readonly_fields = ['user', 'builder_points', 'validator_points']
+
+    def has_add_permission(self, request):
+        # Don't allow manual creation
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        # Allow deletion for cleanup
+        return True

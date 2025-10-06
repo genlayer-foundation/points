@@ -61,7 +61,8 @@ export const usersAPI = {
   checkDeployments: () => api.get('/users/check_deployments/'),
   getDeploymentStatus: () => api.get('/users/deployment_status/'),
   getActiveValidators: () => api.get('/users/validators/'),
-  getReferrals: () => api.get('/users/referrals/')
+  getReferrals: () => api.get('/users/referrals/'),
+  getReferralPoints: () => api.get('/users/referral_points/')
 };
 
 // API endpoints for contributions
