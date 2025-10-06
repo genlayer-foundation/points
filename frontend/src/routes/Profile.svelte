@@ -1445,7 +1445,7 @@
 
     <!-- Referrals Card - Full Width -->
     {#if !isValidatorOnly && (isOwnProfile || (!isOwnProfile && participant?.total_referrals > 0))}
-      <div class="bg-purple-50 rounded-lg shadow-sm border border-purple-200 overflow-hidden mb-6">
+      <div class="bg-purple-50 rounded-lg shadow-sm border border-purple-200 overflow-visible mb-6">
         <!-- Header -->
         <div class="bg-purple-100 px-5 py-3 border-b border-purple-200 flex items-center justify-between">
           <h2 class="text-lg font-semibold text-purple-700 uppercase tracking-wider flex items-center">
@@ -1471,7 +1471,7 @@
         <div class="p-6">
           {#if loadingReferrals || (referralData && referralData.total_referrals > 0) || (!isOwnProfile && participant?.total_referrals > 0)}
             <!-- Metrics Grid - Side by Side (only show when there are referrals) -->
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-3 mb-4">
               <!-- Total Referrals Container -->
               <div class="bg-purple-50/50 border border-purple-100 rounded-lg p-3">
                 <div class="flex items-center">
@@ -1512,20 +1512,17 @@
                 </div>
               </div>
             </div>
-          {:else if isOwnProfile && !loadingReferrals}
-            <!-- CTA when no referrals (replaces metrics) -->
-            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
-              <div class="flex items-start">
-                <div class="flex-shrink-0">
-                  <Icons name="network" size="lg" className="text-purple-600" />
-                </div>
-                <div class="ml-3 flex-1">
-                  <h4 class="text-sm font-semibold text-purple-900">Start Growing Your Network!</h4>
-                  <p class="mt-1 text-sm text-purple-700">
-                    Invite others to join GenLayer and earn <span class="font-bold">10% of all points</span> they earn from their contributions. The more people you refer, the more you earn!
-                  </p>
-                </div>
-              </div>
+          {/if}
+
+          {#if isOwnProfile && !loadingReferrals}
+            <!-- Referral link section - always show for own profile -->
+            {#if !referralData || referralData.total_referrals === 0}
+              <p class="text-purple-700 mb-4">
+                Building is better together. Our referral system rewards you with 10% of points earned by every contribution from your referrals.<br><br>Invite your friends, colleagues, and community. We make GenLayer together and the more the merrier.
+              </p>
+            {/if}
+            <div class="flex justify-start" style="overflow: visible;">
+              <ReferralSection />
             </div>
           {/if}
 

@@ -60,8 +60,35 @@
     return 'Referral Link';
   }
 
+  let buttonElement = $state(null);
+  let showTooltip = $state(false);
+  let tooltipPosition = $state({ top: 0, left: 0 });
+
+  function updateTooltipPosition() {
+    if (buttonElement && showTooltip) {
+      const rect = buttonElement.getBoundingClientRect();
+      tooltipPosition = {
+        top: rect.bottom + 8,
+        left: rect.left + rect.width / 2
+      };
+    }
+  }
+
+  function handleMouseEnter() {
+    showTooltip = true;
+    updateTooltipPosition();
+    // Add scroll listener to update position while tooltip is shown
+    window.addEventListener('scroll', updateTooltipPosition, true);
+  }
+
+  function handleMouseLeave() {
+    showTooltip = false;
+    // Remove scroll listener when tooltip is hidden
+    window.removeEventListener('scroll', updateTooltipPosition, true);
+  }
+
   function getButtonClass() {
-    const baseClasses = 'w-36 px-4 py-2 text-sm rounded-md font-medium transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap group relative';
+    const baseClasses = 'w-36 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap relative';
 
     if (state === 'copied') {
       return `${baseClasses} text-green-600 bg-green-50 border border-green-200`;
@@ -74,6 +101,9 @@
 {#if $authState.isAuthenticated && referralCode}
   <!-- Referral Link Button with Tooltip -->
   <button
+    bind:this={buttonElement}
+    onmouseenter={handleMouseEnter}
+    onmouseleave={handleMouseLeave}
     onclick={handleCopyLink}
     class={getButtonClass()}
     disabled={state === 'copied'}
@@ -83,13 +113,17 @@
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
     </svg>
     {getButtonText()}
+  </button>
 
-    <!-- Tooltip on button hover -->
-    <div class="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-4 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-72 whitespace-normal" style="z-index: 999999;">
-      <p class="font-semibold mb-1 whitespace-normal">Amplify Your Impact</p>
+  <!-- Tooltip - Fixed position to avoid overflow clipping -->
+  {#if showTooltip}
+    <div
+      class="fixed px-4 py-2 bg-gray-800 text-white text-xs rounded-lg w-72 whitespace-normal transform -translate-x-1/2 pointer-events-none"
+      style="top: {tooltipPosition.top}px; left: {tooltipPosition.left}px; z-index: 999999;"
+    >
       <p class="leading-relaxed whitespace-normal">Building is better together. Earn 10% of points from every contribution your referrals make.</p>
       <!-- Arrow pointing up -->
       <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-b-gray-800"></div>
     </div>
-  </button>
+  {/if}
 {/if}

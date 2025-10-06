@@ -154,7 +154,7 @@
       <!-- Content -->
       <div class="p-6 space-y-3">
         <p class="text-gray-700">
-          Stewards reviewing submited contributions to the Points Program. They evaluate each contribution based on technical quality, originality, and ecosystem impact. Stewards assign points transparently and may request revisions or offer feedback to improve contributions. Their role ensures fairness, consistency, and alignment with GenLayer's long-term vision as the ecosystem grows.
+          Stewards review submited contributions, evaluating them on technical quality, originality, and ecosystem impact. Stewards assign points transparently and may request revisions or offer feedback to improve contributions. Their role ensures fairness, consistency, and alignment with GenLayer's long-term vision as the ecosystem grows.
         </p>
         <button
           onclick={() => push('/stewards')}
