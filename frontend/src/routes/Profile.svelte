@@ -11,6 +11,7 @@
   import BuilderProgress from '../components/BuilderProgress.svelte';
   import ReferralSection from '../components/ReferralSection.svelte';
   import Icons from '../components/Icons.svelte';
+  import Tooltip from '../components/Tooltip.svelte';
   import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, creatorAPI, getCurrentUser } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
@@ -800,28 +801,36 @@
       <!-- Balance and Joined Date in a row -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <!-- Balance Card -->
-        <div class="bg-white shadow rounded-lg p-4">
-          <div class="flex items-center">
-            <div class="flex-shrink-0 p-2.5 rounded-lg mr-3 bg-green-50 text-green-500">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-            </div>
-            <div class="flex-1">
-              <p class="text-sm text-gray-500">Balance</p>
+        <Tooltip tooltipText="Asimov Testnet Tokens are valueless faucet tokens for testing only and provide no right or expectation of profit or redemption.">
+          {#snippet children()}
+            <div class="bg-white shadow rounded-lg p-4 cursor-help">
               <div class="flex items-center">
-                {#if loadingBalance}
-                  <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600 mr-2"></div>
-                  <span class="text-gray-500">Loading...</span>
-                {:else if balance}
-                  <p class="text-xl font-bold text-gray-900">{balance.formatted} GEN</p>
-                {:else}
-                  <p class="text-xl font-bold text-gray-900">0 GEN</p>
-                {/if}
+                <div class="flex-shrink-0 p-2.5 rounded-lg mr-3 bg-green-50 text-green-500">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </div>
+                <div class="flex-1">
+                  <p class="text-sm text-gray-500">Balance</p>
+                  <div class="flex items-center">
+                    {#if loadingBalance}
+                      <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600 mr-2"></div>
+                      <span class="text-gray-500">Loading...</span>
+                    {:else if balance}
+                      <p class="text-xl font-bold text-gray-900">
+                        {balance.formatted} GEN<sup class="text-red-500">*</sup>
+                      </p>
+                    {:else}
+                      <p class="text-xl font-bold text-gray-900">
+                        0 GEN<sup class="text-red-500">*</sup>
+                      </p>
+                    {/if}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          {/snippet}
+        </Tooltip>
 
         <!-- Joined Date Card -->
         {#if participant.created_at}
