@@ -464,7 +464,7 @@
             </div>
 
             <button
-              onclick={handleProfileSubmit}
+              on:click={handleProfileSubmit}
               disabled={submittingProfile || !email || !name}
               class="profile-submit-button"
             >
