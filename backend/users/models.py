@@ -70,7 +70,17 @@ class User(AbstractUser, BaseModel):
                                       help_text="Telegram username without @")
     linkedin_handle = models.CharField(max_length=100, blank=True,
                                       help_text="LinkedIn username or profile URL slug")
-    
+
+    # GitHub OAuth fields
+    github_username = models.CharField(max_length=100, blank=True,
+                                      help_text="GitHub username from OAuth")
+    github_user_id = models.CharField(max_length=50, blank=True,
+                                     help_text="GitHub user ID for unique identification")
+    github_access_token = models.TextField(blank=True,
+                                          help_text="Encrypted GitHub access token")
+    github_linked_at = models.DateTimeField(null=True, blank=True,
+                                           help_text="When GitHub account was linked")
+
     # Email verification
     is_email_verified = models.BooleanField(default=False,
                                            help_text="Whether the email is user-provided (True) or auto-generated (False)")

@@ -131,7 +131,8 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['name', 'node_version', 'email', 'description', 'website',
-                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle']
+                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
+                  'github_username']
     
     def validate_description(self, value):
         """Validate description length"""
@@ -366,7 +367,7 @@ class UserSerializer(serializers.ModelSerializer):
                   'creator', 'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at',
                   # Profile fields
                   'description', 'banner_image_url', 'profile_image_url', 'website',
-                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
+                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle', 'github_username',
                   'email', 'is_email_verified',
                   # Referral fields
                   'referral_code', 'referred_by_info', 'total_referrals']

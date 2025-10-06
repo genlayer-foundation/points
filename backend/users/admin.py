@@ -55,13 +55,14 @@ class UserAdmin(BaseUserAdmin):
         (None, {'fields': ('email', 'password', 'is_email_verified')}),
         (_('Personal info'), {'fields': ('name', 'address', 'description')}),
         (_('Profile Images'), {'fields': ('profile_image_url', 'banner_image_url', 'profile_image_public_id', 'banner_image_public_id')}),
-        (_('Contact & Social'), {'fields': ('website', 'twitter_handle', 'discord_handle', 'telegram_handle')}),
+        (_('Contact & Social'), {'fields': ('website', 'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle')}),
+        (_('GitHub Integration'), {'fields': ('github_username', 'github_user_id', 'github_linked_at')}),
         (_('Referral System'), {'fields': ('referral_code', 'referred_by')}),
         (_('Visibility'), {'fields': ('visible',)}),
         (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         (_('Important dates'), {'fields': ('last_login', 'date_joined', 'created_at', 'updated_at')}),
     )
-    readonly_fields = ('created_at', 'updated_at', 'profile_image_public_id', 'banner_image_public_id', 'referral_code')
+    readonly_fields = ('created_at', 'updated_at', 'profile_image_public_id', 'banner_image_public_id', 'referral_code', 'github_user_id', 'github_linked_at')
     
     add_fieldsets = (
         (None, {
@@ -169,11 +170,11 @@ class UserAdmin(BaseUserAdmin):
             if hasattr(user, 'steward'):
                 self.message_user(request, f"{user.email} is already a steward.", level=messages.WARNING)
                 continue
-            
+
             # Create steward profile
             Steward.objects.create(user=user)
             count += 1
-        
+
         if count > 0:
             self.message_user(request, f"Successfully set {count} user(s) as steward(s).", level=messages.SUCCESS)
     set_as_steward.short_description = "Set selected users as stewards"

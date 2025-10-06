@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { authState } from '../lib/auth';
-  import { getCurrentUser, journeyAPI, usersAPI } from '../lib/api';
+  import { getCurrentUser, journeyAPI, usersAPI, githubAPI } from '../lib/api';
   import { getValidatorBalance } from '../lib/blockchain';
   import Icon from '../components/Icons.svelte';
   import BuilderProgress from '../components/BuilderProgress.svelte';
@@ -13,6 +13,10 @@
   let testnetBalance = $state(null);
   let hasDeployedContract = $state(false);
   let hasSubmittedContribution = $state(false);
+  let githubUsername = $state('');
+  let hasStarredRepo = $state(false);
+  let repoToStar = $state('genlayerlabs/genlayer-project-boilerplate');
+  let isCheckingRepoStar = $state(false);
   let error = $state('');
   let loading = $state(true);
   let isRefreshingBalance = $state(false);
@@ -20,12 +24,15 @@
   let hasCheckedDeploymentsOnce = $state(false);
   let showStudioInstructions = $state(false);
   let isCompletingJourney = $state(false);
+  let showGitHubSuccess = $state(false);
   
   // Derived states for requirements
   let requirement1Met = $derived(hasBuilderWelcome);
-  let requirement2Met = $derived(testnetBalance > 0);
-  let requirement3Met = $derived(hasDeployedContract);
-  let allRequirementsMet = $derived(requirement1Met && requirement2Met && requirement3Met);
+  let requirement2Met = $derived(!!githubUsername);
+  let requirement3Met = $derived(hasStarredRepo);
+  let requirement4Met = $derived(testnetBalance > 0);
+  let requirement5Met = $derived(hasDeployedContract);
+  let allRequirementsMet = $derived(requirement1Met && requirement2Met && requirement3Met && requirement4Met && requirement5Met);
   let hasCalledComplete = $state(false);
   
   // Auto-complete journey when all requirements are met
@@ -47,11 +54,37 @@
         currentUser = await getCurrentUser();
         hasBuilderWelcome = currentUser?.has_builder_welcome || false;
         hasSubmittedContribution = (currentUser?.builder?.total_contributions || 0) > 0;
+        githubUsername = currentUser?.github_username || '';
         // Check all requirements in parallel
         await Promise.all([
           checkTestnetBalance(),
-          checkDeployments()
+          checkDeployments(),
+          githubUsername ? checkRepoStar() : Promise.resolve()
         ]);
+
+        // Check for GitHub OAuth callback success/error
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('github_success') === 'true') {
+          showGitHubSuccess = true;
+          // Clean up URL
+          window.history.replaceState({}, '', window.location.pathname);
+          // Reload user data to get updated GitHub info
+          currentUser = await getCurrentUser();
+          githubUsername = currentUser?.github_username || '';
+          // Check star status now that GitHub is linked
+          if (githubUsername) {
+            await checkRepoStar();
+          }
+        } else if (urlParams.get('github_error')) {
+          const githubError = urlParams.get('github_error');
+          if (githubError === 'already_linked') {
+            error = 'This GitHub account is already linked to another user';
+          } else {
+            error = 'Failed to link GitHub account. Please try again.';
+          }
+          // Clean up URL
+          window.history.replaceState({}, '', window.location.pathname);
+        }
       }
     } catch (err) {
       console.error('Failed to load user data:', err);
@@ -125,7 +158,7 @@
     if (!$authState.isAuthenticated || !$authState.address) {
       return;
     }
-    
+
     isRefreshingBalance = true;
     try {
       const result = await getValidatorBalance($authState.address);
@@ -135,6 +168,22 @@
       testnetBalance = 0;
     } finally {
       isRefreshingBalance = false;
+    }
+  }
+
+  async function checkRepoStar() {
+    if (!githubUsername) return;
+
+    isCheckingRepoStar = true;
+    try {
+      const response = await githubAPI.checkStar();
+      hasStarredRepo = response.data.has_starred;
+      repoToStar = response.data.repo || 'genlayerlabs/genlayer-project-boilerplate';
+    } catch (err) {
+      console.error('Failed to check repo star:', err);
+      hasStarredRepo = false;
+    } finally {
+      isCheckingRepoStar = false;
     }
   }
   
@@ -167,18 +216,34 @@
     }
   }
   
+  async function linkGitHub() {
+    if (!$authState.isAuthenticated) {
+      document.querySelector('.auth-button')?.click();
+      return;
+    }
+
+    // Build the OAuth URL with return URL
+    const returnUrl = window.location.pathname;
+    // Use absolute backend URL to avoid proxy issues
+    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const oauthUrl = `${backendUrl}/api/auth/github/?return_url=${encodeURIComponent(returnUrl)}`;
+
+    // Redirect to GitHub OAuth
+    window.location.href = oauthUrl;
+  }
+
   async function completeBuilderJourney() {
     if (!$authState.isAuthenticated || !allRequirementsMet) {
       return;
     }
-    
+
     // Don't re-check deployments if we already know they exist
     // Just proceed with completion
     isCompletingJourney = true;
-    
+
     try {
       const response = await journeyAPI.completeBuilderJourney();
-      
+
       // If successful, redirect to profile with success message
       if (response.status === 201) {
         // New builder created
@@ -351,10 +416,13 @@
       Complete these requirements to become a GenLayer Builder:
     </p>
     
-    <BuilderProgress 
+    <BuilderProgress
       testnetBalance={testnetBalance}
       hasBuilderWelcome={hasBuilderWelcome}
       hasDeployedContract={hasDeployedContract}
+      githubUsername={githubUsername}
+      hasStarredRepo={hasStarredRepo}
+      repoToStar={repoToStar}
       showActions={true}
       colorTheme="orange"
       onClaimBuilderBadge={claimBuilderWelcome}
@@ -366,6 +434,9 @@
       onCheckDeployments={refreshDeployments}
       isCheckingDeployments={isCheckingDeployments}
       onOpenStudio={openStudioWithInstructions}
+      onLinkGitHub={linkGitHub}
+      onCheckRepoStar={checkRepoStar}
+      isCheckingRepoStar={isCheckingRepoStar}
     />
 
       <!-- Status Message -->
@@ -393,6 +464,12 @@
       
       {#if error}
         <div class="mt-4 text-red-600 text-sm">{error}</div>
+      {/if}
+
+      {#if showGitHubSuccess}
+        <div class="mt-4 p-3 bg-green-100 text-green-800 rounded-lg text-sm">
+          ✓ GitHub account linked successfully! Your GitHub username: @{githubUsername}
+        </div>
       {/if}
     </div>
   </div>
