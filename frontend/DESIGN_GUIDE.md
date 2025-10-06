@@ -54,17 +54,28 @@ We use consistent vertical spacing throughout the application to create visual h
 
 ### Typography
 
+#### Font Families
+The application uses two custom fonts:
+- **Switzer Bold**: For all headings, titles, and emphasis (automatically applied to h1-h6)
+- **Volkart Regular**: For all body text (automatically applied to body tag)
+
+**Global Font Configuration:**
+- Fonts are defined in `src/styles.css` using CSS custom properties
+- To change fonts: Update `--font-heading` and `--font-body` in `:root`
+- Custom Tailwind classes: `font-heading` and `font-body`
+
 #### Headers
-- **Page titles**: `text-2xl font-bold text-gray-900`
-- **Section titles**: `text-lg font-semibold text-gray-900`
-- **Category headers**: `text-lg font-semibold text-[category]-700 uppercase tracking-wider`
-- **Subsection titles**: `text-base font-semibold text-gray-900`
+- **Page titles**: `text-2xl font-bold text-gray-900` (auto font-heading via h1)
+- **Section titles**: `text-lg font-semibold text-gray-900` (auto font-heading via h2)
+- **Category headers**: `text-lg font-semibold text-[category]-700 uppercase tracking-wider` (auto font-heading via h3)
+- **Subsection titles**: `text-base font-semibold text-gray-900` (auto font-heading via h4-h6)
+- **Titles in non-heading elements**: Add `font-heading` class to div/span elements
 
 #### Body Text
-- **Primary**: `text-gray-900`
-- **Secondary**: `text-gray-700`
-- **Muted**: `text-gray-500`
-- **Small/Meta**: `text-xs text-gray-500`
+- **Primary**: `text-gray-900` (auto font-body)
+- **Secondary**: `text-gray-700` (auto font-body)
+- **Muted**: `text-gray-500` (auto font-body)
+- **Small/Meta**: `text-xs text-gray-500` (auto font-body)
 
 ### Interactive Elements
 
