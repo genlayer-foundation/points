@@ -64,7 +64,7 @@ class ContributionType(BaseModel):
     Represents different types of contributions that participants can make.
     Examples: Node Runner, Uptime, Asimov, Blog Post, etc.
     """
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
     slug = models.SlugField(max_length=100, unique=True, null=True, blank=True, help_text="Unique identifier for this contribution type")
     description = models.TextField(blank=True)
     category = models.ForeignKey(
