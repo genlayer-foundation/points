@@ -222,8 +222,12 @@
       return;
     }
 
-    // Build the OAuth URL with return URL
-    const returnUrl = window.location.pathname;
+    // Build the OAuth URL with validated return URL
+    const allowedReturnPaths = ['/', '/dashboard', '/profile', '/builder', '/participant']; // Add more as needed
+    let returnUrl = window.location.pathname;
+    if (!allowedReturnPaths.some(path => returnUrl === path || returnUrl.startsWith(path + '/'))) {
+      returnUrl = '/';
+    }
     // Use absolute backend URL to avoid proxy issues
     const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     const oauthUrl = `${backendUrl}/api/auth/github/?return_url=${encodeURIComponent(returnUrl)}`;
