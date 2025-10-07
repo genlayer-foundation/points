@@ -326,7 +326,7 @@ def check_repo_star(request):
             except InvalidToken:
                 # Token decryption failed, likely due to encryption key change
                 # Clear the invalid token
-                logger.warning(f"Failed to decrypt GitHub token for user {user.username}, clearing token")
+                logger.warning(f"Failed to decrypt GitHub token for user id={user.id}, clearing token")
                 user.github_access_token = ''
                 user.save()
                 # Continue without auth header to use public API
