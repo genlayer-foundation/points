@@ -72,7 +72,7 @@ class UserAdmin(BaseUserAdmin):
     )
     
     inlines = [ContributionInline, ValidatorInline, BuilderInline, StewardInline]
-    actions = ['set_as_builder', 'set_as_validator', 'set_as_steward']
+    actions = ['set_as_builder', 'set_as_validator', 'set_as_steward', 'disconnect_github']
     
     def set_as_builder(self, request, queryset):
         """Action to set selected users as builders."""
@@ -178,3 +178,23 @@ class UserAdmin(BaseUserAdmin):
         if count > 0:
             self.message_user(request, f"Successfully set {count} user(s) as steward(s).", level=messages.SUCCESS)
     set_as_steward.short_description = "Set selected users as stewards"
+
+    def disconnect_github(self, request, queryset):
+        """Action to disconnect GitHub accounts from selected users."""
+        count = 0
+        for user in queryset:
+            if not user.github_username:
+                self.message_user(request, f"{user.email} doesn't have a GitHub account linked.", level=messages.WARNING)
+                continue
+
+            # Clear all GitHub fields
+            user.github_username = ""
+            user.github_user_id = ""
+            user.github_access_token = ""
+            user.github_linked_at = None
+            user.save()
+            count += 1
+
+        if count > 0:
+            self.message_user(request, f"Successfully disconnected GitHub from {count} user(s).", level=messages.SUCCESS)
+    disconnect_github.short_description = "Disconnect GitHub accounts from selected users"

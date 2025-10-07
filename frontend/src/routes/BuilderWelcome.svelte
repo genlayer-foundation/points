@@ -6,7 +6,7 @@
   import { getValidatorBalance } from '../lib/blockchain';
   import Icon from '../components/Icons.svelte';
   import BuilderProgress from '../components/BuilderProgress.svelte';
-  
+
   let currentUser = $state(null);
   let hasBuilderWelcome = $state(false);
   let isClaimingBuilderBadge = $state(false);
@@ -61,37 +61,6 @@
           checkDeployments(),
           githubUsername ? checkRepoStar() : Promise.resolve()
         ]);
-
-        // Check for GitHub OAuth callback success/error
-        // Extract parameters from hash (since we're using hash-based routing)
-        const hashParts = window.location.hash.split('?');
-        const urlParams = hashParts.length > 1 ? new URLSearchParams(hashParts[1]) : new URLSearchParams();
-
-        if (urlParams.get('github_success') === 'true') {
-          showGitHubSuccess = true;
-          // Clean up URL - keep the hash path but remove the query params
-          window.location.hash = hashParts[0];
-          // Reload user data to get updated GitHub info
-          currentUser = await getCurrentUser();
-          githubUsername = currentUser?.github_username || '';
-          // Check star status now that GitHub is linked
-          if (githubUsername) {
-            await checkRepoStar();
-          }
-        } else if (urlParams.get('github_error')) {
-          const githubError = urlParams.get('github_error');
-          if (githubError === 'already_linked') {
-            error = 'This GitHub account is already linked to another user';
-          } else if (githubError === 'not_authenticated') {
-            error = 'You must be logged in to link your GitHub account';
-          } else if (githubError === 'code_already_used') {
-            error = 'This authorization code has already been used. Please try again.';
-          } else {
-            error = 'Failed to link GitHub account. Please try again.';
-          }
-          // Clean up URL - keep the hash path but remove the query params
-          window.location.hash = hashParts[0];
-        }
       }
     } catch (err) {
       console.error('Failed to load user data:', err);
@@ -229,18 +198,126 @@
       return;
     }
 
-    // Build the OAuth URL with validated return URL
-    const allowedReturnPaths = ['/', '/dashboard', '/profile', '/builder', '/participant']; // Add more as needed
-    let returnUrl = window.location.pathname;
-    if (!allowedReturnPaths.some(path => returnUrl === path || returnUrl.startsWith(path + '/'))) {
-      returnUrl = '/';
+    // Clear any existing errors and localStorage result before starting OAuth
+    error = '';
+    try {
+      localStorage.removeItem('github_oauth_result');
+    } catch(e) {
+      console.error('Failed to clear localStorage:', e);
     }
+
     // Use absolute backend URL to avoid proxy issues
     const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    const oauthUrl = `${backendUrl}/api/auth/github/?return_url=${encodeURIComponent(returnUrl)}`;
+    const oauthUrl = `${backendUrl}/api/auth/github/`;
 
-    // Redirect to GitHub OAuth
-    window.location.href = oauthUrl;
+    // Open OAuth in popup window instead of full redirect
+    const popupWidth = 600;
+    const popupHeight = 700;
+    const left = window.screenX + (window.outerWidth - popupWidth) / 2;
+    const top = window.screenY + (window.outerHeight - popupHeight) / 2;
+
+    const popup = window.open(
+      oauthUrl,
+      'GitHub OAuth',
+      `width=${popupWidth},height=${popupHeight},left=${left},top=${top},toolbar=no,menubar=no,location=no`
+    );
+
+    if (!popup) {
+      error = 'Please allow popups for this site to link your GitHub account';
+      return;
+    }
+
+    let messageReceived = false;
+
+    // Handle OAuth result (success or error)
+    async function handleOAuthResult(success, errorType) {
+      if (success) {
+        // Set loading state to show visual feedback
+        loading = true;
+
+        try {
+          // Reload ALL data to refresh everything (user info, balance, deployments, GitHub, etc.)
+          currentUser = await getCurrentUser();
+          hasBuilderWelcome = currentUser?.has_builder_welcome || false;
+          hasSubmittedContribution = (currentUser?.builder?.total_contributions || 0) > 0;
+          githubUsername = currentUser?.github_username || '';
+
+          // Check all requirements in parallel
+          await Promise.all([
+            checkTestnetBalance(),
+            checkDeployments(),
+            githubUsername ? checkRepoStar() : Promise.resolve()
+          ]);
+
+          // Show success message AFTER data is loaded
+          showGitHubSuccess = true;
+        } catch (err) {
+          console.error('Failed to reload data after OAuth:', err);
+          error = 'GitHub linked but failed to refresh data. Please refresh the page.';
+        } finally {
+          loading = false;
+        }
+      } else {
+        // Set error message
+        if (errorType === 'already_linked') {
+          error = 'This GitHub account is already linked to another user';
+        } else if (errorType === 'not_authenticated') {
+          error = 'You must be logged in to link your GitHub account';
+        } else if (errorType === 'code_already_used') {
+          error = 'This authorization code has already been used. Please try again.';
+        } else {
+          error = 'Failed to link GitHub account. Please try again.';
+        }
+
+        // Auto-clear error after 5 seconds
+        setTimeout(() => {
+          error = '';
+        }, 5000);
+      }
+    }
+
+    // Listen for messages from the popup (primary method)
+    const messageHandler = async (event) => {
+      // Verify message origin
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data.type === 'github_oauth_success' || event.data.type === 'github_oauth_error') {
+        messageReceived = true;
+        window.removeEventListener('message', messageHandler);
+
+        const success = event.data.type === 'github_oauth_success';
+        const errorType = event.data.error || '';
+        await handleOAuthResult(success, errorType);
+      }
+    };
+
+    window.addEventListener('message', messageHandler);
+
+    // Poll for popup closure (backup method using localStorage)
+    const popupChecker = setInterval(async () => {
+      if (popup.closed) {
+        clearInterval(popupChecker);
+        window.removeEventListener('message', messageHandler);
+
+        // If we didn't receive a postMessage, check localStorage
+        if (!messageReceived) {
+          try {
+            const resultStr = localStorage.getItem('github_oauth_result');
+            if (resultStr) {
+              const result = JSON.parse(resultStr);
+              // Check if result is recent (within last 10 seconds)
+              if (Date.now() - result.timestamp < 10000) {
+                await handleOAuthResult(result.success, result.error);
+              }
+              // Clean up
+              localStorage.removeItem('github_oauth_result');
+            }
+          } catch(e) {
+            console.error('Failed to read localStorage result:', e);
+          }
+        }
+      }
+    }, 500);
   }
 
   async function completeBuilderJourney() {
@@ -277,7 +354,7 @@
       isCompletingJourney = false;
     }
   }
-  
+
 </script>
 
 <div class="space-y-6 sm:space-y-8">
@@ -482,7 +559,6 @@
           ✓ GitHub account linked successfully! Your GitHub username: @{githubUsername}
         </div>
       {/if}
-    </div>
   </div>
 
   <!-- Studio Instructions Modal -->
@@ -550,3 +626,4 @@
       </div>
     </div>
   {/if}
+</div>

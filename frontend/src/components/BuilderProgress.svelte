@@ -224,7 +224,7 @@
         </div>
         {#if showActions && !walletAddress}
           <button
-            onclick={() => push('/builder-welcome')}
+            onclick={() => push('/builders/welcome')}
             class="px-3 py-1 bg-orange-500 text-white text-xs font-medium rounded-md hover:bg-orange-600 transition-colors flex items-center whitespace-nowrap"
           >
             <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -306,7 +306,7 @@
               {#if githubUsername}
                 Connected: @{githubUsername}
               {:else}
-                We'll track your starred repos
+                Link your GitHub to start building with GenLayer.
               {/if}
             </p>
           </div>
@@ -346,7 +346,7 @@
               {#if !githubUsername}
                 <span>Connect GitHub first</span>
               {:else if hasStarredRepo}
-                <span>Repository starred ⭐</span>
+                <span>Get familiarized with the GenLayer boilerplate repository.</span>
               {:else}
                 <span>Show your support for the project</span>
               {/if}
