@@ -142,9 +142,6 @@ export const creatorAPI = {
 
 // GitHub OAuth API
 export const githubAPI = {
-  getStatus: () => api.get('/users/github/status/'),
-  disconnect: () => api.post('/users/github/disconnect/'),
-  getStarredRepos: () => api.get('/users/github/starred/'),
   checkStar: () => api.get('/users/github/check-star/')
 };
 

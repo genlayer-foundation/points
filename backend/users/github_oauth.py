@@ -1,24 +1,18 @@
 """
 GitHub OAuth authentication handling
 """
-import os
-import json
 import secrets
 import logging
-from datetime import datetime
-from urllib.parse import urlencode, parse_qs, urlparse
+from urllib.parse import urlencode
 
 import requests
 from django.conf import settings
-from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
-from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 from django.core import signing
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -62,16 +56,12 @@ def decrypt_token(encrypted_token):
 @permission_classes([IsAuthenticated])
 def github_oauth_initiate(request):
     """Initiate GitHub OAuth flow"""
-    # Get the return URL from query params
-    return_url = request.GET.get('return_url', '/builders/welcome')
-
     # User is guaranteed to be authenticated due to @permission_classes([IsAuthenticated])
     user_id = request.user.id
     logger.info(f"GitHub OAuth initiated by authenticated user {user_id}")
 
-    # Generate state token with return URL embedded
+    # Generate state token with user ID embedded
     state_data = {
-        'return_url': return_url,
         'user_id': user_id,
         'nonce': secrets.token_urlsafe(32)
     }
@@ -79,11 +69,7 @@ def github_oauth_initiate(request):
     # Sign the state data to make it tamper-proof and not rely on session
     # This works even if session cookies don't persist across OAuth redirects
     state = signing.dumps(state_data, salt='github_oauth_state')
-
-    # Also store in session as backup (but signed state is primary)
-    request.session['github_oauth_state'] = state
-    request.session.modified = True  # Ensure session is saved
-    logger.info(f"Generated signed OAuth state (session key: {request.session.session_key})")
+    logger.info(f"Generated signed OAuth state for user {user_id}")
 
     # Build GitHub OAuth URL with minimal read-only permissions
     # Empty scope gives read access to public user info including starred repos
@@ -135,7 +121,6 @@ def github_oauth_callback(request):
     try:
         # Unsign the state with max_age of 10 minutes to prevent replay attacks
         state_data = signing.loads(state, salt='github_oauth_state', max_age=600)
-        return_url = state_data.get('return_url', '/builders/welcome')
         user_id = state_data.get('user_id')
         logger.info(f"Successfully validated signed OAuth state for user_id: {user_id}")
     except signing.SignatureExpired:
@@ -154,18 +139,6 @@ def github_oauth_callback(request):
             'message': 'Invalid state token. This window will close automatically.',
             'frontend_origin': settings.FRONTEND_URL
         })
-    except Exception as e:
-        logger.error(f"Failed to validate OAuth state: {e}")
-        return render(request, 'github_callback.html', {
-            'success': False,
-            'error': 'invalid_state',
-            'message': 'Authentication error. This window will close automatically.',
-            'frontend_origin': settings.FRONTEND_URL
-        })
-
-    # Clear the state from session if it exists (cleanup)
-    if 'github_oauth_state' in request.session:
-        del request.session['github_oauth_state']
 
     # Clean up old codes first (older than 10 minutes)
     cutoff = timezone.now() - timezone.timedelta(minutes=10)
@@ -332,18 +305,6 @@ def disconnect_github(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def github_status(request):
-    """Check if user has GitHub linked"""
-    user = request.user
-    return Response({
-        'linked': bool(user.github_username),
-        'username': user.github_username,
-        'linked_at': user.github_linked_at
-    }, status=status.HTTP_200_OK)
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
 def check_repo_star(request):
     """Check if user has starred the required repository"""
     user = request.user
@@ -412,63 +373,3 @@ def check_repo_star(request):
             'repo': settings.GITHUB_REPO_TO_STAR,
             'error': 'Failed to check star status'
         }, status=status.HTTP_200_OK)  # Return 200 with has_starred=False to not break the UI
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def github_starred_repos(request):
-    """Get user's starred repositories from GitHub"""
-    user = request.user
-
-    if not user.github_username:
-        return Response({
-            'error': 'GitHub account not linked'
-        }, status=status.HTTP_400_BAD_REQUEST)
-
-    try:
-        # Use the stored access token if available, otherwise use public API
-        headers = {'Accept': 'application/json'}
-        if user.github_access_token:
-            try:
-                token = decrypt_token(user.github_access_token)
-                headers['Authorization'] = f'token {token}'
-            except Exception as e:
-                # Token decryption failed, likely due to encryption key change
-                logger.warning(f"Failed to decrypt GitHub token for user {user.username}, clearing token: {e}")
-                user.github_access_token = ''
-                user.save()
-                # Continue without auth header to use public API
-
-        # GitHub API endpoint for starred repos (public info)
-        url = f'https://api.github.com/users/{user.github_username}/starred'
-
-        # Get first page of starred repos (up to 30)
-        params = {'per_page': 30, 'page': 1}
-        response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
-
-        starred_repos = response.json()
-
-        # Extract relevant info from each repo
-        repos_data = []
-        for repo in starred_repos:
-            repos_data.append({
-                'name': repo['name'],
-                'full_name': repo['full_name'],
-                'description': repo['description'],
-                'stars': repo['stargazers_count'],
-                'language': repo['language'],
-                'url': repo['html_url']
-            })
-
-        return Response({
-            'username': user.github_username,
-            'starred_count': len(repos_data),
-            'starred_repos': repos_data
-        }, status=status.HTTP_200_OK)
-
-    except requests.RequestException as e:
-        logger.error(f"Failed to fetch starred repos for {user.github_username}: {e}")
-        return Response({
-            'error': 'Failed to fetch starred repositories'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
