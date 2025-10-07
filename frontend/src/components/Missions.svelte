@@ -148,7 +148,8 @@
 
   .prose :global(p) {
     margin-top: 0;
-    margin-bottom: 0.5rem;
+    margin-bottom: 1rem;
+    line-height: 1.5;
   }
   
   .prose :global(p:last-child) {
@@ -170,176 +171,163 @@
   .prose :global(h5),
   .prose :global(h6) {
     font-weight: 600;
-    margin-top: 0.5rem;
-    margin-bottom: 0.25rem;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
   }
 
   .prose :global(ul),
   .prose :global(ol) {
-    margin-top: 0.25rem;
-    margin-bottom: 0.25rem;
-    padding-left: 1.5rem;
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem 1.5rem;
+    list-style-type: disc;
+    background-color: rgba(0, 0, 0, 0.02);
+    border-radius: 0.375rem;
+  }
+
+  .prose :global(ol) {
+    list-style-type: decimal;
   }
 
   .prose :global(li) {
-    margin-top: 0.125rem;
-    margin-bottom: 0.125rem;
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    display: list-item;
+    line-height: 1.4;
+  }
+
+  .prose :global(a) {
+    color: #ea580c;
+    text-decoration: underline;
+  }
+
+  .prose :global(a:hover) {
+    color: #c2410c;
   }
 
   .prose :global(code) {
-    background-color: rgba(0, 0, 0, 0.05);
-    padding: 0.125rem 0.25rem;
-    border-radius: 0.25rem;
+    background-color: rgba(0, 0, 0, 0.06);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
     font-size: 0.875em;
   }
 
   .prose :global(blockquote) {
     border-left: 3px solid rgba(0, 0, 0, 0.1);
-    padding-left: 1rem;
+    padding: 0.75rem 1rem;
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
     margin-left: 0;
     margin-right: 0;
     font-style: italic;
+    background-color: rgba(0, 0, 0, 0.02);
+    border-radius: 0.375rem;
   }
 </style>
 
 {#if !loading && missions.length > 0}
-  {@const colors = getPioneerContributionsColors($currentCategory)}
-
-  <!-- Active Highlights Section - Pioneer Contributions Style -->
-  <div class="{colors.containerBg} border {colors.containerBorder} shadow overflow-hidden rounded-lg mb-6">
-    <div class="px-4 py-5 sm:px-6 {colors.headerBg} border-b {colors.headerBorder}">
+  <!-- Card container with dividers -->
+  <div class="bg-white border border-gray-200 border-l-4 border-l-orange-500 shadow-sm overflow-hidden rounded-lg mb-6">
+    <!-- Header -->
+    <div class="px-4 py-5 sm:px-6 bg-white border-b border-gray-200">
       <div class="flex items-center">
-        <Icons name="sparkle" size="md" className="{colors.headerIcon} mr-2" />
-        <h3 class="text-lg leading-6 font-medium {colors.headerText}">
-          Missions
-        </h3>
+        <Icons name="sparkle" size="md" className="text-orange-600 mr-2" />
+        <h2 class="text-xl font-bold text-gray-900">Missions</h2>
       </div>
-      <p class="mt-1 max-w-2xl text-sm {colors.descriptionText}">
-        Special missions to contribute and earn points right now.
+      <p class="mt-1 text-sm text-gray-600 leading-snug">
+        Open challenges where builders tackle the same problem.<br>
+        Winners receive extra points and ecosystem-wide recognition.
       </p>
     </div>
 
-    <div class="bg-white">
-      <table class="min-w-full divide-y {colors.tableBorder}">
-        <thead class="{colors.tableHeaderBg}">
-          <tr>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium {colors.tableHeaderText} uppercase tracking-wider">
-              Mission
-            </th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium {colors.tableHeaderText} uppercase tracking-wider">
-              Contribution Type
-            </th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium {colors.tableHeaderText} uppercase tracking-wider">
-              Description
-            </th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium {colors.tableHeaderText} uppercase tracking-wider">
-              Time Left
-            </th>
-            <th scope="col" class="px-6 py-3 text-right text-xs font-medium {colors.tableHeaderText} uppercase tracking-wider">
-              Action
-            </th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y {colors.tableBorder}">
-          {#each missions as mission, i}
-            {@const isExpanded = expandedMissions.has(mission.id)}
-            {@const hasLongText = needsExpansion(mission.description)}
-            <tr class="{colors.tableHeaderBg}">
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-bold font-heading {colors.titleText}">
-                  {mission.name}
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                {#if mission.contribution_type_details}
-                  <Badge
-                    badge={{
-                      id: mission.contribution_type,
-                      name: mission.contribution_type_details.name,
-                      description: mission.contribution_type_details.description || '',
-                      points: 0,
-                      actionId: mission.contribution_type,
-                      actionName: mission.contribution_type_details.name,
-                      evidenceUrl: ''
-                    }}
-                    color={colors.badgeColor}
-                    clickable={true}
-                  />
-                {:else}
-                  <span class="text-sm {colors.contentText}">-</span>
-                {/if}
-              </td>
-              <td class="px-6 py-4">
-                <div class="flex items-start">
-                  <div class="flex-1 text-sm {colors.contentText} prose prose-sm max-w-md">
-                    {#if hasLongText && !isExpanded}
-                      <div class="line-clamp-2">
-                        {@html renderMarkdown(truncateText(mission.description, DESCRIPTION_CHAR_LIMIT))}
-                      </div>
-                    {:else}
-                      {@html renderMarkdown(mission.description)}
-                    {/if}
-                  </div>
-                  {#if hasLongText}
-                    <button
-                      onclick={() => toggleMissionExpanded(mission.id)}
-                      class="ml-2 flex-shrink-0 text-gray-400 hover:text-gray-600"
-                      aria-label="Toggle description"
-                    >
-                      <svg
-                        class="h-4 w-4 transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                  {/if}
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                {#if mission.end_date && countdowns[mission.id]}
-                  <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                    {countdowns[mission.id]}
-                  </span>
-                {:else}
-                  <span class="text-sm {colors.contentText}">Ongoing</span>
-                {/if}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right">
-                <button
-                  onclick={() => push(`/submit-contribution?type=${mission.contribution_type}`)}
-                  class="inline-flex items-center text-sm font-medium {colors.titleText} hover:opacity-80"
-                >
-                  Submit
-                  <svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
+    <!-- Missions with dividers -->
+    {#each missions as mission}
+      {@const isExpanded = expandedMissions.has(mission.id)}
+      {@const hasLongText = needsExpansion(mission.description)}
+
+      <div class="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors">
+        <!-- Title row with badges and submit button -->
+        <div class="flex items-center gap-3 mb-2 flex-wrap">
+          <h3 class="text-base font-bold font-heading text-gray-900">{mission.name}</h3>
+
+          {#if mission.contribution_type_details}
+            <Badge
+              badge={{
+                id: mission.contribution_type,
+                name: mission.contribution_type_details.name,
+                description: mission.contribution_type_details.description || '',
+                points: 0,
+                actionId: mission.contribution_type,
+                actionName: mission.contribution_type_details.name,
+                evidenceUrl: ''
+              }}
+              color="orange"
+              size="sm"
+              bold={false}
+              clickable={true}
+            />
+          {/if}
+
+          {#if mission.end_date && countdowns[mission.id]}
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+              {countdowns[mission.id]}
+            </span>
+          {:else}
+            <span class="text-xs text-gray-600">Ongoing</span>
+          {/if}
+
+          <button
+            onclick={() => push(`/submit-contribution?type=${mission.contribution_type}`)}
+            class="ml-auto flex-shrink-0 text-sm font-medium text-orange-600 hover:text-orange-700 transition-colors"
+          >
+            Submit →
+          </button>
+        </div>
+
+        <!-- Description -->
+        <div class="text-sm text-gray-600 prose prose-sm max-w-3xl">
+          {#if hasLongText && !isExpanded}
+            <div class="line-clamp-2">
+              {@html renderMarkdown(truncateText(mission.description, DESCRIPTION_CHAR_LIMIT))}
+            </div>
+          {:else}
+            {@html renderMarkdown(mission.description)}
+          {/if}
+        </div>
+
+        <!-- Read more button -->
+        {#if hasLongText}
+          <button
+            onclick={() => toggleMissionExpanded(mission.id)}
+            class="mt-1.5 inline-flex items-center text-sm text-orange-600 hover:text-orange-700 font-medium"
+          >
+            {isExpanded ? 'Show less' : 'Read more'}
+            <svg
+              class="ml-1 h-4 w-4 transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        {/if}
+      </div>
+    {/each}
   </div>
 {:else if loading}
-  {@const colors = getPioneerContributionsColors($currentCategory)}
   <!-- Loading state -->
-  <div class="{colors.containerBg} border {colors.containerBorder} shadow overflow-hidden rounded-lg mb-6">
-    <div class="px-4 py-5 sm:px-6 {colors.headerBg} border-b {colors.headerBorder}">
-      <div class="flex items-center">
-        <div class="h-6 w-6 bg-gray-300 rounded animate-pulse mr-2"></div>
-        <div class="h-6 w-32 bg-gray-300 rounded animate-pulse"></div>
-      </div>
-      <div class="mt-2 h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+  <div class="mb-4">
+    <div class="flex items-center">
+      <div class="h-6 w-6 bg-gray-300 rounded animate-pulse mr-2"></div>
+      <div class="h-6 w-32 bg-gray-300 rounded animate-pulse"></div>
     </div>
-    <div class="bg-white p-6">
-      <div class="space-y-3">
-        <div class="h-4 bg-gray-200 rounded animate-pulse"></div>
-        <div class="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-      </div>
+    <div class="mt-2 h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+  </div>
+  <div class="space-y-3">
+    <div class="bg-white border border-gray-200 rounded-lg p-4">
+      <div class="h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
+      <div class="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
     </div>
   </div>
 {/if}

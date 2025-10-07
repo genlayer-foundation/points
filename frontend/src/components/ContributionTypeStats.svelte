@@ -11,11 +11,11 @@
   let typeStats = $state([]);
   let loading = $state(true);
   let error = $state(null);
-  
-  // Derived state to separate opportunities (zero contributions) from active types
-  let opportunityTypes = $derived(
+
+  // Derived state to filter only submittable types and sort by points (highest first)
+  let submittableTypes = $derived(
     typeStats
-      .filter(stats => stats.count === 0)
+      .filter(stats => stats.is_submittable)
       .sort((a, b) => {
         // Sort by max_points descending
         const aMaxPoints = (a.max_points || 0) * (a.current_multiplier || 1);
@@ -23,7 +23,6 @@
         return bMaxPoints - aMaxPoints;
       })
   );
-  let activeTypes = $derived(typeStats.filter(stats => stats.count > 0));
 
   // Get colors based on current category
   let pioneerColors = $derived(getPioneerContributionsColors($currentCategory));
@@ -70,19 +69,19 @@
 </script>
 
 <div class="space-y-6">
-  {#if opportunityTypes.length > 0}
-    <div class="{pioneerColors.containerBg} border {pioneerColors.containerBorder} shadow overflow-hidden rounded-lg mb-6">
-      <div class="px-4 py-5 sm:px-6 {pioneerColors.headerBg} border-b {pioneerColors.headerBorder}">
+  {#if submittableTypes.length > 0}
+    <div class="bg-white border border-gray-200 border-l-4 border-l-orange-500 shadow overflow-hidden rounded-lg mb-6">
+      <div class="px-4 py-5 sm:px-6 bg-white border-b border-gray-200">
         <div class="flex items-center flex-wrap gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6 {pioneerColors.headerIcon}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
-          <h3 class="text-base sm:text-lg leading-6 font-medium {pioneerColors.headerText}">
-            Pioneer Opportunities
+          <h3 class="text-base sm:text-lg leading-6 font-medium text-orange-900">
+            Contribution Opportunities
           </h3>
         </div>
-        <p class="mt-1 max-w-2xl text-xs sm:text-sm {pioneerColors.descriptionText}">
-          Be the first to make these contributions and earn extra points!
+        <p class="mt-1 max-w-2xl text-xs sm:text-sm text-gray-600">
+          Earn points by making these contributions to the GenLayer ecosystem
         </p>
       </div>
       
@@ -96,26 +95,32 @@
         </div>
       {:else}
         <div class="overflow-x-auto">
-          <table class="min-w-full divide-y {pioneerColors.containerBorder}">
-            <thead class="{pioneerColors.tableHeaderBg}">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
               <tr>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium {pioneerColors.tableHeaderText} uppercase tracking-wider">
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Type
                 </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium {pioneerColors.tableHeaderText} uppercase tracking-wider">
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Description
                 </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium {pioneerColors.tableHeaderText} uppercase tracking-wider">
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Points
+                </th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Points Earned
+                </th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Earned
                 </th>
               </tr>
             </thead>
-            <tbody class="bg-white divide-y {pioneerColors.tableBorder}">
-              {#each opportunityTypes as stats, i}
-                <tr class="{pioneerColors.tableRowBg} {pioneerColors.tableRowHover} transition-colors duration-150">
+            <tbody class="bg-white divide-y divide-gray-200">
+              {#each submittableTypes as stats, i}
+                <tr class="hover:bg-orange-50 transition-colors duration-150">
                   <td class="px-6 py-4">
                     <div class="flex items-center">
-                      <div class="text-sm font-medium {pioneerColors.titleText}">
+                      <div class="text-sm font-medium">
                         <Badge
                           badge={{
                             id: stats.id,
@@ -126,19 +131,19 @@
                             actionName: stats.name,
                             evidenceUrl: ''
                           }}
-                          color={pioneerColors.badgeColor}
+                          color="orange"
                           clickable={true}
                         />
                       </div>
                     </div>
                   </td>
                   <td class="px-6 py-4">
-                    <div class="text-sm {pioneerColors.contentText}">
+                    <div class="text-sm text-gray-600">
                       {stats.description || 'No description available'}
                     </div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-bold {pioneerColors.pointsText}">
+                    <div class="text-sm font-bold text-gray-900">
                       {#if stats.min_points != null && stats.max_points != null && stats.current_multiplier != null}
                         {#if stats.min_points === stats.max_points}
                           {Math.round(stats.min_points * stats.current_multiplier)}
@@ -150,6 +155,25 @@
                       {/if}
                     </div>
                   </td>
+                  {#if stats.count === 0}
+                    <td class="px-6 py-4" colspan="2">
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        Pioneer Opportunity
+                      </span>
+                    </td>
+                  {:else}
+                    <td class="px-6 py-4">
+                      <div class="text-lg font-bold text-gray-900">{stats.total_points_given.toLocaleString()}</div>
+                      <div class="text-xs text-gray-500 mt-1">{stats.count} {stats.count === 1 ? 'contribution' : 'contributions'}</div>
+                      <div class="text-xs text-gray-500">{stats.participants_count} {stats.participants_count === 1 ? 'builder' : 'builders'}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {formatDate(stats.last_earned)}
+                    </td>
+                  {/if}
                 </tr>
               {/each}
             </tbody>
@@ -157,111 +181,22 @@
         </div>
       {/if}
     </div>
-  {/if}
-
-  <div class="bg-white shadow overflow-hidden rounded-lg mb-6">
-    <div class="px-4 py-5 sm:px-6">
-      <h3 class="text-lg leading-6 font-medium text-gray-900">
-        Contribution Types Overview
-      </h3>
-      <p class="mt-1 max-w-2xl text-sm text-gray-500">
-        Summary of contribution types, counts, and statistics
-      </p>
+  {:else if loading}
+    <!-- Loading state -->
+    <div class="bg-white border border-gray-200 border-l-4 border-l-orange-500 shadow overflow-hidden rounded-lg mb-6">
+      <div class="px-4 py-5 sm:px-6 bg-white border-b border-gray-200">
+        <div class="flex items-center">
+          <div class="h-6 w-6 bg-gray-300 rounded animate-pulse mr-2"></div>
+          <div class="h-6 w-48 bg-gray-300 rounded animate-pulse"></div>
+        </div>
+        <div class="mt-2 h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+      </div>
+      <div class="bg-white p-6">
+        <div class="space-y-3">
+          <div class="h-4 bg-gray-200 rounded animate-pulse"></div>
+          <div class="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
+        </div>
+      </div>
     </div>
-    
-    {#if loading}
-      <div class="flex justify-center items-center p-8">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-      </div>
-    {:else if error}
-      <div class="p-6 text-center text-red-500">
-        Failed to load contribution type statistics: {error}
-      </div>
-    {:else if typeStats.length === 0}
-      <div class="p-6 text-center text-gray-500">
-        No contribution types found.
-      </div>
-    {:else if activeTypes.length === 0}
-      <div class="p-6 text-center text-gray-500">
-        No contributions have been made yet. Be the first to contribute!
-      </div>
-    {:else}
-      <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Type
-              </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Description
-              </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Count
-              </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Points
-              </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Participants
-              </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Last Earned
-              </th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            {#each activeTypes as stats, i}
-              <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="flex items-center">
-                    <div class="text-sm font-medium text-gray-900">
-                      <Badge
-                        badge={{
-                          id: stats.id,
-                          name: stats.name,
-                          description: stats.description || '',
-                          points: 0,
-                          actionId: stats.id,
-                          actionName: stats.name,
-                          evidenceUrl: ''
-                        }}
-                        color="green"
-                        clickable={true}
-                      />
-                    </div>
-                  </div>
-                </td>
-                <td class="px-6 py-4">
-                  <div class="text-sm text-gray-600">
-                    {stats.description || ''}
-                  </div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {stats.count}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {#if stats.min_points != null && stats.max_points != null && stats.current_multiplier != null}
-                    {#if stats.min_points === stats.max_points}
-                      {Math.round(stats.min_points * stats.current_multiplier)}
-                    {:else}
-                      {Math.round(stats.min_points * stats.current_multiplier)} - {Math.round(stats.max_points * stats.current_multiplier)}
-                    {/if}
-                  {:else}
-                    0
-                  {/if}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {stats.participants_count}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {formatDate(stats.last_earned)}
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    {/if}
-  </div>
+  {/if}
 </div>
