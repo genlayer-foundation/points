@@ -75,7 +75,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             participants_count=Count('contributions__user', distinct=True),
             last_earned=Coalesce(Max('contributions__contribution_date'), timezone.now()),
             total_points_given=Coalesce(Sum('contributions__frozen_global_points'), 0)
-        ).values('id', 'name', 'description', 'min_points', 'max_points', 'count', 'participants_count', 'last_earned', 'total_points_given')
+        ).values('id', 'name', 'description', 'min_points', 'max_points', 'count', 'participants_count', 'last_earned', 'total_points_given', 'is_submittable')
         
         # Add current multiplier for each type
         result = []
