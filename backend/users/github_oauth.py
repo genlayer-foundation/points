@@ -16,7 +16,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 from .models import User
 
 logger = logging.getLogger(__name__)
@@ -323,10 +323,10 @@ def check_repo_star(request):
             try:
                 token = decrypt_token(user.github_access_token)
                 headers['Authorization'] = f'token {token}'
-            except Exception as e:
+            except InvalidToken:
                 # Token decryption failed, likely due to encryption key change
                 # Clear the invalid token
-                logger.warning(f"Failed to decrypt GitHub token for user {user.username}, clearing token: {e}")
+                logger.warning(f"Failed to decrypt GitHub token for user {user.username}, clearing token")
                 user.github_access_token = ''
                 user.save()
                 # Continue without auth header to use public API
