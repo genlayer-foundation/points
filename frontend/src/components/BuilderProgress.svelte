@@ -306,7 +306,7 @@
               {#if githubUsername}
                 Connected: @{githubUsername}
               {:else}
-                Link your GitHub to start building with GenLayer.
+                Connect your GitHub account
               {/if}
             </p>
           </div>
@@ -346,7 +346,7 @@
               {#if !githubUsername}
                 <span>Connect GitHub first</span>
               {:else if hasStarredRepo}
-                <span>Get familiarized with the GenLayer boilerplate repository.</span>
+                <span>Get familiarized with the GenLayer boilerplate repo.</span>
               {:else}
                 <span>Show your support for the project</span>
               {/if}

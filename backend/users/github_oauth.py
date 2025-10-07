@@ -33,14 +33,14 @@ _used_oauth_codes = {}
 
 # Initialize encryption for tokens
 def get_fernet():
-    """Get or create Fernet encryption instance"""
+    """Get Fernet encryption instance using configured key"""
     key = settings.GITHUB_ENCRYPTION_KEY
     if not key:
-        # Generate a key if not set (for development)
-        key = Fernet.generate_key().decode()
-        logger.warning("Using generated encryption key - set GITHUB_ENCRYPTION_KEY in production")
-    else:
-        key = key.encode() if isinstance(key, str) else key
+        raise RuntimeError(
+            "GITHUB_ENCRYPTION_KEY is not set. "
+            "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+        )
+    key = key.encode() if isinstance(key, str) else key
     return Fernet(key)
 
 def encrypt_token(token):
@@ -59,19 +59,15 @@ def decrypt_token(encrypted_token):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])  # Allow anyone to initiate, we'll check session in callback
+@permission_classes([IsAuthenticated])
 def github_oauth_initiate(request):
     """Initiate GitHub OAuth flow"""
     # Get the return URL from query params
     return_url = request.GET.get('return_url', '/builders/welcome')
 
-    # Get user ID from session if authenticated
-    user_id = None
-    if request.user and request.user.is_authenticated:
-        user_id = request.user.id
-        logger.info(f"GitHub OAuth initiated by authenticated user {user_id}")
-    else:
-        logger.info("GitHub OAuth initiated by anonymous user")
+    # User is guaranteed to be authenticated due to @permission_classes([IsAuthenticated])
+    user_id = request.user.id
+    logger.info(f"GitHub OAuth initiated by authenticated user {user_id}")
 
     # Generate state token with return URL embedded
     state_data = {
@@ -249,64 +245,58 @@ def github_oauth_callback(request):
         user_response.raise_for_status()
         github_user = user_response.json()
 
-        # Get or update user
-        # First try to get user from state, then from current session
-        user = None
-        if user_id:
-            try:
-                user = User.objects.get(id=user_id)
-                logger.info(f"Found user {user.id} from state")
-            except User.DoesNotExist:
-                logger.error(f"User {user_id} not found from state")
-
-        # If no user from state, try to get from current request session
-        # Get authenticated user from Django's auth middleware
-        if not user:
-            from django.contrib.auth import get_user
-            session_user = get_user(request)
-            if session_user and session_user.is_authenticated:
-                user = session_user
-                logger.info(f"Found user {user.id} from current session")
-
-        if user:
-            # Check if this GitHub account is already linked to another user
-            existing_user = User.objects.filter(
-                github_user_id=str(github_user['id'])
-            ).exclude(id=user.id).first()
-
-            if existing_user:
-                logger.warning(f"GitHub account already linked to another user")
-                return render(request, 'github_callback.html', {
-                    'success': False,
-                    'error': 'already_linked',
-                    'message': 'GitHub account already linked. This window will close automatically.',
-                    'frontend_origin': settings.FRONTEND_URL
-                })
-
-            # Update user with GitHub info
-            user.github_username = github_user['login']
-            user.github_user_id = str(github_user['id'])
-            user.github_access_token = encrypt_token(access_token)
-            user.github_linked_at = timezone.now()
-            user.save()
-
-            logger.info(f"GitHub account linked for user {user.id}")
-            # Success! Render the callback template
-            return render(request, 'github_callback.html', {
-                'success': True,
-                'error': '',
-                'message': 'GitHub account linked successfully! This window will close automatically.',
-                'frontend_origin': settings.FRONTEND_URL
-            })
-        else:
-            # User not authenticated, redirect to login
-            logger.warning("No authenticated user found for GitHub linking")
+        # Get user from state token
+        # User ID must be present in state since we require authentication to initiate OAuth
+        if not user_id:
+            logger.error("No user_id in state token")
             return render(request, 'github_callback.html', {
                 'success': False,
-                'error': 'not_authenticated',
-                'message': 'Not authenticated. This window will close automatically.',
+                'error': 'invalid_state',
+                'message': 'Invalid authentication state. This window will close automatically.',
                 'frontend_origin': settings.FRONTEND_URL
             })
+
+        try:
+            user = User.objects.get(id=user_id)
+            logger.info(f"Found user {user.id} from state token")
+        except User.DoesNotExist:
+            logger.error(f"User {user_id} from state not found")
+            return render(request, 'github_callback.html', {
+                'success': False,
+                'error': 'user_not_found',
+                'message': 'User not found. This window will close automatically.',
+                'frontend_origin': settings.FRONTEND_URL
+            })
+
+        # Check if this GitHub account is already linked to another user
+        existing_user = User.objects.filter(
+            github_user_id=str(github_user['id'])
+        ).exclude(id=user.id).first()
+
+        if existing_user:
+            logger.warning(f"GitHub account already linked to another user")
+            return render(request, 'github_callback.html', {
+                'success': False,
+                'error': 'already_linked',
+                'message': 'GitHub account already linked. This window will close automatically.',
+                'frontend_origin': settings.FRONTEND_URL
+            })
+
+        # Update user with GitHub info
+        user.github_username = github_user['login']
+        user.github_user_id = str(github_user['id'])
+        user.github_access_token = encrypt_token(access_token)
+        user.github_linked_at = timezone.now()
+        user.save()
+
+        logger.info(f"GitHub account linked for user {user.id}")
+        # Success! Render the callback template
+        return render(request, 'github_callback.html', {
+            'success': True,
+            'error': '',
+            'message': 'GitHub account linked successfully! This window will close automatically.',
+            'frontend_origin': settings.FRONTEND_URL
+        })
 
     except requests.RequestException as e:
         logger.error(f"GitHub API request failed: {e}")
@@ -316,18 +306,6 @@ def github_oauth_callback(request):
             'message': 'API request failed. This window will close automatically.',
             'frontend_origin': settings.FRONTEND_URL
         })
-    except Exception as e:
-        logger.error(f"Unexpected error during GitHub OAuth: {e}")
-        return render(request, 'github_callback.html', {
-            'success': False,
-            'error': 'unexpected_error',
-            'message': 'Unexpected error. This window will close automatically.',
-            'frontend_origin': settings.FRONTEND_URL
-        })
-    finally:
-        # Clean up session
-        if 'github_oauth_state' in request.session:
-            del request.session['github_oauth_state']
 
 
 @api_view(['POST'])

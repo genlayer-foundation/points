@@ -217,10 +217,14 @@ CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY', '')
 CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '')
 CLOUDINARY_UPLOAD_PRESET = os.environ.get('CLOUDINARY_UPLOAD_PRESET', 'tally_unsigned')  # For browser uploads
 
+# Backend URL (for constructing OAuth redirect URIs)
+BACKEND_URL = os.environ.get('BACKEND_URL', 'http://localhost:8000')
+
 # GitHub OAuth settings
 GITHUB_CLIENT_ID = os.environ.get('GITHUB_CLIENT_ID', '')
 GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET', '')
-GITHUB_REDIRECT_URI = os.environ.get('GITHUB_REDIRECT_URI', 'http://localhost:8000/api/auth/github/callback/')
+# Auto-calculate redirect URI from backend URL
+GITHUB_REDIRECT_URI = f"{BACKEND_URL}/api/auth/github/callback/"
 GITHUB_ENCRYPTION_KEY = os.environ.get('GITHUB_ENCRYPTION_KEY', '')
 GITHUB_REPO_TO_STAR = os.environ.get('GITHUB_REPO_TO_STAR', 'genlayerlabs/genlayer-project-boilerplate')
 
