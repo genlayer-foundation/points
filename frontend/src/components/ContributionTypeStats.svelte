@@ -70,21 +70,21 @@
 
 <div class="space-y-6">
   {#if submittableTypes.length > 0}
-    <div class="bg-white border border-gray-200 border-l-4 border-l-orange-500 shadow overflow-hidden rounded-lg mb-6">
+    <!-- Card container with dividers -->
+    <div class="bg-white border border-gray-200 border-l-4 border-l-orange-500 shadow-sm overflow-hidden rounded-lg mb-6">
+      <!-- Header -->
       <div class="px-4 py-5 sm:px-6 bg-white border-b border-gray-200">
-        <div class="flex items-center flex-wrap gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div class="flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-orange-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
-          <h3 class="text-base sm:text-lg leading-6 font-medium text-orange-900">
-            Contribution Opportunities
-          </h3>
+          <h2 class="text-xl font-bold text-gray-900">Contribution Opportunities</h2>
         </div>
-        <p class="mt-1 max-w-2xl text-xs sm:text-sm text-gray-600">
+        <p class="mt-1 text-sm text-gray-600 leading-snug">
           Earn points by making these contributions to the GenLayer ecosystem
         </p>
       </div>
-      
+
       {#if loading}
         <div class="flex justify-center items-center p-8">
           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -94,108 +94,77 @@
           Failed to load contribution type statistics: {error}
         </div>
       {:else}
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Description
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Points
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Points Earned
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Earned
-                </th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-              {#each submittableTypes as stats, i}
-                <tr class="hover:bg-orange-50 transition-colors duration-150">
-                  <td class="px-6 py-4">
-                    <div class="flex items-center">
-                      <div class="text-sm font-medium">
-                        <Badge
-                          badge={{
-                            id: stats.id,
-                            name: stats.name,
-                            description: stats.description || '',
-                            points: 0,
-                            actionId: stats.id,
-                            actionName: stats.name,
-                            evidenceUrl: ''
-                          }}
-                          color="orange"
-                          clickable={true}
-                        />
-                      </div>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="text-sm text-gray-600">
-                      {stats.description || 'No description available'}
-                    </div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-bold text-gray-900">
-                      {#if stats.min_points != null && stats.max_points != null && stats.current_multiplier != null}
-                        {#if stats.min_points === stats.max_points}
-                          {Math.round(stats.min_points * stats.current_multiplier)}
-                        {:else}
-                          {Math.round(stats.min_points * stats.current_multiplier)} - {Math.round(stats.max_points * stats.current_multiplier)}
-                        {/if}
-                      {:else}
-                        0
-                      {/if}
-                    </div>
-                  </td>
-                  {#if stats.count === 0}
-                    <td class="px-6 py-4" colspan="2">
-                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        Pioneer Opportunity
-                      </span>
-                    </td>
+        <!-- Contribution types with dividers -->
+        {#each submittableTypes as stats}
+          <div class="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors">
+            <!-- Title row with badges and stats -->
+            <div class="flex items-center gap-3 mb-2 flex-wrap">
+              <button
+                onclick={() => push(`/contribution-type/${stats.id}`)}
+                class="text-base font-bold font-heading text-gray-900 hover:text-orange-600 transition-colors"
+              >
+                {stats.name}
+              </button>
+
+              <!-- Points available as badge -->
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-normal bg-orange-100 text-orange-800">
+                {#if stats.min_points != null && stats.max_points != null && stats.current_multiplier != null}
+                  {#if stats.min_points === stats.max_points}
+                    {Math.round(stats.min_points * stats.current_multiplier)} pts
                   {:else}
-                    <td class="px-6 py-4">
-                      <div class="text-lg font-bold text-gray-900">{stats.total_points_given.toLocaleString()}</div>
-                      <div class="text-xs text-gray-500 mt-1">{stats.count} {stats.count === 1 ? 'contribution' : 'contributions'}</div>
-                      <div class="text-xs text-gray-500">{stats.participants_count} {stats.participants_count === 1 ? 'builder' : 'builders'}</div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {formatDate(stats.last_earned)}
-                    </td>
+                    {Math.round(stats.min_points * stats.current_multiplier)}-{Math.round(stats.max_points * stats.current_multiplier)} pts
                   {/if}
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+                {:else}
+                  0 pts
+                {/if}
+              </span>
+
+              <!-- Pioneer or Stats -->
+              {#if stats.count === 0}
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Pioneer Opportunity
+                </span>
+              {:else}
+                <span class="text-xs text-gray-600">
+                  {stats.total_points_given.toLocaleString()} pts earned • {stats.count} {stats.count === 1 ? 'contribution' : 'contributions'} • {stats.participants_count} {stats.participants_count === 1 ? 'builder' : 'builders'}
+                </span>
+              {/if}
+
+              <!-- Submit button -->
+              <button
+                onclick={() => push(`/submit-contribution?type=${stats.id}`)}
+                class="ml-auto flex-shrink-0 text-sm font-medium text-orange-600 hover:text-orange-700 transition-colors"
+              >
+                Submit →
+              </button>
+            </div>
+
+            <!-- Description -->
+            {#if stats.description}
+              <div class="text-sm text-gray-600 max-w-3xl">
+                {stats.description}
+              </div>
+            {/if}
+          </div>
+        {/each}
       {/if}
     </div>
   {:else if loading}
     <!-- Loading state -->
-    <div class="bg-white border border-gray-200 border-l-4 border-l-orange-500 shadow overflow-hidden rounded-lg mb-6">
-      <div class="px-4 py-5 sm:px-6 bg-white border-b border-gray-200">
-        <div class="flex items-center">
-          <div class="h-6 w-6 bg-gray-300 rounded animate-pulse mr-2"></div>
-          <div class="h-6 w-48 bg-gray-300 rounded animate-pulse"></div>
-        </div>
-        <div class="mt-2 h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+    <div class="mb-4">
+      <div class="flex items-center">
+        <div class="h-6 w-6 bg-gray-300 rounded animate-pulse mr-2"></div>
+        <div class="h-6 w-48 bg-gray-300 rounded animate-pulse"></div>
       </div>
-      <div class="bg-white p-6">
-        <div class="space-y-3">
-          <div class="h-4 bg-gray-200 rounded animate-pulse"></div>
-          <div class="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-        </div>
+      <div class="mt-2 h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+    </div>
+    <div class="space-y-3">
+      <div class="bg-white border border-gray-200 rounded-lg p-4">
+        <div class="h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
+        <div class="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
       </div>
     </div>
   {/if}
