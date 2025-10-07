@@ -63,11 +63,14 @@
         ]);
 
         // Check for GitHub OAuth callback success/error
-        const urlParams = new URLSearchParams(window.location.search);
+        // Extract parameters from hash (since we're using hash-based routing)
+        const hashParts = window.location.hash.split('?');
+        const urlParams = hashParts.length > 1 ? new URLSearchParams(hashParts[1]) : new URLSearchParams();
+
         if (urlParams.get('github_success') === 'true') {
           showGitHubSuccess = true;
-          // Clean up URL
-          window.history.replaceState({}, '', window.location.pathname);
+          // Clean up URL - keep the hash path but remove the query params
+          window.location.hash = hashParts[0];
           // Reload user data to get updated GitHub info
           currentUser = await getCurrentUser();
           githubUsername = currentUser?.github_username || '';
@@ -79,11 +82,15 @@
           const githubError = urlParams.get('github_error');
           if (githubError === 'already_linked') {
             error = 'This GitHub account is already linked to another user';
+          } else if (githubError === 'not_authenticated') {
+            error = 'You must be logged in to link your GitHub account';
+          } else if (githubError === 'code_already_used') {
+            error = 'This authorization code has already been used. Please try again.';
           } else {
             error = 'Failed to link GitHub account. Please try again.';
           }
-          // Clean up URL
-          window.history.replaceState({}, '', window.location.pathname);
+          // Clean up URL - keep the hash path but remove the query params
+          window.location.hash = hashParts[0];
         }
       }
     } catch (err) {

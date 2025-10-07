@@ -58,7 +58,7 @@ def decrypt_token(encrypted_token):
 def github_oauth_initiate(request):
     """Initiate GitHub OAuth flow"""
     # Get the return URL from query params
-    return_url = request.GET.get('return_url', '/builder-welcome')
+    return_url = request.GET.get('return_url', '/builders/welcome')
 
     # Get user ID from session if authenticated
     user_id = None
@@ -106,13 +106,13 @@ def github_oauth_callback(request):
     # Handle errors from GitHub
     if error:
         logger.error(f"GitHub OAuth error: {error} - {error_description}")
-        return redirect(f'{settings.FRONTEND_URL}/#/builder-welcome?github_error=authorization_failed')
+        return redirect(f'{settings.FRONTEND_URL}/#/builders/welcome?github_error=authorization_failed')
 
     # Validate state
     stored_state = request.session.get('github_oauth_state')
     if not state or state != stored_state:
         logger.error("Invalid OAuth state token")
-        return redirect(f'{settings.FRONTEND_URL}/#/builder-welcome?github_error=invalid_state')
+        return redirect(f'{settings.FRONTEND_URL}/#/builders/welcome?github_error=invalid_state')
 
     # Clear the state from session to prevent replay attacks
     del request.session['github_oauth_state']
@@ -120,11 +120,11 @@ def github_oauth_callback(request):
     # Parse state data
     try:
         state_data = json.loads(state)
-        return_url = state_data.get('return_url', '/builder-welcome')
+        return_url = state_data.get('return_url', '/builders/welcome')
         user_id = state_data.get('user_id')
     except json.JSONDecodeError:
         logger.error("Failed to parse OAuth state")
-        return redirect(f'{settings.FRONTEND_URL}/#/builder-welcome?github_error=invalid_state')
+        return redirect(f'{settings.FRONTEND_URL}/#/builders/welcome?github_error=invalid_state')
 
     # Exchange code for access token
     token_url = "https://github.com/login/oauth/access_token"
@@ -146,13 +146,13 @@ def github_oauth_callback(request):
             logger.error(f"GitHub token exchange error: {token_data}")
             # Check if it's because the code was already used
             if token_data.get('error') == 'bad_verification_code':
-                return redirect(f"{settings.FRONTEND_URL}/#/builder-welcome?github_error=code_already_used")
-            return redirect(f"{settings.FRONTEND_URL}/#/builder-welcome?github_error=token_exchange_failed")
+                return redirect(f"{settings.FRONTEND_URL}/#/builders/welcome?github_error=code_already_used")
+            return redirect(f"{settings.FRONTEND_URL}/#/builders/welcome?github_error=token_exchange_failed")
 
         access_token = token_data.get('access_token')
         if not access_token:
             logger.error("No access token received from GitHub")
-            return redirect(f"{settings.FRONTEND_URL}/#/builder-welcome?github_error=no_access_token")
+            return redirect(f"{settings.FRONTEND_URL}/#/builders/welcome?github_error=no_access_token")
 
         # Fetch GitHub user data
         user_url = "https://api.github.com/user"
@@ -192,7 +192,7 @@ def github_oauth_callback(request):
 
             if existing_user:
                 logger.warning(f"GitHub account already linked to another user")
-                return redirect(f"{settings.FRONTEND_URL}/#/builder-welcome?github_error=already_linked")
+                return redirect(f"{settings.FRONTEND_URL}/#/builders/welcome?github_error=already_linked")
 
             # Update user with GitHub info
             user.github_username = github_user['login']
@@ -202,18 +202,18 @@ def github_oauth_callback(request):
             user.save()
 
             logger.info(f"GitHub account linked for user {user.id}")
-            return redirect(f"{settings.FRONTEND_URL}/#/builder-welcome?github_success=true")
+            return redirect(f"{settings.FRONTEND_URL}/#/builders/welcome?github_success=true")
         else:
             # User not authenticated, redirect to login
             logger.warning("No authenticated user found for GitHub linking")
-            return redirect(f'{settings.FRONTEND_URL}/#/builder-welcome?github_error=not_authenticated')
+            return redirect(f'{settings.FRONTEND_URL}/#/builders/welcome?github_error=not_authenticated')
 
     except requests.RequestException as e:
         logger.error(f"GitHub API request failed: {e}")
-        return redirect(f"{settings.FRONTEND_URL}/#/builder-welcome?github_error=api_request_failed")
+        return redirect(f"{settings.FRONTEND_URL}/#/builders/welcome?github_error=api_request_failed")
     except Exception as e:
         logger.error(f"Unexpected error during GitHub OAuth: {e}")
-        return redirect(f"{settings.FRONTEND_URL}/#/builder-welcome?github_error=unexpected_error")
+        return redirect(f"{settings.FRONTEND_URL}/#/builders/welcome?github_error=unexpected_error")
     finally:
         # Clean up session
         if 'github_oauth_state' in request.session:
