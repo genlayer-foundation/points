@@ -171,17 +171,27 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     
     def get_queryset(self):
         queryset = Contribution.objects.all().order_by('-contribution_date')
-        
+
+        # Prefetch related objects to avoid N+1 queries
+        queryset = queryset.select_related(
+            'user',
+            'contribution_type',
+            'contribution_type__category'
+        ).prefetch_related(
+            'evidence_items',
+            'highlights'
+        )
+
         # Filter by user address if provided
         user_address = self.request.query_params.get('user_address')
         if user_address:
             queryset = queryset.filter(user__address__iexact=user_address)
-        
+
         # Filter by category if provided
         category = self.request.query_params.get('category')
         if category:
             queryset = queryset.filter(contribution_type__category__slug=category)
-            
+
         return queryset
     
     def list(self, request, *args, **kwargs):
@@ -534,6 +544,13 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         """Users can only see their own submissions."""
         return SubmittedContribution.objects.filter(
             user=self.request.user
+        ).select_related(
+            'contribution_type',
+            'contribution_type__category',
+            'reviewed_by',
+            'converted_contribution'
+        ).prefetch_related(
+            'evidence_items'
         ).order_by('-created_at')
     
     def create(self, request, *args, **kwargs):

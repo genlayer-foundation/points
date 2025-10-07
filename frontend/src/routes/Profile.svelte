@@ -4,13 +4,13 @@
   import { format } from 'date-fns';
   import UserContributions from '../components/UserContributions.svelte';
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
-  import StatCard from '../components/StatCard.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import ProfileStats from '../components/ProfileStats.svelte';
   import ContributionBreakdown from '../components/ContributionBreakdown.svelte';
   import BuilderProgress from '../components/BuilderProgress.svelte';
   import ReferralSection from '../components/ReferralSection.svelte';
   import Icons from '../components/Icons.svelte';
+  import ContributionsTable from '../components/ContributionsTable.svelte';
   import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, creatorAPI, getCurrentUser } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
@@ -55,7 +55,7 @@
   let showSuccessNotification = $state(false);
   let referralData = $state(null);
   let loadingReferrals = $state(false);
-  
+
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
     $authState.isAuthenticated && 
@@ -200,7 +200,8 @@
       }, 5000);
     }
   });
-  
+
+
   async function refreshBalance() {
     if (!participant?.address) {
       return;
@@ -469,7 +470,8 @@
       return dateString;
     }
   }
-  
+
+
   // Icons for stat cards
   const icons = {
     contributions: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
@@ -1017,6 +1019,7 @@
               <ContributionBreakdown
                 contributionTypes={participant.validator.contribution_types}
                 colorTheme="sky"
+                userAddress={participant.address}
               />
             </div>
           {/if}
@@ -1077,6 +1080,7 @@
               <ContributionBreakdown
                 contributionTypes={participant.builder.contribution_types}
                 colorTheme="orange"
+                userAddress={participant.address}
               />
             </div>
           {/if}
@@ -1152,6 +1156,7 @@
               <ContributionBreakdown
                 contributionTypes={validatorStats.contributionTypes}
                 colorTheme="sky"
+                userAddress={participant.address}
               />
             </div>
           {/if}
@@ -1232,6 +1237,7 @@
               <ContributionBreakdown
                 contributionTypes={builderStats.contributionTypes}
                 colorTheme="orange"
+                userAddress={participant.address}
               />
             </div>
           {/if}
@@ -1615,6 +1621,20 @@
             </div>
           {/if}
         </div>
+      </div>
+    {/if}
+
+    <!-- All Recent Contributions -->
+    {#if participant.address && !isValidatorOnly}
+      <div class="mb-6">
+        <ContributionsTable
+          title="{participant.name || 'Participant'}'s Recent Contributions"
+          subtitle="Latest 5 contributions"
+          userAddress={participant.address}
+          limit={5}
+          showParticipantColumn={false}
+          viewAllUrl="/all-contributions?user={participant.address}"
+        />
       </div>
     {/if}
 
