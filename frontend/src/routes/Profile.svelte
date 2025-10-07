@@ -1478,7 +1478,7 @@
     {/if}
 
     <!-- Referrals Card - Full Width -->
-    {#if !isValidatorOnly && (participant?.builder || participant?.validator || participant?.creator || participant?.total_referrals > 0) && (isOwnProfile || (!isOwnProfile && participant?.total_referrals > 0))}
+    {#if !isValidatorOnly && (participant?.builder || participant?.validator || participant?.creator || participant?.steward) && (isOwnProfile || (!isOwnProfile && participant?.total_referrals > 0))}
       <div class="bg-purple-50 rounded-lg shadow-sm border border-purple-200 overflow-visible mb-6">
         <!-- Header -->
         <div class="bg-purple-100 px-5 py-3 border-b border-purple-200 flex items-center justify-between">
