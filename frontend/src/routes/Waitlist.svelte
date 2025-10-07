@@ -4,10 +4,15 @@
   import { format } from 'date-fns';
   import api, { usersAPI, leaderboardAPI, contributionsAPI } from '../lib/api';
   import { currentCategory, categoryTheme } from '../stores/category.js';
+  import { authState } from '../lib/auth.js';
+  import { userStore } from '../lib/userStore.js';
   import Avatar from '../components/Avatar.svelte';
   import StatCard from '../components/StatCard.svelte';
   import ContributionCard from '../components/ContributionCard.svelte';
   import Icon from '../components/Icons.svelte';
+
+  // Get current user from store
+  let user = $derived($userStore.user);
   
   // State variables
   let waitlistUsers = $state([]);
@@ -628,25 +633,80 @@
     {/if}
   </div>
   
-  <!-- Information Card -->
-  <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
-    <div class="flex">
-      <div class="flex-shrink-0">
-        <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-        </svg>
-      </div>
-      <div class="ml-3">
-        <h3 class="text-sm font-medium text-blue-900">About the Validator Journey</h3>
-        <div class="mt-2 text-sm text-blue-700">
-          <p>The Validator Journey tracks participants who have joined the waitlist and are working towards becoming active validators on the GenLayer network.</p>
-          <ul class="list-disc list-inside mt-2 space-y-1">
-            <li>Complete tasks and earn points to climb the leaderboard</li>
-            <li>Graduates become active validators on Testnet Asimov</li>
-            <li>Track your progress in the Race to Testnet Asimov</li>
-          </ul>
+  <!-- Join Validator Waitlist Card -->
+  {#if $authState.isAuthenticated && user && !user.validator && !user.has_validator_waitlist}
+    <div class="bg-sky-50 border-2 border-sky-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
+      <div class="p-6">
+        <div class="flex items-center mb-4">
+          <div class="flex items-center justify-center w-12 h-12 bg-sky-500 rounded-full mr-4 flex-shrink-0">
+            <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-xl font-bold text-sky-900 mb-1">Join the Validator Journey</h3>
+            <p class="text-sky-700 text-sm">Validate and judge subjective Intelligent Contracts on Testnet Asimov</p>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <p class="text-sm text-sky-700 mb-3">The Validator Journey tracks participants who have joined the waitlist and are working towards becoming active validators on the GenLayer network.</p>
+            <ul class="space-y-2">
+              <li class="flex items-center text-sm text-sky-600">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Complete tasks and earn points to climb the leaderboard
+              </li>
+              <li class="flex items-center text-sm text-sky-600">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Graduates become active validators on Testnet Asimov
+              </li>
+              <li class="flex items-center text-sm text-sky-600">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Track your progress in the Race to Testnet Asimov
+              </li>
+            </ul>
+          </div>
+
+          <button
+            onclick={() => push('/validators/waitlist/join')}
+            class="w-full flex items-center justify-center px-4 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-semibold group-hover:shadow-md"
+          >
+            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
+            </svg>
+            Join the Waitlist
+          </button>
         </div>
       </div>
     </div>
-  </div>
+  {:else if !$authState.isAuthenticated || !user || user.validator || user.has_validator_waitlist}
+    <!-- Information Card (shown when not eligible to join) -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-blue-900">About the Validator Journey</h3>
+          <div class="mt-2 text-sm text-blue-700">
+            <p>The Validator Journey tracks participants who have joined the waitlist and are working towards becoming active validators on the GenLayer network.</p>
+            <ul class="list-disc list-inside mt-2 space-y-1">
+              <li>Complete tasks and earn points to climb the leaderboard</li>
+              <li>Graduates become active validators on Testnet Asimov</li>
+              <li>Track your progress in the Race to Testnet Asimov</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
