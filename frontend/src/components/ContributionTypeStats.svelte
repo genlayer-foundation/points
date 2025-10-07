@@ -70,12 +70,14 @@
 
 <div class="space-y-6">
   {#if submittableTypes.length > 0}
+    {@const colors = getPioneerContributionsColors($currentCategory)}
+
     <!-- Card container with dividers -->
-    <div class="bg-white border border-gray-200 border-l-4 border-l-orange-500 shadow-sm overflow-hidden rounded-lg mb-6">
+    <div class="bg-white border border-gray-200 border-l-4 {colors.containerBorderLeft} shadow-sm overflow-hidden rounded-lg mb-6">
       <!-- Header -->
       <div class="px-4 py-5 sm:px-6 bg-white border-b border-gray-200">
         <div class="flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-orange-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 {colors.headerIcon} mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
           <h2 class="text-xl font-bold text-gray-900">Contribution Opportunities</h2>
@@ -101,13 +103,13 @@
             <div class="flex items-center gap-3 mb-2 flex-wrap">
               <button
                 onclick={() => push(`/contribution-type/${stats.id}`)}
-                class="text-base font-bold font-heading text-gray-900 hover:text-orange-600 transition-colors"
+                class="text-base font-bold font-heading text-gray-900 hover:{colors.titleText} transition-colors"
               >
                 {stats.name}
               </button>
 
               <!-- Points available as badge -->
-              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-normal bg-orange-100 text-orange-800">
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-normal {colors.badgeBg} {colors.badgeText}">
                 {#if stats.min_points != null && stats.max_points != null && stats.current_multiplier != null}
                   {#if stats.min_points === stats.max_points}
                     {Math.round(stats.min_points * stats.current_multiplier)} pts
@@ -136,7 +138,7 @@
               <!-- Submit button -->
               <button
                 onclick={() => push(`/submit-contribution?type=${stats.id}`)}
-                class="ml-auto flex-shrink-0 text-sm font-medium text-orange-600 hover:text-orange-700 transition-colors"
+                class="ml-auto flex-shrink-0 text-sm font-medium {colors.titleText} hover:{colors.titleTextHover} transition-colors"
               >
                 Submit →
               </button>

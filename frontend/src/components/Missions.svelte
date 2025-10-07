@@ -226,12 +226,14 @@
 </style>
 
 {#if !loading && missions.length > 0}
+  {@const colors = getPioneerContributionsColors($currentCategory)}
+
   <!-- Card container with dividers -->
-  <div class="bg-white border border-gray-200 border-l-4 border-l-orange-500 shadow-sm overflow-hidden rounded-lg mb-6">
+  <div class="bg-white border border-gray-200 border-l-4 {colors.containerBorderLeft} shadow-sm overflow-hidden rounded-lg mb-6">
     <!-- Header -->
     <div class="px-4 py-5 sm:px-6 bg-white border-b border-gray-200">
       <div class="flex items-center">
-        <Icons name="sparkle" size="md" className="text-orange-600 mr-2" />
+        <Icons name="sparkle" size="md" className="{colors.headerIcon} mr-2" />
         <h2 class="text-xl font-bold text-gray-900">Missions</h2>
       </div>
       <p class="mt-1 text-sm text-gray-600 leading-snug">
@@ -261,7 +263,7 @@
                 actionName: mission.contribution_type_details.name,
                 evidenceUrl: ''
               }}
-              color="orange"
+              color={colors.badgeColor}
               size="sm"
               bold={false}
               clickable={true}
@@ -278,7 +280,7 @@
 
           <button
             onclick={() => push(`/submit-contribution?type=${mission.contribution_type}`)}
-            class="ml-auto flex-shrink-0 text-sm font-medium text-orange-600 hover:text-orange-700 transition-colors"
+            class="ml-auto flex-shrink-0 text-sm font-medium {colors.titleText} hover:{colors.titleTextHover} transition-colors"
           >
             Submit →
           </button>
@@ -299,7 +301,7 @@
         {#if hasLongText}
           <button
             onclick={() => toggleMissionExpanded(mission.id)}
-            class="mt-1.5 inline-flex items-center text-sm text-orange-600 hover:text-orange-700 font-medium"
+            class="mt-1.5 inline-flex items-center text-sm {colors.titleText} hover:{colors.titleTextHover} font-medium"
           >
             {isExpanded ? 'Show less' : 'Read more'}
             <svg
