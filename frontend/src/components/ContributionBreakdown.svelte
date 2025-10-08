@@ -2,12 +2,20 @@
   import { push } from 'svelte-spa-router';
   import { contributionsAPI } from '../lib/api';
   import { format } from 'date-fns';
+  import Icons from './Icons.svelte';
 
   let {
     contributionTypes = [],
     colorTheme = 'sky',
     userAddress = null
   } = $props();
+
+  // Determine category icon based on color theme
+  const categoryIcon = $derived(
+    colorTheme === 'orange' ? 'builder' :
+    colorTheme === 'sky' ? 'validator' :
+    'global'
+  );
 
   const getBgColor = $derived(
     colorTheme === 'orange' ? 'bg-orange-50' :
@@ -126,11 +134,11 @@
           <div class="flex flex-col h-full">
             <div class="flex items-start justify-between mb-3">
               <div class="flex items-center gap-2 flex-1 min-w-0">
-                <div class="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 {getDotColor}">
-                  <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
-                  </svg>
-                </div>
+                <Icons
+                  name={categoryIcon}
+                  size="sm"
+                  className={colorTheme === 'orange' ? 'text-orange-500' : colorTheme === 'sky' ? 'text-sky-500' : 'text-gray-500'}
+                />
                 <h3 class="text-sm font-semibold text-gray-900 truncate">
                   <button
                     class="{getHoverColor} transition-colors flex items-center gap-1"

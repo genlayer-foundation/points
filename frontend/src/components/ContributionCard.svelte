@@ -3,8 +3,9 @@
   import { push } from 'svelte-spa-router';
   import { getCategoryColors } from '../lib/categoryColors';
   import Avatar from './Avatar.svelte';
-  
-  let { 
+  import Icons from './Icons.svelte';
+
+  let {
     contribution,
     submission = null,
     showExpand = false,
@@ -56,11 +57,11 @@
     <div class="flex items-start justify-between gap-4">
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2 mb-2">
-          <div class="w-4 h-4 rounded-full {categoryColors.bg} flex items-center justify-center flex-shrink-0">
-            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12m6-6H6"></path>
-            </svg>
-          </div>
+          <Icons
+            name={actualCategory === 'builder' ? 'builder' : actualCategory === 'validator' ? 'validator' : 'global'}
+            size="sm"
+            className={actualCategory === 'builder' ? 'text-orange-500' : actualCategory === 'validator' ? 'text-sky-500' : 'text-gray-500'}
+          />
           <h3 class="text-base font-semibold text-gray-900 flex items-center gap-2">
             <button
               class="{categoryColors.hoverText} transition-colors"
