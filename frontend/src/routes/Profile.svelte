@@ -220,14 +220,20 @@
   }
 
   async function fetchReferrals() {
-    if (!isOwnProfile || loadingReferrals) {
+    if (loadingReferrals) {
       return;
     }
 
     loadingReferrals = true;
     try {
-      const response = await usersAPI.getReferrals();
-      referralData = response.data;
+      if (isOwnProfile) {
+        // For own profile, use authenticated endpoint
+        const response = await usersAPI.getReferrals();
+        referralData = response.data;
+      } else if (participant?.referral_details) {
+        // For other profiles, use data already in participant object
+        referralData = participant.referral_details;
+      }
     } catch (err) {
       console.error('Failed to fetch referrals:', err);
       referralData = null;
@@ -413,11 +419,12 @@
           console.warn('Builder stats API error:', error);
         });
       }
-      
+
+      // Fetch referral data for all profiles
+      fetchReferrals();
+
       // Load additional data asynchronously for own profile
       if (isOwnProfile) {
-        // Fetch referral data
-        fetchReferrals();
 
         if (participant.has_builder_welcome) {
           // Check testnet balance asynchronously
@@ -1477,8 +1484,8 @@
       </div>
     {/if}
 
-    <!-- Referrals Card - Full Width -->
-    {#if !isValidatorOnly && (participant?.builder || participant?.validator || participant?.creator || participant?.steward) && (isOwnProfile || (!isOwnProfile && participant?.total_referrals > 0))}
+    <!-- Referrals Card - Full Width (show for users with any role, hide for welcome users) -->
+    {#if !isValidatorOnly && (participant?.builder || participant?.validator || participant?.creator || participant?.steward)}
       <div class="bg-purple-50 rounded-lg shadow-sm border border-purple-200 overflow-visible mb-6">
         <!-- Header -->
         <div class="bg-purple-100 px-5 py-3 border-b border-purple-200 flex items-center justify-between">
@@ -1503,8 +1510,8 @@
 
         <!-- Content -->
         <div class="p-6">
-          {#if loadingReferrals || (referralData && referralData.total_referrals > 0) || (!isOwnProfile && (participant?.total_referrals > 0 || participant?.leaderboard_entries?.[0]?.referral_points))}
-            <!-- Metrics Grid - 3 columns (only show when there are referrals) -->
+          {#if loadingReferrals || (referralData && (referralData.total_referrals > 0 || !isOwnProfile))}
+            <!-- Metrics Grid - 3 columns (hide for own profile with 0 referrals) -->
             <div class="grid grid-cols-3 gap-3 mb-4">
               <!-- Total Referrals Container -->
               <div class="bg-white border border-gray-200 rounded-lg p-3">
@@ -1520,7 +1527,7 @@
                       {#if loadingReferrals}
                         <span class="text-gray-400">...</span>
                       {:else}
-                        {referralData?.total_referrals || participant.total_referrals || 0}
+                        {referralData?.total_referrals || 0}
                       {/if}
                     </p>
                   </div>
@@ -1551,10 +1558,8 @@
                     <p class="text-xl font-bold text-gray-900">
                       {#if loadingReferrals}
                         <span class="text-gray-400">...</span>
-                      {:else if isOwnProfile}
-                        {referralData?.builder_points || 0}
                       {:else}
-                        {participant?.leaderboard_entries?.[0]?.referral_points?.builder_points || 0}
+                        {referralData?.builder_points || 0}
                       {/if}
                     </p>
                   </div>
@@ -1585,10 +1590,8 @@
                     <p class="text-xl font-bold text-gray-900">
                       {#if loadingReferrals}
                         <span class="text-gray-400">...</span>
-                      {:else if isOwnProfile}
-                        {referralData?.validator_points || 0}
                       {:else}
-                        {participant?.leaderboard_entries?.[0]?.referral_points?.validator_points || 0}
+                        {referralData?.validator_points || 0}
                       {/if}
                     </p>
                   </div>
@@ -1597,20 +1600,25 @@
             </div>
           {/if}
 
-          {#if isOwnProfile && !loadingReferrals}
-            <!-- Referral link section - always show for own profile -->
-            {#if !referralData || referralData.total_referrals === 0}
-              <p class="text-purple-700 mb-4">
-                Building is better together. Our referral system rewards you with 10% of points earned by every contribution from your referrals.<br><br>Invite your friends, colleagues, and community. We make GenLayer together and the more the merrier.
-              </p>
-            {/if}
+          {#if isOwnProfile && !loadingReferrals && (!referralData || referralData.total_referrals === 0)}
+            <!-- Referral CTA - only for own profile with 0 referrals -->
+            <p class="text-purple-700 mb-4">
+              Building is better together. Our referral system rewards you with 10% of points earned by every contribution from your referrals.<br><br>Invite your friends, colleagues, and community. We make GenLayer together and the more the merrier.
+            </p>
             <div class="flex justify-start" style="overflow: visible;">
               <ReferralSection />
             </div>
           {/if}
 
-          <!-- Table with last 5 referrals -->
-          {#if !loadingReferrals && referralData && referralData.referrals && referralData.referrals.length > 0}
+          {#if isOwnProfile && !loadingReferrals && referralData && referralData.total_referrals > 0}
+            <!-- Referral link section - show when user has referrals -->
+            <div class="flex justify-start mb-4" style="overflow: visible;">
+              <ReferralSection />
+            </div>
+          {/if}
+
+          <!-- Table with referrals (only show when user actually has referrals) -->
+          {#if !loadingReferrals && referralData && referralData.referrals && referralData.total_referrals > 0}
             <div class="mt-6">
               <h3 class="text-lg font-semibold text-gray-900 mb-4">Last Referrals</h3>
               <div class="overflow-x-auto">

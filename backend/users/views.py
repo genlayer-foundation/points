@@ -677,8 +677,9 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         Full referral details including referred users list with builder/validator breakdown.
         Used by Profile and Referrals pages.
         """
-        from leaderboard.models import ReferralPoints, LeaderboardEntry
-        from django.db.models import Count
+        from leaderboard.models import ReferralPoints
+        from contributions.models import Contribution
+        from django.db.models import Count, Sum
 
         user = request.user
 
@@ -694,29 +695,24 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         # Get all users referred by the current user
         referred_users = User.objects.filter(
             referred_by=user
-        ).select_related('validator', 'builder').prefetch_related(
-            'leaderboard_entries'
-        ).annotate(
+        ).select_related('validator', 'builder').annotate(
             total_contributions=Count('contributions', distinct=True)
         )
 
         # Build the referral list with builder/validator breakdown
         referral_list = []
         for referred_user in referred_users:
-            # Get points from leaderboard entries by type
-            builder_entry = None
-            validator_entry = None
+            # Query contributions directly (LeaderboardEntry may contain stale data)
+            builder_contribution_points = Contribution.objects.filter(
+                user=referred_user,
+                contribution_type__category__slug='builder'
+            ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
 
-            for entry in referred_user.leaderboard_entries.all():
-                if entry.type == 'builder':
-                    builder_entry = entry
-                elif entry.type in ['validator', 'validator-waitlist', 'validator-waitlist-graduation']:
-                    # Any validator-related entry counts as validator points
-                    if not validator_entry or entry.total_points > validator_entry.total_points:
-                        validator_entry = entry
+            validator_contribution_points = Contribution.objects.filter(
+                user=referred_user,
+                contribution_type__category__slug='validator'
+            ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
 
-            builder_contribution_points = builder_entry.total_points if builder_entry else 0
-            validator_contribution_points = validator_entry.total_points if validator_entry else 0
             total_points = builder_contribution_points + validator_contribution_points
 
             referral_list.append({

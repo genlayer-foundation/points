@@ -111,9 +111,15 @@ class LeaderboardEntryAdmin(admin.ModelAdmin):
 
 @admin.register(ReferralPoints)
 class ReferralPointsAdmin(admin.ModelAdmin):
-    list_display = ['user', 'builder_points', 'validator_points']
+    list_display = ['user', 'builder_points', 'validator_points', 'total_referral_points']
     search_fields = ['user__email', 'user__name']
     readonly_fields = ['user', 'builder_points', 'validator_points']
+    actions = ['recalculate_referral_points']
+
+    def total_referral_points(self, obj):
+        """Display total referral points (builder + validator)"""
+        return obj.builder_points + obj.validator_points
+    total_referral_points.short_description = 'Total Points'
 
     def has_add_permission(self, request):
         # Don't allow manual creation
@@ -122,3 +128,44 @@ class ReferralPointsAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         # Allow deletion for cleanup
         return True
+
+    def recalculate_referral_points(self, request, queryset):
+        """
+        Admin action to recalculate all referral points from scratch.
+        This will:
+        1. Delete all existing referral points
+        2. Recalculate based on actual contribution data
+        """
+        try:
+            from .models import recalculate_referrer_points
+            from django.db import transaction
+
+            with transaction.atomic():
+                # Delete all existing referral points
+                deleted_count = ReferralPoints.objects.all().count()
+                ReferralPoints.objects.all().delete()
+
+                # Get all users who have referred at least one person
+                referrers = User.objects.filter(referrals__isnull=False).distinct()
+                updated_count = 0
+
+                # Recalculate for each referrer
+                for referrer in referrers:
+                    recalculate_referrer_points(referrer)
+                    updated_count += 1
+
+                # Show success message
+                self.message_user(
+                    request,
+                    f"Successfully recalculated referral points. Deleted {deleted_count} old records, recalculated {updated_count} referrers.",
+                    messages.SUCCESS
+                )
+
+        except Exception as e:
+            self.message_user(
+                request,
+                f"Error recalculating referral points: {str(e)}",
+                messages.ERROR
+            )
+
+    recalculate_referral_points.short_description = "Recalculate all referral points from scratch"
