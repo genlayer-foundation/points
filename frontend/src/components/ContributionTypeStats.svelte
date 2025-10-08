@@ -83,7 +83,7 @@
           <h2 class="text-xl font-bold text-gray-900">Contribution Opportunities</h2>
         </div>
         <p class="mt-1 text-sm text-gray-600 leading-snug">
-          Earn points by making these contributions to the GenLayer ecosystem
+          These are open ended contributions in the different areas of GenLayer's Ecosystem. <br>Small and big, targeted to both indie developers and startups, feel free to choose your own path.
         </p>
       </div>
 

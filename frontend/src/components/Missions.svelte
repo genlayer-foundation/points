@@ -237,8 +237,7 @@
         <h2 class="text-xl font-bold text-gray-900">Missions</h2>
       </div>
       <p class="mt-1 text-sm text-gray-600 leading-snug">
-        Open challenges where builders tackle the same problem.<br>
-        Winners receive extra points and ecosystem-wide recognition.
+        These are focused contributions aligned with the current needs of the GenLayer Ecosystem, that earns extra points and are time limited. <br>Many builders will participate in each Mission, each transmitting their imprint.<br> A winner and special mentions will be selected that will receive extra points and have their contributions showcased.
       </p>
     </div>
 
