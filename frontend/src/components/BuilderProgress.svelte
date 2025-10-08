@@ -7,6 +7,9 @@
     testnetBalance = null,
     hasBuilderWelcome = false,
     hasDeployedContract = false,
+    githubUsername = '',
+    hasStarredRepo = false,
+    repoToStar = 'genlayerlabs/genlayer-project-boilerplate',
     showActions = true,
     colorTheme = 'orange',
     onClaimBuilderBadge = null,
@@ -17,7 +20,10 @@
     isCheckingRequirements = false,
     onCheckDeployments = null,
     isCheckingDeployments = false,
-    onOpenStudio = null
+    onOpenStudio = null,
+    onLinkGitHub = null,
+    onCheckRepoStar = null,
+    isCheckingRepoStar = false
   } = $props();
   
   // Network states
@@ -162,10 +168,12 @@
     }
   });
   
-  // Calculate completed requirements (6 total)
+  // Calculate completed requirements (8 total - including GitHub and star)
   let completedCount = $derived(
     (walletAddress ? 1 : 0) +
     (hasBuilderWelcome ? 1 : 0) +
+    (githubUsername ? 1 : 0) +
+    (hasStarredRepo ? 1 : 0) +
     (hasAsimovNetwork ? 1 : 0) +
     (testnetBalance && testnetBalance > 0 ? 1 : 0) +
     (hasStudioNetwork ? 1 : 0) +
@@ -216,7 +224,7 @@
         </div>
         {#if showActions && !walletAddress}
           <button
-            onclick={() => push('/builder-welcome')}
+            onclick={() => push('/builders/welcome')}
             class="px-3 py-1 bg-orange-500 text-white text-xs font-medium rounded-md hover:bg-orange-600 transition-colors flex items-center whitespace-nowrap"
           >
             <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -275,8 +283,111 @@
           </button>
         {/if}
       </div>
-    
-      <!-- Requirement 3: Add Asimov Network -->
+
+      <!-- Requirement 3: Link GitHub Profile -->
+      <div class="flex items-center justify-between">
+        <div class="flex items-start gap-3">
+          <div class="mt-0.5">
+            {#if githubUsername}
+              <div class="w-5 h-5 rounded-full bg-green-100 border-2 border-green-500 flex items-center justify-center">
+                <svg class="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+              </div>
+            {:else}
+              <div class="w-5 h-5 rounded-full bg-gray-100 border-2 border-gray-300 flex items-center justify-center">
+                <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
+              </div>
+            {/if}
+          </div>
+          <div>
+            <p class="text-sm font-medium text-gray-900">Connect your GitHub account</p>
+            <p class="text-xs text-gray-500">
+              {#if githubUsername}
+                Connected: @{githubUsername}
+              {:else}
+                Connect your GitHub account
+              {/if}
+            </p>
+          </div>
+        </div>
+        {#if showActions && !githubUsername && onLinkGitHub}
+          <button
+            onclick={() => onLinkGitHub ? onLinkGitHub() : null}
+            class="px-3 py-1 bg-orange-500 text-white text-xs font-medium rounded-md hover:bg-orange-600 transition-colors flex items-center whitespace-nowrap"
+          >
+            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 0C4.477 0 0 4.477 0 10c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.341-3.369-1.341-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0110 4.836c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C17.137 18.163 20 14.418 20 10c0-5.523-4.477-10-10-10z" clip-rule="evenodd"/>
+            </svg>
+            Link GitHub
+          </button>
+        {/if}
+      </div>
+
+      <!-- Requirement 4: Star GenLayer Repository -->
+      <div class="flex items-center justify-between">
+        <div class="flex items-start gap-3">
+          <div class="mt-0.5">
+            {#if hasStarredRepo}
+              <div class="w-5 h-5 rounded-full bg-green-100 border-2 border-green-500 flex items-center justify-center">
+                <svg class="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+              </div>
+            {:else}
+              <div class="w-5 h-5 rounded-full bg-gray-100 border-2 border-gray-300 flex items-center justify-center">
+                <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
+              </div>
+            {/if}
+          </div>
+          <div>
+            <p class="text-sm font-medium text-gray-900">Star the GenLayer Project Boilerplate repository</p>
+            <p class="text-xs text-gray-500 flex items-center gap-2">
+              {#if !githubUsername}
+                <span>Connect GitHub first</span>
+              {:else if hasStarredRepo}
+                <span>Get familiarized with the GenLayer boilerplate repo.</span>
+              {:else}
+                <span>Show your support for the project</span>
+              {/if}
+              {#if showActions && onCheckRepoStar && githubUsername}
+                <button
+                  onclick={onCheckRepoStar}
+                  disabled={isCheckingRepoStar}
+                  class="inline-flex items-center justify-center w-4 h-4 rounded hover:bg-gray-100 transition-colors disabled:opacity-50"
+                  title="Check star status"
+                >
+                  {#if isCheckingRepoStar}
+                    <svg class="animate-spin w-3 h-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  {:else}
+                    <svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                  {/if}
+                </button>
+              {/if}
+            </p>
+          </div>
+        </div>
+        {#if showActions && githubUsername}
+          <a
+            href="https://github.com/{repoToStar}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="px-3 py-1 bg-orange-500 text-white text-xs font-medium rounded-md hover:bg-orange-600 transition-colors flex items-center whitespace-nowrap"
+          >
+            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+            </svg>
+            {hasStarredRepo ? 'View Repo' : 'Star Repo'}
+          </a>
+        {/if}
+      </div>
+
+      <!-- Requirement 5: Add Asimov Network -->
       <div class="flex items-center justify-between">
         <div class="flex items-start gap-3">
           <div class="mt-0.5">
@@ -417,7 +528,7 @@
             {/if}
           </div>
           <div>
-            <p class="text-sm font-medium text-gray-900">Add local dev network for testing</p>
+            <p class="text-sm font-medium text-gray-900">Add the Studio Network to your wallet</p>
             <p class="text-xs text-gray-500">
               {#if hasStudioNetwork}
                 Network configured in your wallet
@@ -536,7 +647,7 @@
     {#if showActions}
       <!-- Progress status -->
       <div class="mt-4 text-xs text-gray-500">
-        <span class="font-medium">{completedCount} of 6</span> requirements completed
+        <span class="font-medium">{completedCount} of 8</span> requirements completed
       </div>
     {/if}
   </div>
