@@ -652,50 +652,91 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             })
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def referral_points(self, request):
+        """
+        Quick endpoint for referral points only.
+        Used by Waitlist.svelte and other summary views.
+        """
+        from leaderboard.models import ReferralPoints
+
+        try:
+            rp = request.user.referral_points
+            return Response({
+                'builder_points': rp.builder_points,
+                'validator_points': rp.validator_points
+            })
+        except ReferralPoints.DoesNotExist:
+            return Response({
+                'builder_points': 0,
+                'validator_points': 0
+            })
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def referrals(self, request):
         """
-        Get list of users referred by the authenticated user.
-        Returns summary statistics and detailed list of referred users.
+        Full referral details including referred users list with builder/validator breakdown.
+        Used by Profile and Referrals pages.
         """
-        from django.db.models import Count, Value, IntegerField
-        from django.db.models.functions import Coalesce
+        from leaderboard.models import ReferralPoints
+        from contributions.models import Contribution
+        from django.db.models import Count, Sum
 
         user = request.user
 
-        # Get all users referred by the current user with optimized queries
-        # Use separate annotations to avoid JOIN issues between contributions and leaderboard entries
+        # Get referrer's referral points
+        try:
+            rp = user.referral_points
+            builder_pts = rp.builder_points
+            validator_pts = rp.validator_points
+        except ReferralPoints.DoesNotExist:
+            builder_pts = 0
+            validator_pts = 0
+
+        # Get all users referred by the current user
         referred_users = User.objects.filter(
             referred_by=user
-        ).select_related('validator', 'builder', 'steward').annotate(
-            total_points=Coalesce(
-                Sum('leaderboard_entries__total_points'),
-                Value(0),
-                output_field=IntegerField()
-            ),
+        ).select_related('validator', 'builder').annotate(
             total_contributions=Count('contributions', distinct=True)
         )
 
-        # Build the referral list with point calculations
-        referral_list = []
-        total_bonus_points = 0
+        # Build the referral list with builder/validator breakdown
+        # Optimize: bulk query all contributions instead of N+1 queries
+        referred_user_ids = [u.id for u in referred_users]
 
+        builder_points_by_user = {
+            item['user_id']: item['total'] or 0
+            for item in Contribution.objects.filter(
+                user_id__in=referred_user_ids,
+                contribution_type__category__slug='builder'
+            ).values('user_id').annotate(total=Sum('frozen_global_points'))
+        }
+
+        validator_points_by_user = {
+            item['user_id']: item['total'] or 0
+            for item in Contribution.objects.filter(
+                user_id__in=referred_user_ids,
+                contribution_type__category__slug='validator'
+            ).values('user_id').annotate(total=Sum('frozen_global_points'))
+        }
+
+        referral_list = []
         for referred_user in referred_users:
-            # Calculate 10% bonus from annotated total_points
-            bonus_points = int(referred_user.total_points * 0.1)
-            total_bonus_points += bonus_points
+            builder_contribution_points = builder_points_by_user.get(referred_user.id, 0)
+            validator_contribution_points = validator_points_by_user.get(referred_user.id, 0)
+            total_points = builder_contribution_points + validator_contribution_points
 
             referral_list.append({
                 'id': referred_user.id,
                 'name': referred_user.name or 'Anonymous',
                 'address': referred_user.address,
                 'profile_image_url': referred_user.profile_image_url,
-                'total_points': referred_user.total_points,
-                'bonus_points': bonus_points,
+                'total_points': total_points,
+                'builder_contribution_points': builder_contribution_points,
+                'validator_contribution_points': validator_contribution_points,
                 'created_at': referred_user.created_at,
                 'total_contributions': referred_user.total_contributions,
                 'is_validator': hasattr(referred_user, 'validator'),
                 'is_builder': hasattr(referred_user, 'builder'),
-                'is_steward': hasattr(referred_user, 'steward'),
             })
 
         # Sort by total points (highest first)
@@ -703,6 +744,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response({
             'total_referrals': len(referral_list),
-            'total_bonus_points': total_bonus_points,
+            'builder_points': builder_pts,
+            'validator_points': validator_pts,
             'referrals': referral_list
         })

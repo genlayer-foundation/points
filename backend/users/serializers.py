@@ -410,7 +410,8 @@ class UserSerializer(serializers.ModelSerializer):
     # Referral system fields
     referred_by_info = serializers.SerializerMethodField()
     total_referrals = serializers.SerializerMethodField()
-    
+    referral_details = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward',
@@ -420,7 +421,7 @@ class UserSerializer(serializers.ModelSerializer):
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle', 'github_username', 'github_linked_at',
                   'email', 'is_email_verified',
                   # Referral fields
-                  'referral_code', 'referred_by_info', 'total_referrals']
+                  'referral_code', 'referred_by_info', 'total_referrals', 'referral_details']
         read_only_fields = ['id', 'created_at', 'updated_at', 'referral_code', 'github_linked_at']
     
     def get_leaderboard_entry(self, obj):
@@ -492,6 +493,81 @@ class UserSerializer(serializers.ModelSerializer):
         Get the total number of users referred by this user.
         """
         return User.objects.filter(referred_by=obj).count()
+
+    def get_referral_details(self, obj):
+        """
+        Get comprehensive referral information including list of referred users.
+        Queries contribution points directly from Contribution table for accuracy.
+        """
+        from leaderboard.models import ReferralPoints
+        from contributions.models import Contribution
+        from django.db.models import Count, Sum
+
+        # Get referrer's referral points
+        try:
+            rp = obj.referral_points
+            builder_pts = rp.builder_points
+            validator_pts = rp.validator_points
+        except ReferralPoints.DoesNotExist:
+            builder_pts = 0
+            validator_pts = 0
+
+        # Get all users referred by this user
+        referred_users = User.objects.filter(
+            referred_by=obj
+        ).select_related('validator', 'builder').annotate(
+            total_contributions=Count('contributions', distinct=True)
+        )
+
+        # Build the referral list with builder/validator breakdown
+        # Optimize: bulk query all contributions instead of N+1 queries
+        referred_user_ids = [u.id for u in referred_users]
+
+        builder_points_by_user = {
+            item['user_id']: item['total'] or 0
+            for item in Contribution.objects.filter(
+                user_id__in=referred_user_ids,
+                contribution_type__category__slug='builder'
+            ).values('user_id').annotate(total=Sum('frozen_global_points'))
+        }
+
+        validator_points_by_user = {
+            item['user_id']: item['total'] or 0
+            for item in Contribution.objects.filter(
+                user_id__in=referred_user_ids,
+                contribution_type__category__slug='validator'
+            ).values('user_id').annotate(total=Sum('frozen_global_points'))
+        }
+
+        referral_list = []
+        for referred_user in referred_users:
+            builder_contribution_points = builder_points_by_user.get(referred_user.id, 0)
+            validator_contribution_points = validator_points_by_user.get(referred_user.id, 0)
+            total_points = builder_contribution_points + validator_contribution_points
+
+            referral_list.append({
+                'id': referred_user.id,
+                'name': referred_user.name or 'Anonymous',
+                'address': referred_user.address,
+                'profile_image_url': referred_user.profile_image_url,
+                'total_points': total_points,
+                'builder_contribution_points': builder_contribution_points,
+                'validator_contribution_points': validator_contribution_points,
+                'created_at': referred_user.created_at,
+                'total_contributions': referred_user.total_contributions,
+                'is_validator': hasattr(referred_user, 'validator'),
+                'is_builder': hasattr(referred_user, 'builder'),
+            })
+
+        # Sort by total points (highest first)
+        referral_list.sort(key=lambda x: x['total_points'], reverse=True)
+
+        return {
+            'total_referrals': len(referral_list),
+            'builder_points': builder_pts,
+            'validator_points': validator_pts,
+            'referrals': referral_list
+        }
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
