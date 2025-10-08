@@ -8,6 +8,7 @@
   let {
     isOpen = $bindable(false),
     showProfileCompletion = $bindable(false),
+    userData = null,
     onSelect = () => {},
     onProfileCompleted = () => {}
   } = $props();
@@ -22,6 +23,10 @@
   let name = $state('');
   let submittingProfile = $state(false);
   let profileError = $state('');
+
+  // Track which fields were pre-filled (already had values)
+  let hasExistingName = $state(false);
+  let hasExistingEmail = $state(false);
   
   // Constants
   const INSTALL_URLS = {
@@ -171,7 +176,30 @@
       window.removeEventListener('eip6963:announceProvider', handleProviderAnnouncement);
     };
   });
-  
+
+  // Pre-fill form fields when userData is provided
+  $effect(() => {
+    if (userData && showProfileCompletion) {
+      // Pre-fill name if it exists
+      if (userData.name && userData.name.trim() !== '') {
+        name = userData.name;
+        hasExistingName = true;
+      } else {
+        name = '';
+        hasExistingName = false;
+      }
+
+      // Pre-fill email if it exists and is not auto-generated
+      if (userData.email && userData.email.trim() !== '' && !userData.email.endsWith('@ethereum.address')) {
+        email = userData.email;
+        hasExistingEmail = true;
+      } else {
+        email = '';
+        hasExistingEmail = false;
+      }
+    }
+  });
+
   function detectWallets() {
     loading = true;
     const wallets = [];
@@ -400,37 +428,52 @@
 {/snippet}
 
 {#if isOpen}
-  <div 
+  <div
     class="wallet-selector-backdrop"
+    class:backdrop-non-interactive={showProfileCompletion}
     onclick={handleBackdropClick}
     onkeydown={handleKeyDown}
-    role="button"
-    tabindex="-1"
+    role={showProfileCompletion ? null : "button"}
+    tabindex={showProfileCompletion ? null : "-1"}
   >
     <div class="wallet-selector-modal">
       <div class="wallet-selector-header">
         <h2 class="wallet-selector-title">{showProfileCompletion ? 'Complete Your Profile' : 'Connect Wallet'}</h2>
-        <button
-          class="wallet-selector-close"
-          on:click={() => {
-            if (!connectingWallet && !submittingProfile && !showProfileCompletion) {
-              isOpen = false;
-            }
-          }}
-          disabled={connectingWallet !== null || submittingProfile || showProfileCompletion}
-          aria-label="Close"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-          </svg>
-        </button>
+        {#if !showProfileCompletion}
+          <button
+            class="wallet-selector-close"
+            onclick={() => {
+              if (!connectingWallet && !submittingProfile) {
+                isOpen = false;
+              }
+            }}
+            disabled={connectingWallet !== null || submittingProfile}
+            aria-label="Close"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        {/if}
       </div>
 
       <div class="wallet-selector-body">
         {#if showProfileCompletion}
           <div class="profile-completion-form">
-            <p class="text-gray-600 text-sm mb-6">
-              Please complete your profile to continue.
+            <!-- Welcome Icon -->
+            <div class="flex justify-center mb-4">
+              <div class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
+                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                </svg>
+              </div>
+            </div>
+
+            <p class="text-gray-700 text-sm mb-2 text-center font-medium">
+              Welcome! Let's set up your profile.
+            </p>
+            <p class="text-gray-600 text-sm mb-6 text-center">
+              This helps us personalize your experience and keep you updated.
             </p>
 
             {#if profileError}
@@ -440,39 +483,51 @@
             {/if}
 
             <div class="form-group">
-              <label for="email" class="form-label">Email Address</label>
+              <label for="name" class="form-label">
+                Display Name
+                {#if hasExistingName}
+                  <span class="text-green-600 text-xs ml-1.5 font-normal">✓ Already set</span>
+                {/if}
+              </label>
+              <input
+                id="name"
+                type="text"
+                bind:value={name}
+                placeholder="e.g., Alex Builder"
+                class="form-input {hasExistingName ? 'bg-green-50' : ''}"
+                disabled={submittingProfile}
+              />
+              <p class="text-xs text-gray-500 mt-1">This is how you'll appear to other participants</p>
+            </div>
+
+            <div class="form-group">
+              <label for="email" class="form-label">
+                Email Address
+                {#if hasExistingEmail}
+                  <span class="text-green-600 text-xs ml-1.5 font-normal">✓ Already set</span>
+                {/if}
+              </label>
               <input
                 id="email"
                 type="email"
                 bind:value={email}
                 placeholder="your@email.com"
-                class="form-input"
+                class="form-input {hasExistingEmail ? 'bg-green-50' : ''}"
                 disabled={submittingProfile}
               />
-            </div>
-
-            <div class="form-group">
-              <label for="name" class="form-label">Display Name</label>
-              <input
-                id="name"
-                type="text"
-                bind:value={name}
-                placeholder="Your name"
-                class="form-input"
-                disabled={submittingProfile}
-              />
+              <p class="text-xs text-gray-500 mt-1">We'll use this to send you important updates about your contributions</p>
             </div>
 
             <button
-              on:click={handleProfileSubmit}
-              disabled={submittingProfile || !email || !name}
+              onclick={handleProfileSubmit}
+              disabled={submittingProfile || !email.trim() || !name.trim()}
               class="profile-submit-button"
             >
               {#if submittingProfile}
                 <div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                 Saving...
               {:else}
-                Continue
+                Complete Profile
               {/if}
             </button>
           </div>
@@ -549,6 +604,10 @@
     animation: fadeIn 0.15s ease-out;
     backdrop-filter: blur(4px);
   }
+
+  .backdrop-non-interactive {
+    cursor: default;
+  }
   
   @keyframes fadeIn {
     from {
@@ -615,7 +674,7 @@
   }
   
   .wallet-selector-close:disabled {
-    cursor: not-allowed;
+    cursor: default;
     opacity: 0.3;
     color: #D1D5DB;
   }
@@ -816,7 +875,7 @@
 
   .form-input:disabled {
     opacity: 0.6;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   .form-input::placeholder {
@@ -847,7 +906,7 @@
 
   .profile-submit-button:disabled {
     opacity: 0.6;
-    cursor: not-allowed;
+    cursor: default;
     transform: none;
   }
 

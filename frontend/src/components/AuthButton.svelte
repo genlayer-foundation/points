@@ -18,6 +18,7 @@
   let showWalletSelector = false;
   let showProfileCompletion = false;
   let connectedAddress = null;
+  let connectedUserData = null;
   let errorTimeout;
   
   // Auto-dismiss error messages after 5 seconds
@@ -60,6 +61,7 @@
       const result = await signInWithEthereum(provider, walletName, true);
       const userData = result?.user;
       connectedAddress = result?.address;
+      connectedUserData = userData;
 
       // Check if profile is incomplete
       const needsEmail = !userData?.email || userData.email.trim() === '';
@@ -199,6 +201,7 @@
 <WalletSelector
   bind:isOpen={showWalletSelector}
   bind:showProfileCompletion={showProfileCompletion}
+  userData={connectedUserData}
   onSelect={handleWalletSelected}
   onProfileCompleted={handleProfileCompleted}
 />

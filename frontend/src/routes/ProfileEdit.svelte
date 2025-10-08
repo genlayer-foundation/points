@@ -38,10 +38,14 @@
   let cropperTitle = $state('');
   let cropperCallback = $state(null);
   let uploadingImage = $state(false);
-  
+
+  // Validation state
+  let nameError = $state('');
+  let emailError = $state('');
+
   // Track if any field has changed
   let hasChanges = $derived(user && (
-    name !== (user.name || '') || 
+    name !== (user.name || '') ||
     (user.validator && nodeVersion !== (user.validator?.node_version || '')) ||
     email !== (user.email || '') ||
     description !== (user.description || '') ||
@@ -51,6 +55,9 @@
     telegramHandle !== (user.telegram_handle || '') ||
     linkedinHandle !== (user.linkedin_handle || '')
   ));
+
+  // Form validation
+  let isFormValid = $derived(!nameError && !emailError && name.trim() !== '' && email.trim() !== '');
   
   async function loadUserData() {
     // Check if user is authenticated
@@ -106,27 +113,63 @@
     await new Promise(resolve => setTimeout(resolve, 100));
     loadUserData();
   });
-  
+
+  // Validation functions
+  function validateName() {
+    const trimmedName = name.trim();
+    if (trimmedName === '') {
+      nameError = 'Display name is required';
+      return false;
+    }
+    nameError = '';
+    return true;
+  }
+
+  function validateEmail() {
+    const trimmedEmail = email.trim();
+    if (trimmedEmail === '') {
+      emailError = 'Email is required';
+      return false;
+    }
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      emailError = 'Please enter a valid email';
+      return false;
+    }
+    emailError = '';
+    return true;
+  }
+
   async function handleSave() {
     if (!hasChanges) return;
-    
+
+    // Validate required fields
+    const nameValid = validateName();
+    const emailValid = validateEmail();
+
+    if (!nameValid || !emailValid) {
+      return; // Don't save if validation fails
+    }
+
     error = '';
     isSaving = true;
-    
+
     try {
-      const updateData = { 
-        name,
-        description,
-        website,
-        twitter_handle: twitterHandle,
-        discord_handle: discordHandle,
-        telegram_handle: telegramHandle,
-        linkedin_handle: linkedinHandle
+      const updateData = {
+        name: name.trim(),
+        description: description.trim(),
+        website: website.trim(),
+        twitter_handle: twitterHandle.trim(),
+        discord_handle: discordHandle.trim(),
+        telegram_handle: telegramHandle.trim(),
+        linkedin_handle: linkedinHandle.trim()
       };
-      
+
       // Only include email if it has changed
-      if (email && email !== user.email) {
-        updateData.email = email;
+      const trimmedEmail = email.trim();
+      if (trimmedEmail && trimmedEmail !== user.email) {
+        updateData.email = trimmedEmail;
       }
       
       // Only include node_version if it has changed
@@ -294,15 +337,19 @@
       
       <!-- Display Name -->
       <div class="mb-6">
-        <label for="name" class="block text-sm font-medium text-gray-700 mb-2">Display Name</label>
+        <label for="name" class="block text-sm font-medium text-gray-700 mb-2">Display Name *</label>
         <input
           id="name"
           type="text"
           bind:value={name}
-          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          oninput={validateName}
+          class="w-full px-3 py-2 border {nameError ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'} rounded-md focus:outline-none focus:ring-2"
           placeholder="Enter your display name"
           disabled={isSaving}
         />
+        {#if nameError}
+          <p class="mt-1 text-sm text-red-600">{nameError}</p>
+        {/if}
       </div>
       
       <!-- Bio -->
@@ -388,17 +435,20 @@
         <!-- Email -->
         <div>
           <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
-            Email
+            Email *
           </label>
           <input
             id="email"
             type="email"
             bind:value={email}
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            oninput={validateEmail}
+            class="w-full px-3 py-2 border {emailError ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'} rounded-md focus:outline-none focus:ring-2"
             placeholder="Enter your email"
             disabled={isSaving}
           />
-          {#if user.email && user.email.endsWith('@ethereum.address')}
+          {#if emailError}
+            <p class="mt-1 text-sm text-red-600">{emailError}</p>
+          {:else if user.email && user.email.endsWith('@ethereum.address')}
             <p class="mt-1 text-xs text-gray-500">Your current email is auto-generated. Enter a real email to update it.</p>
           {:else if !user.is_email_verified}
             <p class="mt-1 text-xs text-gray-500">Email not verified</p>
@@ -561,7 +611,7 @@
                 {#if user.validator && nodeVersion !== (user.validator?.node_version || '')}
                   <button
                     onclick={handleSave}
-                    disabled={isSaving}
+                    disabled={!isFormValid || isSaving}
                     class="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                   >
                     {isSaving ? 'Saving...' : 'Save'}
@@ -695,7 +745,7 @@
     <div class="flex gap-4 mt-6">
       <button
         onclick={handleSave}
-        disabled={!hasChanges || isSaving}
+        disabled={!hasChanges || !isFormValid || isSaving}
         class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
       >
         {isSaving ? 'Saving...' : 'Save Changes'}
