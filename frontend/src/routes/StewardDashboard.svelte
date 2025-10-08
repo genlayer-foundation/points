@@ -308,7 +308,7 @@
               <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
                 <p class="text-sm text-gray-600 mb-2">💡 <strong>Interested in joining?</strong></p>
                 <p class="text-sm text-gray-600">
-                  Contact <span class="font-mono bg-teal-100 px-1.5 py-0.5 rounded text-teal-700 font-semibold">@ras</span> on <a href="https://discord.gg/jxJBeVEt" target="_blank" rel="noopener noreferrer" class="text-teal-600 hover:text-teal-700 underline font-semibold">Discord</a> to learn more about upcoming working groups.
+                  Contact <span class="font-mono bg-teal-100 px-1.5 py-0.5 rounded text-teal-700 font-semibold">@ras</span> on <a href="https://discord.com/invite/qjCU4AWnKE" target="_blank" rel="noopener noreferrer" class="text-teal-600 hover:text-teal-700 underline font-semibold">Discord</a> to learn more about upcoming working groups.
                 </p>
               </div>
             </div>
