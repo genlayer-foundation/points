@@ -14,13 +14,19 @@
 <div class="max-w-4xl mx-auto space-y-8">
   <!-- Header -->
   <div class="space-y-4">
-    <h1 class="text-3xl font-bold text-gray-900">GenLayer Testnet Incentives Program</h1>
+    <h1 class="text-3xl font-bold text-gray-900">GenLayer’s Incentivized Builder Program</h1>
     <p class="text-base text-gray-700 leading-relaxed">
 
-      The GenLayer Testnet Incentives Program rewards early contributors who help build the foundation of the GenLayer ecosystem across code, infrastructure, and community growth. Participation is open to everyone. Direct coding is not required to participate.
+      The GenLayer Testnet Incentives Program rewards early contributors who
+help build the foundation of the GenLayer ecosystem across code,
+infrastructure, and community growth. <b>Participation is open to everyone.</b> Direct
+coding is not required to participate.
     </p>
     <p class="text-base text-gray-700 leading-relaxed">
-    Community members can earn points by referring builders. The referral points will show as “Builder Points” in the <b>Supporters</b> section as soon as the referred Builders complete their first contribution. 
+    Community members can earn points by referring builders. The referral
+points will show as “Builder Points” in the <b>Supporters</b> section as soon
+as the referred Builders complete the Builders Welcome Journey or their first
+contribution. 
     </p>
     <p class="text-base text-gray-700 leading-relaxed">
       All contributions are tracked through the wallet address, which is required to receive points and maintain contribution records. Contributors can view their rank and track points in real time through the leaderboards and individual profile pages. Apart from the builders program, GenLayer also incentivizes validator contributions.
