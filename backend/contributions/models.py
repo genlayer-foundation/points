@@ -85,8 +85,12 @@ class ContributionType(BaseModel):
         help_text="Example entries for this contribution type (array of short strings)"
     )
 
+    class Meta:
+        ordering = ['category__name', 'name']
+
     def __str__(self):
-        return self.name
+        category_name = self.category.name if self.category else "No Category"
+        return f"{category_name} - {self.name}"
         
     def clean(self):
         """Validate the contribution type data."""
