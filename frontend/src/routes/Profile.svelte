@@ -1616,14 +1616,14 @@
           {#if isOwnProfile && !loadingReferrals}
             <!-- Referral link section - always show for own profile -->
             {#if !referralData || referralData.total_referrals === 0}
-              <div class="flex flex-col lg:flex-row gap-6 items-start">
+              <div class="flex flex-col lg:flex-row gap-6 items-center">
                 <!-- Image -->
-                <div class="w-full lg:w-1/2">
-                  <img src="/assets/builders_program.png" alt="Builder Program" class="w-full rounded-lg" />
+                <div class="w-full lg:w-1/3 flex-shrink-0">
+                  <img src="/assets/builders_program.png" alt="Builder Program" class="w-full rounded-lg max-w-sm mx-auto" />
                 </div>
 
                 <!-- Text and Action -->
-                <div class="w-full lg:w-1/2 space-y-4">
+                <div class="w-full lg:w-2/3 space-y-4">
                   <p class="text-gray-700">
                     For each builder referred who submits at least one contribution, the referrer receives 10% of the points that builder earns permanently. In addition, referrers receive 500 Discord XP for each valid referral.
                   </p>
