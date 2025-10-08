@@ -189,13 +189,17 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # Handle validator data if present
         validator_data = validated_data.pop('validator', {})
-        
+
         # Handle email update
         if 'email' in validated_data:
             new_email = validated_data.pop('email')
             if new_email and new_email != instance.email:
-                # Check if email is already taken
-                if User.objects.filter(email=new_email).exclude(id=instance.id).exists():
+                # Normalize the email (lowercase domain, etc.)
+                from django.contrib.auth.models import UserManager
+                new_email = UserManager.normalize_email(new_email)
+
+                # Check if email is already taken (case-insensitive)
+                if User.objects.filter(email__iexact=new_email).exclude(id=instance.id).exists():
                     raise serializers.ValidationError({'email': 'This email is already in use.'})
                 instance.email = new_email
                 instance.is_email_verified = True  # Mark as verified when user provides it
