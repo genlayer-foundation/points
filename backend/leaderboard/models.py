@@ -58,11 +58,34 @@ def calculate_waitlist_points(user):
 
     contribution_points = query.aggregate(total=Sum('frozen_global_points'))['total'] or 0
 
-    # Add referral points (both builder and validator categories)
-    try:
-        referral_points = user.referral_points.builder_points + user.referral_points.validator_points
-    except ReferralPoints.DoesNotExist:
-        referral_points = 0
+    # Calculate referral points
+    if grad_contrib:
+        # For graduated users: calculate referral points ONLY from contributions before graduation
+        from users.models import User
+        referred_user_ids = User.objects.filter(referred_by=user).values_list('id', flat=True)
+
+        if referred_user_ids:
+            builder_referral = int((Contribution.objects.filter(
+                user_id__in=referred_user_ids,
+                contribution_type__category__slug='builder',
+                contribution_date__lt=grad_contrib.contribution_date
+            ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+
+            validator_referral = int((Contribution.objects.filter(
+                user_id__in=referred_user_ids,
+                contribution_type__category__slug='validator',
+                contribution_date__lt=grad_contrib.contribution_date
+            ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+
+            referral_points = builder_referral + validator_referral
+        else:
+            referral_points = 0
+    else:
+        # For current waitlist users: use total referral points from ReferralPoints table
+        try:
+            referral_points = user.referral_points.builder_points + user.referral_points.validator_points
+        except ReferralPoints.DoesNotExist:
+            referral_points = 0
 
     return contribution_points + referral_points
 
