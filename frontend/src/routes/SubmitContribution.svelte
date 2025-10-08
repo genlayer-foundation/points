@@ -170,10 +170,10 @@
         <h3 class="text-lg font-medium text-gray-900 mb-2">Authentication Required</h3>
         <p class="text-gray-500 mb-4">Please connect your wallet to submit contributions.</p>
         <button
-          onclick={() => push('/')}
+          onclick={() => document.querySelector('.auth-button')?.click()}
           class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
         >
-          Go to Dashboard
+          Connect Wallet
         </button>
       </div>
     </div>

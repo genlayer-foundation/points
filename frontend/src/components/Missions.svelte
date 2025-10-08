@@ -234,10 +234,10 @@
     <div class="px-4 py-5 sm:px-6 bg-white border-b border-gray-200">
       <div class="flex items-center">
         <Icons name="sparkle" size="md" className="{colors.headerIcon} mr-2" />
-        <h2 class="text-xl font-bold text-gray-900">Missions</h2>
+        <h2 class="text-xl font-bold text-gray-900">Missions (time-limited)</h2>
       </div>
       <p class="mt-1 text-sm text-gray-600 leading-snug">
-        These are focused contributions aligned with the current needs of the GenLayer Ecosystem, that earns extra points and are time limited. <br>Many builders will participate in each Mission, each transmitting their imprint.<br> A winner and special mentions will be selected that will receive extra points and have their contributions showcased.
+        Time limited contributions for the GenLayer Ecosystem. <br>Earn extra points, be showcased and climb the leaderboard.
       </p>
     </div>
 
@@ -279,7 +279,7 @@
 
           <button
             onclick={() => push(`/submit-contribution?type=${mission.contribution_type}`)}
-            class="ml-auto flex-shrink-0 text-sm font-medium {colors.titleText} {colors.titleTextHover} transition-colors"
+            class="ml-auto flex-shrink-0 text-sm font-normal {colors.titleText} {colors.titleTextHover} transition-colors"
           >
             Submit →
           </button>

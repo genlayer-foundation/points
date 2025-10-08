@@ -16,10 +16,14 @@
   <div class="space-y-4">
     <h1 class="text-3xl font-bold text-gray-900">GenLayer Testnet Incentives Program</h1>
     <p class="text-base text-gray-700 leading-relaxed">
-      The GenLayer Testnet Incentives Program rewards early contributors who help build the foundation of the GenLayer ecosystem across code, infrastructure, and community growth. Participation is open to builders, validators, and supporters. Direct coding is not required to participate. Community members can begin by referring builders or validators.
+
+      The GenLayer Testnet Incentives Program rewards early contributors who help build the foundation of the GenLayer ecosystem across code, infrastructure, and community growth. Participation is open to everyone. Direct coding is not required to participate.
     </p>
     <p class="text-base text-gray-700 leading-relaxed">
-      All contributions are tracked through the wallet address, which is required to receive points and maintain contribution records. Contributors can view their rank and track points in real time through the leaderboards and individual profile pages.
+    Community members can earn points by referring builders. The referral points will show as “Builder Points” in the <b>Supporters</b> section as soon as the referred Builders complete their first contribution. 
+    </p>
+    <p class="text-base text-gray-700 leading-relaxed">
+      All contributions are tracked through the wallet address, which is required to receive points and maintain contribution records. Contributors can view their rank and track points in real time through the leaderboards and individual profile pages. Apart from the builders program, GenLayer also incentivizes validator contributions.
     </p>
   </div>
 
@@ -36,24 +40,32 @@
     </div>
 
     <!-- Content -->
-    <div class="p-6 space-y-4">
-      <p class="text-gray-700">
-        For each builder referred who submits at least one contribution, the referrer receives 10% of the points that builder earns permanently. In addition, referrers receive 500 Discord XP for each valid referral.
-      </p>
-      {#if $authState.isAuthenticated}
-        <div class="flex items-center justify-center pt-2">
-          <ReferralSection />
-        </div>
-      {:else}
-        <div class="flex items-center justify-center pt-2">
-          <button
-            onclick={handleConnectWallet}
-            class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium transition-colors"
-          >
-            Connect Wallet to Get Referral Code
-          </button>
-        </div>
-      {/if}
+    <div class="flex flex-col lg:flex-row">
+      <!-- Image -->
+      <div class="w-full lg:w-1/2">
+        <img src="/assets/builders_program.png" alt="Builder Program" class="w-full h-full object-cover lg:rounded-bl-lg" />
+      </div>
+
+      <!-- Text and Action -->
+      <div class="w-full lg:w-1/2 p-6 space-y-4">
+        <p class="text-gray-700">
+          For each builder referred who submits at least one contribution, the referrer receives 10% of the points that builder earns permanently. In addition, referrers receive 500 Discord XP for each valid referral.
+        </p>
+        {#if $authState.isAuthenticated}
+          <div class="flex items-center justify-center pt-2">
+            <ReferralSection />
+          </div>
+        {:else}
+          <div class="flex items-center justify-center pt-2">
+            <button
+              onclick={handleConnectWallet}
+              class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium transition-colors"
+            >
+              Connect Wallet to Get Referral Code
+            </button>
+          </div>
+        {/if}
+      </div>
     </div>
   </div>
 
@@ -61,6 +73,7 @@
   <div class="space-y-6">
     <h2 class="text-2xl font-bold text-gray-900">Contributor Categories</h2>
 
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Builders -->
     <div class="bg-orange-50 rounded-lg shadow-sm border border-orange-200 overflow-hidden">
       <!-- Header -->
@@ -84,6 +97,28 @@
         >
           → View Builder Contribution opportunities
         </button>
+      </div>
+    </div>
+
+    <!-- Supporters -->
+    <div class="bg-purple-50 rounded-lg shadow-sm border border-purple-200 overflow-hidden">
+      <!-- Header -->
+      <div class="bg-purple-100 px-5 py-3 border-b border-purple-200">
+        <h2 class="text-lg font-semibold text-purple-700 uppercase tracking-wider flex items-center">
+          <Icon name="participants" size="md" className="text-purple-600 mr-2" />
+          Supporters
+        </h2>
+      </div>
+      <!-- Content -->
+      <div class="p-6 space-y-3">
+        <p class="text-gray-700">
+          Non-technical contributors who grow the community. Currently earn points through
+          referring builders and validators. Additional opportunities will become available in
+          future phases.
+        </p>
+        <p class="text-sm text-gray-600 italic">
+          Note: Supporter activity does not currently influence Discord roles or points.
+        </p>
       </div>
     </div>
 
@@ -120,28 +155,6 @@
       </div>
     </div>
 
-    <!-- Supporters -->
-    <div class="bg-purple-50 rounded-lg shadow-sm border border-purple-200 overflow-hidden">
-      <!-- Header -->
-      <div class="bg-purple-100 px-5 py-3 border-b border-purple-200">
-        <h2 class="text-lg font-semibold text-purple-700 uppercase tracking-wider flex items-center">
-          <Icon name="participants" size="md" className="text-purple-600 mr-2" />
-          Supporters
-        </h2>
-      </div>
-      <!-- Content -->
-      <div class="p-6 space-y-3">
-        <p class="text-gray-700">
-          Non-technical contributors who grow the community. Currently earn points through
-          referring builders and validators. Additional opportunities will become available in
-          future phases.
-        </p>
-        <p class="text-sm text-gray-600 italic">
-          Note: Supporter activity does not currently influence Discord roles or XP.
-        </p>
-      </div>
-    </div>
-
     <!-- Stewards -->
     <div class="bg-green-50 rounded-lg shadow-sm border border-green-200 overflow-hidden">
       <!-- Header -->
@@ -163,6 +176,7 @@
           → Learn more about Stewards
         </button>
       </div>
+    </div>
     </div>
   </div>
 </div>
