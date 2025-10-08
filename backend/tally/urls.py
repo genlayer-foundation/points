@@ -27,6 +27,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views import View
 
+# Import GitHub OAuth views
+from users.github_oauth import github_oauth_initiate, github_oauth_callback, disconnect_github, check_repo_star
+
 @csrf_exempt
 def health_check(request):
     """Simple health check endpoint that bypasses host validation"""
@@ -54,10 +57,16 @@ urlpatterns = [
     
     # API endpoints
     path('api/v1/', include('api.urls')),
-    
+
     # Ethereum Authentication
     path('api/auth/', include('ethereum_auth.urls')),
-    
+
+    # GitHub OAuth
+    path('api/auth/github/', github_oauth_initiate, name='github_oauth'),
+    path('api/auth/github/callback/', github_oauth_callback, name='github_callback'),
+    path('api/v1/users/github/disconnect/', disconnect_github, name='github_disconnect'),
+    path('api/v1/users/github/check-star/', check_repo_star, name='github_check_star'),
+
     # Contributions app (includes both API and staff views)
     path('contributions/', include('contributions.urls')),
     

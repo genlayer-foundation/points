@@ -140,6 +140,11 @@ export const creatorAPI = {
   joinAsCreator: () => api.post('/creators/join/')
 };
 
+// GitHub OAuth API
+export const githubAPI = {
+  checkStar: () => api.get('/users/github/check-star/')
+};
+
 // Steward API
 export const stewardAPI = {
   // Get all submissions for review
