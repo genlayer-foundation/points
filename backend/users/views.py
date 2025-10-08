@@ -700,19 +700,29 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
         # Build the referral list with builder/validator breakdown
+        # Optimize: bulk query all contributions instead of N+1 queries
+        referred_user_ids = [u.id for u in referred_users]
+
+        builder_points_by_user = {
+            item['user_id']: item['total'] or 0
+            for item in Contribution.objects.filter(
+                user_id__in=referred_user_ids,
+                contribution_type__category__slug='builder'
+            ).values('user_id').annotate(total=Sum('frozen_global_points'))
+        }
+
+        validator_points_by_user = {
+            item['user_id']: item['total'] or 0
+            for item in Contribution.objects.filter(
+                user_id__in=referred_user_ids,
+                contribution_type__category__slug='validator'
+            ).values('user_id').annotate(total=Sum('frozen_global_points'))
+        }
+
         referral_list = []
         for referred_user in referred_users:
-            # Query contributions directly (LeaderboardEntry may contain stale data)
-            builder_contribution_points = Contribution.objects.filter(
-                user=referred_user,
-                contribution_type__category__slug='builder'
-            ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
-
-            validator_contribution_points = Contribution.objects.filter(
-                user=referred_user,
-                contribution_type__category__slug='validator'
-            ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
-
+            builder_contribution_points = builder_points_by_user.get(referred_user.id, 0)
+            validator_contribution_points = validator_points_by_user.get(referred_user.id, 0)
             total_points = builder_contribution_points + validator_contribution_points
 
             referral_list.append({

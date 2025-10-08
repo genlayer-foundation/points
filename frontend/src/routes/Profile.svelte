@@ -1497,8 +1497,8 @@
       </div>
     {/if}
 
-    <!-- Referrals Card - Full Width (show for users with any role, hide for welcome users) -->
-    {#if !isValidatorOnly && (participant?.builder || participant?.validator || participant?.creator || participant?.steward)}
+    <!-- Referrals Card - Full Width -->
+    {#if !isValidatorOnly && (!isOwnProfile || hasAnyRole)}
       <div class="bg-purple-50 rounded-lg shadow-sm border border-purple-200 overflow-visible mb-6">
         <!-- Header -->
         <div class="bg-purple-100 px-5 py-3 border-b border-purple-200 flex items-center justify-between">

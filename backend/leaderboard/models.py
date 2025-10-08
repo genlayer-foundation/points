@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.conf import settings
@@ -471,6 +471,7 @@ def update_referrer_points(contribution):
         rp.save(update_fields=['validator_points'])
 
 
+@transaction.atomic
 def recalculate_referrer_points(referrer):
     """
     Update referral points when referred user makes contribution.
