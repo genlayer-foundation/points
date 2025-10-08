@@ -516,10 +516,12 @@
         </div>
 
         <!-- Recent Contributions -->
-        <RecentContributions 
+        <RecentContributions
           contributionTypeId={params.id}
-          limit={10}
-          showViewAll={false}
+          limit={5}
+          showViewAll={true}
+          viewAllPath={`/all-contributions?category=${contributionType?.category || ''}&type=${params.id}`}
+          viewAllText="View All →"
         />
       </div>
     {/if}

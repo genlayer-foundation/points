@@ -22,7 +22,7 @@
       hasJourneys = user?.has_validator_waitlist || user?.has_builder_welcome || user?.validator || user?.builder;
       
       // Check if user has any contributions
-      const contribResponse = await contributionsAPI.getUserContributions($authState.address);
+      const contribResponse = await contributionsAPI.getContributions({ user_address: $authState.address, limit: 1 });
       hasContributions = contribResponse.data?.results?.length > 0;
       
       // User is new if they have no journeys and no contributions

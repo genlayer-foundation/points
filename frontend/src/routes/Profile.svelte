@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { push, querystring } from 'svelte-spa-router';
   import { format } from 'date-fns';
-  import UserContributions from '../components/UserContributions.svelte';
+  import RecentContributions from '../components/RecentContributions.svelte';
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import ProfileStats from '../components/ProfileStats.svelte';
@@ -10,7 +10,6 @@
   import BuilderProgress from '../components/BuilderProgress.svelte';
   import ReferralSection from '../components/ReferralSection.svelte';
   import Icons from '../components/Icons.svelte';
-  import ContributionsTable from '../components/ContributionsTable.svelte';
   import Tooltip from '../components/Tooltip.svelte';
   import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, creatorAPI, getCurrentUser } from '../lib/api';
   import { authState } from '../lib/auth';
@@ -1052,10 +1051,14 @@
           
           <!-- Contributions -->
           <div class="px-4 mt-6 pb-6">
-            <UserContributions
-              userAddress={participant.address}
-              userName={participant.name || 'Validator'}
-              category="validator"
+            <RecentContributions
+              title="Recent Contributions"
+              limit={5}
+              userId={participant.address}
+              showHeader={true}
+              showViewAll={true}
+              viewAllPath={`/all-contributions?user=${participant.address}&category=validator`}
+              viewAllText="View All →"
             />
           </div>
         {/if}
@@ -1113,11 +1116,14 @@
           
           <!-- Contributions -->
           <div class="mt-6">
-            <UserContributions
-              userAddress={participant.address}
-              userName={participant.name || 'Builder'}
-              category="builder"
-              compact={true}
+            <RecentContributions
+              title="Recent Contributions"
+              limit={5}
+              userId={participant.address}
+              showHeader={true}
+              showViewAll={true}
+              viewAllPath={`/all-contributions?user=${participant.address}&category=builder`}
+              viewAllText="View All →"
             />
           </div>
         </div>
@@ -1189,11 +1195,14 @@
           
           <!-- Contributions List -->
           <div class="mt-6">
-            <UserContributions
-              userAddress={participant.address}
-              userName={participant.name || 'Participant'}
-              category="validator"
-              compact={true}
+            <RecentContributions
+              title="Recent Contributions"
+              limit={5}
+              userId={participant.address}
+              showHeader={true}
+              showViewAll={true}
+              viewAllPath={`/all-contributions?user=${participant.address}&category=validator`}
+              viewAllText="View All →"
             />
           </div>
         </div>
@@ -1270,11 +1279,14 @@
           
           <!-- Contributions List -->
           <div class="mt-6">
-            <UserContributions
-              userAddress={participant.address}
-              userName={participant.name || 'Participant'}
-              category="builder"
-              compact={true}
+            <RecentContributions
+              title="Recent Contributions"
+              limit={5}
+              userId={participant.address}
+              showHeader={true}
+              showViewAll={true}
+              viewAllPath={`/all-contributions?user=${participant.address}&category=builder`}
+              viewAllText="View All →"
             />
           </div>
         </div>
@@ -1665,20 +1677,6 @@
             </div>
           {/if}
         </div>
-      </div>
-    {/if}
-
-    <!-- All Recent Contributions -->
-    {#if participant.address && !isValidatorOnly}
-      <div class="mb-6">
-        <ContributionsTable
-          title="{participant.name || 'Participant'}'s Recent Contributions"
-          subtitle="Latest 5 contributions"
-          userAddress={participant.address}
-          limit={5}
-          showParticipantColumn={false}
-          viewAllUrl="/all-contributions?user={participant.address}"
-        />
       </div>
     {/if}
 

@@ -1,17 +1,14 @@
 <script>
   import ContributionTypeStats from '../components/ContributionTypeStats.svelte';
   import Missions from '../components/Missions.svelte';
-  import ContributionsTable from '../components/ContributionsTable.svelte';
+  import RecentContributions from '../components/RecentContributions.svelte';
   import { currentCategory } from '../stores/category.js';
 
-  // Derive category and view all URL from current category
-  let category = $derived($currentCategory === 'global' ? null : $currentCategory);
+  // Derive title and view all URL from current category
   let title = $derived($currentCategory === 'global' ? 'Recent Contributions' :
                      $currentCategory === 'validator' ? 'Recent Validator Contributions' :
                      $currentCategory === 'builder' ? 'Recent Builder Contributions' :
                      'Recent Contributions');
-  let subtitle = $derived($currentCategory === 'global' ? 'Latest 5 contributions' :
-                         `Latest 5 ${$currentCategory} contributions`);
   let viewAllUrl = $derived($currentCategory === 'global' ? '/all-contributions' :
                            `/all-contributions?category=${$currentCategory}`);
 </script>
@@ -26,13 +23,17 @@
   <!-- Contribution Type Statistics -->
   <ContributionTypeStats />
 
-  <!-- Recent Contributions Table -->
-  <ContributionsTable
-    title={title}
-    subtitle={subtitle}
-    category={category}
-    limit={5}
-    showParticipantColumn={true}
-    viewAllUrl={viewAllUrl}
-  />
+  <!-- Recent Contributions -->
+  <div>
+    <RecentContributions
+      {title}
+      limit={5}
+      userId={null}
+      showHeader={true}
+      showViewAll={true}
+      viewAllPath={viewAllUrl}
+      viewAllText="View All →"
+      className="px-4"
+    />
+  </div>
 </div>
