@@ -282,9 +282,11 @@
                   </button>
                   <div class="flex items-center gap-3 mt-0.5">
                     <!-- Contribution Points -->
+                    {@const referralTotal = user.referral_points ? user.referral_points.builder_points + user.referral_points.validator_points : 0}
+                    {@const contributionPoints = user.score - referralTotal}
                     <div class="flex items-center gap-1 group relative">
                       <Icon name="lightning" size="sm" className="text-amber-600" />
-                      <span class="text-sm text-gray-700 font-medium">{user.score}</span>
+                      <span class="text-sm text-gray-700 font-medium">{contributionPoints}</span>
                       <!-- Tooltip -->
                       <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
                         <div>Contribution Points</div>
@@ -296,7 +298,6 @@
 
                     <!-- Referral Points -->
                     {#if user.referral_points}
-                      {@const referralTotal = user.referral_points.builder_points + user.referral_points.validator_points}
                       {#if referralTotal > 0}
                         <div class="flex items-center gap-1 group relative">
                           <Icon name="users" size="sm" className="text-purple-600" />
@@ -609,7 +610,20 @@
                     {/if}
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="text-sm font-medium text-gray-900">{user.score || 0}</span>
+                    {@const referralTotal = user.referral_points ? user.referral_points.builder_points + user.referral_points.validator_points : 0}
+                    {@const contributionPoints = user.score - referralTotal}
+                    <div class="flex items-center gap-3">
+                      <div class="flex items-center gap-1">
+                        <Icon name="lightning" size="sm" className="text-amber-600" />
+                        <span class="text-sm font-medium text-gray-900">{contributionPoints}</span>
+                      </div>
+                      {#if referralTotal > 0}
+                        <div class="flex items-center gap-1">
+                          <Icon name="users" size="sm" className="text-purple-600" />
+                          <span class="text-sm font-medium text-purple-600">{referralTotal}</span>
+                        </div>
+                      {/if}
+                    </div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
