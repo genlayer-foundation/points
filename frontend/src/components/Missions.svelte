@@ -280,7 +280,7 @@
 
           <button
             onclick={() => push(`/submit-contribution?type=${mission.contribution_type}`)}
-            class="ml-auto flex-shrink-0 text-sm font-medium {colors.titleText} hover:{colors.titleTextHover} transition-colors"
+            class="ml-auto flex-shrink-0 text-sm font-medium {colors.titleText} {colors.titleTextHover} transition-colors"
           >
             Submit →
           </button>
@@ -301,7 +301,7 @@
         {#if hasLongText}
           <button
             onclick={() => toggleMissionExpanded(mission.id)}
-            class="mt-1.5 inline-flex items-center text-sm {colors.titleText} hover:{colors.titleTextHover} font-medium"
+            class="mt-1.5 inline-flex items-center text-sm {colors.titleText} {colors.titleTextHover} font-medium"
           >
             {isExpanded ? 'Show less' : 'Read more'}
             <svg

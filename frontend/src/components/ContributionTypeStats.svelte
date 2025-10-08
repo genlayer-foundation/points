@@ -103,7 +103,7 @@
             <div class="flex items-center gap-3 mb-2 flex-wrap">
               <button
                 onclick={() => push(`/contribution-type/${stats.id}`)}
-                class="text-base font-bold font-heading text-gray-900 hover:{colors.titleText} transition-colors"
+                class="text-base font-bold font-heading {colors.titleText} {colors.titleTextHover} transition-colors"
               >
                 {stats.name}
               </button>
@@ -138,7 +138,7 @@
               <!-- Submit button -->
               <button
                 onclick={() => push(`/submit-contribution?type=${stats.id}`)}
-                class="ml-auto flex-shrink-0 text-sm font-medium {colors.titleText} hover:{colors.titleTextHover} transition-colors"
+                class="ml-auto flex-shrink-0 text-sm font-medium {colors.titleText} {colors.titleTextHover} transition-colors"
               >
                 Submit →
               </button>
