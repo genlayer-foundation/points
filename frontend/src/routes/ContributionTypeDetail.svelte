@@ -24,12 +24,21 @@
   let error = $state(null);
   let expandedMissions = $state(new Set());
 
-  // Configure marked options for security
+  // Configure marked options for security and links
+  const renderer = new marked.Renderer();
+  // In marked v5+, the renderer receives a token object
+  renderer.link = function({ href, title, text }) {
+    // Handle undefined/null href values
+    const safeHref = href || '#';
+    return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer"${title ? ` title="${title}"` : ''}>${text}</a>`;
+  };
+
   marked.setOptions({
     breaks: true,
     gfm: true,
     headerIds: false,
-    mangle: false
+    mangle: false,
+    renderer: renderer
   });
 
   // Determine category colors based on contribution type
