@@ -60,62 +60,13 @@
         (function() {
             const success = {{ success|lower }};
             const error = "{{ error|escapejs }}";
-            const storageKey = 'github_oauth_result_' + Date.now();
+            const frontendOrigin = "{{ frontend_origin }}";
 
-            // Store result in localStorage as fallback
-            try {
-                localStorage.setItem('github_oauth_result', JSON.stringify({
-                    success: success,
-                    error: error,
-                    timestamp: Date.now()
-                }));
-            } catch(e) {
-                console.error('Failed to set localStorage:', e);
-            }
+            // Redirect to frontend callback page
+            const redirectUrl = frontendOrigin + '/#/auth/github/callback?success=' + success +
+                (error ? '&error=' + encodeURIComponent(error) : '');
 
-            // Try to send postMessage if opener exists
-            if (window.opener && !window.opener.closed) {
-                try {
-                    if (success) {
-                        window.opener.postMessage(
-                            { type: 'github_oauth_success' },
-                            '{{ frontend_origin }}'
-                        );
-                    } else {
-                        window.opener.postMessage(
-                            { type: 'github_oauth_error', error: error },
-                            '{{ frontend_origin }}'
-                        );
-                    }
-                } catch(e) {
-                    console.error('Failed to send postMessage:', e);
-                }
-            }
-
-            // Aggressive window close attempts
-            var attempts = 0;
-            var maxAttempts = 5;
-
-            function tryClose() {
-                attempts++;
-                try {
-                    window.close();
-                } catch(e) {
-                    console.error('Failed to close window (attempt ' + attempts + '):', e);
-                }
-
-                // If window is still open after attempts, show manual close button
-                if (attempts >= maxAttempts) {
-                    document.querySelector('.spinner').style.display = 'none';
-                    document.querySelector('.message').textContent = 'Please close this window manually.';
-                    document.querySelector('.close-button').style.display = 'inline-block';
-                } else {
-                    setTimeout(tryClose, 200);
-                }
-            }
-
-            // Start closing immediately
-            setTimeout(tryClose, 50);
+            window.location.href = redirectUrl;
         })();
     </script>
 </body>

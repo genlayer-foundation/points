@@ -36,12 +36,16 @@
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
   import BuilderWelcome from './routes/BuilderWelcome.svelte';
+  import GitHubCallback from './routes/GitHubCallback.svelte';
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
   import Referrals from './routes/Referrals.svelte';
   
   // Define routes
   const routes = {
+    // Auth callback routes
+    '/auth/github/callback': GitHubCallback,
+
     // Global/Testnet Asimov routes
     '/': Dashboard,
     '/contributions': Contributions,

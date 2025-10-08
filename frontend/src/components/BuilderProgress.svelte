@@ -341,7 +341,7 @@
             {/if}
           </div>
           <div>
-            <p class="text-sm font-medium text-gray-900">Star the Sample GenLayer project repository</p>
+            <p class="text-sm font-medium text-gray-900">Star the GenLayer Project Boilerplate repository</p>
             <p class="text-xs text-gray-500 flex items-center gap-2">
               {#if !githubUsername}
                 <span>Connect GitHub first</span>
@@ -528,7 +528,7 @@
             {/if}
           </div>
           <div>
-            <p class="text-sm font-medium text-gray-900">Add local dev network for testing</p>
+            <p class="text-sm font-medium text-gray-900">Add the Studio Network to your wallet</p>
             <p class="text-xs text-gray-500">
               {#if hasStudioNetwork}
                 Network configured in your wallet

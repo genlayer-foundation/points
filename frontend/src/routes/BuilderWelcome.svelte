@@ -25,7 +25,10 @@
   let showStudioInstructions = $state(false);
   let isCompletingJourney = $state(false);
   let showGitHubSuccess = $state(false);
-  
+
+  // BroadcastChannel for OAuth popup communication (component-level scope)
+  let oauthChannel = null;
+
   // Derived states for requirements
   let requirement1Met = $derived(hasBuilderWelcome);
   let requirement2Met = $derived(!!githubUsername);
@@ -198,13 +201,8 @@
       return;
     }
 
-    // Clear any existing errors and localStorage result before starting OAuth
+    // Clear any existing errors
     error = '';
-    try {
-      localStorage.removeItem('github_oauth_result');
-    } catch(e) {
-      console.error('Failed to clear localStorage:', e);
-    }
 
     // Use absolute backend URL to avoid proxy issues
     const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -226,8 +224,6 @@
       error = 'Please allow popups for this site to link your GitHub account';
       return;
     }
-
-    let messageReceived = false;
 
     // Handle OAuth result (success or error)
     async function handleOAuthResult(success, errorType) {
@@ -276,45 +272,63 @@
       }
     }
 
-    // Listen for messages from the popup (primary method)
-    const messageHandler = async (event) => {
-      // Verify message origin
-      if (event.origin !== window.location.origin) return;
+    // Create/reuse BroadcastChannel for OAuth communication
+    if (oauthChannel) {
+      oauthChannel.close();
+    }
 
+    oauthChannel = new BroadcastChannel('github_oauth');
+
+    oauthChannel.onmessage = async (event) => {
       if (event.data.type === 'github_oauth_success' || event.data.type === 'github_oauth_error') {
-        messageReceived = true;
-        window.removeEventListener('message', messageHandler);
-
         const success = event.data.type === 'github_oauth_success';
         const errorType = event.data.error || '';
         await handleOAuthResult(success, errorType);
+
+        // Close channel after receiving message
+        oauthChannel.close();
+        oauthChannel = null;
       }
     };
 
-    window.addEventListener('message', messageHandler);
-
-    // Poll for popup closure (backup method using localStorage)
+    // Refresh user data when popup closes
     const popupChecker = setInterval(async () => {
       if (popup.closed) {
         clearInterval(popupChecker);
-        window.removeEventListener('message', messageHandler);
 
-        // If we didn't receive a postMessage, check localStorage
-        if (!messageReceived) {
-          try {
-            const resultStr = localStorage.getItem('github_oauth_result');
-            if (resultStr) {
-              const result = JSON.parse(resultStr);
-              // Check if result is recent (within last 10 seconds)
-              if (Date.now() - result.timestamp < 10000) {
-                await handleOAuthResult(result.success, result.error);
-              }
-              // Clean up
-              localStorage.removeItem('github_oauth_result');
-            }
-          } catch(e) {
-            console.error('Failed to read localStorage result:', e);
+        // Wait a moment for any async operations to complete
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Refresh all user data - if OAuth succeeded, backend will have updated the user
+        try {
+          loading = true;
+
+          currentUser = await getCurrentUser();
+          hasBuilderWelcome = currentUser?.has_builder_welcome || false;
+          hasSubmittedContribution = (currentUser?.builder?.total_contributions || 0) > 0;
+          githubUsername = currentUser?.github_username || '';
+
+          // Check all requirements in parallel
+          await Promise.all([
+            checkTestnetBalance(),
+            checkDeployments(),
+            githubUsername ? checkRepoStar() : Promise.resolve()
+          ]);
+
+          // If GitHub was just linked, show success
+          if (githubUsername) {
+            showGitHubSuccess = true;
           }
+        } catch (err) {
+          console.error('Failed to reload data after OAuth:', err);
+        } finally {
+          loading = false;
+        }
+
+        // Clean up channel
+        if (oauthChannel) {
+          oauthChannel.close();
+          oauthChannel = null;
         }
       }
     }, 500);
@@ -556,7 +570,7 @@
 
       {#if showGitHubSuccess}
         <div class="mt-4 p-3 bg-green-100 text-green-800 rounded-lg text-sm">
-          ✓ GitHub account linked successfully! Your GitHub username: @{githubUsername}
+          ✓ GitHub account linked successfully! Your GitHub username: {githubUsername}
         </div>
       {/if}
   </div>
