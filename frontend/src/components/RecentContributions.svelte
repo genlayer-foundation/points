@@ -11,6 +11,7 @@
     limit = 5,
     contributionTypeId = null,
     userId = null,
+    category = null,
     showHeader = true,
     showViewAll = true,
     viewAllPath = '/contributions',
@@ -21,6 +22,9 @@
   let contributions = $state([]);
   let loading = $state(true);
   let error = $state(null);
+
+  // Determine effective category to use (explicit prop or global store)
+  let effectiveCategory = $derived(category !== null ? category : $currentCategory);
 
   async function fetchContributions() {
     try {
@@ -43,8 +47,8 @@
       }
 
       // Add category filter if not global
-      if ($currentCategory !== 'global') {
-        params.category = $currentCategory;
+      if (effectiveCategory !== 'global') {
+        params.category = effectiveCategory;
       }
 
       const response = await contributionsAPI.getContributions(params);
@@ -57,12 +61,22 @@
   }
   
   // Fetch contributions when category changes (including initial mount)
+  // If explicit category prop is provided, only fetch once; otherwise react to global category changes
   let previousCategory = $state(null);
-  
+
   $effect(() => {
-    if ($currentCategory && $currentCategory !== previousCategory) {
-      previousCategory = $currentCategory;
-      fetchContributions();
+    // If explicit category is provided, fetch once on mount
+    if (category !== null) {
+      if (previousCategory === null) {
+        previousCategory = category;
+        fetchContributions();
+      }
+    } else {
+      // Otherwise, react to global category changes
+      if ($currentCategory && $currentCategory !== previousCategory) {
+        previousCategory = $currentCategory;
+        fetchContributions();
+      }
     }
   });
 </script>
@@ -87,7 +101,7 @@
     {loading}
     {error}
     showUser={!userId}
-    category={$currentCategory}
+    category={effectiveCategory}
     disableGrouping={!!contributionTypeId}
   />
 </div>
