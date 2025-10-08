@@ -203,7 +203,13 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "ALLOWED_CIDR_NETS": "$SSM_PREFIX/prod/allowed_cidr_nets",
           "CLOUDINARY_CLOUD_NAME": "$SSM_PREFIX/prod/cloudinary_cloud_name",
           "CLOUDINARY_API_KEY": "$SSM_PREFIX/prod/cloudinary_api_key",
-          "CLOUDINARY_API_SECRET": "$SSM_PREFIX/prod/cloudinary_api_secret"
+          "CLOUDINARY_API_SECRET": "$SSM_PREFIX/prod/cloudinary_api_secret",
+          "BACKEND_URL": "$SSM_PREFIX/prod/backend_url",
+          "FRONTEND_URL": "$SSM_PREFIX/prod/frontend_url",
+          "GITHUB_CLIENT_ID": "$SSM_PREFIX/prod/github_client_id",
+          "GITHUB_CLIENT_SECRET": "$SSM_PREFIX/prod/github_client_secret",
+          "GITHUB_ENCRYPTION_KEY": "$SSM_PREFIX/prod/github_encryption_key",
+          "GITHUB_REPO_TO_STAR": "$SSM_PREFIX/prod/github_repo_to_star"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
@@ -277,7 +283,13 @@ else
           "ALLOWED_CIDR_NETS": "$SSM_PREFIX/prod/allowed_cidr_nets",
           "CLOUDINARY_CLOUD_NAME": "$SSM_PREFIX/prod/cloudinary_cloud_name",
           "CLOUDINARY_API_KEY": "$SSM_PREFIX/prod/cloudinary_api_key",
-          "CLOUDINARY_API_SECRET": "$SSM_PREFIX/prod/cloudinary_api_secret"
+          "CLOUDINARY_API_SECRET": "$SSM_PREFIX/prod/cloudinary_api_secret",
+          "BACKEND_URL": "$SSM_PREFIX/prod/backend_url",
+          "FRONTEND_URL": "$SSM_PREFIX/prod/frontend_url",
+          "GITHUB_CLIENT_ID": "$SSM_PREFIX/prod/github_client_id",
+          "GITHUB_CLIENT_SECRET": "$SSM_PREFIX/prod/github_client_secret",
+          "GITHUB_ENCRYPTION_KEY": "$SSM_PREFIX/prod/github_encryption_key",
+          "GITHUB_REPO_TO_STAR": "$SSM_PREFIX/prod/github_repo_to_star"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
