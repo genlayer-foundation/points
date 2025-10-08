@@ -198,7 +198,7 @@
         {#if contribution?.grouped_items && contribution.grouped_items.length > 0}
           {#each contribution.grouped_items as item, index}
             {#if item.notes || item.evidence_items?.length > 0}
-              <div class="border-t {categoryColors.expandBorder} pt-3 pb-2">
+              <div class="{index > 0 ? 'border-t' : ''} {categoryColors.expandBorder} pt-3 pb-2">
                 {#if contribution.count > 1}
                   <div class="flex items-center gap-2 mb-2">
                     <Avatar

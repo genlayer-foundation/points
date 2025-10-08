@@ -3,15 +3,17 @@
   import { push } from 'svelte-spa-router';
   import ContributionsList from '../components/ContributionsList.svelte';
   import Pagination from '../components/Pagination.svelte';
+  import ContributionSelection from '../lib/components/ContributionSelection.svelte';
   import { contributionsAPI, usersAPI } from '../lib/api';
 
   // === FILTER STATE ===
   let participantFilter = $state(''); // Name or address
-  let selectedCategory = $state(''); // '', 'validator', 'builder'
-  let selectedTypeId = $state(''); // Single type ID (not multi-select)
+  let selectedCategory = $state('validator'); // 'validator' or 'builder' (no "all" option)
+  let selectedContributionType = $state(null); // Full contribution type object
   let sortBy = $state('-contribution_date'); // Sorting
 
   // === APPLIED FILTERS (what's actually being used) ===
+  let appliedCategory = $state('validator');
   let appliedTypeId = $state(''); // Track which type filter is actually applied
 
   // === DATA STATE ===
@@ -21,10 +23,6 @@
   let totalCount = $state(0);
   let currentPage = $state(1);
   let pageSize = 20;
-
-  // === TYPES FOR DROPDOWN ===
-  let contributionTypes = $state([]);
-  let loadingTypes = $state(false);
 
   // === USER DETAILS (if filtering by address) ===
   let userDetails = $state(null);
@@ -58,8 +56,8 @@
         }
       }
 
-      // Category filter
-      if (selectedCategory) params.category = selectedCategory;
+      // Category filter - use applied category
+      if (appliedCategory) params.category = appliedCategory;
 
       // Type filter - use the applied type, not the selected one
       if (appliedTypeId) params.contribution_type = appliedTypeId;
@@ -72,23 +70,6 @@
     } catch (err) {
       error = err.message || 'Failed to load contributions';
       loading = false;
-    }
-  }
-
-  async function loadContributionTypes() {
-    if (!selectedCategory) {
-      contributionTypes = [];
-      return;
-    }
-
-    loadingTypes = true;
-    try {
-      const response = await contributionsAPI.getContributionTypes({ category: selectedCategory });
-      contributionTypes = response.data.results || response.data || [];
-    } catch (err) {
-      contributionTypes = [];
-    } finally {
-      loadingTypes = false;
     }
   }
 
@@ -108,8 +89,10 @@
   // === FILTER HANDLERS ===
   function applyFilters() {
     currentPage = 1;
-    // Store the applied type filter
-    appliedTypeId = selectedTypeId;
+    // Store the applied filters
+    appliedCategory = selectedCategory;
+    appliedTypeId = selectedContributionType?.id || '';
+
     if (participantFilter && looksLikeAddress(participantFilter)) {
       loadUserDetails(participantFilter);
     } else {
@@ -121,20 +104,15 @@
 
   function clearFilters() {
     participantFilter = '';
-    selectedCategory = '';
-    selectedTypeId = '';
+    selectedCategory = 'validator'; // Reset to default
+    selectedContributionType = null;
+    appliedCategory = 'validator';
     appliedTypeId = '';
     sortBy = '-contribution_date';
     userDetails = null;
     currentPage = 1;
-    contributionTypes = [];
     updateUrl();
     loadContributions();
-  }
-
-  async function handleCategoryChange() {
-    selectedTypeId = '';
-    await loadContributionTypes();
   }
 
   function handlePageChange(event) {
@@ -151,11 +129,19 @@
     const params = new URLSearchParams(queryString);
 
     if (params.get('user')) participantFilter = params.get('user');
-    if (params.get('category')) selectedCategory = params.get('category');
+
+    // Category defaults to 'validator' if not provided
+    const urlCategory = params.get('category');
+    if (urlCategory === 'validator' || urlCategory === 'builder') {
+      selectedCategory = urlCategory;
+      appliedCategory = urlCategory;
+    }
+
     if (params.get('type')) {
-      // Keep as string to match HTML select value type
-      selectedTypeId = params.get('type');
-      appliedTypeId = params.get('type'); // URL params are implicitly applied
+      // Store the type ID to be selected after types load
+      const typeId = params.get('type');
+      appliedTypeId = typeId;
+      // selectedContributionType will be set by ContributionSelection when it loads
     }
     if (params.get('sort')) sortBy = params.get('sort');
     if (params.get('page')) currentPage = Number(params.get('page'));
@@ -164,8 +150,8 @@
   function updateUrl() {
     const params = new URLSearchParams();
     if (participantFilter) params.set('user', participantFilter);
-    if (selectedCategory) params.set('category', selectedCategory);
-    if (selectedTypeId) params.set('type', selectedTypeId);
+    if (appliedCategory) params.set('category', appliedCategory);
+    if (appliedTypeId) params.set('type', String(appliedTypeId));
     if (sortBy !== '-contribution_date') params.set('sort', sortBy);
     if (currentPage > 1) params.set('page', String(currentPage));
 
@@ -177,7 +163,6 @@
   // === LIFECYCLE ===
   onMount(async () => {
     parseUrlParams();
-    if (selectedCategory) await loadContributionTypes();
     if (participantFilter && looksLikeAddress(participantFilter)) {
       await loadUserDetails(participantFilter);
     }
@@ -207,53 +192,27 @@
   </div>
 
   <!-- FILTERS -->
-  <div class="bg-white shadow rounded-lg p-4 space-y-4">
-    <!-- Row 1: Participant, Category, Contribution Type -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Participant</label>
-        <input
-          type="text"
-          bind:value={participantFilter}
-          placeholder="Name or address (0x...)"
-          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
-        />
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
-        <select
-          bind:value={selectedCategory}
-          onchange={handleCategoryChange}
-          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
-        >
-          <option value="">All Categories</option>
-          <option value="validator">Validator</option>
-          <option value="builder">Builder</option>
-        </select>
-      </div>
-
-      {#if selectedCategory}
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Contribution Type</label>
-          <select
-            bind:value={selectedTypeId}
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
-          >
-            <option value="">All Types</option>
-            {#if loadingTypes}
-              <option disabled>Loading...</option>
-            {:else}
-              {#each contributionTypes as type}
-                <option value={String(type.id)}>{type.name}</option>
-              {/each}
-            {/if}
-          </select>
-        </div>
-      {/if}
+  <div class="bg-white shadow rounded-lg p-4 space-y-4 filters-container">
+    <!-- Participant Filter -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Participant</label>
+      <input
+        type="text"
+        bind:value={participantFilter}
+        placeholder="Name or address (0x...)"
+        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+      />
     </div>
 
-    <!-- Row 2: Action buttons -->
+    <!-- Category and Contribution Type Selection -->
+    <ContributionSelection
+      bind:selectedCategory
+      bind:selectedContributionType
+      defaultContributionType={appliedTypeId ? Number(appliedTypeId) : null}
+      onlySubmittable={false}
+    />
+
+    <!-- Action buttons -->
     <div class="flex justify-end gap-2">
       <button
         onclick={applyFilters}
@@ -294,7 +253,7 @@
     {loading}
     {error}
     showUser={true}
-    category={selectedCategory}
+    category={appliedCategory}
     disableGrouping={!!appliedTypeId}
   />
 
@@ -308,3 +267,10 @@
     />
   {/if}
 </div>
+
+<style>
+  /* Hide the selection info box from ContributionSelection component */
+  .filters-container :global(.selection-info) {
+    display: none;
+  }
+</style>
