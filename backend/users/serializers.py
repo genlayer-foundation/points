@@ -127,6 +127,16 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     node_version = serializers.CharField(required=False, allow_blank=True, allow_null=True, source='validator.node_version')
     email = serializers.EmailField(required=False, allow_blank=True)
     website = serializers.CharField(required=False, allow_blank=True, max_length=200)
+
+    # Disposable email providers to block
+    DISPOSABLE_EMAIL_DOMAINS = [
+        'tempmail.com', 'guerrillamail.com', 'mailinator.com',
+        '10minutemail.com', 'throwaway.email', 'temp-mail.org',
+        'fakeinbox.com', 'getnada.com', 'trashmail.com',
+        'maildrop.cc', 'yopmail.com', 'mohmal.com',
+        'sharklasers.com', 'grr.la', 'guerrillamailblock.com',
+        'spam4.me', 'mintemail.com', 'emailondeck.com',
+    ]
     
     class Meta:
         model = User
@@ -134,6 +144,51 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
                   'github_username']
     
+    def validate_email(self, value):
+        """Validate email with DNS checks and block disposable providers"""
+        if not value:
+            return value
+
+        from email_validator import validate_email, EmailNotValidError
+
+        try:
+            # Validate email with DNS deliverability check
+            valid = validate_email(
+                value,
+                check_deliverability=True,      # Check DNS MX records
+                test_environment=False,         # Block test@test.com patterns
+                globally_deliverable=True,      # Reject localhost, private IPs, .local domains
+                allow_domain_literal=False,     # Block IP-based emails like user@[192.168.1.1]
+                timeout=10                      # DNS timeout in seconds (prevent hanging)
+            )
+
+            # Get normalized email (lowercase domain, etc.)
+            normalized_email = valid.normalized
+
+            # Check if domain is in disposable email blocklist
+            if valid.domain.lower() in self.DISPOSABLE_EMAIL_DOMAINS:
+                raise serializers.ValidationError(
+                    "Temporary or disposable email addresses are not allowed. Please use a permanent email address."
+                )
+
+            return normalized_email
+
+        except EmailNotValidError as e:
+            # Convert email-validator errors to DRF validation errors
+            error_message = str(e)
+
+            # Provide user-friendly messages for common errors
+            if "does not exist" in error_message.lower():
+                raise serializers.ValidationError(
+                    "This email domain does not exist. Please check for typos."
+                )
+            elif "does not accept email" in error_message.lower():
+                raise serializers.ValidationError(
+                    "This email domain cannot receive emails. Please use a different email address."
+                )
+            else:
+                raise serializers.ValidationError(error_message)
+
     def validate_description(self, value):
         """Validate description length"""
         if value and len(value) > 500:
