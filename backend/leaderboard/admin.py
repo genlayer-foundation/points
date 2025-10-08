@@ -31,55 +31,26 @@ class LeaderboardEntryAdmin(admin.ModelAdmin):
     
     def recreate_all_leaderboards(self, request, queryset):
         """
-        Admin action to recreate all leaderboard entries (global and category-specific).
+        Admin action to recreate all leaderboard entries and referral points from scratch.
         This will:
-        1. Delete all existing leaderboard entries
-        2. Recreate entries based on current contributions
-        3. Update all ranks
+        1. Delete all existing leaderboard entries and referral points
+        2. Recalculate referral points from contributions
+        3. Recreate leaderboard entries based on current contributions
+        4. Update all ranks
         """
         try:
-            # Delete all existing leaderboard entries
-            deleted_count = LeaderboardEntry.objects.all().delete()[0]
-            
-            # Get all users who have contributions
-            users_with_contributions = User.objects.filter(
-                contributions__isnull=False
-            ).distinct()
-            
-            # Counter for created entries
-            created_count = 0
-            
-            # For each user, create their leaderboard entries
-            for user in users_with_contributions:
-                # Calculate user's total points
-                total_points = sum(Contribution.objects.filter(
-                    user=user
-                ).values_list('frozen_global_points', flat=True))
-                
-                if total_points > 0:
-                    # Determine which leaderboards this user should be on
-                    user_leaderboards = LeaderboardEntry.determine_user_leaderboards(user)
-                    
-                    # Create entries for each qualified leaderboard
-                    for leaderboard_type in user_leaderboards:
-                        LeaderboardEntry.objects.create(
-                            user=user,
-                            type=leaderboard_type,
-                            total_points=total_points
-                        )
-                        created_count += 1
-            
-            # Update all ranks for each leaderboard type
-            for leaderboard_type, _ in LeaderboardEntry.LEADERBOARD_TYPES:
-                LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
-            
+            from .models import recalculate_all_leaderboards
+
+            # Call the comprehensive recalculation function
+            result = recalculate_all_leaderboards()
+
             # Show success message
             self.message_user(
                 request,
-                f"Successfully recreated leaderboards. Deleted {deleted_count} old entries, created {created_count} new entries.",
+                f"Successfully recreated leaderboards and referral points. {result}",
                 messages.SUCCESS
             )
-            
+
         except Exception as e:
             self.message_user(
                 request,
