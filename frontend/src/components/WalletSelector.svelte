@@ -5,7 +5,7 @@
   import coinbaseLogo from '../assets/wallets/coinbase.svg';
   import phantomLogo from '../assets/wallets/phantom.svg';
   
-  let { 
+  let {
     isOpen = $bindable(false),
     onSelect = () => {}
   } = $props();
@@ -163,7 +163,7 @@
       window.removeEventListener('eip6963:announceProvider', handleProviderAnnouncement);
     };
   });
-  
+
   function detectWallets() {
     loading = true;
     const wallets = [];
@@ -305,24 +305,24 @@
   
   function cancelConnection() {
     connectionAborted = true;
-    
+
     // Abort the connection controller if it exists
     if (connectionController) {
       connectionController.abort();
     }
-    
+
     connectingWallet = null;
     isConnecting = false;
     isOpen = false;
   }
-  
+
   function handleBackdropClick(e) {
     // Don't close if currently connecting
     if (e.target === e.currentTarget && !connectingWallet) {
       isOpen = false;
     }
   }
-  
+
   function handleKeyDown(e) {
     // Don't close if currently connecting
     if (e.key === 'Escape' && !connectingWallet) {
@@ -346,7 +346,7 @@
 {/snippet}
 
 {#if isOpen}
-  <div 
+  <div
     class="wallet-selector-backdrop"
     onclick={handleBackdropClick}
     onkeydown={handleKeyDown}
@@ -356,9 +356,13 @@
     <div class="wallet-selector-modal">
       <div class="wallet-selector-header">
         <h2 class="wallet-selector-title">Connect Wallet</h2>
-        <button 
+        <button
           class="wallet-selector-close"
-          onclick={() => !connectingWallet && (isOpen = false)}
+          onclick={() => {
+            if (!connectingWallet) {
+              isOpen = false;
+            }
+          }}
           disabled={connectingWallet !== null}
           aria-label="Close"
         >
@@ -367,7 +371,7 @@
           </svg>
         </button>
       </div>
-      
+
       <div class="wallet-selector-body">
         {#if loading}
           <div class="wallet-selector-loading">
@@ -442,7 +446,7 @@
     animation: fadeIn 0.15s ease-out;
     backdrop-filter: blur(4px);
   }
-  
+
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -508,7 +512,7 @@
   }
   
   .wallet-selector-close:disabled {
-    cursor: not-allowed;
+    cursor: default;
     opacity: 0.3;
     color: #D1D5DB;
   }
@@ -661,7 +665,7 @@
     color: #9CA3AF;
     line-height: 1.5;
   }
-  
+
   /* Responsive design */
   @media (max-width: 640px) {
     .wallet-selector-modal {

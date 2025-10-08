@@ -11,8 +11,7 @@
   $: address = $authState.address;
   $: storeLoading = $authState.loading;
   $: storeError = $authState.error;
-  $: userName = $userStore.user?.name;
-  
+
   let loading = false;
   let error = null;
   let showDropdown = false;
@@ -52,12 +51,16 @@
     // Start the connection process with selected wallet
     loading = true;
     error = null;
-    // Keep the wallet selector open during connection
-    
+
     try {
+      // Sign in with Ethereum
       await signInWithEthereum(provider, walletName);
-      // Only close on successful connection
+
+      // Close wallet selector modal
       showWalletSelector = false;
+
+      // ProfileCompletionGuard will automatically show if profile is incomplete
+      // Otherwise user continues to their profile or intended destination
     } catch (err) {
       console.error('Auth error:', err);
       // Create a curated error message
@@ -124,7 +127,7 @@
     {#if loading || storeLoading}
       <span class="loading-spinner"></span>
     {:else if isAuthenticated}
-      <span class="address">{userName || formatAddress(address)}</span>
+      <span class="address">{formatAddress(address)}</span>
       <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
       </svg>
@@ -167,7 +170,10 @@
 </div>
 
 <!-- Wallet Selector Modal -->
-<WalletSelector bind:isOpen={showWalletSelector} onSelect={handleWalletSelected} />
+<WalletSelector
+  bind:isOpen={showWalletSelector}
+  onSelect={handleWalletSelected}
+/>
 
 <style>
   .auth-dropdown-container {
