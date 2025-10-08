@@ -193,39 +193,45 @@
 
   <!-- FILTERS -->
   <div class="bg-white shadow rounded-lg p-4 space-y-4 filters-container">
-    <!-- Participant Filter -->
+    <!-- Category and Contribution Type Selection -->
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1">Participant</label>
-      <input
-        type="text"
-        bind:value={participantFilter}
-        placeholder="Name or address (0x...)"
-        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+      <label class="block text-sm font-medium text-gray-700 mb-1">Contribution Type</label>
+      <ContributionSelection
+        bind:selectedCategory
+        bind:selectedContributionType
+        defaultContributionType={appliedTypeId ? Number(appliedTypeId) : null}
+        onlySubmittable={false}
       />
     </div>
 
-    <!-- Category and Contribution Type Selection -->
-    <ContributionSelection
-      bind:selectedCategory
-      bind:selectedContributionType
-      defaultContributionType={appliedTypeId ? Number(appliedTypeId) : null}
-      onlySubmittable={false}
-    />
+    <!-- Participant Filter and Action buttons on same row -->
+    <div class="flex flex-col sm:flex-row gap-4 items-end">
+      <!-- Participant Filter -->
+      <div class="flex-1">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Participant</label>
+        <input
+          type="text"
+          bind:value={participantFilter}
+          placeholder="Name or address (0x...)"
+          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+        />
+      </div>
 
-    <!-- Action buttons -->
-    <div class="flex justify-end gap-2">
-      <button
-        onclick={applyFilters}
-        class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors font-medium"
-      >
-        Apply Filters
-      </button>
-      <button
-        onclick={clearFilters}
-        class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors font-medium"
-      >
-        Clear Filters
-      </button>
+      <!-- Action buttons -->
+      <div class="flex gap-2 flex-shrink-0">
+        <button
+          onclick={applyFilters}
+          class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors font-medium whitespace-nowrap"
+        >
+          Apply Filters
+        </button>
+        <button
+          onclick={clearFilters}
+          class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors font-medium whitespace-nowrap"
+        >
+          Clear Filters
+        </button>
+      </div>
     </div>
   </div>
 
