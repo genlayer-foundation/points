@@ -7,26 +7,13 @@
   
   let {
     isOpen = $bindable(false),
-    showProfileCompletion = $bindable(false),
-    userData = null,
-    onSelect = () => {},
-    onProfileCompleted = () => {}
+    onSelect = () => {}
   } = $props();
   
   let availableWallets = $state([]);
   let loading = $state(true);
   let detectedProviders = $state(new Map()); // Store providers detected via EIP-6963
   let connectingWallet = $state(null); // Track which wallet is currently connecting
-
-  // Profile completion form state
-  let email = $state('');
-  let name = $state('');
-  let submittingProfile = $state(false);
-  let profileError = $state('');
-
-  // Track which fields were pre-filled (already had values)
-  let hasExistingName = $state(false);
-  let hasExistingEmail = $state(false);
   
   // Constants
   const INSTALL_URLS = {
@@ -175,29 +162,6 @@
     return () => {
       window.removeEventListener('eip6963:announceProvider', handleProviderAnnouncement);
     };
-  });
-
-  // Pre-fill form fields when userData is provided
-  $effect(() => {
-    if (userData && showProfileCompletion) {
-      // Pre-fill name if it exists
-      if (userData.name && userData.name.trim() !== '') {
-        name = userData.name;
-        hasExistingName = true;
-      } else {
-        name = '';
-        hasExistingName = false;
-      }
-
-      // Pre-fill email if it exists and is not auto-generated
-      if (userData.email && userData.email.trim() !== '' && !userData.email.endsWith('@ethereum.address')) {
-        email = userData.email;
-        hasExistingEmail = true;
-      } else {
-        email = '';
-        hasExistingEmail = false;
-      }
-    }
   });
 
   function detectWallets() {
@@ -352,76 +316,16 @@
     isOpen = false;
   }
 
-  async function handleProfileSubmit() {
-    // Validate inputs
-    if (!email || !name) {
-      profileError = 'Please provide both email and display name';
-      return;
-    }
-
-    if (!isValidEmail(email)) {
-      profileError = 'Please enter a valid email address';
-      return;
-    }
-
-    submittingProfile = true;
-    profileError = '';
-
-    try {
-      // Import the API function
-      const { updateUserProfile } = await import('../lib/api');
-
-      // Prepare update data
-      const updateData = {};
-      if (email) updateData.email = email;
-      if (name) updateData.name = name;
-
-      // Submit to backend
-      await updateUserProfile(updateData);
-
-      // Update the user store
-      const { userStore } = await import('../lib/userStore');
-      userStore.updateUser(updateData);
-
-      // Call the completion callback
-      onProfileCompleted();
-    } catch (err) {
-      console.error('Profile update error:', err);
-      // Handle field-specific errors from Django REST Framework
-      if (err.response?.data) {
-        const data = err.response.data;
-        if (data.email) {
-          profileError = data.email;
-        } else if (data.name) {
-          profileError = data.name;
-        } else if (data.error) {
-          profileError = data.error;
-        } else {
-          profileError = err.message || 'Failed to update profile';
-        }
-      } else {
-        profileError = err.message || 'Failed to update profile';
-      }
-    } finally {
-      submittingProfile = false;
-    }
-  }
-
-  function isValidEmail(email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  }
-
   function handleBackdropClick(e) {
-    // Don't close if currently connecting, submitting profile, or profile completion is required
-    if (e.target === e.currentTarget && !connectingWallet && !submittingProfile && !showProfileCompletion) {
+    // Don't close if currently connecting
+    if (e.target === e.currentTarget && !connectingWallet) {
       isOpen = false;
     }
   }
 
   function handleKeyDown(e) {
-    // Don't close if currently connecting, submitting profile, or profile completion is required
-    if (e.key === 'Escape' && !connectingWallet && !submittingProfile && !showProfileCompletion) {
+    // Don't close if currently connecting
+    if (e.key === 'Escape' && !connectingWallet) {
       isOpen = false;
     }
   }
@@ -444,108 +348,32 @@
 {#if isOpen}
   <div
     class="wallet-selector-backdrop"
-    class:backdrop-non-interactive={showProfileCompletion}
     onclick={handleBackdropClick}
     onkeydown={handleKeyDown}
-    role={showProfileCompletion ? null : "button"}
-    tabindex={showProfileCompletion ? null : "-1"}
+    role="button"
+    tabindex="-1"
   >
     <div class="wallet-selector-modal">
       <div class="wallet-selector-header">
-        <h2 class="wallet-selector-title">{showProfileCompletion ? 'Complete Your Profile' : 'Connect Wallet'}</h2>
-        {#if !showProfileCompletion}
-          <button
-            class="wallet-selector-close"
-            onclick={() => {
-              if (!connectingWallet && !submittingProfile) {
-                isOpen = false;
-              }
-            }}
-            disabled={connectingWallet !== null || submittingProfile}
-            aria-label="Close"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-        {/if}
+        <h2 class="wallet-selector-title">Connect Wallet</h2>
+        <button
+          class="wallet-selector-close"
+          onclick={() => {
+            if (!connectingWallet) {
+              isOpen = false;
+            }
+          }}
+          disabled={connectingWallet !== null}
+          aria-label="Close"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
       </div>
 
       <div class="wallet-selector-body">
-        {#if showProfileCompletion}
-          <div class="profile-completion-form">
-            <!-- Welcome Icon -->
-            <div class="flex justify-center mb-4">
-              <div class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
-                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                </svg>
-              </div>
-            </div>
-
-            <p class="text-gray-700 text-sm mb-2 text-center font-medium">
-              Welcome! Let's set up your profile.
-            </p>
-            <p class="text-gray-600 text-sm mb-6 text-center">
-              This helps us personalize your experience and keep you updated.
-            </p>
-
-            {#if profileError}
-              <div class="profile-error">
-                {profileError}
-              </div>
-            {/if}
-
-            <div class="form-group">
-              <label for="name" class="form-label">
-                Display Name
-                {#if hasExistingName}
-                  <span class="text-green-600 text-xs ml-1.5 font-normal">✓ Already set</span>
-                {/if}
-              </label>
-              <input
-                id="name"
-                type="text"
-                bind:value={name}
-                placeholder="e.g., Alex Builder"
-                class="form-input {hasExistingName ? 'bg-green-50' : ''}"
-                disabled={submittingProfile}
-              />
-              <p class="text-xs text-gray-500 mt-1">This is how you'll appear to other participants</p>
-            </div>
-
-            <div class="form-group">
-              <label for="email" class="form-label">
-                Email Address
-                {#if hasExistingEmail}
-                  <span class="text-green-600 text-xs ml-1.5 font-normal">✓ Already set</span>
-                {/if}
-              </label>
-              <input
-                id="email"
-                type="email"
-                bind:value={email}
-                placeholder="your@email.com"
-                class="form-input {hasExistingEmail ? 'bg-green-50' : ''}"
-                disabled={submittingProfile}
-              />
-              <p class="text-xs text-gray-500 mt-1">We'll use this to send you important updates about your contributions</p>
-            </div>
-
-            <button
-              onclick={handleProfileSubmit}
-              disabled={submittingProfile || !email.trim() || !name.trim()}
-              class="profile-submit-button"
-            >
-              {#if submittingProfile}
-                <div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Saving...
-              {:else}
-                Complete Profile
-              {/if}
-            </button>
-          </div>
-        {:else if loading}
+        {#if loading}
           <div class="wallet-selector-loading">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <p class="text-gray-500 mt-3">Detecting wallets...</p>
@@ -619,10 +447,6 @@
     backdrop-filter: blur(4px);
   }
 
-  .backdrop-non-interactive {
-    cursor: default;
-  }
-  
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -840,88 +664,6 @@
     font-size: 0.75rem;
     color: #9CA3AF;
     line-height: 1.5;
-  }
-
-  /* Profile Completion Form Styles */
-  .profile-completion-form {
-    padding: 0.5rem 0;
-  }
-
-  .profile-error {
-    background-color: #FEE2E2;
-    border: 1px solid #F87171;
-    color: #B91C1C;
-    padding: 0.75rem 1rem;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    margin-bottom: 1rem;
-  }
-
-  .form-group {
-    margin-bottom: 1.25rem;
-  }
-
-  .form-label {
-    display: block;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: #374151;
-    margin-bottom: 0.5rem;
-  }
-
-  .form-input {
-    width: 100%;
-    padding: 0.875rem 1rem;
-    font-size: 0.9375rem;
-    color: #111827;
-    background-color: #FAFAFA;
-    border: 1px solid #E5E7EB;
-    border-radius: 0.75rem;
-    transition: all 0.15s;
-  }
-
-  .form-input:focus {
-    outline: none;
-    background-color: #FFFFFF;
-    border-color: #2563EB;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-  }
-
-  .form-input:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
-
-  .form-input::placeholder {
-    color: #9CA3AF;
-  }
-
-  .profile-submit-button {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.875rem 1rem;
-    font-size: 0.9375rem;
-    font-weight: 500;
-    color: white;
-    background-color: #2563EB;
-    border: none;
-    border-radius: 0.75rem;
-    cursor: pointer;
-    transition: all 0.15s;
-    margin-top: 0.5rem;
-  }
-
-  .profile-submit-button:hover:not(:disabled) {
-    background-color: #1D4ED8;
-    transform: translateY(-1px);
-  }
-
-  .profile-submit-button:disabled {
-    opacity: 0.6;
-    cursor: default;
-    transform: none;
   }
 
   /* Responsive design */

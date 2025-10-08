@@ -16,9 +16,6 @@
   let error = null;
   let showDropdown = false;
   let showWalletSelector = false;
-  let showProfileCompletion = false;
-  let connectedAddress = null;
-  let connectedUserData = null;
   let errorTimeout;
   
   // Auto-dismiss error messages after 5 seconds
@@ -54,30 +51,16 @@
     // Start the connection process with selected wallet
     loading = true;
     error = null;
-    // Keep the wallet selector open during connection
 
     try {
-      // Sign in with skipRedirect=true to check profile completeness first
-      const result = await signInWithEthereum(provider, walletName, true);
-      const userData = result?.user;
-      connectedAddress = result?.address;
-      connectedUserData = userData;
+      // Sign in with Ethereum
+      await signInWithEthereum(provider, walletName);
 
-      // Check if profile is incomplete
-      const needsEmail = !userData?.email || userData.email.trim() === '';
-      const needsName = !userData?.name || userData.name.trim() === '';
+      // Close wallet selector modal
+      showWalletSelector = false;
 
-      if (needsEmail || needsName) {
-        // Show profile completion form instead of closing
-        showProfileCompletion = true;
-      } else {
-        // Profile is complete, close modal and redirect
-        showWalletSelector = false;
-        // Manually trigger redirect
-        import('svelte-spa-router').then(({ push }) => {
-          push(`/participant/${connectedAddress}`);
-        });
-      }
+      // ProfileCompletionGuard will automatically show if profile is incomplete
+      // Otherwise user continues to their profile or intended destination
     } catch (err) {
       console.error('Auth error:', err);
       // Create a curated error message
@@ -98,17 +81,6 @@
     }
   }
   
-  async function handleProfileCompleted() {
-    // Profile completion is done, close modal and redirect
-    showProfileCompletion = false;
-    showWalletSelector = false;
-
-    // Redirect to user's profile
-    import('svelte-spa-router').then(({ push }) => {
-      push(`/participant/${connectedAddress}`);
-    });
-  }
-
   async function handleLogout() {
     showDropdown = false;
     await logout();
@@ -200,10 +172,7 @@
 <!-- Wallet Selector Modal -->
 <WalletSelector
   bind:isOpen={showWalletSelector}
-  bind:showProfileCompletion={showProfileCompletion}
-  userData={connectedUserData}
   onSelect={handleWalletSelected}
-  onProfileCompleted={handleProfileCompleted}
 />
 
 <style>
