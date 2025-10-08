@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from disposable_email_domains import blocklist
 from .models import User
 from validators.models import Validator
 from builders.models import Builder
@@ -128,16 +129,6 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=False, allow_blank=True)
     website = serializers.CharField(required=False, allow_blank=True, max_length=200)
 
-    # Disposable email providers to block
-    DISPOSABLE_EMAIL_DOMAINS = [
-        'tempmail.com', 'guerrillamail.com', 'mailinator.com',
-        '10minutemail.com', 'throwaway.email', 'temp-mail.org',
-        'fakeinbox.com', 'getnada.com', 'trashmail.com',
-        'maildrop.cc', 'yopmail.com', 'mohmal.com',
-        'sharklasers.com', 'grr.la', 'guerrillamailblock.com',
-        'spam4.me', 'mintemail.com', 'emailondeck.com',
-    ]
-    
     class Meta:
         model = User
         fields = ['name', 'node_version', 'email', 'description', 'website',
@@ -166,7 +157,7 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
             normalized_email = valid.normalized
 
             # Check if domain is in disposable email blocklist
-            if valid.domain.lower() in self.DISPOSABLE_EMAIL_DOMAINS:
+            if valid.domain.lower() in blocklist:
                 raise serializers.ValidationError(
                     "Temporary or disposable email addresses are not allowed. Please use a permanent email address."
                 )
