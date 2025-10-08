@@ -2,14 +2,16 @@
   import { onMount } from 'svelte';
   import { push, querystring } from 'svelte-spa-router';
   import { format } from 'date-fns';
-  import UserContributions from '../components/UserContributions.svelte';
+  import RecentContributions from '../components/RecentContributions.svelte';
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
-  import StatCard from '../components/StatCard.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import ProfileStats from '../components/ProfileStats.svelte';
   import ContributionBreakdown from '../components/ContributionBreakdown.svelte';
   import BuilderProgress from '../components/BuilderProgress.svelte';
-  import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, getCurrentUser } from '../lib/api';
+  import ReferralSection from '../components/ReferralSection.svelte';
+  import Icons from '../components/Icons.svelte';
+  import Tooltip from '../components/Tooltip.svelte';
+  import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, creatorAPI, getCurrentUser } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
   import Avatar from '../components/Avatar.svelte';
@@ -51,7 +53,9 @@
   let isClaimingBuilderBadge = $state(false);
   let hasCalledComplete = $state(false);
   let showSuccessNotification = $state(false);
-  
+  let referralData = $state(null);
+  let loadingReferrals = $state(false);
+
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
     $authState.isAuthenticated && 
@@ -78,6 +82,7 @@
     participant.validator ? 'validator' :
     participant.builder ? 'builder' :
     participant.steward ? 'steward' :
+    participant.creator ? 'creator' :
     'participant'
   );
   
@@ -86,6 +91,7 @@
     participantType === 'validator' ? 'sky' :
     participantType === 'builder' ? 'orange' :
     participantType === 'steward' ? 'green' :
+    participantType === 'creator' ? 'purple' :
     'gray'
   );
   
@@ -94,6 +100,7 @@
     participant?.steward ? 'green' :
     participant?.validator ? 'sky' :
     participant?.builder ? 'orange' :
+    participant?.creator ? 'purple' :
     participant?.has_validator_waitlist ? 'sky-waitlist' :
     participant?.has_builder_welcome ? 'orange-welcome' :
     'purple'
@@ -129,9 +136,20 @@
       participant.steward ||
       participant.validator ||
       participant.builder ||
+      participant.creator ||
       participant.has_validator_waitlist ||
       participant.has_builder_welcome
     )
+  );
+
+  // Check if user is ONLY a creator (no other roles)
+  let isCreatorOnly = $derived(
+    participant?.creator &&
+    !participant.steward &&
+    !participant.validator &&
+    !participant.builder &&
+    !participant.has_validator_waitlist &&
+    !participant.has_builder_welcome
   );
   
   $effect(() => {
@@ -182,7 +200,8 @@
       }, 5000);
     }
   });
-  
+
+
   async function refreshBalance() {
     if (!participant?.address) {
       return;
@@ -197,6 +216,23 @@
       testnetBalance = 0;
     } finally {
       isRefreshingBalance = false;
+    }
+  }
+
+  async function fetchReferrals() {
+    if (!isOwnProfile || loadingReferrals) {
+      return;
+    }
+
+    loadingReferrals = true;
+    try {
+      const response = await usersAPI.getReferrals();
+      referralData = response.data;
+    } catch (err) {
+      console.error('Failed to fetch referrals:', err);
+      referralData = null;
+    } finally {
+      loadingReferrals = false;
     }
   }
   
@@ -220,14 +256,47 @@
     }
   }
   
+  async function startCreatorJourney() {
+    if (!$authState.isAuthenticated) {
+      return;
+    }
+
+    // Clear any existing error states
+    error = null;
+    successMessage = '';
+
+    try {
+      const response = await creatorAPI.joinAsCreator();
+
+      // If successful, reload the user data
+      if (response.status === 201 || response.status === 200) {
+        // Show a success message
+        successMessage = 'You are now a Supporter! Start growing the community through referrals.';
+
+        // Reload participant data to get Supporter profile (same pattern as Builder)
+        const updatedUser = await getCurrentUser();
+        participant = updatedUser;
+
+        // Auto-hide success message after 5 seconds
+        setTimeout(() => {
+          successMessage = '';
+        }, 5000);
+      }
+    } catch (err) {
+      console.error('Error joining as creator:', err);
+      error = err.response?.data?.message || 'Failed to join as supporter';
+      successMessage = '';
+    }
+  }
+
   async function completeBuilderJourney() {
     if (!$authState.isAuthenticated || !allRequirementsMet) {
       return;
     }
-    
+
     try {
       const response = await journeyAPI.completeBuilderJourney();
-      
+
       // If successful, show success notification and reload data
       if (response.status === 201 || response.status === 200) {
         showSuccessNotification = true;
@@ -346,22 +415,27 @@
       }
       
       // Load additional data asynchronously for own profile
-      if (isOwnProfile && participant.has_builder_welcome) {
-        // Check testnet balance asynchronously
-        getValidatorBalance(participant.address).then(result => {
-          testnetBalance = parseFloat(result.formatted);
-        }).catch(err => {
-          console.error('Failed to check testnet balance:', err);
-          testnetBalance = 0;
-        });
-        
-        // Check for contract deployments asynchronously
-        usersAPI.getDeploymentStatus().then(deploymentResult => {
-          hasDeployedContract = deploymentResult.data.has_deployments || false;
-        }).catch(err => {
-          console.error('Failed to check deployments:', err);
-          hasDeployedContract = false;
-        });
+      if (isOwnProfile) {
+        // Fetch referral data
+        fetchReferrals();
+
+        if (participant.has_builder_welcome) {
+          // Check testnet balance asynchronously
+          getValidatorBalance(participant.address).then(result => {
+            testnetBalance = parseFloat(result.formatted);
+          }).catch(err => {
+            console.error('Failed to check testnet balance:', err);
+            testnetBalance = 0;
+          });
+
+          // Check for contract deployments asynchronously
+          usersAPI.getDeploymentStatus().then(deploymentResult => {
+            hasDeployedContract = deploymentResult.data.has_deployments || false;
+          }).catch(err => {
+            console.error('Failed to check deployments:', err);
+            hasDeployedContract = false;
+          });
+        }
       }
     } catch (err) {
       // Check if it's a 404 (user not found) - for validators without accounts
@@ -396,7 +470,8 @@
       return dateString;
     }
   }
-  
+
+
   // Icons for stat cards
   const icons = {
     contributions: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
@@ -500,7 +575,7 @@
     </div>
   {:else if participant}
     <!-- Profile Header with Banner and Avatar -->
-    <div class="bg-white shadow rounded-lg overflow-hidden mb-6">
+    <div class="bg-white shadow rounded-lg mb-6">
       <!-- Banner Image -->
       <div class="h-32 md:h-48 relative overflow-hidden">
         {#if participant.banner_image_url}
@@ -517,7 +592,7 @@
       </div>
       
       <!-- Profile Info Section -->
-      <div class="relative px-4 sm:px-6 pb-6">
+      <div class="relative px-4 sm:px-6 pb-6" style="overflow: visible;">
         <!-- Avatar -->
         <div class="-mt-12 sm:-mt-16 mb-4">
           <Avatar 
@@ -538,7 +613,7 @@
               </h1>
               
               <!-- Badges next to name -->
-              {#if participant.steward || participant.validator || participant.builder || participant.has_validator_waitlist || participant.has_builder_welcome}
+              {#if participant.steward || participant.validator || participant.builder || participant.creator || participant.has_validator_waitlist || participant.has_builder_welcome}
                 {#if participant.steward}
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                     Steward
@@ -562,12 +637,17 @@
                     Builder Welcome
                   </span>
                 {/if}
+                {#if participant.creator}
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    Supporter
+                  </span>
+                {/if}
               {/if}
             </div>
             
             {#if participant.address}
-              <!-- Address with copy button -->
-              <div class="flex items-center gap-2 mt-2">
+              <!-- Address with copy button and referral link -->
+              <div class="flex items-center gap-2 mt-2" style="overflow: visible;">
                 <code class="text-sm text-gray-600 font-mono">
                   {participant.address.substring(0, 6)}...{participant.address.substring(participant.address.length - 4)}
                 </code>
@@ -587,6 +667,13 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                   </svg>
                 </button>
+                
+                <!-- Referral Section for own profile -->
+                {#if isOwnProfile}
+                  <div class="ml-2">
+                    <ReferralSection />
+                  </div>
+                {/if}
               </div>
             {/if}
             
@@ -643,7 +730,7 @@
         {/if}
         
         <!-- Contact Links -->
-        {#if participant.website || participant.twitter_handle || participant.discord_handle || participant.telegram_handle || participant.linkedin_handle}
+        {#if participant.website || participant.twitter_handle || participant.discord_handle || participant.telegram_handle || participant.linkedin_handle || participant.github_username}
           <div class="mt-4 flex flex-wrap gap-3">
             {#if participant.website}
               <a 
@@ -693,9 +780,9 @@
               </a>
             {/if}
             {#if participant.linkedin_handle}
-              <a 
-                href={`https://linkedin.com/in/${participant.linkedin_handle}`} 
-                target="_blank" 
+              <a
+                href={`https://linkedin.com/in/${participant.linkedin_handle}`}
+                target="_blank"
                 rel="noopener noreferrer"
                 class="inline-flex items-center text-sm text-gray-600 hover:text-primary-600"
               >
@@ -705,19 +792,33 @@
                 {participant.linkedin_handle}
               </a>
             {/if}
+            {#if participant.github_username}
+              <a
+                href={`https://github.com/${participant.github_username}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center text-sm text-gray-600 hover:text-primary-600"
+              >
+                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+                </svg>
+                {participant.github_username}
+              </a>
+            {/if}
           </div>
         {/if}
       </div>
     </div>
     
-    <!-- Balance and Joined Cards -->
+    <!-- Metrics Container -->
     {#if !isValidatorOnly}
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <!-- Balance and Joined Date in a row -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <!-- Balance Card -->
         <div class="bg-white shadow rounded-lg p-4">
           <div class="flex items-center">
-            <div class="flex-shrink-0 p-3 rounded-lg mr-4 bg-green-50 text-green-500">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex-shrink-0 p-2.5 rounded-lg mr-3 bg-green-50 text-green-500">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
               </svg>
             </div>
@@ -728,21 +829,33 @@
                   <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600 mr-2"></div>
                   <span class="text-gray-500">Loading...</span>
                 {:else if balance}
-                  <p class="text-xl font-bold text-gray-900">{balance.formatted} GEN</p>
+                  <Tooltip tooltipText="Asimov Testnet Tokens are valueless faucet tokens for testing only and provide no right or expectation of profit or redemption.">
+                    {#snippet children()}
+                      <p class="text-xl font-bold text-gray-900 cursor-help">
+                        {balance.formatted} GEN<sup class="text-red-500">*</sup>
+                      </p>
+                    {/snippet}
+                  </Tooltip>
                 {:else}
-                  <p class="text-xl font-bold text-gray-900">0 GEN</p>
+                  <Tooltip tooltipText="Asimov Testnet Tokens are valueless faucet tokens for testing only and provide no right or expectation of profit or redemption.">
+                    {#snippet children()}
+                      <p class="text-xl font-bold text-gray-900 cursor-help">
+                        0 GEN<sup class="text-red-500">*</sup>
+                      </p>
+                    {/snippet}
+                  </Tooltip>
                 {/if}
               </div>
             </div>
           </div>
         </div>
-        
+
         <!-- Joined Date Card -->
         {#if participant.created_at}
           <div class="bg-white shadow rounded-lg p-4">
             <div class="flex items-center">
-              <div class="flex-shrink-0 p-3 rounded-lg mr-4 bg-blue-50 text-blue-500">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="flex-shrink-0 p-2.5 rounded-lg mr-3 bg-blue-50 text-blue-500">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                 </svg>
               </div>
@@ -931,16 +1044,21 @@
               <ContributionBreakdown
                 contributionTypes={participant.validator.contribution_types}
                 colorTheme="sky"
+                userAddress={participant.address}
               />
             </div>
           {/if}
           
           <!-- Contributions -->
           <div class="px-4 mt-6 pb-6">
-            <UserContributions
-              userAddress={participant.address}
-              userName={participant.name || 'Validator'}
-              category="validator"
+            <RecentContributions
+              title="Recent Contributions"
+              limit={5}
+              userId={participant.address}
+              showHeader={true}
+              showViewAll={true}
+              viewAllPath={`/all-contributions?user=${participant.address}&category=validator`}
+              viewAllText="View All →"
             />
           </div>
         {/if}
@@ -991,17 +1109,21 @@
               <ContributionBreakdown
                 contributionTypes={participant.builder.contribution_types}
                 colorTheme="orange"
+                userAddress={participant.address}
               />
             </div>
           {/if}
           
           <!-- Contributions -->
           <div class="mt-6">
-            <UserContributions
-              userAddress={participant.address}
-              userName={participant.name || 'Builder'}
-              category="builder"
-              compact={true}
+            <RecentContributions
+              title="Recent Contributions"
+              limit={5}
+              userId={participant.address}
+              showHeader={true}
+              showViewAll={true}
+              viewAllPath={`/all-contributions?user=${participant.address}&category=builder`}
+              viewAllText="View All →"
             />
           </div>
         </div>
@@ -1066,17 +1188,21 @@
               <ContributionBreakdown
                 contributionTypes={validatorStats.contributionTypes}
                 colorTheme="sky"
+                userAddress={participant.address}
               />
             </div>
           {/if}
           
           <!-- Contributions List -->
           <div class="mt-6">
-            <UserContributions
-              userAddress={participant.address}
-              userName={participant.name || 'Participant'}
-              category="validator"
-              compact={true}
+            <RecentContributions
+              title="Recent Contributions"
+              limit={5}
+              userId={participant.address}
+              showHeader={true}
+              showViewAll={true}
+              viewAllPath={`/all-contributions?user=${participant.address}&category=validator`}
+              viewAllText="View All →"
             />
           </div>
         </div>
@@ -1146,23 +1272,27 @@
               <ContributionBreakdown
                 contributionTypes={builderStats.contributionTypes}
                 colorTheme="orange"
+                userAddress={participant.address}
               />
             </div>
           {/if}
           
           <!-- Contributions List -->
           <div class="mt-6">
-            <UserContributions
-              userAddress={participant.address}
-              userName={participant.name || 'Participant'}
-              category="builder"
-              compact={true}
+            <RecentContributions
+              title="Recent Contributions"
+              limit={5}
+              userId={participant.address}
+              showHeader={true}
+              showViewAll={true}
+              viewAllPath={`/all-contributions?user=${participant.address}&category=builder`}
+              viewAllText="View All →"
             />
           </div>
         </div>
       </div>
     {/if}
-    
+
     <!-- Welcome Section for Users Without Roles (Only show on own profile) -->
     {#if !hasAnyRole && !isValidatorOnly && isOwnProfile}
       <!-- Welcome Card with Everything Inside -->
@@ -1232,9 +1362,9 @@
           <!-- Journey Selection Cards Inside Welcome Card -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-100">
             <!-- Builder Journey Card -->
-            <div class="group relative bg-orange-50 border-2 border-orange-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
+            <div class="group relative bg-orange-50 border-2 border-orange-200 rounded-xl overflow-hidden hover:shadow-lg transition-all flex flex-col">
               <div class="absolute inset-0 bg-orange-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div class="relative p-6">
+              <div class="relative p-6 flex flex-col flex-1">
                 <div class="flex items-center mb-4">
                   <div class="flex items-center justify-center w-12 h-12 bg-orange-500 rounded-full mr-4 flex-shrink-0">
                     <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -1246,7 +1376,7 @@
                     <p class="text-orange-700 text-sm">Learn GenLayer's basics and deploy your first Intelligent Contract powered by Optimistic Democracy</p>
                   </div>
                 </div>
-                <ul class="space-y-2 mb-6">
+                <ul class="space-y-2 mb-6 flex-1">
                   <li class="flex items-center text-sm text-orange-600">
                     <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
@@ -1268,7 +1398,7 @@
                 </ul>
                 <button
                   onclick={() => push('/builders/welcome')}
-                  class="w-full flex items-center justify-center px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold group-hover:shadow-md"
+                  class="w-full flex items-center justify-center px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold group-hover:shadow-md mt-auto"
                 >
                   <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
@@ -1279,9 +1409,9 @@
             </div>
             
             <!-- Validator Journey Card -->
-            <div class="group relative bg-sky-50 border-2 border-sky-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
+            <div class="group relative bg-sky-50 border-2 border-sky-200 rounded-xl overflow-hidden hover:shadow-lg transition-all flex flex-col">
               <div class="absolute inset-0 bg-sky-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div class="relative p-6">
+              <div class="relative p-6 flex flex-col flex-1">
                 <div class="flex items-center mb-4">
                   <div class="flex items-center justify-center w-12 h-12 bg-sky-500 rounded-full mr-4 flex-shrink-0">
                     <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -1293,7 +1423,7 @@
                     <p class="text-sky-700 text-sm">Validate and judge subjective Intelligent Contracts on Testnet Asimov</p>
                   </div>
                 </div>
-                <ul class="space-y-2 mb-6">
+                <ul class="space-y-2 mb-6 flex-1">
                   <li class="flex items-center text-sm text-sky-600">
                     <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
@@ -1315,7 +1445,7 @@
                 </ul>
                 <button
                   onclick={() => push('/validators/waitlist/join')}
-                  class="w-full flex items-center justify-center px-4 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-semibold group-hover:shadow-md"
+                  class="w-full flex items-center justify-center px-4 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-semibold group-hover:shadow-md mt-auto"
                 >
                   <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
@@ -1325,10 +1455,245 @@
               </div>
             </div>
           </div>
+
+          <!-- Become a Supporter Section (Below the two journey cards) -->
+          <div class="mt-6">
+            <div class="group relative bg-purple-50 border-2 border-purple-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
+              <div class="absolute inset-0 bg-purple-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div class="relative p-6">
+                <div class="flex items-center mb-4">
+                  <div class="flex items-center justify-center w-12 h-12 bg-purple-500 rounded-full mr-4 flex-shrink-0">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="text-xl font-bold text-purple-900 mb-1">Become a Supporter</h3>
+                    <p class="text-purple-700 text-sm">Grow the GenLayer community through referrals and earn rewards</p>
+                  </div>
+                </div>
+                <ul class="space-y-2 mb-6">
+                  <li class="flex items-center text-sm text-purple-600">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Refer builders and validators to the program
+                  </li>
+                  <li class="flex items-center text-sm text-purple-600">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Earn 10% of points from every contribution your referrals make
+                  </li>
+                  <li class="flex items-center text-sm text-purple-600">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Receive 500 Discord XP for each valid referral
+                  </li>
+                </ul>
+                <button
+                  onclick={startCreatorJourney}
+                  class="w-full flex items-center justify-center px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold group-hover:shadow-md"
+                >
+                  <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                  </svg>
+                  Become a Supporter
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     {/if}
-    
+
+    <!-- Referrals Card - Full Width -->
+    {#if !isValidatorOnly && (participant?.builder || participant?.validator || participant?.creator || participant?.total_referrals > 0) && (isOwnProfile || (!isOwnProfile && participant?.total_referrals > 0))}
+      <div class="bg-purple-50 rounded-lg shadow-sm border border-purple-200 overflow-visible mb-6">
+        <!-- Header -->
+        <div class="bg-purple-100 px-5 py-3 border-b border-purple-200 flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-purple-700 uppercase tracking-wider flex items-center">
+            <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+            </svg>
+            Referral Program
+          </h2>
+          {#if !loadingReferrals && referralData && referralData.total_referrals > 5}
+            <button
+              onclick={() => push('/referrals')}
+              class="inline-flex items-center text-sm font-medium text-purple-700 hover:text-purple-900 group"
+            >
+              View all
+              <svg class="w-4 h-4 ml-1 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+              </svg>
+            </button>
+          {/if}
+        </div>
+
+        <!-- Content -->
+        <div class="p-6">
+          {#if loadingReferrals || (referralData && referralData.total_referrals > 0) || (!isOwnProfile && participant?.total_referrals > 0)}
+            <!-- Metrics Grid - Side by Side (only show when there are referrals) -->
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <!-- Total Referrals Container -->
+              <div class="bg-purple-50/50 border border-purple-100 rounded-lg p-3">
+                <div class="flex items-center">
+                  <div class="flex-shrink-0 p-2.5 rounded-lg bg-purple-100 text-purple-600 mr-3">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                  </div>
+                  <div class="flex-1">
+                    <p class="text-sm text-gray-500">Total Referrals</p>
+                    <p class="text-xl font-bold text-gray-900">
+                      {#if loadingReferrals}
+                        <span class="text-gray-400">...</span>
+                      {:else}
+                        {referralData?.total_referrals || participant.total_referrals || 0}
+                      {/if}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Referral Points Container -->
+              <div class="bg-purple-50/50 border border-purple-100 rounded-lg p-3">
+                <div class="flex items-center">
+                  <div class="flex-shrink-0 p-2.5 rounded-lg bg-purple-100 text-purple-600 mr-3">
+                    <Icons name="lightning" size="md" />
+                  </div>
+                  <div class="flex-1">
+                    <p class="text-sm text-gray-500">Referral Points</p>
+                    <p class="text-xl font-bold text-gray-900">
+                      {#if loadingReferrals}
+                        <span class="text-gray-400">...</span>
+                      {:else}
+                        {referralData?.total_bonus_points || 0}
+                      {/if}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          {#if isOwnProfile && !loadingReferrals}
+            <!-- Referral link section - always show for own profile -->
+            {#if !referralData || referralData.total_referrals === 0}
+              <div class="flex flex-col lg:flex-row gap-6 items-start">
+                <!-- Image -->
+                <div class="w-full lg:w-1/2">
+                  <img src="/assets/builders_program.png" alt="Builder Program" class="w-full rounded-lg" />
+                </div>
+
+                <!-- Text and Action -->
+                <div class="w-full lg:w-1/2 space-y-4">
+                  <p class="text-gray-700">
+                    For each builder referred who submits at least one contribution, the referrer receives 10% of the points that builder earns permanently. In addition, referrers receive 500 Discord XP for each valid referral.
+                  </p>
+                  <div class="flex justify-start" style="overflow: visible;">
+                    <ReferralSection />
+                  </div>
+                </div>
+              </div>
+            {:else}
+              <div class="flex justify-start" style="overflow: visible;">
+                <ReferralSection />
+              </div>
+            {/if}
+          {/if}
+
+          <!-- Table with last 5 referrals -->
+          {#if !loadingReferrals && referralData && referralData.referrals && referralData.referrals.length > 0}
+            <div class="mt-6">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">Last Referrals</h3>
+              <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Participant
+                      </th>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Contributions
+                      </th>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Points Earned
+                      </th>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Your Points
+                      </th>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Joined Date
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="bg-white divide-y divide-gray-200">
+                    {#each referralData.referrals.slice(0, 5) as referral, i}
+                      <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                          <div class="flex items-center">
+                            <div class="flex-shrink-0 mr-3">
+                              <Avatar
+                                user={referral}
+                                size="sm"
+                                clickable={true}
+                              />
+                            </div>
+                            <div>
+                              <button
+                                onclick={() => push(`/participant/${referral.address}`)}
+                                class="text-sm font-medium text-gray-900 hover:text-purple-600 transition-colors"
+                              >
+                                {referral.name || 'Anonymous'}
+                              </button>
+                              <div class="text-sm text-gray-500">
+                                {referral.address.slice(0, 6)}...{referral.address.slice(-4)}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                          <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            referral.is_validator ? 'bg-blue-100 text-blue-800' :
+                            referral.is_builder ? 'bg-orange-100 text-orange-800' :
+                            referral.is_steward ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {referral.is_validator ? 'Validator' : referral.is_builder ? 'Builder' : referral.is_steward ? 'Steward' : 'Undetermined'}
+                          </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                          <div class="text-sm text-gray-900">{referral.total_contributions || 0}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                          <div class="text-sm text-gray-900 font-medium">{referral.total_points.toLocaleString()}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                          <div class="flex items-center text-sm font-medium text-purple-600">
+                            <Icons name="lightning" size="xs" className="mr-1" />
+                            {referral.bonus_points.toLocaleString()}
+                          </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(referral.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
+
     {#if isValidatorOnly}
       <!-- Simple message for validators without accounts -->
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6 text-center">

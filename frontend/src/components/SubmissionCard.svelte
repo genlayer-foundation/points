@@ -4,6 +4,7 @@
   import ContributionCard from './ContributionCard.svelte';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
   import Link from '../lib/components/Link.svelte';
+  import Avatar from './Avatar.svelte';
   
   let { 
     submission,
@@ -173,7 +174,14 @@
           {#if isOwnSubmission}
             {submission.contribution_type_name || getTypeName(submission.contribution_type)}
           {:else}
-            {submission.user_details?.name || submission.user_details?.address?.slice(0, 8) + '...'}
+            <div class="flex items-center gap-2">
+              <Avatar
+                user={submission.user_details}
+                size="sm"
+                clickable={true}
+              />
+              <span>{submission.user_details?.name || submission.user_details?.address?.slice(0, 8) + '...'}</span>
+            </div>
           {/if}
         </h3>
         <p class="text-sm text-gray-600">
@@ -195,10 +203,15 @@
           <div>
             <h4 class="text-sm font-medium text-gray-700">User</h4>
             <div class="mt-1 flex items-center gap-3">
+              <Avatar
+                user={submission.user_details}
+                size="xs"
+                clickable={true}
+              />
               <span class="text-sm text-gray-900">
                 {submission.user_details?.name || submission.user_details?.address?.slice(0, 8) + '...'}
               </span>
-              <Link 
+              <Link
                 href="/participant/{submission.user_details?.address}"
                 class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
               >
@@ -303,16 +316,22 @@
                       <label class="block text-sm font-medium text-gray-700">
                         Assign Contribution To
                       </label>
-                      <select
-                        bind:value={selectedUser}
-                        class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
-                      >
-                        {#each users as user}
-                          <option value={user.id}>
-                            {user.display_name}
-                          </option>
-                        {/each}
-                      </select>
+                      <div class="mt-1 flex items-center gap-2">
+                        <Avatar
+                          user={users.find(u => u.id === selectedUser)}
+                          size="sm"
+                        />
+                        <select
+                          bind:value={selectedUser}
+                          class="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
+                        >
+                          {#each users as user}
+                            <option value={user.id}>
+                              {user.display_name}
+                            </option>
+                          {/each}
+                        </select>
+                      </div>
                       <p class="text-xs text-gray-500 mt-1">
                         The contribution will be assigned to this user
                       </p>
@@ -432,7 +451,19 @@
                       </div>
                     {/if}
                   </div>
-                  
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                      Note (optional)
+                    </label>
+                    <textarea
+                      bind:value={staffReply}
+                      placeholder="Add an optional note for this contribution..."
+                      rows="3"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    ></textarea>
+                  </div>
+
                   <button
                     onclick={handleReview}
                     disabled={isProcessing}

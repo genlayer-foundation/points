@@ -1,3 +1,6 @@
+# macOS
+.DS_Store
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -185,3 +188,7 @@ node_modules
 .amplify
 amplify_outputs*
 amplifyconfiguration*
+
+# conductor.build
+conductor.json
+conductor-*

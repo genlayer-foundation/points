@@ -64,7 +64,7 @@ class ContributionType(BaseModel):
     Represents different types of contributions that participants can make.
     Examples: Node Runner, Uptime, Asimov, Blog Post, etc.
     """
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
     slug = models.SlugField(max_length=100, unique=True, null=True, blank=True, help_text="Unique identifier for this contribution type")
     description = models.TextField(blank=True)
     category = models.ForeignKey(
@@ -79,9 +79,18 @@ class ContributionType(BaseModel):
     max_points = models.PositiveIntegerField(default=100, help_text="Maximum points allowed for this contribution type")
     is_default = models.BooleanField(default=False, help_text="Include this contribution type by default when creating validators")
     is_submittable = models.BooleanField(default=True, help_text="Whether this contribution type can be submitted by users")
+    examples = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Example entries for this contribution type (array of short strings)"
+    )
+
+    class Meta:
+        ordering = ['category__name', 'name']
 
     def __str__(self):
-        return self.name
+        category_name = self.category.name if self.category else "No Category"
+        return f"{category_name} - {self.name}"
         
     def clean(self):
         """Validate the contribution type data."""
@@ -340,6 +349,77 @@ class Evidence(BaseModel):
     class Meta:
         verbose_name = "Evidence"
         verbose_name_plural = "Evidence Items"
+
+
+class Mission(BaseModel):
+    """
+    Represents a mission to be featured on the dashboard and contribution type pages.
+    Staff can create missions with custom descriptions and time periods.
+    """
+    name = models.CharField(
+        max_length=200,
+        help_text="Name of the mission"
+    )
+    description = models.TextField(
+        help_text="Description of the mission (supports Markdown)"
+    )
+    start_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this mission becomes active (optional)"
+    )
+    end_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this mission expires (optional)"
+    )
+    contribution_type = models.ForeignKey(
+        ContributionType,
+        on_delete=models.CASCADE,
+        related_name='missions',
+        help_text="The contribution type this mission is related to"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Mission"
+        verbose_name_plural = "Missions"
+
+    def is_active(self):
+        """
+        Check if this mission is currently active based on start/end dates.
+        """
+        from django.utils import timezone
+        now = timezone.now()
+
+        # If start_date is set and we haven't reached it yet, not active
+        if self.start_date and now < self.start_date:
+            return False
+
+        # If end_date is set and we've passed it, not active
+        if self.end_date and now > self.end_date:
+            return False
+
+        return True
+
+    @classmethod
+    def get_active_missions(cls, limit=10):
+        """
+        Get currently active missions.
+        """
+        from django.utils import timezone
+        now = timezone.now()
+
+        queryset = cls.objects.filter(
+            models.Q(start_date__isnull=True) | models.Q(start_date__lte=now)
+        ).filter(
+            models.Q(end_date__isnull=True) | models.Q(end_date__gt=now)
+        ).select_related('contribution_type', 'contribution_type__category')
+
+        return queryset[:limit]
+
+    def __str__(self):
+        return f"{self.name} - {self.contribution_type.name}"
 
 
 class ContributionHighlight(BaseModel):

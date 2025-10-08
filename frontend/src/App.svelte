@@ -5,6 +5,7 @@
   import { onMount } from 'svelte';
   import Navbar from './components/Navbar.svelte';
   import Sidebar from './components/Sidebar.svelte';
+  import ProfileCompletionGuard from './components/ProfileCompletionGuard.svelte';
   import { categoryTheme, currentCategory, detectCategoryFromRoute } from './stores/category.js';
   import { location } from 'svelte-spa-router';
   
@@ -15,8 +16,11 @@
     sidebarOpen = !sidebarOpen;
   }
   
+  import Overview from './routes/Overview.svelte';
+  import TestnetAsimov from './routes/TestnetAsimov.svelte';
   import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
+  import AllContributions from './routes/AllContributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
   import Profile from './routes/Profile.svelte';
   import ContributionTypeDetail from './routes/ContributionTypeDetail.svelte';
@@ -32,23 +36,37 @@
   import LoaderShowcase from './routes/LoaderShowcase.svelte';
   import StewardDashboard from './routes/StewardDashboard.svelte';
   import StewardSubmissions from './routes/StewardSubmissions.svelte';
+  import StewardManageUsers from './routes/StewardManageUsers.svelte';
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
   import BuilderWelcome from './routes/BuilderWelcome.svelte';
+  import GitHubCallback from './routes/GitHubCallback.svelte';
+  import TermsOfUse from './routes/TermsOfUse.svelte';
+  import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
+  import Referrals from './routes/Referrals.svelte';
   
   // Define routes
   const routes = {
+
+    // Auth callback routes
+    '/auth/github/callback': GitHubCallback,
+
     // Global/Testnet Asimov routes
-    '/': Dashboard,
+    // Overview and Testnet Asimov routes
+    '/': Overview,
+    '/asimov': TestnetAsimov,
     '/contributions': Contributions,
+    '/all-contributions': AllContributions,
     '/contributions/highlights': Highlights,
     '/highlights': Highlights,
     '/leaderboard': Leaderboard,
     '/participants': Validators,
-    
+    '/referrals': Referrals,
+
     // Builders routes
     '/builders': Dashboard,
     '/builders/contributions': Contributions,
+    '/builders/all-contributions': AllContributions,
     '/builders/contributions/highlights': Highlights,
     '/builders/highlights': Highlights,
     '/builders/leaderboard': Leaderboard,
@@ -58,6 +76,7 @@
     // Validators routes
     '/validators': Dashboard,
     '/validators/contributions': Contributions,
+    '/validators/all-contributions': AllContributions,
     '/validators/contributions/highlights': Highlights,
     '/validators/highlights': Highlights,
     '/validators/leaderboard': Leaderboard,
@@ -79,7 +98,12 @@
     // Steward routes
     '/stewards': StewardDashboard,
     '/stewards/submissions': StewardSubmissions,
-    
+    '/stewards/manage-users': StewardManageUsers,
+
+    // Legal routes
+    '/terms-of-use': TermsOfUse,
+    '/privacy-policy': PrivacyPolicy,
+
     '*': NotFound
   };
   
@@ -93,7 +117,7 @@
   function hideTooltips() {
     const tooltipEl = document.getElementById('custom-tooltip');
     const arrowEl = document.getElementById('custom-tooltip-arrow');
-    
+
     if (tooltipEl) {
       tooltipEl.style.opacity = '0';
       tooltipEl.style.display = 'none'; // Completely hide it
@@ -104,8 +128,37 @@
     }
   }
 
+  // Function to capture referral code from URL parameter
+  function captureReferralCode() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const referralCode = urlParams.get('ref');
+      
+      if (referralCode && referralCode.length === 8) {
+        // Store referral code in localStorage for later use during login
+        localStorage.setItem('referral_code', referralCode.toUpperCase());
+        console.log('Referral code captured:', referralCode.toUpperCase());
+        
+        // Clean URL without page reload to remove the ref parameter
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, '', cleanUrl);
+      }
+    } catch (error) {
+      console.error('Error capturing referral code:', error);
+    }
+  }
+  
+  // Function to handle route loaded events
+  function handleRouteLoaded() {
+    // Hide tooltips
+    hideTooltips();
+  }
+
   // Tooltip handling
   onMount(() => {
+    // Capture referral code from URL on app load
+    captureReferralCode();
+    
     // Use event delegation for better performance
     document.body.addEventListener('mouseover', handleTooltipPosition);
     
@@ -224,16 +277,19 @@
   }
 </script>
 
-<div class="min-h-screen {$categoryTheme.bg} transition-colors duration-300">
+<div class="h-screen flex flex-col {$categoryTheme.bg} transition-colors duration-300">
   <Navbar {toggleSidebar} {sidebarOpen} />
-  <div class="flex">
+  <div class="flex-1 flex overflow-hidden">
     <Sidebar bind:isOpen={sidebarOpen} />
-    <main class="flex-1 container mx-auto px-4 py-4 md:py-6 lg:py-8">
-      <Router 
-        {routes} 
+    <main class="flex-1 overflow-y-auto container mx-auto px-4 py-4 md:py-6 lg:py-8">
+      <Router
+        {routes}
         on:conditionsFailed={hideTooltips}
-        on:routeLoaded={hideTooltips}
+        on:routeLoaded={handleRouteLoaded}
       />
     </main>
   </div>
 </div>
+
+<!-- Profile Completion Guard - Shows on all pages until profile is complete -->
+<ProfileCompletionGuard />

@@ -71,6 +71,26 @@
     }
   }
   
+  function normalizeUrl(url) {
+    if (!url || url.trim() === '') return url;
+    
+    // Check if URL already has a protocol
+    const hasProtocol = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url);
+    
+    if (!hasProtocol) {
+      // Add https:// if no protocol is present
+      return 'https://' + url;
+    }
+    
+    return url;
+  }
+  
+  function handleUrlBlur(index) {
+    if (evidenceSlots[index]) {
+      evidenceSlots[index].url = normalizeUrl(evidenceSlots[index].url);
+    }
+  }
+  
   function hasEvidenceInSlot(slot) {
     return slot.description || slot.url || slot.file;
   }
@@ -107,7 +127,9 @@
           evidenceFormData.append('description', slot.description);
         }
         if (slot.url) {
-          evidenceFormData.append('url', slot.url);
+          // Normalize URL before sending to backend
+          const normalizedUrl = normalizeUrl(slot.url);
+          evidenceFormData.append('url', normalizedUrl);
         }
         if (slot.file) {
           evidenceFormData.append('file', slot.file, slot.file.name);
@@ -148,10 +170,10 @@
         <h3 class="text-lg font-medium text-gray-900 mb-2">Authentication Required</h3>
         <p class="text-gray-500 mb-4">Please connect your wallet to submit contributions.</p>
         <button
-          onclick={() => push('/')}
+          onclick={() => document.querySelector('.auth-button')?.click()}
           class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
         >
-          Go to Dashboard
+          Connect Wallet
         </button>
       </div>
     </div>
@@ -245,6 +267,7 @@
                     <input
                       type="url"
                       bind:value={slot.url}
+                      onblur={() => handleUrlBlur(index)}
                       placeholder="https://example.com"
                       class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
                     />

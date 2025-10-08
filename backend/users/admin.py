@@ -48,19 +48,21 @@ class ContributionInline(admin.TabularInline):
 class UserAdmin(BaseUserAdmin):
     list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'address', 'is_email_verified')
     list_filter = ('is_staff', 'is_active', 'visible', 'is_email_verified')
-    search_fields = ('email', 'name', 'address', 'twitter_handle', 'discord_handle', 'telegram_handle')
+    search_fields = ('email', 'name', 'address', 'referral_code', 'twitter_handle', 'discord_handle', 'telegram_handle')
     ordering = ('email',)
     
     fieldsets = (
         (None, {'fields': ('email', 'password', 'is_email_verified')}),
         (_('Personal info'), {'fields': ('name', 'address', 'description')}),
         (_('Profile Images'), {'fields': ('profile_image_url', 'banner_image_url', 'profile_image_public_id', 'banner_image_public_id')}),
-        (_('Contact & Social'), {'fields': ('website', 'twitter_handle', 'discord_handle', 'telegram_handle')}),
+        (_('Contact & Social'), {'fields': ('website', 'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle')}),
+        (_('GitHub Integration'), {'fields': ('github_username', 'github_user_id', 'github_linked_at')}),
+        (_('Referral System'), {'fields': ('referral_code', 'referred_by')}),
         (_('Visibility'), {'fields': ('visible',)}),
         (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         (_('Important dates'), {'fields': ('last_login', 'date_joined', 'created_at', 'updated_at')}),
     )
-    readonly_fields = ('created_at', 'updated_at', 'profile_image_public_id', 'banner_image_public_id')
+    readonly_fields = ('created_at', 'updated_at', 'profile_image_public_id', 'banner_image_public_id', 'referral_code', 'github_user_id', 'github_linked_at')
     
     add_fieldsets = (
         (None, {
@@ -70,7 +72,7 @@ class UserAdmin(BaseUserAdmin):
     )
     
     inlines = [ContributionInline, ValidatorInline, BuilderInline, StewardInline]
-    actions = ['set_as_builder', 'set_as_validator', 'set_as_steward']
+    actions = ['set_as_builder', 'set_as_validator', 'set_as_steward', 'disconnect_github']
     
     def set_as_builder(self, request, queryset):
         """Action to set selected users as builders."""
@@ -168,11 +170,31 @@ class UserAdmin(BaseUserAdmin):
             if hasattr(user, 'steward'):
                 self.message_user(request, f"{user.email} is already a steward.", level=messages.WARNING)
                 continue
-            
+
             # Create steward profile
             Steward.objects.create(user=user)
             count += 1
-        
+
         if count > 0:
             self.message_user(request, f"Successfully set {count} user(s) as steward(s).", level=messages.SUCCESS)
     set_as_steward.short_description = "Set selected users as stewards"
+
+    def disconnect_github(self, request, queryset):
+        """Action to disconnect GitHub accounts from selected users."""
+        count = 0
+        for user in queryset:
+            if not user.github_username:
+                self.message_user(request, f"{user.email} doesn't have a GitHub account linked.", level=messages.WARNING)
+                continue
+
+            # Clear all GitHub fields
+            user.github_username = ""
+            user.github_user_id = ""
+            user.github_access_token = ""
+            user.github_linked_at = None
+            user.save()
+            count += 1
+
+        if count > 0:
+            self.message_user(request, f"Successfully disconnected GitHub from {count} user(s).", level=messages.SUCCESS)
+    disconnect_github.short_description = "Disconnect GitHub accounts from selected users"

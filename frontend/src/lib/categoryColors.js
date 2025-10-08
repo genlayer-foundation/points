@@ -146,6 +146,146 @@ export const getPioneerColors = (category) => {
 };
 
 /**
+ * Get colors for pioneer contributions section (opportunities with zero contributions)
+ */
+export const getPioneerContributionsColors = (category) => {
+  switch (category) {
+    case 'builder':
+      return {
+        // Container colors
+        containerBg: 'bg-orange-50',
+        containerBorder: 'border-orange-200',
+        containerBorderLeft: 'border-l-orange-500',
+
+        // Header colors
+        headerBg: 'bg-orange-100',
+        headerBorder: 'border-orange-200',
+        headerText: 'text-orange-900',
+        headerIcon: 'text-orange-600',
+        descriptionText: 'text-orange-700',
+
+        // Table colors
+        tableHeaderBg: 'bg-orange-50',
+        tableHeaderText: 'text-orange-700',
+        tableRowBg: 'bg-orange-50',
+        tableRowHover: 'hover:bg-orange-100',
+        tableBorder: 'divide-orange-100',
+
+        // Text colors
+        titleText: 'text-orange-600',
+        titleTextHover: 'text-orange-700',
+        contentText: 'text-orange-800',
+        pointsText: 'text-orange-900',
+
+        // Badge colors
+        badgeColor: 'orange',
+        badgeBg: 'bg-orange-100',
+        badgeText: 'text-orange-800'
+      };
+
+    case 'validator':
+      return {
+        // Container colors
+        containerBg: 'bg-sky-50',
+        containerBorder: 'border-sky-200',
+        containerBorderLeft: 'border-l-sky-500',
+
+        // Header colors
+        headerBg: 'bg-sky-100',
+        headerBorder: 'border-sky-200',
+        headerText: 'text-sky-900',
+        headerIcon: 'text-sky-600',
+        descriptionText: 'text-sky-700',
+
+        // Table colors
+        tableHeaderBg: 'bg-sky-50',
+        tableHeaderText: 'text-sky-700',
+        tableRowBg: 'bg-sky-50',
+        tableRowHover: 'hover:bg-sky-100',
+        tableBorder: 'divide-sky-100',
+
+        // Text colors
+        titleText: 'text-sky-600',
+        titleTextHover: 'text-sky-700',
+        contentText: 'text-sky-800',
+        pointsText: 'text-sky-900',
+
+        // Badge colors
+        badgeColor: 'blue',
+        badgeBg: 'bg-sky-100',
+        badgeText: 'text-sky-800'
+      };
+
+    case 'steward':
+      return {
+        // Container colors
+        containerBg: 'bg-green-50',
+        containerBorder: 'border-green-200',
+        containerBorderLeft: 'border-l-green-500',
+
+        // Header colors
+        headerBg: 'bg-green-100',
+        headerBorder: 'border-green-200',
+        headerText: 'text-green-900',
+        headerIcon: 'text-green-600',
+        descriptionText: 'text-green-700',
+
+        // Table colors
+        tableHeaderBg: 'bg-green-50',
+        tableHeaderText: 'text-green-700',
+        tableRowBg: 'bg-green-50',
+        tableRowHover: 'hover:bg-green-100',
+        tableBorder: 'divide-green-100',
+
+        // Text colors
+        titleText: 'text-green-600',
+        titleTextHover: 'text-green-700',
+        contentText: 'text-green-800',
+        pointsText: 'text-green-900',
+
+        // Badge colors
+        badgeColor: 'green',
+        badgeBg: 'bg-green-100',
+        badgeText: 'text-green-800'
+      };
+
+    case 'global':
+    default:
+      return {
+        // Container colors
+        containerBg: 'bg-gray-50',
+        containerBorder: 'border-gray-200',
+        containerBorderLeft: 'border-l-gray-500',
+
+        // Header colors
+        headerBg: 'bg-gray-100',
+        headerBorder: 'border-gray-200',
+        headerText: 'text-gray-900',
+        headerIcon: 'text-gray-600',
+        descriptionText: 'text-gray-700',
+
+        // Table colors
+        tableHeaderBg: 'bg-gray-50',
+        tableHeaderText: 'text-gray-700',
+        tableRowBg: 'bg-gray-50',
+        tableRowHover: 'hover:bg-gray-100',
+        tableBorder: 'divide-gray-100',
+
+        // Text colors
+        titleText: 'text-gray-600',
+        titleTextHover: 'text-gray-700',
+        contentText: 'text-gray-800',
+        pointsText: 'text-gray-900',
+
+        // Badge colors
+        badgeColor: 'gray',
+        badgeBg: 'bg-gray-100',
+        badgeText: 'text-gray-800'
+      };
+  }
+};
+
+/**
  * Get simple icon color for sidebar and navigation
  */
 export const getCategoryIconColor = (category) => {

@@ -181,6 +181,43 @@ class="mt-4 md:mt-6 lg:mt-8"
 <p class="mt-1">  // After labels/small headings
 ```
 
+### Font Families
+The application uses custom variable fonts for better visual hierarchy:
+
+**Headers/Headings:** Geist (variable font, all weights)
+- Applied automatically to all h1-h6 elements
+- Use `font-heading` class only for non-heading elements that should look like titles (e.g., titles in `<div>` or `<span>`)
+- Supports all weights: use `font-light`, `font-normal`, `font-medium`, `font-semibold`, `font-bold`, etc.
+
+**Body Text:** Switzer (variable font, all weights including italic)
+- Applied automatically to body tag and inherited everywhere
+- Use `font-body` class only in exceptional cases (very rare)
+- Supports all weights and italic variants
+
+**To change fonts globally:**
+Update CSS custom properties in `src/styles.css`:
+```css
+:root {
+  --font-heading: 'Geist', sans-serif;
+  --font-body: 'Switzer', sans-serif;
+}
+```
+
+**Usage examples:**
+```javascript
+// ✅ Headings - automatic font-heading
+<h1 class="text-2xl font-bold">Page Title</h1>
+
+// ✅ Title in non-heading element - add font-heading
+<div class="text-lg font-semibold font-heading">Card Title</div>
+
+// ✅ Large stat values - add font-heading for emphasis
+<p class="text-2xl font-bold font-heading">{totalPoints}</p>
+
+// ✅ Body text - automatic font-body (no class needed)
+<p class="text-sm text-gray-600">Description text</p>
+```
+
 ### Color System
 ```javascript
 // Primary colors (blue/indigo)
@@ -240,13 +277,20 @@ frontend/src/
   - Profile link (shows when authenticated)
   - Mobile responsive menu
 - **Sidebar**: `src/components/Sidebar.svelte`
-  - Side navigation (if used)
+  - Side navigation with collapsible sections
+  - Navigation structure:
+    - **Overview** (links to `/`) - Contains Testnet Asimov and Metrics sub-items
+    - **Builders** - Category-specific dashboard and pages
+    - **Validators** - Category-specific dashboard and pages
+    - **Stewards** - Steward management pages (only visible to stewards)
+    - **Profile** - User profile and submissions
 
 ### Routes/Pages
 All routes are defined in `src/App.svelte`:
 ```javascript
 const routes = {
-  '/': Dashboard,
+  '/': Overview,  // Overview page with program information
+  '/asimov': TestnetAsimov,  // Testnet Asimov dashboard (formerly Dashboard at '/')
   '/contributions': Contributions,
   '/leaderboard': Leaderboard,
   '/validators': Validators,
@@ -411,6 +455,9 @@ try {
 ## Environment Variables
 Set in `.env` file:
 - `VITE_API_URL` - Backend API URL
+- `VITE_VALIDATOR_RPC_URL` - Blockchain RPC endpoint for Asimov testnet
+- `VITE_VALIDATOR_CONTRACT_ADDRESS` - Validator contract address
+- `VITE_EXPLORER_URL` - Blockchain explorer URL
 
 ## Common Commands
 ```bash

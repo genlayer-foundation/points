@@ -4,17 +4,18 @@
   import { push } from 'svelte-spa-router';
   import { authState, signInWithEthereum, logout } from '../lib/auth';
   import { userStore } from '../lib/userStore';
+  import WalletSelector from './WalletSelector.svelte';
   
   // Use $: to access the store values reactively
   $: isAuthenticated = $authState.isAuthenticated;
   $: address = $authState.address;
   $: storeLoading = $authState.loading;
   $: storeError = $authState.error;
-  $: userName = $userStore.user?.name;
-  
+
   let loading = false;
   let error = null;
   let showDropdown = false;
+  let showWalletSelector = false;
   let errorTimeout;
   
   // Auto-dismiss error messages after 5 seconds
@@ -42,17 +43,29 @@
       return;
     }
     
-    // Otherwise, start the connection process
+    // Show wallet selector modal
+    showWalletSelector = true;
+  }
+  
+  async function handleWalletSelected(provider, walletName) {
+    // Start the connection process with selected wallet
     loading = true;
     error = null;
-    
+
     try {
-      await signInWithEthereum();
+      // Sign in with Ethereum
+      await signInWithEthereum(provider, walletName);
+
+      // Close wallet selector modal
+      showWalletSelector = false;
+
+      // ProfileCompletionGuard will automatically show if profile is incomplete
+      // Otherwise user continues to their profile or intended destination
     } catch (err) {
       console.error('Auth error:', err);
       // Create a curated error message
-      if (err.message?.includes('MetaMask is not installed')) {
-        error = 'Please install MetaMask to connect';
+      if (err.message?.includes('not installed')) {
+        error = `Please install ${walletName} to connect`;
       } else if (err.message?.includes('User rejected') || err.message?.includes('User denied')) {
         error = 'Connection rejected';
       } else if (err.message?.includes('signature')) {
@@ -62,6 +75,7 @@
       } else {
         error = 'Connection failed';
       }
+      // Keep modal open on error so user can try again
     } finally {
       loading = false;
     }
@@ -113,7 +127,7 @@
     {#if loading || storeLoading}
       <span class="loading-spinner"></span>
     {:else if isAuthenticated}
-      <span class="address">{userName || formatAddress(address)}</span>
+      <span class="address">{formatAddress(address)}</span>
       <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
       </svg>
@@ -154,6 +168,12 @@
     </div>
   {/if}
 </div>
+
+<!-- Wallet Selector Modal -->
+<WalletSelector
+  bind:isOpen={showWalletSelector}
+  onSelect={handleWalletSelected}
+/>
 
 <style>
   .auth-dropdown-container {

@@ -3,6 +3,7 @@ from .models import User
 from validators.models import Validator
 from builders.models import Builder
 from stewards.models import Steward
+from creators.models import Creator
 from contributions.node_upgrade.models import TargetNodeVersion
 from leaderboard.models import LeaderboardEntry
 from contributions.models import Category
@@ -126,12 +127,68 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     node_version = serializers.CharField(required=False, allow_blank=True, allow_null=True, source='validator.node_version')
     email = serializers.EmailField(required=False, allow_blank=True)
     website = serializers.CharField(required=False, allow_blank=True, max_length=200)
+
+    # Disposable email providers to block
+    DISPOSABLE_EMAIL_DOMAINS = [
+        'tempmail.com', 'guerrillamail.com', 'mailinator.com',
+        '10minutemail.com', 'throwaway.email', 'temp-mail.org',
+        'fakeinbox.com', 'getnada.com', 'trashmail.com',
+        'maildrop.cc', 'yopmail.com', 'mohmal.com',
+        'sharklasers.com', 'grr.la', 'guerrillamailblock.com',
+        'spam4.me', 'mintemail.com', 'emailondeck.com',
+    ]
     
     class Meta:
         model = User
         fields = ['name', 'node_version', 'email', 'description', 'website',
-                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle']
+                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
+                  'github_username']
     
+    def validate_email(self, value):
+        """Validate email with DNS checks and block disposable providers"""
+        if not value:
+            return value
+
+        from email_validator import validate_email, EmailNotValidError
+
+        try:
+            # Validate email with DNS deliverability check
+            valid = validate_email(
+                value,
+                check_deliverability=True,      # Check DNS MX records
+                test_environment=False,         # Block test@test.com patterns
+                globally_deliverable=True,      # Reject localhost, private IPs, .local domains
+                allow_domain_literal=False,     # Block IP-based emails like user@[192.168.1.1]
+                timeout=10                      # DNS timeout in seconds (prevent hanging)
+            )
+
+            # Get normalized email (lowercase domain, etc.)
+            normalized_email = valid.normalized
+
+            # Check if domain is in disposable email blocklist
+            if valid.domain.lower() in self.DISPOSABLE_EMAIL_DOMAINS:
+                raise serializers.ValidationError(
+                    "Temporary or disposable email addresses are not allowed. Please use a permanent email address."
+                )
+
+            return normalized_email
+
+        except EmailNotValidError as e:
+            # Convert email-validator errors to DRF validation errors
+            error_message = str(e)
+
+            # Provide user-friendly messages for common errors
+            if "does not exist" in error_message.lower():
+                raise serializers.ValidationError(
+                    "This email domain does not exist. Please check for typos."
+                )
+            elif "does not accept email" in error_message.lower():
+                raise serializers.ValidationError(
+                    "This email domain cannot receive emails. Please use a different email address."
+                )
+            else:
+                raise serializers.ValidationError(error_message)
+
     def validate_description(self, value):
         """Validate description length"""
         if value and len(value) > 500:
@@ -187,13 +244,17 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # Handle validator data if present
         validator_data = validated_data.pop('validator', {})
-        
+
         # Handle email update
         if 'email' in validated_data:
             new_email = validated_data.pop('email')
             if new_email and new_email != instance.email:
-                # Check if email is already taken
-                if User.objects.filter(email=new_email).exclude(id=instance.id).exists():
+                # Normalize the email (lowercase domain, etc.)
+                from django.contrib.auth.models import UserManager
+                new_email = UserManager.normalize_email(new_email)
+
+                # Check if email is already taken (case-insensitive)
+                if User.objects.filter(email__iexact=new_email).exclude(id=instance.id).exists():
                     raise serializers.ValidationError({'email': 'This email is already in use.'})
                 instance.email = new_email
                 instance.is_email_verified = True  # Mark as verified when user provides it
@@ -292,21 +353,57 @@ class StewardSerializer(serializers.ModelSerializer):
     """
     total_points = serializers.SerializerMethodField()
     rank = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Steward
         fields = ['total_points', 'rank', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
-    
+
     def get_total_points(self, obj):
         """Get total points for user."""
         # Stewards are deprecated, but return 0 for compatibility
         return 0
-    
+
     def get_rank(self, obj):
         """Get rank for user."""
         # Stewards are deprecated, return None for compatibility
         return None
+
+
+class CreatorSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Creator profile.
+    """
+    total_referrals = serializers.SerializerMethodField()
+    referral_points = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Creator
+        fields = ['total_referrals', 'referral_points', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
+
+    def get_total_referrals(self, obj):
+        """Get total number of users referred by this creator."""
+        return obj.user.referrals.count()
+
+    def get_referral_points(self, obj):
+        """Get total points earned from referrals."""
+        from contributions.models import Contribution
+        from django.db.models import Sum
+
+        # Get all contributions from referred users
+        referred_users = obj.user.referrals.all()
+        if not referred_users.exists():
+            return 0
+
+        # Calculate 10% of points from referred users' contributions
+        total_points = Contribution.objects.filter(
+            user__in=referred_users
+        ).aggregate(
+            total=Sum('frozen_global_points')
+        )['total'] or 0
+
+        return int(total_points * 0.1)  # 10% of referred users' points
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -314,19 +411,26 @@ class UserSerializer(serializers.ModelSerializer):
     validator = ValidatorSerializer(read_only=True)
     builder = BuilderSerializer(read_only=True)
     steward = StewardSerializer(read_only=True)
+    creator = CreatorSerializer(read_only=True)
     has_validator_waitlist = serializers.SerializerMethodField()
     has_builder_welcome = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
     
+    # Referral system fields
+    referred_by_info = serializers.SerializerMethodField()
+    total_referrals = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
-        fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward', 
-                  'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at',
+        fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward',
+                  'creator', 'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at',
                   # Profile fields
                   'description', 'banner_image_url', 'profile_image_url', 'website',
-                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
-                  'email', 'is_email_verified']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle', 'github_username', 'github_linked_at',
+                  'email', 'is_email_verified',
+                  # Referral fields
+                  'referral_code', 'referred_by_info', 'total_referrals']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'referral_code', 'github_linked_at']
     
     def get_leaderboard_entry(self, obj):
         """
@@ -377,6 +481,26 @@ class UserSerializer(serializers.ModelSerializer):
         if obj.is_email_verified:
             return obj.email
         return ''
+    
+    def get_referred_by_info(self, obj):
+        """
+        Get information about who referred this user.
+        Returns None if user was not referred.
+        """
+        if obj.referred_by:
+            return {
+                'id': obj.referred_by.id,
+                'name': obj.referred_by.name or 'Anonymous',
+                'address': obj.referred_by.address,
+                'referral_code': obj.referred_by.referral_code
+            }
+        return None
+    
+    def get_total_referrals(self, obj):
+        """
+        Get the total number of users referred by this user.
+        """
+        return User.objects.filter(referred_by=obj).count()
 
 
 class UserCreateSerializer(serializers.ModelSerializer):

@@ -13,6 +13,7 @@
   export let color = 'green'; // default color
   export let size = 'md'; // sm, md, lg
   export let clickable = true;
+  export let bold = true; // whether to use bold font
 
   // Handle navigation to badge details
   function navigateToBadgeDetail() {
@@ -51,6 +52,7 @@
     indigo: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200',
     pink: 'bg-pink-100 text-pink-800 hover:bg-pink-200',
     gray: 'bg-gray-100 text-gray-800 hover:bg-gray-200',
+    orange: 'bg-orange-100 text-orange-800 hover:bg-orange-200',
   };
 </script>
 
@@ -72,7 +74,7 @@
     // Small delay to ensure tooltip is hidden before navigation
     setTimeout(() => navigateToBadgeDetail(), 50);
   }}
-  class="inline-block font-semibold rounded-lg {sizeClasses[size]} {colorClasses[color]} {clickable ? 'cursor-pointer transition-colors' : ''} {badge.description ? 'tooltip' : ''} whitespace-normal text-left max-w-[300px]"
+  class="inline-block {bold ? 'font-semibold' : 'font-normal'} rounded-full {sizeClasses[size]} {colorClasses[color]} {clickable ? 'cursor-pointer transition-colors' : ''} {badge.description ? 'tooltip' : ''} whitespace-normal text-left max-w-[300px]"
   title={badge.description || ''}
 >
   <span class="block">

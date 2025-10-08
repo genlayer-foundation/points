@@ -5,12 +5,17 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.conf import settings
+from django.db.models import Sum
 from .models import User
 from .serializers import UserSerializer, UserCreateSerializer, UserProfileUpdateSerializer
 from .cloudinary_service import CloudinaryService
 from .genlayer_service import GenLayerDeploymentService
+from contributions.models import Contribution
+from leaderboard.models import LeaderboardEntry
 from web3 import Web3
 import logging
+import secrets
+import string
 
 logger = logging.getLogger(__name__)
 
@@ -645,4 +650,59 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
                 'deployment_count': 0,
                 'error': 'Failed to check deployment status'
             })
-            
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def referrals(self, request):
+        """
+        Get list of users referred by the authenticated user.
+        Returns summary statistics and detailed list of referred users.
+        """
+        from django.db.models import Count, Value, IntegerField
+        from django.db.models.functions import Coalesce
+
+        user = request.user
+
+        # Get all users referred by the current user with optimized queries
+        # Use separate annotations to avoid JOIN issues between contributions and leaderboard entries
+        referred_users = User.objects.filter(
+            referred_by=user
+        ).select_related('validator', 'builder', 'steward').annotate(
+            total_points=Coalesce(
+                Sum('leaderboard_entries__total_points'),
+                Value(0),
+                output_field=IntegerField()
+            ),
+            total_contributions=Count('contributions', distinct=True)
+        )
+
+        # Build the referral list with point calculations
+        referral_list = []
+        total_bonus_points = 0
+
+        for referred_user in referred_users:
+            # Calculate 10% bonus from annotated total_points
+            bonus_points = int(referred_user.total_points * 0.1)
+            total_bonus_points += bonus_points
+
+            referral_list.append({
+                'id': referred_user.id,
+                'name': referred_user.name or 'Anonymous',
+                'address': referred_user.address,
+                'profile_image_url': referred_user.profile_image_url,
+                'total_points': referred_user.total_points,
+                'bonus_points': bonus_points,
+                'created_at': referred_user.created_at,
+                'total_contributions': referred_user.total_contributions,
+                'is_validator': hasattr(referred_user, 'validator'),
+                'is_builder': hasattr(referred_user, 'builder'),
+                'is_steward': hasattr(referred_user, 'steward'),
+            })
+
+        # Sort by total points (highest first)
+        referral_list.sort(key=lambda x: x['total_points'], reverse=True)
+
+        return Response({
+            'total_referrals': len(referral_list),
+            'total_bonus_points': total_bonus_points,
+            'referrals': referral_list
+        })

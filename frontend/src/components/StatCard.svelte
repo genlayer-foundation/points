@@ -31,7 +31,7 @@
       <p class="text-sm text-gray-500">
         {title}
       </p>
-      <p class="text-2xl font-bold text-gray-900">
+      <p class="text-2xl font-bold text-gray-900 font-heading">
         {value}
       </p>
     </div>

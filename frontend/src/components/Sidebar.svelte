@@ -14,9 +14,9 @@
   // Determine which section should be expanded based on current route
   function getActiveSection() {
     const path = $location;
-    
+
     // Check for specific sections
-    if (path === '/' || path === '/metrics') {
+    if (path === '/' || path === '/asimov' || path === '/metrics') {
       return 'global';
     } else if (path.startsWith('/builders') || (path.startsWith('/contribution-type/') && $currentCategory === 'builder')) {
       return 'builder';
@@ -27,7 +27,7 @@
     } else if (path === '/my-submissions' || path.startsWith('/participant/')) {
       return 'profile';
     }
-    
+
     return null;
   }
   
@@ -51,8 +51,16 @@
       if (authButton) authButton.click();
       return;
     }
-    
-    push(path);
+
+    // Navigate to legal pages with refresh
+    if (path === '/terms-of-use' || path === '/privacy-policy') {
+      // Navigate directly and reload to ensure fresh start
+      window.location.href = `#${path}`;
+      window.location.reload();
+    } else {
+      push(path);
+    }
+
     // Close sidebar on mobile after navigation
     if (window.innerWidth < 768) {
       isOpen = false;
@@ -102,12 +110,13 @@
   // Define the complete navigation structure
   const navigationStructure = [
     {
-      title: 'Testnet Asimov',
+      title: 'Overview',
       category: 'global',
       iconName: 'genlayer',
       dashboardPath: '/',
       dashboardAction: () => changeCategory('global', '/'),
       items: [
+        { name: 'Testnet Asimov', path: '/asimov', iconName: 'network' },
         { name: 'Metrics', path: '/metrics', iconName: 'metrics' }
       ]
     },
@@ -142,7 +151,7 @@
 </script>
 
 <!-- Desktop Sidebar -->
-<aside class="hidden md:flex flex-col w-64 bg-white shadow-md min-h-screen sticky top-0 overflow-y-auto">
+<aside class="hidden md:flex flex-col w-64 bg-white shadow-md h-full overflow-y-auto">
   <!-- Navigation content - takes only what it needs -->
   <div class="px-4 pt-8 pb-4">
     <nav class="space-y-2">
@@ -237,16 +246,32 @@
             onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
             class="group flex items-center px-3 py-1.5 text-sm rounded-md {
               isActive('/stewards/submissions') || $location.startsWith('/stewards/submissions/')
-                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
+                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
                 : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
             }"
           >
-            <Icon 
+            <Icon
               name="contributions"
               size="sm"
-              className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
+              className="mr-2 text-green-600"
             />
             Contribution Submissions
+          </a>
+          <a
+            href="/stewards/manage-users"
+            onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}
+            class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+              isActive('/stewards/manage-users') || $location.startsWith('/stewards/manage-users/')
+                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            }"
+          >
+            <Icon
+              name="participants"
+              size="sm"
+              className="mr-2 text-green-600"
+            />
+            Manage Users
           </a>
         </div>
         {/if}
@@ -305,9 +330,9 @@
   <!-- Footer - Always at bottom -->
   <div class="p-4 border-t border-gray-200 bg-white">
       <div class="flex flex-col items-center space-y-2 text-xs text-gray-500">
-        <a 
-          href="https://github.com/genlayer-foundation/points" 
-          target="_blank" 
+        <a
+          href="https://github.com/genlayer-foundation/points"
+          target="_blank"
           rel="noopener noreferrer"
           class="flex items-center hover:text-gray-700 transition-colors"
         >
@@ -316,6 +341,11 @@
           </svg>
           GitHub
         </a>
+        <div class="flex items-center space-x-1">
+          <a href="/terms-of-use" onclick={(e) => { e.preventDefault(); navigate('/terms-of-use'); }} class="hover:text-gray-700 transition-colors">Terms of Use</a>
+          <span>·</span>
+          <a href="/privacy-policy" onclick={(e) => { e.preventDefault(); navigate('/privacy-policy'); }} class="hover:text-gray-700 transition-colors">Privacy Policy</a>
+        </div>
         <div class="text-center">
           © {new Date().getFullYear()} GenLayer Foundation
         </div>
@@ -416,16 +446,32 @@
               onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
               class="group flex items-center px-3 py-1.5 text-base rounded-md {
                 isActive('/stewards/submissions') || $location.startsWith('/stewards/submissions/')
-                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}` 
+                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
                   : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
               }"
             >
-              <Icon 
+              <Icon
                 name="contributions"
                 size="sm"
-                className="mr-2 {isActive('/stewards/submissions') ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500'}"
+                className="mr-2 text-green-600"
               />
               Contribution Submissions
+            </a>
+            <a
+              href="/stewards/manage-users"
+              onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}
+              class="group flex items-center px-3 py-1.5 text-base rounded-md {
+                isActive('/stewards/manage-users') || $location.startsWith('/stewards/manage-users/')
+                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+              }"
+            >
+              <Icon
+                name="participants"
+                size="sm"
+                className="mr-2 text-green-600"
+              />
+              Manage Users
             </a>
           </div>
           {/if}
@@ -477,9 +523,9 @@
     <!-- Footer (Mobile) - Always at bottom -->
     <div class="p-4 border-t border-gray-200 bg-white">
         <div class="flex flex-col items-center space-y-2 text-xs text-gray-500">
-          <a 
-            href="https://github.com/genlayer-foundation/points" 
-            target="_blank" 
+          <a
+            href="https://github.com/genlayer-foundation/points"
+            target="_blank"
             rel="noopener noreferrer"
             class="flex items-center hover:text-gray-700 transition-colors"
           >
@@ -488,6 +534,11 @@
             </svg>
             GitHub
           </a>
+          <div class="flex items-center space-x-1">
+            <a href="/terms-of-use" onclick={(e) => { e.preventDefault(); navigate('/terms-of-use'); }} class="hover:text-gray-700 transition-colors">Terms of Use</a>
+            <span>·</span>
+            <a href="/privacy-policy" onclick={(e) => { e.preventDefault(); navigate('/privacy-policy'); }} class="hover:text-gray-700 transition-colors">Privacy Policy</a>
+          </div>
           <div class="text-center">
             © {new Date().getFullYear()} GenLayer Foundation
           </div>
