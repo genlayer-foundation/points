@@ -1517,7 +1517,7 @@
             <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
             </svg>
-            Referrals
+            Referral Program
           </h2>
           {#if !loadingReferrals && referralData && referralData.total_referrals > 5}
             <button
@@ -1582,13 +1582,27 @@
           {#if isOwnProfile && !loadingReferrals}
             <!-- Referral link section - always show for own profile -->
             {#if !referralData || referralData.total_referrals === 0}
-              <p class="text-purple-700 mb-4">
-                Building is better together. Our referral system rewards you with 10% of points earned by every contribution from your referrals.<br><br>Invite your friends, colleagues, and community. We make GenLayer together and the more the merrier.
-              </p>
+              <div class="flex flex-col lg:flex-row gap-6 items-start">
+                <!-- Image -->
+                <div class="w-full lg:w-1/2">
+                  <img src="/assets/builders_program.png" alt="Builder Program" class="w-full rounded-lg" />
+                </div>
+
+                <!-- Text and Action -->
+                <div class="w-full lg:w-1/2 space-y-4">
+                  <p class="text-gray-700">
+                    For each builder referred who submits at least one contribution, the referrer receives 10% of the points that builder earns permanently. In addition, referrers receive 500 Discord XP for each valid referral.
+                  </p>
+                  <div class="flex justify-start" style="overflow: visible;">
+                    <ReferralSection />
+                  </div>
+                </div>
+              </div>
+            {:else}
+              <div class="flex justify-start" style="overflow: visible;">
+                <ReferralSection />
+              </div>
             {/if}
-            <div class="flex justify-start" style="overflow: visible;">
-              <ReferralSection />
-            </div>
           {/if}
 
           <!-- Table with last 5 referrals -->

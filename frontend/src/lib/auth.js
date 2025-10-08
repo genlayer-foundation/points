@@ -235,82 +235,91 @@ Issued At: ${new Date().toISOString()}`;
  * Sign in with Ethereum
  * @param {Object} provider - Ethereum provider to use
  * @param {string} walletName - Name of the wallet being used
- * @returns {Promise<Object>} Authentication result
+ * @param {boolean} skipRedirect - If true, skip automatic redirect after login
+ * @returns {Promise<Object>} Authentication result with user data
  */
-export async function signInWithEthereum(provider = null, walletName = 'wallet') {
+export async function signInWithEthereum(provider = null, walletName = 'wallet', skipRedirect = false) {
   authState.setLoading(true);
   authState.setError(null);
-  
+
   try {
     // Connect to wallet and get address
     const address = await connectWallet(provider, walletName);
-    
+
     // Get the provider from state (was stored in connectWallet)
     const state = authState.get();
     const ethereumProvider = state.provider || provider || window.ethereum;
-    
+
     // Get nonce from server
     const nonce = await getNonce();
-    
+
     // Create and sign the message with the specific provider
     const { message, signature } = await createAndSignMessage(address, nonce, ethereumProvider);
-    
+
     // Check for referral code in localStorage
     const referralCode = localStorage.getItem('referral_code');
-    
+
     // Send to backend for verification
     console.log('Sending login request to:', API_ENDPOINTS.LOGIN);
     const loginData = {
       message,
       signature
     };
-    
+
     // Add referral code if available
     if (referralCode) {
       loginData.referral_code = referralCode;
     }
-    
+
     const response = await authAxios.post(API_ENDPOINTS.LOGIN, loginData);
-    
+
     // Clear referral code from localStorage after successful login
     if (referralCode) {
       localStorage.removeItem('referral_code');
     }
-    
+
     // Update auth state
     authState.setAuthenticated(true, address);
-    
+
     // Set up wallet listeners after successful connection
     setupWalletListeners();
-    
+
     // Load user data into the store
+    let userData = null;
     try {
-      await userStore.loadUser();
+      userData = await userStore.loadUser();
     } catch (err) {
       console.error('Failed to load user data after login:', err);
     }
-    
+
     // Immediately verify the auth worked
     setTimeout(() => {
       verifyAuth();
     }, 100);
-    
-    // Check for redirect after login, default to user's public profile
-    const redirectPath = sessionStorage.getItem('redirectAfterLogin');
-    if (redirectPath) {
-      sessionStorage.removeItem('redirectAfterLogin');
-      // Import push dynamically to avoid circular dependencies
-      import('svelte-spa-router').then(({ push }) => {
-        push(redirectPath);
-      });
-    } else {
-      // Default to user's public profile
-      import('svelte-spa-router').then(({ push }) => {
-        push(`/participant/${address}`);
-      });
+
+    // Only redirect if skipRedirect is false
+    if (!skipRedirect) {
+      // Check for redirect after login, default to user's public profile
+      const redirectPath = sessionStorage.getItem('redirectAfterLogin');
+      if (redirectPath) {
+        sessionStorage.removeItem('redirectAfterLogin');
+        // Import push dynamically to avoid circular dependencies
+        import('svelte-spa-router').then(({ push }) => {
+          push(redirectPath);
+        });
+      } else {
+        // Default to user's public profile
+        import('svelte-spa-router').then(({ push }) => {
+          push(`/participant/${address}`);
+        });
+      }
     }
-    
-    return response.data;
+
+    return {
+      ...response.data,
+      user: userData,
+      address
+    };
   } catch (error) {
     // Pass the error object to let setError handle it
     authState.setError(error);
