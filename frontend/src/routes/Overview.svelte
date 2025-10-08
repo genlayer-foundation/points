@@ -57,6 +57,9 @@ contribution.
         <p class="text-gray-700">
           For each builder referred who submits at least one contribution, the referrer receives 10% of the points that builder earns permanently. In addition, referrers receive 500 Discord XP for each valid referral.
         </p>
+        <p class="text-gray-700 font-bold italic">
+          Share the image with your referral link on X to be eligible for the $1000 raffle.
+        </p>
         {#if $authState.isAuthenticated}
           <div class="flex items-center justify-center pt-2">
             <ReferralSection />
