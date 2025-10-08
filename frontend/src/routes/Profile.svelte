@@ -1616,7 +1616,7 @@
           {#if isOwnProfile && !loadingReferrals}
             <!-- Referral link section - always show for own profile -->
             {#if !referralData || referralData.total_referrals === 0}
-              <div class="flex flex-col lg:flex-row gap-6 items-center">
+              <div class="flex flex-col lg:flex-row gap-6 items-start">
                 <!-- Image -->
                 <div class="w-full lg:w-1/3 flex-shrink-0">
                   <img src="/assets/builders_program.png" alt="Builder Program" class="w-full rounded-lg max-w-sm mx-auto" />
