@@ -155,8 +155,11 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
             # Validate email with DNS deliverability check
             valid = validate_email(
                 value,
-                check_deliverability=True,  # Check DNS MX records
-                test_environment=False      # Block test@test.com patterns
+                check_deliverability=True,      # Check DNS MX records
+                test_environment=False,         # Block test@test.com patterns
+                globally_deliverable=True,      # Reject localhost, private IPs, .local domains
+                allow_domain_literal=False,     # Block IP-based emails like user@[192.168.1.1]
+                timeout=10                      # DNS timeout in seconds (prevent hanging)
             )
 
             # Get normalized email (lowercase domain, etc.)
