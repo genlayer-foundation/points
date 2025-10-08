@@ -387,7 +387,21 @@
       onProfileCompleted();
     } catch (err) {
       console.error('Profile update error:', err);
-      profileError = err.response?.data?.error || err.message || 'Failed to update profile';
+      // Handle field-specific errors from Django REST Framework
+      if (err.response?.data) {
+        const data = err.response.data;
+        if (data.email) {
+          profileError = data.email;
+        } else if (data.name) {
+          profileError = data.name;
+        } else if (data.error) {
+          profileError = data.error;
+        } else {
+          profileError = err.message || 'Failed to update profile';
+        }
+      } else {
+        profileError = err.message || 'Failed to update profile';
+      }
     } finally {
       submittingProfile = false;
     }

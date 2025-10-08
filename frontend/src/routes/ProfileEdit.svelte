@@ -185,7 +185,23 @@
       // Redirect to public profile
       push(`/participant/${$authState.address}`);
     } catch (err) {
-      error = err.response?.data?.error || err.message || 'Failed to update profile';
+      // Handle field-specific errors from backend
+      if (err.response?.data) {
+        const data = err.response.data;
+
+        // Check for field-specific errors and set appropriate error state
+        if (data.email) {
+          emailError = data.email;  // Shows under email field with red border
+        } else if (data.name) {
+          nameError = data.name;    // Shows under name field with red border
+        } else {
+          // General error (shows at top of form)
+          error = data.error || err.message || 'Failed to update profile';
+        }
+      } else {
+        error = err.message || 'Failed to update profile';
+      }
+
       isSaving = false;
     }
   }
