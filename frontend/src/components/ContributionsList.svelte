@@ -5,15 +5,16 @@
   import ContributionCard from './ContributionCard.svelte';
   import { contributionsAPI } from '../lib/api';
   
-  const { 
-    contributions = [], 
-    loading: externalLoading = false, 
-    error: externalError = null, 
-    showUser = true, 
+  const {
+    contributions = [],
+    loading: externalLoading = false,
+    error: externalError = null,
+    showUser = true,
     userAddress = null,
     category = null,
     compact = false,
-    limit: maxLimit = null
+    limit: maxLimit = null,
+    disableGrouping = false  // New prop to disable client-side grouping
   } = $props();
   
   
@@ -28,14 +29,26 @@
   // Process contributions - handle both grouped and ungrouped formats
   function processContributions(contribs) {
     if (!contribs || contribs.length === 0) return [];
-    
+
+    // If grouping is disabled, return contributions as-is with minimal processing
+    if (disableGrouping) {
+      return contribs.map(contrib => ({
+        ...contrib,
+        count: 1,
+        users: contrib.user_details ? [contrib.user_details] : [],
+        typeId: contrib.contribution_type?.id || contrib.contribution_type,
+        category: category || contrib.contribution_type_details?.category || contrib.category
+      }));
+    }
+
     // Check if data is already grouped (from backend)
     if (contribs[0] && contribs[0].grouped_contributions) {
       // Data is already grouped, but we need to handle highlights properly
       const result = [];
-      
+
       for (const group of contribs) {
         // Process each group - split at highlights but keep non-highlighted consecutive items grouped
+        const groupLength = group.grouped_contributions.length;
         let currentSubgroup = null;
         
         for (const contrib of group.grouped_contributions) {
@@ -68,7 +81,7 @@
           } else {
             // Non-highlighted contribution - add to current subgroup
             if (!currentSubgroup) {
-              // Start a new subgroup
+              // Start a new subgroup - store reference to grouped_contributions
               currentSubgroup = {
                 id: contrib.id,
                 contribution_type: contrib.contribution_type,
@@ -84,8 +97,7 @@
                 count: 1,
                 end_date: contrib.contribution_date,
                 users: contrib.user_details ? [contrib.user_details] : [],
-                evidence_items: contrib.evidence_items,
-                notes: contrib.notes
+                grouped_items: [contrib]  // Store all contributions for later access
               };
             } else {
               // Add to existing subgroup
@@ -93,16 +105,19 @@
               currentSubgroup.frozen_global_points += (contrib.frozen_global_points || contrib.points || 0);
               currentSubgroup.points = currentSubgroup.frozen_global_points;
               currentSubgroup.end_date = contrib.contribution_date;
-              
+
               // Add unique user if different
               if (contrib.user_details) {
-                const userExists = currentSubgroup.users.some(u => 
+                const userExists = currentSubgroup.users.some(u =>
                   u.address === contrib.user_details.address
                 );
                 if (!userExists) {
                   currentSubgroup.users.push(contrib.user_details);
                 }
               }
+
+              // Store contribution reference
+              currentSubgroup.grouped_items.push(contrib);
             }
           }
         }
@@ -145,10 +160,9 @@
           count: 1,
           end_date: contrib.contribution_date,
           users: [],
-          evidence_items: contrib.evidence_items,
-          notes: contrib.notes
+          grouped_items: [contrib]  // Store all contributions for later access
         };
-        
+
         if (contrib.user_details) {
           currentGroup.users = [{
             address: contrib.user_details.address,
@@ -156,7 +170,7 @@
             profile_image_url: contrib.user_details.profile_image_url
           }];
         }
-        
+
         grouped.push(currentGroup);
       } else {
         // Add to existing group
@@ -164,10 +178,10 @@
         currentGroup.frozen_global_points += (contrib.frozen_global_points || 0);
         currentGroup.points = currentGroup.frozen_global_points;
         currentGroup.end_date = contrib.contribution_date;
-        
+
         // Add unique user
         if (contrib.user_details) {
-          const userExists = currentGroup.users.some(u => 
+          const userExists = currentGroup.users.some(u =>
             u.address === contrib.user_details.address
           );
           if (!userExists) {
@@ -178,6 +192,9 @@
             });
           }
         }
+
+        // Store contribution reference
+        currentGroup.grouped_items.push(contrib);
       }
     }
     
@@ -268,14 +285,14 @@
   {:else}
     <div class="space-y-3">
       {#each processedContributions as contribution}
-        <ContributionCard 
-          {contribution} 
+        <ContributionCard
+          {contribution}
           {showUser}
           submission={{
             notes: contribution.notes,
             evidence_items: contribution.evidence_items
           }}
-          showExpand={contribution.evidence_items?.length > 0 || contribution.notes}
+          showExpand={contribution.evidence_items?.length > 0 || contribution.notes || contribution.grouped_items?.some(item => item.notes || item.evidence_items?.length > 0)}
         />
       {/each}
     </div>

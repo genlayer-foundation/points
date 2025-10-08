@@ -2,9 +2,8 @@
   import { onMount } from 'svelte';
   import { push, querystring } from 'svelte-spa-router';
   import { format } from 'date-fns';
-  import UserContributions from '../components/UserContributions.svelte';
+  import RecentContributions from '../components/RecentContributions.svelte';
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
-  import StatCard from '../components/StatCard.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import ProfileStats from '../components/ProfileStats.svelte';
   import ContributionBreakdown from '../components/ContributionBreakdown.svelte';
@@ -56,7 +55,7 @@
   let showSuccessNotification = $state(false);
   let referralData = $state(null);
   let loadingReferrals = $state(false);
-  
+
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
     $authState.isAuthenticated && 
@@ -201,7 +200,8 @@
       }, 5000);
     }
   });
-  
+
+
   async function refreshBalance() {
     if (!participant?.address) {
       return;
@@ -470,7 +470,8 @@
       return dateString;
     }
   }
-  
+
+
   // Icons for stat cards
   const icons = {
     contributions: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
@@ -1043,16 +1044,21 @@
               <ContributionBreakdown
                 contributionTypes={participant.validator.contribution_types}
                 colorTheme="sky"
+                userAddress={participant.address}
               />
             </div>
           {/if}
           
           <!-- Contributions -->
           <div class="px-4 mt-6 pb-6">
-            <UserContributions
-              userAddress={participant.address}
-              userName={participant.name || 'Validator'}
-              category="validator"
+            <RecentContributions
+              title="Recent Contributions"
+              limit={5}
+              userId={participant.address}
+              showHeader={true}
+              showViewAll={true}
+              viewAllPath={`/all-contributions?user=${participant.address}&category=validator`}
+              viewAllText="View All →"
             />
           </div>
         {/if}
@@ -1103,17 +1109,21 @@
               <ContributionBreakdown
                 contributionTypes={participant.builder.contribution_types}
                 colorTheme="orange"
+                userAddress={participant.address}
               />
             </div>
           {/if}
           
           <!-- Contributions -->
           <div class="mt-6">
-            <UserContributions
-              userAddress={participant.address}
-              userName={participant.name || 'Builder'}
-              category="builder"
-              compact={true}
+            <RecentContributions
+              title="Recent Contributions"
+              limit={5}
+              userId={participant.address}
+              showHeader={true}
+              showViewAll={true}
+              viewAllPath={`/all-contributions?user=${participant.address}&category=builder`}
+              viewAllText="View All →"
             />
           </div>
         </div>
@@ -1178,17 +1188,21 @@
               <ContributionBreakdown
                 contributionTypes={validatorStats.contributionTypes}
                 colorTheme="sky"
+                userAddress={participant.address}
               />
             </div>
           {/if}
           
           <!-- Contributions List -->
           <div class="mt-6">
-            <UserContributions
-              userAddress={participant.address}
-              userName={participant.name || 'Participant'}
-              category="validator"
-              compact={true}
+            <RecentContributions
+              title="Recent Contributions"
+              limit={5}
+              userId={participant.address}
+              showHeader={true}
+              showViewAll={true}
+              viewAllPath={`/all-contributions?user=${participant.address}&category=validator`}
+              viewAllText="View All →"
             />
           </div>
         </div>
@@ -1258,17 +1272,21 @@
               <ContributionBreakdown
                 contributionTypes={builderStats.contributionTypes}
                 colorTheme="orange"
+                userAddress={participant.address}
               />
             </div>
           {/if}
           
           <!-- Contributions List -->
           <div class="mt-6">
-            <UserContributions
-              userAddress={participant.address}
-              userName={participant.name || 'Participant'}
-              category="builder"
-              compact={true}
+            <RecentContributions
+              title="Recent Contributions"
+              limit={5}
+              userId={participant.address}
+              showHeader={true}
+              showViewAll={true}
+              viewAllPath={`/all-contributions?user=${participant.address}&category=builder`}
+              viewAllText="View All →"
             />
           </div>
         </div>

@@ -20,6 +20,7 @@
   import TestnetAsimov from './routes/TestnetAsimov.svelte';
   import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
+  import AllContributions from './routes/AllContributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
   import Profile from './routes/Profile.svelte';
   import ContributionTypeDetail from './routes/ContributionTypeDetail.svelte';
@@ -55,6 +56,7 @@
     '/': Overview,
     '/asimov': TestnetAsimov,
     '/contributions': Contributions,
+    '/all-contributions': AllContributions,
     '/contributions/highlights': Highlights,
     '/highlights': Highlights,
     '/leaderboard': Leaderboard,
@@ -64,6 +66,7 @@
     // Builders routes
     '/builders': Dashboard,
     '/builders/contributions': Contributions,
+    '/builders/all-contributions': AllContributions,
     '/builders/contributions/highlights': Highlights,
     '/builders/highlights': Highlights,
     '/builders/leaderboard': Leaderboard,
@@ -73,6 +76,7 @@
     // Validators routes
     '/validators': Dashboard,
     '/validators/contributions': Contributions,
+    '/validators/all-contributions': AllContributions,
     '/validators/contributions/highlights': Highlights,
     '/validators/highlights': Highlights,
     '/validators/leaderboard': Leaderboard,

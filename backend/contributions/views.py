@@ -171,17 +171,27 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     
     def get_queryset(self):
         queryset = Contribution.objects.all().order_by('-contribution_date')
-        
+
+        # Prefetch related objects to avoid N+1 queries
+        queryset = queryset.select_related(
+            'user',
+            'contribution_type',
+            'contribution_type__category'
+        ).prefetch_related(
+            'evidence_items',
+            'highlights'
+        )
+
         # Filter by user address if provided
         user_address = self.request.query_params.get('user_address')
         if user_address:
             queryset = queryset.filter(user__address__iexact=user_address)
-        
+
         # Filter by category if provided
         category = self.request.query_params.get('category')
         if category:
             queryset = queryset.filter(contribution_type__category__slug=category)
-            
+
         return queryset
     
     def list(self, request, *args, **kwargs):
@@ -190,7 +200,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         """
         # Check if grouping is requested
         group_consecutive = request.query_params.get('group_consecutive', 'false').lower() == 'true'
-        
+
         if not group_consecutive:
             # Default behavior - no grouping
             return super().list(request, *args, **kwargs)
@@ -201,22 +211,16 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         # Get the total count of actual contributions (not groups)
         total_contributions_count = queryset.count()
         
-        # Apply regular pagination first to get raw contributions
-        page_size = int(request.query_params.get('limit', 10))
+        # Get pagination parameters
+        page_size = int(request.query_params.get('page_size') or request.query_params.get('limit', 10))
         page_number = int(request.query_params.get('page', 1))
-        
-        # We need to fetch more records to ensure we have enough after grouping
-        # For efficiency, don't load all contributions - use a reasonable limit
-        # that ensures we get enough groups after consecutive grouping
-        extended_limit = min(page_size * 50, 500)  # Fetch up to 50x page size or 500 records
-        start_index = (page_number - 1) * page_size
-        
-        # Calculate the offset for fetching contributions
-        # We need to estimate where to start fetching based on previous pages
-        fetch_offset = (page_number - 1) * extended_limit if page_number > 1 else 0
-        
-        # Get contributions with extended limit
-        all_contributions = list(queryset[fetch_offset:fetch_offset + extended_limit])
+
+        # For grouped pagination, we use limit/offset on the RAW contributions
+        # then group them, then slice the result
+        # This is simpler but less efficient - acceptable for reasonable dataset sizes
+        limit_for_fetch = min(page_size * page_number * 5, 500)  # Fetch enough to cover requested page
+
+        all_contributions = list(queryset[:limit_for_fetch])
         
         # Group consecutive contributions
         grouped = []
@@ -226,18 +230,19 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         for contrib in all_contributions:
             serialized = ContributionSerializer(contrib).data
             type_id = contrib.contribution_type.id
-            user_id = contrib.user.id if contrib.user else None
-            
+            has_evidence = bool(serialized.get('evidence_url'))
+
             # Check if we should add to current group or start new one
-            # Only group if same type AND same user
-            if (current_group and 
+            # Only group if same type and NO evidence
+            if (current_group and
                 current_group['contribution_type']['id'] == type_id and
-                current_group.get('primary_user_id') == user_id):
+                not has_evidence and
+                not current_group.get('has_evidence')):
                 # Add to existing group
                 current_group['grouped_contributions'].append(serialized)
                 current_group['frozen_global_points'] += (serialized.get('frozen_global_points') or 0)
                 current_group['end_date'] = serialized['contribution_date']
-                
+
                 # Add unique user to the set
                 user_details = serialized.get('user_details')
                 if user_details:
@@ -251,15 +256,12 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     current_group['count'] = len(current_group['grouped_contributions'])
                     current_group['users'] = list(current_group['unique_users'].values())
                     del current_group['unique_users']  # Remove the temporary set
-                    current_group.pop('primary_user_id', None)  # Remove internal tracking field
+                    current_group.pop('has_evidence', None)  # Remove internal tracking field
                     grouped.append(current_group)
                     total_grouped_count += 1
-                    
-                    # Check if we have enough grouped items for this page
-                    if total_grouped_count > start_index + page_size:
-                        break
-                
+
                 # Create new group
+                contribution_type_details = ContributionTypeSerializer(contrib.contribution_type).data
                 current_group = {
                     'id': f"group_{contrib.id}",  # Use first contribution's ID as group ID
                     'contribution_type': {
@@ -267,6 +269,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                         'name': contrib.contribution_type.name,
                         'slug': contrib.contribution_type.slug,
                     },
+                    'contribution_type_details': contribution_type_details,  # Full type details including category
                     'contribution_type_name': contrib.contribution_type.name,
                     'grouped_contributions': [serialized],
                     'frozen_global_points': serialized.get('frozen_global_points') or 0,
@@ -274,7 +277,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     'end_date': serialized['contribution_date'],  # Will be updated
                     'unique_users': {},
                     'user_details': serialized.get('user_details'),  # Primary user (for single-user groups)
-                    'primary_user_id': user_id,  # Track the user for grouping
+                    'has_evidence': has_evidence,  # Track if this group has evidence
                 }
                 
                 # Add first user
@@ -294,25 +297,25 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                 # Fallback: extract users from grouped contributions
                 current_group['users'] = []
             # Remove internal tracking field
-            current_group.pop('primary_user_id', None)
+            current_group.pop('has_evidence', None)
             grouped.append(current_group)
         
-        # Apply pagination to grouped results
-        paginated_groups = grouped[start_index:start_index + page_size]
-        
-        # Use the actual contribution count, not the grouped count
-        # This ensures stats show the correct total number of contributions
-        total_count = total_contributions_count
-        
-        # For pagination, we need to track the number of groups for next/prev links
-        total_groups = len(grouped)
-        
-        # Return paginated response with the actual contribution count
+        # Paginate the grouped results
+        start_idx = (page_number - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_groups = grouped[start_idx:end_idx]
+
+        # Calculate if there's more data
+        # We don't know the total grouped count without fetching everything,
+        # so we check if we got a full page (suggests there might be more)
+        has_next = len(grouped) > end_idx or len(all_contributions) >= limit_for_fetch
+        has_previous = page_number > 1
+
+        # Return paginated response
         return Response({
-            'count': total_count,  # Return actual contribution count for stats
-            'grouped_count': total_groups,  # Also include grouped count if needed
-            'next': None if (start_index + page_size) >= total_groups else f"?page={page_number + 1}&limit={page_size}&group_consecutive=true",
-            'previous': None if page_number == 1 else f"?page={page_number - 1}&limit={page_size}&group_consecutive=true",
+            'count': total_contributions_count,  # Total raw contribution count
+            'next': f"?page={page_number + 1}&limit={page_size}&group_consecutive=true" if has_next else None,
+            'previous': f"?page={page_number - 1}&limit={page_size}&group_consecutive=true" if has_previous else None,
             'results': paginated_groups
         })
     
@@ -534,6 +537,13 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         """Users can only see their own submissions."""
         return SubmittedContribution.objects.filter(
             user=self.request.user
+        ).select_related(
+            'contribution_type',
+            'contribution_type__category',
+            'reviewed_by',
+            'converted_contribution'
+        ).prefetch_related(
+            'evidence_items'
         ).order_by('-created_at')
     
     def create(self, request, *args, **kwargs):
