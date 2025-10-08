@@ -9,6 +9,7 @@
   import Avatar from '../components/Avatar.svelte';
   import StatCard from '../components/StatCard.svelte';
   import ContributionCard from '../components/ContributionCard.svelte';
+  import Icon from '../components/Icons.svelte';
 
   // Get current user from store
   let user = $derived($userStore.user);
@@ -104,7 +105,8 @@
             nodeVersion: fullUser?.validator?.node_version || null,
             matchesTarget: fullUser?.validator?.matches_target || false,
             targetVersion: fullUser?.validator?.target_version || null,
-            joinedWaitlist: waitlistContribution?.contribution_date || fullUser?.created_at
+            joinedWaitlist: waitlistContribution?.contribution_date || fullUser?.created_at,
+            referral_points: entry.referral_points || null
           };
         });
         
@@ -261,12 +263,14 @@
       {:else}
         <div class="bg-white shadow rounded-lg divide-y divide-gray-200">
           {#each waitlistUsers.slice(0, 10) as user}
+            {@const referralTotal = user.referral_points ? user.referral_points.builder_points + user.referral_points.validator_points : 0}
+            {@const contributionPoints = user.score - referralTotal}
             <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
               <div class="flex items-center gap-3">
                 <div class="flex items-center justify-center w-8 h-8 rounded-full bg-amber-100 text-amber-700 font-semibold text-sm">
                   #{user.waitlistRank}
                 </div>
-                <Avatar 
+                <Avatar
                   user={user.user}
                   size="sm"
                   clickable={true}
@@ -278,8 +282,39 @@
                   >
                     {user.user?.name || truncateAddress(user.address)}
                   </button>
-                  <div class="text-xs text-gray-500">
-                    {user.score} points
+                  <div class="flex items-center gap-3 mt-0.5">
+                    <!-- Contribution Points -->
+                    <div class="flex items-center gap-1 group relative">
+                      <Icon name="lightning" size="sm" className="text-amber-600" />
+                      <span class="text-sm text-gray-700 font-medium">{contributionPoints}</span>
+                      <!-- Tooltip -->
+                      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
+                        <div>Contribution Points</div>
+                        <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                          <div class="border-4 border-transparent border-t-gray-900"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Referral Points -->
+                    {#if user.referral_points}
+                      {#if referralTotal > 0}
+                        <div class="flex items-center gap-1 group relative">
+                          <Icon name="users" size="sm" className="text-purple-600" />
+                          <span class="text-sm text-purple-600 font-medium">{referralTotal}</span>
+                          <!-- Tooltip -->
+                          <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
+                            <div>Referral Points</div>
+                            <div class="text-xs text-gray-300 mt-1">
+                              Builder: {user.referral_points.builder_points} | Validator: {user.referral_points.validator_points}
+                            </div>
+                            <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                              <div class="border-4 border-transparent border-t-gray-900"></div>
+                            </div>
+                          </div>
+                        </div>
+                      {/if}
+                    {/if}
                   </div>
                 </div>
               </div>
@@ -513,6 +548,8 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
               {#each waitlistUsers as user, i}
+                {@const referralTotal = user.referral_points ? user.referral_points.builder_points + user.referral_points.validator_points : 0}
+                {@const contributionPoints = user.score - referralTotal}
                 <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td class="px-6 py-4 whitespace-nowrap">
                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
@@ -575,7 +612,18 @@
                     {/if}
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="text-sm font-medium text-gray-900">{user.score || 0}</span>
+                    <div class="flex items-center gap-3">
+                      <div class="flex items-center gap-1">
+                        <Icon name="lightning" size="sm" className="text-amber-600" />
+                        <span class="text-sm font-medium text-gray-900">{contributionPoints}</span>
+                      </div>
+                      {#if referralTotal > 0}
+                        <div class="flex items-center gap-1">
+                          <Icon name="users" size="sm" className="text-purple-600" />
+                          <span class="text-sm font-medium text-purple-600">{referralTotal}</span>
+                        </div>
+                      {/if}
+                    </div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">

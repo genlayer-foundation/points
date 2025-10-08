@@ -18,12 +18,18 @@
   // Character limit for truncating description
   const DESCRIPTION_CHAR_LIMIT = 150;
 
-  // Configure marked options for security
+  // Configure marked options for security and links
+  const renderer = new marked.Renderer();
+  renderer.link = function(href, title, text) {
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer"${title ? ` title="${title}"` : ''}>${text}</a>`;
+  };
+
   marked.setOptions({
     breaks: true,
     gfm: true,
     headerIds: false,
-    mangle: false
+    mangle: false,
+    renderer: renderer
   });
 
   async function fetchMissions() {

@@ -44,7 +44,8 @@
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
   import Referrals from './routes/Referrals.svelte';
-  
+  import Supporters from './routes/Supporters.svelte';
+
   // Define routes
   const routes = {
 
@@ -62,6 +63,7 @@
     '/leaderboard': Leaderboard,
     '/participants': Validators,
     '/referrals': Referrals,
+    '/supporters': Supporters,
 
     // Builders routes
     '/builders': Dashboard,
