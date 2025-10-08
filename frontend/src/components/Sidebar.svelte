@@ -276,7 +276,28 @@
         </div>
         {/if}
       </div>
-      
+
+      <!-- Supporters section -->
+      <div>
+        <div class="border-t border-gray-200 mb-3"></div>
+        <a
+          href="/supporters"
+          onclick={(e) => { e.preventDefault(); navigate('/supporters'); }}
+          class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors {
+            isActive('/supporters')
+              ? 'bg-purple-50 text-purple-600'
+              : 'hover:bg-gray-50'
+          }"
+        >
+          <svg class="w-4 h-4 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+          </svg>
+          <h3 class="text-xs font-medium uppercase tracking-wider flex-1 text-left {isActive('/supporters') ? 'text-purple-700' : 'text-gray-700'}">
+            SUPPORTERS
+          </h3>
+        </a>
+      </div>
+
       <!-- Profile section -->
       <div>
         <div class="border-t border-gray-200 mb-3"></div>
@@ -288,7 +309,7 @@
               : 'hover:bg-gray-50'
           }"
         >
-          <Icon 
+          <Icon
             name="profile"
             size="sm"
             className="mr-2 text-purple-600"
@@ -296,7 +317,7 @@
           <h3 class="text-xs font-medium uppercase tracking-wider flex-1 text-left text-gray-700">
             Profile
           </h3>
-          <Icon 
+          <Icon
             name="chevronDown"
             size="xs"
             className="text-gray-400"
@@ -500,7 +521,28 @@
           </div>
           {/if}
         </div>
-        
+
+        <!-- Supporters section -->
+        <div>
+          <div class="border-t border-gray-200 mb-3"></div>
+          <a
+            href="/supporters"
+            onclick={(e) => { e.preventDefault(); navigate('/supporters'); }}
+            class="w-full flex items-center px-3 py-2 mb-1 rounded-md transition-colors {
+              isActive('/supporters')
+                ? 'bg-purple-50 text-purple-600'
+                : 'hover:bg-gray-50'
+            }"
+          >
+            <svg class="w-4 h-4 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+            </svg>
+            <h3 class="text-sm font-medium uppercase tracking-wider {isActive('/supporters') ? 'text-purple-700' : 'text-gray-700'}">
+              SUPPORTERS
+            </h3>
+          </a>
+        </div>
+
         <!-- Profile section -->
         <div>
           <div class="border-t border-gray-200 mb-3"></div>
@@ -512,7 +554,7 @@
                 : 'hover:bg-gray-50'
             }"
           >
-            <Icon 
+            <Icon
               name="profile"
               size="sm"
               className="mr-2 text-purple-600"

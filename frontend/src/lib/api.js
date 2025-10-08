@@ -103,7 +103,7 @@ export const contributionsAPI = {
 // API endpoints for leaderboard
 export const leaderboardAPI = {
   getLeaderboard: (params) => api.get('/leaderboard/', { params }),
-  getLeaderboardByType: (type, order = 'asc') => 
+  getLeaderboardByType: (type, order = 'asc') =>
     api.get('/leaderboard/', { params: { type, order } }),
   getLeaderboardEntry: (address) => api.get(`/leaderboard/?user_address=${address}`),
   getMultipliers: () => api.get('/multipliers/'),
@@ -111,6 +111,7 @@ export const leaderboardAPI = {
   getMultiplierPeriods: (multiplier_id) => api.get(`/multiplier-periods/?multiplier=${multiplier_id}`),
   getStats: () => api.get('/leaderboard/stats/'),
   getWaitlistStats: () => api.get('/leaderboard/validator-waitlist-stats/'),
+  getSupporters: () => api.get('/leaderboard/supporters/'),
   getTypes: () => api.get('/leaderboard/types/'),
   recalculateAll: () => api.post('/leaderboard/recalculate/')
 };
