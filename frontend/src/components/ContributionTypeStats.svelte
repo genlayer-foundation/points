@@ -80,10 +80,11 @@
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 {colors.headerIcon} mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
-          <h2 class="text-xl font-bold text-gray-900">Contribution Opportunities</h2>
+          <h2 class="text-xl font-bold text-gray-900">Contributions (open call)</h2>
         </div>
         <p class="mt-1 text-sm text-gray-600 leading-snug">
-          These are open ended contributions in the different areas of GenLayer's Ecosystem. <br>Small and big, targeted to both indie developers and startups, feel free to choose your own path.
+          Contribute to the GenLayer Ecosystem in multiple ways and be rewarded. <br>
+          These are open-ended contributions, both small and large, from indie developers and startups alike, allowing you to choose your own path.
         </p>
       </div>
 
@@ -138,7 +139,7 @@
               <!-- Submit button -->
               <button
                 onclick={() => push(`/submit-contribution?type=${stats.id}`)}
-                class="ml-auto flex-shrink-0 text-sm font-medium {colors.titleText} {colors.titleTextHover} transition-colors"
+                class="ml-auto flex-shrink-0 text-sm font-normal {colors.titleText} {colors.titleTextHover} transition-colors"
               >
                 Submit →
               </button>

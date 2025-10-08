@@ -74,7 +74,7 @@
     // Small delay to ensure tooltip is hidden before navigation
     setTimeout(() => navigateToBadgeDetail(), 50);
   }}
-  class="inline-block {bold ? 'font-semibold' : 'font-normal'} rounded-lg {sizeClasses[size]} {colorClasses[color]} {clickable ? 'cursor-pointer transition-colors' : ''} {badge.description ? 'tooltip' : ''} whitespace-normal text-left max-w-[300px]"
+  class="inline-block {bold ? 'font-semibold' : 'font-normal'} rounded-full {sizeClasses[size]} {colorClasses[color]} {clickable ? 'cursor-pointer transition-colors' : ''} {badge.description ? 'tooltip' : ''} whitespace-normal text-left max-w-[300px]"
   title={badge.description || ''}
 >
   <span class="block">
