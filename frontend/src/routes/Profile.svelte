@@ -1055,6 +1055,7 @@
               title="Recent Contributions"
               limit={5}
               userId={participant.address}
+              category="validator"
               showHeader={true}
               showViewAll={true}
               viewAllPath={`/all-contributions?user=${participant.address}&category=validator`}
@@ -1120,6 +1121,7 @@
               title="Recent Contributions"
               limit={5}
               userId={participant.address}
+              category="builder"
               showHeader={true}
               showViewAll={true}
               viewAllPath={`/all-contributions?user=${participant.address}&category=builder`}
@@ -1129,7 +1131,7 @@
         </div>
       </div>
     {/if}
-    
+
     <!-- Validator Waitlist Card -->
     {#if participant.has_validator_waitlist && !participant.validator}
       <div class="bg-sky-50 rounded-lg shadow-sm border border-sky-200 overflow-hidden mb-6">
@@ -1199,6 +1201,7 @@
               title="Recent Contributions"
               limit={5}
               userId={participant.address}
+              category="validator"
               showHeader={true}
               showViewAll={true}
               viewAllPath={`/all-contributions?user=${participant.address}&category=validator`}
@@ -1208,7 +1211,7 @@
         </div>
       </div>
     {/if}
-    
+
     <!-- Builder Welcome Card -->
     {#if participant.has_builder_welcome && !participant.builder}
       <div class="bg-orange-50 rounded-lg shadow-sm border border-orange-200 overflow-hidden mb-6">
@@ -1283,6 +1286,7 @@
               title="Recent Contributions"
               limit={5}
               userId={participant.address}
+              category="builder"
               showHeader={true}
               showViewAll={true}
               viewAllPath={`/all-contributions?user=${participant.address}&category=builder`}
