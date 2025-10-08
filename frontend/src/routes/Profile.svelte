@@ -1657,8 +1657,8 @@
             {/if}
           {/if}
 
-          <!-- Table with referrals (only show when user actually has referrals) -->
-          {#if !loadingReferrals && referralData && referralData.referrals && referralData.total_referrals > 0}
+          <!-- Table with referrals (only show for own profile when user has referrals) -->
+          {#if isOwnProfile && !loadingReferrals && referralData && referralData.referrals && referralData.total_referrals > 0}
             <div class="mt-6">
               <h3 class="text-lg font-semibold text-gray-900 mb-4">Last Referrals</h3>
               <div class="overflow-x-auto">
