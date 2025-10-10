@@ -1,7 +1,6 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { authState } from '../lib/auth';
-  import { onMount } from 'svelte';
   
   let {
     testnetBalance = null,
@@ -32,9 +31,31 @@
   let isCheckingNetworks = $state(false);
   let isAddingAsimov = $state(false);
   let isAddingStudio = $state(false);
-  
+
   // Derive wallet address from auth state
   let walletAddress = $derived($authState.address);
+
+  // Get wallet-specific localStorage keys
+  function getStorageKey(network) {
+    if (!walletAddress) return null;
+    return `genlayer_${network}_network_added_${walletAddress.toLowerCase()}`;
+  }
+
+  // Load network state from localStorage for current wallet
+  function loadNetworkState() {
+    if (typeof window === 'undefined' || !walletAddress) return;
+
+    const asimovKey = getStorageKey('asimov');
+    const studioKey = getStorageKey('studio');
+
+    hasAsimovNetwork = asimovKey ? localStorage.getItem(asimovKey) === 'true' : false;
+    hasStudioNetwork = studioKey ? localStorage.getItem(studioKey) === 'true' : false;
+  }
+
+  // Watch for wallet address changes and reload network state
+  $effect(() => {
+    loadNetworkState();
+  });
   
   // Network configurations
   const ASIMOV_NETWORK = {
@@ -61,44 +82,29 @@
     blockExplorerUrls: []
   };
   
-  // Check if networks are configured
+  // Check if networks are configured (passive - no popups)
   async function checkNetworks() {
     // Get the connected wallet's provider from authState or fallback to window.ethereum
     const provider = $authState.provider || window.ethereum;
     if (!provider || !walletAddress) {
       return;
     }
-    
+
     isCheckingNetworks = true;
     try {
-      // Check for Asimov network
-      try {
-        await provider.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: ASIMOV_NETWORK.chainId }],
-        });
+      // Get current network (doesn't trigger popup)
+      const currentChainId = await provider.request({ method: 'eth_chainId' });
+
+      // If user is on Asimov or Studio network, mark as added and persist for this wallet
+      if (currentChainId === ASIMOV_NETWORK.chainId && !hasAsimovNetwork) {
         hasAsimovNetwork = true;
-      } catch (error) {
-        if (error.code === 4902) {
-          hasAsimovNetwork = false;
-        } else {
-          hasAsimovNetwork = true; // Network exists but couldn't switch
-        }
+        const key = getStorageKey('asimov');
+        if (key) localStorage.setItem(key, 'true');
       }
-      
-      // Check for Studio network
-      try {
-        await provider.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: STUDIO_NETWORK.chainId }],
-        });
+      if (currentChainId === STUDIO_NETWORK.chainId && !hasStudioNetwork) {
         hasStudioNetwork = true;
-      } catch (error) {
-        if (error.code === 4902) {
-          hasStudioNetwork = false;
-        } else {
-          hasStudioNetwork = true; // Network exists but couldn't switch
-        }
+        const key = getStorageKey('studio');
+        if (key) localStorage.setItem(key, 'true');
       }
     } catch (error) {
       console.error('Error checking networks:', error);
@@ -106,15 +112,7 @@
       isCheckingNetworks = false;
     }
   }
-  
-  // Refresh all requirements (networks + balance + deployment)
-  async function refreshRequirements() {
-    await checkNetworks();
-    if (onCheckRequirements) {
-      await onCheckRequirements();
-    }
-  }
-  
+
   // Add network to wallet
   async function addNetwork(network, isStudio = false) {
     // Get the connected wallet's provider from authState or fallback to window.ethereum
@@ -123,23 +121,28 @@
       alert('Please connect your wallet first');
       return;
     }
-    
+
     if (isStudio) {
       isAddingStudio = true;
     } else {
       isAddingAsimov = true;
     }
-    
+
     try {
       await provider.request({
         method: 'wallet_addEthereumChain',
         params: [network],
       });
-      
+
+      // Network added successfully - update state and persist for this wallet
       if (isStudio) {
         hasStudioNetwork = true;
+        const key = getStorageKey('studio');
+        if (key) localStorage.setItem(key, 'true');
       } else {
         hasAsimovNetwork = true;
+        const key = getStorageKey('asimov');
+        if (key) localStorage.setItem(key, 'true');
       }
     } catch (error) {
       console.error('Error adding network:', error);
@@ -155,18 +158,11 @@
     }
   }
   
-  onMount(() => {
-    if (walletAddress) {
-      checkNetworks();
-    }
-  });
-  
-  // Watch for wallet address changes
-  $effect(() => {
-    if (walletAddress) {
-      checkNetworks();
-    }
-  });
+  // Removed automatic network checking on mount and wallet change
+  // Networks are only checked when:
+  // 1. User manually adds a network (triggers automatic switch by MetaMask)
+  // 2. State is loaded from wallet-specific localStorage
+  // No automatic MetaMask API calls
   
   // Calculate completed requirements (8 total - including GitHub and star)
   let completedCount = $derived(
@@ -462,13 +458,7 @@
               {#if !hasAsimovNetwork}
                 <span>Add Asimov Network first</span>
               {:else if testnetBalance === null}
-                <span class="inline-flex items-center">
-                  <svg class="animate-spin -ml-0.5 mr-1.5 h-3 w-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Checking balance...
-                </span>
+                <span>Click refresh icon to check balance</span>
               {:else if hasTestnetBalance}
                 <span>Current balance: {testnetBalance} GEN</span>
               {:else}
