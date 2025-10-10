@@ -36,17 +36,20 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
     
     def get_queryset(self):
         queryset = ContributionType.objects.all()
-        
+
         # Filter by category if provided
         category = self.request.query_params.get('category')
         if category:
             queryset = queryset.filter(category__slug=category)
-        
+            # Exclude Builder Welcome when filtering for builder category
+            if category == 'builder':
+                queryset = queryset.exclude(slug='builder-welcome')
+
         # Filter by is_submittable if provided (for user submission forms)
         is_submittable = self.request.query_params.get('is_submittable')
         if is_submittable is not None:
             queryset = queryset.filter(is_submittable=is_submittable.lower() == 'true')
-            
+
         return queryset
         
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
@@ -64,11 +67,14 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         
         # Start with all contribution types
         queryset = ContributionType.objects.all()
-        
+
         # Filter by category if provided
         category = request.query_params.get('category')
         if category:
             queryset = queryset.filter(category__slug=category)
+            # Exclude Builder Welcome when filtering for builder category
+            if category == 'builder':
+                queryset = queryset.exclude(slug='builder-welcome')
         
         types_with_stats = queryset.annotate(
             count=Count('contributions'),
@@ -191,6 +197,9 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         category = self.request.query_params.get('category')
         if category:
             queryset = queryset.filter(contribution_type__category__slug=category)
+            # Exclude Builder Welcome when filtering for builder category
+            if category == 'builder':
+                queryset = queryset.exclude(contribution_type__slug='builder-welcome')
 
         return queryset
     
