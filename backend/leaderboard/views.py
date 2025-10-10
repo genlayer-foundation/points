@@ -42,7 +42,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     API endpoint that allows viewing the leaderboard.
     Filter by type to get specific leaderboards:
     - ?type=validator - Active validators
-    - ?type=builder - Builders  
+    - ?type=builder - Builders
     - ?type=steward - Stewards
     - ?type=validator-waitlist - Waitlisted users (not yet validators)
     """
@@ -54,13 +54,23 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['rank', 'total_points', 'updated_at']
     ordering = ['rank']
     pagination_class = None  # Disable pagination to return all entries
-    
+
     def get_queryset(self):
         """
         Filter leaderboard by type, user address, and handle ordering.
+        Optimized with select_related to avoid N+1 queries.
         """
         queryset = super().get_queryset()
-        
+
+        # Optimize queries: select related user and their profiles
+        queryset = queryset.select_related(
+            'user',
+            'user__validator',
+            'user__builder',
+            'user__steward',
+            'user__creator'
+        )
+
         # Filter by user address if provided
         user_address = self.request.query_params.get('user_address')
         if user_address:
@@ -72,18 +82,31 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         else:
             # Get type from query params
             leaderboard_type = self.request.query_params.get('type')
-            
+
             if leaderboard_type:
                 queryset = queryset.filter(type=leaderboard_type)
             else:
                 # Default to validator leaderboard only when not filtering by user
                 queryset = queryset.filter(type='validator')
-        
+
         # Handle rank ordering
         order = self.request.query_params.get('order', 'asc')
         if order == 'desc':
             return queryset.order_by('-rank')
         return queryset.order_by('rank')
+
+    def get_serializer_context(self):
+        """
+        Add context flags to control serializer behavior.
+        Use lightweight serializers for leaderboard to avoid expensive nested queries.
+        """
+        context = super().get_serializer_context()
+        # Always use light serializers for leaderboard list view
+        # User details in leaderboard don't need full validator/builder stats
+        context['use_light_serializers'] = True
+        # Never include expensive referral_details in leaderboard
+        context['include_referral_details'] = False
+        return context
     
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAdminUser])
     def recalculate(self, request):
