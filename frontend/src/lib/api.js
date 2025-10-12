@@ -130,6 +130,11 @@ export const validatorsAPI = {
   getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } })
 };
 
+// Builders API
+export const buildersAPI = {
+  getNewestBuilders: (limit = 5) => api.get('/builders/newest/', { params: { limit } })
+};
+
 // Journey API
 export const journeyAPI = {
   startValidatorJourney: () => api.post('/users/start_validator_journey/'),
