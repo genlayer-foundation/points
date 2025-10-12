@@ -44,16 +44,32 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             return obj
         return obj
         
+    def get_serializer_context(self):
+        """
+        Add context flags to control serializer behavior.
+        Use lightweight serializers for list views, full serializers for detail views.
+        """
+        context = super().get_serializer_context()
+        # Use light serializers for list view, full for detail/by_address
+        context['use_light_serializers'] = self.action == 'list'
+        # Include referral_details only for detail/by_address views
+        context['include_referral_details'] = self.action in ['retrieve', 'by_address']
+        return context
+
     @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)')
     def by_address(self, request, address=None):
         """
         Get a user by their Ethereum wallet address
         """
         user = get_object_or_404(
-            User.objects.select_related('validator', 'builder', 'steward'),
+            User.objects.select_related('validator', 'builder', 'steward', 'creator'),
             address__iexact=address
         )
-        serializer = self.get_serializer(user)
+        # Override context for by_address to include full details
+        context = self.get_serializer_context()
+        context['use_light_serializers'] = False
+        context['include_referral_details'] = True
+        serializer = self.get_serializer(user, context=context)
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)/highlights')
@@ -90,14 +106,21 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         For PATCH requests, only the name field can be updated.
         """
         if request.method == 'GET':
-            serializer = self.get_serializer(request.user)
+            # For /users/me/, include full details including referral_details
+            context = self.get_serializer_context()
+            context['use_light_serializers'] = False
+            context['include_referral_details'] = True
+            serializer = self.get_serializer(request.user, context=context)
             return Response(serializer.data)
         elif request.method == 'PATCH':
             serializer = UserProfileUpdateSerializer(request.user, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
-                # Return the full user data after update
-                full_serializer = self.get_serializer(request.user)
+                # Return the full user data after update with full details
+                context = self.get_serializer_context()
+                context['use_light_serializers'] = False
+                context['include_referral_details'] = True
+                full_serializer = self.get_serializer(request.user, context=context)
                 return Response(full_serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     

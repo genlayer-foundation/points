@@ -104,10 +104,10 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         Returns users with the most points for this contribution type.
         """
         from django.db.models import Sum
-        from users.serializers import UserSerializer
-        
+        from utils.serializers import LightUserSerializer
+
         contribution_type = self.get_object()
-        
+
         # Get top contributors by summing their frozen global points for this type
         top_contributors = Contribution.objects.filter(
             contribution_type=contribution_type
@@ -115,33 +115,60 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             total_points=Sum('frozen_global_points'),
             contribution_count=Count('id')
         ).order_by('-total_points')[:10]
-        
-        # Get user objects and add the aggregated data
+
+        # Get user objects with select_related for efficiency
+        user_ids = [c['user'] for c in top_contributors]
+        users = {
+            user.id: user
+            for user in ContributionType.objects.get(pk=pk).contributions.filter(
+                user_id__in=user_ids
+            ).select_related('user', 'user__validator', 'user__builder').values_list('user', flat=True).distinct()
+        }
+
+        # Fetch users directly with optimization
+        from users.models import User
+        users_dict = {
+            user.id: user
+            for user in User.objects.filter(id__in=user_ids).select_related('validator', 'builder')
+        }
+
+        # Build result with lightweight serializer
         result = []
         for contributor in top_contributors:
-            user = contribution_type.contributions.filter(
-                user_id=contributor['user']
-            ).first().user
-            
-            user_data = UserSerializer(user).data
-            user_data['total_points'] = contributor['total_points']
-            user_data['contribution_count'] = contributor['contribution_count']
-            result.append(user_data)
-        
+            user = users_dict.get(contributor['user'])
+            if user:
+                user_data = LightUserSerializer(user).data
+                user_data['total_points'] = contributor['total_points']
+                user_data['contribution_count'] = contributor['contribution_count']
+                result.append(user_data)
+
         return Response(result)
     
     @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
     def recent_contributions(self, request, pk=None):
         """
         Get the last 10 contributions for a specific contribution type.
+        Uses lightweight serializers to avoid N+1 queries.
         """
         contribution_type = self.get_object()
-        
+
         recent_contributions = Contribution.objects.filter(
             contribution_type=contribution_type
+        ).select_related(
+            'user',
+            'user__validator',
+            'user__builder',
+            'contribution_type',
+            'contribution_type__category'
         ).order_by('-contribution_date')[:10]
-        
-        serializer = ContributionSerializer(recent_contributions, many=True)
+
+        # Use light serializers for list view
+        context = {
+            'use_light_serializers': True,
+            'include_referral_details': False,
+            'request': request
+        }
+        serializer = ContributionSerializer(recent_contributions, many=True, context=context)
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
@@ -178,14 +205,17 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         queryset = Contribution.objects.all().order_by('-contribution_date')
 
-        # Prefetch related objects to avoid N+1 queries
+        # Comprehensive prefetch to avoid N+1 queries
+        # Only prefetch what we need based on whether we're using light serializers
         queryset = queryset.select_related(
             'user',
+            'user__validator',  # For validator info in user details
+            'user__builder',    # For builder info in user details
             'contribution_type',
             'contribution_type__category'
         ).prefetch_related(
-            'evidence_items',
-            'highlights'
+            'evidence_items',  # Only queried in detail view (light serializers skip this)
+            'highlights'       # Only queried in detail view (light serializers skip this)
         )
 
         # Filter by user address if provided
@@ -202,6 +232,17 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                 queryset = queryset.exclude(contribution_type__slug='builder-welcome')
 
         return queryset
+
+    def get_serializer_context(self):
+        """
+        Add context flags to control serializer behavior.
+        Use lightweight serializers for list views to improve performance.
+        """
+        context = super().get_serializer_context()
+        # Use light serializers for list views (action='list')
+        # Use full serializers for detail views (action='retrieve')
+        context['use_light_serializers'] = self.action == 'list'
+        return context
     
     def list(self, request, *args, **kwargs):
         """
@@ -541,7 +582,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
     authentication_classes = [EthereumAuthentication]
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
-    
+
     def get_queryset(self):
         """Users can only see their own submissions."""
         return SubmittedContribution.objects.filter(
@@ -550,10 +591,22 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             'contribution_type',
             'contribution_type__category',
             'reviewed_by',
-            'converted_contribution'
+            'converted_contribution',
+            'user'  # Optimize user access
         ).prefetch_related(
             'evidence_items'
         ).order_by('-created_at')
+
+    def get_serializer_context(self):
+        """
+        Add context flags to control serializer behavior.
+        Use lightweight serializers for list views to improve performance.
+        """
+        context = super().get_serializer_context()
+        # Use light serializers for list views
+        # Use full serializers for detail views
+        context['use_light_serializers'] = self.action == 'list' or self.action == 'my_submissions'
+        return context
     
     def create(self, request, *args, **kwargs):
         """Create a new submission."""
@@ -644,7 +697,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     filterset_fields = ['state', 'contribution_type', 'user']
     ordering_fields = ['created_at', 'contribution_date']
     ordering = ['-created_at']
-    
+
     def get_permissions(self):
         """
         Instantiates and returns the list of permissions that this view requires.
@@ -653,17 +706,34 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         if self.action == 'stats':
             return [permissions.AllowAny()]
         return super().get_permissions()
-    
+
     def get_queryset(self):
         """Get all submissions for steward review."""
         queryset = SubmittedContribution.objects.all()
-        
-        # Add prefetch for optimization
+
+        # Comprehensive prefetch for optimization
         queryset = queryset.select_related(
-            'user', 'contribution_type', 'reviewed_by'
+            'user',
+            'user__validator',
+            'user__builder',
+            'contribution_type',
+            'contribution_type__category',
+            'reviewed_by',
+            'converted_contribution'
         ).prefetch_related('evidence_items')
-        
+
         return queryset
+
+    def get_serializer_context(self):
+        """
+        Add context flags to control serializer behavior.
+        Use lightweight serializers for list views to improve performance.
+        """
+        context = super().get_serializer_context()
+        # Use light serializers for list views
+        # Use full serializers for detail views (single submission review)
+        context['use_light_serializers'] = self.action == 'list'
+        return context
     
     @action(detail=True, methods=['post'], url_path='review')
     def review(self, request, pk=None):
