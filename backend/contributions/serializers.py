@@ -2,7 +2,6 @@ from rest_framework import serializers
 from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission
 from users.serializers import UserSerializer
 from users.models import User
-from utils.serializers import LightUserSerializer, LightContributionTypeSerializer
 import decimal
 
 
@@ -29,55 +28,33 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
 
 
 class ContributionSerializer(serializers.ModelSerializer):
-    user_details = serializers.SerializerMethodField()
+    user_details = UserSerializer(source='user', read_only=True)
     contribution_type_name = serializers.ReadOnlyField(source='contribution_type.name')
     contribution_type_min_points = serializers.ReadOnlyField(source='contribution_type.min_points')
     contribution_type_max_points = serializers.ReadOnlyField(source='contribution_type.max_points')
     contribution_type_details = serializers.SerializerMethodField()
     evidence_items = serializers.SerializerMethodField()
     highlight = serializers.SerializerMethodField()
-
+    
     class Meta:
         model = Contribution
-        fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name',
+        fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name', 
                   'contribution_type_min_points', 'contribution_type_max_points', 'contribution_type_details',
                   'points', 'frozen_global_points', 'multiplier_at_creation', 'contribution_date',
                   'evidence_items', 'notes', 'highlight', 'created_at', 'updated_at']
         read_only_fields = ['id', 'frozen_global_points', 'created_at', 'updated_at']
-
-    def get_user_details(self, obj):
-        """
-        Returns user details using lightweight or full serializer based on context.
-        Use lightweight serializer for list views to avoid N+1 queries.
-        """
-        use_light = self.context.get('use_light_serializers', True)
-        if use_light:
-            return LightUserSerializer(obj.user).data
-        return UserSerializer(obj.user, context=self.context).data
-
+        
     def get_evidence_items(self, obj):
         """Returns serialized evidence items for this contribution."""
-        # For list views, skip evidence to reduce queries
-        if self.context.get('use_light_serializers', True):
-            return []
         evidence_items = obj.evidence_items.all().order_by('-created_at')
         return EvidenceSerializer(evidence_items, many=True, context=self.context).data
-
+    
     def get_contribution_type_details(self, obj):
-        """
-        Returns contribution type details using lightweight or full serializer based on context.
-        Use lightweight serializer for list views to avoid N+1 queries.
-        """
-        use_light = self.context.get('use_light_serializers', True)
-        if use_light:
-            return LightContributionTypeSerializer(obj.contribution_type).data
+        """Returns detailed contribution type information including category."""
         return ContributionTypeSerializer(obj.contribution_type, context=self.context).data
-
+    
     def get_highlight(self, obj):
         """Returns highlight information if this contribution is highlighted."""
-        # For list views, skip highlight queries
-        if self.context.get('use_light_serializers', True):
-            return None
         highlight = obj.highlights.first()  # Using related_name from the model
         if highlight:
             return {
@@ -123,71 +100,39 @@ class EvidenceSerializer(serializers.ModelSerializer):
 
 
 class SubmittedContributionSerializer(serializers.ModelSerializer):
-    """
-    Serializer for submitted contributions (user submissions).
-    Context-aware: Uses lightweight serializers for list views to avoid N+1 queries.
-    """
-    user_details = serializers.SerializerMethodField()
+    """Serializer for submitted contributions (user submissions)."""
+    user_details = UserSerializer(source='user', read_only=True)
     contribution_type_name = serializers.ReadOnlyField(source='contribution_type.name')
-    contribution_type_details = serializers.SerializerMethodField()
+    contribution_type_details = ContributionTypeSerializer(source='contribution_type', read_only=True)
     evidence_items = serializers.SerializerMethodField()
     state_display = serializers.CharField(source='get_state_display', read_only=True)
     can_edit = serializers.SerializerMethodField()
     contribution = serializers.SerializerMethodField()
-
+    
     class Meta:
         model = SubmittedContribution
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name',
-                  'contribution_type_details', 'contribution_date', 'notes', 'state', 'state_display',
+                  'contribution_type_details', 'contribution_date', 'notes', 'state', 'state_display', 
                   'staff_reply', 'reviewed_by', 'reviewed_at', 'evidence_items', 'can_edit',
                   'suggested_points', 'converted_contribution', 'contribution',
                   'created_at', 'updated_at', 'last_edited_at']
-        read_only_fields = ['id', 'user', 'state', 'staff_reply', 'reviewed_by',
-                          'reviewed_at', 'created_at', 'updated_at', 'last_edited_at',
+        read_only_fields = ['id', 'user', 'state', 'staff_reply', 'reviewed_by', 
+                          'reviewed_at', 'created_at', 'updated_at', 'last_edited_at', 
                           'suggested_points', 'converted_contribution']
-
-    def get_user_details(self, obj):
-        """
-        Returns user details using lightweight or full serializer based on context.
-        Use lightweight serializer for list views to avoid N+1 queries.
-        """
-        use_light = self.context.get('use_light_serializers', False)
-        if use_light:
-            return LightUserSerializer(obj.user).data
-        return UserSerializer(obj.user, context=self.context).data
-
-    def get_contribution_type_details(self, obj):
-        """
-        Returns contribution type details using lightweight or full serializer based on context.
-        Use lightweight serializer for list views to avoid N+1 queries.
-        """
-        use_light = self.context.get('use_light_serializers', False)
-        if use_light:
-            return LightContributionTypeSerializer(obj.contribution_type).data
-        return ContributionTypeSerializer(obj.contribution_type, context=self.context).data
-
+    
     def get_evidence_items(self, obj):
         """Returns serialized evidence items for this submission."""
-        # For list views, skip evidence to reduce queries
-        if self.context.get('use_light_serializers', False):
-            return []
         evidence_items = obj.evidence_items.all().order_by('-created_at')
         return EvidenceSerializer(evidence_items, many=True, context=self.context).data
-
+    
     def get_can_edit(self, obj):
         """Check if the submission can be edited."""
         return obj.state == 'more_info_needed'
-
+    
     def get_contribution(self, obj):
         """Get the created contribution if submission was accepted."""
-        # Skip for list views
-        if self.context.get('use_light_serializers', False):
-            return None
         if obj.converted_contribution:
-            # Use context to control serialization depth
-            contrib_context = self.context.copy()
-            contrib_context['use_light_serializers'] = True  # Use light even for detail
-            return ContributionSerializer(obj.converted_contribution, context=contrib_context).data
+            return ContributionSerializer(obj.converted_contribution, context=self.context).data
         return None
     
     def create(self, validated_data):
@@ -217,32 +162,20 @@ class SubmittedEvidenceSerializer(serializers.ModelSerializer):
 
 
 class ContributionHighlightSerializer(serializers.ModelSerializer):
-    contribution_details = serializers.SerializerMethodField()
+    contribution_details = ContributionSerializer(source='contribution', read_only=True)
     user_name = serializers.CharField(source='contribution.user.name', read_only=True)
     user_address = serializers.CharField(source='contribution.user.address', read_only=True)
-    user_profile_image_url = serializers.URLField(source='contribution.user.profile_image_url', read_only=True)
     contribution_type_name = serializers.CharField(source='contribution.contribution_type.name', read_only=True)
     contribution_type_id = serializers.IntegerField(source='contribution.contribution_type.id', read_only=True)
-    contribution_type_slug = serializers.SlugField(source='contribution.contribution_type.slug', read_only=True)
-    contribution_type_category = serializers.CharField(source='contribution.contribution_type.category.slug', read_only=True)
     contribution_points = serializers.IntegerField(source='contribution.frozen_global_points', read_only=True)
     contribution_date = serializers.DateTimeField(source='contribution.contribution_date', read_only=True)
-
+    
     class Meta:
         model = ContributionHighlight
         fields = ['id', 'title', 'description', 'contribution', 'contribution_details',
-                  'user_name', 'user_address', 'user_profile_image_url',
-                  'contribution_type_name', 'contribution_type_id', 'contribution_type_slug',
-                  'contribution_type_category', 'contribution_points', 'contribution_date', 'created_at']
+                  'user_name', 'user_address', 'contribution_type_name', 'contribution_type_id',
+                  'contribution_points', 'contribution_date', 'created_at']
         read_only_fields = ['id', 'created_at']
-
-    def get_contribution_details(self, obj):
-        """
-        Return lightweight contribution details to avoid N+1 queries.
-        Most needed info is already in the flat fields above.
-        """
-        from utils.serializers import LightContributionSerializer
-        return LightContributionSerializer(obj.contribution).data
 
 
 class StewardSubmissionReviewSerializer(serializers.Serializer):
@@ -317,16 +250,13 @@ class StewardSubmissionReviewSerializer(serializers.Serializer):
 
 
 class StewardSubmissionSerializer(serializers.ModelSerializer):
-    """
-    Enhanced serializer for steward view of submissions with all needed data.
-    Context-aware: Uses lightweight serializers for list views to avoid N+1 queries.
-    """
-    user_details = serializers.SerializerMethodField()
-    contribution_type_details = serializers.SerializerMethodField()
+    """Enhanced serializer for steward view of submissions with all needed data."""
+    user_details = UserSerializer(source='user', read_only=True)
+    contribution_type_details = ContributionTypeSerializer(source='contribution_type', read_only=True)
     evidence_items = serializers.SerializerMethodField()
     state_display = serializers.CharField(source='get_state_display', read_only=True)
     contribution = serializers.SerializerMethodField()
-
+    
     class Meta:
         model = SubmittedContribution
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_details',
@@ -334,48 +264,18 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                   'reviewed_by', 'reviewed_at', 'evidence_items', 'suggested_points',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution']
         read_only_fields = ['id', 'created_at', 'updated_at', 'suggested_points']
-
-    def get_user_details(self, obj):
-        """
-        Returns user details using lightweight or full serializer based on context.
-        Use lightweight serializer for list views to avoid N+1 queries.
-        """
-        use_light = self.context.get('use_light_serializers', False)
-        if use_light:
-            return LightUserSerializer(obj.user).data
-        return UserSerializer(obj.user, context=self.context).data
-
-    def get_contribution_type_details(self, obj):
-        """
-        Returns contribution type details using lightweight or full serializer based on context.
-        Use lightweight serializer for list views to avoid N+1 queries.
-        """
-        use_light = self.context.get('use_light_serializers', False)
-        if use_light:
-            return LightContributionTypeSerializer(obj.contribution_type).data
-        return ContributionTypeSerializer(obj.contribution_type, context=self.context).data
-
+    
     def get_evidence_items(self, obj):
         """Returns serialized evidence items for this submission."""
-        # For list views, skip evidence to reduce queries
-        if self.context.get('use_light_serializers', False):
-            return []
         evidence_items = obj.evidence_items.all().order_by('-created_at')
         return EvidenceSerializer(evidence_items, many=True, context=self.context).data
-
+    
     def get_contribution(self, obj):
         """Get the created contribution if submission was accepted."""
-        # Skip for list views
-        if self.context.get('use_light_serializers', False):
-            return None
-
         if obj.converted_contribution:
             from .models import ContributionHighlight
-            # Use light context to avoid deep nesting
-            contrib_context = self.context.copy()
-            contrib_context['use_light_serializers'] = True
-            contribution_data = ContributionSerializer(obj.converted_contribution, context=contrib_context).data
-
+            contribution_data = ContributionSerializer(obj.converted_contribution, context=self.context).data
+            
             # Add highlight info if exists
             try:
                 highlight = ContributionHighlight.objects.get(contribution=obj.converted_contribution)
@@ -387,12 +287,13 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
             except ContributionHighlight.DoesNotExist:
                 contribution_data['is_highlighted'] = False
                 contribution_data['highlight'] = None
-
-            # Add contribution type details with light serializer
-            contribution_data['contribution_type_details'] = LightContributionTypeSerializer(
-                obj.converted_contribution.contribution_type
+            
+            # Add contribution type details
+            contribution_data['contribution_type_details'] = ContributionTypeSerializer(
+                obj.converted_contribution.contribution_type, 
+                context=self.context
             ).data
-
+            
             return contribution_data
         return None
 

@@ -83,21 +83,14 @@ class ValidatorSerializer(serializers.ModelSerializer):
             return 0
     
     def get_contribution_types(self, obj):
-        """
-        Get breakdown of contribution types for validator category.
-        Skip for nested/list views to avoid N+1 queries.
-        """
-        # Skip expensive queries for nested/list views
-        if self.context.get('use_light_serializers', False):
-            return []
-
+        """Get breakdown of contribution types for validator category."""
         from contributions.models import Contribution, ContributionType
         from django.db.models import Count, Sum
-
+        
         try:
             category = Category.objects.get(slug='validator')
             contribution_types = ContributionType.objects.filter(category=category)
-
+            
             # Get contribution stats grouped by type
             stats = Contribution.objects.filter(
                 user=obj.user,
@@ -106,10 +99,10 @@ class ValidatorSerializer(serializers.ModelSerializer):
                 count=Count('id'),
                 total_points=Sum('frozen_global_points')
             ).order_by('-total_points')
-
+            
             # Calculate total points for percentage
             total_points = sum(s['total_points'] or 0 for s in stats)
-
+            
             # Format the response
             result = []
             for stat in stats:
@@ -121,7 +114,7 @@ class ValidatorSerializer(serializers.ModelSerializer):
                     'total_points': points,
                     'percentage': round((points / total_points * 100) if total_points > 0 else 0, 1)
                 })
-
+            
             return result
         except Category.DoesNotExist:
             return []
@@ -310,21 +303,14 @@ class BuilderSerializer(serializers.ModelSerializer):
         ).count()
     
     def get_contribution_types(self, obj):
-        """
-        Get breakdown of contribution types for builder.
-        Skip for nested/list views to avoid N+1 queries.
-        """
-        # Skip expensive queries for nested/list views
-        if self.context.get('use_light_serializers', False):
-            return []
-
+        """Get breakdown of contribution types for builder."""
         from contributions.models import Contribution, ContributionType
         from django.db.models import Count, Sum
-
+        
         # Get all builder-related contribution types
         builder_slugs = ['builder', 'builder-welcome', 'create-intelligent-contracts']
         contribution_types = ContributionType.objects.filter(slug__in=builder_slugs)
-
+        
         contributions = Contribution.objects.filter(
             user=obj.user,
             contribution_type__in=contribution_types
@@ -332,10 +318,10 @@ class BuilderSerializer(serializers.ModelSerializer):
             count=Count('id'),
             total_points=Sum('frozen_global_points')
         ).order_by('-total_points')
-
+        
         # Calculate total points for percentage
         total_points = sum(c['total_points'] or 0 for c in contributions)
-
+        
         # Format the response with percentage
         result = []
         for contrib in contributions:
@@ -348,7 +334,7 @@ class BuilderSerializer(serializers.ModelSerializer):
                 'total_points': points,
                 'percentage': round((points / total_points * 100) if total_points > 0 else 0, 1)
             })
-
+        
         return result
 
 
@@ -413,14 +399,14 @@ class CreatorSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     leaderboard_entry = serializers.SerializerMethodField()
-    validator = serializers.SerializerMethodField()
-    builder = serializers.SerializerMethodField()
+    validator = ValidatorSerializer(read_only=True)
+    builder = BuilderSerializer(read_only=True)
     steward = StewardSerializer(read_only=True)
     creator = CreatorSerializer(read_only=True)
     has_validator_waitlist = serializers.SerializerMethodField()
     has_builder_welcome = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
-
+    
     # Referral system fields
     referred_by_info = serializers.SerializerMethodField()
     total_referrals = serializers.SerializerMethodField()
@@ -438,44 +424,11 @@ class UserSerializer(serializers.ModelSerializer):
                   'referral_code', 'referred_by_info', 'total_referrals', 'referral_details']
         read_only_fields = ['id', 'created_at', 'updated_at', 'referral_code', 'github_linked_at']
     
-    def get_validator(self, obj):
-        """
-        Get validator info using lightweight or full serializer based on context.
-        """
-        if not hasattr(obj, 'validator'):
-            return None
-
-        # Use lightweight serializer for nested/list views
-        use_light = self.context.get('use_light_serializers', False)
-        if use_light:
-            from utils.serializers import LightValidatorSerializer
-            return LightValidatorSerializer(obj.validator).data
-        return ValidatorSerializer(obj.validator, context=self.context).data
-
-    def get_builder(self, obj):
-        """
-        Get builder info using lightweight or full serializer based on context.
-        """
-        if not hasattr(obj, 'builder'):
-            return None
-
-        # Use lightweight serializer for nested/list views
-        use_light = self.context.get('use_light_serializers', False)
-        if use_light:
-            from utils.serializers import LightBuilderSerializer
-            return LightBuilderSerializer(obj.builder).data
-        return BuilderSerializer(obj.builder, context=self.context).data
-
     def get_leaderboard_entry(self, obj):
         """
         Get the global leaderboard entry for this user.
         Returns rank and total_points if the entry exists, otherwise returns None.
-        Skip for nested/list views to avoid N+1 queries.
         """
-        # Skip expensive queries for nested/list views
-        if self.context.get('use_light_serializers', False):
-            return None
-
         try:
             # Get the validator leaderboard entry (default leaderboard)
             entry = LeaderboardEntry.objects.filter(user=obj, type='validator').first()
@@ -491,31 +444,21 @@ class UserSerializer(serializers.ModelSerializer):
     def get_has_validator_waitlist(self, obj):
         """
         Check if user has the validator waitlist badge (contribution).
-        Skip for nested/list views to avoid N+1 queries.
         """
-        # Skip expensive queries for nested/list views
-        if self.context.get('use_light_serializers', False):
-            return False
-
         from contributions.models import Contribution, ContributionType
-
+        
         try:
             waitlist_type = ContributionType.objects.get(slug='validator-waitlist')
             return Contribution.objects.filter(user=obj, contribution_type=waitlist_type).exists()
         except ContributionType.DoesNotExist:
             return False
-
+    
     def get_has_builder_welcome(self, obj):
         """
         Check if user has the builder welcome badge (contribution).
-        Skip for nested/list views to avoid N+1 queries.
         """
-        # Skip expensive queries for nested/list views
-        if self.context.get('use_light_serializers', False):
-            return False
-
         from contributions.models import Contribution, ContributionType
-
+        
         try:
             welcome_type = ContributionType.objects.get(slug='builder-welcome')
             return Contribution.objects.filter(user=obj, contribution_type=welcome_type).exists()
@@ -555,14 +498,7 @@ class UserSerializer(serializers.ModelSerializer):
         """
         Get comprehensive referral information including list of referred users.
         Queries contribution points directly from Contribution table for accuracy.
-
-        IMPORTANT: This is an expensive operation and should only be included
-        when explicitly requested via include_referral_details=true in context.
         """
-        # Skip this expensive operation unless explicitly requested
-        if not self.context.get('include_referral_details', False):
-            return None
-
         from leaderboard.models import ReferralPoints
         from contributions.models import Contribution
         from django.db.models import Count, Sum

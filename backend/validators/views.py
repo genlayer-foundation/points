@@ -55,19 +55,18 @@ class ValidatorViewSet(viewsets.ModelViewSet):
         """
         Get validators sorted by their first uptime contribution date (newest first).
         Returns the 5 most recent validators to join.
-        Uses lightweight serializers to avoid N+1 queries.
+        Uses the same query pattern as ActiveValidatorsView.
         """
         from django.db.models.functions import TruncDate
-        from utils.serializers import LightUserSerializer
-
+        
         limit = int(request.GET.get('limit', 5))
-
+        
         # Get the Uptime contribution type
         try:
             uptime_type = ContributionType.objects.get(name__iexact='uptime')
         except ContributionType.DoesNotExist:
             return Response([], status=status.HTTP_200_OK)
-
+        
         # Get all validators with their first uptime contribution
         # Similar to ActiveValidatorsView query
         validators_with_first_uptime = (
@@ -79,28 +78,24 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             )
             .order_by('-first_uptime_date')[:limit]
         )
-
-        # Get user IDs and fetch users with optimization
-        user_ids = [v['user'] for v in validators_with_first_uptime]
-        users_dict = {
-            user.id: user
-            for user in User.objects.filter(id__in=user_ids).select_related('validator', 'builder')
-        }
-
-        # Build result with lightweight serializer
+        
+        # Build result with full user details including role indicators
+        from users.models import User
+        from users.serializers import UserSerializer
+        
         result = []
         for validator in validators_with_first_uptime:
-            user = users_dict.get(validator['user'])
-            if user:
-                user_data = LightUserSerializer(user).data
+            try:
+                user = User.objects.get(id=validator['user'])
+                user_data = UserSerializer(user).data
                 user_data['first_uptime_date'] = validator['first_uptime_date']
                 result.append(user_data)
-            else:
+            except User.DoesNotExist:
                 # Fallback to simple data if user not found
                 result.append({
                     'address': validator['user__address'],
                     'name': validator['user__name'],
                     'first_uptime_date': validator['first_uptime_date']
                 })
-
+        
         return Response(result)
