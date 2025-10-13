@@ -227,9 +227,11 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         category = self.request.query_params.get('category')
         if category:
             queryset = queryset.filter(contribution_type__category__slug=category)
-            # Exclude Builder Welcome when filtering for builder category
-            if category == 'builder':
-                queryset = queryset.exclude(contribution_type__slug='builder-welcome')
+            # Note: We do NOT exclude builder-welcome here because users should see
+            # their builder-welcome contribution in their recent contributions list.
+            # Builder-welcome is only excluded from:
+            # - Leaderboard calculations (in leaderboard/models.py)
+            # - ContributionType listings (in ContributionTypeViewSet above)
 
         return queryset
 

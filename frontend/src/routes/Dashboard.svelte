@@ -6,7 +6,7 @@
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import RecentContributions from '../components/RecentContributions.svelte';
   import Avatar from '../components/Avatar.svelte';
-  import { contributionsAPI, usersAPI, statsAPI, leaderboardAPI, validatorsAPI } from '../lib/api';
+  import { contributionsAPI, usersAPI, statsAPI, leaderboardAPI, validatorsAPI, buildersAPI } from '../lib/api';
   import { push } from 'svelte-spa-router';
   import { currentCategory, categoryTheme } from '../stores/category.js';
 
@@ -44,6 +44,10 @@
         // For validators, use the specialized endpoint that gets first uptime
         const validatorsRes = await validatorsAPI.getNewestValidators(5);
         newestValidators = validatorsRes.data || [];
+      } else if ($currentCategory === 'builder') {
+        // For builders, use the specialized endpoint that excludes builder-welcome
+        const buildersRes = await buildersAPI.getNewestBuilders(5);
+        newestValidators = buildersRes.data || [];
       } else {
         // For other categories, get recent contributions
         const params = {
@@ -56,11 +60,11 @@
         }
 
         const contributionsRes = await contributionsAPI.getContributions(params);
-        
+
         // Extract unique users from contributions
         const seenUsers = new Set();
         const uniqueParticipants = [];
-        
+
         if (contributionsRes.data && contributionsRes.data.results) {
           for (const contribution of contributionsRes.data.results) {
             if (contribution.user_details && !seenUsers.has(contribution.user_details.address)) {
@@ -73,7 +77,7 @@
             }
           }
         }
-        
+
         newestValidators = uniqueParticipants;
       }
       

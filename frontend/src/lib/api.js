@@ -103,8 +103,8 @@ export const contributionsAPI = {
 // API endpoints for leaderboard
 export const leaderboardAPI = {
   getLeaderboard: (params) => api.get('/leaderboard/', { params }),
-  getLeaderboardByType: (type, order = 'asc') =>
-    api.get('/leaderboard/', { params: { type, order } }),
+  getLeaderboardByType: (type, order = 'asc', additionalParams = {}) =>
+    api.get('/leaderboard/', { params: { type, order, ...additionalParams } }),
   getLeaderboardEntry: (address) => api.get(`/leaderboard/?user_address=${address}`),
   getMultipliers: () => api.get('/multipliers/'),
   getActiveMultipliers: () => api.get('/multipliers/active/'),

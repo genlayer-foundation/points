@@ -59,6 +59,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Filter leaderboard by type, user address, and handle ordering.
         Optimized with select_related to avoid N+1 queries.
+        Supports limit parameter for efficient top-N queries.
         """
         queryset = super().get_queryset()
 
@@ -92,8 +93,20 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         # Handle rank ordering
         order = self.request.query_params.get('order', 'asc')
         if order == 'desc':
-            return queryset.order_by('-rank')
-        return queryset.order_by('rank')
+            queryset = queryset.order_by('-rank')
+        else:
+            queryset = queryset.order_by('rank')
+
+        # Apply limit if provided (for efficient top-N queries)
+        limit = self.request.query_params.get('limit')
+        if limit:
+            try:
+                limit = int(limit)
+                queryset = queryset[:limit]
+            except (ValueError, TypeError):
+                pass  # Ignore invalid limit values
+
+        return queryset
 
     def get_serializer_context(self):
         """
