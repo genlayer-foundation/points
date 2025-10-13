@@ -221,6 +221,12 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='contribution.user.name', read_only=True)
     user_address = serializers.CharField(source='contribution.user.address', read_only=True)
     user_profile_image_url = serializers.URLField(source='contribution.user.profile_image_url', read_only=True)
+    # Role status fields for Avatar color determination
+    user_validator = serializers.SerializerMethodField()
+    user_builder = serializers.SerializerMethodField()
+    user_steward = serializers.SerializerMethodField()
+    user_has_validator_waitlist = serializers.SerializerMethodField()
+    user_has_builder_welcome = serializers.SerializerMethodField()
     contribution_type_name = serializers.CharField(source='contribution.contribution_type.name', read_only=True)
     contribution_type_id = serializers.IntegerField(source='contribution.contribution_type.id', read_only=True)
     contribution_type_slug = serializers.SlugField(source='contribution.contribution_type.slug', read_only=True)
@@ -232,6 +238,8 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
         model = ContributionHighlight
         fields = ['id', 'title', 'description', 'contribution', 'contribution_details',
                   'user_name', 'user_address', 'user_profile_image_url',
+                  'user_validator', 'user_builder', 'user_steward',
+                  'user_has_validator_waitlist', 'user_has_builder_welcome',
                   'contribution_type_name', 'contribution_type_id', 'contribution_type_slug',
                   'contribution_type_category', 'contribution_points', 'contribution_date', 'created_at']
         read_only_fields = ['id', 'created_at']
@@ -243,6 +251,40 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
         """
         from utils.serializers import LightContributionSerializer
         return LightContributionSerializer(obj.contribution).data
+
+    def get_user_validator(self, obj):
+        """Check if user has validator role (OneToOne)."""
+        return hasattr(obj.contribution.user, 'validator')
+
+    def get_user_builder(self, obj):
+        """Check if user has builder role (OneToOne)."""
+        return hasattr(obj.contribution.user, 'builder')
+
+    def get_user_steward(self, obj):
+        """Check if user has steward role (OneToOne)."""
+        return hasattr(obj.contribution.user, 'steward')
+
+    def get_user_has_validator_waitlist(self, obj):
+        """Check if user has validator-waitlist contribution."""
+        try:
+            waitlist_type = ContributionType.objects.get(slug='validator-waitlist')
+            return Contribution.objects.filter(
+                user=obj.contribution.user,
+                contribution_type=waitlist_type
+            ).exists()
+        except ContributionType.DoesNotExist:
+            return False
+
+    def get_user_has_builder_welcome(self, obj):
+        """Check if user has builder-welcome contribution."""
+        try:
+            welcome_type = ContributionType.objects.get(slug='builder-welcome')
+            return Contribution.objects.filter(
+                user=obj.contribution.user,
+                contribution_type=welcome_type
+            ).exists()
+        except ContributionType.DoesNotExist:
+            return False
 
 
 class StewardSubmissionReviewSerializer(serializers.Serializer):

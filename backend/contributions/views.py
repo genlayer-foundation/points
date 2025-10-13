@@ -445,6 +445,9 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         # Order by contribution date descending and apply limit
         highlights = queryset.select_related(
             'contribution__user',
+            'contribution__user__validator',
+            'contribution__user__builder',
+            'contribution__user__steward',
             'contribution__contribution_type',
             'contribution__contribution_type__category'
         ).order_by('-contribution__contribution_date')[:limit]
