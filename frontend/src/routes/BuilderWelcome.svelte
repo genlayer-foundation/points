@@ -29,6 +29,19 @@
   // BroadcastChannel for OAuth popup communication (component-level scope)
   let oauthChannel = null;
 
+  // Debounce utility to prevent button spam
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
   // Derived states for requirements
   let requirement1Met = $derived(hasBuilderWelcome);
   let requirement2Met = $derived(!!githubUsername);
@@ -58,12 +71,10 @@
         hasBuilderWelcome = currentUser?.has_builder_welcome || false;
         hasSubmittedContribution = (currentUser?.builder?.total_contributions || 0) > 0;
         githubUsername = currentUser?.github_username || '';
-        // Check all requirements in parallel
-        await Promise.all([
-          checkTestnetBalance(),
-          checkDeployments(),
-          githubUsername ? checkRepoStar() : Promise.resolve()
-        ]);
+        // Removed all automatic checks - user must manually refresh each requirement
+        // - checkTestnetBalance() - Removed: only check when user clicks refresh
+        // - checkDeployments() - Removed: only check when user clicks refresh
+        // - checkRepoStar() - Removed: only check when user clicks refresh
       }
     } catch (err) {
       console.error('Failed to load user data:', err);
@@ -238,14 +249,10 @@
           hasSubmittedContribution = (currentUser?.builder?.total_contributions || 0) > 0;
           githubUsername = currentUser?.github_username || '';
 
-          // Check all requirements in parallel
-          await Promise.all([
-            checkTestnetBalance(),
-            checkDeployments(),
-            githubUsername ? checkRepoStar() : Promise.resolve()
-          ]);
+          // Removed all automatic checks after GitHub OAuth
+          // User must manually refresh each requirement
 
-          // Show success message AFTER data is loaded
+          // Show success message immediately
           showGitHubSuccess = true;
         } catch (err) {
           console.error('Failed to reload data after OAuth:', err);
@@ -308,12 +315,8 @@
           hasSubmittedContribution = (currentUser?.builder?.total_contributions || 0) > 0;
           githubUsername = currentUser?.github_username || '';
 
-          // Check all requirements in parallel
-          await Promise.all([
-            checkTestnetBalance(),
-            checkDeployments(),
-            githubUsername ? checkRepoStar() : Promise.resolve()
-          ]);
+          // Removed all automatic checks after popup close
+          // User must manually refresh each requirement
 
           // If GitHub was just linked, show success
           if (githubUsername) {
@@ -368,6 +371,11 @@
       isCompletingJourney = false;
     }
   }
+
+  // Create debounced versions AFTER all functions are defined (500ms delay)
+  const debouncedRefreshBalance = debounce(refreshBalance, 500);
+  const debouncedRefreshDeployments = debounce(refreshDeployments, 500);
+  const debouncedCheckRepoStar = debounce(checkRepoStar, 500);
 
 </script>
 
@@ -529,15 +537,15 @@
       colorTheme="orange"
       onClaimBuilderBadge={claimBuilderWelcome}
       isClaimingBuilderBadge={isClaimingBuilderBadge}
-      onRefreshBalance={refreshBalance}
+      onRefreshBalance={debouncedRefreshBalance}
       isRefreshingBalance={isRefreshingBalance}
       onCheckRequirements={checkRequirements}
       isCheckingRequirements={false}
-      onCheckDeployments={refreshDeployments}
+      onCheckDeployments={debouncedRefreshDeployments}
       isCheckingDeployments={isCheckingDeployments}
       onOpenStudio={openStudioWithInstructions}
       onLinkGitHub={linkGitHub}
-      onCheckRepoStar={checkRepoStar}
+      onCheckRepoStar={debouncedCheckRepoStar}
       isCheckingRepoStar={isCheckingRepoStar}
     />
 
