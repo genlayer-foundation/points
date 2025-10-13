@@ -17,7 +17,6 @@
   }
   
   import Overview from './routes/Overview.svelte';
-  import TestnetAsimov from './routes/TestnetAsimov.svelte';
   import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import AllContributions from './routes/AllContributions.svelte';
@@ -45,6 +44,7 @@
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
   import Referrals from './routes/Referrals.svelte';
   import Supporters from './routes/Supporters.svelte';
+  import GlobalDashboard from './components/GlobalDashboard.svelte';
 
   // Define routes
   const routes = {
@@ -55,7 +55,7 @@
     // Global/Testnet Asimov routes
     // Overview and Testnet Asimov routes
     '/': Overview,
-    '/asimov': TestnetAsimov,
+    '/asimov': GlobalDashboard,
     '/contributions': Contributions,
     '/all-contributions': AllContributions,
     '/contributions/highlights': Highlights,
@@ -72,7 +72,6 @@
     '/builders/contributions/highlights': Highlights,
     '/builders/highlights': Highlights,
     '/builders/leaderboard': Leaderboard,
-    '/builders/participants': Validators,
     '/builders/welcome': BuilderWelcome,
     
     // Validators routes

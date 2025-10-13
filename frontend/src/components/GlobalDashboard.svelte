@@ -5,11 +5,13 @@
   import TopLeaderboard from './TopLeaderboard.svelte';
   import FeaturedContributions from './FeaturedContributions.svelte';
   import Avatar from './Avatar.svelte';
-  import { contributionsAPI, leaderboardAPI, usersAPI, validatorsAPI } from '../lib/api';
+  import { contributionsAPI, leaderboardAPI, validatorsAPI, buildersAPI } from '../lib/api';
   
   // State management
   let validatorStats = $state({ total: 0, contributions: 0, points: 0 });
   let builderStats = $state({ total: 0, contributions: 0, points: 0 });
+  let validatorLeaderboard = $state([]);  // Store for reuse
+  let builderLeaderboard = $state([]);  // Store for reuse
   let newestValidators = $state([]);
   let newestBuilders = $state([]);
   let statsLoading = $state(true);
@@ -26,93 +28,62 @@
   };
   
   async function fetchGlobalData() {
-    // Fetch validator and builder stats
+    // Fetch all data in parallel for optimal performance
     try {
       statsLoading = true;
-      
-      // Fetch all users and other data (matching Validators.svelte logic)
-      const [usersRes, builderLeaderboardRes, validatorContribRes, builderContribRes] = await Promise.all([
-        usersAPI.getUsers({ page_size: 1000 }),
+      newestValidatorsLoading = true;
+      newestBuildersLoading = true;
+
+      // Fetch all necessary data in one parallel batch
+      const [
+        builderLeaderboardRes,
+        validatorLeaderboardRes,
+        validatorContribRes,
+        builderContribRes,
+        validatorsRes,
+        buildersRes
+      ] = await Promise.all([
         leaderboardAPI.getLeaderboardByType('builder'),
+        leaderboardAPI.getLeaderboardByType('validator'),
         contributionsAPI.getContributions({ category: 'validator', limit: 1 }),
-        contributionsAPI.getContributions({ category: 'builder', limit: 1 })
+        contributionsAPI.getContributions({ category: 'builder', limit: 1 }),
+        validatorsAPI.getNewestValidators(5),
+        buildersAPI.getNewestBuilders(5)
       ]);
-      
-      // Get validator leaderboard for points calculation
-      const validatorLeaderboardRes = await leaderboardAPI.getLeaderboardByType('validator');
+
+      // Process validator stats
       const validatorEntries = Array.isArray(validatorLeaderboardRes.data) ? validatorLeaderboardRes.data : [];
-      
-      // Count validators the same way Validators.svelte does - users with validator profiles
-      const allUsers = usersRes.data.results || [];
-      const validatorCount = allUsers.filter(user => user.validator && user.address).length;
-      
+      validatorLeaderboard = validatorEntries;
+
       validatorStats = {
-        total: validatorCount,
+        total: validatorEntries.length,
         contributions: validatorContribRes.data?.count || 0,
         points: validatorEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0)
       };
-      
-      // Process builder stats from leaderboard entries
+
+      // Process builder stats
       const builderEntries = Array.isArray(builderLeaderboardRes.data) ? builderLeaderboardRes.data : [];
-      
+      builderLeaderboard = builderEntries;
+
       builderStats = {
         total: builderEntries.length,
         contributions: builderContribRes.data?.count || 0,
         points: builderEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0)
       };
-      
-      statsLoading = false;
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-      statsLoading = false;
-    }
-    
-    // Fetch newest validators using the dedicated endpoint
-    try {
-      newestValidatorsLoading = true;
-      
-      const validatorsRes = await validatorsAPI.getNewestValidators(5);
+
+      // Process newest validators
       newestValidators = validatorsRes.data || [];
-      
+
+      // Process newest builders from dedicated endpoint
+      newestBuilders = buildersRes.data || [];
+
+      statsLoading = false;
       newestValidatorsLoading = false;
-    } catch (error) {
-      console.error('Error fetching newest validators:', error);
-      newestValidatorsLoading = false;
-    }
-    
-    // Fetch newest builders
-    try {
-      newestBuildersLoading = true;
-      
-      const params = { 
-        limit: 10, 
-        ordering: '-contribution_date',
-        category: 'builder'
-      };
-      
-      const builderRes = await contributionsAPI.getContributions(params);
-      
-      // Extract unique users from builder contributions
-      const seenUsers = new Set();
-      const uniqueBuilders = [];
-      
-      if (builderRes.data && builderRes.data.results) {
-        for (const contribution of builderRes.data.results) {
-          if (contribution.user_details && !seenUsers.has(contribution.user_details.address)) {
-            seenUsers.add(contribution.user_details.address);
-            uniqueBuilders.push({
-              ...contribution.user_details,
-              created_at: contribution.contribution_date
-            });
-            if (uniqueBuilders.length >= 5) break;
-          }
-        }
-      }
-      
-      newestBuilders = uniqueBuilders;
       newestBuildersLoading = false;
     } catch (error) {
-      console.error('Error fetching newest builders:', error);
+      console.error('Error fetching global dashboard data:', error);
+      statsLoading = false;
+      newestValidatorsLoading = false;
       newestBuildersLoading = false;
     }
   }
@@ -177,10 +148,12 @@
             </svg>
           </button>
         </div>
-        <TopLeaderboard 
+        <TopLeaderboard
           showHeader={false}
           category="validator"
           limit={5}
+          entries={validatorLeaderboard}
+          loading={statsLoading}
         />
       </div>
       
@@ -329,10 +302,12 @@
             </svg>
           </button>
         </div>
-        <TopLeaderboard 
+        <TopLeaderboard
           showHeader={false}
           category="builder"
           limit={5}
+          entries={builderLeaderboard}
+          loading={statsLoading}
         />
       </div>
       
@@ -357,7 +332,7 @@
             </svg>
           </button>
         </div>
-        <FeaturedContributions 
+        <FeaturedContributions
           showHeader={false}
           showViewAll={false}
           category="builder"
