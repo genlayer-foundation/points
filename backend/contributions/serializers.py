@@ -1,9 +1,55 @@
 from rest_framework import serializers
 from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission
-from users.serializers import UserSerializer
+from users.serializers import UserSerializer, LightUserSerializer
 from users.models import User
-from utils.serializers import LightUserSerializer, LightContributionTypeSerializer
 import decimal
+
+
+# ============================================================================
+# Lightweight Serializers for Optimized List Views
+# ============================================================================
+# These serializers provide minimal data for list views and nested relationships,
+# significantly reducing database queries and response payload size.
+
+
+class LightContributionTypeSerializer(serializers.Serializer):
+    """
+    Minimal contribution type serializer for nested relationships.
+    Only includes basic type information without expensive computed fields.
+    """
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    slug = serializers.SlugField(read_only=True)
+    description = serializers.CharField(read_only=True)
+    min_points = serializers.IntegerField(read_only=True)
+    max_points = serializers.IntegerField(read_only=True)
+    # Include category slug only, not the full category object
+    category = serializers.SerializerMethodField()
+
+    def get_category(self, obj):
+        """Return just the category slug."""
+        return obj.category.slug if obj.category else None
+
+
+class LightContributionSerializer(serializers.Serializer):
+    """
+    Minimal contribution serializer for recent contributions and highlights.
+    Uses lightweight nested serializers to avoid N+1 queries.
+    """
+    id = serializers.IntegerField(read_only=True)
+    user = LightUserSerializer(read_only=True)
+    contribution_type = LightContributionTypeSerializer(read_only=True)
+    points = serializers.IntegerField(read_only=True)
+    frozen_global_points = serializers.IntegerField(read_only=True)
+    multiplier_at_creation = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+    contribution_date = serializers.DateTimeField(read_only=True)
+    notes = serializers.CharField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+
+
+# ============================================================================
+# Full Serializers
+# ============================================================================
 
 
 class ContributionTypeSerializer(serializers.ModelSerializer):
@@ -241,7 +287,6 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
         Return lightweight contribution details to avoid N+1 queries.
         Most needed info is already in the flat fields above.
         """
-        from utils.serializers import LightContributionSerializer
         return LightContributionSerializer(obj.contribution).data
 
 

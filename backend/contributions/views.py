@@ -104,7 +104,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         Returns users with the most points for this contribution type.
         """
         from django.db.models import Sum
-        from utils.serializers import LightUserSerializer
+        from users.serializers import LightUserSerializer
 
         contribution_type = self.get_object()
 

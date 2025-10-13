@@ -10,6 +10,72 @@ from leaderboard.models import LeaderboardEntry
 from contributions.models import Category
 
 
+# ============================================================================
+# Lightweight Serializers for Optimized List Views
+# ============================================================================
+# These serializers provide minimal data for list views and nested relationships,
+# significantly reducing database queries and response payload size.
+# Use these in list views or when full detail is not needed.
+
+
+class LightUserSerializer(serializers.Serializer):
+    """
+    Minimal user serializer for list views and nested relationships.
+    Only includes essential display fields, no related objects or computed fields.
+    """
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    address = serializers.CharField(read_only=True)
+    profile_image_url = serializers.URLField(read_only=True)
+    visible = serializers.BooleanField(read_only=True)
+
+
+class LightValidatorSerializer(serializers.Serializer):
+    """
+    Minimal validator serializer without expensive stat calculations.
+    Only includes node version and basic matching info.
+    """
+    node_version = serializers.CharField(read_only=True)
+    matches_target = serializers.SerializerMethodField()
+    target_version = serializers.SerializerMethodField()
+
+    def get_matches_target(self, obj):
+        """Check if the validator's version matches or is higher than the target."""
+        from contributions.node_upgrade.models import TargetNodeVersion
+        target = TargetNodeVersion.get_active()
+        if target and obj.node_version:
+            return obj.version_matches_or_higher(target.version)
+        return False
+
+    def get_target_version(self, obj):
+        """Get the current target version."""
+        from contributions.node_upgrade.models import TargetNodeVersion
+        target = TargetNodeVersion.get_active()
+        return target.version if target else None
+
+
+class LightBuilderSerializer(serializers.Serializer):
+    """
+    Minimal builder serializer without expensive stat calculations.
+    Just indicates the user is a builder.
+    """
+    created_at = serializers.DateTimeField(read_only=True)
+
+
+class LightLeaderboardEntrySerializer(serializers.Serializer):
+    """
+    Minimal leaderboard entry for nested user data.
+    Only includes rank and points, not full user details.
+    """
+    rank = serializers.IntegerField(read_only=True)
+    total_points = serializers.IntegerField(read_only=True)
+
+
+# ============================================================================
+# Full Serializers
+# ============================================================================
+
+
 class ValidatorSerializer(serializers.ModelSerializer):
     """
     Serializer for Validator model.
@@ -448,7 +514,6 @@ class UserSerializer(serializers.ModelSerializer):
         # Use lightweight serializer for nested/list views
         use_light = self.context.get('use_light_serializers', False)
         if use_light:
-            from utils.serializers import LightValidatorSerializer
             return LightValidatorSerializer(obj.validator).data
         return ValidatorSerializer(obj.validator, context=self.context).data
 
@@ -462,7 +527,6 @@ class UserSerializer(serializers.ModelSerializer):
         # Use lightweight serializer for nested/list views
         use_light = self.context.get('use_light_serializers', False)
         if use_light:
-            from utils.serializers import LightBuilderSerializer
             return LightBuilderSerializer(obj.builder).data
         return BuilderSerializer(obj.builder, context=self.context).data
 

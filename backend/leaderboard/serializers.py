@@ -30,7 +30,7 @@ class LeaderboardEntrySerializer(serializers.ModelSerializer):
         """
         use_light = self.context.get('use_light_serializers', False)
         if use_light:
-            from utils.serializers import LightUserSerializer
+            from users.serializers import LightUserSerializer
             return LightUserSerializer(obj.user).data
         return UserSerializer(obj.user, context=self.context).data
 
