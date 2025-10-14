@@ -247,6 +247,29 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         stats = self._get_user_stats(user, category=category)
         return Response(stats)
     
+    @action(detail=False, methods=['get'], url_path='validator-waitlist/top')
+    def validator_waitlist_top(self, request):
+        """
+        Get top N waitlist users for the Race to Testnet Asimov leaderboard.
+        Optimized endpoint that returns only what's needed for the top section.
+        """
+        try:
+            limit = int(request.query_params.get('limit', 10))
+        except (ValueError, TypeError):
+            limit = 10
+        limit = min(max(limit, 1), 100)  # Between 1 and 100
+
+        top_entries = LeaderboardEntry.objects.filter(
+            user__visible=True,
+            type='validator-waitlist'
+        ).select_related(
+            'user',
+            'user__validator'
+        ).order_by('rank')[:limit]
+
+        serializer = self.get_serializer(top_entries, many=True)
+        return Response(serializer.data)
+
     @action(detail=False, methods=['get'], url_path='validator-waitlist-stats')
     def validator_waitlist_stats(self, request):
         """

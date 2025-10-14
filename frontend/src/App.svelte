@@ -38,6 +38,7 @@
   import StewardManageUsers from './routes/StewardManageUsers.svelte';
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
+  import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
   import BuilderWelcome from './routes/BuilderWelcome.svelte';
   import GitHubCallback from './routes/GitHubCallback.svelte';
   import TermsOfUse from './routes/TermsOfUse.svelte';
@@ -83,6 +84,7 @@
     '/validators/leaderboard': Leaderboard,
     '/validators/participants': Validators,
     '/validators/waitlist': Waitlist,
+    '/validators/waitlist/participants': WaitlistParticipants,
     '/validators/waitlist/join': ValidatorWaitlist,
     
     // Shared routes

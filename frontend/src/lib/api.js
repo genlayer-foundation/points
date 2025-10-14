@@ -111,6 +111,7 @@ export const leaderboardAPI = {
   getMultiplierPeriods: (multiplier_id) => api.get(`/multiplier-periods/?multiplier=${multiplier_id}`),
   getStats: () => api.get('/leaderboard/stats/'),
   getWaitlistStats: () => api.get('/leaderboard/validator-waitlist-stats/'),
+  getWaitlistTop: (limit = 10) => api.get('/leaderboard/validator-waitlist/top/', { params: { limit } }),
   getSupporters: () => api.get('/leaderboard/supporters/'),
   getTypes: () => api.get('/leaderboard/types/'),
   recalculateAll: () => api.post('/leaderboard/recalculate/')
