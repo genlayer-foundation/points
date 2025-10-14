@@ -104,22 +104,11 @@ class ContributionSerializer(serializers.ModelSerializer):
 
 
 class EvidenceSerializer(serializers.ModelSerializer):
-    file_url = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Evidence
-        fields = ['id', 'description', 'url', 'file', 'file_url', 'created_at']
+        fields = ['id', 'description', 'url', 'created_at']
         read_only_fields = ['id', 'created_at']
-    
-    def get_file_url(self, obj):
-        """Returns the full URL to the file if it exists."""
-        if not obj.file:
-            return None
-        
-        request = self.context.get('request')
-        if request is not None:
-            return request.build_absolute_uri(obj.file.url)
-        return obj.file.url
 
 
 class SubmittedContributionSerializer(serializers.ModelSerializer):
@@ -198,22 +187,11 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
 
 class SubmittedEvidenceSerializer(serializers.ModelSerializer):
     """Serializer for evidence items belonging to submitted contributions."""
-    file_url = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Evidence
-        fields = ['id', 'description', 'url', 'file', 'file_url', 'created_at']
+        fields = ['id', 'description', 'url', 'created_at']
         read_only_fields = ['id', 'created_at']
-    
-    def get_file_url(self, obj):
-        """Returns the full URL to the file if it exists."""
-        if not obj.file:
-            return None
-        
-        request = self.context.get('request')
-        if request is not None:
-            return request.build_absolute_uri(obj.file.url)
-        return obj.file.url
 
 
 class ContributionHighlightSerializer(serializers.ModelSerializer):

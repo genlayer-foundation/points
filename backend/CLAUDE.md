@@ -65,7 +65,7 @@ backend/
   - Contribution - Individual contribution records
   - ContributionType - Categories with slug field (Node Running, Blog Posts, etc.)
   - ContributionTypeMultiplier - Dynamic point multipliers
-  - Evidence - Evidence items for contributions
+  - Evidence - Evidence items for contributions (text descriptions and URLs only - file uploads are disabled)
 
 ### Node Upgrade (Sub-app)
 - **Models**: `contributions/node_upgrade/models.py`
@@ -181,6 +181,7 @@ python manage.py collectstatic
 - Authentication uses Sign-In With Ethereum (SIWE)
 - Points calculation: base_points × multipliers = total_points
 - Addresses are stored lowercase but compared case-insensitively
+- **Evidence Submission**: File uploads are disabled (issue #212). Evidence must be submitted as text descriptions or URLs only.
 
 ## Testing
 - **Test Organization Best Practice**: Use `{app}/tests/` folder structure for better organization

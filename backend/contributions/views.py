@@ -665,23 +665,30 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
     def add_evidence(self, request, pk=None):
         """Add evidence to a submission."""
         submission = self.get_object()
-        
+
         # Check if evidence can be added
         if submission.state not in ['pending', 'more_info_needed']:
             return Response(
                 {'error': 'Evidence can only be added to pending submissions or when more information is requested.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
+
+        # Reject file uploads
+        if 'file' in request.data or request.FILES:
+            return Response(
+                {'error': 'File uploads are not currently supported. Please provide a URL or description instead.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         serializer = SubmittedEvidenceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         # Create evidence linked to this submission
         evidence = Evidence.objects.create(
             submitted_contribution=submission,
             **serializer.validated_data
         )
-        
+
         return Response(
             SubmittedEvidenceSerializer(evidence).data,
             status=status.HTTP_201_CREATED

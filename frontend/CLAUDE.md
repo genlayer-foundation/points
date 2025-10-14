@@ -369,7 +369,8 @@ const routes = {
     - Edit Profile - Goes to `/profile`
     - Disconnect - Logs out
   - Reactively updates name from `userStore`
-- `SubmitContribution.svelte` - Contribution form
+- `SubmitContribution.svelte` - Contribution form (supports URL and description evidence only - no file uploads)
+- `EditSubmission.svelte` - Edit submitted contributions (supports URL and description evidence only - no file uploads)
 - `EditProfile.svelte` - User profile editing (name and node version)
 - `Profile.svelte` - Public participant profile view
 
@@ -534,6 +535,13 @@ The only exception is when you need to group multiple related elements that aren
 Gradients can make text harder to read and create visual complexity. Stick to the established color palette with solid colors for consistency.
 
 ## Important Notes
+
+### Evidence Submission
+**File uploads are disabled** (issue #212). When submitting or editing contributions, users can only provide:
+- Text descriptions
+- URLs (links to GitHub, Twitter, blog posts, etc.)
+
+The UI no longer shows file upload fields, and the backend will reject file upload attempts.
 
 ### Component Props in Svelte 5
 Always destructure props with `$props()`:
