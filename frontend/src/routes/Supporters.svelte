@@ -174,92 +174,71 @@
       {/if}
       </div>
 
-  <!-- Become a Supporter Card (only show if NOT a supporter) -->
-  {#if $authState.isAuthenticated && user && !isSupporter}
-    <div class="bg-purple-50 border-2 border-purple-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
-      <div class="p-6">
-        <div class="flex items-center mb-4">
-          <div class="flex items-center justify-center w-12 h-12 bg-purple-500 rounded-full mr-4 flex-shrink-0">
-            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-            </svg>
-          </div>
-          <div>
-            <h3 class="text-xl font-bold text-purple-900 mb-1">Become a Top Supporter</h3>
-            <p class="text-purple-700 text-sm">Grow the GenLayer community and earn rewards</p>
-          </div>
-        </div>
-
-        <div class="space-y-4">
-          <div>
-            <p class="text-sm text-purple-700 mb-3">Supporters help grow the GenLayer ecosystem by inviting others to join as Builders or Validators. The more your referrals contribute, the more points you earn!</p>
-            <ul class="space-y-2">
-              <li class="flex items-center text-sm text-purple-600">
-                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+      <!-- Supporter Journey Card -->
+      {#if $authState.isAuthenticated && user && !isSupporter}
+        <div class="bg-purple-50 border-2 border-purple-200 rounded-xl p-6 space-y-4">
+          <div class="flex items-start gap-4">
+            <div class="flex-shrink-0">
+              <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
                 </svg>
-                Earn points when your referrals complete contributions
-              </li>
-              <li class="flex items-center text-sm text-purple-600">
-                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                Track Builder and Validator referral points separately
-              </li>
-              <li class="flex items-center text-sm text-purple-600">
-                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                Climb the leaderboard by supporting the ecosystem
-              </li>
-            </ul>
-          </div>
-
-          {#if error}
-            <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
-              {error}
+              </div>
             </div>
-          {/if}
-
-          <button
-            onclick={joinAsSupporter}
-            disabled={joiningSupporter}
-            class="w-full flex items-center justify-center px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold group-hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {#if joiningSupporter}
-              <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-              Joining...
-            {:else}
-              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-              </svg>
-              Become a Supporter
-            {/if}
-          </button>
-        </div>
-      </div>
-    </div>
-  {:else if !$authState.isAuthenticated}
-    <!-- Information Card (only shown when not authenticated) -->
-    <div class="bg-purple-50 border border-purple-200 rounded-lg p-6">
-      <div class="flex">
-        <div class="flex-shrink-0">
-          <svg class="h-5 w-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-          </svg>
-        </div>
-        <div class="ml-3">
-          <h3 class="text-sm font-medium text-purple-900">About Supporters</h3>
-          <div class="mt-2 text-sm text-purple-700">
-            <p>Supporters help grow the GenLayer ecosystem by inviting others to join as Builders or Validators.</p>
-            <ul class="list-disc list-inside mt-2 space-y-1">
-              <li>Earn points when your referrals complete contributions</li>
-              <li>Track Builder and Validator referral points separately</li>
-              <li>Climb the leaderboard by supporting the ecosystem</li>
-            </ul>
+            <div class="flex-1 space-y-3">
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-1">Become a Supporter</h3>
+                <p class="text-sm text-gray-600">
+                  Join the GenLayer community as a supporter and help grow the ecosystem by inviting others.
+                  Earn referral points for every builder and validator you bring to the network.
+                </p>
+              </div>
+              <div class="flex items-start gap-2 text-sm text-gray-700">
+                <svg class="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                <span>Get your unique referral link and start earning points immediately</span>
+              </div>
+              {#if error}
+                <div class="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded text-sm">
+                  {error}
+                </div>
+              {/if}
+              <button
+                onclick={joinAsSupporter}
+                disabled={joiningSupporter}
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {#if joiningSupporter}
+                  <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Joining...
+                {:else}
+                  Become a Supporter
+                {/if}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-  {/if}
+      {:else if !$authState.isAuthenticated}
+        <div class="bg-purple-50 border-2 border-purple-200 rounded-xl p-6">
+          <div class="flex items-start gap-4">
+            <div class="flex-shrink-0">
+              <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              </div>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-semibold text-gray-900 mb-1">Join as a Supporter</h3>
+              <p class="text-sm text-gray-600">
+                Connect your wallet to become a supporter and start earning referral points for growing the GenLayer community.
+              </p>
+            </div>
+          </div>
+        </div>
+      {/if}
 </div>

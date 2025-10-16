@@ -323,7 +323,7 @@ class Evidence(BaseModel):
     
     description = models.TextField(blank=True, help_text="Description of the evidence")
     url = models.URLField(blank=True, help_text="Link to external evidence")
-    file = models.FileField(upload_to=evidence_file_path, blank=True, null=True, help_text="Upload file as evidence")
+    file = models.FileField(upload_to=evidence_file_path, blank=True, null=True, help_text="DEPRECATED: File uploads are not currently supported. Use URL instead.")
     
     def __str__(self):
         if self.contribution:

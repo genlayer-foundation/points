@@ -3,19 +3,16 @@ from django.conf import settings
 from utils.models import BaseModel
 
 
-class Supporter(BaseModel):
+class Creator(BaseModel):
     """
-    Supporter profile - for users who focus on referrals.
+    Creator profile - for users who focus on referrals.
     One-to-one relationship with User.
     """
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='supporter'
+        related_name='creator'
     )
 
-    class Meta:
-        db_table = 'creators_creator'  # Preserve original table name for compatibility
-
     def __str__(self):
-        return f"{self.user.email} - Supporter"
+        return f"{self.user.email} - Creator"

@@ -1,8 +1,8 @@
 <script>
   import { push } from 'svelte-spa-router';
   import Avatar from './Avatar.svelte';
-  
-  let { 
+
+  let {
     entries = [],
     loading = false,
     error = null,
@@ -12,7 +12,7 @@
     compact = false,
     hideAddress = false
   } = $props();
-  
+
   // Helper for rank styling
   function getRankClass(rank) {
     if (rank === 1) return 'bg-amber-100 text-amber-800';

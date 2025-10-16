@@ -17,7 +17,6 @@
   }
   
   import Overview from './routes/Overview.svelte';
-  import TestnetAsimov from './routes/TestnetAsimov.svelte';
   import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import AllContributions from './routes/AllContributions.svelte';
@@ -39,12 +38,14 @@
   import StewardManageUsers from './routes/StewardManageUsers.svelte';
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
+  import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
   import BuilderWelcome from './routes/BuilderWelcome.svelte';
   import GitHubCallback from './routes/GitHubCallback.svelte';
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
   import Referrals from './routes/Referrals.svelte';
   import Supporters from './routes/Supporters.svelte';
+  import GlobalDashboard from './components/GlobalDashboard.svelte';
 
   // Define routes
   const routes = {
@@ -55,7 +56,7 @@
     // Global/Testnet Asimov routes
     // Overview and Testnet Asimov routes
     '/': Overview,
-    '/asimov': TestnetAsimov,
+    '/asimov': GlobalDashboard,
     '/contributions': Contributions,
     '/all-contributions': AllContributions,
     '/contributions/highlights': Highlights,
@@ -72,7 +73,6 @@
     '/builders/contributions/highlights': Highlights,
     '/builders/highlights': Highlights,
     '/builders/leaderboard': Leaderboard,
-    '/builders/participants': Validators,
     '/builders/welcome': BuilderWelcome,
     
     // Validators routes
@@ -84,6 +84,7 @@
     '/validators/leaderboard': Leaderboard,
     '/validators/participants': Validators,
     '/validators/waitlist': Waitlist,
+    '/validators/waitlist/participants': WaitlistParticipants,
     '/validators/waitlist/join': ValidatorWaitlist,
     
     // Shared routes

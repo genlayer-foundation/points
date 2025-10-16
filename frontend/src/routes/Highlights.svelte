@@ -137,11 +137,16 @@
           
           <div class="flex items-center justify-between text-sm">
             <div class="flex items-center gap-3">
-              <Avatar 
+              <Avatar
                 user={{
                   name: highlight.user_name,
                   address: highlight.user_address,
-                  profile_image_url: highlight.user_profile_image_url
+                  profile_image_url: highlight.user_profile_image_url,
+                  validator: highlight.user_validator,
+                  builder: highlight.user_builder,
+                  steward: highlight.user_steward,
+                  has_validator_waitlist: highlight.user_has_validator_waitlist,
+                  has_builder_welcome: highlight.user_has_builder_welcome
                 }}
                 size="xs"
                 clickable={true}

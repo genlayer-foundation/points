@@ -157,7 +157,7 @@
       
       <div class="ml-3 flex-shrink-0">
         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-          {contribution.points || contribution.frozen_points || 0} pts
+          {contribution.frozen_global_points || 0} pts
         </span>
       </div>
     </div>

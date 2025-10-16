@@ -129,8 +129,7 @@
       dashboardAction: () => changeCategory('builder', '/builders'),
       items: [
         { name: 'Contributions', path: '/builders/contributions', iconName: 'contributions' },
-        { name: 'Leaderboard', path: '/builders/leaderboard', iconName: 'leaderboard' },
-        { name: 'Participants', path: '/builders/participants', iconName: 'participants' }
+        { name: 'Leaderboard', path: '/builders/leaderboard', iconName: 'leaderboard' }
       ]
     },
     {
