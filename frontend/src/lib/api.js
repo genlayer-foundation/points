@@ -143,9 +143,9 @@ export const journeyAPI = {
   completeBuilderJourney: () => api.post('/users/complete_builder_journey/')
 };
 
-// Supporter API
-export const supporterAPI = {
-  joinAsSupporter: () => api.post('/supporters/join/')
+// Supporter API (backend uses 'creator' terminology)
+export const creatorAPI = {
+  joinAsCreator: () => api.post('/creators/join/')
 };
 
 // GitHub OAuth API
