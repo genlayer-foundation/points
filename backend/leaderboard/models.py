@@ -320,7 +320,7 @@ class LeaderboardEntry(BaseModel):
         """
         Update ranks for all users in a specific leaderboard type.
         Only visible users are ranked.
-        Uses earliest contribution date as tie-breaker for equal points.
+        Uses user join date as tie-breaker for equal points (older users rank higher).
         """
         if leaderboard_type not in LEADERBOARD_CONFIG:
             return
@@ -334,7 +334,7 @@ class LeaderboardEntry(BaseModel):
             user__visible=False
         ).update(rank=None)
 
-        # Get visible entries
+        # Get visible entries with user data
         entries = list(
             cls.objects.filter(
                 type=leaderboard_type,
@@ -345,37 +345,27 @@ class LeaderboardEntry(BaseModel):
         if not entries:
             return
 
-        # For points-based ranking, fetch earliest contribution dates for tie-breaking
+        # Sort based on ranking type
         if ranking_order == '-total_points':
-            # Get earliest contribution date for each user in this leaderboard
-            user_ids = [entry.user_id for entry in entries]
-
-            from django.db.models import Min
-            earliest_dates = dict(
-                Contribution.objects.filter(
-                    user_id__in=user_ids
-                ).values('user_id').annotate(
-                    earliest_date=Min('contribution_date')
-                ).values_list('user_id', 'earliest_date')
-            )
-
-            # Sort entries by points (desc), then earliest date (asc), then name
+            # Sort by points (desc), then user join date (asc), then name
+            # Older users (who joined earlier) get better rank when points are tied
             entries.sort(key=lambda e: (
                 -e.total_points,  # Higher points first
-                earliest_dates.get(e.user_id, timezone.now()),  # Earlier date first
-                e.user.name  # Alphabetical by name
+                e.user.date_joined,  # Earlier join date first (older users)
+                e.user.name  # Alphabetical by name as final tie-breaker
             ))
         elif ranking_order == '-graduation_date':
-            # Sort by graduation date, then name
+            # Sort by graduation date, then user join date, then name
             entries.sort(key=lambda e: (
                 -(e.graduation_date.timestamp() if e.graduation_date else 0),
+                e.user.date_joined,
                 e.user.name
             ))
         else:
-            # Default sorting
+            # Default sorting by name
             entries.sort(key=lambda e: e.user.name)
 
-        # Assign ranks
+        # Assign consecutive ranks
         for i, entry in enumerate(entries, 1):
             entry.rank = i
 

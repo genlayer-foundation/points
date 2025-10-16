@@ -346,18 +346,22 @@ class OptimizedLeaderboardTest(TestCase):
 
     def test_complete_recalculation_accuracy(self):
         """Test that recalculation produces accurate points and rankings."""
-        # Create users with different point totals
+        # Create users with different join dates
+        # User1 joined earlier (10 days ago)
         user1 = User.objects.create(
             email='user1@test.com',
             name='User 1',
             address='0x1111111111111111111111111111111111111111',
-            visible=True
+            visible=True,
+            date_joined=timezone.now() - timezone.timedelta(days=10)  # Older user
         )
+        # User2 joined later (5 days ago)
         user2 = User.objects.create(
             email='user2@test.com',
             name='User 2',
             address='0x2222222222222222222222222222222222222222',
-            visible=True
+            visible=True,
+            date_joined=timezone.now() - timezone.timedelta(days=5)  # Newer user
         )
         user3 = User.objects.create(
             email='user3@test.com',
@@ -366,12 +370,12 @@ class OptimizedLeaderboardTest(TestCase):
             visible=True
         )
 
-        # User1: 120 total points - started contributing 10 days ago
+        # User1: 120 total points
         Contribution.objects.create(
             user=user1,
             contribution_type=self.waitlist_type,
             points=20,
-            contribution_date=timezone.now() - timezone.timedelta(days=10)  # Earlier
+            contribution_date=timezone.now()
         )
         Contribution.objects.create(
             user=user1,
@@ -380,12 +384,12 @@ class OptimizedLeaderboardTest(TestCase):
             contribution_date=timezone.now()
         )
 
-        # User2: 120 total points - started contributing 5 days ago
+        # User2: 120 total points (same as user1)
         Contribution.objects.create(
             user=user2,
             contribution_type=self.waitlist_type,
             points=20,
-            contribution_date=timezone.now() - timezone.timedelta(days=5)  # Later
+            contribution_date=timezone.now()
         )
         Contribution.objects.create(
             user=user2,
@@ -432,10 +436,10 @@ class OptimizedLeaderboardTest(TestCase):
         self.assertEqual(user1_entry.total_points, 120)
         self.assertEqual(user2_entry.total_points, 120)
 
-        # User1 should rank higher (2) because they started contributing earlier
-        # User2 should rank lower (3) because they started contributing later
-        self.assertEqual(user1_entry.rank, 2)  # Earlier contributor (10 days ago)
-        self.assertEqual(user2_entry.rank, 3)  # Later contributor (5 days ago)
+        # User1 should rank higher (2) because they joined earlier (older user)
+        # User2 should rank lower (3) because they joined later (newer user)
+        self.assertEqual(user1_entry.rank, 2)  # Older user (joined 10 days ago)
+        self.assertEqual(user2_entry.rank, 3)  # Newer user (joined 5 days ago)
 
         # Verify no one is on validator leaderboard
         # (they don't have the validator badge, only waitlist)
