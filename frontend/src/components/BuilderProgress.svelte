@@ -2,6 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { authState } from '../lib/auth';
   import { onMount } from 'svelte';
+  import { showWarning, showError } from '../lib/toastStore';
   
   let {
     testnetBalance = null,
@@ -110,7 +111,7 @@
   // Add network to wallet
   async function addNetwork(network, isStudio = false) {
     if (!window.ethereum) {
-      alert('Please install MetaMask or another Web3 wallet');
+      showWarning('Please install MetaMask or another Web3 wallet');
       return;
     }
     
@@ -134,7 +135,7 @@
     } catch (error) {
       console.error('Error adding network:', error);
       if (error.code !== 4001) { // User didn't reject
-        alert('Failed to add network. Please try manually.');
+        showError('Failed to add network. Please try manually.');
       }
     } finally {
       if (isStudio) {

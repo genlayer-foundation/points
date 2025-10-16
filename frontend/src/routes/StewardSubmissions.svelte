@@ -6,6 +6,7 @@
   import { format } from 'date-fns';
   import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
   import SubmissionCard from '../components/SubmissionCard.svelte';
+  import { showSuccess, showError } from '../lib/toastStore';
   
   let submissions = $state([]);
   let contributionTypes = $state([]);
@@ -22,7 +23,6 @@
   
   // Review states
   let processingSubmissions = $state(new Set());
-  let successMessages = $state({});
   let multipliers = $state({});
   let reviewData = $state({});
   
@@ -162,22 +162,15 @@
       }
       
       await stewardAPI.reviewSubmission(submissionId, apiData);
-      
+
       // Show success message
-      successMessages[submissionId] = getSuccessMessage(data.action);
-      successMessages = { ...successMessages };
-      
-      // Clear after 3 seconds
-      setTimeout(() => {
-        delete successMessages[submissionId];
-        successMessages = { ...successMessages };
-      }, 3000);
-      
+      showSuccess(getSuccessMessage(data.action));
+
       // Reload submissions
       await loadSubmissions();
     } catch (err) {
       console.error('Error reviewing submission:', err);
-      alert('Failed to review submission: ' + (err.response?.data?.detail || err.message));
+      showError('Failed to review submission: ' + (err.response?.data?.detail || err.message));
     } finally {
       processingSubmissions.delete(submissionId);
       processingSubmissions = new Set(processingSubmissions);
@@ -294,13 +287,13 @@
     
     <div class="space-y-4">
       {#each submissions as submission}
-        <SubmissionCard 
+        <SubmissionCard
           {submission}
           showReviewForm={true}
           onReview={handleReview}
           reviewData={reviewData[submission.id]}
           isProcessing={processingSubmissions.has(submission.id)}
-          successMessage={successMessages[submission.id] || ''}
+          successMessage={''}
           {contributionTypes}
           {users}
           {multipliers}

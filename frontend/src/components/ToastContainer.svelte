@@ -3,9 +3,9 @@
   import Toast from './Toast.svelte';
 </script>
 
-<!-- Toast container - fixed position at top-right -->
+<!-- Toast container - fixed position at bottom-right -->
 <div
-  class="fixed top-4 right-4 z-50 pointer-events-none"
+  class="fixed bottom-4 right-4 z-50 pointer-events-none"
   aria-live="polite"
   aria-atomic="true"
 >
