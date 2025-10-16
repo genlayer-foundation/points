@@ -4,7 +4,7 @@ from .models import User
 from validators.models import Validator
 from builders.models import Builder
 from stewards.models import Steward
-from creators.models import Creator
+from supporters.models import Supporter
 from contributions.node_upgrade.models import TargetNodeVersion
 from leaderboard.models import LeaderboardEntry
 from contributions.models import Category
@@ -375,20 +375,20 @@ class StewardSerializer(serializers.ModelSerializer):
         return None
 
 
-class CreatorSerializer(serializers.ModelSerializer):
+class SupporterSerializer(serializers.ModelSerializer):
     """
-    Serializer for Creator profile.
+    Serializer for Supporter profile.
     """
     total_referrals = serializers.SerializerMethodField()
     referral_points = serializers.SerializerMethodField()
 
     class Meta:
-        model = Creator
+        model = Supporter
         fields = ['total_referrals', 'referral_points', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
 
     def get_total_referrals(self, obj):
-        """Get total number of users referred by this creator."""
+        """Get total number of users referred by this supporter."""
         return obj.user.referrals.count()
 
     def get_referral_points(self, obj):
@@ -416,7 +416,7 @@ class UserSerializer(serializers.ModelSerializer):
     validator = serializers.SerializerMethodField()
     builder = serializers.SerializerMethodField()
     steward = StewardSerializer(read_only=True)
-    creator = CreatorSerializer(read_only=True)
+    supporter = SupporterSerializer(read_only=True)
     has_validator_waitlist = serializers.SerializerMethodField()
     has_builder_welcome = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
@@ -429,7 +429,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward',
-                  'creator', 'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at',
+                  'supporter', 'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at',
                   # Profile fields
                   'description', 'banner_image_url', 'profile_image_url', 'website',
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle', 'github_username', 'github_linked_at',

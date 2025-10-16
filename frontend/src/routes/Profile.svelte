@@ -11,7 +11,7 @@
   import ReferralSection from '../components/ReferralSection.svelte';
   import Icons from '../components/Icons.svelte';
   import Tooltip from '../components/Tooltip.svelte';
-  import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, creatorAPI, getCurrentUser } from '../lib/api';
+  import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, supporterAPI, getCurrentUser } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
   import Avatar from '../components/Avatar.svelte';
@@ -82,7 +82,7 @@
     participant.validator ? 'validator' :
     participant.builder ? 'builder' :
     participant.steward ? 'steward' :
-    participant.creator ? 'creator' :
+    participant.supporter ? 'supporter' :
     'participant'
   );
   
@@ -91,7 +91,7 @@
     participantType === 'validator' ? 'sky' :
     participantType === 'builder' ? 'orange' :
     participantType === 'steward' ? 'green' :
-    participantType === 'creator' ? 'purple' :
+    participantType === 'supporter' ? 'purple' :
     'gray'
   );
   
@@ -100,7 +100,7 @@
     participant?.steward ? 'green' :
     participant?.validator ? 'sky' :
     participant?.builder ? 'orange' :
-    participant?.creator ? 'purple' :
+    participant?.supporter ? 'purple' :
     participant?.has_validator_waitlist ? 'sky-waitlist' :
     participant?.has_builder_welcome ? 'orange-welcome' :
     'purple'
@@ -136,15 +136,15 @@
       participant.steward ||
       participant.validator ||
       participant.builder ||
-      participant.creator ||
+      participant.supporter ||
       participant.has_validator_waitlist ||
       participant.has_builder_welcome
     )
   );
 
-  // Check if user is ONLY a creator (no other roles)
-  let isCreatorOnly = $derived(
-    participant?.creator &&
+  // Check if user is ONLY a supporter (no other roles)
+  let isSupporterOnly = $derived(
+    participant?.supporter &&
     !participant.steward &&
     !participant.validator &&
     !participant.builder &&
@@ -262,7 +262,7 @@
     }
   }
   
-  async function startCreatorJourney() {
+  async function startSupporterJourney() {
     if (!$authState.isAuthenticated) {
       return;
     }
@@ -272,7 +272,7 @@
     successMessage = '';
 
     try {
-      const response = await creatorAPI.joinAsCreator();
+      const response = await supporterAPI.joinAsSupporter();
 
       // If successful, reload the user data
       if (response.status === 201 || response.status === 200) {
@@ -289,7 +289,7 @@
         }, 5000);
       }
     } catch (err) {
-      console.error('Error joining as creator:', err);
+      console.error('Error joining as supporter:', err);
       error = err.response?.data?.message || 'Failed to join as supporter';
       successMessage = '';
     }
@@ -620,7 +620,7 @@
               </h1>
               
               <!-- Badges next to name -->
-              {#if participant.steward || participant.validator || participant.builder || participant.creator || participant.has_validator_waitlist || participant.has_builder_welcome}
+              {#if participant.steward || participant.validator || participant.builder || participant.supporter || participant.has_validator_waitlist || participant.has_builder_welcome}
                 {#if participant.steward}
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                     Steward
@@ -644,7 +644,7 @@
                     Builder Welcome
                   </span>
                 {/if}
-                {#if participant.creator}
+                {#if participant.supporter}
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                     Supporter
                   </span>
@@ -1504,7 +1504,7 @@
                   </li>
                 </ul>
                 <button
-                  onclick={startCreatorJourney}
+                  onclick={startSupporterJourney}
                   class="w-full flex items-center justify-center px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold group-hover:shadow-md"
                 >
                   <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

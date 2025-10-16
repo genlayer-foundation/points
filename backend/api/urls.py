@@ -26,7 +26,7 @@ urlpatterns = [
     path('validators/', include('validators.urls')),
     path('builders/', include('builders.urls')),
     path('stewards/', include('stewards.urls')),
-    path('creators/', include('creators.urls')),
+    path('supporters/', include('supporters.urls')),
     
     # Authentication endpoints
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
