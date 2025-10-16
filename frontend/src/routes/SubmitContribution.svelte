@@ -57,22 +57,35 @@
   }
   
   function addEvidenceSlot() {
-    evidenceSlots = [...evidenceSlots, { id: Date.now(), description: '', url: '', file: null }];
+    evidenceSlots = [...evidenceSlots, { id: Date.now(), description: '', url: '' }];
   }
-  
+
   function removeEvidenceSlot(index) {
     evidenceSlots = evidenceSlots.filter((_, i) => i !== index);
   }
   
-  function handleFileChange(event, index) {
-    const file = event.target.files[0];
-    if (file) {
-      evidenceSlots[index].file = file;
+  function normalizeUrl(url) {
+    if (!url || url.trim() === '') return url;
+    
+    // Check if URL already has a protocol
+    const hasProtocol = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url);
+    
+    if (!hasProtocol) {
+      // Add https:// if no protocol is present
+      return 'https://' + url;
+    }
+    
+    return url;
+  }
+  
+  function handleUrlBlur(index) {
+    if (evidenceSlots[index]) {
+      evidenceSlots[index].url = normalizeUrl(evidenceSlots[index].url);
     }
   }
   
   function hasEvidenceInSlot(slot) {
-    return slot.description || slot.url || slot.file;
+    return slot.description || slot.url;
   }
   
   async function handleSubmit(event) {
@@ -101,20 +114,18 @@
       const filledSlots = evidenceSlots.filter(hasEvidenceInSlot);
       
       for (const slot of filledSlots) {
-        const evidenceFormData = new FormData();
-        
+        const evidenceData = {};
+
         if (slot.description) {
-          evidenceFormData.append('description', slot.description);
+          evidenceData.description = slot.description;
         }
         if (slot.url) {
-          evidenceFormData.append('url', slot.url);
+          // Normalize URL before sending to backend
+          evidenceData.url = normalizeUrl(slot.url);
         }
-        if (slot.file) {
-          evidenceFormData.append('file', slot.file, slot.file.name);
-        }
-        
-        
-        await api.post(`/submissions/${submissionId}/add-evidence/`, evidenceFormData);
+
+
+        await api.post(`/submissions/${submissionId}/add-evidence/`, evidenceData);
       }
       
       // Store success message in sessionStorage to show on My Submissions page
@@ -148,10 +159,10 @@
         <h3 class="text-lg font-medium text-gray-900 mb-2">Authentication Required</h3>
         <p class="text-gray-500 mb-4">Please connect your wallet to submit contributions.</p>
         <button
-          onclick={() => push('/')}
+          onclick={() => document.querySelector('.auth-button')?.click()}
           class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
         >
-          Go to Dashboard
+          Connect Wallet
         </button>
       </div>
     </div>
@@ -245,23 +256,13 @@
                     <input
                       type="url"
                       bind:value={slot.url}
+                      onblur={() => handleUrlBlur(index)}
                       placeholder="https://example.com"
                       class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
                     />
                   </div>
                 </div>
-                
-                <div class="mt-3">
-                  <label class="block text-xs font-medium text-gray-700 mb-1">
-                    File Upload
-                  </label>
-                  <input
-                    type="file"
-                    onchange={(e) => handleFileChange(e, index)}
-                    class="w-full text-sm text-gray-500 file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
-                  />
-                </div>
-                
+
                 <div class="mt-2 flex justify-end">
                   <button
                     type="button"
@@ -277,7 +278,7 @@
         {/if}
         
         <p class="text-xs text-gray-500 mt-2">
-          Add URLs, descriptions, and files to support your contribution claim.
+          Add URLs and descriptions to support your contribution claim. Provide links to GitHub, Twitter, blog posts, or other evidence.
         </p>
       </div>
       

@@ -4,16 +4,22 @@
   import { format } from 'date-fns';
   import api, { usersAPI, leaderboardAPI, contributionsAPI } from '../lib/api';
   import { currentCategory, categoryTheme } from '../stores/category.js';
+  import { authState } from '../lib/auth.js';
+  import { userStore } from '../lib/userStore.js';
   import Avatar from '../components/Avatar.svelte';
   import StatCard from '../components/StatCard.svelte';
   import ContributionCard from '../components/ContributionCard.svelte';
+  import Icon from '../components/Icons.svelte';
+
+  // Get current user from store
+  let user = $derived($userStore.user);
   
   // State variables
-  let waitlistUsers = $state([]);
+  let topWaitlistUsers = $state([]);  // Top 10 for Race to Testnet
   let newestWaitlistUsers = $state([]);
   let recentlyGraduated = $state([]);
   let featuredContributions = $state([]);
-  let loading = $state(true);
+  let topLoading = $state(true);  // Loading for top section
   let error = $state(null);
   let statistics = $state({
     total_waitlist_badges: 0,
@@ -33,9 +39,11 @@
   
   onMount(async () => {
     await Promise.all([
-      fetchWaitlistData(),
+      fetchTopWaitlistUsers(),  // Fast: only top 10
+      fetchNewestWaitlistUsers(),  // Get 5 newest for sidebar
       fetchRecentlyGraduated(),
-      fetchFeaturedContributions()
+      fetchFeaturedContributions(),
+      fetchStats()  // Fetch stats separately
     ]);
   });
   
@@ -47,94 +55,72 @@
       return dateString;
     }
   };
-  
-  async function fetchWaitlistData() {
+
+  async function fetchTopWaitlistUsers() {
     try {
-      loading = true;
+      topLoading = true;
+
+      // Fetch only top 10 for Race to Testnet
+      const response = await leaderboardAPI.getWaitlistTop(10);
+
+      if (response.data) {
+        topWaitlistUsers = response.data.map(entry => ({
+          address: entry.user_details?.address || '',
+          isWaitlisted: true,
+          user: entry.user_details || {},
+          score: entry.total_points,
+          waitlistRank: entry.rank,
+          referral_points: entry.referral_points || null
+        }));
+      }
+
+      topLoading = false;
+    } catch (err) {
+      console.error('Failed to load top waitlist users:', err);
+      topLoading = false;
+    }
+  }
+
+  async function fetchNewestWaitlistUsers() {
+    try {
+      // Get recent waitlist contributions to find newest participants
+      const response = await contributionsAPI.getContributions({
+        contribution_type_slug: 'validator-waitlist',
+        limit: 5,
+        ordering: '-contribution_date'
+      });
+
+      if (response.data?.results) {
+        newestWaitlistUsers = response.data.results.map(contrib => ({
+          address: contrib.user_details?.address || '',
+          user: contrib.user_details || {},
+          joinedWaitlist: contrib.contribution_date
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to load newest waitlist users:', err);
+    }
+  }
+
+  async function fetchStats() {
+    try {
       statsLoading = true;
       error = null;
-      
-      // Fetch waitlist-only users
-      const [waitlistResponse, statsResponse, usersRes] = await Promise.all([
-        leaderboardAPI.getLeaderboardByType('validator-waitlist'),
-        leaderboardAPI.getWaitlistStats(),
-        usersAPI.getUsers()
-      ]);
-      
-      if (waitlistResponse.data) {
-        // API returns array directly now
-        const rawEntries = Array.isArray(waitlistResponse.data) ? waitlistResponse.data : [];
-        statistics = statsResponse.data || {};
-        const allUsers = usersRes.data.results || [];
-        
-        // Get contributions for waitlist users to find their join dates
-        const waitlistContributions = await contributionsAPI.getContributions({
-          contribution_type_slug: 'validator-waitlist',
-          limit: 100
-        });
-        
-        // Process and enrich waitlist user data
-        waitlistUsers = rawEntries.map(entry => {
-          // API now returns user_details instead of user
-          const userDetails = entry.user_details || {};
-          
-          // Find full user data
-          const fullUser = allUsers.find(u => 
-            u.address && userDetails.address && 
-            u.address.toLowerCase() === userDetails.address.toLowerCase()
-          );
-          
-          // Find when they joined the waitlist
-          const waitlistContribution = waitlistContributions.data?.results?.find(c =>
-            c.user_details?.address?.toLowerCase() === userDetails.address?.toLowerCase()
-          );
-          
-          return {
-            address: userDetails.address || '',
-            isWaitlisted: true,
-            user: fullUser || userDetails,
-            score: entry.total_points,
-            waitlistRank: entry.rank,
-            globalRank: null, // No global rank in new system
-            nodeVersion: fullUser?.validator?.node_version || null,
-            matchesTarget: fullUser?.validator?.matches_target || false,
-            targetVersion: fullUser?.validator?.target_version || null,
-            joinedWaitlist: waitlistContribution?.contribution_date || fullUser?.created_at
-          };
-        });
-        
-        // Sort by waitlist rank
-        waitlistUsers.sort((a, b) => {
-          if (a.waitlistRank && b.waitlistRank) {
-            return a.waitlistRank - b.waitlistRank;
-          }
-          return 0;
-        });
-        
-        // Get the 5 newest waitlist users
-        newestWaitlistUsers = [...waitlistUsers]
-          .sort((a, b) => {
-            const dateA = new Date(a.joinedWaitlist || 0);
-            const dateB = new Date(b.joinedWaitlist || 0);
-            return dateB - dateA;
-          })
-          .slice(0, 5);
-      }
-      
-      // Update stats from the stats response
+
+      const statsResponse = await leaderboardAPI.getWaitlistStats();
+
       if (statsResponse.data) {
+        statistics = statsResponse.data || {};
         stats = {
           totalParticipants: statsResponse.data.total_participants || 0,
           totalContributions: statsResponse.data.total_contributions || 0,
           totalPoints: statsResponse.data.total_points || 0
         };
       }
-      
-      loading = false;
+
       statsLoading = false;
     } catch (err) {
-      error = err.message || 'Failed to load waitlist data';
-      loading = false;
+      error = err.message || 'Failed to load waitlist stats';
       statsLoading = false;
     }
   }
@@ -243,25 +229,36 @@
           </div>
           <h2 class="text-lg font-semibold text-gray-900">Race to Testnet Asimov</h2>
         </div>
+        <button
+          onclick={() => push('/validators/waitlist/participants')}
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
+        >
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
+        </button>
       </div>
       
-      {#if loading}
+      {#if topLoading}
         <div class="flex justify-center items-center p-8">
           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
-      {:else if waitlistUsers.length === 0}
+      {:else if topWaitlistUsers.length === 0}
         <div class="bg-gray-50 rounded-lg p-6 text-center">
           <p class="text-gray-500">No participants in the race yet.</p>
         </div>
       {:else}
         <div class="bg-white shadow rounded-lg divide-y divide-gray-200">
-          {#each waitlistUsers.slice(0, 10) as user}
+          {#each topWaitlistUsers as user}
+            {@const referralTotal = user.referral_points ? user.referral_points.builder_points + user.referral_points.validator_points : 0}
+            {@const contributionPoints = Math.max(0, user.score - referralTotal)}
             <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
               <div class="flex items-center gap-3">
                 <div class="flex items-center justify-center w-8 h-8 rounded-full bg-amber-100 text-amber-700 font-semibold text-sm">
                   #{user.waitlistRank}
                 </div>
-                <Avatar 
+                <Avatar
                   user={user.user}
                   size="sm"
                   clickable={true}
@@ -273,8 +270,39 @@
                   >
                     {user.user?.name || truncateAddress(user.address)}
                   </button>
-                  <div class="text-xs text-gray-500">
-                    {user.score} points
+                  <div class="flex items-center gap-3 mt-0.5">
+                    <!-- Contribution Points -->
+                    <div class="flex items-center gap-1 group relative">
+                      <Icon name="lightning" size="sm" className="text-amber-600" />
+                      <span class="text-sm text-gray-700 font-medium">{contributionPoints}</span>
+                      <!-- Tooltip -->
+                      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
+                        <div>Contribution Points</div>
+                        <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                          <div class="border-4 border-transparent border-t-gray-900"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Referral Points -->
+                    {#if user.referral_points}
+                      {#if referralTotal > 0}
+                        <div class="flex items-center gap-1 group relative">
+                          <Icon name="users" size="sm" className="text-purple-600" />
+                          <span class="text-sm text-purple-600 font-medium">{referralTotal}</span>
+                          <!-- Tooltip -->
+                          <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
+                            <div>Referral Points</div>
+                            <div class="text-xs text-gray-300 mt-1">
+                              Builder: {user.referral_points.builder_points} | Validator: {user.referral_points.validator_points}
+                            </div>
+                            <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                              <div class="border-4 border-transparent border-t-gray-900"></div>
+                            </div>
+                          </div>
+                        </div>
+                      {/if}
+                    {/if}
                   </div>
                 </div>
               </div>
@@ -412,11 +440,7 @@
         </div>
       </div>
       
-      {#if loading}
-        <div class="flex justify-center items-center p-8">
-          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-        </div>
-      {:else if newestWaitlistUsers.length === 0}
+      {#if newestWaitlistUsers.length === 0}
         <div class="bg-gray-50 rounded-lg p-6 text-center">
           <p class="text-gray-500">No new participants.</p>
         </div>
@@ -449,170 +473,80 @@
     </div>
   </div>
   
-  <!-- Full Waitlist Table -->
-  <div class="space-y-4">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <div class="p-1.5 bg-gray-100 rounded-lg">
-          <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+  <!-- Join Validator Waitlist Card -->
+  {#if $authState.isAuthenticated && user && !user.validator && !user.has_validator_waitlist}
+    <div class="bg-sky-50 border-2 border-sky-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
+      <div class="p-6">
+        <div class="flex items-center mb-4">
+          <div class="flex items-center justify-center w-12 h-12 bg-sky-500 rounded-full mr-4 flex-shrink-0">
+            <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-xl font-bold text-sky-900 mb-1">Join the Validator Journey</h3>
+            <p class="text-sky-700 text-sm">Validate and judge subjective Intelligent Contracts on Testnet Asimov</p>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <p class="text-sm text-sky-700 mb-3">The Validator Journey tracks participants who have joined the waitlist and are working towards becoming active validators on the GenLayer network.</p>
+            <ul class="space-y-2">
+              <li class="flex items-center text-sm text-sky-600">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Complete tasks and earn points to climb the leaderboard
+              </li>
+              <li class="flex items-center text-sm text-sky-600">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Graduates become active validators on Testnet Asimov
+              </li>
+              <li class="flex items-center text-sm text-sky-600">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Track your progress in the Race to Testnet Asimov
+              </li>
+            </ul>
+          </div>
+
+          <button
+            onclick={() => push('/validators/waitlist/join')}
+            class="w-full flex items-center justify-center px-4 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-semibold group-hover:shadow-md"
+          >
+            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
+            </svg>
+            Join the Waitlist
+          </button>
+        </div>
+      </div>
+    </div>
+  {:else if !$authState.isAuthenticated || !user || user.validator || user.has_validator_waitlist}
+    <!-- Information Card (shown when not eligible to join) -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
           </svg>
         </div>
-        <h2 class="text-lg font-semibold text-gray-900">All Waitlist Participants</h2>
-      </div>
-      <div class="text-sm text-gray-500">
-        {waitlistUsers.length} participants in the journey
-      </div>
-    </div>
-    
-    {#if loading}
-      <div class="flex justify-center items-center p-8">
-        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
-      </div>
-    {:else if waitlistUsers.length === 0}
-      <div class="bg-white shadow rounded-lg p-8 text-center">
-        <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <p class="text-lg font-medium text-gray-900 mb-2">No participants on the journey</p>
-        <p class="text-sm text-gray-500">All waitlisted users have graduated as validators</p>
-      </div>
-    {:else}
-      <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Rank
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Participant
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Address
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Node Version
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Points
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Journey Status
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-              {#each waitlistUsers as user, i}
-                <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
-                      #{user.waitlistRank}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="flex items-center gap-3">
-                      <Avatar 
-                        user={user.user}
-                        size="sm"
-                        clickable={true}
-                      />
-                      <div>
-                        <div class="text-sm font-medium text-gray-900">
-                          {user.user?.name || 'Unnamed'}
-                        </div>
-                        {#if user.joinedWaitlist}
-                          <div class="text-xs text-gray-500">
-                            Joined {formatDate(user.joinedWaitlist)}
-                          </div>
-                        {/if}
-                      </div>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="flex items-center gap-2">
-                      <code class="text-xs font-mono text-gray-600">
-                        {truncateAddress(user.address)}
-                      </code>
-                      <a 
-                        href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${user.address}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="text-gray-400 hover:text-gray-600"
-                        title="View in Explorer"
-                      >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                        </svg>
-                      </a>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    {#if user.nodeVersion}
-                      <div class="flex items-center gap-2">
-                        <span class="font-mono text-sm">{user.nodeVersion}</span>
-                        {#if user.matchesTarget}
-                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            ✓ Ready
-                          </span>
-                        {:else if user.targetVersion}
-                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                            Update needed
-                          </span>
-                        {/if}
-                      </div>
-                    {:else}
-                      <span class="text-gray-400 text-sm">Not set</span>
-                    {/if}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="text-sm font-medium text-gray-900">{user.score || 0}</span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                      On Journey
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <button
-                      onclick={() => push(`/participant/${user.address}`)}
-                      class="text-sm text-primary-600 hover:text-primary-900 font-medium"
-                    >
-                      View Profile →
-                    </button>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    {/if}
-  </div>
-  
-  <!-- Information Card -->
-  <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
-    <div class="flex">
-      <div class="flex-shrink-0">
-        <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-        </svg>
-      </div>
-      <div class="ml-3">
-        <h3 class="text-sm font-medium text-blue-900">About the Validator Journey</h3>
-        <div class="mt-2 text-sm text-blue-700">
-          <p>The Validator Journey tracks participants who have joined the waitlist and are working towards becoming active validators on the GenLayer network.</p>
-          <ul class="list-disc list-inside mt-2 space-y-1">
-            <li>Complete tasks and earn points to climb the leaderboard</li>
-            <li>Graduates become active validators on Testnet Asimov</li>
-            <li>Track your progress in the Race to Testnet Asimov</li>
-          </ul>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-blue-900">About the Validator Journey</h3>
+          <div class="mt-2 text-sm text-blue-700">
+            <p>The Validator Journey tracks participants who have joined the waitlist and are working towards becoming active validators on the GenLayer network.</p>
+            <ul class="list-disc list-inside mt-2 space-y-1">
+              <li>Complete tasks and earn points to climb the leaderboard</li>
+              <li>Graduates become active validators on Testnet Asimov</li>
+              <li>Track your progress in the Race to Testnet Asimov</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  {/if}
 </div>

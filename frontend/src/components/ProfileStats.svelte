@@ -41,7 +41,7 @@
       </div>
       <div>
         <p class="text-xs text-gray-500">Total Contributions</p>
-        <p class="text-2xl font-bold text-gray-900">{contributions}</p>
+        <p class="text-2xl font-bold text-gray-900 font-heading">{contributions}</p>
       </div>
     </div>
   </div>
@@ -55,7 +55,7 @@
       </div>
       <div>
         <p class="text-xs text-gray-500">Total Points</p>
-        <p class="text-2xl font-bold text-gray-900">{points}</p>
+        <p class="text-2xl font-bold text-gray-900 font-heading">{points}</p>
       </div>
     </div>
   </div>
@@ -69,7 +69,7 @@
       </div>
       <div>
         <p class="text-xs text-gray-500">Current Rank</p>
-        <p class="text-2xl font-bold text-gray-900">#{rank || 'N/A'}</p>
+        <p class="text-2xl font-bold text-gray-900 font-heading">#{rank || 'N/A'}</p>
       </div>
     </div>
   </div>

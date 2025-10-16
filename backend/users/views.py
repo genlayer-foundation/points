@@ -5,12 +5,17 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.conf import settings
+from django.db.models import Sum
 from .models import User
 from .serializers import UserSerializer, UserCreateSerializer, UserProfileUpdateSerializer
 from .cloudinary_service import CloudinaryService
 from .genlayer_service import GenLayerDeploymentService
+from contributions.models import Contribution
+from leaderboard.models import LeaderboardEntry
 from web3 import Web3
 import logging
+import secrets
+import string
 
 logger = logging.getLogger(__name__)
 
@@ -39,16 +44,32 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             return obj
         return obj
         
+    def get_serializer_context(self):
+        """
+        Add context flags to control serializer behavior.
+        Use lightweight serializers for list views, full serializers for detail views.
+        """
+        context = super().get_serializer_context()
+        # Use light serializers for list view, full for detail/by_address
+        context['use_light_serializers'] = self.action == 'list'
+        # Include referral_details only for detail/by_address views
+        context['include_referral_details'] = self.action in ['retrieve', 'by_address']
+        return context
+
     @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)')
     def by_address(self, request, address=None):
         """
         Get a user by their Ethereum wallet address
         """
         user = get_object_or_404(
-            User.objects.select_related('validator', 'builder', 'steward'),
+            User.objects.select_related('validator', 'builder', 'steward', 'creator'),
             address__iexact=address
         )
-        serializer = self.get_serializer(user)
+        # Override context for by_address to include full details
+        context = self.get_serializer_context()
+        context['use_light_serializers'] = False
+        context['include_referral_details'] = True
+        serializer = self.get_serializer(user, context=context)
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)/highlights')
@@ -85,14 +106,21 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         For PATCH requests, only the name field can be updated.
         """
         if request.method == 'GET':
-            serializer = self.get_serializer(request.user)
+            # For /users/me/, include full details including referral_details
+            context = self.get_serializer_context()
+            context['use_light_serializers'] = False
+            context['include_referral_details'] = True
+            serializer = self.get_serializer(request.user, context=context)
             return Response(serializer.data)
         elif request.method == 'PATCH':
             serializer = UserProfileUpdateSerializer(request.user, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
-                # Return the full user data after update
-                full_serializer = self.get_serializer(request.user)
+                # Return the full user data after update with full details
+                context = self.get_serializer_context()
+                context['use_light_serializers'] = False
+                context['include_referral_details'] = True
+                full_serializer = self.get_serializer(request.user, context=context)
                 return Response(full_serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -645,4 +673,101 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
                 'deployment_count': 0,
                 'error': 'Failed to check deployment status'
             })
-            
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def referral_points(self, request):
+        """
+        Quick endpoint for referral points only.
+        Used by Waitlist.svelte and other summary views.
+        """
+        from leaderboard.models import ReferralPoints
+
+        try:
+            rp = request.user.referral_points
+            return Response({
+                'builder_points': rp.builder_points,
+                'validator_points': rp.validator_points
+            })
+        except ReferralPoints.DoesNotExist:
+            return Response({
+                'builder_points': 0,
+                'validator_points': 0
+            })
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def referrals(self, request):
+        """
+        Full referral details including referred users list with builder/validator breakdown.
+        Used by Profile and Referrals pages.
+        """
+        from leaderboard.models import ReferralPoints
+        from contributions.models import Contribution
+        from django.db.models import Count, Sum
+
+        user = request.user
+
+        # Get referrer's referral points
+        try:
+            rp = user.referral_points
+            builder_pts = rp.builder_points
+            validator_pts = rp.validator_points
+        except ReferralPoints.DoesNotExist:
+            builder_pts = 0
+            validator_pts = 0
+
+        # Get all users referred by the current user
+        referred_users = User.objects.filter(
+            referred_by=user
+        ).select_related('validator', 'builder').annotate(
+            total_contributions=Count('contributions', distinct=True)
+        )
+
+        # Build the referral list with builder/validator breakdown
+        # Optimize: bulk query all contributions instead of N+1 queries
+        referred_user_ids = [u.id for u in referred_users]
+
+        builder_points_by_user = {
+            item['user_id']: item['total'] or 0
+            for item in Contribution.objects.filter(
+                user_id__in=referred_user_ids,
+                contribution_type__category__slug='builder'
+            ).values('user_id').annotate(total=Sum('frozen_global_points'))
+        }
+
+        validator_points_by_user = {
+            item['user_id']: item['total'] or 0
+            for item in Contribution.objects.filter(
+                user_id__in=referred_user_ids,
+                contribution_type__category__slug='validator'
+            ).values('user_id').annotate(total=Sum('frozen_global_points'))
+        }
+
+        referral_list = []
+        for referred_user in referred_users:
+            builder_contribution_points = builder_points_by_user.get(referred_user.id, 0)
+            validator_contribution_points = validator_points_by_user.get(referred_user.id, 0)
+            total_points = builder_contribution_points + validator_contribution_points
+
+            referral_list.append({
+                'id': referred_user.id,
+                'name': referred_user.name or 'Anonymous',
+                'address': referred_user.address,
+                'profile_image_url': referred_user.profile_image_url,
+                'total_points': total_points,
+                'builder_contribution_points': builder_contribution_points,
+                'validator_contribution_points': validator_contribution_points,
+                'created_at': referred_user.created_at,
+                'total_contributions': referred_user.total_contributions,
+                'is_validator': hasattr(referred_user, 'validator'),
+                'is_builder': hasattr(referred_user, 'builder'),
+            })
+
+        # Sort by total points (highest first)
+        referral_list.sort(key=lambda x: x['total_points'], reverse=True)
+
+        return Response({
+            'total_referrals': len(referral_list),
+            'builder_points': builder_pts,
+            'validator_points': validator_pts,
+            'referrals': referral_list
+        })

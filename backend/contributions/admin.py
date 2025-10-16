@@ -10,7 +10,7 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from datetime import datetime
-from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight
+from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
 
@@ -39,6 +39,8 @@ class ContributionTypeAdmin(admin.ModelAdmin):
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at')
     list_filter = ('category', 'is_default', 'is_submittable')
+    # Auto-fill slug from name on the edit page
+    prepopulated_fields = { 'slug': ('name',) }
     inlines = [GlobalLeaderboardMultiplierInline]
     
     def get_current_multiplier(self, obj):
@@ -581,3 +583,36 @@ class ContributionHighlightAdmin(admin.ModelAdmin):
             'contribution__user',
             'contribution__contribution_type'
         )
+
+
+@admin.register(Mission)
+class MissionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'contribution_type', 'get_status', 'start_date', 'end_date', 'created_at')
+    list_filter = ('contribution_type', 'start_date', 'end_date', 'created_at')
+    search_fields = ('name', 'description')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    list_editable = ()
+
+    fieldsets = (
+        (None, {
+            'fields': ('id', 'name', 'contribution_type')
+        }),
+        ('Details', {
+            'fields': ('description',)
+        }),
+        ('Schedule', {
+            'fields': ('start_date', 'end_date'),
+            'description': 'Optional: Set dates to control when this mission is active'
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def get_status(self, obj):
+        if obj.is_active():
+            return format_html('<span style="color: green;">●</span> Active')
+        else:
+            return format_html('<span style="color: red;">●</span> Inactive')
+    get_status.short_description = 'Status'

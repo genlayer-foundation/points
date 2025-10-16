@@ -42,7 +42,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     API endpoint that allows viewing the leaderboard.
     Filter by type to get specific leaderboards:
     - ?type=validator - Active validators
-    - ?type=builder - Builders  
+    - ?type=builder - Builders
     - ?type=steward - Stewards
     - ?type=validator-waitlist - Waitlisted users (not yet validators)
     """
@@ -54,13 +54,24 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['rank', 'total_points', 'updated_at']
     ordering = ['rank']
     pagination_class = None  # Disable pagination to return all entries
-    
+
     def get_queryset(self):
         """
         Filter leaderboard by type, user address, and handle ordering.
+        Optimized with select_related to avoid N+1 queries.
+        Supports limit parameter for efficient top-N queries.
         """
         queryset = super().get_queryset()
-        
+
+        # Optimize queries: select related user and their profiles
+        queryset = queryset.select_related(
+            'user',
+            'user__validator',
+            'user__builder',
+            'user__steward',
+            'user__creator'
+        )
+
         # Filter by user address if provided
         user_address = self.request.query_params.get('user_address')
         if user_address:
@@ -72,18 +83,43 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         else:
             # Get type from query params
             leaderboard_type = self.request.query_params.get('type')
-            
+
             if leaderboard_type:
                 queryset = queryset.filter(type=leaderboard_type)
             else:
                 # Default to validator leaderboard only when not filtering by user
                 queryset = queryset.filter(type='validator')
-        
+
         # Handle rank ordering
         order = self.request.query_params.get('order', 'asc')
         if order == 'desc':
-            return queryset.order_by('-rank')
-        return queryset.order_by('rank')
+            queryset = queryset.order_by('-rank')
+        else:
+            queryset = queryset.order_by('rank')
+
+        # Apply limit if provided (for efficient top-N queries)
+        limit = self.request.query_params.get('limit')
+        if limit:
+            try:
+                limit = int(limit)
+                queryset = queryset[:limit]
+            except (ValueError, TypeError):
+                pass  # Ignore invalid limit values
+
+        return queryset
+
+    def get_serializer_context(self):
+        """
+        Add context flags to control serializer behavior.
+        Use lightweight serializers for leaderboard to avoid expensive nested queries.
+        """
+        context = super().get_serializer_context()
+        # Always use light serializers for leaderboard list view
+        # User details in leaderboard don't need full validator/builder stats
+        context['use_light_serializers'] = True
+        # Never include expensive referral_details in leaderboard
+        context['include_referral_details'] = False
+        return context
     
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAdminUser])
     def recalculate(self, request):
@@ -224,6 +260,29 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         stats = self._get_user_stats(user, category=category)
         return Response(stats)
     
+    @action(detail=False, methods=['get'], url_path='validator-waitlist/top')
+    def validator_waitlist_top(self, request):
+        """
+        Get top N waitlist users for the Race to Testnet Asimov leaderboard.
+        Optimized endpoint that returns only what's needed for the top section.
+        """
+        try:
+            limit = int(request.query_params.get('limit', 10))
+        except (ValueError, TypeError):
+            limit = 10
+        limit = min(max(limit, 1), 100)  # Between 1 and 100
+
+        top_entries = LeaderboardEntry.objects.filter(
+            user__visible=True,
+            type='validator-waitlist'
+        ).select_related(
+            'user',
+            'user__validator'
+        ).order_by('rank')[:limit]
+
+        serializer = self.get_serializer(top_entries, many=True)
+        return Response(serializer.data)
+
     @action(detail=False, methods=['get'], url_path='validator-waitlist-stats')
     def validator_waitlist_stats(self, request):
         """
@@ -288,6 +347,44 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 'name': config['name'],
                 'ranking_order': config['ranking_order']
             })
-        
+
         return Response(types_info)
+
+    @action(detail=False, methods=['get'])
+    def supporters(self, request):
+        """
+        Get supporters statistics and top 10 supporters.
+        Returns users with referrals sorted by total referral points.
+        """
+        from .models import ReferralPoints
+        from users.serializers import UserSerializer
+        from django.db.models import F
+
+        # Get all referral points ordered by total points (builder + validator)
+        referral_points = ReferralPoints.objects.select_related('user').annotate(
+            total_points=F('builder_points') + F('validator_points')
+        ).filter(user__visible=True).order_by('-total_points')
+
+        # Calculate aggregate stats
+        total_supporters = referral_points.count()
+        total_builder_points = sum(rp.builder_points for rp in referral_points)
+        total_validator_points = sum(rp.validator_points for rp in referral_points)
+
+        # Get top 10
+        top_supporters = []
+        for rp in referral_points[:10]:
+            user_data = UserSerializer(rp.user).data
+            top_supporters.append({
+                **user_data,
+                'builder_points': rp.builder_points,
+                'validator_points': rp.validator_points,
+                'total_points': rp.builder_points + rp.validator_points
+            })
+
+        return Response({
+            'total_supporters': total_supporters,
+            'total_builder_points': total_builder_points,
+            'total_validator_points': total_validator_points,
+            'top_supporters': top_supporters
+        })
     

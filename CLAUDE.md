@@ -38,7 +38,13 @@ export let params = {};
 let { params = {} } = $props();
 ```
 
-## Git Commit Guidelines
+## Git Workflow & Guidelines
+
+### Branch Strategy
+**Important**: The `dev` branch is the main merging branch for all development work.
+- Always create pull requests targeting `dev`, not `main`
+- The `main` branch is reserved for production releases
+- Feature branches should be based on and merged into `dev`
 
 ### No Attribution in Commits
 When creating git commits, **DO NOT** include Claude attribution lines such as:

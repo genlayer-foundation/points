@@ -5,22 +5,21 @@
   import TopLeaderboard from '../components/TopLeaderboard.svelte';
   import FeaturedContributions from '../components/FeaturedContributions.svelte';
   import RecentContributions from '../components/RecentContributions.svelte';
-  import GlobalDashboard from '../components/GlobalDashboard.svelte';
-  import WelcomeNewUser from '../components/WelcomeNewUser.svelte';
   import Avatar from '../components/Avatar.svelte';
-  import { contributionsAPI, usersAPI, statsAPI, leaderboardAPI, validatorsAPI } from '../lib/api';
+  import { contributionsAPI, usersAPI, statsAPI, leaderboardAPI, validatorsAPI, buildersAPI } from '../lib/api';
   import { push } from 'svelte-spa-router';
   import { currentCategory, categoryTheme } from '../stores/category.js';
-  
+
   // State management
   let newestValidators = $state([]);
+  let leaderboardData = $state([]);  // Store leaderboard for reuse
   let stats = $state({
     totalParticipants: 0,
     totalContributions: 0,
     totalPoints: 0,
     lastUpdated: null
   });
-  
+
   let newestValidatorsLoading = $state(true);
   let statsLoading = $state(true);
   let newestValidatorsError = $state(null);
@@ -37,32 +36,35 @@
   
   // Function to fetch data based on category
   async function fetchDashboardData() {
-    
     try {
       // Fetch newest participants based on category
       newestValidatorsLoading = true;
-      
+
       if ($currentCategory === 'validator') {
         // For validators, use the specialized endpoint that gets first uptime
         const validatorsRes = await validatorsAPI.getNewestValidators(5);
         newestValidators = validatorsRes.data || [];
+      } else if ($currentCategory === 'builder') {
+        // For builders, use the specialized endpoint that excludes builder-welcome
+        const buildersRes = await buildersAPI.getNewestBuilders(5);
+        newestValidators = buildersRes.data || [];
       } else {
         // For other categories, get recent contributions
-        const params = { 
+        const params = {
           limit: 50,
           ordering: '-contribution_date'
         };
-        
+
         if ($currentCategory !== 'global') {
           params.category = $currentCategory;
         }
-        
+
         const contributionsRes = await contributionsAPI.getContributions(params);
-        
+
         // Extract unique users from contributions
         const seenUsers = new Set();
         const uniqueParticipants = [];
-        
+
         if (contributionsRes.data && contributionsRes.data.results) {
           for (const contribution of contributionsRes.data.results) {
             if (contribution.user_details && !seenUsers.has(contribution.user_details.address)) {
@@ -75,7 +77,7 @@
             }
           }
         }
-        
+
         newestValidators = uniqueParticipants;
       }
       
@@ -103,13 +105,13 @@
           }
         } catch (statsApiError) {
           console.warn('Stats API failed, falling back to individual requests', statsApiError);
-          
+
           // Fallback to individual requests
           const [participantCountRes, contributionsRes] = await Promise.all([
             usersAPI.getParticipantCount(),
             contributionsAPI.getContributions({ limit: 1 })
           ]);
-          
+
           stats = {
             totalParticipants: participantCountRes.data.count || 0,
             totalContributions: contributionsRes.data.count || 0,
@@ -123,11 +125,14 @@
           leaderboardAPI.getLeaderboardByType($currentCategory),
           contributionsAPI.getContributions({ category: $currentCategory, limit: 1 })
         ]);
-        
+
         // API now returns array directly
         const categoryEntries = Array.isArray(leaderboardRes.data) ? leaderboardRes.data : [];
         const categoryContributions = contributionsRes.data;
-        
+
+        // Store leaderboard data for reuse by TopLeaderboard component
+        leaderboardData = categoryEntries;
+
         stats = {
           totalParticipants: categoryEntries.length,
           totalContributions: categoryContributions.count || 0,
@@ -140,18 +145,13 @@
     } catch (error) {
       statsError = error.message || 'Failed to load statistics';
       statsLoading = false;
-      console.error('Error fetching dashboard stats:', error);
+      console.error('Error fetching dashboard statistics:', error);
     }
   }
   
-  // Fetch data when category changes (including initial mount)
-  let previousCategory = $state(null);
-  
-  $effect(() => {
-    if ($currentCategory && $currentCategory !== previousCategory) {
-      previousCategory = $currentCategory;
-      fetchDashboardData();
-    }
+  // Fetch data on mount (component is recreated for each route)
+  onMount(() => {
+    fetchDashboardData();
   });
   
   // Icons for stat cards
@@ -162,15 +162,8 @@
   };
 </script>
 
-<!-- Welcome message for new users -->
-<WelcomeNewUser />
-
-{#if $currentCategory === 'global'}
-  <!-- Global Dashboard - Use separate component -->
-  <GlobalDashboard />
-{:else}
-  <!-- Category-specific Dashboard -->
-  <div class="space-y-6 sm:space-y-8">
+<!-- Category-specific Dashboard -->
+<div class="space-y-6 sm:space-y-8">
     <h1 class="text-2xl font-bold text-gray-900">
       {$currentCategory === 'builder' ? 'Builders' :
        $currentCategory === 'validator' ? 'Validators' :
@@ -244,8 +237,10 @@
           </svg>
         </button>
       </div>
-      <TopLeaderboard 
+      <TopLeaderboard
         showHeader={false}
+        entries={leaderboardData}
+        loading={statsLoading}
       />
     </div>
     
@@ -379,4 +374,3 @@
     </div>
   </div>
   </div>
-{/if}

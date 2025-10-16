@@ -1,6 +1,7 @@
 <script>
   import { push, location } from 'svelte-spa-router';
   import AuthButton from './AuthButton.svelte';
+  import ReferralSection from './ReferralSection.svelte';
   import Icon from './Icons.svelte';
   import { authState } from '../lib/auth.js';
   import { categoryTheme, currentCategory } from '../stores/category.js';
@@ -42,7 +43,7 @@
     <div class="md:w-64 flex items-center h-16 px-4 md:px-7">
       <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex items-center">
         <Icon name="genlayer" size="lg" className="text-black" />
-        <span class="ml-3 text-sm sm:text-xl font-bold {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">
+        <span class="ml-3 text-sm sm:text-xl font-bold font-heading {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">
           GenLayer <span class="text-xs sm:text-xl">Points</span>
         </span>
       </a>
@@ -51,6 +52,7 @@
     <!-- Right section with actions -->
     <div class="flex-1 flex justify-end items-center h-16 px-4">
       <div class="hidden md:flex items-center gap-4">
+        <ReferralSection />
         <button 
           onclick={handleSubmitContribution}
           class="px-4 py-2 {$categoryTheme.button} rounded-md font-medium"

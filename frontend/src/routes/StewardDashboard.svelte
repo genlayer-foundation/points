@@ -58,12 +58,12 @@
       // Get list of stewards directly
       const stewardsRes = await stewardAPI.getStewards();
       
-      if (stewardsRes.data) {
-        stewards = stewardsRes.data;
-      }
+      // Ensure stewards is always an array
+      stewards = stewardsRes.data || [];
     } catch (err) {
       console.error('Error loading stewards:', err);
-      // Silently fail - steward list is not critical
+      // Keep stewards as empty array on error
+      stewards = [];
     } finally {
       stewardsLoading = false;
     }
@@ -266,8 +266,8 @@
                   </div>
                 </div>
               {/each}
-          </div>
-        {/if}
+            </div>
+          {/if}
       </div>
       
       <!-- Working Groups Section -->
@@ -308,7 +308,7 @@
               <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
                 <p class="text-sm text-gray-600 mb-2">💡 <strong>Interested in joining?</strong></p>
                 <p class="text-sm text-gray-600">
-                  Contact <span class="font-mono bg-teal-100 px-1.5 py-0.5 rounded text-teal-700 font-semibold">@ras</span> on Discord or Telegram to learn more about upcoming working groups.
+                  Contact <span class="font-mono bg-teal-100 px-1.5 py-0.5 rounded text-teal-700 font-semibold">@ras</span> on <a href="https://discord.com/invite/qjCU4AWnKE" target="_blank" rel="noopener noreferrer" class="text-teal-600 hover:text-teal-700 underline font-semibold">Discord</a> to learn more about upcoming working groups.
                 </p>
               </div>
             </div>

@@ -10,11 +10,12 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.generic import ListView
 from django.utils.decorators import method_decorator
-from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight
-from .serializers import (ContributionTypeSerializer, ContributionSerializer, 
+from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission
+from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
-                         StewardSubmissionSerializer, StewardSubmissionReviewSerializer)
+                         StewardSubmissionSerializer, StewardSubmissionReviewSerializer,
+                         MissionSerializer)
 from .forms import SubmissionReviewForm
 from .permissions import IsSteward
 from leaderboard.models import GlobalLeaderboardMultiplier
@@ -35,17 +36,20 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
     
     def get_queryset(self):
         queryset = ContributionType.objects.all()
-        
+
         # Filter by category if provided
         category = self.request.query_params.get('category')
         if category:
             queryset = queryset.filter(category__slug=category)
-        
+            # Exclude Builder Welcome when filtering for builder category
+            if category == 'builder':
+                queryset = queryset.exclude(slug='builder-welcome')
+
         # Filter by is_submittable if provided (for user submission forms)
         is_submittable = self.request.query_params.get('is_submittable')
         if is_submittable is not None:
             queryset = queryset.filter(is_submittable=is_submittable.lower() == 'true')
-            
+
         return queryset
         
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
@@ -63,18 +67,21 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         
         # Start with all contribution types
         queryset = ContributionType.objects.all()
-        
+
         # Filter by category if provided
         category = request.query_params.get('category')
         if category:
             queryset = queryset.filter(category__slug=category)
+            # Exclude Builder Welcome when filtering for builder category
+            if category == 'builder':
+                queryset = queryset.exclude(slug='builder-welcome')
         
         types_with_stats = queryset.annotate(
             count=Count('contributions'),
             participants_count=Count('contributions__user', distinct=True),
             last_earned=Coalesce(Max('contributions__contribution_date'), timezone.now()),
             total_points_given=Coalesce(Sum('contributions__frozen_global_points'), 0)
-        ).values('id', 'name', 'description', 'min_points', 'max_points', 'count', 'participants_count', 'last_earned', 'total_points_given')
+        ).values('id', 'name', 'description', 'min_points', 'max_points', 'count', 'participants_count', 'last_earned', 'total_points_given', 'is_submittable')
         
         # Add current multiplier for each type
         result = []
@@ -97,10 +104,10 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         Returns users with the most points for this contribution type.
         """
         from django.db.models import Sum
-        from users.serializers import UserSerializer
-        
+        from utils.serializers import LightUserSerializer
+
         contribution_type = self.get_object()
-        
+
         # Get top contributors by summing their frozen global points for this type
         top_contributors = Contribution.objects.filter(
             contribution_type=contribution_type
@@ -108,33 +115,60 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             total_points=Sum('frozen_global_points'),
             contribution_count=Count('id')
         ).order_by('-total_points')[:10]
-        
-        # Get user objects and add the aggregated data
+
+        # Get user objects with select_related for efficiency
+        user_ids = [c['user'] for c in top_contributors]
+        users = {
+            user.id: user
+            for user in ContributionType.objects.get(pk=pk).contributions.filter(
+                user_id__in=user_ids
+            ).select_related('user', 'user__validator', 'user__builder').values_list('user', flat=True).distinct()
+        }
+
+        # Fetch users directly with optimization
+        from users.models import User
+        users_dict = {
+            user.id: user
+            for user in User.objects.filter(id__in=user_ids).select_related('validator', 'builder')
+        }
+
+        # Build result with lightweight serializer
         result = []
         for contributor in top_contributors:
-            user = contribution_type.contributions.filter(
-                user_id=contributor['user']
-            ).first().user
-            
-            user_data = UserSerializer(user).data
-            user_data['total_points'] = contributor['total_points']
-            user_data['contribution_count'] = contributor['contribution_count']
-            result.append(user_data)
-        
+            user = users_dict.get(contributor['user'])
+            if user:
+                user_data = LightUserSerializer(user).data
+                user_data['total_points'] = contributor['total_points']
+                user_data['contribution_count'] = contributor['contribution_count']
+                result.append(user_data)
+
         return Response(result)
     
     @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
     def recent_contributions(self, request, pk=None):
         """
         Get the last 10 contributions for a specific contribution type.
+        Uses lightweight serializers to avoid N+1 queries.
         """
         contribution_type = self.get_object()
-        
+
         recent_contributions = Contribution.objects.filter(
             contribution_type=contribution_type
+        ).select_related(
+            'user',
+            'user__validator',
+            'user__builder',
+            'contribution_type',
+            'contribution_type__category'
         ).order_by('-contribution_date')[:10]
-        
-        serializer = ContributionSerializer(recent_contributions, many=True)
+
+        # Use light serializers for list view
+        context = {
+            'use_light_serializers': True,
+            'include_referral_details': False,
+            'request': request
+        }
+        serializer = ContributionSerializer(recent_contributions, many=True, context=context)
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
@@ -144,12 +178,12 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         """
         contribution_type = self.get_object()
         limit = int(request.query_params.get('limit', 5))
-        
+
         highlights = ContributionHighlight.get_active_highlights(
             contribution_type=contribution_type,
             limit=limit
         )
-        
+
         serializer = ContributionHighlightSerializer(highlights, many=True)
         return Response(serializer.data)
     
@@ -170,18 +204,47 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     
     def get_queryset(self):
         queryset = Contribution.objects.all().order_by('-contribution_date')
-        
+
+        # Comprehensive prefetch to avoid N+1 queries
+        # Only prefetch what we need based on whether we're using light serializers
+        queryset = queryset.select_related(
+            'user',
+            'user__validator',  # For validator info in user details
+            'user__builder',    # For builder info in user details
+            'contribution_type',
+            'contribution_type__category'
+        ).prefetch_related(
+            'evidence_items',  # Only queried in detail view (light serializers skip this)
+            'highlights'       # Only queried in detail view (light serializers skip this)
+        )
+
         # Filter by user address if provided
         user_address = self.request.query_params.get('user_address')
         if user_address:
             queryset = queryset.filter(user__address__iexact=user_address)
-        
+
         # Filter by category if provided
         category = self.request.query_params.get('category')
         if category:
             queryset = queryset.filter(contribution_type__category__slug=category)
-            
+            # Note: We do NOT exclude builder-welcome here because users should see
+            # their builder-welcome contribution in their recent contributions list.
+            # Builder-welcome is only excluded from:
+            # - Leaderboard calculations (in leaderboard/models.py)
+            # - ContributionType listings (in ContributionTypeViewSet above)
+
         return queryset
+
+    def get_serializer_context(self):
+        """
+        Add context flags to control serializer behavior.
+        Use lightweight serializers for list views to improve performance.
+        """
+        context = super().get_serializer_context()
+        # Use light serializers for list views (action='list')
+        # Use full serializers for detail views (action='retrieve')
+        context['use_light_serializers'] = self.action == 'list'
+        return context
     
     def list(self, request, *args, **kwargs):
         """
@@ -189,7 +252,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         """
         # Check if grouping is requested
         group_consecutive = request.query_params.get('group_consecutive', 'false').lower() == 'true'
-        
+
         if not group_consecutive:
             # Default behavior - no grouping
             return super().list(request, *args, **kwargs)
@@ -197,17 +260,19 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         # Get the queryset and apply pagination before grouping
         queryset = self.filter_queryset(self.get_queryset())
         
-        # Apply regular pagination first to get raw contributions
-        page_size = int(request.query_params.get('limit', 10))
+        # Get the total count of actual contributions (not groups)
+        total_contributions_count = queryset.count()
+        
+        # Get pagination parameters
+        page_size = int(request.query_params.get('page_size') or request.query_params.get('limit', 10))
         page_number = int(request.query_params.get('page', 1))
-        
-        # We need to fetch more records to ensure we have enough after grouping
-        # Fetch 3x the page size to account for grouping
-        extended_limit = page_size * 3
-        start_index = (page_number - 1) * page_size
-        
-        # Get contributions with extended limit
-        all_contributions = list(queryset)
+
+        # For grouped pagination, we use limit/offset on the RAW contributions
+        # then group them, then slice the result
+        # This is simpler but less efficient - acceptable for reasonable dataset sizes
+        limit_for_fetch = min(page_size * page_number * 5, 500)  # Fetch enough to cover requested page
+
+        all_contributions = list(queryset[:limit_for_fetch])
         
         # Group consecutive contributions
         grouped = []
@@ -217,18 +282,19 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         for contrib in all_contributions:
             serialized = ContributionSerializer(contrib).data
             type_id = contrib.contribution_type.id
-            user_id = contrib.user.id if contrib.user else None
-            
+            has_evidence = bool(serialized.get('evidence_url'))
+
             # Check if we should add to current group or start new one
-            # Only group if same type AND same user
-            if (current_group and 
+            # Only group if same type and NO evidence
+            if (current_group and
                 current_group['contribution_type']['id'] == type_id and
-                current_group.get('primary_user_id') == user_id):
+                not has_evidence and
+                not current_group.get('has_evidence')):
                 # Add to existing group
                 current_group['grouped_contributions'].append(serialized)
                 current_group['frozen_global_points'] += (serialized.get('frozen_global_points') or 0)
                 current_group['end_date'] = serialized['contribution_date']
-                
+
                 # Add unique user to the set
                 user_details = serialized.get('user_details')
                 if user_details:
@@ -242,15 +308,12 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     current_group['count'] = len(current_group['grouped_contributions'])
                     current_group['users'] = list(current_group['unique_users'].values())
                     del current_group['unique_users']  # Remove the temporary set
-                    current_group.pop('primary_user_id', None)  # Remove internal tracking field
+                    current_group.pop('has_evidence', None)  # Remove internal tracking field
                     grouped.append(current_group)
                     total_grouped_count += 1
-                    
-                    # Check if we have enough grouped items for this page
-                    if total_grouped_count > start_index + page_size:
-                        break
-                
+
                 # Create new group
+                contribution_type_details = ContributionTypeSerializer(contrib.contribution_type).data
                 current_group = {
                     'id': f"group_{contrib.id}",  # Use first contribution's ID as group ID
                     'contribution_type': {
@@ -258,6 +321,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                         'name': contrib.contribution_type.name,
                         'slug': contrib.contribution_type.slug,
                     },
+                    'contribution_type_details': contribution_type_details,  # Full type details including category
                     'contribution_type_name': contrib.contribution_type.name,
                     'grouped_contributions': [serialized],
                     'frozen_global_points': serialized.get('frozen_global_points') or 0,
@@ -265,7 +329,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     'end_date': serialized['contribution_date'],  # Will be updated
                     'unique_users': {},
                     'user_details': serialized.get('user_details'),  # Primary user (for single-user groups)
-                    'primary_user_id': user_id,  # Track the user for grouping
+                    'has_evidence': has_evidence,  # Track if this group has evidence
                 }
                 
                 # Add first user
@@ -285,21 +349,25 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                 # Fallback: extract users from grouped contributions
                 current_group['users'] = []
             # Remove internal tracking field
-            current_group.pop('primary_user_id', None)
+            current_group.pop('has_evidence', None)
             grouped.append(current_group)
         
-        # Apply pagination to grouped results
-        paginated_groups = grouped[start_index:start_index + page_size]
-        
-        # Calculate total count - this is approximate
-        # In a real implementation, you might want to do a more accurate count
-        total_count = len(grouped)
-        
+        # Paginate the grouped results
+        start_idx = (page_number - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_groups = grouped[start_idx:end_idx]
+
+        # Calculate if there's more data
+        # We don't know the total grouped count without fetching everything,
+        # so we check if we got a full page (suggests there might be more)
+        has_next = len(grouped) > end_idx or len(all_contributions) >= limit_for_fetch
+        has_previous = page_number > 1
+
         # Return paginated response
         return Response({
-            'count': total_count,
-            'next': None if (start_index + page_size) >= total_count else f"?page={page_number + 1}&limit={page_size}&group_consecutive=true",
-            'previous': None if page_number == 1 else f"?page={page_number - 1}&limit={page_size}&group_consecutive=true",
+            'count': total_contributions_count,  # Total raw contribution count
+            'next': f"?page={page_number + 1}&limit={page_size}&group_consecutive=true" if has_next else None,
+            'previous': f"?page={page_number - 1}&limit={page_size}&group_consecutive=true" if has_previous else None,
             'results': paginated_groups
         })
     
@@ -379,6 +447,9 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         # Order by contribution date descending and apply limit
         highlights = queryset.select_related(
             'contribution__user',
+            'contribution__user__validator',
+            'contribution__user__builder',
+            'contribution__user__steward',
             'contribution__contribution_type',
             'contribution__contribution_type__category'
         ).order_by('-contribution__contribution_date')[:limit]
@@ -516,12 +587,31 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
     authentication_classes = [EthereumAuthentication]
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
-    
+
     def get_queryset(self):
         """Users can only see their own submissions."""
         return SubmittedContribution.objects.filter(
             user=self.request.user
+        ).select_related(
+            'contribution_type',
+            'contribution_type__category',
+            'reviewed_by',
+            'converted_contribution',
+            'user'  # Optimize user access
+        ).prefetch_related(
+            'evidence_items'
         ).order_by('-created_at')
+
+    def get_serializer_context(self):
+        """
+        Add context flags to control serializer behavior.
+        Use lightweight serializers for list views to improve performance.
+        """
+        context = super().get_serializer_context()
+        # Use light serializers for list views
+        # Use full serializers for detail views
+        context['use_light_serializers'] = self.action == 'list' or self.action == 'my_submissions'
+        return context
     
     def create(self, request, *args, **kwargs):
         """Create a new submission."""
@@ -578,23 +668,30 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
     def add_evidence(self, request, pk=None):
         """Add evidence to a submission."""
         submission = self.get_object()
-        
+
         # Check if evidence can be added
         if submission.state not in ['pending', 'more_info_needed']:
             return Response(
                 {'error': 'Evidence can only be added to pending submissions or when more information is requested.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
+
+        # Reject file uploads
+        if 'file' in request.data or request.FILES:
+            return Response(
+                {'error': 'File uploads are not currently supported. Please provide a URL or description instead.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         serializer = SubmittedEvidenceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         # Create evidence linked to this submission
         evidence = Evidence.objects.create(
             submitted_contribution=submission,
             **serializer.validated_data
         )
-        
+
         return Response(
             SubmittedEvidenceSerializer(evidence).data,
             status=status.HTTP_201_CREATED
@@ -612,7 +709,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     filterset_fields = ['state', 'contribution_type', 'user']
     ordering_fields = ['created_at', 'contribution_date']
     ordering = ['-created_at']
-    
+
     def get_permissions(self):
         """
         Instantiates and returns the list of permissions that this view requires.
@@ -621,17 +718,34 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         if self.action == 'stats':
             return [permissions.AllowAny()]
         return super().get_permissions()
-    
+
     def get_queryset(self):
         """Get all submissions for steward review."""
         queryset = SubmittedContribution.objects.all()
-        
-        # Add prefetch for optimization
+
+        # Comprehensive prefetch for optimization
         queryset = queryset.select_related(
-            'user', 'contribution_type', 'reviewed_by'
+            'user',
+            'user__validator',
+            'user__builder',
+            'contribution_type',
+            'contribution_type__category',
+            'reviewed_by',
+            'converted_contribution'
         ).prefetch_related('evidence_items')
-        
+
         return queryset
+
+    def get_serializer_context(self):
+        """
+        Add context flags to control serializer behavior.
+        Use lightweight serializers for list views to improve performance.
+        """
+        context = super().get_serializer_context()
+        # Use light serializers for list views
+        # Use full serializers for detail views (single submission review)
+        context['use_light_serializers'] = self.action == 'list'
+        return context
     
     @action(detail=True, methods=['post'], url_path='review')
     def review(self, request, pk=None):
@@ -779,3 +893,40 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             })
         
         return Response(user_data)
+
+
+class MissionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for retrieving missions.
+    Only missions are returned by default.
+    """
+    serializer_class = MissionSerializer
+
+    def get_queryset(self):
+        """
+        Return active highlights by default.
+        Supports filtering by contribution_type and category.
+        """
+        from django.utils import timezone
+        from django.db import models
+
+        now = timezone.now()
+
+        # Get base queryset of active highlights (without slicing)
+        queryset = Mission.objects.filter(
+            models.Q(start_date__isnull=True) | models.Q(start_date__lte=now)
+        ).filter(
+            models.Q(end_date__isnull=True) | models.Q(end_date__gt=now)
+        ).select_related('contribution_type', 'contribution_type__category')
+
+        # Filter by contribution type if specified
+        contribution_type = self.request.query_params.get('contribution_type', None)
+        if contribution_type:
+            queryset = queryset.filter(contribution_type_id=contribution_type)
+
+        # Filter by category if specified
+        category = self.request.query_params.get('category', None)
+        if category:
+            queryset = queryset.filter(contribution_type__category__slug=category)
+
+        return queryset

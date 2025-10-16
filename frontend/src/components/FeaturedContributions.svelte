@@ -137,7 +137,7 @@
       <div class="py-4">
         <div>
           <p class="text-sm text-gray-700 mb-3">
-            <span class="font-semibold text-gray-900">Get Highlighted!</span> Submit impactful or pioneering work to get featured.
+            <span class="font-heading font-semibold text-gray-900">Get Highlighted!</span> Submit impactful or pioneering work to get featured.
           </p>
           <button
             onclick={() => push('/submit-contribution')}
@@ -180,7 +180,12 @@
             user_details: {
               name: highlight.user_name,
               address: highlight.user_address,
-              profile_image_url: highlight.user_profile_image_url
+              profile_image_url: highlight.user_profile_image_url,
+              validator: highlight.user_validator,
+              builder: highlight.user_builder,
+              steward: highlight.user_steward,
+              has_validator_waitlist: highlight.user_has_validator_waitlist,
+              has_builder_welcome: highlight.user_has_builder_welcome
             },
             users: [{
               name: highlight.user_name,
@@ -216,11 +221,16 @@
           <h3 class="font-semibold text-gray-900">{highlight.title}</h3>
           <p class="text-sm text-gray-600 mt-1">{highlight.description}</p>
           <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
-            <Avatar 
+            <Avatar
               user={{
                 name: highlight.user_name,
                 address: highlight.user_address,
-                profile_image_url: highlight.user_profile_image_url
+                profile_image_url: highlight.user_profile_image_url,
+                validator: highlight.user_validator,
+                builder: highlight.user_builder,
+                steward: highlight.user_steward,
+                has_validator_waitlist: highlight.user_has_validator_waitlist,
+                has_builder_welcome: highlight.user_has_builder_welcome
               }}
               size="xs"
               clickable={true}
@@ -252,11 +262,16 @@
               <p class="mt-2 text-sm text-gray-700">{highlight.description}</p>
               <div class="mt-3 flex items-center gap-4 text-xs text-gray-600">
                 <div class="flex items-center gap-2">
-                  <Avatar 
+                  <Avatar
                     user={{
                       name: highlight.user_name,
                       address: highlight.user_address,
-                      profile_image_url: highlight.user_profile_image_url
+                      profile_image_url: highlight.user_profile_image_url,
+                      validator: highlight.user_validator,
+                      builder: highlight.user_builder,
+                      steward: highlight.user_steward,
+                      has_validator_waitlist: highlight.user_has_validator_waitlist,
+                      has_builder_welcome: highlight.user_has_builder_welcome
                     }}
                     size="xs"
                     clickable={true}

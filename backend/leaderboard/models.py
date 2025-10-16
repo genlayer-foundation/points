@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.conf import settings
@@ -20,40 +20,82 @@ def has_contribution_badge(user, slug):
 
 def has_category_contributions(user, category_slug):
     """Helper to check if user has contributions in a category"""
-    return Contribution.objects.filter(
+    query = Contribution.objects.filter(
         user=user,
         contribution_type__category__slug=category_slug
-    ).exists()
+    )
+    # Exclude Builder Welcome from builder category checks
+    if category_slug == 'builder':
+        query = query.exclude(contribution_type__slug='builder-welcome')
+    return query.exists()
 
 
 def calculate_category_points(user, category_slug):
     """Calculate total points from a specific category"""
-    return Contribution.objects.filter(
+    query = Contribution.objects.filter(
         user=user,
         contribution_type__category__slug=category_slug
-    ).aggregate(
+    )
+    # Exclude Builder Welcome from builder category points
+    if category_slug == 'builder':
+        query = query.exclude(contribution_type__slug='builder-welcome')
+    return query.aggregate(
         total=Sum('frozen_global_points')
     )['total'] or 0
 
 
 def calculate_waitlist_points(user):
-    """Calculate validator category points before graduation date"""
+    """
+    Calculate waitlist points including both contributions and referral points.
+    Formula: contribution_points + referral_points (simple sum, easy to adjust)
+    """
     # Find graduation contribution if exists
     grad_contrib = Contribution.objects.filter(
         user=user,
         contribution_type__slug='validator'
     ).order_by('contribution_date').first()
-    
+
     query = Contribution.objects.filter(
         user=user,
         contribution_type__category__slug='validator'
     )
-    
+
     if grad_contrib:
         # Only count contributions before graduation
         query = query.filter(contribution_date__lt=grad_contrib.contribution_date)
-    
-    return query.aggregate(total=Sum('frozen_global_points'))['total'] or 0
+
+    contribution_points = query.aggregate(total=Sum('frozen_global_points'))['total'] or 0
+
+    # Calculate referral points
+    if grad_contrib:
+        # For graduated users: calculate referral points ONLY from contributions before graduation
+        from users.models import User
+        referred_user_ids = User.objects.filter(referred_by=user).values_list('id', flat=True)
+
+        if referred_user_ids:
+            builder_referral = int((Contribution.objects.filter(
+                user_id__in=referred_user_ids,
+                contribution_type__category__slug='builder',
+                contribution_date__lt=grad_contrib.contribution_date
+            ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+
+            validator_referral = int((Contribution.objects.filter(
+                user_id__in=referred_user_ids,
+                contribution_type__category__slug='validator',
+                contribution_date__lt=grad_contrib.contribution_date
+            ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+
+            referral_points = builder_referral + validator_referral
+        else:
+            referral_points = 0
+    else:
+        # For current waitlist users: use total referral points from ReferralPoints table
+        try:
+            referral_points = user.referral_points.builder_points + user.referral_points.validator_points
+        except ReferralPoints.DoesNotExist:
+            referral_points = 0
+
+    return contribution_points + referral_points
 
 
 def calculate_graduation_points(user):
@@ -330,6 +372,7 @@ def log_multiplier_creation(sender, instance, created, **kwargs):
 def update_leaderboard_on_contribution(sender, instance, created, **kwargs):
     """
     When a contribution is saved, update all affected leaderboard entries.
+    Also updates referrer's referral points if the user was referred.
     """
     # Only update if points have changed or it's a new contribution
     if created or kwargs.get('update_fields') is None or 'points' in kwargs.get('update_fields', []):
@@ -340,6 +383,10 @@ def update_leaderboard_on_contribution(sender, instance, created, **kwargs):
     
     # Update the user's leaderboard entries
     update_user_leaderboard_entries(instance.user)
+
+    # Update referrer's referral points if applicable
+    if instance.user.referred_by:
+        update_referrer_points(instance)
 
 
 def update_user_leaderboard_entries(user):
@@ -402,6 +449,113 @@ def update_user_leaderboard_entries(user):
         LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
 
+class ReferralPoints(BaseModel):
+    """
+    Tracks referral points earned from referred users' contributions.
+    Separate from LeaderboardEntry to work regardless of referrer's own status.
+    """
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='referral_points'
+    )
+    builder_points = models.PositiveIntegerField(
+        default=0,
+        help_text="10% of referred users' builder contributions"
+    )
+    validator_points = models.PositiveIntegerField(
+        default=0,
+        help_text="10% of referred users' validator contributions"
+    )
+
+    class Meta:
+        verbose_name = "Referral Points"
+        verbose_name_plural = "Referral Points"
+
+    def __str__(self):
+        return f"{self.user.email} - B:{self.builder_points} V:{self.validator_points}"
+
+
+def update_referrer_points(contribution):
+    """
+    Incrementally update referral points when a referred user makes a contribution.
+    Performance: O(1) - only adds 10% of the new contribution.
+    """
+    referrer = contribution.user.referred_by
+    if not referrer:
+        return
+
+    # Get or create referral points record
+    rp, _ = ReferralPoints.objects.get_or_create(user=referrer)
+
+    # Get the contribution category
+    category_slug = contribution.contribution_type.category.slug if contribution.contribution_type.category else None
+
+    # Increment appropriate category by 10% of contribution points
+    points_to_add = int(contribution.frozen_global_points * 0.1)
+
+    if category_slug == 'builder':
+        rp.builder_points += points_to_add
+        rp.save(update_fields=['builder_points'])
+    elif category_slug == 'validator':
+        rp.validator_points += points_to_add
+        rp.save(update_fields=['validator_points'])
+    else:
+        # No category means no points added, no need to update leaderboard
+        return
+
+    # CRITICAL: Update referrer's validator-waitlist leaderboard entry
+    # This prevents LeaderboardEntry.total_points from being stale
+    # Only check if referrer is on validator-waitlist to avoid unnecessary work
+    if LeaderboardEntry.objects.filter(user=referrer, type='validator-waitlist').exists():
+        # Update only the validator-waitlist leaderboard (not all leaderboards)
+        # This is more efficient than update_user_leaderboard_entries(referrer)
+        # which would check all 4 leaderboard types
+        config = LEADERBOARD_CONFIG['validator-waitlist']
+        calculator = config['points_calculator']
+        points = calculator(referrer)
+
+        LeaderboardEntry.objects.update_or_create(
+            user=referrer,
+            type='validator-waitlist',
+            defaults={'total_points': points}
+        )
+
+        # Update ranks for validator-waitlist leaderboard
+        # Note: This is still expensive (updates all users in waitlist)
+        # but necessary for correctness
+        LeaderboardEntry.update_leaderboard_ranks('validator-waitlist')
+
+
+@transaction.atomic
+def recalculate_referrer_points(referrer):
+    """
+    Update referral points when referred user makes contribution.
+    Efficiently calculates points per category.
+    """
+    from users.models import User
+
+    referred_user_ids = User.objects.filter(referred_by=referrer).values_list('id', flat=True)
+    if not referred_user_ids:
+        return
+
+    rp, _ = ReferralPoints.objects.get_or_create(user=referrer)
+
+    # Calculate builder points
+    rp.builder_points = int((Contribution.objects.filter(
+        user_id__in=referred_user_ids,
+        contribution_type__category__slug='builder'
+    ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+
+    # Calculate validator points
+    rp.validator_points = int((Contribution.objects.filter(
+        user_id__in=referred_user_ids,
+        contribution_type__category__slug='validator'
+    ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+
+    rp.save(update_fields=['builder_points', 'validator_points'])
+
+
 def update_all_ranks():
     """
     Update the ranks for all leaderboard types.
@@ -419,29 +573,35 @@ def update_all_ranks():
 
 def recalculate_all_leaderboards():
     """
-    Admin command to recalculate all leaderboard entries from scratch.
+    Admin command to recalculate all leaderboard entries and referral points from scratch.
     Called from admin panel shortcut.
     """
     from django.db import transaction
     from users.models import User
-    
+
     with transaction.atomic():
-        # Clear all existing entries
+        # Clear all existing calculated data
         LeaderboardEntry.objects.all().delete()
-        
-        # Get all users with any contributions
+        ReferralPoints.objects.all().delete()
+
+        # STEP 1: Recalculate referral points FIRST (needed for waitlist point calculation)
+        referrers = User.objects.filter(referrals__isnull=False).distinct()
+        for referrer in referrers:
+            recalculate_referrer_points(referrer)
+
+        # STEP 2: Get all users with any contributions
         users = User.objects.filter(
             contributions__isnull=False
         ).distinct().prefetch_related(
             'contributions__contribution_type__category'
         )
-        
-        # Process each user
+
+        # STEP 3: Process each user's leaderboard entries (now has referral points available)
         for user in users:
             update_user_leaderboard_entries(user)
-        
-        # Update ranks for all leaderboard types
+
+        # STEP 4: Update ranks for all leaderboard types
         for leaderboard_type in LEADERBOARD_CONFIG.keys():
             LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
-        
-        return f"Recalculated {users.count()} users across {len(LEADERBOARD_CONFIG)} leaderboards"
+
+        return f"Recalculated {users.count()} users across {len(LEADERBOARD_CONFIG)} leaderboards and {referrers.count()} referrers"

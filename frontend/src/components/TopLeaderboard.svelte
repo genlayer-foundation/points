@@ -1,6 +1,4 @@
 <script>
-  import { onMount } from 'svelte';
-  import { push } from 'svelte-spa-router';
   import LeaderboardTable from './LeaderboardTable.svelte';
   import { leaderboardAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
@@ -11,49 +9,66 @@
     showViewAll = true,
     viewAllPath = '/leaderboard',
     viewAllText = 'View All →',
-    compact = false,  // Changed to false to show avatars by default
+    compact = false,
     hideAddress = true,
     showHeader = false,
     className = '',
-    category = null  // Add optional category prop
+    category = null,
+    entries = null,  // Optional: pass pre-fetched leaderboard data
+    loading: loadingProp = null  // Optional: pass loading state from parent
   } = $props();
 
   let leaderboard = $state([]);
-  let loading = $state(true);
+  let internalLoading = $state(true);
   let error = $state(null);
+
+  // Use prop loading if provided, otherwise use internal state
+  let loading = $derived(loadingProp !== null ? loadingProp : internalLoading);
 
   async function fetchLeaderboard() {
     try {
-      loading = true;
-      
+      internalLoading = true;
+
       // Use prop category if provided, otherwise use store category
       const categoryToUse = category || $currentCategory;
-      
+
       let response;
       if (categoryToUse === 'global') {
-        response = await leaderboardAPI.getLeaderboard();
+        response = await leaderboardAPI.getLeaderboard({ limit });
         leaderboard = response.data || [];
       } else {
-        // Use type-specific endpoint
-        response = await leaderboardAPI.getLeaderboardByType(categoryToUse);
-        // API now returns array directly, not wrapped in entries
+        // Use type-specific endpoint with limit for efficiency
+        response = await leaderboardAPI.getLeaderboardByType(categoryToUse, 'asc', { limit });
         leaderboard = response.data || [];
       }
-      
+
+      // Backend should return limited results, but slice as fallback
       if (limit && leaderboard.length > limit) {
         leaderboard = leaderboard.slice(0, limit);
       }
-      loading = false;
+      internalLoading = false;
     } catch (err) {
       error = err.message || 'Failed to load leaderboard';
-      loading = false;
+      internalLoading = false;
     }
   }
-  
-  // Fetch leaderboard when category changes (including initial mount)
-  let previousCategory = $state(null);
-  
+
+  // If entries are provided as prop, use them instead of fetching
   $effect(() => {
+    if (entries !== null) {
+      leaderboard = limit && entries.length > limit ? entries.slice(0, limit) : entries;
+      // Don't set loading here - parent controls it via loadingProp
+      error = null;
+    }
+  });
+
+  // Fetch leaderboard when category changes (only if entries not provided)
+  let previousCategory = $state(null);
+
+  $effect(() => {
+    // Skip fetching if entries are provided as prop
+    if (entries !== null) return;
+
     // Use prop category if provided, otherwise use store category
     const categoryToUse = category || $currentCategory;
     if (categoryToUse && categoryToUse !== previousCategory) {

@@ -48,6 +48,7 @@ export const usersAPI = {
   getUser: (address) => api.get(`/users/${address}/`),
   getUserByAddress: (address) => api.get(`/users/by-address/${address}/`),
   getUserHighlights: (address, params) => api.get(`/users/by-address/${address}/highlights/`, { params }),
+  getUserMissions: (address, params) => api.get(`/users/by-address/${address}/missions/`, { params }),
   getUserCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.participant_count }
   })),
@@ -58,7 +59,10 @@ export const usersAPI = {
   updateUserProfile: (data) => api.patch('/users/me/', data),
   getAccountBalance: () => api.get('/users/balance/'),
   checkDeployments: () => api.get('/users/check_deployments/'),
-  getDeploymentStatus: () => api.get('/users/deployment_status/')
+  getDeploymentStatus: () => api.get('/users/deployment_status/'),
+  getActiveValidators: () => api.get('/users/validators/'),
+  getReferrals: () => api.get('/users/referrals/'),
+  getReferralPoints: () => api.get('/users/referral_points/')
 };
 
 // API endpoints for contributions
@@ -85,26 +89,30 @@ export const contributionsAPI = {
   getContributionTypeMultipliers: (typeId) => api.get(`/contribution-type-multipliers/?contribution_type=${typeId}`),
   getContributionTypeStatistics: (params) => api.get('/contribution-types/statistics/', { params }),
   getContributionTypeTopContributors: (id) => api.get(`/contribution-types/${id}/top_contributors/`),
-  getHighlights: (params) => api.get('/contributions/highlights/', { params }),
   getContributionTypeRecentContributions: (id) => api.get(`/contribution-types/${id}/recent_contributions/`),
   getContributionTypeHighlights: (id) => api.get(`/contribution-types/${id}/highlights/`),
   getAllHighlights: (params) => api.get('/contributions/highlights/', { params }),
   getContributionCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.contribution_count }
-  }))
+  })),
+  getMissions: (params) => api.get('/missions/', { params }),
+  getMission: (id) => api.get(`/missions/${id}/`)
 };
+
 
 // API endpoints for leaderboard
 export const leaderboardAPI = {
   getLeaderboard: (params) => api.get('/leaderboard/', { params }),
-  getLeaderboardByType: (type, order = 'asc') => 
-    api.get('/leaderboard/', { params: { type, order } }),
+  getLeaderboardByType: (type, order = 'asc', additionalParams = {}) =>
+    api.get('/leaderboard/', { params: { type, order, ...additionalParams } }),
   getLeaderboardEntry: (address) => api.get(`/leaderboard/?user_address=${address}`),
   getMultipliers: () => api.get('/multipliers/'),
   getActiveMultipliers: () => api.get('/multipliers/active/'),
   getMultiplierPeriods: (multiplier_id) => api.get(`/multiplier-periods/?multiplier=${multiplier_id}`),
   getStats: () => api.get('/leaderboard/stats/'),
   getWaitlistStats: () => api.get('/leaderboard/validator-waitlist-stats/'),
+  getWaitlistTop: (limit = 10) => api.get('/leaderboard/validator-waitlist/top/', { params: { limit } }),
+  getSupporters: () => api.get('/leaderboard/supporters/'),
   getTypes: () => api.get('/leaderboard/types/'),
   recalculateAll: () => api.post('/leaderboard/recalculate/')
 };
@@ -120,8 +128,12 @@ export const statsAPI = {
 
 // Validators API
 export const validatorsAPI = {
-  getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } }),
-  getActiveValidators: () => api.get('/users/validators/')
+  getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } })
+};
+
+// Builders API
+export const buildersAPI = {
+  getNewestBuilders: (limit = 5) => api.get('/builders/newest/', { params: { limit } })
 };
 
 // Journey API
@@ -129,6 +141,16 @@ export const journeyAPI = {
   startValidatorJourney: () => api.post('/users/start_validator_journey/'),
   startBuilderJourney: () => api.post('/users/start_builder_journey/'),
   completeBuilderJourney: () => api.post('/users/complete_builder_journey/')
+};
+
+// Supporter API (backend uses 'creator' terminology)
+export const creatorAPI = {
+  joinAsCreator: () => api.post('/creators/join/')
+};
+
+// GitHub OAuth API
+export const githubAPI = {
+  checkStar: () => api.get('/users/github/check-star/')
 };
 
 // Steward API
@@ -147,9 +169,10 @@ export const stewardAPI = {
   
   // Get steward statistics
   getStats: () => api.get('/steward-submissions/stats/'),
-  
+
   // Get list of all stewards
-  getStewards: () => api.get('/stewards/')
+  getStewards: () => api.get('/stewards/'),
+
 };
 
 // Image upload API
@@ -177,5 +200,6 @@ export const updateUserProfile = async (data) => {
   const response = await usersAPI.updateUserProfile(data);
   return response.data;
 };
+
 
 export default api;

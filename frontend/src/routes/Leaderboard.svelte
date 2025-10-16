@@ -61,11 +61,16 @@
   <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
     <div>
       <h1 class="text-2xl font-bold text-gray-900">
-        {$currentCategory === 'global' ? 'Global' : 
-         $currentCategory === 'builders' ? 'Builders' : 'Validators'} Leaderboard
+        {$currentCategory === 'global' ? 'Global' :
+         $currentCategory === 'builder' ? 'Builders' :
+         $currentCategory === 'validator' ? 'Validators' :
+         $currentCategory === 'steward' ? 'Stewards' : 'Leaderboard'}
       </h1>
       <p class="mt-1 text-sm text-gray-500">
-        Complete rankings of {$currentCategory === 'global' ? 'all participants' : $currentCategory}
+        Complete rankings of {$currentCategory === 'global' ? 'all participants' :
+         $currentCategory === 'builder' ? 'builders' :
+         $currentCategory === 'validator' ? 'validators' :
+         $currentCategory === 'steward' ? 'stewards' : 'participants'}
       </p>
     </div>
     
