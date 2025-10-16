@@ -1,11 +1,11 @@
 from django.contrib import admin
-from .models import Supporter
+from .models import Creator
 
 
-@admin.register(Supporter)
-class SupporterAdmin(admin.ModelAdmin):
+@admin.register(Creator)
+class CreatorAdmin(admin.ModelAdmin):
     """
-    Admin interface for Supporter model.
+    Admin interface for Creator model.
     """
     list_display = ['user', 'created_at', 'updated_at']
     search_fields = ['user__email', 'user__name']

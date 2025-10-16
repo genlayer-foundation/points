@@ -1,12 +1,12 @@
 from rest_framework import serializers
-from .models import Supporter
+from .models import Creator
 
 
-class SupporterSerializer(serializers.ModelSerializer):
+class CreatorSerializer(serializers.ModelSerializer):
     """
-    Serializer for Supporter model.
+    Serializer for Creator model.
     """
     class Meta:
-        model = Supporter
+        model = Creator
         fields = ['created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
