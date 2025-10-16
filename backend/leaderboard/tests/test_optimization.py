@@ -366,12 +366,12 @@ class OptimizedLeaderboardTest(TestCase):
             visible=True
         )
 
-        # User1: 120 total points (20 waitlist + 100 node)
+        # User1: 120 total points - started contributing 10 days ago
         Contribution.objects.create(
             user=user1,
             contribution_type=self.waitlist_type,
             points=20,
-            contribution_date=timezone.now()
+            contribution_date=timezone.now() - timezone.timedelta(days=10)  # Earlier
         )
         Contribution.objects.create(
             user=user1,
@@ -380,12 +380,12 @@ class OptimizedLeaderboardTest(TestCase):
             contribution_date=timezone.now()
         )
 
-        # User2: 120 total points (same as user1 - should tie)
+        # User2: 120 total points - started contributing 5 days ago
         Contribution.objects.create(
             user=user2,
             contribution_type=self.waitlist_type,
             points=20,
-            contribution_date=timezone.now()
+            contribution_date=timezone.now() - timezone.timedelta(days=5)  # Later
         )
         Contribution.objects.create(
             user=user2,
@@ -432,10 +432,10 @@ class OptimizedLeaderboardTest(TestCase):
         self.assertEqual(user1_entry.total_points, 120)
         self.assertEqual(user2_entry.total_points, 120)
 
-        # They should have consecutive ranks (2 and 3), ordered by name
-        # User 1 comes before User 2 alphabetically
-        self.assertEqual(user1_entry.rank, 2)
-        self.assertEqual(user2_entry.rank, 3)
+        # User1 should rank higher (2) because they started contributing earlier
+        # User2 should rank lower (3) because they started contributing later
+        self.assertEqual(user1_entry.rank, 2)  # Earlier contributor (10 days ago)
+        self.assertEqual(user2_entry.rank, 3)  # Later contributor (5 days ago)
 
         # Verify no one is on validator leaderboard
         # (they don't have the validator badge, only waitlist)

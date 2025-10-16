@@ -320,39 +320,65 @@ class LeaderboardEntry(BaseModel):
         """
         Update ranks for all users in a specific leaderboard type.
         Only visible users are ranked.
+        Uses earliest contribution date as tie-breaker for equal points.
         """
         if leaderboard_type not in LEADERBOARD_CONFIG:
             return
-        
+
         config = LEADERBOARD_CONFIG[leaderboard_type]
         ranking_order = config['ranking_order']
-        
-        # Build order_by fields based on configuration
-        if ranking_order == '-graduation_date':
-            order_fields = ['-graduation_date', 'user__name']
-        elif ranking_order == '-total_points':
-            order_fields = ['-total_points', 'user__name']
-        else:
-            order_fields = [ranking_order, 'user__name']
-        
+
         # First, set all non-visible users' ranks to null
         cls.objects.filter(
             type=leaderboard_type,
             user__visible=False
         ).update(rank=None)
-        
-        # Then rank only visible users
+
+        # Get visible entries
         entries = list(
             cls.objects.filter(
                 type=leaderboard_type,
                 user__visible=True
-            ).order_by(*order_fields)
+            ).select_related('user')
         )
-        
-        # Bulk update ranks
+
+        if not entries:
+            return
+
+        # For points-based ranking, fetch earliest contribution dates for tie-breaking
+        if ranking_order == '-total_points':
+            # Get earliest contribution date for each user in this leaderboard
+            user_ids = [entry.user_id for entry in entries]
+
+            from django.db.models import Min
+            earliest_dates = dict(
+                Contribution.objects.filter(
+                    user_id__in=user_ids
+                ).values('user_id').annotate(
+                    earliest_date=Min('contribution_date')
+                ).values_list('user_id', 'earliest_date')
+            )
+
+            # Sort entries by points (desc), then earliest date (asc), then name
+            entries.sort(key=lambda e: (
+                -e.total_points,  # Higher points first
+                earliest_dates.get(e.user_id, timezone.now()),  # Earlier date first
+                e.user.name  # Alphabetical by name
+            ))
+        elif ranking_order == '-graduation_date':
+            # Sort by graduation date, then name
+            entries.sort(key=lambda e: (
+                -(e.graduation_date.timestamp() if e.graduation_date else 0),
+                e.user.name
+            ))
+        else:
+            # Default sorting
+            entries.sort(key=lambda e: e.user.name)
+
+        # Assign ranks
         for i, entry in enumerate(entries, 1):
             entry.rank = i
-        
+
         if entries:
             cls.objects.bulk_update(entries, ['rank'], batch_size=1000)
 
