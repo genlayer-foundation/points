@@ -3,15 +3,15 @@
   import { push } from 'svelte-spa-router';
   import Avatar from '../components/Avatar.svelte';
   import Icon from '../components/Icons.svelte';
-  import { leaderboardAPI, supporterAPI } from '../lib/api';
+  import { leaderboardAPI, creatorAPI } from '../lib/api';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
 
   // Get current user from store
   let user = $derived($userStore.user);
 
-  // Check if user is already a supporter (has supporter profile)
-  let isSupporter = $derived(!!user?.supporter);
+  // Check if user is already a supporter (has creator profile)
+  let isSupporter = $derived(!!user?.creator);
 
   // State management
   let supporters = $state([]);
@@ -50,7 +50,7 @@
       joiningSupporter = true;
       error = null;
 
-      const response = await supporterAPI.joinAsSupporter();
+      const response = await creatorAPI.joinAsCreator();
 
       if (response.status === 201 || response.status === 200) {
         // Reload user data
