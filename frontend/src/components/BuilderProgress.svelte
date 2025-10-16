@@ -1,6 +1,8 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { authState } from '../lib/auth';
+  import { onMount } from 'svelte';
+  import { showWarning, showError } from '../lib/toastStore';
   
   let {
     testnetBalance = null,
@@ -118,7 +120,7 @@
     // Get the connected wallet's provider from authState or fallback to window.ethereum
     const provider = $authState.provider || window.ethereum;
     if (!provider) {
-      alert('Please connect your wallet first');
+      showWarning('Please connect your wallet first');
       return;
     }
 
@@ -147,7 +149,7 @@
     } catch (error) {
       console.error('Error adding network:', error);
       if (error.code !== 4001) { // User didn't reject
-        alert('Failed to add network. Please try manually.');
+        showError('Failed to add network. Please try manually.');
       }
     } finally {
       if (isStudio) {

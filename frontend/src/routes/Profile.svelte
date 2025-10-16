@@ -15,7 +15,8 @@
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
   import Avatar from '../components/Avatar.svelte';
-  
+  import { showSuccess, showWarning } from '../lib/toastStore';
+
   // Import route params from svelte-spa-router
   import { params } from 'svelte-spa-router';
   
@@ -44,7 +45,6 @@
   let loading = $state(true);
   let error = $state(null);
   let statsError = $state(null);
-  let successMessage = $state(null);
   let balance = $state(null);
   let testnetBalance = $state(null);
   let loadingBalance = $state(false);
@@ -52,9 +52,9 @@
   let isRefreshingBalance = $state(false);
   let isClaimingBuilderBadge = $state(false);
   let hasCalledComplete = $state(false);
-  let showSuccessNotification = $state(false);
   let referralData = $state(null);
   let loadingReferrals = $state(false);
+  let hasShownStatsErrorToast = $state(false);
 
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
@@ -155,29 +155,21 @@
   $effect(() => {
     const currentParams = $params;
     console.log("ParticipantProfile params:", currentParams);
-    
+
     // Check for success message from profile update
     const savedMessage = sessionStorage.getItem('profileUpdateSuccess');
     if (savedMessage) {
-      successMessage = savedMessage;
+      showSuccess(savedMessage);
       sessionStorage.removeItem('profileUpdateSuccess');
-      // Auto-hide success message after 3 seconds
-      setTimeout(() => {
-        successMessage = null;
-      }, 3000);
     }
-    
+
     // Check for builder journey success
     const builderSuccess = sessionStorage.getItem('builderJourneySuccess');
     if (builderSuccess === 'true') {
+      showSuccess('Congratulations! 🎉 You are now a GenLayer Builder! Your Builder profile has been created and you can start contributing to the ecosystem.');
       sessionStorage.removeItem('builderJourneySuccess');
-      showSuccessNotification = true;
-      // Hide notification after 5 seconds
-      setTimeout(() => {
-        showSuccessNotification = false;
-      }, 5000);
     }
-    
+
     if (currentParams && currentParams.address) {
       console.log("Using params.address:", currentParams.address);
       fetchParticipantData(currentParams.address);
@@ -187,17 +179,21 @@
       loading = false;
     }
   });
-  
+
   // Also check on mount to ensure we catch the notification
   onMount(() => {
     const builderSuccess = sessionStorage.getItem('builderJourneySuccess');
     if (builderSuccess === 'true') {
+      showSuccess('Congratulations! 🎉 You are now a GenLayer Builder! Your Builder profile has been created and you can start contributing to the ecosystem.');
       sessionStorage.removeItem('builderJourneySuccess');
-      showSuccessNotification = true;
-      // Hide notification after 5 seconds
-      setTimeout(() => {
-        showSuccessNotification = false;
-      }, 5000);
+    }
+  });
+
+  // Show warning toast when there are connection issues (only once)
+  $effect(() => {
+    if (statsError && !loading && !hasShownStatsErrorToast) {
+      showWarning('Having trouble connecting to the API. Some data might not display correctly.');
+      hasShownStatsErrorToast = true;
     }
   });
 
@@ -269,29 +265,22 @@
 
     // Clear any existing error states
     error = null;
-    successMessage = '';
 
     try {
       const response = await creatorAPI.joinAsCreator();
 
       // If successful, reload the user data
       if (response.status === 201 || response.status === 200) {
-        // Show a success message
-        successMessage = 'You are now a Supporter! Start growing the community through referrals.';
+        // Show a success toast
+        showSuccess('You are now a Supporter! Start growing the community through referrals.');
 
         // Reload participant data to get Supporter profile (same pattern as Builder)
         const updatedUser = await getCurrentUser();
         participant = updatedUser;
-
-        // Auto-hide success message after 5 seconds
-        setTimeout(() => {
-          successMessage = '';
-        }, 5000);
       }
     } catch (err) {
       console.error('Error joining as creator:', err);
       error = err.response?.data?.message || 'Failed to join as supporter';
-      successMessage = '';
     }
   }
 
@@ -305,16 +294,11 @@
 
       // If successful, show success notification and reload data
       if (response.status === 201 || response.status === 200) {
-        showSuccessNotification = true;
-        
+        showSuccess('Congratulations! 🎉 You are now a GenLayer Builder! Your Builder profile has been created and you can start contributing to the ecosystem.');
+
         // Reload participant data to get Builder profile
         const updatedUser = await getCurrentUser();
         participant = updatedUser;
-        
-        // Hide notification after 5 seconds
-        setTimeout(() => {
-          showSuccessNotification = false;
-        }, 5000);
       }
     } catch (err) {
       // If already has the contribution and Builder profile
@@ -487,91 +471,7 @@
   };
 </script>
 
-<style>
-  @keyframes slide-in {
-    from {
-      transform: translateX(100%);
-      opacity: 0;
-    }
-    to {
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
-  
-  .animate-slide-in {
-    animation: slide-in 0.3s ease-out;
-  }
-</style>
-
 <div>
-  <!-- Success message -->
-  {#if successMessage}
-    <div class="bg-green-50 border-l-4 border-green-400 p-4 mb-6">
-      <div class="flex">
-        <div class="flex-shrink-0">
-          <svg class="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-          </svg>
-        </div>
-        <div class="ml-3">
-          <p class="text-sm text-green-700">
-            {successMessage}
-          </p>
-        </div>
-      </div>
-    </div>
-  {/if}
-  
-  <!-- Builder Journey Success Notification -->
-  {#if showSuccessNotification}
-    <div class="fixed top-4 right-4 z-50 animate-slide-in">
-      <div class="bg-green-100 border-l-4 border-green-500 p-4 rounded-lg shadow-lg max-w-md">
-        <div class="flex items-start">
-          <div class="flex-shrink-0">
-            <svg class="h-6 w-6 text-green-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-            </svg>
-          </div>
-          <div class="ml-3">
-            <h3 class="text-sm font-medium text-green-800">
-              Congratulations! 🎉
-            </h3>
-            <p class="mt-1 text-sm text-green-700">
-              You are now a GenLayer Builder! Your Builder profile has been created and you can start contributing to the ecosystem.
-            </p>
-          </div>
-          <button
-            onclick={() => showSuccessNotification = false}
-            class="ml-3 flex-shrink-0 text-green-500 hover:text-green-600"
-          >
-            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
-  {/if}
-  
-  <!-- Connection error message if needed -->
-  {#if error || statsError}
-    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-      <div class="flex">
-        <div class="flex-shrink-0">
-          <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-          </svg>
-        </div>
-        <div class="ml-3">
-          <p class="text-sm text-yellow-700">
-            Having trouble connecting to the API. Some data might not display correctly.
-          </p>
-        </div>
-      </div>
-    </div>
-  {/if}
-  
   {#if loading}
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
@@ -661,11 +561,7 @@
                 <button
                   onclick={() => {
                     navigator.clipboard.writeText(participant.address);
-                    // Show brief feedback
-                    const btn = event.currentTarget;
-                    const originalTitle = btn.title;
-                    btn.title = 'Copied!';
-                    setTimeout(() => btn.title = originalTitle, 2000);
+                    showSuccess('Address copied to clipboard!');
                   }}
                   title="Copy address"
                   class="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100 transition-colors"

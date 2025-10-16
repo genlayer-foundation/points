@@ -7,6 +7,7 @@
   import Avatar from '../components/Avatar.svelte';
   import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
   import { format } from 'date-fns';
+  import { showSuccess, showError } from '../lib/toastStore';
 
   let bannedValidators = $state([]);
   let loading = $state(true);
@@ -20,7 +21,6 @@
 
   // Unban state
   let unbanningValidators = $state(new Set());
-  let unbanMessages = $state({});
 
   // Modal state
   let showModal = $state(false);
@@ -164,12 +164,8 @@
         transactionHash = result.transaction_hash;
         modalLoading = false; // Reset loading state on success
 
-        // Show success message
-        const messageKey = modalData.type === 'single' ? modalData.address : 'all';
-        unbanMessages[messageKey] = {
-          type: 'success',
-          text: result.message || 'Transaction successful'
-        };
+        // Show success toast
+        showSuccess(result.message || 'Transaction successful');
 
         // Reload the banned validators list after a short delay to allow blockchain to update
         setTimeout(async () => {
@@ -183,22 +179,11 @@
       } else {
         transactionState = 'failed';
 
-        // Show error message
-        const messageKey = modalData.type === 'single' ? modalData.address : 'all';
-        unbanMessages[messageKey] = {
-          type: 'error',
-          text: result?.error || 'Transaction failed'
-        };
+        // Show error toast
+        showError(result?.error || 'Transaction failed');
 
         modalLoading = false;
       }
-
-      // Clear message after 5 seconds
-      setTimeout(() => {
-        const messageKey = modalData.type === 'single' ? modalData.address : 'all';
-        delete unbanMessages[messageKey];
-        unbanMessages = { ...unbanMessages };
-      }, 5000);
 
     } catch (error) {
       console.error('Error executing unban:', error);
@@ -217,18 +202,8 @@
         errorMessage = error.message;
       }
 
-      // Show error message
-      const messageKey = modalData.type === 'single' ? modalData.address : 'all';
-      unbanMessages[messageKey] = {
-        type: 'error',
-        text: errorMessage
-      };
-
-      // Clear message after 5 seconds
-      setTimeout(() => {
-        delete unbanMessages[messageKey];
-        unbanMessages = { ...unbanMessages };
-      }, 5000);
+      // Show error toast
+      showError(errorMessage);
     }
   }
 
@@ -241,32 +216,6 @@
 
 <div class="container mx-auto px-4 py-8">
   <h1 class="text-2xl font-bold text-gray-900 mb-6">Manage Users</h1>
-
-  <!-- Global Messages -->
-  {#if unbanMessages['all']}
-    <div class="mb-6">
-      <div class="rounded-md p-4 {unbanMessages['all'].type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}">
-        <div class="flex">
-          <div class="flex-shrink-0">
-            {#if unbanMessages['all'].type === 'success'}
-              <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-              </svg>
-            {:else}
-              <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-              </svg>
-            {/if}
-          </div>
-          <div class="ml-3">
-            <p class="text-sm font-medium {unbanMessages['all'].type === 'success' ? 'text-green-800' : 'text-red-800'}">
-              {unbanMessages['all'].text}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  {/if}
 
 
   {#if loading}
@@ -426,34 +375,6 @@
                   </button>
                 </td>
               </tr>
-
-              <!-- Individual validator messages row -->
-              {#if unbanMessages[validator.address]}
-                <tr class="bg-gray-50">
-                  <td colspan="5" class="px-6 py-3">
-                    <div class="rounded-md p-3 {unbanMessages[validator.address].type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}">
-                      <div class="flex">
-                        <div class="flex-shrink-0">
-                          {#if unbanMessages[validator.address].type === 'success'}
-                            <svg class="h-4 w-4 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                            </svg>
-                          {:else}
-                            <svg class="h-4 w-4 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                            </svg>
-                          {/if}
-                        </div>
-                        <div class="ml-2">
-                          <p class="text-xs font-medium {unbanMessages[validator.address].type === 'success' ? 'text-green-800' : 'text-red-800'}">
-                            {unbanMessages[validator.address].text}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              {/if}
             {/each}
           </tbody>
         </table>
