@@ -54,6 +54,7 @@
   let hasCalledComplete = $state(false);
   let referralData = $state(null);
   let loadingReferrals = $state(false);
+  let hasShownStatsErrorToast = $state(false);
 
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
@@ -188,10 +189,11 @@
     }
   });
 
-  // Show warning toast when there are connection issues
+  // Show warning toast when there are connection issues (only once)
   $effect(() => {
-    if (statsError && !loading) {
+    if (statsError && !loading && !hasShownStatsErrorToast) {
       showWarning('Having trouble connecting to the API. Some data might not display correctly.');
+      hasShownStatsErrorToast = true;
     }
   });
 
@@ -263,29 +265,22 @@
 
     // Clear any existing error states
     error = null;
-    successMessage = '';
 
     try {
       const response = await creatorAPI.joinAsCreator();
 
       // If successful, reload the user data
       if (response.status === 201 || response.status === 200) {
-        // Show a success message
-        successMessage = 'You are now a Supporter! Start growing the community through referrals.';
+        // Show a success toast
+        showSuccess('You are now a Supporter! Start growing the community through referrals.');
 
         // Reload participant data to get Supporter profile (same pattern as Builder)
         const updatedUser = await getCurrentUser();
         participant = updatedUser;
-
-        // Auto-hide success message after 5 seconds
-        setTimeout(() => {
-          successMessage = '';
-        }, 5000);
       }
     } catch (err) {
       console.error('Error joining as creator:', err);
       error = err.response?.data?.message || 'Failed to join as supporter';
-      successMessage = '';
     }
   }
 

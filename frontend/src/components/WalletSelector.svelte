@@ -4,7 +4,8 @@
   import trustLogo from '../assets/wallets/trust.svg';
   import coinbaseLogo from '../assets/wallets/coinbase.svg';
   import phantomLogo from '../assets/wallets/phantom.svg';
-  
+  import { showError } from '../lib/toastStore';
+
   let {
     isOpen = $bindable(false),
     onSelect = () => {}
@@ -261,7 +262,7 @@
       }
       
       if (!provider) {
-        alert(`Could not connect to ${wallet.name}. Please ensure the extension is enabled and try refreshing the page.`);
+        showError(`Could not connect to ${wallet.name}. Please ensure the extension is enabled and try refreshing the page.`);
         return;
       }
       
