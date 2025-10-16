@@ -22,6 +22,15 @@
 
     isLinking = true;
 
+    // Store initial GitHub username to detect if it changed
+    let initialGithubUsername = null;
+    try {
+      const initialUser = await getCurrentUser();
+      initialGithubUsername = initialUser.github_username || null;
+    } catch (err) {
+      console.error('Failed to get initial user state:', err);
+    }
+
     // Use absolute backend URL to avoid proxy issues
     const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     const oauthUrl = `${backendUrl}/api/auth/github/`;
@@ -104,8 +113,8 @@
           // Try to get updated user data
           const currentUser = await getCurrentUser();
 
-          // If GitHub was linked, show success
-          if (currentUser.github_username) {
+          // Only show success if GitHub username changed (was newly linked)
+          if (currentUser.github_username && currentUser.github_username !== initialGithubUsername) {
             showSuccess(`GitHub account linked successfully! (@${currentUser.github_username})`);
             onLinked(currentUser);
           }
