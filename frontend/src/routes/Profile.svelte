@@ -11,7 +11,7 @@
   import ReferralSection from '../components/ReferralSection.svelte';
   import Icons from '../components/Icons.svelte';
   import Tooltip from '../components/Tooltip.svelte';
-  import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, creatorAPI, getCurrentUser } from '../lib/api';
+  import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, creatorAPI, getCurrentUser, githubAPI } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
   import Avatar from '../components/Avatar.svelte';
@@ -52,6 +52,10 @@
   let isRefreshingBalance = $state(false);
   let isClaimingBuilderBadge = $state(false);
   let hasCalledComplete = $state(false);
+  let hasStarredRepo = $state(false);
+  let repoToStar = $state('genlayerlabs/genlayer-project-boilerplate');
+  let isCheckingRepoStar = $state(false);
+  let isCheckingDeployments = $state(false);
   let referralData = $state(null);
   let loadingReferrals = $state(false);
   let hasShownStatsErrorToast = $state(false);
@@ -312,6 +316,44 @@
         hasCalledComplete = false;
       }
     }
+  }
+
+  async function handleGitHubLinked(updatedUser) {
+    // Update participant with the updated user info from GitHubLink component
+    participant = updatedUser;
+  }
+
+  async function checkRepoStar() {
+    if (!participant?.github_username) return;
+
+    isCheckingRepoStar = true;
+    try {
+      const response = await githubAPI.checkStar();
+      hasStarredRepo = response.data.has_starred;
+      repoToStar = response.data.repo || 'genlayerlabs/genlayer-project-boilerplate';
+    } catch (err) {
+      console.error('Failed to check repo star:', err);
+      hasStarredRepo = false;
+    } finally {
+      isCheckingRepoStar = false;
+    }
+  }
+
+  async function checkDeployments() {
+    isCheckingDeployments = true;
+    try {
+      const response = await usersAPI.getDeploymentStatus();
+      hasDeployedContract = response.data.has_deployments || false;
+    } catch (err) {
+      console.error('Failed to check deployments:', err);
+      hasDeployedContract = false;
+    } finally {
+      isCheckingDeployments = false;
+    }
+  }
+
+  function openStudio() {
+    window.open('https://studio.genlayer.com', '_blank', 'noopener,noreferrer');
   }
 
   async function fetchParticipantData(participantAddress) {
@@ -1133,16 +1175,25 @@
           <!-- Welcome message and requirements -->
           {#if isOwnProfile}
             <div class="mb-6">
-              <BuilderProgress 
+              <BuilderProgress
                 testnetBalance={testnetBalance}
                 hasBuilderWelcome={participant?.has_builder_welcome || false}
                 hasDeployedContract={hasDeployedContract}
+                githubUsername={participant?.github_username || ''}
+                hasStarredRepo={hasStarredRepo}
+                repoToStar={repoToStar}
                 showActions={true}
                 colorTheme="orange"
                 onClaimBuilderBadge={claimBuilderWelcome}
                 isClaimingBuilderBadge={isClaimingBuilderBadge}
                 onRefreshBalance={refreshBalance}
                 isRefreshingBalance={isRefreshingBalance}
+                onGitHubLinked={handleGitHubLinked}
+                onCheckRepoStar={checkRepoStar}
+                isCheckingRepoStar={isCheckingRepoStar}
+                onCheckDeployments={checkDeployments}
+                isCheckingDeployments={isCheckingDeployments}
+                onOpenStudio={openStudio}
               />
             </div>
           {:else}
