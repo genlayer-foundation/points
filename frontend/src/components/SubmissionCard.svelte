@@ -6,10 +6,11 @@
   import Link from '../lib/components/Link.svelte';
   import Avatar from './Avatar.svelte';
   
-  let { 
+  let {
     submission,
     showReviewForm = false,
     onReview = null,
+    onCancel = null,
     reviewData = null,
     isProcessing = false,
     successMessage = '',
@@ -260,10 +261,10 @@
       </div>
       
       <!-- Right Column - Action Forms or Status or Contribution Card -->
-      <div>
+      <div class="flex flex-col gap-4">
         {#if submission.state === 'accepted' && submission.contribution && isOwnSubmission}
           <!-- Show contribution card for accepted submissions in My Submissions -->
-          <ContributionCard 
+          <ContributionCard
             contribution={submission.contribution}
             showUser={false}
             variant="compact"
@@ -513,28 +514,32 @@
           </div>
         {:else if submission.state === 'accepted' && submission.contribution}
           <!-- Show contribution details if accepted -->
-          <ContributionCard 
+          <ContributionCard
             contribution={submission.contribution}
             submission={submission}
             showExpand={true}
           />
-        {:else if submission.state === 'rejected' && submission.staff_reply}
-          <div class="border border-red-200 rounded-lg p-4 bg-red-50">
-            <h4 class="text-sm font-medium text-red-900 mb-2">Rejection Reason</h4>
-            <p class="text-sm text-red-700">{submission.staff_reply}</p>
+        {:else if isOwnSubmission && submission.state === 'more_info_needed'}
+          <!-- Edit button for more_info_needed submissions -->
+          <div class="flex justify-end">
+            <button
+              onclick={() => push(`/contributions/${submission.id}`)}
+              class="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700"
+            >
+              Edit
+            </button>
           </div>
-        {:else if submission.state === 'more_info_needed' && submission.staff_reply}
-          <div class="border border-blue-200 rounded-lg p-4 bg-blue-50">
-            <h4 class="text-sm font-medium text-blue-900 mb-2">Information Requested</h4>
-            <p class="text-sm text-blue-700">{submission.staff_reply}</p>
-            {#if isOwnSubmission && submission.can_edit}
-              <button
-                onclick={() => push(`/contributions/${submission.id}`)}
-                class="mt-3 px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
-              >
-                Edit & Resubmit
-              </button>
-            {/if}
+        {/if}
+
+        <!-- Delete button at the end of right column -->
+        {#if isOwnSubmission && (submission.state === 'pending' || submission.state === 'more_info_needed') && onCancel}
+          <div class="flex justify-end mt-auto">
+            <button
+              onclick={() => onCancel(submission.id)}
+              class="px-4 py-2 text-sm border border-red-300 rounded-md bg-red-50 hover:bg-red-100 text-red-700"
+            >
+              Delete
+            </button>
           </div>
         {/if}
       </div>

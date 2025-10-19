@@ -3,15 +3,18 @@
   import { authState } from '../lib/auth.js';
   import { onMount } from 'svelte';
   import api from '../lib/api.js';
-  
+  import ConfirmDialog from '../components/ConfirmDialog.svelte';
+  import { showError } from '../lib/toastStore.js';
+
   let { params = {} } = $props();
-  
+
   let submission = $state(null);
   let contributionTypes = $state([]);
   let loading = $state(true);
   let submitting = $state(false);
   let error = $state('');
   let authChecked = $state(false);
+  let showDeleteDialog = $state(false);
   
   // Form data
   let formData = $state({
@@ -22,16 +25,20 @@
   
   // Evidence slots for editing
   let evidenceSlots = $state([]);
-  
-  // Update form data when submission changes
+
+  // Flag to track if form has been initialized
+  let formInitialized = $state(false);
+
+  // Update form data when submission changes (only on initial load)
   $effect(() => {
-    if (submission && !loading) {
+    if (submission && !loading && !formInitialized) {
       formData = {
         contribution_type: submission.contribution_type,
         contribution_date: submission.contribution_date ? submission.contribution_date.split('T')[0] : '',
         notes: submission.notes || ''
       };
-      console.log('Form data updated from submission:', formData);
+      formInitialized = true;
+      console.log('Form data initialized from submission:', formData);
     }
   });
   
@@ -133,19 +140,34 @@
   
   async function handleSubmit(event) {
     event.preventDefault();
-    
+
     submitting = true;
     error = '';
-    
+
     try {
+      // Validate required fields
+      if (!formData.contribution_type) {
+        error = 'Please select a contribution type';
+        showError(error);
+        return;
+      }
+
+      if (!formData.contribution_date) {
+        error = 'Please select a contribution date';
+        showError(error);
+        return;
+      }
+
       const updateData = {
-        contribution_type: formData.contribution_type,
+        contribution_type: parseInt(formData.contribution_type),
         contribution_date: formData.contribution_date + 'T00:00:00Z',
-        notes: formData.notes
+        notes: formData.notes || ''
       };
-      
+
+      console.log('Submitting update:', updateData);
+
       await api.put(`/submissions/${params.id}/`, updateData);
-      
+
       // Add new evidence items
       const filledSlots = evidenceSlots.filter(hasEvidenceInSlot);
       for (const slot of filledSlots) {
@@ -161,19 +183,51 @@
 
         await api.post(`/submissions/${params.id}/add-evidence/`, evidenceData);
       }
-      
+
       // Store success message in sessionStorage to show on My Submissions page
       sessionStorage.setItem('submissionUpdateSuccess', 'Your submission has been successfully updated and resubmitted for review.');
-      
+
       // Redirect immediately to my submissions
       push('/my-submissions');
-      
+
     } catch (err) {
-      error = err.response?.data?.error || 'Failed to update submission';
+      error = err.response?.data?.error || err.response?.data?.detail || 'Failed to update submission';
+      showError(error);
+      console.error('Update error:', err.response?.data || err);
+    } finally {
+      submitting = false;
+    }
+  }
+
+  function handleDeleteSubmission() {
+    showDeleteDialog = true;
+  }
+
+  async function confirmDelete() {
+    showDeleteDialog = false;
+    submitting = true;
+    error = '';
+
+    try {
+      await api.delete(`/submissions/${params.id}/`);
+
+      // Store success message in sessionStorage to show on My Submissions page
+      sessionStorage.setItem('submissionUpdateSuccess', 'Your submission has been deleted.');
+
+      // Redirect to my submissions
+      push('/my-submissions');
+
+    } catch (err) {
+      error = err.response?.data?.error || 'Failed to delete submission';
+      showError(error);
       console.error(err);
     } finally {
       submitting = false;
     }
+  }
+
+  function cancelDelete() {
+    showDeleteDialog = false;
   }
 </script>
 
@@ -365,16 +419,36 @@
           >
             {submitting ? 'Updating...' : 'Update & Resubmit'}
           </button>
-          
+
           <button
             type="button"
             onclick={() => push('/my-submissions')}
-            class="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+            disabled={submitting}
+            class="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 disabled:opacity-50"
           >
             Cancel
+          </button>
+
+          <button
+            type="button"
+            onclick={handleDeleteSubmission}
+            disabled={submitting}
+            class="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Delete Submission
           </button>
         </div>
       </form>
     </div>
   {/if}
 </div>
+
+<ConfirmDialog
+  isOpen={showDeleteDialog}
+  title="Delete Submission"
+  message="Are you sure you want to delete this submission? This action cannot be undone."
+  confirmText="Delete"
+  cancelText="Cancel"
+  onConfirm={confirmDelete}
+  onCancel={cancelDelete}
+/>

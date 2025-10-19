@@ -608,9 +608,9 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         Use lightweight serializers for list views to improve performance.
         """
         context = super().get_serializer_context()
-        # Use light serializers for list views
-        # Use full serializers for detail views
-        context['use_light_serializers'] = self.action == 'list' or self.action == 'my_submissions'
+        # Use light serializers for list views only
+        # my_submissions needs full data including evidence
+        context['use_light_serializers'] = self.action == 'list'
         return context
     
     def create(self, request, *args, **kwargs):
@@ -625,26 +625,39 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         """Update submission (only allowed if state is 'more_info_needed')."""
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
-        
+
         # Check if update is allowed
         if instance.state != 'more_info_needed':
             return Response(
                 {'error': 'Submission can only be edited when more information is requested.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
+
         # Update the submission
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        
+
         # Update state back to pending and track edit time
         instance.state = 'pending'
         instance.last_edited_at = timezone.now()
         instance.staff_reply = ''  # Clear previous staff reply
-        
+
         self.perform_update(serializer)
-        
+
         return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete submission (only allowed for pending or more_info_needed states)."""
+        instance = self.get_object()
+
+        # Check if deletion is allowed
+        if instance.state not in ['pending', 'more_info_needed']:
+            return Response(
+                {'error': 'Only pending or unreviewed submissions can be cancelled.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        return super().destroy(request, *args, **kwargs)
     
     @action(detail=False, methods=['get'], url_path='my')
     def my_submissions(self, request):

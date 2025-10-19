@@ -5,8 +5,9 @@
   import api from '../lib/api.js';
   import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
   import SubmissionCard from '../components/SubmissionCard.svelte';
-  import { showSuccess } from '../lib/toastStore';
-  
+  import ConfirmDialog from '../components/ConfirmDialog.svelte';
+  import { showSuccess, showError } from '../lib/toastStore';
+
   let submissions = $state([]);
   let loading = $state(true);
   let error = $state('');
@@ -15,6 +16,8 @@
   let pageSize = $state(20);
   let stateFilter = $state('');
   let authChecked = $state(false);
+  let showDeleteDialog = $state(false);
+  let submissionToDelete = $state(null);
   
   // Load submissions when authenticated
   async function loadSubmissions() {
@@ -89,6 +92,36 @@
   function handleFilterChange() {
     currentPage = 1;
     loadSubmissions();
+  }
+
+  function handleCancelSubmission(submissionId) {
+    submissionToDelete = submissionId;
+    showDeleteDialog = true;
+  }
+
+  async function confirmDelete() {
+    showDeleteDialog = false;
+
+    if (!submissionToDelete) return;
+
+    try {
+      await api.delete(`/submissions/${submissionToDelete}/`);
+      showSuccess('Your submission has been deleted.');
+
+      // Reload submissions to reflect the change
+      await loadSubmissions();
+    } catch (err) {
+      const errorMessage = err.response?.data?.error || 'Failed to delete submission';
+      showError(errorMessage);
+      console.error(err);
+    } finally {
+      submissionToDelete = null;
+    }
+  }
+
+  function cancelDelete() {
+    showDeleteDialog = false;
+    submissionToDelete = null;
   }
 </script>
 
@@ -173,9 +206,10 @@
     
     <div class="space-y-4">
       {#each submissions as submission}
-        <SubmissionCard 
+        <SubmissionCard
           {submission}
           isOwnSubmission={true}
+          onCancel={handleCancelSubmission}
         />
       {/each}
     </div>
@@ -196,3 +230,13 @@
     {/if}
   {/if}
 </div>
+
+<ConfirmDialog
+  isOpen={showDeleteDialog}
+  title="Delete Submission"
+  message="Are you sure you want to delete this submission? This action cannot be undone."
+  confirmText="Delete"
+  cancelText="Cancel"
+  onConfirm={confirmDelete}
+  onCancel={cancelDelete}
+/>
