@@ -58,7 +58,7 @@ class ValidatorViewSet(viewsets.ModelViewSet):
         Uses lightweight serializers to avoid N+1 queries.
         """
         from django.db.models.functions import TruncDate
-        from utils.serializers import LightUserSerializer
+        from users.serializers import LightUserSerializer
 
         limit = int(request.GET.get('limit', 5))
 

@@ -183,6 +183,19 @@ python manage.py collectstatic
 - Addresses are stored lowercase but compared case-insensitively
 - **Evidence Submission**: File uploads are disabled (issue #212). Evidence must be submitted as text descriptions or URLs only.
 
+## Serialization Patterns & Performance Optimization
+
+The project uses **context-aware serialization** to optimize API performance:
+- **Light serializers** (`Light*Serializer`) for list views - minimal fields, no nested queries
+- **Full serializers** for detail views - complete data with relationships
+- ViewSets set `context['use_light_serializers'] = self.action == 'list'`
+- Serializers check context flag to choose which nested serializer to use
+- Always use `select_related()` for ForeignKey/OneToOne and `prefetch_related()` for reverse/M2M
+- Light serializers defined at top of each app's `serializers.py` with `Light` prefix
+- Performance impact: 99%+ query reduction (30s+ → <1s for list views)
+
+**Examples**: See `users/serializers.py` for `LightUserSerializer` and `contributions/serializers.py` for `LightContributionSerializer`
+
 ## Testing
 - **Test Organization Best Practice**: Use `{app}/tests/` folder structure for better organization
   - Create `{app}/tests/__init__.py` to make it a Python package
