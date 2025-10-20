@@ -106,7 +106,7 @@
 
     try {
       await api.delete(`/submissions/${submissionToDelete}/`);
-      showSuccess('Your submission has been deleted.');
+      showSuccess('Your submission has been removed.');
 
       // Reload submissions to reflect the change
       await loadSubmissions();
@@ -233,9 +233,9 @@
 
 <ConfirmDialog
   isOpen={showDeleteDialog}
-  title="Delete Submission"
-  message="Are you sure you want to delete this submission? This action cannot be undone."
-  confirmText="Delete"
+  title="Remove Submission"
+  message="Are you sure you want to remove this submission? It will be marked as rejected."
+  confirmText="Remove"
   cancelText="Cancel"
   onConfirm={confirmDelete}
   onCancel={cancelDelete}

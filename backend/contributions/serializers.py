@@ -165,7 +165,7 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
 
     def get_can_edit(self, obj):
         """Check if the submission can be edited."""
-        return obj.state == 'more_info_needed'
+        return obj.state in ['pending', 'more_info_needed']
 
     def get_contribution(self, obj):
         """Get the created contribution if submission was accepted."""

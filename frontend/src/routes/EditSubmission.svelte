@@ -212,7 +212,7 @@
       await api.delete(`/submissions/${params.id}/`);
 
       // Store success message in sessionStorage to show on My Submissions page
-      sessionStorage.setItem('submissionUpdateSuccess', 'Your submission has been deleted.');
+      sessionStorage.setItem('submissionUpdateSuccess', 'Your submission has been removed.');
 
       // Redirect to my submissions
       push('/my-submissions');
@@ -435,7 +435,7 @@
             disabled={submitting}
             class="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Delete Submission
+            Remove Submission
           </button>
         </div>
       </form>
@@ -445,9 +445,9 @@
 
 <ConfirmDialog
   isOpen={showDeleteDialog}
-  title="Delete Submission"
-  message="Are you sure you want to delete this submission? This action cannot be undone."
-  confirmText="Delete"
+  title="Remove Submission"
+  message="Are you sure you want to remove this submission? It will be marked as rejected."
+  confirmText="Remove"
   cancelText="Cancel"
   onConfirm={confirmDelete}
   onCancel={cancelDelete}

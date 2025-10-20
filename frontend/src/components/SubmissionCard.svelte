@@ -252,7 +252,7 @@
           </div>
         {/if}
         
-        {#if submission.staff_reply}
+        {#if submission.staff_reply && submission.state !== 'rejected'}
           <div class="bg-gray-50 p-3 rounded">
             <h4 class="text-sm font-medium text-gray-700 mb-1">Staff Response</h4>
             <p class="text-sm text-gray-600">{submission.staff_reply}</p>
@@ -519,26 +519,19 @@
             submission={submission}
             showExpand={true}
           />
-        {:else if isOwnSubmission && submission.state === 'more_info_needed'}
-          <!-- Edit button for more_info_needed submissions -->
+        {:else if submission.state === 'rejected' && submission.staff_reply}
+          <div class="border border-red-200 rounded-lg p-4 bg-red-50">
+            <h4 class="text-sm font-medium text-red-900 mb-2">Rejection Reason</h4>
+            <p class="text-sm text-red-700">{submission.staff_reply}</p>
+          </div>
+        {:else if isOwnSubmission && (submission.state === 'pending' || submission.state === 'more_info_needed')}
+          <!-- Edit button for pending and more_info_needed submissions -->
           <div class="flex justify-end">
             <button
               onclick={() => push(`/contributions/${submission.id}`)}
               class="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700"
             >
               Edit
-            </button>
-          </div>
-        {/if}
-
-        <!-- Delete button at the end of right column -->
-        {#if isOwnSubmission && (submission.state === 'pending' || submission.state === 'more_info_needed') && onCancel}
-          <div class="flex justify-end mt-auto">
-            <button
-              onclick={() => onCancel(submission.id)}
-              class="px-4 py-2 text-sm border border-red-300 rounded-md bg-red-50 hover:bg-red-100 text-red-700"
-            >
-              Delete
             </button>
           </div>
         {/if}

@@ -622,14 +622,14 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
     def update(self, request, *args, **kwargs):
-        """Update submission (only allowed if state is 'more_info_needed')."""
+        """Update submission (only allowed if state is 'pending' or 'more_info_needed')."""
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
 
         # Check if update is allowed
-        if instance.state != 'more_info_needed':
+        if instance.state not in ['pending', 'more_info_needed']:
             return Response(
-                {'error': 'Submission can only be edited when more information is requested.'},
+                {'error': 'Submission can only be edited when pending or when more information is requested.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -647,17 +647,23 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
-        """Delete submission (only allowed for pending or more_info_needed states)."""
+        """Soft delete submission by marking as rejected (only allowed for pending or more_info_needed states)."""
         instance = self.get_object()
 
-        # Check if deletion is allowed
+        # Check if cancellation is allowed
         if instance.state not in ['pending', 'more_info_needed']:
             return Response(
                 {'error': 'Only pending or unreviewed submissions can be cancelled.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        return super().destroy(request, *args, **kwargs)
+        # Soft delete - mark as rejected with cancellation note
+        instance.state = 'rejected'
+        instance.staff_reply = 'Cancelled by user'
+        instance.reviewed_at = timezone.now()
+        instance.save()
+
+        return Response({'message': 'Submission cancelled successfully'}, status=status.HTTP_200_OK)
     
     @action(detail=False, methods=['get'], url_path='my')
     def my_submissions(self, request):
