@@ -585,23 +585,62 @@ class UserSerializer(serializers.ModelSerializer):
 
         # Build the referral list with builder/validator breakdown
         # Optimize: bulk query all contributions instead of N+1 queries
+        # NOTE: Exclude builder-welcome/validator-waitlist unless user has other contributions
         referred_user_ids = [u.id for u in referred_users]
 
-        builder_points_by_user = {
-            item['user_id']: item['total'] or 0
-            for item in Contribution.objects.filter(
-                user_id__in=referred_user_ids,
-                contribution_type__category__slug='builder'
-            ).values('user_id').annotate(total=Sum('frozen_global_points'))
-        }
+        # Get all builder contributions
+        builder_contributions = Contribution.objects.filter(
+            user_id__in=referred_user_ids,
+            contribution_type__category__slug='builder'
+        )
 
-        validator_points_by_user = {
-            item['user_id']: item['total'] or 0
-            for item in Contribution.objects.filter(
-                user_id__in=referred_user_ids,
-                contribution_type__category__slug='validator'
-            ).values('user_id').annotate(total=Sum('frozen_global_points'))
-        }
+        # Calculate builder points per user with check for other contributions
+        builder_points_by_user = {}
+        for user_id in referred_user_ids:
+            user_contribs = builder_contributions.filter(user_id=user_id)
+            has_other_builder = user_contribs.exclude(
+                contribution_type__slug='builder-welcome'
+            ).exists()
+
+            if has_other_builder:
+                # Count all including builder-welcome
+                builder_points_by_user[user_id] = user_contribs.aggregate(
+                    Sum('frozen_global_points')
+                )['frozen_global_points__sum'] or 0
+            else:
+                # Exclude builder-welcome
+                builder_points_by_user[user_id] = user_contribs.exclude(
+                    contribution_type__slug='builder-welcome'
+                ).aggregate(
+                    Sum('frozen_global_points')
+                )['frozen_global_points__sum'] or 0
+
+        # Get all validator contributions
+        validator_contributions = Contribution.objects.filter(
+            user_id__in=referred_user_ids,
+            contribution_type__category__slug='validator'
+        )
+
+        # Calculate validator points per user with check for other contributions
+        validator_points_by_user = {}
+        for user_id in referred_user_ids:
+            user_contribs = validator_contributions.filter(user_id=user_id)
+            has_other_validator = user_contribs.exclude(
+                contribution_type__slug='validator-waitlist'
+            ).exists()
+
+            if has_other_validator:
+                # Count all including validator-waitlist
+                validator_points_by_user[user_id] = user_contribs.aggregate(
+                    Sum('frozen_global_points')
+                )['frozen_global_points__sum'] or 0
+            else:
+                # Exclude validator-waitlist
+                validator_points_by_user[user_id] = user_contribs.exclude(
+                    contribution_type__slug='validator-waitlist'
+                ).aggregate(
+                    Sum('frozen_global_points')
+                )['frozen_global_points__sum'] or 0
 
         referral_list = []
         for referred_user in referred_users:

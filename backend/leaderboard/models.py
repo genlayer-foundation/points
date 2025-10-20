@@ -69,27 +69,75 @@ def calculate_waitlist_points(user):
     # Calculate referral points
     if grad_contrib:
         # For graduated users: calculate referral points ONLY from contributions before graduation
+        # NOTE: Exclude builder-welcome/validator-waitlist unless referred user has other contributions
         from users.models import User
-        referred_user_ids = User.objects.filter(referred_by=user).values_list('id', flat=True)
+        referred_user_ids = list(User.objects.filter(referred_by=user).values_list('id', flat=True))
 
         if referred_user_ids:
-            builder_referral = int((Contribution.objects.filter(
+            # Calculate builder referral points with check for other contributions
+            builder_contribs = Contribution.objects.filter(
                 user_id__in=referred_user_ids,
                 contribution_type__category__slug='builder',
                 contribution_date__lt=grad_contrib.contribution_date
-            ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+            )
 
-            validator_referral = int((Contribution.objects.filter(
+            builder_referral_points = 0
+            for ref_user_id in referred_user_ids:
+                user_contribs = builder_contribs.filter(user_id=ref_user_id)
+                has_other_builder = user_contribs.exclude(
+                    contribution_type__slug='builder-welcome'
+                ).exists()
+
+                if has_other_builder:
+                    # Count all including builder-welcome
+                    builder_referral_points += user_contribs.aggregate(
+                        Sum('frozen_global_points')
+                    )['frozen_global_points__sum'] or 0
+                else:
+                    # Exclude builder-welcome
+                    builder_referral_points += user_contribs.exclude(
+                        contribution_type__slug='builder-welcome'
+                    ).aggregate(
+                        Sum('frozen_global_points')
+                    )['frozen_global_points__sum'] or 0
+
+            builder_referral = int(builder_referral_points * 0.1)
+
+            # Calculate validator referral points with check for other contributions
+            validator_contribs = Contribution.objects.filter(
                 user_id__in=referred_user_ids,
                 contribution_type__category__slug='validator',
                 contribution_date__lt=grad_contrib.contribution_date
-            ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+            )
+
+            validator_referral_points = 0
+            for ref_user_id in referred_user_ids:
+                user_contribs = validator_contribs.filter(user_id=ref_user_id)
+                has_other_validator = user_contribs.exclude(
+                    contribution_type__slug='validator-waitlist'
+                ).exists()
+
+                if has_other_validator:
+                    # Count all including validator-waitlist
+                    validator_referral_points += user_contribs.aggregate(
+                        Sum('frozen_global_points')
+                    )['frozen_global_points__sum'] or 0
+                else:
+                    # Exclude validator-waitlist
+                    validator_referral_points += user_contribs.exclude(
+                        contribution_type__slug='validator-waitlist'
+                    ).aggregate(
+                        Sum('frozen_global_points')
+                    )['frozen_global_points__sum'] or 0
+
+            validator_referral = int(validator_referral_points * 0.1)
 
             referral_points = builder_referral + validator_referral
         else:
             referral_points = 0
     else:
         # For current waitlist users: use total referral points from ReferralPoints table
+        # (which now correctly excludes welcome/waitlist from users with only those contributions)
         try:
             referral_points = user.referral_points.builder_points + user.referral_points.validator_points
         except ReferralPoints.DoesNotExist:
@@ -479,30 +527,103 @@ class ReferralPoints(BaseModel):
 def update_referrer_points(contribution):
     """
     Incrementally update referral points when a referred user makes a contribution.
-    Performance: O(1) - only adds 10% of the new contribution.
+
+    NOTE: Builder-welcome and validator-waitlist points only count if the user
+    has made ANY other contribution in that category. This prevents bots from
+    gaming the system by completing only the easy welcome/waitlist journeys.
     """
     referrer = contribution.user.referred_by
     if not referrer:
         return
 
+    # Get the contribution details
+    category_slug = contribution.contribution_type.category.slug if contribution.contribution_type.category else None
+    contribution_slug = contribution.contribution_type.slug
+
+    if not category_slug:
+        # No category means no points
+        return
+
+    # Check if this is a welcome/waitlist contribution that requires other contributions check
+    is_welcome_waitlist = contribution_slug in ['builder-welcome', 'validator-waitlist']
+
     # Get or create referral points record
     rp, _ = ReferralPoints.objects.get_or_create(user=referrer)
 
-    # Get the contribution category
-    category_slug = contribution.contribution_type.category.slug if contribution.contribution_type.category else None
+    if is_welcome_waitlist:
+        # Check if user has ANY other contribution in this category
+        if contribution_slug == 'builder-welcome':
+            has_other_contribs = Contribution.objects.filter(
+                user=contribution.user,
+                contribution_type__category__slug='builder'
+            ).exclude(contribution_type__slug='builder-welcome').exists()
+        else:  # validator-waitlist
+            has_other_contribs = Contribution.objects.filter(
+                user=contribution.user,
+                contribution_type__category__slug='validator'
+            ).exclude(contribution_type__slug='validator-waitlist').exists()
 
-    # Increment appropriate category by 10% of contribution points
-    points_to_add = int(contribution.frozen_global_points * 0.1)
+        if not has_other_contribs:
+            # Don't count this contribution yet - will be counted when user makes another contribution
+            return
 
-    if category_slug == 'builder':
-        rp.builder_points += points_to_add
-        rp.save(update_fields=['builder_points'])
-    elif category_slug == 'validator':
-        rp.validator_points += points_to_add
-        rp.save(update_fields=['validator_points'])
+        # User has other contributions, count this welcome/waitlist
+        points_to_add = int(contribution.frozen_global_points * 0.1)
+        if category_slug == 'builder':
+            rp.builder_points += points_to_add
+            rp.save(update_fields=['builder_points'])
+        elif category_slug == 'validator':
+            rp.validator_points += points_to_add
+            rp.save(update_fields=['validator_points'])
     else:
-        # No category means no points added, no need to update leaderboard
-        return
+        # Regular contribution (not welcome/waitlist) - always count it
+        points_to_add = int(contribution.frozen_global_points * 0.1)
+
+        if category_slug == 'builder':
+            rp.builder_points += points_to_add
+
+            # Check if this is the first non-welcome builder contribution
+            # If so, we need to add any previously uncounted builder-welcome points
+            other_builder_count = Contribution.objects.filter(
+                user=contribution.user,
+                contribution_type__category__slug='builder'
+            ).exclude(contribution_type__slug='builder-welcome').count()
+
+            if other_builder_count == 1:  # This is the first non-welcome contribution
+                # Check if they have builder-welcome contributions
+                welcome_points = Contribution.objects.filter(
+                    user=contribution.user,
+                    contribution_type__slug='builder-welcome'
+                ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0
+
+                if welcome_points > 0:
+                    # Add the welcome points now
+                    rp.builder_points += int(welcome_points * 0.1)
+
+            rp.save(update_fields=['builder_points'])
+
+        elif category_slug == 'validator':
+            rp.validator_points += points_to_add
+
+            # Check if this is the first non-waitlist validator contribution
+            # If so, we need to add any previously uncounted validator-waitlist points
+            other_validator_count = Contribution.objects.filter(
+                user=contribution.user,
+                contribution_type__category__slug='validator'
+            ).exclude(contribution_type__slug='validator-waitlist').count()
+
+            if other_validator_count == 1:  # This is the first non-waitlist contribution
+                # Check if they have validator-waitlist contributions
+                waitlist_points = Contribution.objects.filter(
+                    user=contribution.user,
+                    contribution_type__slug='validator-waitlist'
+                ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0
+
+                if waitlist_points > 0:
+                    # Add the waitlist points now
+                    rp.validator_points += int(waitlist_points * 0.1)
+
+            rp.save(update_fields=['validator_points'])
 
     # CRITICAL: Update referrer's validator-waitlist leaderboard entry
     # This prevents LeaderboardEntry.total_points from being stale
@@ -532,26 +653,79 @@ def recalculate_referrer_points(referrer):
     """
     Update referral points when referred user makes contribution.
     Efficiently calculates points per category.
+
+    NOTE: Builder-welcome and validator-waitlist points only count if the user
+    has made ANY other contribution in that category.
     """
     from users.models import User
 
-    referred_user_ids = User.objects.filter(referred_by=referrer).values_list('id', flat=True)
+    referred_user_ids = list(User.objects.filter(referred_by=referrer).values_list('id', flat=True))
     if not referred_user_ids:
         return
 
     rp, _ = ReferralPoints.objects.get_or_create(user=referrer)
 
     # Calculate builder points
-    rp.builder_points = int((Contribution.objects.filter(
+    # Get all builder contributions for all referred users
+    builder_contributions = Contribution.objects.filter(
         user_id__in=referred_user_ids,
         contribution_type__category__slug='builder'
-    ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+    )
+
+    builder_points = 0
+    for user_id in referred_user_ids:
+        user_contribs = builder_contributions.filter(user_id=user_id)
+
+        # Check if user has ANY other builder contribution besides builder-welcome
+        has_other_builder_contribs = user_contribs.exclude(
+            contribution_type__slug='builder-welcome'
+        ).exists()
+
+        if has_other_builder_contribs:
+            # Count all builder contributions including builder-welcome
+            builder_points += user_contribs.aggregate(
+                Sum('frozen_global_points')
+            )['frozen_global_points__sum'] or 0
+        else:
+            # Exclude builder-welcome since they only have that
+            builder_points += user_contribs.exclude(
+                contribution_type__slug='builder-welcome'
+            ).aggregate(
+                Sum('frozen_global_points')
+            )['frozen_global_points__sum'] or 0
+
+    rp.builder_points = int(builder_points * 0.1)
 
     # Calculate validator points
-    rp.validator_points = int((Contribution.objects.filter(
+    # Get all validator contributions for all referred users
+    validator_contributions = Contribution.objects.filter(
         user_id__in=referred_user_ids,
         contribution_type__category__slug='validator'
-    ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+    )
+
+    validator_points = 0
+    for user_id in referred_user_ids:
+        user_contribs = validator_contributions.filter(user_id=user_id)
+
+        # Check if user has ANY other validator contribution besides validator-waitlist
+        has_other_validator_contribs = user_contribs.exclude(
+            contribution_type__slug='validator-waitlist'
+        ).exists()
+
+        if has_other_validator_contribs:
+            # Count all validator contributions including validator-waitlist
+            validator_points += user_contribs.aggregate(
+                Sum('frozen_global_points')
+            )['frozen_global_points__sum'] or 0
+        else:
+            # Exclude validator-waitlist since they only have that
+            validator_points += user_contribs.exclude(
+                contribution_type__slug='validator-waitlist'
+            ).aggregate(
+                Sum('frozen_global_points')
+            )['frozen_global_points__sum'] or 0
+
+    rp.validator_points = int(validator_points * 0.1)
 
     rp.save(update_fields=['builder_points', 'validator_points'])
 

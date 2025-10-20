@@ -121,7 +121,7 @@
       class="fixed px-4 py-2 bg-gray-800 text-white text-xs rounded-lg w-72 whitespace-normal transform -translate-x-1/2 pointer-events-none"
       style="top: {tooltipPosition.top}px; left: {tooltipPosition.left}px; z-index: 999999;"
     >
-      <p class="leading-relaxed whitespace-normal">Building is better together. Earn 10% of points from every contribution your referrals make.</p>
+      <p class="leading-relaxed whitespace-normal">Building is better together. Earn 10% of points from every contribution your referrals make. Welcome journey points count once they make any other contribution.</p>
       <!-- Arrow pointing up -->
       <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-b-gray-800"></div>
     </div>

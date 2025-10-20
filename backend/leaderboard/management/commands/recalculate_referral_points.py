@@ -77,21 +77,64 @@ class Command(BaseCommand):
                         current_validator = 0
 
                     # Calculate what new values would be (without saving)
+                    # NOTE: Exclude builder-welcome/validator-waitlist unless referred user has other contributions
                     from contributions.models import Contribution
                     from django.db.models import Sum
 
-                    referred_user_ids = User.objects.filter(referred_by=referrer).values_list('id', flat=True)
+                    referred_user_ids = list(User.objects.filter(referred_by=referrer).values_list('id', flat=True))
 
                     if referred_user_ids:
-                        new_builder = int((Contribution.objects.filter(
+                        # Calculate builder points with check for other contributions
+                        builder_contributions = Contribution.objects.filter(
                             user_id__in=referred_user_ids,
                             contribution_type__category__slug='builder'
-                        ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+                        )
 
-                        new_validator = int((Contribution.objects.filter(
+                        builder_points = 0
+                        for user_id in referred_user_ids:
+                            user_contribs = builder_contributions.filter(user_id=user_id)
+                            has_other_builder = user_contribs.exclude(
+                                contribution_type__slug='builder-welcome'
+                            ).exists()
+
+                            if has_other_builder:
+                                builder_points += user_contribs.aggregate(
+                                    Sum('frozen_global_points')
+                                )['frozen_global_points__sum'] or 0
+                            else:
+                                builder_points += user_contribs.exclude(
+                                    contribution_type__slug='builder-welcome'
+                                ).aggregate(
+                                    Sum('frozen_global_points')
+                                )['frozen_global_points__sum'] or 0
+
+                        new_builder = int(builder_points * 0.1)
+
+                        # Calculate validator points with check for other contributions
+                        validator_contributions = Contribution.objects.filter(
                             user_id__in=referred_user_ids,
                             contribution_type__category__slug='validator'
-                        ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+                        )
+
+                        validator_points = 0
+                        for user_id in referred_user_ids:
+                            user_contribs = validator_contributions.filter(user_id=user_id)
+                            has_other_validator = user_contribs.exclude(
+                                contribution_type__slug='validator-waitlist'
+                            ).exists()
+
+                            if has_other_validator:
+                                validator_points += user_contribs.aggregate(
+                                    Sum('frozen_global_points')
+                                )['frozen_global_points__sum'] or 0
+                            else:
+                                validator_points += user_contribs.exclude(
+                                    contribution_type__slug='validator-waitlist'
+                                ).aggregate(
+                                    Sum('frozen_global_points')
+                                )['frozen_global_points__sum'] or 0
+
+                        new_validator = int(validator_points * 0.1)
 
                         if new_builder != current_builder or new_validator != current_validator:
                             self.stdout.write(
