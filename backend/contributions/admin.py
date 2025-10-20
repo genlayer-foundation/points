@@ -108,10 +108,10 @@ class EvidenceInline(admin.TabularInline):
 
 @admin.register(Contribution)
 class ContributionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user_display', 'user_address_short', 'contribution_type', 'points', 
-                   'frozen_global_points', 'contribution_date_display', 'has_evidence', 
+    list_display = ('id', 'user_display', 'user_address_short', 'contribution_type', 'mission', 'points',
+                   'frozen_global_points', 'contribution_date_display', 'has_evidence',
                    'has_highlight', 'created_at')
-    list_filter = ('contribution_type__category', 'contribution_type', 'contribution_date', 'created_at',
+    list_filter = ('contribution_type__category', 'contribution_type', 'mission', 'contribution_date', 'created_at',
                   ('evidence_items', admin.EmptyFieldListFilter))
     search_fields = ('user__email', 'user__name', 'user__address', 'contribution_type__name', 
                     'notes', 'evidence_items__description', 'evidence_items__url')
@@ -362,9 +362,9 @@ class ContributionAdmin(admin.ModelAdmin):
 
 @admin.register(SubmittedContribution)
 class SubmittedContributionAdmin(admin.ModelAdmin):
-    list_display = ('user', 'contribution_type', 'suggested_points', 'state', 'contribution_date', 
+    list_display = ('user', 'contribution_type', 'mission', 'suggested_points', 'state', 'contribution_date',
                    'created_at', 'reviewed_by')
-    list_filter = ('state', 'contribution_type__category', 'contribution_type', 'created_at', 'reviewed_at')
+    list_filter = ('state', 'contribution_type__category', 'contribution_type', 'mission', 'created_at', 'reviewed_at')
     search_fields = ('user__email', 'user__name', 'notes', 'staff_reply')
     date_hierarchy = 'created_at'
     readonly_fields = ('id', 'created_at', 'updated_at', 'last_edited_at', 

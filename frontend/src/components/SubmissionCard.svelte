@@ -158,9 +158,22 @@
   <div class="px-6 py-4 border-b {getStateBackgroundClass(submission.state)}">
     <div class="flex justify-between items-start">
       <div>
-        <h3 class="text-lg font-semibold">
+        <h3 class="text-lg font-semibold flex items-center gap-2 flex-wrap">
           {#if isOwnSubmission}
-            {submission.contribution_type_name || getTypeName(submission.contribution_type)}
+            <span>{submission.contribution_type_name || getTypeName(submission.contribution_type)}</span>
+            {#if submission.mission_details}
+              <button
+                onclick={() => push(`/contribution-type/${submission.mission_details.contribution_type}`)}
+                class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                title="Mission: {submission.mission_details.name}"
+              >
+                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                  <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+                </svg>
+                {submission.mission_details.name}
+              </button>
+            {/if}
           {:else}
             <div class="flex items-center gap-2">
               <Avatar
@@ -210,12 +223,27 @@
           
           <div>
             <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
-            <p class="mt-1 text-sm text-gray-900">
-              {submission.contribution_type_details?.name}
-              <span class="text-xs text-gray-500 ml-2">
+            <div class="mt-1 flex items-center gap-2 flex-wrap">
+              <span class="text-sm text-gray-900">
+                {submission.contribution_type_details?.name}
+              </span>
+              {#if submission.mission_details}
+                <button
+                  onclick={() => push(`/contribution-type/${submission.mission_details.contribution_type}`)}
+                  class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                  title="Mission: {submission.mission_details.name}"
+                >
+                  <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                    <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+                  </svg>
+                  {submission.mission_details.name}
+                </button>
+              {/if}
+              <span class="text-xs text-gray-500">
                 ({submission.contribution_type_details?.min_points}-{submission.contribution_type_details?.max_points} points)
               </span>
-            </p>
+            </div>
           </div>
         {/if}
         
@@ -223,7 +251,7 @@
           <h4 class="text-sm font-medium text-gray-700">Contribution Date</h4>
           <p class="mt-1 text-sm text-gray-900">{formatDate(submission.contribution_date)}</p>
         </div>
-        
+
         {#if submission.notes}
           <div>
             <h4 class="text-sm font-medium text-gray-700">Notes</h4>

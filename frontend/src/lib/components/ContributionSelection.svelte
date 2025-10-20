@@ -9,6 +9,9 @@
 		onlySubmittable = true,
 		stewardMode = false,
 		providedContributionTypes = null,  // Allow passing types from parent
+		disabled = false,  // Disable selection when locked (e.g., mission)
+		availableMissions = [],  // Missions for the selected contribution type
+		selectedMission = $bindable(null),  // Currently selected mission
 		onSelectionChange = () => {}
 	} = $props();
 
@@ -163,17 +166,17 @@
 			<input
 				type="text"
 				class="search-input"
-				placeholder={loading ? "Loading..." : "Select or search contribution type..."}
+				placeholder={loading ? "Loading..." : disabled ? "Locked to mission" : "Select or search contribution type..."}
 				bind:value={searchQuery}
 				oninput={handleSearchInput}
 				onfocus={handleSearchFocus}
 				onblur={handleSearchBlur}
-				disabled={loading}
+				disabled={loading || disabled}
 			/>
-			<button 
-				class="dropdown-arrow" 
+			<button
+				class="dropdown-arrow"
 				onclick={handleDropdownClick}
-				disabled={loading}
+				disabled={loading || disabled}
 			>
 				<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
 					<path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -230,6 +233,39 @@
 						</span>
 					</div>
 				</div>
+
+				{#if availableMissions.length > 0}
+					<div class="mission-selector">
+						<label for="mission-select" class="mission-label">
+							<svg class="mission-icon" fill="currentColor" viewBox="0 0 20 20">
+								<path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+								<path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+							</svg>
+							Mission (optional)
+						</label>
+						<select
+							id="mission-select"
+							bind:value={selectedMission}
+							class="mission-dropdown"
+						>
+							<option value={null}>No mission</option>
+							{#each availableMissions as mission}
+								<option value={mission.id}>
+									{mission.name}
+									{#if mission.end_date}
+										· Ends {new Date(mission.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+									{/if}
+								</option>
+							{/each}
+						</select>
+						{#if selectedMission}
+							{@const selectedMissionObj = availableMissions.find(m => m.id === selectedMission)}
+							{#if selectedMissionObj?.description}
+								<p class="mission-description">{selectedMissionObj.description}</p>
+							{/if}
+						{/if}
+					</div>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -504,5 +540,58 @@
 		border-radius: 0.25rem;
 		font-weight: 600;
 		font-size: 0.75rem;
+	}
+
+	.mission-selector {
+		margin-top: 1rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--color-border, #e5e7eb);
+	}
+
+	.mission-label {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.813rem;
+		font-weight: 500;
+		color: var(--color-text-secondary, #6b7280);
+		margin-bottom: 0.5rem;
+		cursor: default;
+	}
+
+	.mission-icon {
+		width: 1rem;
+		height: 1rem;
+		color: #6b7280;
+		flex-shrink: 0;
+	}
+
+	.mission-dropdown {
+		width: 100%;
+		padding: 0.5rem 0.75rem;
+		font-size: 0.875rem;
+		color: var(--color-text-primary, #333);
+		background: white;
+		border: 1px solid var(--color-border, #d1d5db);
+		border-radius: 0.375rem;
+		cursor: pointer;
+		transition: border-color 0.15s ease;
+	}
+
+	.mission-dropdown:hover {
+		border-color: var(--color-border-hover, #9ca3af);
+	}
+
+	.mission-dropdown:focus {
+		outline: none;
+		border-color: #6b7280;
+		box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.1);
+	}
+
+	.mission-description {
+		margin-top: 0.75rem;
+		font-size: 0.813rem;
+		color: var(--color-text-secondary, #6b7280);
+		line-height: 1.5;
 	}
 </style>

@@ -614,7 +614,28 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         return context
     
     def create(self, request, *args, **kwargs):
-        """Create a new submission."""
+        """Create a new submission with optional mission tracking."""
+        mission_id = request.data.get('mission')
+
+        # Validate mission if provided
+        if mission_id:
+            try:
+                mission = Mission.objects.get(id=mission_id)
+                # Validate mission is active
+                if not mission.is_active():
+                    return Response(
+                        {'error': 'This mission has ended or is not yet active.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                # Auto-populate contribution_type from mission if not provided
+                if not request.data.get('contribution_type'):
+                    request.data['contribution_type'] = mission.contribution_type_id
+            except Mission.DoesNotExist:
+                return Response(
+                    {'error': 'Invalid mission ID.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -778,7 +799,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 contribution_type=contribution_type,
                 points=serializer.validated_data['points'],
                 contribution_date=submission.contribution_date,
-                notes=submission.notes
+                notes=submission.notes,
+                mission=submission.mission
             )
             
             # Copy evidence items

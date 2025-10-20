@@ -37,7 +37,8 @@
         count: 1,
         users: contrib.user_details ? [contrib.user_details] : [],
         typeId: contrib.contribution_type?.id || contrib.contribution_type,
-        category: category || contrib.contribution_type_details?.category || contrib.category
+        category: category || contrib.contribution_type_details?.category || contrib.category,
+        mission_details: contrib.mission_details
       }));
     }
 
@@ -76,7 +77,8 @@
               end_date: contrib.contribution_date,
               users: contrib.user_details ? [contrib.user_details] : [],
               evidence_items: contrib.evidence_items,
-              notes: contrib.notes
+              notes: contrib.notes,
+              mission_details: contrib.mission_details
             });
           } else {
             // Non-highlighted contribution - add to current subgroup
@@ -97,7 +99,8 @@
                 count: 1,
                 end_date: contrib.contribution_date,
                 users: contrib.user_details ? [contrib.user_details] : [],
-                grouped_items: [contrib]  // Store all contributions for later access
+                grouped_items: [contrib],  // Store all contributions for later access
+                mission_details: contrib.mission_details
               };
             } else {
               // Add to existing subgroup
@@ -160,7 +163,8 @@
           count: 1,
           end_date: contrib.contribution_date,
           users: [],
-          grouped_items: [contrib]  // Store all contributions for later access
+          grouped_items: [contrib],  // Store all contributions for later access
+          mission_details: contrib.mission_details
         };
 
         if (contrib.user_details) {

@@ -1,14 +1,21 @@
 <script>
-  import { push } from 'svelte-spa-router';
+  import { push, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { onMount } from 'svelte';
-  import api from '../lib/api.js';
+  import api, { contributionsAPI } from '../lib/api.js';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
-  
+
   let loading = $state(false);
   let submitting = $state(false);
   let error = $state('');
   let authChecked = $state(false);
+
+  // Mission-related state
+  let missionId = $state(null);
+  let mission = $state(null);
+  let loadingMission = $state(false);
+  let availableMissions = $state([]);
+  let selectedMission = $state(null);
   
   // Selection state
   let selectedCategory = $state('validator');
@@ -46,7 +53,70 @@
     }
   });
   
+  async function fetchMission() {
+    if (!missionId) return;
+
+    loadingMission = true;
+    try {
+      const response = await contributionsAPI.getMission(missionId);
+      mission = response.data;
+
+      // Pre-select contribution type from mission
+      if (mission.contribution_type_details) {
+        selectedCategory = mission.contribution_type_details.category || 'validator';
+        selectedContributionType = {
+          id: mission.contribution_type,
+          ...mission.contribution_type_details
+        };
+        formData.contribution_type = mission.contribution_type;
+        selectedMission = mission.id;
+      }
+    } catch (err) {
+      console.error('Error loading mission:', err);
+      error = 'Failed to load mission details';
+    } finally {
+      loadingMission = false;
+    }
+  }
+
+  async function fetchMissionsForType(contributionTypeId) {
+    if (!contributionTypeId) {
+      availableMissions = [];
+      return;
+    }
+
+    try {
+      const response = await contributionsAPI.getMissions({
+        contribution_type: contributionTypeId,
+        is_active: true
+      });
+      availableMissions = response.data.results || response.data || [];
+    } catch (err) {
+      console.error('Error loading missions:', err);
+      availableMissions = [];
+    }
+  }
+
   onMount(async () => {
+    // Parse query parameters
+    const params = new URLSearchParams($querystring);
+    const missionParam = params.get('mission');
+    const typeParam = params.get('type');
+
+    if (missionParam) {
+      missionId = parseInt(missionParam);
+      await fetchMission();
+      // fetchMission will set selectedMission and fetch available missions
+      if (formData.contribution_type) {
+        await fetchMissionsForType(formData.contribution_type);
+      }
+    } else if (typeParam) {
+      // Pre-select contribution type from URL parameter
+      formData.contribution_type = parseInt(typeParam);
+      // Fetch missions for this type
+      await fetchMissionsForType(parseInt(typeParam));
+    }
+
     // Wait a moment for auth state to be verified
     await new Promise(resolve => setTimeout(resolve, 100));
     authChecked = true;
@@ -54,6 +124,13 @@
   
   function handleSelectionChange(category, contributionType) {
     console.log('Selection changed:', { category, contributionType });
+    // Fetch missions for the new contribution type
+    if (contributionType?.id) {
+      fetchMissionsForType(contributionType.id);
+    } else {
+      availableMissions = [];
+      selectedMission = null;
+    }
   }
   
   function addEvidenceSlot() {
@@ -106,6 +183,11 @@
         contribution_date: formData.contribution_date + 'T00:00:00Z',
         notes: formData.notes
       };
+
+      // Include mission if selected
+      if (selectedMission) {
+        submissionData.mission = selectedMission;
+      }
       
       const response = await api.post('/submissions/', submissionData);
       const submissionId = response.data.id;
@@ -145,8 +227,8 @@
 
 <div class="container mx-auto px-4 py-8">
   <h1 class="text-2xl font-bold mb-6">Submit Contribution</h1>
-  
-  {#if !authChecked || loading}
+
+  {#if !authChecked || loading || loadingMission}
     <div class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
     </div>
@@ -181,8 +263,11 @@
         <ContributionSelection
           bind:selectedCategory
           bind:selectedContributionType
+          bind:selectedMission
+          defaultContributionType={formData.contribution_type}
           onlySubmittable={true}
           stewardMode={false}
+          availableMissions={availableMissions}
           onSelectionChange={handleSelectionChange}
         />
       </div>
