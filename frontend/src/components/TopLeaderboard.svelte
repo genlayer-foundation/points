@@ -34,14 +34,15 @@
 
       let response;
       if (categoryToUse === 'global') {
-        response = await leaderboardAPI.getLeaderboard();
+        response = await leaderboardAPI.getLeaderboard({ limit });
         leaderboard = response.data || [];
       } else {
-        // Use type-specific endpoint
-        response = await leaderboardAPI.getLeaderboardByType(categoryToUse);
+        // Use type-specific endpoint with limit for efficiency
+        response = await leaderboardAPI.getLeaderboardByType(categoryToUse, 'asc', { limit });
         leaderboard = response.data || [];
       }
 
+      // Backend should return limited results, but slice as fallback
       if (limit && leaderboard.length > limit) {
         leaderboard = leaderboard.slice(0, limit);
       }

@@ -59,6 +59,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Filter leaderboard by type, user address, and handle ordering.
         Optimized with select_related to avoid N+1 queries.
+        Supports limit parameter for efficient top-N queries.
         """
         queryset = super().get_queryset()
 
@@ -92,8 +93,20 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         # Handle rank ordering
         order = self.request.query_params.get('order', 'asc')
         if order == 'desc':
-            return queryset.order_by('-rank')
-        return queryset.order_by('rank')
+            queryset = queryset.order_by('-rank')
+        else:
+            queryset = queryset.order_by('rank')
+
+        # Apply limit if provided (for efficient top-N queries)
+        limit = self.request.query_params.get('limit')
+        if limit:
+            try:
+                limit = int(limit)
+                queryset = queryset[:limit]
+            except (ValueError, TypeError):
+                pass  # Ignore invalid limit values
+
+        return queryset
 
     def get_serializer_context(self):
         """
@@ -247,6 +260,29 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         stats = self._get_user_stats(user, category=category)
         return Response(stats)
     
+    @action(detail=False, methods=['get'], url_path='validator-waitlist/top')
+    def validator_waitlist_top(self, request):
+        """
+        Get top N waitlist users for the Race to Testnet Asimov leaderboard.
+        Optimized endpoint that returns only what's needed for the top section.
+        """
+        try:
+            limit = int(request.query_params.get('limit', 10))
+        except (ValueError, TypeError):
+            limit = 10
+        limit = min(max(limit, 1), 100)  # Between 1 and 100
+
+        top_entries = LeaderboardEntry.objects.filter(
+            user__visible=True,
+            type='validator-waitlist'
+        ).select_related(
+            'user',
+            'user__validator'
+        ).order_by('rank')[:limit]
+
+        serializer = self.get_serializer(top_entries, many=True)
+        return Response(serializer.data)
+
     @action(detail=False, methods=['get'], url_path='validator-waitlist-stats')
     def validator_waitlist_stats(self, request):
         """

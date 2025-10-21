@@ -4,37 +4,31 @@
   import { push } from 'svelte-spa-router';
   import { authState, signInWithEthereum, logout } from '../lib/auth';
   import { userStore } from '../lib/userStore';
+  import { showError, showWarning } from '../lib/toastStore';
   import WalletSelector from './WalletSelector.svelte';
-  
+
   // Use $: to access the store values reactively
   $: isAuthenticated = $authState.isAuthenticated;
   $: address = $authState.address;
   $: storeLoading = $authState.loading;
   $: storeError = $authState.error;
+  $: userName = $userStore.user?.name;
 
   let loading = false;
-  let error = null;
   let showDropdown = false;
   let showWalletSelector = false;
-  let errorTimeout;
-  
-  // Auto-dismiss error messages after 5 seconds
-  $: if (error || storeError) {
-    if (errorTimeout) clearTimeout(errorTimeout);
-    errorTimeout = setTimeout(() => {
-      error = null;
-      if (storeError) authState.setError(null);
-    }, 5000);
+
+  // Show toast for auth store errors with appropriate severity
+  $: if (storeError) {
+    // User-initiated actions are warnings (less severe)
+    if (storeError.includes('Connection rejected') || storeError.includes('MetaMask')) {
+      showWarning(storeError);
+    } else {
+      // Authentication failures are errors
+      showError(storeError);
+    }
+    authState.setError(null);
   }
-  
-  onMount(() => {
-    // Auth verification is already done in auth.js on module load
-    // No need to verify again here
-    
-    return () => {
-      if (errorTimeout) clearTimeout(errorTimeout);
-    };
-  });
   
   async function handleAuth() {
     if (isAuthenticated) {
@@ -42,15 +36,14 @@
       showDropdown = !showDropdown;
       return;
     }
-    
+
     // Show wallet selector modal
     showWalletSelector = true;
   }
-  
+
   async function handleWalletSelected(provider, walletName) {
     // Start the connection process with selected wallet
     loading = true;
-    error = null;
 
     try {
       // Sign in with Ethereum
@@ -63,18 +56,8 @@
       // Otherwise user continues to their profile or intended destination
     } catch (err) {
       console.error('Auth error:', err);
-      // Create a curated error message
-      if (err.message?.includes('not installed')) {
-        error = `Please install ${walletName} to connect`;
-      } else if (err.message?.includes('User rejected') || err.message?.includes('User denied')) {
-        error = 'Connection rejected';
-      } else if (err.message?.includes('signature')) {
-        error = 'Signature verification failed';
-      } else if (err.message?.includes('nonce')) {
-        error = 'Authentication expired, please try again';
-      } else {
-        error = 'Connection failed';
-      }
+      // Error is already handled by the reactive statement that watches storeError
+      // No need to show toast here to avoid duplicate notifications
       // Keep modal open on error so user can try again
     } finally {
       loading = false;
@@ -159,12 +142,6 @@
         </svg>
         Disconnect
       </button>
-    </div>
-  {/if}
-  
-  {#if error || storeError}
-    <div class="auth-error">
-      {error || storeError}
     </div>
   {/if}
 </div>
@@ -270,34 +247,8 @@
   .dropdown-item.logout {
     color: #ef4444;
   }
-  
+
   .dropdown-item.logout:hover {
     background-color: #fef2f2;
-  }
-  
-  .auth-error {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 0.5rem;
-    padding: 0.75rem 1rem;
-    background-color: #fee2e2;
-    border: 1px solid #f87171;
-    color: #b91c1c;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    z-index: 50;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    min-width: 200px;
-    max-width: 300px;
-    text-align: center;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .auth-error::before {
-    content: "⚠️";
-    margin-right: 0.5rem;
   }
 </style>

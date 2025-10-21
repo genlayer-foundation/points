@@ -104,7 +104,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         Returns users with the most points for this contribution type.
         """
         from django.db.models import Sum
-        from utils.serializers import LightUserSerializer
+        from users.serializers import LightUserSerializer
 
         contribution_type = self.get_object()
 
@@ -227,9 +227,11 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         category = self.request.query_params.get('category')
         if category:
             queryset = queryset.filter(contribution_type__category__slug=category)
-            # Exclude Builder Welcome when filtering for builder category
-            if category == 'builder':
-                queryset = queryset.exclude(contribution_type__slug='builder-welcome')
+            # Note: We do NOT exclude builder-welcome here because users should see
+            # their builder-welcome contribution in their recent contributions list.
+            # Builder-welcome is only excluded from:
+            # - Leaderboard calculations (in leaderboard/models.py)
+            # - ContributionType listings (in ContributionTypeViewSet above)
 
         return queryset
 
@@ -445,6 +447,9 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         # Order by contribution date descending and apply limit
         highlights = queryset.select_related(
             'contribution__user',
+            'contribution__user__validator',
+            'contribution__user__builder',
+            'contribution__user__steward',
             'contribution__contribution_type',
             'contribution__contribution_type__category'
         ).order_by('-contribution__contribution_date')[:limit]
@@ -663,23 +668,30 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
     def add_evidence(self, request, pk=None):
         """Add evidence to a submission."""
         submission = self.get_object()
-        
+
         # Check if evidence can be added
         if submission.state not in ['pending', 'more_info_needed']:
             return Response(
                 {'error': 'Evidence can only be added to pending submissions or when more information is requested.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
+
+        # Reject file uploads
+        if 'file' in request.data or request.FILES:
+            return Response(
+                {'error': 'File uploads are not currently supported. Please provide a URL or description instead.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         serializer = SubmittedEvidenceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         # Create evidence linked to this submission
         evidence = Evidence.objects.create(
             submitted_contribution=submission,
             **serializer.validated_data
         )
-        
+
         return Response(
             SubmittedEvidenceSerializer(evidence).data,
             status=status.HTTP_201_CREATED

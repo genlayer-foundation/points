@@ -57,18 +57,11 @@
   }
   
   function addEvidenceSlot() {
-    evidenceSlots = [...evidenceSlots, { id: Date.now(), description: '', url: '', file: null }];
+    evidenceSlots = [...evidenceSlots, { id: Date.now(), description: '', url: '' }];
   }
-  
+
   function removeEvidenceSlot(index) {
     evidenceSlots = evidenceSlots.filter((_, i) => i !== index);
-  }
-  
-  function handleFileChange(event, index) {
-    const file = event.target.files[0];
-    if (file) {
-      evidenceSlots[index].file = file;
-    }
   }
   
   function normalizeUrl(url) {
@@ -92,7 +85,7 @@
   }
   
   function hasEvidenceInSlot(slot) {
-    return slot.description || slot.url || slot.file;
+    return slot.description || slot.url;
   }
   
   async function handleSubmit(event) {
@@ -121,22 +114,18 @@
       const filledSlots = evidenceSlots.filter(hasEvidenceInSlot);
       
       for (const slot of filledSlots) {
-        const evidenceFormData = new FormData();
-        
+        const evidenceData = {};
+
         if (slot.description) {
-          evidenceFormData.append('description', slot.description);
+          evidenceData.description = slot.description;
         }
         if (slot.url) {
           // Normalize URL before sending to backend
-          const normalizedUrl = normalizeUrl(slot.url);
-          evidenceFormData.append('url', normalizedUrl);
+          evidenceData.url = normalizeUrl(slot.url);
         }
-        if (slot.file) {
-          evidenceFormData.append('file', slot.file, slot.file.name);
-        }
-        
-        
-        await api.post(`/submissions/${submissionId}/add-evidence/`, evidenceFormData);
+
+
+        await api.post(`/submissions/${submissionId}/add-evidence/`, evidenceData);
       }
       
       // Store success message in sessionStorage to show on My Submissions page
@@ -273,18 +262,7 @@
                     />
                   </div>
                 </div>
-                
-                <div class="mt-3">
-                  <label class="block text-xs font-medium text-gray-700 mb-1">
-                    File Upload
-                  </label>
-                  <input
-                    type="file"
-                    onchange={(e) => handleFileChange(e, index)}
-                    class="w-full text-sm text-gray-500 file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
-                  />
-                </div>
-                
+
                 <div class="mt-2 flex justify-end">
                   <button
                     type="button"
@@ -300,7 +278,7 @@
         {/if}
         
         <p class="text-xs text-gray-500 mt-2">
-          Add URLs, descriptions, and files to support your contribution claim.
+          Add URLs and descriptions to support your contribution claim. Provide links to GitHub, Twitter, blog posts, or other evidence.
         </p>
       </div>
       

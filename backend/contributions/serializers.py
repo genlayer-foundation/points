@@ -1,9 +1,55 @@
 from rest_framework import serializers
 from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission
-from users.serializers import UserSerializer
+from users.serializers import UserSerializer, LightUserSerializer
 from users.models import User
-from utils.serializers import LightUserSerializer, LightContributionTypeSerializer
 import decimal
+
+
+# ============================================================================
+# Lightweight Serializers for Optimized List Views
+# ============================================================================
+# These serializers provide minimal data for list views and nested relationships,
+# significantly reducing database queries and response payload size.
+
+
+class LightContributionTypeSerializer(serializers.Serializer):
+    """
+    Minimal contribution type serializer for nested relationships.
+    Only includes basic type information without expensive computed fields.
+    """
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    slug = serializers.SlugField(read_only=True)
+    description = serializers.CharField(read_only=True)
+    min_points = serializers.IntegerField(read_only=True)
+    max_points = serializers.IntegerField(read_only=True)
+    # Include category slug only, not the full category object
+    category = serializers.SerializerMethodField()
+
+    def get_category(self, obj):
+        """Return just the category slug."""
+        return obj.category.slug if obj.category else None
+
+
+class LightContributionSerializer(serializers.Serializer):
+    """
+    Minimal contribution serializer for recent contributions and highlights.
+    Uses lightweight nested serializers to avoid N+1 queries.
+    """
+    id = serializers.IntegerField(read_only=True)
+    user = LightUserSerializer(read_only=True)
+    contribution_type = LightContributionTypeSerializer(read_only=True)
+    points = serializers.IntegerField(read_only=True)
+    frozen_global_points = serializers.IntegerField(read_only=True)
+    multiplier_at_creation = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+    contribution_date = serializers.DateTimeField(read_only=True)
+    notes = serializers.CharField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+
+
+# ============================================================================
+# Full Serializers
+# ============================================================================
 
 
 class ContributionTypeSerializer(serializers.ModelSerializer):
@@ -104,22 +150,11 @@ class ContributionSerializer(serializers.ModelSerializer):
 
 
 class EvidenceSerializer(serializers.ModelSerializer):
-    file_url = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Evidence
-        fields = ['id', 'description', 'url', 'file', 'file_url', 'created_at']
+        fields = ['id', 'description', 'url', 'created_at']
         read_only_fields = ['id', 'created_at']
-    
-    def get_file_url(self, obj):
-        """Returns the full URL to the file if it exists."""
-        if not obj.file:
-            return None
-        
-        request = self.context.get('request')
-        if request is not None:
-            return request.build_absolute_uri(obj.file.url)
-        return obj.file.url
 
 
 class SubmittedContributionSerializer(serializers.ModelSerializer):
@@ -198,22 +233,11 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
 
 class SubmittedEvidenceSerializer(serializers.ModelSerializer):
     """Serializer for evidence items belonging to submitted contributions."""
-    file_url = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Evidence
-        fields = ['id', 'description', 'url', 'file', 'file_url', 'created_at']
+        fields = ['id', 'description', 'url', 'created_at']
         read_only_fields = ['id', 'created_at']
-    
-    def get_file_url(self, obj):
-        """Returns the full URL to the file if it exists."""
-        if not obj.file:
-            return None
-        
-        request = self.context.get('request')
-        if request is not None:
-            return request.build_absolute_uri(obj.file.url)
-        return obj.file.url
 
 
 class ContributionHighlightSerializer(serializers.ModelSerializer):
@@ -221,6 +245,12 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='contribution.user.name', read_only=True)
     user_address = serializers.CharField(source='contribution.user.address', read_only=True)
     user_profile_image_url = serializers.URLField(source='contribution.user.profile_image_url', read_only=True)
+    # Role status fields for Avatar color determination
+    user_validator = serializers.SerializerMethodField()
+    user_builder = serializers.SerializerMethodField()
+    user_steward = serializers.SerializerMethodField()
+    user_has_validator_waitlist = serializers.SerializerMethodField()
+    user_has_builder_welcome = serializers.SerializerMethodField()
     contribution_type_name = serializers.CharField(source='contribution.contribution_type.name', read_only=True)
     contribution_type_id = serializers.IntegerField(source='contribution.contribution_type.id', read_only=True)
     contribution_type_slug = serializers.SlugField(source='contribution.contribution_type.slug', read_only=True)
@@ -232,6 +262,8 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
         model = ContributionHighlight
         fields = ['id', 'title', 'description', 'contribution', 'contribution_details',
                   'user_name', 'user_address', 'user_profile_image_url',
+                  'user_validator', 'user_builder', 'user_steward',
+                  'user_has_validator_waitlist', 'user_has_builder_welcome',
                   'contribution_type_name', 'contribution_type_id', 'contribution_type_slug',
                   'contribution_type_category', 'contribution_points', 'contribution_date', 'created_at']
         read_only_fields = ['id', 'created_at']
@@ -241,8 +273,41 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
         Return lightweight contribution details to avoid N+1 queries.
         Most needed info is already in the flat fields above.
         """
-        from utils.serializers import LightContributionSerializer
         return LightContributionSerializer(obj.contribution).data
+
+    def get_user_validator(self, obj):
+        """Check if user has validator role (OneToOne)."""
+        return hasattr(obj.contribution.user, 'validator')
+
+    def get_user_builder(self, obj):
+        """Check if user has builder role (OneToOne)."""
+        return hasattr(obj.contribution.user, 'builder')
+
+    def get_user_steward(self, obj):
+        """Check if user has steward role (OneToOne)."""
+        return hasattr(obj.contribution.user, 'steward')
+
+    def get_user_has_validator_waitlist(self, obj):
+        """Check if user has validator-waitlist contribution."""
+        try:
+            waitlist_type = ContributionType.objects.get(slug='validator-waitlist')
+            return Contribution.objects.filter(
+                user=obj.contribution.user,
+                contribution_type=waitlist_type
+            ).exists()
+        except ContributionType.DoesNotExist:
+            return False
+
+    def get_user_has_builder_welcome(self, obj):
+        """Check if user has builder-welcome contribution."""
+        try:
+            welcome_type = ContributionType.objects.get(slug='builder-welcome')
+            return Contribution.objects.filter(
+                user=obj.contribution.user,
+                contribution_type=welcome_type
+            ).exists()
+        except ContributionType.DoesNotExist:
+            return False
 
 
 class StewardSubmissionReviewSerializer(serializers.Serializer):

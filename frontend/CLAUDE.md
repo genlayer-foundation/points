@@ -369,7 +369,8 @@ const routes = {
     - Edit Profile - Goes to `/profile`
     - Disconnect - Logs out
   - Reactively updates name from `userStore`
-- `SubmitContribution.svelte` - Contribution form
+- `SubmitContribution.svelte` - Contribution form (supports URL and description evidence only - no file uploads)
+- `EditSubmission.svelte` - Edit submitted contributions (supports URL and description evidence only - no file uploads)
 - `EditProfile.svelte` - User profile editing (name and node version)
 - `Profile.svelte` - Public participant profile view
 
@@ -451,6 +452,36 @@ try {
   error = err.message || 'An error occurred';
 }
 ```
+
+### Toast Notifications
+Global toast notification system for success, warning, and error messages:
+
+```javascript
+import { addToast, showSuccess, showError, showWarning } from '../lib/toastStore';
+
+// Basic usage
+addToast('success', 'Profile updated successfully!');
+addToast('error', 'Failed to save changes');
+addToast('warning', 'Session will expire soon');
+
+// With custom duration (milliseconds)
+addToast('info', 'Processing...', 10000); // 10 seconds
+
+// Persistent toast (no auto-dismiss)
+addToast('error', 'Critical error occurred', null);
+
+// Convenience methods
+showSuccess('Operation completed!');
+showError('Something went wrong');
+showWarning('Please review your input');
+```
+
+**Toast System Components:**
+- `lib/toastStore.js` - Store and API functions
+- `components/Toast.svelte` - Individual toast component
+- `components/ToastContainer.svelte` - Container for all toasts
+
+Toasts appear in top-right corner, auto-dismiss after 5 seconds by default, and can be manually closed.
 
 ## Environment Variables
 Set in `.env` file:
@@ -534,6 +565,13 @@ The only exception is when you need to group multiple related elements that aren
 Gradients can make text harder to read and create visual complexity. Stick to the established color palette with solid colors for consistency.
 
 ## Important Notes
+
+### Evidence Submission
+**File uploads are disabled** (issue #212). When submitting or editing contributions, users can only provide:
+- Text descriptions
+- URLs (links to GitHub, Twitter, blog posts, etc.)
+
+The UI no longer shows file upload fields, and the backend will reject file upload attempts.
 
 ### Component Props in Svelte 5
 Always destructure props with `$props()`:

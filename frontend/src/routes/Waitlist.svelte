@@ -15,11 +15,11 @@
   let user = $derived($userStore.user);
   
   // State variables
-  let waitlistUsers = $state([]);
+  let topWaitlistUsers = $state([]);  // Top 10 for Race to Testnet
   let newestWaitlistUsers = $state([]);
   let recentlyGraduated = $state([]);
   let featuredContributions = $state([]);
-  let loading = $state(true);
+  let topLoading = $state(true);  // Loading for top section
   let error = $state(null);
   let statistics = $state({
     total_waitlist_badges: 0,
@@ -39,9 +39,11 @@
   
   onMount(async () => {
     await Promise.all([
-      fetchWaitlistData(),
+      fetchTopWaitlistUsers(),  // Fast: only top 10
+      fetchNewestWaitlistUsers(),  // Get 5 newest for sidebar
       fetchRecentlyGraduated(),
-      fetchFeaturedContributions()
+      fetchFeaturedContributions(),
+      fetchStats()  // Fetch stats separately
     ]);
   });
   
@@ -53,95 +55,72 @@
       return dateString;
     }
   };
-  
-  async function fetchWaitlistData() {
+
+  async function fetchTopWaitlistUsers() {
     try {
-      loading = true;
+      topLoading = true;
+
+      // Fetch only top 10 for Race to Testnet
+      const response = await leaderboardAPI.getWaitlistTop(10);
+
+      if (response.data) {
+        topWaitlistUsers = response.data.map(entry => ({
+          address: entry.user_details?.address || '',
+          isWaitlisted: true,
+          user: entry.user_details || {},
+          score: entry.total_points,
+          waitlistRank: entry.rank,
+          referral_points: entry.referral_points || null
+        }));
+      }
+
+      topLoading = false;
+    } catch (err) {
+      console.error('Failed to load top waitlist users:', err);
+      topLoading = false;
+    }
+  }
+
+  async function fetchNewestWaitlistUsers() {
+    try {
+      // Get recent waitlist contributions to find newest participants
+      const response = await contributionsAPI.getContributions({
+        contribution_type_slug: 'validator-waitlist',
+        limit: 5,
+        ordering: '-contribution_date'
+      });
+
+      if (response.data?.results) {
+        newestWaitlistUsers = response.data.results.map(contrib => ({
+          address: contrib.user_details?.address || '',
+          user: contrib.user_details || {},
+          joinedWaitlist: contrib.contribution_date
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to load newest waitlist users:', err);
+    }
+  }
+
+  async function fetchStats() {
+    try {
       statsLoading = true;
       error = null;
-      
-      // Fetch waitlist-only users
-      const [waitlistResponse, statsResponse, usersRes] = await Promise.all([
-        leaderboardAPI.getLeaderboardByType('validator-waitlist'),
-        leaderboardAPI.getWaitlistStats(),
-        usersAPI.getUsers()
-      ]);
-      
-      if (waitlistResponse.data) {
-        // API returns array directly now
-        const rawEntries = Array.isArray(waitlistResponse.data) ? waitlistResponse.data : [];
-        statistics = statsResponse.data || {};
-        const allUsers = usersRes.data.results || [];
-        
-        // Get contributions for waitlist users to find their join dates
-        const waitlistContributions = await contributionsAPI.getContributions({
-          contribution_type_slug: 'validator-waitlist',
-          limit: 100
-        });
-        
-        // Process and enrich waitlist user data
-        waitlistUsers = rawEntries.map(entry => {
-          // API now returns user_details instead of user
-          const userDetails = entry.user_details || {};
-          
-          // Find full user data
-          const fullUser = allUsers.find(u => 
-            u.address && userDetails.address && 
-            u.address.toLowerCase() === userDetails.address.toLowerCase()
-          );
-          
-          // Find when they joined the waitlist
-          const waitlistContribution = waitlistContributions.data?.results?.find(c =>
-            c.user_details?.address?.toLowerCase() === userDetails.address?.toLowerCase()
-          );
-          
-          return {
-            address: userDetails.address || '',
-            isWaitlisted: true,
-            user: fullUser || userDetails,
-            score: entry.total_points,
-            waitlistRank: entry.rank,
-            globalRank: null, // No global rank in new system
-            nodeVersion: fullUser?.validator?.node_version || null,
-            matchesTarget: fullUser?.validator?.matches_target || false,
-            targetVersion: fullUser?.validator?.target_version || null,
-            joinedWaitlist: waitlistContribution?.contribution_date || fullUser?.created_at,
-            referral_points: entry.referral_points || null
-          };
-        });
-        
-        // Sort by waitlist rank
-        waitlistUsers.sort((a, b) => {
-          if (a.waitlistRank && b.waitlistRank) {
-            return a.waitlistRank - b.waitlistRank;
-          }
-          return 0;
-        });
-        
-        // Get the 5 newest waitlist users
-        newestWaitlistUsers = [...waitlistUsers]
-          .sort((a, b) => {
-            const dateA = new Date(a.joinedWaitlist || 0);
-            const dateB = new Date(b.joinedWaitlist || 0);
-            return dateB - dateA;
-          })
-          .slice(0, 5);
-      }
-      
-      // Update stats from the stats response
+
+      const statsResponse = await leaderboardAPI.getWaitlistStats();
+
       if (statsResponse.data) {
+        statistics = statsResponse.data || {};
         stats = {
           totalParticipants: statsResponse.data.total_participants || 0,
           totalContributions: statsResponse.data.total_contributions || 0,
           totalPoints: statsResponse.data.total_points || 0
         };
       }
-      
-      loading = false;
+
       statsLoading = false;
     } catch (err) {
-      error = err.message || 'Failed to load waitlist data';
-      loading = false;
+      error = err.message || 'Failed to load waitlist stats';
       statsLoading = false;
     }
   }
@@ -250,21 +229,30 @@
           </div>
           <h2 class="text-lg font-semibold text-gray-900">Race to Testnet Asimov</h2>
         </div>
+        <button
+          onclick={() => push('/validators/waitlist/participants')}
+          class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
+        >
+          View all
+          <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
+        </button>
       </div>
       
-      {#if loading}
+      {#if topLoading}
         <div class="flex justify-center items-center p-8">
           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
-      {:else if waitlistUsers.length === 0}
+      {:else if topWaitlistUsers.length === 0}
         <div class="bg-gray-50 rounded-lg p-6 text-center">
           <p class="text-gray-500">No participants in the race yet.</p>
         </div>
       {:else}
         <div class="bg-white shadow rounded-lg divide-y divide-gray-200">
-          {#each waitlistUsers.slice(0, 10) as user}
+          {#each topWaitlistUsers as user}
             {@const referralTotal = user.referral_points ? user.referral_points.builder_points + user.referral_points.validator_points : 0}
-            {@const contributionPoints = user.score - referralTotal}
+            {@const contributionPoints = Math.max(0, user.score - referralTotal)}
             <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
               <div class="flex items-center gap-3">
                 <div class="flex items-center justify-center w-8 h-8 rounded-full bg-amber-100 text-amber-700 font-semibold text-sm">
@@ -452,11 +440,7 @@
         </div>
       </div>
       
-      {#if loading}
-        <div class="flex justify-center items-center p-8">
-          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-        </div>
-      {:else if newestWaitlistUsers.length === 0}
+      {#if newestWaitlistUsers.length === 0}
         <div class="bg-gray-50 rounded-lg p-6 text-center">
           <p class="text-gray-500">No new participants.</p>
         </div>
@@ -487,164 +471,6 @@
         </div>
       {/if}
     </div>
-  </div>
-  
-  <!-- Full Waitlist Table -->
-  <div class="space-y-4">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <div class="p-1.5 bg-gray-100 rounded-lg">
-          <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-          </svg>
-        </div>
-        <h2 class="text-lg font-semibold text-gray-900">All Waitlist Participants</h2>
-      </div>
-      <div class="text-sm text-gray-500">
-        {waitlistUsers.length} participants in the journey
-      </div>
-    </div>
-    
-    {#if loading}
-      <div class="flex justify-center items-center p-8">
-        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
-      </div>
-    {:else if waitlistUsers.length === 0}
-      <div class="bg-white shadow rounded-lg p-8 text-center">
-        <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <p class="text-lg font-medium text-gray-900 mb-2">No participants on the journey</p>
-        <p class="text-sm text-gray-500">All waitlisted users have graduated as validators</p>
-      </div>
-    {:else}
-      <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Rank
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Participant
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Address
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Node Version
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Points
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Journey Status
-                </th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-              {#each waitlistUsers as user, i}
-                {@const referralTotal = user.referral_points ? user.referral_points.builder_points + user.referral_points.validator_points : 0}
-                {@const contributionPoints = user.score - referralTotal}
-                <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
-                      #{user.waitlistRank}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="flex items-center gap-3">
-                      <Avatar 
-                        user={user.user}
-                        size="sm"
-                        clickable={true}
-                      />
-                      <div>
-                        <div class="text-sm font-medium text-gray-900">
-                          {user.user?.name || 'Unnamed'}
-                        </div>
-                        {#if user.joinedWaitlist}
-                          <div class="text-xs text-gray-500">
-                            Joined {formatDate(user.joinedWaitlist)}
-                          </div>
-                        {/if}
-                      </div>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="flex items-center gap-2">
-                      <code class="text-xs font-mono text-gray-600">
-                        {truncateAddress(user.address)}
-                      </code>
-                      <a 
-                        href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${user.address}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="text-gray-400 hover:text-gray-600"
-                        title="View in Explorer"
-                      >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                        </svg>
-                      </a>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    {#if user.nodeVersion}
-                      <div class="flex items-center gap-2">
-                        <span class="font-mono text-sm">{user.nodeVersion}</span>
-                        {#if user.matchesTarget}
-                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            ✓ Ready
-                          </span>
-                        {:else if user.targetVersion}
-                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                            Update needed
-                          </span>
-                        {/if}
-                      </div>
-                    {:else}
-                      <span class="text-gray-400 text-sm">Not set</span>
-                    {/if}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="flex items-center gap-3">
-                      <div class="flex items-center gap-1">
-                        <Icon name="lightning" size="sm" className="text-amber-600" />
-                        <span class="text-sm font-medium text-gray-900">{contributionPoints}</span>
-                      </div>
-                      {#if referralTotal > 0}
-                        <div class="flex items-center gap-1">
-                          <Icon name="users" size="sm" className="text-purple-600" />
-                          <span class="text-sm font-medium text-purple-600">{referralTotal}</span>
-                        </div>
-                      {/if}
-                    </div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                      On Journey
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <button
-                      onclick={() => push(`/participant/${user.address}`)}
-                      class="text-sm text-primary-600 hover:text-primary-900 font-medium"
-                    >
-                      View Profile →
-                    </button>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    {/if}
   </div>
   
   <!-- Join Validator Waitlist Card -->

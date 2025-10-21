@@ -500,6 +500,31 @@ def update_referrer_points(contribution):
     elif category_slug == 'validator':
         rp.validator_points += points_to_add
         rp.save(update_fields=['validator_points'])
+    else:
+        # No category means no points added, no need to update leaderboard
+        return
+
+    # CRITICAL: Update referrer's validator-waitlist leaderboard entry
+    # This prevents LeaderboardEntry.total_points from being stale
+    # Only check if referrer is on validator-waitlist to avoid unnecessary work
+    if LeaderboardEntry.objects.filter(user=referrer, type='validator-waitlist').exists():
+        # Update only the validator-waitlist leaderboard (not all leaderboards)
+        # This is more efficient than update_user_leaderboard_entries(referrer)
+        # which would check all 4 leaderboard types
+        config = LEADERBOARD_CONFIG['validator-waitlist']
+        calculator = config['points_calculator']
+        points = calculator(referrer)
+
+        LeaderboardEntry.objects.update_or_create(
+            user=referrer,
+            type='validator-waitlist',
+            defaults={'total_points': points}
+        )
+
+        # Update ranks for validator-waitlist leaderboard
+        # Note: This is still expensive (updates all users in waitlist)
+        # but necessary for correctness
+        LeaderboardEntry.update_leaderboard_ranks('validator-waitlist')
 
 
 @transaction.atomic

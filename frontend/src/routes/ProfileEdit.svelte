@@ -7,6 +7,8 @@
   import Icon from '../components/Icons.svelte';
   import ImageCropper from '../components/ImageCropper.svelte';
   import { userStore } from '../lib/userStore';
+  import { showSuccess } from '../lib/toastStore';
+  import GitHubLink from '../components/GitHubLink.svelte';
   
   // State management
   let user = $state(null);
@@ -14,7 +16,6 @@
   let loading = $state(true);
   let error = $state('');
   let isSaving = $state(false);
-  let journeySuccessMessage = $state('');
   
   // Form fields
   let name = $state('');
@@ -84,16 +85,12 @@
       linkedinHandle = userData.linkedin_handle || '';
       profileImageUrl = userData.profile_image_url || '';
       bannerImageUrl = userData.banner_image_url || '';
-      
+
       // Check for journey success message
       const journeySuccess = sessionStorage.getItem('journeySuccess');
       if (journeySuccess) {
-        journeySuccessMessage = journeySuccess;
+        showSuccess(journeySuccess);
         sessionStorage.removeItem('journeySuccess');
-        // Auto-hide after 5 seconds
-        setTimeout(() => {
-          journeySuccessMessage = '';
-        }, 5000);
       }
     } catch (err) {
       error = 'Failed to load profile';
@@ -313,27 +310,14 @@
     showImageCropper = false;
     cropperImage = null;
   }
+
+  async function handleGitHubLinked(updatedUser) {
+    // Update local user state with the updated GitHub info
+    user = updatedUser;
+  }
 </script>
 
 <div class="container mx-auto px-4 py-8">
-
-  {#if journeySuccessMessage}
-    <div class="bg-green-50 border-l-4 border-green-400 p-4 mb-6">
-      <div class="flex">
-        <div class="flex-shrink-0">
-          <svg class="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-          </svg>
-        </div>
-        <div class="ml-3">
-          <p class="text-sm text-green-700">
-            {journeySuccessMessage}
-          </p>
-        </div>
-      </div>
-    </div>
-  {/if}
-
   {#if error}
     <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
       <p class="text-red-700">{error}</p>
@@ -571,15 +555,9 @@
               <p class="text-xs text-gray-500 mt-1">Linked on {new Date(user.github_linked_at).toLocaleDateString()}</p>
             {/if}
           {:else}
-            <button
-              onclick={() => push('/builders/welcome')}
-              class="w-full px-3 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors flex items-center justify-center gap-2"
-            >
-              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 0C4.477 0 0 4.477 0 10c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.341-3.369-1.341-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0110 4.836c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C17.137 18.163 20 14.418 20 10c0-5.523-4.477-10-10-10z" clip-rule="evenodd"/>
-              </svg>
-              Link GitHub Account
-            </button>
+            <GitHubLink
+              onLinked={handleGitHubLinked}
+            />
             <p class="text-xs text-gray-500 mt-1">Link your GitHub to participate in builder programs</p>
           {/if}
         </div>

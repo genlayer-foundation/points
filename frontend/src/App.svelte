@@ -5,6 +5,7 @@
   import { onMount } from 'svelte';
   import Navbar from './components/Navbar.svelte';
   import Sidebar from './components/Sidebar.svelte';
+  import ToastContainer from './components/ToastContainer.svelte';
   import ProfileCompletionGuard from './components/ProfileCompletionGuard.svelte';
   import { categoryTheme, currentCategory, detectCategoryFromRoute } from './stores/category.js';
   import { location } from 'svelte-spa-router';
@@ -38,6 +39,7 @@
   import StewardManageUsers from './routes/StewardManageUsers.svelte';
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
+  import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
   import BuilderWelcome from './routes/BuilderWelcome.svelte';
   import GitHubCallback from './routes/GitHubCallback.svelte';
   import TermsOfUse from './routes/TermsOfUse.svelte';
@@ -83,6 +85,7 @@
     '/validators/leaderboard': Leaderboard,
     '/validators/participants': Validators,
     '/validators/waitlist': Waitlist,
+    '/validators/waitlist/participants': WaitlistParticipants,
     '/validators/waitlist/join': ValidatorWaitlist,
     
     // Shared routes
@@ -290,6 +293,8 @@
       />
     </main>
   </div>
+  <!-- Global toast container -->
+  <ToastContainer />
 </div>
 
 <!-- Profile Completion Guard - Shows on all pages until profile is complete -->

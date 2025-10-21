@@ -103,14 +103,15 @@ export const contributionsAPI = {
 // API endpoints for leaderboard
 export const leaderboardAPI = {
   getLeaderboard: (params) => api.get('/leaderboard/', { params }),
-  getLeaderboardByType: (type, order = 'asc') =>
-    api.get('/leaderboard/', { params: { type, order } }),
+  getLeaderboardByType: (type, order = 'asc', additionalParams = {}) =>
+    api.get('/leaderboard/', { params: { type, order, ...additionalParams } }),
   getLeaderboardEntry: (address) => api.get(`/leaderboard/?user_address=${address}`),
   getMultipliers: () => api.get('/multipliers/'),
   getActiveMultipliers: () => api.get('/multipliers/active/'),
   getMultiplierPeriods: (multiplier_id) => api.get(`/multiplier-periods/?multiplier=${multiplier_id}`),
   getStats: () => api.get('/leaderboard/stats/'),
   getWaitlistStats: () => api.get('/leaderboard/validator-waitlist-stats/'),
+  getWaitlistTop: (limit = 10) => api.get('/leaderboard/validator-waitlist/top/', { params: { limit } }),
   getSupporters: () => api.get('/leaderboard/supporters/'),
   getTypes: () => api.get('/leaderboard/types/'),
   recalculateAll: () => api.post('/leaderboard/recalculate/')
