@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission
 from users.serializers import UserSerializer, LightUserSerializer
 from users.models import User
+from .recaptcha_field import ReCaptchaField
 import decimal
 
 
@@ -171,6 +172,8 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
     Context-aware: Uses lightweight serializers for list views to avoid N+1 queries.
     Supports formset-style evidence updates: evidence items with 'id' are updated,
     items without 'id' are created, and items not in the list are deleted.
+
+    Note: reCAPTCHA validation is required only for creating new submissions.
     """
     user_details = serializers.SerializerMethodField()
     contribution_type_name = serializers.ReadOnlyField(source='contribution_type.name')
@@ -179,6 +182,7 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
     state_display = serializers.CharField(source='get_state_display', read_only=True)
     can_edit = serializers.SerializerMethodField()
     contribution = serializers.SerializerMethodField()
+    recaptcha = ReCaptchaField(required=False)  # Required only on create, handled in validate()
 
     class Meta:
         model = SubmittedContribution
@@ -186,7 +190,7 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
                   'contribution_type_details', 'contribution_date', 'notes', 'state', 'state_display',
                   'staff_reply', 'reviewed_by', 'reviewed_at', 'evidence_items', 'can_edit',
                   'suggested_points', 'converted_contribution', 'contribution',
-                  'created_at', 'updated_at', 'last_edited_at']
+                  'created_at', 'updated_at', 'last_edited_at', 'recaptcha']
         read_only_fields = ['id', 'user', 'state', 'staff_reply', 'reviewed_by',
                           'reviewed_at', 'created_at', 'updated_at', 'last_edited_at',
                           'suggested_points', 'converted_contribution']
@@ -232,6 +236,24 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
             contrib_context['use_light_serializers'] = True  # Use light even for detail
             return ContributionSerializer(obj.converted_contribution, context=contrib_context).data
         return None
+
+    def validate(self, data):
+        """
+        Validate submission data.
+        Require reCAPTCHA only for new submissions (create operation).
+        """
+        # Check if this is a create operation (no instance exists)
+        if not self.instance:
+            # Creating new submission - require reCAPTCHA
+            if 'recaptcha' not in data or not data.get('recaptcha'):
+                raise serializers.ValidationError({
+                    'recaptcha': 'reCAPTCHA verification is required for new submissions.'
+                })
+
+        # Remove recaptcha from validated data as it's not a model field
+        data.pop('recaptcha', None)
+
+        return data
 
     def create(self, validated_data):
         """Create a new submission with the current user."""

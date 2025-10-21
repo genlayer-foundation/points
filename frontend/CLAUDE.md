@@ -370,6 +370,9 @@ const routes = {
     - Disconnect - Logs out
   - Reactively updates name from `userStore`
 - `SubmitContribution.svelte` - Contribution form (supports URL and description evidence only - no file uploads)
+  - Includes Google reCAPTCHA v2 verification for spam prevention
+  - reCAPTCHA token validated on backend before submission
+  - Uses VITE_RECAPTCHA_SITE_KEY from environment (falls back to test key)
 - `EditSubmission.svelte` - Edit submitted contributions (supports URL and description evidence only - no file uploads)
 - `EditProfile.svelte` - User profile editing (name and node version)
 - `Profile.svelte` - Public participant profile view
@@ -489,6 +492,7 @@ Set in `.env` file:
 - `VITE_VALIDATOR_RPC_URL` - Blockchain RPC endpoint for Asimov testnet
 - `VITE_VALIDATOR_CONTRACT_ADDRESS` - Validator contract address
 - `VITE_EXPLORER_URL` - Blockchain explorer URL
+- `VITE_RECAPTCHA_SITE_KEY` - Google reCAPTCHA site key (required - use test key from .env.example for development)
 
 ## Common Commands
 ```bash

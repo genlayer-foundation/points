@@ -66,6 +66,10 @@ backend/
   - ContributionType - Categories with slug field (Node Running, Blog Posts, etc.)
   - ContributionTypeMultiplier - Dynamic point multipliers
   - Evidence - Evidence items for contributions (text descriptions and URLs only - file uploads are disabled)
+- **reCAPTCHA**: `contributions/recaptcha_field.py`
+  - Custom DRF serializer field for Google reCAPTCHA v2 validation
+  - Validates tokens from frontend reCAPTCHA widget
+  - Required for new contribution submissions only (not for edits)
 
 ### Node Upgrade (Sub-app)
 - **Models**: `contributions/node_upgrade/models.py`
@@ -145,6 +149,8 @@ Located in `.env` file:
 - `SECRET_KEY` - Django secret key
 - `DEBUG` - Debug mode flag
 - `ALLOWED_HOSTS` - Allowed host headers
+- `RECAPTCHA_PUBLIC_KEY` - Google reCAPTCHA site key (required - use test key from .env.example for development)
+- `RECAPTCHA_PRIVATE_KEY` - Google reCAPTCHA secret key (required - use test key from .env.example for development)
 
 ## Common Commands
 ```bash
@@ -182,6 +188,7 @@ python manage.py collectstatic
 - Points calculation: base_points × multipliers = total_points
 - Addresses are stored lowercase but compared case-insensitively
 - **Evidence Submission**: File uploads are disabled (issue #212). Evidence must be submitted as text descriptions or URLs only.
+- **reCAPTCHA Protection**: New contribution submissions require Google reCAPTCHA v2 verification to prevent spam. Editing existing submissions does not require reCAPTCHA.
 
 ## Serialization Patterns & Performance Optimization
 
