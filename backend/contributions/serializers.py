@@ -57,9 +57,7 @@ class ContributionSerializer(serializers.ModelSerializer):
 
     def get_evidence_items(self, obj):
         """Returns serialized evidence items for this contribution."""
-        # For list views, skip evidence to reduce queries
-        if self.context.get('use_light_serializers', True):
-            return []
+        # Always include evidence - ViewSet already prefetches to avoid N+1 queries
         evidence_items = obj.evidence_items.all().order_by('-created_at')
         return EvidenceSerializer(evidence_items, many=True, context=self.context).data
 
@@ -169,9 +167,7 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
 
     def get_evidence_items(self, obj):
         """Returns serialized evidence items for this submission."""
-        # For list views, skip evidence to reduce queries
-        if self.context.get('use_light_serializers', False):
-            return []
+        # Always include evidence - ViewSet already prefetches to avoid N+1 queries
         evidence_items = obj.evidence_items.all().order_by('-created_at')
         return SubmittedEvidenceSerializer(evidence_items, many=True, context=self.context).data
 
@@ -441,9 +437,8 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
 
     def get_evidence_items(self, obj):
         """Returns serialized evidence items for this submission."""
-        # For list views, skip evidence to reduce queries
-        if self.context.get('use_light_serializers', False):
-            return []
+        # Always include evidence - ViewSet already prefetches to avoid N+1 queries
+        # Stewards need evidence to make informed review decisions
         evidence_items = obj.evidence_items.all().order_by('-created_at')
         return EvidenceSerializer(evidence_items, many=True, context=self.context).data
 
