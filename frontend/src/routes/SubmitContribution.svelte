@@ -4,7 +4,7 @@
   import { onMount } from 'svelte';
   import api from '../lib/api.js';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
-  
+
   let loading = $state(false);
   let submitting = $state(false);
   let error = $state('');
@@ -90,15 +90,46 @@
   
   async function handleSubmit(event) {
     event.preventDefault();
-    
+
+    // Validate required fields
     if (!formData.contribution_type) {
       error = 'Please select a contribution type';
       return;
     }
-    
+
+    // Validate evidence slots - if any field is filled, both must be filled
+    for (let i = 0; i < evidenceSlots.length; i++) {
+      const slot = evidenceSlots[i];
+      const hasDescription = slot.description && slot.description.trim().length > 0;
+      const hasUrl = slot.url && slot.url.trim().length > 0;
+
+      if (hasDescription && !hasUrl) {
+        error = `Evidence ${i + 1}: Please provide a URL along with the description`;
+        return;
+      }
+      if (hasUrl && !hasDescription) {
+        error = `Evidence ${i + 1}: Please provide a description along with the URL`;
+        return;
+      }
+    }
+
+    // Validate that user has provided either notes or evidence
+    const filledSlots = evidenceSlots.filter(slot => {
+      const hasDescription = slot.description && slot.description.trim().length > 0;
+      const hasUrl = slot.url && slot.url.trim().length > 0;
+      return hasDescription && hasUrl;
+    });
+    const hasNotes = formData.notes && formData.notes.trim().length > 0;
+    const hasEvidence = filledSlots.length > 0;
+
+    if (!hasNotes && !hasEvidence) {
+      error = 'Please provide either a description or evidence to support your contribution';
+      return;
+    }
+
     submitting = true;
     error = '';
-    
+
     try {
       // Create the submission
       const submissionData = {
@@ -111,8 +142,6 @@
       const submissionId = response.data.id;
       
       // Add evidence from slots that have content
-      const filledSlots = evidenceSlots.filter(hasEvidenceInSlot);
-      
       for (const slot of filledSlots) {
         const evidenceData = {};
 
