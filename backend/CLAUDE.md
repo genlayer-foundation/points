@@ -152,6 +152,8 @@ Located in `.env` file:
 - `RECAPTCHA_PUBLIC_KEY` - Google reCAPTCHA site key (required - use test key from .env.example for development)
 - `RECAPTCHA_PRIVATE_KEY` - Google reCAPTCHA secret key (required - use test key from .env.example for development)
 
+**AWS Deployment:** For production deployments on AWS App Runner, all environment variables must be stored in AWS Systems Manager (SSM) Parameter Store. See `aws-deployment-guide.md` for setup instructions.
+
 ## Common Commands
 ```bash
 # Activate environment
