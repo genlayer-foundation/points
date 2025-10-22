@@ -3,40 +3,72 @@
   import { authState } from '../lib/auth.js';
   import { onMount } from 'svelte';
   import api from '../lib/api.js';
-  
+  import ConfirmDialog from '../components/ConfirmDialog.svelte';
+  import ContributionSelection from '../lib/components/ContributionSelection.svelte';
+  import { showError } from '../lib/toastStore.js';
+
   let { params = {} } = $props();
-  
+
   let submission = $state(null);
   let contributionTypes = $state([]);
   let loading = $state(true);
   let submitting = $state(false);
   let error = $state('');
   let authChecked = $state(false);
-  
+  let showDeleteDialog = $state(false);
+
+  // Contribution type selection state
+  let selectedCategory = $state('validator');
+  let selectedContributionType = $state(null);
+
   // Form data
   let formData = $state({
     contribution_type: '',
     contribution_date: '',
     notes: ''
   });
-  
+
   // Evidence slots for editing
   let evidenceSlots = $state([]);
-  
-  // Update form data when submission changes
+
+  // Flag to track if form has been initialized
+  let formInitialized = $state(false);
+
+  // Update form data when submission changes (only on initial load)
   $effect(() => {
-    if (submission && !loading) {
+    if (submission && contributionTypes.length > 0 && !loading && !formInitialized) {
       formData = {
         contribution_type: submission.contribution_type,
         contribution_date: submission.contribution_date ? submission.contribution_date.split('T')[0] : '',
         notes: submission.notes || ''
       };
-      console.log('Form data updated from submission:', formData);
+
+      // Set the selected contribution type for the fancy selector
+      const currentType = contributionTypes.find(t => t.id === submission.contribution_type);
+      if (currentType) {
+        selectedContributionType = currentType;
+        selectedCategory = currentType.category || 'validator';
+      }
+
+      formInitialized = true;
+      console.log('Form data initialized from submission:', formData);
+    }
+  });
+
+  // Sync selectedContributionType with formData.contribution_type
+  $effect(() => {
+    if (selectedContributionType) {
+      formData.contribution_type = selectedContributionType.id;
+      // Clear error when a contribution type is selected
+      if (error === 'Please select a contribution type') {
+        error = '';
+      }
     }
   });
   
   function addEvidenceSlot() {
-    evidenceSlots = [...evidenceSlots, { id: Date.now(), description: '', url: '', existing: false }];
+    // New evidence doesn't have an id - backend will create it
+    evidenceSlots = [...evidenceSlots, { description: '', url: '' }];
   }
 
   function removeEvidenceSlot(index) {
@@ -73,7 +105,7 @@
       authChecked = true;
       return;
     }
-    
+
     loading = true;
     try {
       // Load submission and contribution types in parallel
@@ -81,26 +113,31 @@
         api.get(`/submissions/${params.id}/`),
         api.get('/contribution-types/')
       ]);
-      
+
       submission = submissionResponse.data;
       // Handle paginated response for contribution types
       contributionTypes = typesResponse.data.results || typesResponse.data;
-      
+
       console.log('Loaded submission:', submission);
       console.log('Loaded contribution types:', contributionTypes);
-      
+
       // Check if editing is allowed
       if (!submission.can_edit) {
         error = 'This submission cannot be edited';
         return;
       }
-      
+
       // Form data will be populated by the $effect
-      
-      // Note: We don't populate existing evidence as editable slots
-      // since the backend doesn't support updating existing evidence
-      // Users can only add new evidence items
-      
+
+      // Load existing evidence into editable slots (with id for existing items)
+      if (submission.evidence_items && submission.evidence_items.length > 0) {
+        evidenceSlots = submission.evidence_items.map(item => ({
+          id: item.id,  // Include id for existing evidence
+          description: item.description || '',
+          url: item.url || ''
+        }));
+      }
+
     } catch (err) {
       if (err.response?.status === 404) {
         error = 'Submission not found';
@@ -133,47 +170,95 @@
   
   async function handleSubmit(event) {
     event.preventDefault();
-    
+
     submitting = true;
     error = '';
-    
+
     try {
-      const updateData = {
-        contribution_type: formData.contribution_type,
-        contribution_date: formData.contribution_date + 'T00:00:00Z',
-        notes: formData.notes
-      };
-      
-      await api.put(`/submissions/${params.id}/`, updateData);
-      
-      // Add new evidence items
-      const filledSlots = evidenceSlots.filter(hasEvidenceInSlot);
-      for (const slot of filledSlots) {
-        const evidenceData = {};
-
-        if (slot.description) {
-          evidenceData.description = slot.description;
-        }
-        if (slot.url) {
-          // Normalize URL before sending to backend
-          evidenceData.url = normalizeUrl(slot.url);
-        }
-
-        await api.post(`/submissions/${params.id}/add-evidence/`, evidenceData);
+      // Validate required fields
+      if (!formData.contribution_type) {
+        error = 'Please select a contribution type';
+        showError(error);
+        return;
       }
-      
+
+      if (!formData.contribution_date) {
+        error = 'Please select a contribution date';
+        showError(error);
+        return;
+      }
+
+      // Prepare evidence items (formset pattern)
+      // Include all slots that have content
+      const evidence_items = evidenceSlots
+        .filter(hasEvidenceInSlot)
+        .map(slot => {
+          const item = {
+            description: slot.description || '',
+            url: slot.url ? normalizeUrl(slot.url) : ''
+          };
+          // Include id for existing evidence (items with id will be updated)
+          if (slot.id) {
+            item.id = slot.id;
+          }
+          return item;
+        });
+
+      const updateData = {
+        contribution_type: parseInt(formData.contribution_type),
+        contribution_date: formData.contribution_date + 'T00:00:00Z',
+        notes: formData.notes || '',
+        evidence_items: evidence_items  // Send all evidence in one request
+      };
+
+      console.log('Submitting update:', updateData);
+
+      await api.put(`/submissions/${params.id}/`, updateData);
+
       // Store success message in sessionStorage to show on My Submissions page
-      sessionStorage.setItem('submissionUpdateSuccess', 'Your submission has been successfully updated and resubmitted for review.');
-      
+      sessionStorage.setItem('submissionUpdateSuccess', 'Your submission has been saved successfully.');
+
       // Redirect immediately to my submissions
       push('/my-submissions');
-      
+
     } catch (err) {
-      error = err.response?.data?.error || 'Failed to update submission';
+      error = err.response?.data?.error || err.response?.data?.detail || 'Failed to update submission';
+      showError(error);
+      console.error('Update error:', err.response?.data || err);
+    } finally {
+      submitting = false;
+    }
+  }
+
+  function handleDeleteSubmission() {
+    showDeleteDialog = true;
+  }
+
+  async function confirmDelete() {
+    showDeleteDialog = false;
+    submitting = true;
+    error = '';
+
+    try {
+      await api.delete(`/submissions/${params.id}/`);
+
+      // Store success message in sessionStorage to show on My Submissions page
+      sessionStorage.setItem('submissionUpdateSuccess', 'Your submission has been removed.');
+
+      // Redirect to my submissions
+      push('/my-submissions');
+
+    } catch (err) {
+      error = err.response?.data?.error || 'Failed to delete submission';
+      showError(error);
       console.error(err);
     } finally {
       submitting = false;
     }
+  }
+
+  function cancelDelete() {
+    showDeleteDialog = false;
   }
 </script>
 
@@ -221,22 +306,16 @@
         {/if}
         
         <div class="mb-6">
-          <label for="contribution_type" class="block text-sm font-medium text-gray-700 mb-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
             Contribution Type <span class="text-red-500">*</span>
           </label>
-          <select
-            id="contribution_type"
-            bind:value={formData.contribution_type}
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            required
-          >
-            <option value="">Select a contribution type</option>
-            {#each contributionTypes as type}
-              <option value={type.id} selected={type.id === formData.contribution_type}>
-                {type.name} ({type.min_points}-{type.max_points} points)
-              </option>
-            {/each}
-          </select>
+          <ContributionSelection
+            bind:selectedCategory
+            bind:selectedContributionType
+            providedContributionTypes={contributionTypes}
+            onlySubmittable={false}
+            stewardMode={false}
+          />
         </div>
         
         <div class="mb-6">
@@ -265,34 +344,11 @@
             placeholder="Update your contribution description based on the staff feedback..."
           ></textarea>
         </div>
-        
-        {#if submission.evidence_items && submission.evidence_items.length > 0}
-          <div class="mb-6">
-            <h3 class="text-lg font-medium mb-2">Current Evidence</h3>
-            <div class="bg-gray-50 p-3 rounded">
-              <ul class="space-y-3">
-                {#each submission.evidence_items as evidence}
-                  <li class="text-sm">
-                    {#if evidence.description}
-                      • {evidence.description}
-                    {/if}
-                    {#if evidence.url}
-                      - <a href={evidence.url} target="_blank" class="text-primary-600 underline">View URL</a>
-                    {/if}
-                    {#if evidence.file_url}
-                      - <a href={evidence.file_url} target="_blank" class="text-primary-600 underline">View File</a>
-                    {/if}
-                  </li>
-                {/each}
-              </ul>
-            </div>
-          </div>
-        {/if}
-        
+
         <div class="mb-6">
           <div class="flex justify-between items-center mb-2">
             <label class="block text-sm font-medium text-gray-700">
-              Add New Evidence
+              Evidence & Supporting Information
             </label>
             <button
               type="button"
@@ -302,10 +358,10 @@
               + Add Evidence
             </button>
           </div>
-          
+
           {#if evidenceSlots.length === 0}
             <div class="bg-gray-50 p-4 rounded text-center text-gray-500">
-              Click "Add Evidence" to include additional supporting information.
+              No evidence added yet. Click "Add Evidence" to include supporting information.
             </div>
           {:else}
             <div class="space-y-4">
@@ -363,18 +419,38 @@
             disabled={submitting}
             class="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? 'Updating...' : 'Update & Resubmit'}
+            {submitting ? 'Saving...' : 'Save'}
           </button>
-          
+
           <button
             type="button"
             onclick={() => push('/my-submissions')}
-            class="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+            disabled={submitting}
+            class="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 disabled:opacity-50"
           >
             Cancel
+          </button>
+
+          <button
+            type="button"
+            onclick={handleDeleteSubmission}
+            disabled={submitting}
+            class="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Remove Submission
           </button>
         </div>
       </form>
     </div>
   {/if}
 </div>
+
+<ConfirmDialog
+  isOpen={showDeleteDialog}
+  title="Remove Submission"
+  message="Are you sure you want to remove this submission? It will be marked as rejected."
+  confirmText="Remove"
+  cancelText="Cancel"
+  onConfirm={confirmDelete}
+  onCancel={cancelDelete}
+/>

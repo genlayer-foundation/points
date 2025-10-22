@@ -9,13 +9,18 @@
   let submitting = $state(false);
   let error = $state('');
   let authChecked = $state(false);
+  let recaptchaToken = $state('');
+  let recaptchaWidgetId = $state(null);
+
+  // Get reCAPTCHA site key from environment
+  const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
   // Mission-related state
   let missionId = $state(null);
   let mission = $state(null);
   let loadingMission = $state(false);
   let selectedMission = $state(null);
-  
+
   // Selection state
   let selectedCategory = $state('validator');
   let selectedContributionType = $state(null);
@@ -116,6 +121,28 @@
     // Wait a moment for auth state to be verified
     await new Promise(resolve => setTimeout(resolve, 100));
     authChecked = true;
+
+    // Poll for grecaptcha API and render widget when available
+    const checkRecaptcha = () => {
+      if (renderRecaptcha()) {
+        return; // Success - widget rendered
+      }
+      // Retry after 100ms if grecaptcha API not ready yet
+      setTimeout(checkRecaptcha, 100);
+    };
+
+    checkRecaptcha();
+
+    // Cleanup on component unmount
+    return () => {
+      if (recaptchaWidgetId !== null && window.grecaptcha) {
+        try {
+          window.grecaptcha.reset(recaptchaWidgetId);
+        } catch (e) {
+          // Ignore errors on cleanup
+        }
+      }
+    };
   });
   
   function handleSelectionChange(category, contributionType) {
@@ -153,24 +180,55 @@
   function hasEvidenceInSlot(slot) {
     return slot.description || slot.url;
   }
-  
+
+  // Explicitly render reCAPTCHA widget
+  function renderRecaptcha() {
+    if (typeof window === 'undefined' || !window.grecaptcha || !window.grecaptcha.render) {
+      return false;
+    }
+
+    try {
+      recaptchaWidgetId = window.grecaptcha.render('recaptcha-container', {
+        sitekey: RECAPTCHA_SITE_KEY,
+        callback: (token) => {
+          recaptchaToken = token;
+          // Clear any previous reCAPTCHA error
+          if (error && error.includes('reCAPTCHA')) {
+            error = '';
+          }
+        }
+      });
+      return true;
+    } catch (e) {
+      console.error('reCAPTCHA render error:', e);
+      return false;
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
-    
+
     if (!formData.contribution_type) {
       error = 'Please select a contribution type';
       return;
     }
-    
+
+    // Validate reCAPTCHA
+    if (!recaptchaToken) {
+      error = 'Please complete the reCAPTCHA verification';
+      return;
+    }
+
     submitting = true;
     error = '';
-    
+
     try {
-      // Create the submission
+      // Create the submission with reCAPTCHA token
       const submissionData = {
         contribution_type: formData.contribution_type,
         contribution_date: formData.contribution_date + 'T00:00:00Z',
-        notes: formData.notes
+        notes: formData.notes,
+        recaptcha: recaptchaToken
       };
 
       // Include mission if selected
@@ -206,8 +264,25 @@
       push('/my-submissions');
       
     } catch (err) {
-      error = err.response?.data?.error || err.response?.data?.detail || 'Failed to submit contribution';
+      // Handle reCAPTCHA specific errors
+      if (err.response?.data?.recaptcha) {
+        error = Array.isArray(err.response.data.recaptcha)
+          ? err.response.data.recaptcha[0]
+          : err.response.data.recaptcha;
+      } else {
+        error = err.response?.data?.error || err.response?.data?.detail || 'Failed to submit contribution';
+      }
       console.error('Submission error:', err);
+
+      // Reset reCAPTCHA on error using widget ID
+      if (recaptchaWidgetId !== null && window.grecaptcha) {
+        try {
+          window.grecaptcha.reset(recaptchaWidgetId);
+          recaptchaToken = '';
+        } catch (e) {
+          console.error('Error resetting reCAPTCHA:', e);
+        }
+      }
     } finally {
       submitting = false;
     }
@@ -354,7 +429,14 @@
           Add URLs and descriptions to support your contribution claim. Provide links to GitHub, Twitter, blog posts, or other evidence.
         </p>
       </div>
-      
+
+      <div class="mb-6">
+        <div id="recaptcha-container"></div>
+        {#if error && error.includes('reCAPTCHA')}
+          <p class="text-red-500 text-sm mt-2">{error}</p>
+        {/if}
+      </div>
+
       <div class="flex gap-4">
         <button
           type="submit"

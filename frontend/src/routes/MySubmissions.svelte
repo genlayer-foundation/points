@@ -6,7 +6,7 @@
   import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
   import SubmissionCard from '../components/SubmissionCard.svelte';
   import { showSuccess } from '../lib/toastStore';
-  
+
   let submissions = $state([]);
   let loading = $state(true);
   let error = $state('');
@@ -173,7 +173,7 @@
     
     <div class="space-y-4">
       {#each submissions as submission}
-        <SubmissionCard 
+        <SubmissionCard
           {submission}
           isOwnSubmission={true}
         />

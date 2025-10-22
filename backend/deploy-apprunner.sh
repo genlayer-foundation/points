@@ -209,7 +209,9 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "GITHUB_CLIENT_ID": "$SSM_PREFIX/prod/github_client_id",
           "GITHUB_CLIENT_SECRET": "$SSM_PREFIX/prod/github_client_secret",
           "GITHUB_ENCRYPTION_KEY": "$SSM_PREFIX/prod/github_encryption_key",
-          "GITHUB_REPO_TO_STAR": "$SSM_PREFIX/prod/github_repo_to_star"
+          "GITHUB_REPO_TO_STAR": "$SSM_PREFIX/prod/github_repo_to_star",
+          "RECAPTCHA_PUBLIC_KEY": "$SSM_PREFIX/prod/recaptcha_public_key",
+          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/prod/recaptcha_private_key"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
@@ -289,7 +291,9 @@ else
           "GITHUB_CLIENT_ID": "$SSM_PREFIX/prod/github_client_id",
           "GITHUB_CLIENT_SECRET": "$SSM_PREFIX/prod/github_client_secret",
           "GITHUB_ENCRYPTION_KEY": "$SSM_PREFIX/prod/github_encryption_key",
-          "GITHUB_REPO_TO_STAR": "$SSM_PREFIX/prod/github_repo_to_star"
+          "GITHUB_REPO_TO_STAR": "$SSM_PREFIX/prod/github_repo_to_star",
+          "RECAPTCHA_PUBLIC_KEY": "$SSM_PREFIX/prod/recaptcha_public_key",
+          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/prod/recaptcha_private_key"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },

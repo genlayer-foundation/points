@@ -1,9 +1,56 @@
 from rest_framework import serializers
 from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission
-from users.serializers import UserSerializer
+from users.serializers import UserSerializer, LightUserSerializer
 from users.models import User
-from utils.serializers import LightUserSerializer, LightContributionTypeSerializer
+from .recaptcha_field import ReCaptchaField
 import decimal
+
+
+# ============================================================================
+# Lightweight Serializers for Optimized List Views
+# ============================================================================
+# These serializers provide minimal data for list views and nested relationships,
+# significantly reducing database queries and response payload size.
+
+
+class LightContributionTypeSerializer(serializers.Serializer):
+    """
+    Minimal contribution type serializer for nested relationships.
+    Only includes basic type information without expensive computed fields.
+    """
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    slug = serializers.SlugField(read_only=True)
+    description = serializers.CharField(read_only=True)
+    min_points = serializers.IntegerField(read_only=True)
+    max_points = serializers.IntegerField(read_only=True)
+    # Include category slug only, not the full category object
+    category = serializers.SerializerMethodField()
+
+    def get_category(self, obj):
+        """Return just the category slug."""
+        return obj.category.slug if obj.category else None
+
+
+class LightContributionSerializer(serializers.Serializer):
+    """
+    Minimal contribution serializer for recent contributions and highlights.
+    Uses lightweight nested serializers to avoid N+1 queries.
+    """
+    id = serializers.IntegerField(read_only=True)
+    user = LightUserSerializer(read_only=True)
+    contribution_type = LightContributionTypeSerializer(read_only=True)
+    points = serializers.IntegerField(read_only=True)
+    frozen_global_points = serializers.IntegerField(read_only=True)
+    multiplier_at_creation = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+    contribution_date = serializers.DateTimeField(read_only=True)
+    notes = serializers.CharField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+
+
+# ============================================================================
+# Full Serializers
+# ============================================================================
 
 
 class ContributionTypeSerializer(serializers.ModelSerializer):
@@ -58,9 +105,7 @@ class ContributionSerializer(serializers.ModelSerializer):
 
     def get_evidence_items(self, obj):
         """Returns serialized evidence items for this contribution."""
-        # For list views, skip evidence to reduce queries
-        if self.context.get('use_light_serializers', True):
-            return []
+        # Always include evidence - ViewSet already prefetches to avoid N+1 queries
         evidence_items = obj.evidence_items.all().order_by('-created_at')
         return EvidenceSerializer(evidence_items, many=True, context=self.context).data
 
@@ -122,10 +167,24 @@ class EvidenceSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
+class SubmittedEvidenceSerializer(serializers.ModelSerializer):
+    """Serializer for evidence items belonging to submitted contributions."""
+    id = serializers.IntegerField(required=False)  # Optional: present for existing evidence, absent for new
+
+    class Meta:
+        model = Evidence
+        fields = ['id', 'description', 'url', 'created_at']
+        read_only_fields = ['created_at']
+
+
 class SubmittedContributionSerializer(serializers.ModelSerializer):
     """
     Serializer for submitted contributions (user submissions).
     Context-aware: Uses lightweight serializers for list views to avoid N+1 queries.
+    Supports formset-style evidence updates: evidence items with 'id' are updated,
+    items without 'id' are created, and items not in the list are deleted.
+
+    Note: reCAPTCHA validation is required only for creating new submissions.
     """
     user_details = serializers.SerializerMethodField()
     contribution_type_name = serializers.ReadOnlyField(source='contribution_type.name')
@@ -134,15 +193,24 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
     state_display = serializers.CharField(source='get_state_display', read_only=True)
     can_edit = serializers.SerializerMethodField()
     contribution = serializers.SerializerMethodField()
+<<<<<<< HEAD
     mission_details = serializers.SerializerMethodField()
+=======
+    recaptcha = ReCaptchaField(required=False)  # Required only on create, handled in validate()
+>>>>>>> origin/dev
 
     class Meta:
         model = SubmittedContribution
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name',
                   'contribution_type_details', 'contribution_date', 'notes', 'state', 'state_display',
                   'staff_reply', 'reviewed_by', 'reviewed_at', 'evidence_items', 'can_edit',
+<<<<<<< HEAD
                   'suggested_points', 'converted_contribution', 'contribution', 'mission', 'mission_details',
                   'created_at', 'updated_at', 'last_edited_at']
+=======
+                  'suggested_points', 'converted_contribution', 'contribution',
+                  'created_at', 'updated_at', 'last_edited_at', 'recaptcha']
+>>>>>>> origin/dev
         read_only_fields = ['id', 'user', 'state', 'staff_reply', 'reviewed_by',
                           'reviewed_at', 'created_at', 'updated_at', 'last_edited_at',
                           'suggested_points', 'converted_contribution']
@@ -169,15 +237,13 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
 
     def get_evidence_items(self, obj):
         """Returns serialized evidence items for this submission."""
-        # For list views, skip evidence to reduce queries
-        if self.context.get('use_light_serializers', False):
-            return []
+        # Always include evidence - ViewSet already prefetches to avoid N+1 queries
         evidence_items = obj.evidence_items.all().order_by('-created_at')
-        return EvidenceSerializer(evidence_items, many=True, context=self.context).data
+        return SubmittedEvidenceSerializer(evidence_items, many=True, context=self.context).data
 
     def get_can_edit(self, obj):
         """Check if the submission can be edited."""
-        return obj.state == 'more_info_needed'
+        return obj.state in ['pending', 'more_info_needed']
 
     def get_contribution(self, obj):
         """Get the created contribution if submission was accepted."""
@@ -191,6 +257,7 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
             return ContributionSerializer(obj.converted_contribution, context=contrib_context).data
         return None
 
+<<<<<<< HEAD
     def get_mission_details(self, obj):
         """Returns mission details if linked."""
         if obj.mission:
@@ -202,20 +269,91 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
                 'contribution_type': obj.mission.contribution_type_id
             }
         return None
+=======
+    def validate(self, data):
+        """
+        Validate submission data.
+        Require reCAPTCHA only for new submissions (create operation).
+        """
+        # Check if this is a create operation (no instance exists)
+        if not self.instance:
+            # Creating new submission - require reCAPTCHA
+            if 'recaptcha' not in data or not data.get('recaptcha'):
+                raise serializers.ValidationError({
+                    'recaptcha': 'reCAPTCHA verification is required for new submissions.'
+                })
+
+        # Remove recaptcha from validated data as it's not a model field
+        data.pop('recaptcha', None)
+
+        return data
+>>>>>>> origin/dev
 
     def create(self, validated_data):
         """Create a new submission with the current user."""
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
 
+    def update(self, instance, validated_data):
+        """
+        Update submission with formset-style evidence handling.
+        Evidence items with 'id' are updated, items without 'id' are created,
+        and items not in the list are deleted.
+        """
+        # Extract evidence items from initial_data (raw request data)
+        # since evidence_items is a SerializerMethodField and not in validated_data
+        evidence_items_data = self.initial_data.get('evidence_items', None)
 
-class SubmittedEvidenceSerializer(serializers.ModelSerializer):
-    """Serializer for evidence items belonging to submitted contributions."""
+        # Update the submission fields
+        instance = super().update(instance, validated_data)
 
-    class Meta:
-        model = Evidence
-        fields = ['id', 'description', 'url', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        # Handle evidence updates if provided (formset pattern)
+        if evidence_items_data is not None:
+            # Validate and serialize the evidence items
+            evidence_serializer = SubmittedEvidenceSerializer(data=evidence_items_data, many=True)
+            if not evidence_serializer.is_valid():
+                raise serializers.ValidationError({'evidence_items': evidence_serializer.errors})
+
+            evidence_items_validated = evidence_serializer.validated_data
+
+            # Get existing evidence IDs
+            existing_evidence_ids = set(instance.evidence_items.values_list('id', flat=True))
+
+            # Track which evidence items are being kept/updated
+            processed_evidence_ids = set()
+
+            for evidence_data in evidence_items_validated:
+                evidence_id = evidence_data.get('id')
+
+                if evidence_id:
+                    # Update existing evidence
+                    try:
+                        evidence = Evidence.objects.get(
+                            id=evidence_id,
+                            submitted_contribution=instance
+                        )
+                        # Update fields
+                        evidence.description = evidence_data.get('description', evidence.description)
+                        evidence.url = evidence_data.get('url', evidence.url)
+                        evidence.save()
+                        processed_evidence_ids.add(evidence_id)
+                    except Evidence.DoesNotExist:
+                        # Evidence doesn't belong to this submission - ignore or raise error
+                        pass
+                else:
+                    # Create new evidence
+                    Evidence.objects.create(
+                        submitted_contribution=instance,
+                        description=evidence_data.get('description', ''),
+                        url=evidence_data.get('url', '')
+                    )
+
+            # Delete evidence items that weren't in the submitted list
+            evidence_to_delete = existing_evidence_ids - processed_evidence_ids
+            if evidence_to_delete:
+                Evidence.objects.filter(id__in=evidence_to_delete).delete()
+
+        return instance
 
 
 class ContributionHighlightSerializer(serializers.ModelSerializer):
@@ -253,7 +391,6 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
         Return lightweight contribution details to avoid N+1 queries.
         Most needed info is already in the flat fields above.
         """
-        from utils.serializers import LightContributionSerializer
         return LightContributionSerializer(obj.contribution).data
 
     def get_user_validator(self, obj):
@@ -415,9 +552,8 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
 
     def get_evidence_items(self, obj):
         """Returns serialized evidence items for this submission."""
-        # For list views, skip evidence to reduce queries
-        if self.context.get('use_light_serializers', False):
-            return []
+        # Always include evidence - ViewSet already prefetches to avoid N+1 queries
+        # Stewards need evidence to make informed review decisions
         evidence_items = obj.evidence_items.all().order_by('-created_at')
         return EvidenceSerializer(evidence_items, many=True, context=self.context).data
 

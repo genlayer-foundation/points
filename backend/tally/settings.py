@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'drf_yasg',
     'django_filters',
+    'django_recaptcha',
     'allow_cidr',
     
     # Local apps
@@ -298,3 +299,16 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # Use forwarded headers for generating URLs
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
+
+# Google reCAPTCHA settings
+# Required for contribution submission spam protection
+# For development: Use Google's test keys (see .env.example)
+# For production: Get real keys at https://www.google.com/recaptcha/admin
+RECAPTCHA_PUBLIC_KEY = get_required_env('RECAPTCHA_PUBLIC_KEY')
+RECAPTCHA_PRIVATE_KEY = get_required_env('RECAPTCHA_PRIVATE_KEY')
+
+# Silence the test key warning in development when using Google's test keys
+# In production, this warning will still appear if test keys are accidentally used
+SILENCED_SYSTEM_CHECKS = []
+if DEBUG and RECAPTCHA_PUBLIC_KEY == '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI':
+    SILENCED_SYSTEM_CHECKS.append('django_recaptcha.recaptcha_test_key_error')

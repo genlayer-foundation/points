@@ -66,6 +66,10 @@ backend/
   - ContributionType - Categories with slug field (Node Running, Blog Posts, etc.)
   - ContributionTypeMultiplier - Dynamic point multipliers
   - Evidence - Evidence items for contributions (text descriptions and URLs only - file uploads are disabled)
+- **reCAPTCHA**: `contributions/recaptcha_field.py`
+  - Custom DRF serializer field for Google reCAPTCHA v2 validation
+  - Validates tokens from frontend reCAPTCHA widget
+  - Required for new contribution submissions only (not for edits)
 
 ### Node Upgrade (Sub-app)
 - **Models**: `contributions/node_upgrade/models.py`
@@ -145,6 +149,10 @@ Located in `.env` file:
 - `SECRET_KEY` - Django secret key
 - `DEBUG` - Debug mode flag
 - `ALLOWED_HOSTS` - Allowed host headers
+- `RECAPTCHA_PUBLIC_KEY` - Google reCAPTCHA site key (required - use test key from .env.example for development)
+- `RECAPTCHA_PRIVATE_KEY` - Google reCAPTCHA secret key (required - use test key from .env.example for development)
+
+**AWS Deployment:** For production deployments on AWS App Runner, all environment variables must be stored in AWS Systems Manager (SSM) Parameter Store. See `aws-deployment-guide.md` for setup instructions.
 
 ## Common Commands
 ```bash
@@ -182,6 +190,20 @@ python manage.py collectstatic
 - Points calculation: base_points × multipliers = total_points
 - Addresses are stored lowercase but compared case-insensitively
 - **Evidence Submission**: File uploads are disabled (issue #212). Evidence must be submitted as text descriptions or URLs only.
+- **reCAPTCHA Protection**: New contribution submissions require Google reCAPTCHA v2 verification to prevent spam. Editing existing submissions does not require reCAPTCHA.
+
+## Serialization Patterns & Performance Optimization
+
+The project uses **context-aware serialization** to optimize API performance:
+- **Light serializers** (`Light*Serializer`) for list views - minimal fields, no nested queries
+- **Full serializers** for detail views - complete data with relationships
+- ViewSets set `context['use_light_serializers'] = self.action == 'list'`
+- Serializers check context flag to choose which nested serializer to use
+- Always use `select_related()` for ForeignKey/OneToOne and `prefetch_related()` for reverse/M2M
+- Light serializers defined at top of each app's `serializers.py` with `Light` prefix
+- Performance impact: 99%+ query reduction (30s+ → <1s for list views)
+
+**Examples**: See `users/serializers.py` for `LightUserSerializer` and `contributions/serializers.py` for `LightContributionSerializer`
 
 ## Testing
 - **Test Organization Best Practice**: Use `{app}/tests/` folder structure for better organization

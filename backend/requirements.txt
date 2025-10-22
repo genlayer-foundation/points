@@ -23,3 +23,4 @@ requests>=2.31.0
 cryptography>=41.0.0
 email-validator>=2.1.0
 disposable-email-domains>=0.0.97
+django-recaptcha>=4.0.0
