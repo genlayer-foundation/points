@@ -10,12 +10,12 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.generic import ListView
 from django.utils.decorators import method_decorator
-from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission
+from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission, Notification
 from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
                          StewardSubmissionSerializer, StewardSubmissionReviewSerializer,
-                         MissionSerializer)
+                         MissionSerializer, NotificationSerializer)
 from .forms import SubmissionReviewForm
 from .permissions import IsSteward
 from leaderboard.models import GlobalLeaderboardMultiplier
@@ -820,15 +820,55 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             submission.state = 'accepted'
             submission.converted_contribution = contribution
             submission.staff_reply = serializer.validated_data.get('staff_reply', '')
-            
+
+            # Create notification for user
+            # TODO: Migrate to django-notifications-hq
+            Notification.objects.create(
+                recipient=submission.user,
+                actor=request.user,
+                submission=submission,
+                notification_type='accepted',
+                message=f'Your submission was accepted and awarded {serializer.validated_data["points"]} points!',
+                data={
+                    'points': serializer.validated_data['points'],
+                    'contribution_type': contribution_type.name
+                }
+            )
+
         elif action == 'reject':
             submission.state = 'rejected'
             submission.staff_reply = serializer.validated_data['staff_reply']
-            
+
+            # Create notification for user
+            # TODO: Migrate to django-notifications-hq
+            Notification.objects.create(
+                recipient=submission.user,
+                actor=request.user,
+                submission=submission,
+                notification_type='rejected',
+                message=f'Your submission was rejected.',
+                data={
+                    'staff_reply': serializer.validated_data['staff_reply']
+                }
+            )
+
         elif action == 'more_info':
             submission.state = 'more_info_needed'
             submission.staff_reply = serializer.validated_data['staff_reply']
-        
+
+            # Create notification for user
+            # TODO: Migrate to django-notifications-hq
+            Notification.objects.create(
+                recipient=submission.user,
+                actor=request.user,
+                submission=submission,
+                notification_type='more_info',
+                message=f'More information requested on your submission.',
+                data={
+                    'staff_reply': serializer.validated_data['staff_reply']
+                }
+            )
+
         submission.save()
         
         return Response(
@@ -949,3 +989,40 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(contribution_type__category__slug=category)
 
         return queryset
+
+
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API endpoint for user notifications.
+    Users can only see their own notifications.
+    """
+    serializer_class = NotificationSerializer
+    authentication_classes = [EthereumAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """Only return notifications for the authenticated user."""
+        return self.request.user.notifications.all().select_related(
+            'actor',
+            'submission',
+            'submission__contribution_type'
+        )
+
+    @action(detail=False, methods=['get'])
+    def unread_count(self, request):
+        """Get count of unread notifications."""
+        count = Notification.get_unread_count(request.user)
+        return Response({'count': count})
+
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        """Mark a single notification as read."""
+        notification = self.get_object()
+        notification.mark_as_read()
+        return Response({'status': 'marked as read'})
+
+    @action(detail=False, methods=['post'])
+    def mark_all_read(self, request):
+        """Mark all notifications as read."""
+        Notification.mark_all_as_read(request.user)
+        return Response({'status': 'all marked as read'})

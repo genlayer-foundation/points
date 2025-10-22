@@ -66,6 +66,7 @@ backend/
   - ContributionType - Categories with slug field (Node Running, Blog Posts, etc.)
   - ContributionTypeMultiplier - Dynamic point multipliers
   - Evidence - Evidence items for contributions (text descriptions and URLs only - file uploads are disabled)
+  - Notification - Temporary custom model (will migrate to django-notifications-hq)
 - **reCAPTCHA**: `contributions/recaptcha_field.py`
   - Custom DRF serializer field for Google reCAPTCHA v2 validation
   - Validates tokens from frontend reCAPTCHA widget

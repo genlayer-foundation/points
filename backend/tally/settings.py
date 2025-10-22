@@ -62,7 +62,7 @@ INSTALLED_APPS = [
     'django_filters',
     'django_recaptcha',
     'allow_cidr',
-    
+
     # Local apps
     'api',
     'utils',

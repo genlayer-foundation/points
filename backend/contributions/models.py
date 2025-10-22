@@ -475,5 +475,94 @@ class ContributionHighlight(BaseModel):
             'contribution__user',
             'contribution__contribution_type'
         )
-        
+
         return queryset[:limit]
+
+
+class Notification(BaseModel):
+    """
+    Temporary custom notification system for submission reviews.
+    Will migrate to django-notifications-hq when Django 5.2 support is released.
+    """
+    # Recipient of the notification
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        help_text="User who receives this notification"
+    )
+
+    # Actor (steward) who performed the action
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='notifications_sent',
+        help_text="User who triggered this notification"
+    )
+
+    # Submission this notification is about
+    submission = models.ForeignKey(
+        'SubmittedContribution',
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        help_text="The submission this notification relates to"
+    )
+
+    # Notification details
+    NOTIFICATION_TYPES = [
+        ('accepted', 'Submission Accepted'),
+        ('rejected', 'Submission Rejected'),
+        ('more_info', 'More Information Requested'),
+    ]
+    notification_type = models.CharField(
+        max_length=20,
+        choices=NOTIFICATION_TYPES,
+        help_text="Type of notification"
+    )
+
+    message = models.TextField(
+        help_text="Notification message"
+    )
+
+    # Additional data (points awarded, staff reply, etc.)
+    data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional data about the notification"
+    )
+
+    # Read status
+    unread = models.BooleanField(
+        default=True,
+        help_text="Whether the notification has been read"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Notification"
+        verbose_name_plural = "Notifications"
+        indexes = [
+            models.Index(fields=['recipient', 'unread', '-created_at']),
+            models.Index(fields=['recipient', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_notification_type_display()} for {self.recipient.email}"
+
+    def mark_as_read(self):
+        """Mark this notification as read."""
+        if self.unread:
+            self.unread = False
+            self.save(update_fields=['unread'])
+
+    @classmethod
+    def mark_all_as_read(cls, user):
+        """Mark all notifications for a user as read."""
+        cls.objects.filter(recipient=user, unread=True).update(unread=False)
+
+    @classmethod
+    def get_unread_count(cls, user):
+        """Get count of unread notifications for a user."""
+        return cls.objects.filter(recipient=user, unread=True).count()
