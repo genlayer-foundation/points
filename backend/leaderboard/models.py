@@ -746,20 +746,24 @@ def recalculate_all_leaderboards():
                             if contrib['contribution_date'] < grad_date:
                                 points += contrib['frozen_global_points'] or 0
 
-                    # Add referral points from contributions BEFORE graduation
-                    if user_id in referrer_contributions:
+                    # Add referral points earned BEFORE graduation
+                    # (from users this user referred, not from this user's contributions)
+                    if user_id in referral_points_lookup:
+                        # For graduation, we need to recalculate based on graduation date
                         builder_referral = 0
                         validator_referral = 0
 
-                        for referred_contrib in referrer_contributions[user_id]:
-                            if referred_contrib['contribution_date'] < grad_date:
-                                category = referred_contrib['contribution_type__category__slug']
-                                contrib_points = referred_contrib['frozen_global_points'] or 0
+                        # Check contributions from users this user referred
+                        if user_id in referrer_contributions:
+                            for referred_contrib in referrer_contributions[user_id]:
+                                if referred_contrib['contribution_date'] < grad_date:
+                                    category = referred_contrib['contribution_type__category__slug']
+                                    contrib_points = referred_contrib['frozen_global_points'] or 0
 
-                                if category == 'builder':
-                                    builder_referral += int(contrib_points * 0.1)
-                                elif category == 'validator':
-                                    validator_referral += int(contrib_points * 0.1)
+                                    if category == 'builder':
+                                        builder_referral += int(contrib_points * 0.1)
+                                    elif category == 'validator':
+                                        validator_referral += int(contrib_points * 0.1)
 
                         points += builder_referral + validator_referral
 
