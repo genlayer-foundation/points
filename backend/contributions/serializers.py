@@ -193,24 +193,16 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
     state_display = serializers.CharField(source='get_state_display', read_only=True)
     can_edit = serializers.SerializerMethodField()
     contribution = serializers.SerializerMethodField()
-<<<<<<< HEAD
     mission_details = serializers.SerializerMethodField()
-=======
     recaptcha = ReCaptchaField(required=False)  # Required only on create, handled in validate()
->>>>>>> origin/dev
 
     class Meta:
         model = SubmittedContribution
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name',
                   'contribution_type_details', 'contribution_date', 'notes', 'state', 'state_display',
                   'staff_reply', 'reviewed_by', 'reviewed_at', 'evidence_items', 'can_edit',
-<<<<<<< HEAD
                   'suggested_points', 'converted_contribution', 'contribution', 'mission', 'mission_details',
-                  'created_at', 'updated_at', 'last_edited_at']
-=======
-                  'suggested_points', 'converted_contribution', 'contribution',
                   'created_at', 'updated_at', 'last_edited_at', 'recaptcha']
->>>>>>> origin/dev
         read_only_fields = ['id', 'user', 'state', 'staff_reply', 'reviewed_by',
                           'reviewed_at', 'created_at', 'updated_at', 'last_edited_at',
                           'suggested_points', 'converted_contribution']
@@ -257,7 +249,6 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
             return ContributionSerializer(obj.converted_contribution, context=contrib_context).data
         return None
 
-<<<<<<< HEAD
     def get_mission_details(self, obj):
         """Returns mission details if linked."""
         if obj.mission:
@@ -269,7 +260,7 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
                 'contribution_type': obj.mission.contribution_type_id
             }
         return None
-=======
+
     def validate(self, data):
         """
         Validate submission data.
@@ -287,7 +278,6 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
         data.pop('recaptcha', None)
 
         return data
->>>>>>> origin/dev
 
     def create(self, validated_data):
         """Create a new submission with the current user."""
