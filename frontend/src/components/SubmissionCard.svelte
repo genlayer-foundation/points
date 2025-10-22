@@ -5,6 +5,7 @@
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
   import Link from '../lib/components/Link.svelte';
   import Avatar from './Avatar.svelte';
+  import Badge from './Badge.svelte';
   
   let { 
     submission,
@@ -32,6 +33,7 @@
   // For ContributionSelection component
   let selectedCategory = $state(submission.contribution_type_details?.category || 'validator');
   let selectedContributionTypeObj = $state(null);
+  let selectedMission = $state(submission.mission || null);
   
   // Reset form when submission changes
   $effect(() => {
@@ -160,19 +162,26 @@
       <div>
         <h3 class="text-lg font-semibold flex items-center gap-2 flex-wrap">
           {#if isOwnSubmission}
-            <span>{submission.contribution_type_name || getTypeName(submission.contribution_type)}</span>
             {#if submission.mission_details}
-              <button
-                onclick={() => push(`/contribution-type/${submission.mission_details.contribution_type}`)}
-                class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors"
-                title="Mission: {submission.mission_details.name}"
-              >
-                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
-                  <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
-                </svg>
-                {submission.mission_details.name}
-              </button>
+              <!-- Show mission name as title -->
+              <span>{submission.mission_details.name}</span>
+              <!-- Show contribution type as badge -->
+              <Badge
+                badge={{
+                  id: submission.contribution_type,
+                  name: submission.contribution_type_name || getTypeName(submission.contribution_type),
+                  description: '',
+                  points: 0,
+                  actionId: submission.contribution_type
+                }}
+                color="indigo"
+                size="sm"
+                clickable={true}
+                bold={false}
+              />
+            {:else}
+              <!-- Show contribution type as title when no mission -->
+              <span>{submission.contribution_type_name || getTypeName(submission.contribution_type)}</span>
             {/if}
           {:else}
             <div class="flex items-center gap-2">
@@ -222,28 +231,41 @@
           </div>
           
           <div>
-            <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
-            <div class="mt-1 flex items-center gap-2 flex-wrap">
-              <span class="text-sm text-gray-900">
-                {submission.contribution_type_details?.name}
-              </span>
-              {#if submission.mission_details}
-                <button
-                  onclick={() => push(`/contribution-type/${submission.mission_details.contribution_type}`)}
-                  class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors"
-                  title="Mission: {submission.mission_details.name}"
-                >
-                  <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
-                    <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
-                  </svg>
+            {#if submission.mission_details}
+              <h4 class="text-sm font-medium text-gray-700">Mission</h4>
+              <div class="mt-1 flex items-center gap-2 flex-wrap">
+                <span class="text-sm text-gray-900">
                   {submission.mission_details.name}
-                </button>
-              {/if}
-              <span class="text-xs text-gray-500">
-                ({submission.contribution_type_details?.min_points}-{submission.contribution_type_details?.max_points} points)
-              </span>
-            </div>
+                </span>
+                <!-- Show contribution type as badge -->
+                <Badge
+                  badge={{
+                    id: submission.contribution_type,
+                    name: submission.contribution_type_details?.name,
+                    description: '',
+                    points: 0,
+                    actionId: submission.contribution_type
+                  }}
+                  color="indigo"
+                  size="sm"
+                  clickable={true}
+                  bold={false}
+                />
+                <span class="text-xs text-gray-500">
+                  ({submission.contribution_type_details?.min_points}-{submission.contribution_type_details?.max_points} points)
+                </span>
+              </div>
+            {:else}
+              <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
+              <div class="mt-1 flex items-center gap-2 flex-wrap">
+                <span class="text-sm text-gray-900">
+                  {submission.contribution_type_details?.name}
+                </span>
+                <span class="text-xs text-gray-500">
+                  ({submission.contribution_type_details?.min_points}-{submission.contribution_type_details?.max_points} points)
+                </span>
+              </div>
+            {/if}
           </div>
         {/if}
         
@@ -361,7 +383,9 @@
                     <ContributionSelection
                       bind:selectedCategory
                       bind:selectedContributionType={selectedContributionTypeObj}
+                      bind:selectedMission
                       defaultContributionType={submission.contribution_type}
+                      defaultMission={submission.mission}
                       onlySubmittable={false}
                       stewardMode={true}
                       providedContributionTypes={contributionTypes}

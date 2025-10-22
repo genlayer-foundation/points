@@ -14,7 +14,6 @@
   let missionId = $state(null);
   let mission = $state(null);
   let loadingMission = $state(false);
-  let availableMissions = $state([]);
   let selectedMission = $state(null);
   
   // Selection state
@@ -79,21 +78,23 @@
     }
   }
 
-  async function fetchMissionsForType(contributionTypeId) {
-    if (!contributionTypeId) {
-      availableMissions = [];
-      return;
-    }
+  async function fetchContributionType(typeId) {
+    if (!typeId) return;
 
+    loading = true;
     try {
-      const response = await contributionsAPI.getMissions({
-        contribution_type: contributionTypeId,
-        is_active: true
-      });
-      availableMissions = response.data.results || response.data || [];
+      const response = await contributionsAPI.getContributionType(typeId);
+      const type = response.data;
+
+      // Pre-select contribution type from URL
+      selectedCategory = type.category || 'validator';
+      selectedContributionType = type;
+      formData.contribution_type = type.id;
     } catch (err) {
-      console.error('Error loading missions:', err);
-      availableMissions = [];
+      console.error('Error loading contribution type:', err);
+      error = 'Failed to load contribution type details';
+    } finally {
+      loading = false;
     }
   }
 
@@ -106,15 +107,10 @@
     if (missionParam) {
       missionId = parseInt(missionParam);
       await fetchMission();
-      // fetchMission will set selectedMission and fetch available missions
-      if (formData.contribution_type) {
-        await fetchMissionsForType(formData.contribution_type);
-      }
+      // fetchMission will set selectedMission
     } else if (typeParam) {
       // Pre-select contribution type from URL parameter
-      formData.contribution_type = parseInt(typeParam);
-      // Fetch missions for this type
-      await fetchMissionsForType(parseInt(typeParam));
+      await fetchContributionType(parseInt(typeParam));
     }
 
     // Wait a moment for auth state to be verified
@@ -124,13 +120,6 @@
   
   function handleSelectionChange(category, contributionType) {
     console.log('Selection changed:', { category, contributionType });
-    // Fetch missions for the new contribution type
-    if (contributionType?.id) {
-      fetchMissionsForType(contributionType.id);
-    } else {
-      availableMissions = [];
-      selectedMission = null;
-    }
   }
   
   function addEvidenceSlot() {
@@ -267,7 +256,6 @@
           defaultContributionType={formData.contribution_type}
           onlySubmittable={true}
           stewardMode={false}
-          availableMissions={availableMissions}
           onSelectionChange={handleSelectionChange}
         />
       </div>

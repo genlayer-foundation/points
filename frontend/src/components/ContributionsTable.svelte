@@ -178,19 +178,42 @@
                 </td>
               {/if}
               <td class="px-6 py-4 whitespace-nowrap">
-                <Badge
-                  badge={{
-                    id: contribution.contribution_type?.id || contribution.contribution_type,
-                    name: contribution.contribution_type_name || contribution.contribution_type?.name || 'Unknown',
-                    description: '',
-                    points: 0,
-                    actionId: contribution.contribution_type?.id || contribution.contribution_type,
-                    actionName: contribution.contribution_type_name || contribution.contribution_type?.name || 'Unknown',
-                    evidenceUrl: ''
-                  }}
-                  color="green"
-                  clickable={true}
-                />
+                {#if contribution.mission_details}
+                  <!-- Show mission name with contribution type badge -->
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-sm font-medium text-gray-900">{contribution.mission_details.name}</span>
+                    <Badge
+                      badge={{
+                        id: contribution.contribution_type?.id || contribution.contribution_type,
+                        name: contribution.contribution_type_name || contribution.contribution_type?.name || 'Unknown',
+                        description: '',
+                        points: 0,
+                        actionId: contribution.contribution_type?.id || contribution.contribution_type,
+                        actionName: contribution.contribution_type_name || contribution.contribution_type?.name || 'Unknown',
+                        evidenceUrl: ''
+                      }}
+                      color="indigo"
+                      size="sm"
+                      clickable={true}
+                      bold={false}
+                    />
+                  </div>
+                {:else}
+                  <!-- Show contribution type badge only -->
+                  <Badge
+                    badge={{
+                      id: contribution.contribution_type?.id || contribution.contribution_type,
+                      name: contribution.contribution_type_name || contribution.contribution_type?.name || 'Unknown',
+                      description: '',
+                      points: 0,
+                      actionId: contribution.contribution_type?.id || contribution.contribution_type,
+                      actionName: contribution.contribution_type_name || contribution.contribution_type?.name || 'Unknown',
+                      evidenceUrl: ''
+                    }}
+                    color="green"
+                    clickable={true}
+                  />
+                {/if}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {formatDate(contribution.contribution_date)}

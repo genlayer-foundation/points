@@ -4,6 +4,7 @@
   import { getCategoryColors } from '../lib/categoryColors';
   import Avatar from './Avatar.svelte';
   import Icons from './Icons.svelte';
+  import Badge from './Badge.svelte';
 
   let {
     contribution,
@@ -63,29 +64,41 @@
             className={actualCategory === 'builder' ? 'text-orange-500' : actualCategory === 'validator' ? 'text-sky-500' : 'text-gray-500'}
           />
           <h3 class="text-base font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
-            <button
-              class="{categoryColors.hoverText} transition-colors"
-              onclick={() => push(`/contribution-type/${contribution.typeId || contribution.contribution_type || contribution.contribution_type_details?.id}`)}
-            >
-              {contribution.contribution_type_details?.name || contribution.contribution_type_name || 'Contribution'}
-            </button>
-            {#if contribution.count > 1}
-              <span class="text-sm font-normal text-gray-500">
-                × {contribution.count}
-              </span>
-            {/if}
             {#if contribution.mission_details}
+              <!-- Show mission name as title when mission exists -->
+              <span>{contribution.mission_details.name}</span>
+              {#if contribution.count > 1}
+                <span class="text-sm font-normal text-gray-500">
+                  × {contribution.count}
+                </span>
+              {/if}
+              <!-- Show contribution type as badge -->
+              <Badge
+                badge={{
+                  id: contribution.typeId || contribution.contribution_type || contribution.contribution_type_details?.id,
+                  name: contribution.contribution_type_details?.name || contribution.contribution_type_name || 'Contribution',
+                  description: '',
+                  points: 0,
+                  actionId: contribution.typeId || contribution.contribution_type || contribution.contribution_type_details?.id
+                }}
+                color="indigo"
+                size="sm"
+                clickable={true}
+                bold={false}
+              />
+            {:else}
+              <!-- Show contribution type as title when no mission -->
               <button
-                onclick={() => push(`/contribution-type/${contribution.mission_details.contribution_type}`)}
-                class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors"
-                title="Mission: {contribution.mission_details.name}"
+                class="{categoryColors.hoverText} transition-colors"
+                onclick={() => push(`/contribution-type/${contribution.typeId || contribution.contribution_type || contribution.contribution_type_details?.id}`)}
               >
-                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
-                  <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
-                </svg>
-                {contribution.mission_details.name}
+                {contribution.contribution_type_details?.name || contribution.contribution_type_name || 'Contribution'}
               </button>
+              {#if contribution.count > 1}
+                <span class="text-sm font-normal text-gray-500">
+                  × {contribution.count}
+                </span>
+              {/if}
             {/if}
           </h3>
           

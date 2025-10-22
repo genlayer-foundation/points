@@ -174,16 +174,14 @@ class Contribution(BaseModel):
             # Check if there's an active multiplier for this contribution type on the contribution date
             # The method returns a tuple of (multiplier_obj, multiplier_value)
             _, multiplier_value = GlobalLeaderboardMultiplier.get_active_for_type(
-                self.contribution_type, 
+                self.contribution_type,
                 at_date=self.contribution_date
             )
             self.multiplier_at_creation = multiplier_value
-        except GlobalLeaderboardMultiplier.DoesNotExist as e:
-            raise ValidationError(
-                f"No active multiplier exists for contribution type '{self.contribution_type}' "
-                f"on {self.contribution_date.strftime('%Y-%m-%d %H:%M')}. "
-                "Please set a multiplier that covers this date before adding contributions."
-            ) from e
+        except GlobalLeaderboardMultiplier.DoesNotExist:
+            # No multiplier exists for this contribution type/date, use default of 1.0
+            # This is consistent with the update_leaderboard command behavior
+            self.multiplier_at_creation = 1.0
     
     def save(self, *args, **kwargs):
         """
