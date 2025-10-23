@@ -728,9 +728,10 @@ def recalculate_all_leaderboards():
                             points += contrib['frozen_global_points'] or 0
 
                 elif leaderboard_type == 'validator-waitlist':
-                    # Sum all validator category contributions + referral points
+                    # Sum all validator category contributions (excluding graduation marker) + referral points
                     for contrib in user_contribs:
-                        if contrib['contribution_type__category__slug'] == 'validator':
+                        if (contrib['contribution_type__category__slug'] == 'validator' and
+                            contrib['contribution_type__slug'] != 'validator'):
                             points += contrib['frozen_global_points'] or 0
 
                     # Add referral points if user is a referrer
