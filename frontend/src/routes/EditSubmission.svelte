@@ -5,12 +5,10 @@
   import api from '../lib/api.js';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
-  import { showError } from '../lib/toastStore.js';
 
   let { params = {} } = $props();
 
   let submission = $state(null);
-  let contributionTypes = $state([]);
   let loading = $state(true);
   let submitting = $state(false);
   let error = $state('');
@@ -20,6 +18,7 @@
   // Contribution type selection state
   let selectedCategory = $state('validator');
   let selectedContributionType = $state(null);
+  let defaultContributionTypeId = $state(null);
 
   // Form data
   let formData = $state({
@@ -36,19 +35,12 @@
 
   // Update form data when submission changes (only on initial load)
   $effect(() => {
-    if (submission && contributionTypes.length > 0 && !loading && !formInitialized) {
+    if (submission && !loading && !formInitialized) {
       formData = {
         contribution_type: submission.contribution_type,
         contribution_date: submission.contribution_date ? submission.contribution_date.split('T')[0] : '',
         notes: submission.notes || ''
       };
-
-      // Set the selected contribution type for the fancy selector
-      const currentType = contributionTypes.find(t => t.id === submission.contribution_type);
-      if (currentType) {
-        selectedContributionType = currentType;
-        selectedCategory = currentType.category || 'validator';
-      }
 
       formInitialized = true;
       console.log('Form data initialized from submission:', formData);
@@ -65,7 +57,11 @@
       }
     }
   });
-  
+
+  function handleSelectionChange(category, contributionType) {
+    console.log('Selection changed:', { category, contributionType });
+  }
+
   function addEvidenceSlot() {
     // New evidence doesn't have an id - backend will create it
     evidenceSlots = [...evidenceSlots, { description: '', url: '' }];
@@ -94,11 +90,7 @@
       evidenceSlots[index].url = normalizeUrl(evidenceSlots[index].url);
     }
   }
-  
-  function hasEvidenceInSlot(slot) {
-    return slot.description || slot.url;
-  }
-  
+
   async function loadData() {
     if (!$authState.isAuthenticated) {
       loading = false;
@@ -108,24 +100,20 @@
 
     loading = true;
     try {
-      // Load submission and contribution types in parallel
-      const [submissionResponse, typesResponse] = await Promise.all([
-        api.get(`/submissions/${params.id}/`),
-        api.get('/contribution-types/')
-      ]);
-
+      // Load submission
+      const submissionResponse = await api.get(`/submissions/${params.id}/`);
       submission = submissionResponse.data;
-      // Handle paginated response for contribution types
-      contributionTypes = typesResponse.data.results || typesResponse.data;
 
       console.log('Loaded submission:', submission);
-      console.log('Loaded contribution types:', contributionTypes);
 
       // Check if editing is allowed
       if (!submission.can_edit) {
         error = 'This submission cannot be edited';
         return;
       }
+
+      // Set the default contribution type for the selector
+      defaultContributionTypeId = submission.contribution_type;
 
       // Form data will be populated by the $effect
 
@@ -171,38 +159,64 @@
   async function handleSubmit(event) {
     event.preventDefault();
 
+    // Validate required fields
+    if (!formData.contribution_type) {
+      error = 'Please select a contribution type';
+      return;
+    }
+
+    if (!formData.contribution_date) {
+      error = 'Please select a contribution date';
+      return;
+    }
+
+    // Validate evidence slots - if any field is filled, both must be filled
+    for (let i = 0; i < evidenceSlots.length; i++) {
+      const slot = evidenceSlots[i];
+      const hasDescription = slot.description && slot.description.trim().length > 0;
+      const hasUrl = slot.url && slot.url.trim().length > 0;
+
+      if (hasDescription && !hasUrl) {
+        error = `Evidence ${i + 1}: Please provide a URL along with the description`;
+        return;
+      }
+      if (hasUrl && !hasDescription) {
+        error = `Evidence ${i + 1}: Please provide a description along with the URL`;
+        return;
+      }
+    }
+
+    // Validate that user has provided either notes or evidence
+    const filledSlots = evidenceSlots.filter(slot => {
+      const hasDescription = slot.description && slot.description.trim().length > 0;
+      const hasUrl = slot.url && slot.url.trim().length > 0;
+      return hasDescription && hasUrl;
+    });
+    const hasNotes = formData.notes && formData.notes.trim().length > 0;
+    const hasEvidence = filledSlots.length > 0;
+
+    if (!hasNotes && !hasEvidence) {
+      error = 'Please provide either a description or evidence to support your contribution';
+      return;
+    }
+
     submitting = true;
     error = '';
 
     try {
-      // Validate required fields
-      if (!formData.contribution_type) {
-        error = 'Please select a contribution type';
-        showError(error);
-        return;
-      }
-
-      if (!formData.contribution_date) {
-        error = 'Please select a contribution date';
-        showError(error);
-        return;
-      }
-
       // Prepare evidence items (formset pattern)
       // Include all slots that have content
-      const evidence_items = evidenceSlots
-        .filter(hasEvidenceInSlot)
-        .map(slot => {
-          const item = {
-            description: slot.description || '',
-            url: slot.url ? normalizeUrl(slot.url) : ''
-          };
-          // Include id for existing evidence (items with id will be updated)
-          if (slot.id) {
-            item.id = slot.id;
-          }
-          return item;
-        });
+      const evidence_items = filledSlots.map(slot => {
+        const item = {
+          description: slot.description || '',
+          url: slot.url ? normalizeUrl(slot.url) : ''
+        };
+        // Include id for existing evidence (items with id will be updated)
+        if (slot.id) {
+          item.id = slot.id;
+        }
+        return item;
+      });
 
       const updateData = {
         contribution_type: parseInt(formData.contribution_type),
@@ -223,7 +237,6 @@
 
     } catch (err) {
       error = err.response?.data?.error || err.response?.data?.detail || 'Failed to update submission';
-      showError(error);
       console.error('Update error:', err.response?.data || err);
     } finally {
       submitting = false;
@@ -250,7 +263,6 @@
 
     } catch (err) {
       error = err.response?.data?.error || 'Failed to delete submission';
-      showError(error);
       console.error(err);
     } finally {
       submitting = false;
@@ -312,9 +324,10 @@
           <ContributionSelection
             bind:selectedCategory
             bind:selectedContributionType
-            providedContributionTypes={contributionTypes}
-            onlySubmittable={false}
+            defaultContributionType={defaultContributionTypeId}
+            onlySubmittable={true}
             stewardMode={false}
+            onSelectionChange={handleSelectionChange}
           />
         </div>
         
