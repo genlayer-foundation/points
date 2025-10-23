@@ -20,12 +20,14 @@
   // Contribution type selection state
   let selectedCategory = $state('validator');
   let selectedContributionType = $state(null);
+  let selectedMission = $state(null);
 
   // Form data
   let formData = $state({
     contribution_type: '',
     contribution_date: '',
-    notes: ''
+    notes: '',
+    mission: null
   });
 
   // Evidence slots for editing
@@ -40,7 +42,8 @@
       formData = {
         contribution_type: submission.contribution_type,
         contribution_date: submission.contribution_date ? submission.contribution_date.split('T')[0] : '',
-        notes: submission.notes || ''
+        notes: submission.notes || '',
+        mission: submission.mission || null
       };
 
       // Set the selected contribution type for the fancy selector
@@ -48,6 +51,11 @@
       if (currentType) {
         selectedContributionType = currentType;
         selectedCategory = currentType.category || 'validator';
+      }
+
+      // Set selected mission if submission has one
+      if (submission.mission) {
+        selectedMission = submission.mission;
       }
 
       formInitialized = true;
@@ -64,6 +72,11 @@
         error = '';
       }
     }
+  });
+
+  // Sync selectedMission with formData.mission
+  $effect(() => {
+    formData.mission = selectedMission || null;
   });
   
   function addEvidenceSlot() {
@@ -208,6 +221,7 @@
         contribution_type: parseInt(formData.contribution_type),
         contribution_date: formData.contribution_date + 'T00:00:00Z',
         notes: formData.notes || '',
+        mission: formData.mission || null,
         evidence_items: evidence_items  // Send all evidence in one request
       };
 
@@ -312,7 +326,9 @@
           <ContributionSelection
             bind:selectedCategory
             bind:selectedContributionType
+            bind:selectedMission
             providedContributionTypes={contributionTypes}
+            defaultMission={submission?.mission}
             onlySubmittable={false}
             stewardMode={false}
           />
