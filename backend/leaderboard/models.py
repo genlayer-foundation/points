@@ -31,14 +31,11 @@ def has_category_contributions(user, category_slug):
 
 
 def calculate_category_points(user, category_slug):
-    """Calculate total points from a specific category"""
+    """Calculate total points from a specific category, including all contribution types"""
     query = Contribution.objects.filter(
         user=user,
         contribution_type__category__slug=category_slug
     )
-    # Exclude Builder Welcome from builder category points
-    if category_slug == 'builder':
-        query = query.exclude(contribution_type__slug='builder-welcome')
     return query.aggregate(
         total=Sum('frozen_global_points')
     )['total'] or 0
@@ -58,11 +55,11 @@ def calculate_waitlist_points(user):
     query = Contribution.objects.filter(
         user=user,
         contribution_type__category__slug='validator'
-    )
+    ).exclude(contribution_type__slug='validator')  # Exclude the graduation marker
 
     if grad_contrib:
-        # Only count contributions before graduation
-        query = query.filter(contribution_date__lt=grad_contrib.contribution_date)
+        # Count contributions up to and including graduation date
+        query = query.filter(contribution_date__lte=grad_contrib.contribution_date)
 
     contribution_points = query.aggregate(total=Sum('frozen_global_points'))['total'] or 0
 
@@ -78,7 +75,7 @@ def calculate_waitlist_points(user):
             builder_contribs = Contribution.objects.filter(
                 user_id__in=referred_user_ids,
                 contribution_type__category__slug='builder',
-                contribution_date__lt=grad_contrib.contribution_date
+                contribution_date__lte=grad_contrib.contribution_date
             )
 
             builder_referral_points = 0
@@ -107,7 +104,7 @@ def calculate_waitlist_points(user):
             validator_contribs = Contribution.objects.filter(
                 user_id__in=referred_user_ids,
                 contribution_type__category__slug='validator',
-                contribution_date__lt=grad_contrib.contribution_date
+                contribution_date__lte=grad_contrib.contribution_date
             )
 
             validator_referral_points = 0
@@ -182,21 +179,21 @@ def calculate_graduation_points(user):
 LEADERBOARD_CONFIG = {
     'validator': {
         'name': 'Validator',
-        'participants': lambda user: has_contribution_badge(user, 'validator'),
+        'participants': lambda user: hasattr(user, 'validator'),  # Has Validator profile
         'points_calculator': lambda user: calculate_category_points(user, 'validator'),
         'ranking_order': '-total_points',  # Highest points first
     },
     'builder': {
         'name': 'Builder',
-        'participants': lambda user: has_category_contributions(user, 'builder'),
+        'participants': lambda user: hasattr(user, 'builder'),  # Has Builder profile
         'points_calculator': lambda user: calculate_category_points(user, 'builder'),
         'ranking_order': '-total_points',
     },
     'validator-waitlist': {
         'name': 'Validator Waitlist',
         'participants': lambda user: (
-            has_contribution_badge(user, 'validator-waitlist') and 
-            not has_contribution_badge(user, 'validator')
+            has_contribution_badge(user, 'validator-waitlist') and
+            not hasattr(user, 'validator')  # Not graduated yet (no Validator profile)
         ),
         'points_calculator': lambda user: calculate_waitlist_points(user),
         'ranking_order': '-total_points',
@@ -205,7 +202,7 @@ LEADERBOARD_CONFIG = {
         'name': 'Validator Waitlist Graduation',
         'participants': lambda user: (
             has_contribution_badge(user, 'validator-waitlist') and
-            has_contribution_badge(user, 'validator')
+            hasattr(user, 'validator')  # Graduated (has Validator profile)
         ),
         'points_calculator': lambda user: calculate_graduation_points(user),
         'ranking_order': '-graduation_date',  # Most recent graduations first
