@@ -83,11 +83,7 @@
       evidenceSlots[index].url = normalizeUrl(evidenceSlots[index].url);
     }
   }
-  
-  function hasEvidenceInSlot(slot) {
-    return slot.description || slot.url;
-  }
-  
+
   async function handleSubmit(event) {
     event.preventDefault();
 
