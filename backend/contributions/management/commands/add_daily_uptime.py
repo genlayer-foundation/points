@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, models
 from django.contrib.auth import get_user_model
 from contributions.models import Contribution, ContributionType, Category
 from leaderboard.models import GlobalLeaderboardMultiplier, update_all_ranks, LeaderboardEntry
@@ -61,59 +61,70 @@ class Command(BaseCommand):
         total_new_contributions = 0
         multiplier_errors = 0
         users_to_update_leaderboard = []  # Track users who got new contributions
-        
-        # Get all users
-        users = User.objects.all()
-        total_users = users.count()
-        
+
         # Current date (end date for all ranges)
         today = timezone.now().date()
-        
-        # Process each user
+
+        # OPTIMIZATION 1: Get all validators with their creation dates
+        from validators.models import Validator
+
+        all_validators = Validator.objects.all()
+        validator_created_dates = {v.user_id: v.created_at.date() for v in all_validators}
+
+        if not validator_created_dates:
+            self.stdout.write(self.style.WARNING('No validators found'))
+            return
+
+        # OPTIMIZATION 2: Get the LAST (most recent) uptime date per validator
+        # We only need the max date, not all dates, since we'll start from day after last uptime
+        last_uptimes = {}
+        for contrib in Contribution.objects.filter(
+            contribution_type=uptime_type,
+            user_id__in=validator_created_dates.keys()
+        ).values('user_id').annotate(
+            last_date=models.Max('contribution_date')
+        ):
+            last_uptimes[contrib['user_id']] = contrib['last_date'].date()
+
+        # Determine start date for each validator
+        # Key insight: We start from day AFTER last uptime (or from creation date if no uptime)
+        # This means we never create duplicates - no need to check existing dates!
+        validator_start_dates = {}
+        for user_id, created_date in validator_created_dates.items():
+            if user_id in last_uptimes:
+                # Has uptime → start from day AFTER last recorded uptime
+                validator_start_dates[user_id] = last_uptimes[user_id] + timedelta(days=1)
+            else:
+                # No uptime yet → start from validator creation date
+                validator_start_dates[user_id] = created_date
+
+        users_with_uptime = len(validator_start_dates)
+
+        # Get all validator users
+        users = User.objects.filter(id__in=validator_start_dates.keys())
+        total_users = users.count()
+
+        if verbose:
+            self.stdout.write(f'Processing {total_users} validators')
+
+        # Process each validator
         for user in users:
-            # Find the first uptime contribution for this user
-            first_uptime = Contribution.objects.filter(
-                user=user,
-                contribution_type=uptime_type
-            ).order_by('contribution_date').first()
-            
-            if not first_uptime:
-                if verbose:
-                    self.stdout.write(f'User {user} has no uptime contributions, skipping')
-                continue
-            
-            users_with_uptime += 1
-            
-            # Get the start date from the first contribution
-            start_date = first_uptime.contribution_date.date()
-            
+            # Get the start date from our pre-fetched data
+            # This is either the last uptime date (for existing validators) or validator creation date (for new validators)
+            start_date = validator_start_dates[user.id]
+
             if verbose:
                 self.stdout.write(
-                    f'Processing user {user} - first uptime on {start_date}, '
+                    f'Processing user {user} - starting from {start_date}, '
                     f'generating daily contributions until {today}'
                 )
-            
-            # Get all existing uptime dates for this user to avoid duplicates
-            existing_dates = set(
-                Contribution.objects.filter(
-                    user=user,
-                    contribution_type=uptime_type
-                ).values_list('contribution_date__date', flat=True)
-            )
-            
+
             # Generate a contribution for each day from start_date to today
-            # if there isn't already one for that date
+            # No need to check for existing dates since we start from day after last uptime
             new_contributions = []
             current_date = start_date
-            
+
             while current_date <= today:
-                # Skip if there's already a contribution for this date
-                if current_date in existing_dates:
-                    if verbose:
-                        self.stdout.write(f'  - {current_date}: Uptime already exists, skipping')
-                    current_date += timedelta(days=1)
-                    continue
-                
                 # Create a new contribution for this date
                 contribution_date = datetime.combine(
                     current_date, 
@@ -130,19 +141,15 @@ class Command(BaseCommand):
                 except GlobalLeaderboardMultiplier.DoesNotExist:
                     if force:
                         multiplier_value = decimal.Decimal('1.0')
-                        self.stdout.write(
-                            self.style.WARNING(
-                                f'  - {current_date}: No multiplier found, using default of 1.0 (--force enabled)'
-                            )
-                        )
                     else:
                         multiplier_errors += 1
-                        self.stdout.write(
-                            self.style.ERROR(
-                                f'  - {current_date}: No multiplier found for contribution type "Uptime". '
-                                f'Skipping this date. Use --force to override.'
+                        if verbose:
+                            self.stdout.write(
+                                self.style.ERROR(
+                                    f'  - {current_date}: No multiplier found for contribution type "Uptime". '
+                                    f'Skipping this date. Use --force to override.'
+                                )
                             )
-                        )
                         current_date += timedelta(days=1)
                         continue
                 
@@ -191,64 +198,20 @@ class Command(BaseCommand):
         # Update leaderboard entries for all affected users
         if users_to_update_leaderboard and not dry_run:
             self.stdout.write('Updating leaderboard entries...')
-            
-            # Get the category for Uptime contributions
-            uptime_category = None
-            if uptime_type.category:
-                uptime_category = uptime_type.category
-                if verbose:
-                    self.stdout.write(f'Uptime contributions belong to category: {uptime_category.name}')
-            
+
+            # OPTIMIZATION 3: Simplified leaderboard updates
+            # bulk_create doesn't trigger post_save signals, so we need to manually update leaderboards.
+            # However, we can optimize by calling update_user_leaderboard_entries which handles
+            # all leaderboard types for a user efficiently.
+            from leaderboard.models import update_user_leaderboard_entries
+
             for user in users_to_update_leaderboard:
-                # Update GLOBAL leaderboard entry
-                global_entry, created = LeaderboardEntry.objects.get_or_create(
-                    user=user,
-                    category=None  # None means global
-                )
-                global_points = global_entry.update_points_without_ranking()
-                
+                # This single call updates all leaderboard types the user qualifies for
+                # and recalculates ranks for all affected leaderboards
+                update_user_leaderboard_entries(user)
+
                 if verbose:
-                    action = 'Created' if created else 'Updated'
-                    self.stdout.write(f'{action} GLOBAL leaderboard for {user}: {global_points} total points')
-                
-                # Update CATEGORY-SPECIFIC leaderboard entry if uptime has a category
-                if uptime_category:
-                    category_entry, cat_created = LeaderboardEntry.objects.get_or_create(
-                        user=user,
-                        category=uptime_category
-                    )
-                    category_points = category_entry.update_points_without_ranking()
-                    
-                    if verbose:
-                        action = 'Created' if cat_created else 'Updated'
-                        self.stdout.write(f'{action} {uptime_category.name} category leaderboard for {user}: {category_points} points')
-                
-                # Also check and update entries for ALL categories this user has contributions in
-                user_categories = Category.objects.filter(
-                    contribution_types__contributions__user=user
-                ).distinct()
-                
-                for category in user_categories:
-                    if category != uptime_category:  # Skip if we already updated it above
-                        cat_entry, cat_created = LeaderboardEntry.objects.get_or_create(
-                            user=user,
-                            category=category
-                        )
-                        cat_points = cat_entry.update_points_without_ranking()
-                        
-                        if verbose and cat_created:
-                            self.stdout.write(f'Created {category.name} category leaderboard for {user}: {cat_points} points')
-            
-            # Now update all ranks once, after all users have been processed
-            self.stdout.write('Updating all leaderboard ranks (global and categories)...')
-            update_all_ranks()
-            
-            if verbose:
-                # Show summary of category leaderboards
-                self.stdout.write('\nCategory leaderboard summary:')
-                for category in Category.objects.all():
-                    entry_count = LeaderboardEntry.objects.filter(category=category).count()
-                    self.stdout.write(f'  - {category.name}: {entry_count} participants')
+                    self.stdout.write(f'Updated leaderboard entries for {user}')
         
         # Print summary
         self.stdout.write(self.style.SUCCESS(
