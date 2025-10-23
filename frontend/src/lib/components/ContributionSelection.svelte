@@ -254,16 +254,18 @@
 	<div class="selection-wrapper">
 		<!-- Category Toggle Buttons -->
 		<div class="category-buttons" class:dropdown-open={dropdownOpen}>
-			<button 
-				class="category-btn" 
+			<button
+				type="button"
+				class="category-btn"
 				class:active={selectedCategory === 'validator'}
 				style={selectedCategory === 'validator' ? 'background: #e0f2fe; color: #0369a1;' : ''}
 				onclick={() => selectCategory('validator')}
 			>
 				Validator
 			</button>
-			<button 
-				class="category-btn" 
+			<button
+				type="button"
+				class="category-btn"
 				class:active={selectedCategory === 'builder'}
 				style={selectedCategory === 'builder' ? 'background: #ffedd5; color: #c2410c;' : ''}
 				onclick={() => selectCategory('builder')}
