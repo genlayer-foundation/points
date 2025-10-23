@@ -31,14 +31,11 @@ def has_category_contributions(user, category_slug):
 
 
 def calculate_category_points(user, category_slug):
-    """Calculate total points from a specific category"""
+    """Calculate total points from a specific category, including all contribution types"""
     query = Contribution.objects.filter(
         user=user,
         contribution_type__category__slug=category_slug
     )
-    # Exclude Builder Welcome from builder category points
-    if category_slug == 'builder':
-        query = query.exclude(contribution_type__slug='builder-welcome')
     return query.aggregate(
         total=Sum('frozen_global_points')
     )['total'] or 0
@@ -58,17 +55,17 @@ def calculate_waitlist_points(user):
     query = Contribution.objects.filter(
         user=user,
         contribution_type__category__slug='validator'
-    )
+    ).exclude(contribution_type__slug='validator')  # Exclude the graduation marker
 
     if grad_contrib:
-        # Only count contributions before graduation
-        query = query.filter(contribution_date__lt=grad_contrib.contribution_date)
+        # Count contributions up to and including graduation date
+        query = query.filter(contribution_date__lte=grad_contrib.contribution_date)
 
     contribution_points = query.aggregate(total=Sum('frozen_global_points'))['total'] or 0
 
     # Calculate referral points
     if grad_contrib:
-        # For graduated users: calculate referral points ONLY from contributions before graduation
+        # For graduated users: calculate referral points from contributions up to graduation
         from users.models import User
         referred_user_ids = User.objects.filter(referred_by=user).values_list('id', flat=True)
 
@@ -76,13 +73,13 @@ def calculate_waitlist_points(user):
             builder_referral = int((Contribution.objects.filter(
                 user_id__in=referred_user_ids,
                 contribution_type__category__slug='builder',
-                contribution_date__lt=grad_contrib.contribution_date
+                contribution_date__lte=grad_contrib.contribution_date
             ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
 
             validator_referral = int((Contribution.objects.filter(
                 user_id__in=referred_user_ids,
                 contribution_type__category__slug='validator',
-                contribution_date__lt=grad_contrib.contribution_date
+                contribution_date__lte=grad_contrib.contribution_date
             ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
 
             referral_points = builder_referral + validator_referral
@@ -134,21 +131,21 @@ def calculate_graduation_points(user):
 LEADERBOARD_CONFIG = {
     'validator': {
         'name': 'Validator',
-        'participants': lambda user: has_contribution_badge(user, 'validator'),
+        'participants': lambda user: hasattr(user, 'validator'),  # Has Validator profile
         'points_calculator': lambda user: calculate_category_points(user, 'validator'),
         'ranking_order': '-total_points',  # Highest points first
     },
     'builder': {
         'name': 'Builder',
-        'participants': lambda user: has_category_contributions(user, 'builder'),
+        'participants': lambda user: hasattr(user, 'builder'),  # Has Builder profile
         'points_calculator': lambda user: calculate_category_points(user, 'builder'),
         'ranking_order': '-total_points',
     },
     'validator-waitlist': {
         'name': 'Validator Waitlist',
         'participants': lambda user: (
-            has_contribution_badge(user, 'validator-waitlist') and 
-            not has_contribution_badge(user, 'validator')
+            has_contribution_badge(user, 'validator-waitlist') and
+            not hasattr(user, 'validator')  # Not graduated yet (no Validator profile)
         ),
         'points_calculator': lambda user: calculate_waitlist_points(user),
         'ranking_order': '-total_points',
@@ -157,7 +154,7 @@ LEADERBOARD_CONFIG = {
         'name': 'Validator Waitlist Graduation',
         'participants': lambda user: (
             has_contribution_badge(user, 'validator-waitlist') and
-            has_contribution_badge(user, 'validator')
+            hasattr(user, 'validator')  # Graduated (has Validator profile)
         ),
         'points_calculator': lambda user: calculate_graduation_points(user),
         'ranking_order': '-graduation_date',  # Most recent graduations first
@@ -320,39 +317,55 @@ class LeaderboardEntry(BaseModel):
         """
         Update ranks for all users in a specific leaderboard type.
         Only visible users are ranked.
+        Uses user join date as tie-breaker for equal points (older users rank higher).
         """
         if leaderboard_type not in LEADERBOARD_CONFIG:
             return
-        
+
         config = LEADERBOARD_CONFIG[leaderboard_type]
         ranking_order = config['ranking_order']
-        
-        # Build order_by fields based on configuration
-        if ranking_order == '-graduation_date':
-            order_fields = ['-graduation_date', 'user__name']
-        elif ranking_order == '-total_points':
-            order_fields = ['-total_points', 'user__name']
-        else:
-            order_fields = [ranking_order, 'user__name']
-        
+
         # First, set all non-visible users' ranks to null
         cls.objects.filter(
             type=leaderboard_type,
             user__visible=False
         ).update(rank=None)
-        
-        # Then rank only visible users
+
+        # Get visible entries with user data
         entries = list(
             cls.objects.filter(
                 type=leaderboard_type,
                 user__visible=True
-            ).order_by(*order_fields)
+            ).select_related('user')
         )
-        
-        # Bulk update ranks
+
+        if not entries:
+            return
+
+        # Sort based on ranking type
+        if ranking_order == '-total_points':
+            # Sort by points (desc), then user join date (asc), then name
+            # Older users (who joined earlier) get better rank when points are tied
+            entries.sort(key=lambda e: (
+                -e.total_points,  # Higher points first
+                e.user.date_joined,  # Earlier join date first (older users)
+                e.user.name  # Alphabetical by name as final tie-breaker
+            ))
+        elif ranking_order == '-graduation_date':
+            # Sort by graduation date, then user join date, then name
+            entries.sort(key=lambda e: (
+                -(e.graduation_date.timestamp() if e.graduation_date else 0),
+                e.user.date_joined,
+                e.user.name
+            ))
+        else:
+            # Default sorting by name
+            entries.sort(key=lambda e: e.user.name)
+
+        # Assign consecutive ranks
         for i, entry in enumerate(entries, 1):
             entry.rank = i
-        
+
         if entries:
             cls.objects.bulk_update(entries, ['rank'], batch_size=1000)
 
@@ -573,35 +586,219 @@ def update_all_ranks():
 
 def recalculate_all_leaderboards():
     """
-    Admin command to recalculate all leaderboard entries and referral points from scratch.
-    Called from admin panel shortcut.
+    Recalculate all leaderboard entries and referral points from scratch.
+
+    Optimized implementation that loads all data once and processes in Python,
+    reducing database queries from thousands to ~15 regardless of data size.
     """
+    from collections import defaultdict
     from django.db import transaction
-    from users.models import User
 
     with transaction.atomic():
-        # Clear all existing calculated data
+        # Save existing graduation entries to preserve frozen points
+        # OPEN QUESTION: Should we recalculate graduation snapshots instead of preserving them?
+        # Current: Preserves existing snapshots (performance, stability)
+        # Alternative: Recalculate all snapshots (ensures correctness if logic changed)
+        existing_graduations = {
+            entry.user_id: {
+                'points': entry.total_points,
+                'graduation_date': entry.graduation_date
+            }
+            for entry in LeaderboardEntry.objects.filter(type='validator-waitlist-graduation')
+        }
+
+        # Clear all existing calculated data (except graduation entries are preserved above)
         LeaderboardEntry.objects.all().delete()
         ReferralPoints.objects.all().delete()
 
-        # STEP 1: Recalculate referral points FIRST (needed for waitlist point calculation)
-        referrers = User.objects.filter(referrals__isnull=False).distinct()
-        for referrer in referrers:
-            recalculate_referrer_points(referrer)
+        # Load ALL contribution data in a single query
+        contributions = list(Contribution.objects.select_related(
+            'contribution_type__category'
+        ).values(
+            'id',
+            'user_id',
+            'user__referred_by_id',
+            'user__visible',
+            'contribution_type__slug',
+            'contribution_type__category__slug',
+            'contribution_date',
+            'frozen_global_points'
+        ))
 
-        # STEP 2: Get all users with any contributions
-        users = User.objects.filter(
-            contributions__isnull=False
-        ).distinct().prefetch_related(
-            'contributions__contribution_type__category'
-        )
+        if not contributions:
+            return "Recalculated 0 users across 0 leaderboards and 0 referrers"
 
-        # STEP 3: Process each user's leaderboard entries (now has referral points available)
-        for user in users:
-            update_user_leaderboard_entries(user)
+        # Build data structures in Python
+        user_contributions = defaultdict(list)
+        referrer_contributions = defaultdict(list)
+        contribution_badges = defaultdict(set)
+        user_ids = set()
 
-        # STEP 4: Update ranks for all leaderboard types
+        for contrib in contributions:
+            user_id = contrib['user_id']
+            user_ids.add(user_id)
+            user_contributions[user_id].append(contrib)
+
+            # Track badges (specific contribution type slugs)
+            contrib_slug = contrib['contribution_type__slug']
+            if contrib_slug:
+                contribution_badges[user_id].add(contrib_slug)
+
+            # Track contributions by referrer
+            referrer_id = contrib['user__referred_by_id']
+            if referrer_id:
+                referrer_contributions[referrer_id].append(contrib)
+
+        # Load Builder and Validator profiles to determine leaderboard qualification
+        from builders.models import Builder
+        from validators.models import Validator
+
+        builders_set = set(Builder.objects.values_list('user_id', flat=True))
+        validators_set = set(Validator.objects.values_list('user_id', flat=True))
+
+        # Calculate and bulk create referral points
+        referral_points_to_create = []
+
+        for referrer_id, referred_contribs in referrer_contributions.items():
+            builder_points = 0
+            validator_points = 0
+
+            for contrib in referred_contribs:
+                category_slug = contrib['contribution_type__category__slug']
+                points = contrib['frozen_global_points'] or 0
+
+                if category_slug == 'builder':
+                    builder_points += int(points * 0.1)
+                elif category_slug == 'validator':
+                    validator_points += int(points * 0.1)
+
+            referral_points_to_create.append(ReferralPoints(
+                user_id=referrer_id,
+                builder_points=builder_points,
+                validator_points=validator_points
+            ))
+
+        if referral_points_to_create:
+            ReferralPoints.objects.bulk_create(referral_points_to_create, batch_size=1000)
+
+        # Create referral points lookup for waitlist calculations
+        referral_points_lookup = {rp.user_id: rp for rp in referral_points_to_create}
+
+        # Determine user qualifications and calculate points
+        entries_to_create = []
+
+        for user_id in user_ids:
+            user_contribs = user_contributions[user_id]
+            user_badges = contribution_badges[user_id]
+
+            # Determine which leaderboards this user qualifies for
+            qualified_leaderboards = []
+
+            # Validator leaderboard: has Validator profile
+            if user_id in validators_set:
+                qualified_leaderboards.append('validator')
+
+            # Builder leaderboard: has Builder profile
+            if user_id in builders_set:
+                qualified_leaderboards.append('builder')
+
+            # Validator waitlist: has 'validator-waitlist' badge but NO Validator profile
+            if 'validator-waitlist' in user_badges and user_id not in validators_set:
+                qualified_leaderboards.append('validator-waitlist')
+
+            # Validator waitlist graduation: has 'validator-waitlist' badge AND Validator profile
+            if 'validator-waitlist' in user_badges and user_id in validators_set:
+                qualified_leaderboards.append('validator-waitlist-graduation')
+
+            # Calculate points for each qualified leaderboard
+            for leaderboard_type in qualified_leaderboards:
+                points = 0
+                graduation_date = None
+
+                if leaderboard_type == 'validator':
+                    # Sum all validator category contributions
+                    for contrib in user_contribs:
+                        if contrib['contribution_type__category__slug'] == 'validator':
+                            points += contrib['frozen_global_points'] or 0
+
+                elif leaderboard_type == 'builder':
+                    # Sum ALL builder category contributions (including builder-welcome)
+                    for contrib in user_contribs:
+                        if contrib['contribution_type__category__slug'] == 'builder':
+                            points += contrib['frozen_global_points'] or 0
+
+                elif leaderboard_type == 'validator-waitlist':
+                    # Sum all validator category contributions (excluding graduation marker) + referral points
+                    for contrib in user_contribs:
+                        if (contrib['contribution_type__category__slug'] == 'validator' and
+                            contrib['contribution_type__slug'] != 'validator'):
+                            points += contrib['frozen_global_points'] or 0
+
+                    # Add referral points if user is a referrer
+                    if user_id in referral_points_lookup:
+                        rp = referral_points_lookup[user_id]
+                        points += rp.builder_points + rp.validator_points
+
+                elif leaderboard_type == 'validator-waitlist-graduation':
+                    # Check if this user already has a frozen graduation entry
+                    if user_id in existing_graduations:
+                        # Use existing frozen values - points never change after graduation
+                        points = existing_graduations[user_id]['points']
+                        graduation_date = existing_graduations[user_id]['graduation_date']
+                    else:
+                        # New graduation - calculate points to freeze
+                        # Find graduation date (earliest validator contribution)
+                        grad_date = None
+                        for contrib in user_contribs:
+                            if contrib['contribution_type__slug'] == 'validator':
+                                contrib_date = contrib['contribution_date']
+                                if grad_date is None or contrib_date < grad_date:
+                                    grad_date = contrib_date
+
+                        graduation_date = grad_date
+
+                        # Calculate waitlist points at graduation
+                        # Include all validator contributions up to (but not after) graduation
+                        if grad_date is not None:
+                            for contrib in user_contribs:
+                                if contrib['contribution_type__category__slug'] == 'validator':
+                                    # Include contributions on or before graduation date
+                                    # but exclude the 'validator' contribution itself (graduation marker)
+                                    if (contrib['contribution_date'] <= grad_date and
+                                        contrib['contribution_type__slug'] != 'validator'):
+                                        points += contrib['frozen_global_points'] or 0
+
+                            # Add referral points earned up to graduation
+                            if user_id in referrer_contributions:
+                                builder_referral = 0
+                                validator_referral = 0
+
+                                for referred_contrib in referrer_contributions[user_id]:
+                                    if referred_contrib['contribution_date'] <= grad_date:
+                                        category = referred_contrib['contribution_type__category__slug']
+                                        contrib_points = referred_contrib['frozen_global_points'] or 0
+
+                                        if category == 'builder':
+                                            builder_referral += int(contrib_points * 0.1)
+                                        elif category == 'validator':
+                                            validator_referral += int(contrib_points * 0.1)
+
+                                points += builder_referral + validator_referral
+
+                # Create leaderboard entry
+                entries_to_create.append(LeaderboardEntry(
+                    user_id=user_id,
+                    type=leaderboard_type,
+                    total_points=points,
+                    graduation_date=graduation_date
+                ))
+
+        # Bulk create leaderboard entries
+        if entries_to_create:
+            LeaderboardEntry.objects.bulk_create(entries_to_create, batch_size=1000)
+
+        # Update ranks once per leaderboard
         for leaderboard_type in LEADERBOARD_CONFIG.keys():
             LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
-        return f"Recalculated {users.count()} users across {len(LEADERBOARD_CONFIG)} leaderboards and {referrers.count()} referrers"
+        return f"Recalculated {len(user_ids)} users across {len(LEADERBOARD_CONFIG)} leaderboards and {len(referral_points_to_create)} referrers"

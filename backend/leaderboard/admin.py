@@ -59,7 +59,7 @@ class LeaderboardEntryAdmin(admin.ModelAdmin):
             )
     
     recreate_all_leaderboards.short_description = "Recreate all leaderboards"
-    
+
     def update_leaderboard_view(self, request):
         """View for updating the leaderboard using the management command."""
         if request.method == 'POST':
