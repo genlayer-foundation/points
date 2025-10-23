@@ -10,7 +10,9 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.generic import ListView
 from django.utils.decorators import method_decorator
-from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission, Notification
+from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission
+from notifications.models import Notification
+from notifications.signals import notify
 from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
@@ -821,14 +823,13 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             submission.converted_contribution = contribution
             submission.staff_reply = serializer.validated_data.get('staff_reply', '')
 
-            # Create notification for user
-            # TODO: Migrate to django-notifications-hq
-            Notification.objects.create(
+            # Create notification for user using django-notifications-hq
+            notify.send(
+                sender=request.user,
                 recipient=submission.user,
-                actor=request.user,
-                submission=submission,
-                notification_type='accepted',
-                message=f'Your submission was accepted and awarded {serializer.validated_data["points"]} points!',
+                verb='accepted',
+                description=f'Your submission was accepted and awarded {serializer.validated_data["points"]} points!',
+                target=submission,
                 data={
                     'points': serializer.validated_data['points'],
                     'contribution_type': contribution_type.name
@@ -839,14 +840,13 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             submission.state = 'rejected'
             submission.staff_reply = serializer.validated_data['staff_reply']
 
-            # Create notification for user
-            # TODO: Migrate to django-notifications-hq
-            Notification.objects.create(
+            # Create notification for user using django-notifications-hq
+            notify.send(
+                sender=request.user,
                 recipient=submission.user,
-                actor=request.user,
-                submission=submission,
-                notification_type='rejected',
-                message=f'Your submission was rejected.',
+                verb='rejected',
+                description=f'Your submission was rejected.',
+                target=submission,
                 data={
                     'staff_reply': serializer.validated_data['staff_reply']
                 }
@@ -856,14 +856,13 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             submission.state = 'more_info_needed'
             submission.staff_reply = serializer.validated_data['staff_reply']
 
-            # Create notification for user
-            # TODO: Migrate to django-notifications-hq
-            Notification.objects.create(
+            # Create notification for user using django-notifications-hq
+            notify.send(
+                sender=request.user,
                 recipient=submission.user,
-                actor=request.user,
-                submission=submission,
-                notification_type='more_info',
-                message=f'More information requested on your submission.',
+                verb='more_info',
+                description=f'More information requested on your submission.',
+                target=submission,
                 data={
                     'staff_reply': serializer.validated_data['staff_reply']
                 }
@@ -1002,27 +1001,32 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         """Only return notifications for the authenticated user."""
+        # Note: actor and target are GenericForeignKeys, so we use prefetch_related
+        # We can select_related the content types to reduce queries
         return self.request.user.notifications.all().select_related(
+            'actor_content_type',
+            'target_content_type'
+        ).prefetch_related(
             'actor',
-            'submission',
-            'submission__contribution_type'
+            'target'
         )
 
     @action(detail=False, methods=['get'])
     def unread_count(self, request):
         """Get count of unread notifications."""
-        count = Notification.get_unread_count(request.user)
+        count = request.user.notifications.unread().count()
         return Response({'count': count})
 
     @action(detail=True, methods=['post'])
     def mark_read(self, request, pk=None):
         """Mark a single notification as read."""
         notification = self.get_object()
-        notification.mark_as_read()
+        notification.unread = False
+        notification.save(update_fields=['unread'])
         return Response({'status': 'marked as read'})
 
     @action(detail=False, methods=['post'])
     def mark_all_read(self, request):
         """Mark all notifications as read."""
-        Notification.mark_all_as_read(request.user)
+        request.user.notifications.mark_all_as_read()
         return Response({'status': 'all marked as read'})

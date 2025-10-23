@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'drf_yasg',
     'django_filters',
     'django_recaptcha',
+    'notifications',  # django-notifications-hq for notification system
     'allow_cidr',
 
     # Local apps

@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, Notification
+from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission
+from notifications.models import Notification
 from users.serializers import UserSerializer, LightUserSerializer
 from users.models import User
 from .recaptcha_field import ReCaptchaField
@@ -561,10 +562,13 @@ class MissionSerializer(serializers.ModelSerializer):
 
 
 class NotificationSerializer(serializers.ModelSerializer):
-    """Serializer for notification objects."""
+    """Serializer for django-notifications-hq Notification model."""
     actor_name = serializers.SerializerMethodField()
     submission_id = serializers.SerializerMethodField()
     time_ago = serializers.SerializerMethodField()
+    notification_type = serializers.CharField(source='verb', read_only=True)
+    message = serializers.CharField(source='description', read_only=True)
+    created_at = serializers.DateTimeField(source='timestamp', read_only=True)
 
     class Meta:
         model = Notification
@@ -584,14 +588,21 @@ class NotificationSerializer(serializers.ModelSerializer):
     def get_actor_name(self, obj):
         """Get the name of the steward who took action."""
         if obj.actor:
-            return obj.actor.name or obj.actor.address[:10]
+            # Actor is a GenericForeignKey, should be a User
+            if hasattr(obj.actor, 'name') and obj.actor.name:
+                return obj.actor.name
+            elif hasattr(obj.actor, 'address'):
+                return obj.actor.address[:10]
         return 'System'
 
     def get_submission_id(self, obj):
-        """Get submission ID."""
-        return str(obj.submission.id) if obj.submission else None
+        """Get submission ID from target GenericForeignKey."""
+        # Target is a GenericForeignKey to SubmittedContribution
+        if obj.target and hasattr(obj.target, 'id'):
+            return str(obj.target.id)
+        return None
 
     def get_time_ago(self, obj):
         """Human-readable time since notification."""
         from django.utils.timesince import timesince
-        return timesince(obj.created_at)
+        return timesince(obj.timestamp)
