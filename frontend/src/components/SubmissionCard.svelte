@@ -5,6 +5,7 @@
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
   import Link from '../lib/components/Link.svelte';
   import Avatar from './Avatar.svelte';
+  import Badge from './Badge.svelte';
   
   let {
     submission,
@@ -33,6 +34,7 @@
   // For ContributionSelection component
   let selectedCategory = $state(submission.contribution_type_details?.category || 'validator');
   let selectedContributionTypeObj = $state(null);
+  let selectedMission = $state(submission.mission || null);
   
   // Reset form when submission changes
   $effect(() => {
@@ -159,9 +161,29 @@
   <div class="px-6 py-4 border-b {getStateBackgroundClass(submission.state)}">
     <div class="flex justify-between items-start">
       <div>
-        <h3 class="text-lg font-semibold">
+        <h3 class="text-lg font-semibold flex items-center gap-2 flex-wrap">
           {#if isOwnSubmission}
-            {submission.contribution_type_name || getTypeName(submission.contribution_type)}
+            {#if submission.mission_details}
+              <!-- Show mission name as title -->
+              <span>{submission.mission_details.name}</span>
+              <!-- Show contribution type as badge -->
+              <Badge
+                badge={{
+                  id: submission.contribution_type,
+                  name: submission.contribution_type_name || getTypeName(submission.contribution_type),
+                  description: '',
+                  points: 0,
+                  actionId: submission.contribution_type
+                }}
+                color="indigo"
+                size="sm"
+                clickable={true}
+                bold={false}
+              />
+            {:else}
+              <!-- Show contribution type as title when no mission -->
+              <span>{submission.contribution_type_name || getTypeName(submission.contribution_type)}</span>
+            {/if}
           {:else}
             <div class="flex items-center gap-2">
               <Avatar
@@ -210,13 +232,41 @@
           </div>
           
           <div>
-            <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
-            <p class="mt-1 text-sm text-gray-900">
-              {submission.contribution_type_details?.name}
-              <span class="text-xs text-gray-500 ml-2">
-                ({submission.contribution_type_details?.min_points}-{submission.contribution_type_details?.max_points} points)
-              </span>
-            </p>
+            {#if submission.mission_details}
+              <h4 class="text-sm font-medium text-gray-700">Mission</h4>
+              <div class="mt-1 flex items-center gap-2 flex-wrap">
+                <span class="text-sm text-gray-900">
+                  {submission.mission_details.name}
+                </span>
+                <!-- Show contribution type as badge -->
+                <Badge
+                  badge={{
+                    id: submission.contribution_type,
+                    name: submission.contribution_type_details?.name,
+                    description: '',
+                    points: 0,
+                    actionId: submission.contribution_type
+                  }}
+                  color="indigo"
+                  size="sm"
+                  clickable={true}
+                  bold={false}
+                />
+                <span class="text-xs text-gray-500">
+                  ({submission.contribution_type_details?.min_points}-{submission.contribution_type_details?.max_points} points)
+                </span>
+              </div>
+            {:else}
+              <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
+              <div class="mt-1 flex items-center gap-2 flex-wrap">
+                <span class="text-sm text-gray-900">
+                  {submission.contribution_type_details?.name}
+                </span>
+                <span class="text-xs text-gray-500">
+                  ({submission.contribution_type_details?.min_points}-{submission.contribution_type_details?.max_points} points)
+                </span>
+              </div>
+            {/if}
           </div>
         {/if}
         
@@ -224,7 +274,7 @@
           <h4 class="text-sm font-medium text-gray-700">Contribution Date</h4>
           <p class="mt-1 text-sm text-gray-900">{formatDate(submission.contribution_date)}</p>
         </div>
-        
+
         {#if submission.notes}
           <div>
             <h4 class="text-sm font-medium text-gray-700">Notes</h4>
@@ -334,7 +384,9 @@
                     <ContributionSelection
                       bind:selectedCategory
                       bind:selectedContributionType={selectedContributionTypeObj}
+                      bind:selectedMission
                       defaultContributionType={submission.contribution_type}
+                      defaultMission={submission.mission}
                       onlySubmittable={false}
                       stewardMode={true}
                       providedContributionTypes={contributionTypes}
