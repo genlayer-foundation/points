@@ -464,7 +464,7 @@
               {:else}
                 <span>Visit the faucet to get testnet tokens</span>
               {/if}
-              {#if showActions && onRefreshBalance && testnetBalance !== null && hasAsimovNetwork}
+              {#if showActions && onRefreshBalance && hasAsimovNetwork}
                 <button
                   onclick={onRefreshBalance}
                   disabled={isRefreshingBalance}
