@@ -24,3 +24,8 @@ cryptography>=41.0.0
 email-validator>=2.1.0
 disposable-email-domains>=0.0.97
 django-recaptcha>=4.0.0
+
+# django-notifications-hq from GitHub master (1.9.0) - Django 5.2 compatibility
+# Using specific commit until 1.9.0 is officially released to PyPI
+# See: https://github.com/django-notifications/django-notifications/pull/405
+git+https://github.com/django-notifications/django-notifications.git@4c44bcea2504d9a3fcd26366b232a13732a08f2a#egg=django-notifications-hq

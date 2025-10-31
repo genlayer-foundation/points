@@ -475,5 +475,5 @@ class ContributionHighlight(BaseModel):
             'contribution__user',
             'contribution__contribution_type'
         )
-        
+
         return queryset[:limit]
