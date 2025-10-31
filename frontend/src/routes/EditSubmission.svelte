@@ -18,13 +18,15 @@
   // Contribution type selection state
   let selectedCategory = $state('validator');
   let selectedContributionType = $state(null);
+  let selectedMission = $state(null);
   let defaultContributionTypeId = $state(null);
 
   // Form data
   let formData = $state({
     contribution_type: '',
     contribution_date: '',
-    notes: ''
+    notes: '',
+    mission: null
   });
 
   // Evidence slots for editing
@@ -39,7 +41,8 @@
       formData = {
         contribution_type: submission.contribution_type,
         contribution_date: submission.contribution_date ? submission.contribution_date.split('T')[0] : '',
-        notes: submission.notes || ''
+        notes: submission.notes || '',
+        mission: submission.mission || null
       };
 
       formInitialized = true;
@@ -56,6 +59,11 @@
         error = '';
       }
     }
+  });
+
+  // Sync selectedMission with formData.mission
+  $effect(() => {
+    formData.mission = selectedMission || null;
   });
 
   function handleSelectionChange(category, contributionType) {
@@ -112,7 +120,7 @@
         return;
       }
 
-      // Set the default contribution type for the selector
+      // Set the default contribution type and mission for the selector
       defaultContributionTypeId = submission.contribution_type;
 
       // Form data will be populated by the $effect
@@ -222,6 +230,7 @@
         contribution_type: parseInt(formData.contribution_type),
         contribution_date: formData.contribution_date + 'T00:00:00Z',
         notes: formData.notes || '',
+        mission: formData.mission || null,
         evidence_items: evidence_items  // Send all evidence in one request
       };
 
@@ -324,8 +333,10 @@
           <ContributionSelection
             bind:selectedCategory
             bind:selectedContributionType
+            bind:selectedMission
             defaultContributionType={defaultContributionTypeId}
-            onlySubmittable={true}
+            defaultMission={submission?.mission}
+            onlySubmittable={false}
             stewardMode={false}
             onSelectionChange={handleSelectionChange}
           />

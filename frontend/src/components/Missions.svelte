@@ -287,7 +287,7 @@
           {/if}
 
           <button
-            onclick={() => push(`/submit-contribution?type=${mission.contribution_type}`)}
+            onclick={() => push(`/submit-contribution?mission=${mission.id}`)}
             class="ml-auto flex-shrink-0 text-sm font-normal {colors.titleText} {colors.titleTextHover} transition-colors"
           >
             Submit →

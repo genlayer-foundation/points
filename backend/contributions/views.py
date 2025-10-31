@@ -212,7 +212,8 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             'user__validator',  # For validator info in user details
             'user__builder',    # For builder info in user details
             'contribution_type',
-            'contribution_type__category'
+            'contribution_type__category',
+            'mission'  # Avoid N+1 queries when accessing mission details
         ).prefetch_related(
             'evidence_items',  # Only queried in detail view (light serializers skip this)
             'highlights'       # Only queried in detail view (light serializers skip this)
@@ -497,7 +498,7 @@ class SubmissionListView(ListView):
             queryset = queryset.filter(state=state_filter)
         
         # Order by creation date, newest first
-        return queryset.select_related('user', 'contribution_type', 'reviewed_by').prefetch_related('evidence_items').order_by('-created_at')
+        return queryset.select_related('user', 'contribution_type', 'reviewed_by', 'mission').prefetch_related('evidence_items').order_by('-created_at')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -597,7 +598,8 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             'contribution_type__category',
             'reviewed_by',
             'converted_contribution',
-            'user'  # Optimize user access
+            'user',  # Optimize user access
+            'mission'  # Avoid N+1 queries when accessing mission details
         ).prefetch_related(
             'evidence_items'
         ).order_by('-created_at')
@@ -614,7 +616,28 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         return context
     
     def create(self, request, *args, **kwargs):
-        """Create a new submission."""
+        """Create a new submission with optional mission tracking."""
+        mission_id = request.data.get('mission')
+
+        # Validate mission if provided
+        if mission_id:
+            try:
+                mission = Mission.objects.get(id=mission_id)
+                # Validate mission is active
+                if not mission.is_active():
+                    return Response(
+                        {'error': 'This mission has ended or is not yet active.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                # Auto-populate contribution_type from mission if not provided
+                if not request.data.get('contribution_type'):
+                    request.data['contribution_type'] = mission.contribution_type_id
+            except Mission.DoesNotExist:
+                return Response(
+                    {'error': 'Invalid mission ID.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -750,7 +773,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'contribution_type',
             'contribution_type__category',
             'reviewed_by',
-            'converted_contribution'
+            'converted_contribution',
+            'mission'  # Avoid N+1 queries when accessing mission details
         ).prefetch_related('evidence_items')
 
         return queryset
@@ -797,7 +821,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 contribution_type=contribution_type,
                 points=serializer.validated_data['points'],
                 contribution_date=submission.contribution_date,
-                notes=submission.notes
+                notes=submission.notes,
+                mission=submission.mission
             )
             
             # Copy evidence items
