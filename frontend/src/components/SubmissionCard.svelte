@@ -164,20 +164,18 @@
         <h3 class="text-lg font-semibold flex items-center gap-2 flex-wrap">
           {#if isOwnSubmission}
             {#if submission.mission_details}
-              <!-- Show mission name as title -->
+              <!-- Show mission name as title with Mission badge -->
               <span>{submission.mission_details.name}</span>
-              <!-- Show contribution type as badge -->
               <Badge
                 badge={{
-                  id: submission.contribution_type,
-                  name: submission.contribution_type_name || getTypeName(submission.contribution_type),
+                  id: null,
+                  name: 'Mission',
                   description: '',
-                  points: 0,
-                  actionId: submission.contribution_type
+                  points: 0
                 }}
                 color="indigo"
                 size="sm"
-                clickable={true}
+                clickable={false}
                 bold={false}
               />
             {:else}
@@ -232,44 +230,38 @@
           </div>
           
           <div>
-            {#if submission.mission_details}
+            <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
+            <div class="mt-1 flex items-center gap-2 flex-wrap">
+              <span class="text-sm text-gray-900">
+                {submission.contribution_type_details?.name}
+              </span>
+              <span class="text-xs text-gray-500">
+                ({submission.contribution_type_details?.min_points}-{submission.contribution_type_details?.max_points} points)
+              </span>
+            </div>
+          </div>
+
+          {#if submission.mission_details}
+            <div>
               <h4 class="text-sm font-medium text-gray-700">Mission</h4>
               <div class="mt-1 flex items-center gap-2 flex-wrap">
                 <span class="text-sm text-gray-900">
                   {submission.mission_details.name}
                 </span>
-                <!-- Show contribution type as badge -->
-                <Badge
-                  badge={{
-                    id: submission.contribution_type,
-                    name: submission.contribution_type_details?.name,
-                    description: '',
-                    points: 0,
-                    actionId: submission.contribution_type
-                  }}
-                  color="indigo"
-                  size="sm"
-                  clickable={true}
-                  bold={false}
-                />
-                <span class="text-xs text-gray-500">
-                  ({submission.contribution_type_details?.min_points}-{submission.contribution_type_details?.max_points} points)
-                </span>
               </div>
-            {:else}
-              <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
-              <div class="mt-1 flex items-center gap-2 flex-wrap">
-                <span class="text-sm text-gray-900">
-                  {submission.contribution_type_details?.name}
-                </span>
-                <span class="text-xs text-gray-500">
-                  ({submission.contribution_type_details?.min_points}-{submission.contribution_type_details?.max_points} points)
-                </span>
-              </div>
-            {/if}
+            </div>
+          {/if}
+        {/if}
+
+        {#if isOwnSubmission && submission.mission_details}
+          <div>
+            <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
+            <p class="mt-1 text-sm text-gray-900">
+              {submission.contribution_type_name || getTypeName(submission.contribution_type)}
+            </p>
           </div>
         {/if}
-        
+
         <div>
           <h4 class="text-sm font-medium text-gray-700">Contribution Date</h4>
           <p class="mt-1 text-sm text-gray-900">{formatDate(submission.contribution_date)}</p>

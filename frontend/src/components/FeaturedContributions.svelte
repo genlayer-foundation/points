@@ -197,8 +197,7 @@
               description: highlight.description
             },
             count: 1,
-            category: highlight.category || category || $currentCategory,
-            mission_details: highlight.mission_details
+            category: highlight.category || category || $currentCategory
           }}
           showUser={true}
           showExpand={false}

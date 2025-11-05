@@ -618,6 +618,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Create a new submission with optional mission tracking."""
         mission_id = request.data.get('mission')
+        data = request.data.copy()  # Create mutable copy for modifications
 
         # Validate mission if provided
         if mission_id:
@@ -630,15 +631,15 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 # Auto-populate contribution_type from mission if not provided
-                if not request.data.get('contribution_type'):
-                    request.data['contribution_type'] = mission.contribution_type_id
+                if not data.get('contribution_type'):
+                    data['contribution_type'] = mission.contribution_type_id
             except Mission.DoesNotExist:
                 return Response(
                     {'error': 'Invalid mission ID.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)

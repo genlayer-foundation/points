@@ -36,9 +36,11 @@
         ...contrib,
         count: 1,
         users: contrib.user_details ? [contrib.user_details] : [],
-        typeId: contrib.contribution_type?.id || contrib.contribution_type,
-        category: category || contrib.contribution_type_details?.category || contrib.category,
-        mission_details: contrib.mission_details
+        // Normalize typeId: contribution_type can be int (single) or object (grouped)
+        typeId: typeof contrib.contribution_type === 'object'
+          ? contrib.contribution_type.id
+          : contrib.contribution_type,
+        category: category || contrib.contribution_type_details?.category
       }));
     }
 
@@ -72,13 +74,13 @@
               user_details: contrib.user_details,
               category: category || contrib.contribution_type_details?.category,
               highlight: contrib.highlight,
-              typeId: contrib.contribution_type_details?.id || contrib.contribution_type,
+              // contribution_type is int here (from ContributionSerializer)
+              typeId: contrib.contribution_type,
               count: 1,
               end_date: contrib.contribution_date,
               users: contrib.user_details ? [contrib.user_details] : [],
               evidence_items: contrib.evidence_items,
-              notes: contrib.notes,
-              mission_details: contrib.mission_details
+              notes: contrib.notes
             });
           } else {
             // Non-highlighted contribution - add to current subgroup
@@ -95,12 +97,12 @@
                 user_details: contrib.user_details,
                 category: category || contrib.contribution_type_details?.category,
                 highlight: null,
-                typeId: contrib.contribution_type_details?.id || contrib.contribution_type,
+                // contribution_type is int here (from ContributionSerializer)
+                typeId: contrib.contribution_type,
                 count: 1,
                 end_date: contrib.contribution_date,
                 users: contrib.user_details ? [contrib.user_details] : [],
-                grouped_items: [contrib],  // Store all contributions for later access
-                mission_details: contrib.mission_details
+                grouped_items: [contrib]  // Store all contributions for later access
               };
             } else {
               // Add to existing subgroup
@@ -140,10 +142,13 @@
     let currentGroup = null;
     
     for (const contrib of contribs) {
-      const typeId = contrib.contribution_type?.id || contrib.contribution_type;
+      // Normalize typeId: contribution_type can be int (single) or object (grouped)
+      const typeId = typeof contrib.contribution_type === 'object'
+        ? contrib.contribution_type.id
+        : contrib.contribution_type;
       const typeName = contrib.contribution_type_name || contrib.contribution_type?.name || 'Unknown Type';
       const hasHighlight = contrib.highlight ? true : false;
-      
+
       // Start a new group if: different type, has highlight, or current group has highlight
       if (!currentGroup || currentGroup.typeId !== typeId || hasHighlight || currentGroup.highlight) {
         // Start a new group
@@ -151,20 +156,19 @@
           id: contrib.id,
           contribution_type: typeId,
           contribution_type_name: typeName,
-          contribution_type_details: contrib.contribution_type,
+          contribution_type_details: contrib.contribution_type_details,
           contribution_date: contrib.contribution_date,
           frozen_global_points: contrib.frozen_global_points || 0,
           points: contrib.frozen_global_points || 0,
           user_details: contrib.user_details,
-          category: category || contrib.contribution_type?.category || contrib.category,
+          category: category || contrib.contribution_type_details?.category,
           highlight: contrib.highlight,
           // Grouping info
           typeId: typeId,
           count: 1,
           end_date: contrib.contribution_date,
           users: [],
-          grouped_items: [contrib],  // Store all contributions for later access
-          mission_details: contrib.mission_details
+          grouped_items: [contrib]  // Store all contributions for later access
         };
 
         if (contrib.user_details) {

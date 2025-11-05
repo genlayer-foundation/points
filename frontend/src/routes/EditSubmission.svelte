@@ -330,6 +330,8 @@
           <label class="block text-sm font-medium text-gray-700 mb-2">
             Contribution Type <span class="text-red-500">*</span>
           </label>
+          <!-- Show all types (including non-submittable) so user can see their current
+               submission's type, even if it was changed to non-submittable after submission -->
           <ContributionSelection
             bind:selectedCategory
             bind:selectedContributionType

@@ -54,6 +54,7 @@
 				const defaultType = contributionTypes.find(t => t.id === defaultContributionType);
 				if (defaultType) {
 					selectedContributionType = defaultType;
+					selectedCategory = defaultType.category || 'validator';
 					searchQuery = defaultType.name;
 				}
 			}
@@ -95,6 +96,7 @@
 				const defaultType = contributionTypes.find(t => t.id === defaultContributionType);
 				if (defaultType) {
 					selectedContributionType = defaultType;
+					selectedCategory = defaultType.category || 'validator';
 					searchQuery = defaultType.name;
 				}
 			}
@@ -390,16 +392,6 @@
 						<div class="points-row">
 							<span class="final-label">Contribution Type:</span>
 							<span class="type-name">{selectedContributionType.name}</span>
-						</div>
-						<div class="points-row">
-							<span class="final-label">Points:</span>
-							<span class="final-value">
-								{#if selectedContributionType.current_multiplier}
-									{Math.round(selectedContributionType.min_points * selectedContributionType.current_multiplier)} - {Math.round(selectedContributionType.max_points * selectedContributionType.current_multiplier)}
-								{:else}
-									{selectedContributionType.min_points} - {selectedContributionType.max_points}
-								{/if}
-							</span>
 						</div>
 					</div>
 				{:else}
