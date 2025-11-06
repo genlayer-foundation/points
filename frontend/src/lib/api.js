@@ -119,7 +119,10 @@ export const leaderboardAPI = {
 
 // Stats API
 export const statsAPI = {
-  getDashboardStats: () => api.get('/leaderboard/stats/'),
+  getDashboardStats: (type = null) => {
+    const params = type && type !== 'global' ? { type } : {};
+    return api.get('/leaderboard/stats/', { params });
+  },
   getUserStats: (address, category = null) => {
     const params = category ? { category } : {};
     return api.get(`/leaderboard/user_stats/by-address/${address}/`, { params });

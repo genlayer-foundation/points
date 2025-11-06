@@ -59,7 +59,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Filter leaderboard by type, user address, and handle ordering.
         Optimized with select_related to avoid N+1 queries.
-        Supports limit parameter for efficient top-N queries.
         """
         queryset = super().get_queryset()
 
@@ -97,7 +96,16 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         else:
             queryset = queryset.order_by('rank')
 
-        # Apply limit if provided (for efficient top-N queries)
+        return queryset
+
+    def finalize_queryset(self, queryset):
+        """
+        Apply limit after all filtering and ordering is complete.
+        This is the DRF-recommended way to apply final modifications.
+        """
+        queryset = super().finalize_queryset(queryset)
+
+        # Apply limit if provided
         limit = self.request.query_params.get('limit')
         if limit:
             try:
@@ -145,25 +153,53 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     def stats(self, request):
         """
         Get statistics for the dashboard.
+        Supports optional 'type' parameter for category-specific stats.
         """
         from django.db.models import Sum, Count
         from contributions.models import Contribution
         from users.models import User
-        
-        # Get total participants (only visible users)
-        participant_count = User.objects.filter(
-            contributions__isnull=False,
-            visible=True
-        ).distinct().count()
-        
-        # Get total contributions
-        contribution_count = Contribution.objects.count()
-        
-        # Get total points
-        total_points = Contribution.objects.aggregate(
-            total=Sum('frozen_global_points')
-        )['total'] or 0
-        
+
+        leaderboard_type = request.query_params.get('type')
+
+        if leaderboard_type:
+            # Category-specific stats
+            leaderboard_entries = LeaderboardEntry.objects.filter(
+                type=leaderboard_type,
+                user__visible=True
+            )
+
+            participant_count = leaderboard_entries.count()
+            total_points = leaderboard_entries.aggregate(
+                total=Sum('total_points')
+            )['total'] or 0
+
+            # Get contribution count for this category
+            category_map = {
+                'validator': 'validator',
+                'builder': 'builder',
+                'steward': 'steward'
+            }
+            category = category_map.get(leaderboard_type)
+
+            if category:
+                contribution_count = Contribution.objects.filter(
+                    contribution_type__category__slug=category
+                ).count()
+            else:
+                contribution_count = 0
+        else:
+            # Global stats
+            participant_count = User.objects.filter(
+                contributions__isnull=False,
+                visible=True
+            ).distinct().count()
+
+            contribution_count = Contribution.objects.count()
+
+            total_points = Contribution.objects.aggregate(
+                total=Sum('frozen_global_points')
+            )['total'] or 0
+
         return Response({
             'participant_count': participant_count,
             'contribution_count': contribution_count,
