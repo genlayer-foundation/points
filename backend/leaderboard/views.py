@@ -98,23 +98,23 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
 
         return queryset
 
-    def finalize_queryset(self, queryset):
+    def list(self, request, *args, **kwargs):
         """
-        Apply limit after all filtering and ordering is complete.
-        This is the DRF-recommended way to apply final modifications.
+        Override to apply limit after filtering/ordering.
         """
-        queryset = super().finalize_queryset(queryset)
+        queryset = self.filter_queryset(self.get_queryset())
 
-        # Apply limit if provided
+        # Apply limit after filtering and ordering
         limit = self.request.query_params.get('limit')
         if limit:
             try:
                 limit = int(limit)
                 queryset = queryset[:limit]
             except (ValueError, TypeError):
-                pass  # Ignore invalid limit values
+                pass
 
-        return queryset
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def get_serializer_context(self):
         """
