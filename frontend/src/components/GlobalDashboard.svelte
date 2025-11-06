@@ -5,7 +5,7 @@
   import TopLeaderboard from './TopLeaderboard.svelte';
   import FeaturedContributions from './FeaturedContributions.svelte';
   import Avatar from './Avatar.svelte';
-  import { contributionsAPI, leaderboardAPI, validatorsAPI, buildersAPI } from '../lib/api';
+  import { leaderboardAPI, statsAPI, validatorsAPI, buildersAPI } from '../lib/api';
   
   // State management
   let validatorStats = $state({ total: 0, contributions: 0, points: 0 });
@@ -36,39 +36,37 @@
 
       // Fetch all necessary data in one parallel batch
       const [
-        builderLeaderboardRes,
+        validatorStatsRes,
+        builderStatsRes,
         validatorLeaderboardRes,
-        validatorContribRes,
-        builderContribRes,
+        builderLeaderboardRes,
         validatorsRes,
         buildersRes
       ] = await Promise.all([
-        leaderboardAPI.getLeaderboardByType('builder'),
-        leaderboardAPI.getLeaderboardByType('validator'),
-        contributionsAPI.getContributions({ category: 'validator', limit: 1 }),
-        contributionsAPI.getContributions({ category: 'builder', limit: 1 }),
+        statsAPI.getDashboardStats('validator'),
+        statsAPI.getDashboardStats('builder'),
+        leaderboardAPI.getLeaderboardByType('validator', 'asc', { limit: 5 }),
+        leaderboardAPI.getLeaderboardByType('builder', 'asc', { limit: 5 }),
         validatorsAPI.getNewestValidators(5),
         buildersAPI.getNewestBuilders(5)
       ]);
 
       // Process validator stats
-      const validatorEntries = Array.isArray(validatorLeaderboardRes.data) ? validatorLeaderboardRes.data : [];
-      validatorLeaderboard = validatorEntries;
+      validatorLeaderboard = Array.isArray(validatorLeaderboardRes.data) ? validatorLeaderboardRes.data : [];
 
       validatorStats = {
-        total: validatorEntries.length,
-        contributions: validatorContribRes.data?.count || 0,
-        points: validatorEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0)
+        total: validatorStatsRes.data.participant_count || 0,
+        contributions: validatorStatsRes.data.contribution_count || 0,
+        points: validatorStatsRes.data.total_points || 0
       };
 
       // Process builder stats
-      const builderEntries = Array.isArray(builderLeaderboardRes.data) ? builderLeaderboardRes.data : [];
-      builderLeaderboard = builderEntries;
+      builderLeaderboard = Array.isArray(builderLeaderboardRes.data) ? builderLeaderboardRes.data : [];
 
       builderStats = {
-        total: builderEntries.length,
-        contributions: builderContribRes.data?.count || 0,
-        points: builderEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0)
+        total: builderStatsRes.data.participant_count || 0,
+        contributions: builderStatsRes.data.contribution_count || 0,
+        points: builderStatsRes.data.total_points || 0
       };
 
       // Process newest validators
