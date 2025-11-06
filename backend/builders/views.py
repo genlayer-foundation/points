@@ -51,33 +51,28 @@ class BuilderViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='newest')
     def newest_builders(self, request):
         """
-        Get builders sorted by their first builder contribution date (newest first).
-        Returns the 5 most recent builders to join.
+        Get builders sorted by when they completed the builder journey (newest first).
+        Returns the most recent builders to join.
         Returns minimal user data for performance.
         """
         limit = int(request.GET.get('limit', 5))
 
-        # Get all builder category contributions, excluding 'Builder Welcome'
-        builder_contributions = (
-            Contribution.objects
-            .filter(contribution_type__category__slug='builder')
-            .exclude(contribution_type__slug='builder-welcome')
-            .values('user', 'user__address', 'user__name', 'user__profile_image_url')
-            .annotate(
-                first_contribution_date=Min('contribution_date')
-            )
-            .order_by('-first_contribution_date')[:limit]
+        # Get builders ordered by creation date (when they completed the journey)
+        builders = (
+            Builder.objects
+            .select_related('user')
+            .order_by('-created_at')[:limit]
         )
 
         # Build result with minimal user data
         result = []
-        for contribution in builder_contributions:
+        for builder in builders:
             result.append({
-                'id': contribution['user'],
-                'address': contribution['user__address'],
-                'name': contribution['user__name'],
-                'profile_image_url': contribution['user__profile_image_url'],
-                'created_at': contribution['first_contribution_date']
+                'id': builder.user.id,
+                'address': builder.user.address,
+                'name': builder.user.name,
+                'profile_image_url': builder.user.profile_image_url,
+                'created_at': builder.created_at
             })
 
         return Response(result)

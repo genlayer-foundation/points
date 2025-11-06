@@ -291,7 +291,7 @@
           </h2>
         </div>
         <button
-          onclick={() => push($currentCategory === 'builder' ? '/builders/participants' : $currentCategory === 'validator' ? '/validators/participants' : '/participants')}
+          onclick={() => push($currentCategory === 'builder' ? '/builders/leaderboard' : $currentCategory === 'validator' ? '/validators/participants' : '/participants')}
           class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
           View all
