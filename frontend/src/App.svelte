@@ -32,6 +32,7 @@
   import Metrics from './routes/Metrics.svelte';
   import ProfileEdit from './routes/ProfileEdit.svelte';
   import Highlights from './routes/Highlights.svelte';
+  import Notifications from './routes/Notifications.svelte';
   import NotFound from './routes/NotFound.svelte';
   import LoaderShowcase from './routes/LoaderShowcase.svelte';
   import StewardDashboard from './routes/StewardDashboard.svelte';
@@ -66,6 +67,7 @@
     '/participants': Validators,
     '/referrals': Referrals,
     '/supporters': Supporters,
+    '/notifications': Notifications,
 
     // Builders routes
     '/builders': Dashboard,
