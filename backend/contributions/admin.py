@@ -109,13 +109,13 @@ class EvidenceInline(admin.TabularInline):
 
 @admin.register(Contribution)
 class ContributionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user_display', 'user_address_short', 'contribution_type', 'mission', 'points',
+    list_display = ('id', 'user_display', 'user_address_short', 'contribution_type', 'points',
                    'frozen_global_points', 'contribution_date_display', 'has_evidence',
                    'has_highlight', 'created_at')
-    list_filter = ('contribution_type__category', 'contribution_type', 'mission', 'contribution_date', 'created_at',
+    list_filter = ('contribution_type__category', 'contribution_type', 'contribution_date', 'created_at',
                   ('evidence_items', admin.EmptyFieldListFilter))
-    search_fields = ('user__email', 'user__name', 'user__address', 'contribution_type__name', 
-                    'notes', 'evidence_items__description', 'evidence_items__url')
+    search_fields = ('user__email', 'user__name', 'user__address', 'contribution_type__name',
+                    'notes', 'evidence_items__description', 'evidence_items__url', 'mission__name')
     readonly_fields = ('created_at', 'updated_at', 
                       'source_submission_link', 'contribution_type_info')
     ordering = ('-contribution_date', '-created_at')  # Most recent contributions first
@@ -363,10 +363,10 @@ class ContributionAdmin(admin.ModelAdmin):
 
 @admin.register(SubmittedContribution)
 class SubmittedContributionAdmin(admin.ModelAdmin):
-    list_display = ('user', 'contribution_type', 'mission', 'suggested_points', 'evidence_count', 'state',
+    list_display = ('user', 'contribution_type', 'suggested_points', 'evidence_count', 'state',
                    'contribution_date', 'created_at', 'reviewed_by')
-    list_filter = ('state', 'contribution_type__category', 'contribution_type', 'mission', 'created_at', 'reviewed_at')
-    search_fields = ('user__email', 'user__name', 'notes', 'staff_reply')
+    list_filter = ('state', 'contribution_type__category', 'contribution_type', 'created_at', 'reviewed_at')
+    search_fields = ('user__email', 'user__name', 'notes', 'staff_reply', 'mission__name')
     date_hierarchy = 'created_at'
     readonly_fields = ('id', 'created_at', 'updated_at', 'last_edited_at',
                       'converted_contribution_link', 'contribution_type_info', 'suggested_points')

@@ -163,9 +163,9 @@
       <div>
         <h3 class="text-lg font-semibold flex items-center gap-2 flex-wrap">
           {#if isOwnSubmission}
-            {#if submission.mission_details}
+            {#if submission.mission}
               <!-- Show mission name as title with Mission badge -->
-              <span>{submission.mission_details.name}</span>
+              <span>{submission.mission.name}</span>
               <Badge
                 badge={{
                   id: null,
@@ -241,19 +241,19 @@
             </div>
           </div>
 
-          {#if submission.mission_details}
+          {#if submission.mission}
             <div>
               <h4 class="text-sm font-medium text-gray-700">Mission</h4>
               <div class="mt-1 flex items-center gap-2 flex-wrap">
                 <span class="text-sm text-gray-900">
-                  {submission.mission_details.name}
+                  {submission.mission.name}
                 </span>
               </div>
             </div>
           {/if}
         {/if}
 
-        {#if isOwnSubmission && submission.mission_details}
+        {#if isOwnSubmission && submission.mission}
           <div>
             <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
             <p class="mt-1 text-sm text-gray-900">

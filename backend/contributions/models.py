@@ -121,8 +121,7 @@ class Contribution(BaseModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='contributions',
-        help_text="Mission this contribution fulfills (optional)"
+        related_name='contributions'
     )
     points = models.PositiveIntegerField(default=0)
     frozen_global_points = models.PositiveIntegerField(
@@ -178,9 +177,7 @@ class Contribution(BaseModel):
                 at_date=self.contribution_date
             )
             self.multiplier_at_creation = multiplier_value
-        except GlobalLeaderboardMultiplier.DoesNotExist:
-            # No multiplier exists for this contribution type/date, use default of 1.0
-            # This is consistent with the update_leaderboard command behavior
+        except GlobalLeaderboardMultiplier.DoesNotExist as e:
             self.multiplier_at_creation = 1.0
     
     def save(self, *args, **kwargs):
@@ -251,8 +248,7 @@ class SubmittedContribution(BaseModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='submissions',
-        help_text="Mission that prompted this submission (optional)"
+        related_name='submissions'
     )
     contribution_date = models.DateTimeField(
         help_text="Date when the contribution was made"

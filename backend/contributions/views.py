@@ -624,15 +624,20 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         if mission_id:
             try:
                 mission = Mission.objects.get(id=mission_id)
-                # Validate mission is active
-                if not mission.is_active():
+                # Validate mission timing with specific error messages
+                now = timezone.now()
+                if mission.start_date and now < mission.start_date:
                     return Response(
-                        {'error': 'This mission has ended or is not yet active.'},
+                        {'error': 'This mission has not started yet.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
-                # Auto-populate contribution_type from mission if not provided
-                if not data.get('contribution_type'):
-                    data['contribution_type'] = mission.contribution_type_id
+                if mission.end_date and now > mission.end_date:
+                    return Response(
+                        {'error': 'This mission has ended.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                # Always enforce contribution_type consistency with mission
+                data['contribution_type'] = mission.contribution_type_id
             except Mission.DoesNotExist:
                 return Response(
                     {'error': 'Invalid mission ID.'},

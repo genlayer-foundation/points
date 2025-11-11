@@ -66,15 +66,9 @@
       mission = response.data;
 
       // Pre-select contribution type from mission
-      if (mission.contribution_type_details) {
-        selectedCategory = mission.contribution_type_details.category || 'validator';
-        selectedContributionType = {
-          id: mission.contribution_type,
-          ...mission.contribution_type_details
-        };
-        formData.contribution_type = mission.contribution_type;
-        selectedMission = mission.id;
-      }
+      // Note: ContributionSelection component will handle matching mission.contribution_type
+      // to the loaded contribution types and set the proper selection
+      selectedMission = mission.id;
     } catch (err) {
       console.error('Error loading mission:', err);
       error = 'Failed to load mission details';
@@ -353,6 +347,7 @@
           bind:selectedCategory
           bind:selectedContributionType
           bind:selectedMission
+          defaultMission={missionId}
           defaultContributionType={formData.contribution_type}
           onlySubmittable={true}
           stewardMode={false}
