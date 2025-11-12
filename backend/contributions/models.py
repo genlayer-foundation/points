@@ -178,7 +178,11 @@ class Contribution(BaseModel):
             )
             self.multiplier_at_creation = multiplier_value
         except GlobalLeaderboardMultiplier.DoesNotExist as e:
-            self.multiplier_at_creation = 1.0
+            raise ValidationError(
+                f"No active multiplier exists for contribution type '{self.contribution_type}' "
+                f"on {self.contribution_date.strftime('%Y-%m-%d %H:%M')}. "
+                "Please set a multiplier that covers this date before adding contributions."
+            ) from e
     
     def save(self, *args, **kwargs):
         """

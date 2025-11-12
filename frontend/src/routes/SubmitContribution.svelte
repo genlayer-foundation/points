@@ -105,8 +105,7 @@
 
     if (missionParam) {
       missionId = parseInt(missionParam);
-      await fetchMission();
-      // fetchMission will set selectedMission
+      // ContributionSelection will handle mission preselection via defaultMission prop
     } else if (typeParam) {
       // Pre-select contribution type from URL parameter
       await fetchContributionType(parseInt(typeParam));

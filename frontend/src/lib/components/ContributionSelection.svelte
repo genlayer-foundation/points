@@ -47,11 +47,14 @@
 						selectedMission = mission.id;
 						selectedMissionData = mission;
 						searchQuery = mission.name;
+						if (parentType.category) {
+							selectedCategory = parentType.category;
+						}
 					}
 				}
 			} else if (defaultContributionType) {
 				// Set default contribution type if provided and no mission
-				const defaultType = contributionTypes.find(t => t.id === defaultContributionType);
+				const defaultType = contributionTypes.find(t => t.id == defaultContributionType); // Use == to handle string/number mismatch
 				if (defaultType) {
 					selectedContributionType = defaultType;
 					selectedCategory = defaultType.category || 'validator';
@@ -89,11 +92,14 @@
 						selectedMission = mission.id;
 						selectedMissionData = mission;
 						searchQuery = mission.name;
+						if (parentType.category) {
+							selectedCategory = parentType.category;
+						}
 					}
 				}
 			} else if (defaultContributionType) {
 				// Set default contribution type if provided and no mission
-				const defaultType = contributionTypes.find(t => t.id === defaultContributionType);
+				const defaultType = contributionTypes.find(t => t.id == defaultContributionType); // Use == to handle string/number mismatch
 				if (defaultType) {
 					selectedContributionType = defaultType;
 					selectedCategory = defaultType.category || 'validator';
@@ -107,11 +113,13 @@
 		}
 	}
 
+
 	async function loadMissions() {
 		try {
 			const response = await contributionsAPI.getMissions({
 				is_active: true,
-				category: selectedCategory
+				// If we have a defaultMission, load all missions to find it regardless of category
+				category: defaultMission ? undefined : selectedCategory
 			});
 			missions = response.data.results || response.data || [];
 		} catch (error) {
@@ -315,7 +323,10 @@
 						{#each filteredItems as item}
 							<button
 								class="dropdown-item"
-								class:selected={item.itemType === 'type' ? selectedContributionType?.id === item.data.id : selectedMission === item.data.id}
+								class:selected={selectedMissionData ?
+									(item.itemType === 'mission' && selectedMission === item.data.id) :
+									(item.itemType === 'type' ? selectedContributionType?.id === item.data.id : selectedMission === item.data.id)
+								}
 								onclick={() => selectItem(item)}
 							>
 								<div class="item-header">
@@ -358,7 +369,7 @@
 			{/if}
 		</div>
 	</div>
-		
+
 		{#if selectedContributionType}
 			<div class="selection-info">
 				{#if selectedMissionData}

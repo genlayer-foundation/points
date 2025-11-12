@@ -378,7 +378,7 @@
                       bind:selectedContributionType={selectedContributionTypeObj}
                       bind:selectedMission
                       defaultContributionType={submission.contribution_type}
-                      defaultMission={submission.mission}
+                      defaultMission={submission.mission?.id}
                       onlySubmittable={false}
                       stewardMode={true}
                       providedContributionTypes={contributionTypes}
@@ -572,7 +572,13 @@
           <!-- Edit button for pending and more_info_needed submissions -->
           <div class="flex justify-end">
             <button
-              onclick={() => push(`/contributions/${submission.id}`)}
+              onclick={() => {
+                let url = `/contributions/${submission.id}`;
+                if (submission.mission?.id) {
+                  url += `?mission=${submission.mission.id}`;
+                }
+                push(url);
+              }}
               class="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700"
             >
               Edit

@@ -1,5 +1,5 @@
 <script>
-  import { push } from 'svelte-spa-router';
+  import { push, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { onMount } from 'svelte';
   import api from '../lib/api.js';
@@ -20,6 +20,7 @@
   let selectedContributionType = $state(null);
   let selectedMission = $state(null);
   let defaultContributionTypeId = $state(null);
+  let missionIdFromUrl = $state(null);  // Mission ID from URL parameter
 
   // Form data
   let formData = $state({
@@ -157,6 +158,13 @@
   });
   
   onMount(async () => {
+    // Parse query parameters for mission ID (similar to SubmitContribution.svelte)
+    const urlParams = new URLSearchParams($querystring);
+    const missionParam = urlParams.get('mission');
+    if (missionParam) {
+      missionIdFromUrl = parseInt(missionParam);
+    }
+
     // Wait a moment for auth state to be verified
     await new Promise(resolve => setTimeout(resolve, 100));
     if (params.id) {
@@ -337,7 +345,7 @@
             bind:selectedContributionType
             bind:selectedMission
             defaultContributionType={defaultContributionTypeId}
-            defaultMission={submission?.mission}
+            defaultMission={missionIdFromUrl || submission?.mission}
             onlySubmittable={false}
             stewardMode={false}
             onSelectionChange={handleSelectionChange}

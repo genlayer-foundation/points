@@ -372,6 +372,9 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
     contribution_type_category = serializers.CharField(source='contribution.contribution_type.category.slug', read_only=True)
     contribution_points = serializers.IntegerField(source='contribution.frozen_global_points', read_only=True)
     contribution_date = serializers.DateTimeField(source='contribution.contribution_date', read_only=True)
+    # Mission fields for indicating when highlight is from a mission
+    mission_name = serializers.CharField(source='contribution.mission.name', read_only=True)
+    mission_id = serializers.IntegerField(source='contribution.mission.id', read_only=True)
 
     class Meta:
         model = ContributionHighlight
@@ -381,7 +384,7 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
                   'user_has_validator_waitlist', 'user_has_builder_welcome',
                   'contribution_type_name', 'contribution_type_id', 'contribution_type_slug',
                   'contribution_type_category', 'contribution_points', 'contribution_date',
-                  'created_at']
+                  'mission_name', 'mission_id', 'created_at']
         read_only_fields = ['id', 'created_at']
 
     def get_contribution_details(self, obj):
