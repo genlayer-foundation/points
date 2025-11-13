@@ -1,5 +1,5 @@
 <script>
-  import { push } from 'svelte-spa-router';
+  import { push, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { onMount } from 'svelte';
   import api from '../lib/api.js';
@@ -19,13 +19,16 @@
   // Contribution type selection state
   let selectedCategory = $state('validator');
   let selectedContributionType = $state(null);
+  let selectedMission = $state(null);
   let defaultContributionTypeId = $state(null);
+  let missionIdFromUrl = $state(null);  // Mission ID from URL parameter
 
   // Form data
   let formData = $state({
     contribution_type: '',
     contribution_date: '',
-    notes: ''
+    notes: '',
+    mission: null
   });
 
   // Evidence slots for editing
@@ -40,7 +43,8 @@
       formData = {
         contribution_type: submission.contribution_type,
         contribution_date: submission.contribution_date ? submission.contribution_date.split('T')[0] : '',
-        notes: submission.notes || ''
+        notes: submission.notes || '',
+        mission: submission.mission || null
       };
 
       formInitialized = true;
@@ -57,6 +61,11 @@
         error = '';
       }
     }
+  });
+
+  // Sync selectedMission with formData.mission
+  $effect(() => {
+    formData.mission = selectedMission || null;
   });
 
   function handleSelectionChange(category, contributionType) {
@@ -113,7 +122,7 @@
         return;
       }
 
-      // Set the default contribution type for the selector
+      // Set the default contribution type and mission for the selector
       defaultContributionTypeId = submission.contribution_type;
 
       // Form data will be populated by the $effect
@@ -150,6 +159,13 @@
   });
   
   onMount(async () => {
+    // Parse query parameters for mission ID (similar to SubmitContribution.svelte)
+    const urlParams = new URLSearchParams($querystring);
+    const missionParam = urlParams.get('mission');
+    if (missionParam) {
+      missionIdFromUrl = parseInt(missionParam);
+    }
+
     // Wait a moment for auth state to be verified
     await new Promise(resolve => setTimeout(resolve, 100));
     if (params.id) {
@@ -223,6 +239,7 @@
         contribution_type: parseInt(formData.contribution_type),
         contribution_date: formData.contribution_date + 'T00:00:00Z',
         notes: formData.notes || '',
+        mission: formData.mission || null,
         evidence_items: evidence_items  // Send all evidence in one request
       };
 
@@ -322,11 +339,15 @@
           <label class="block text-sm font-medium text-gray-700 mb-2">
             Contribution Type <span class="text-red-500">*</span>
           </label>
+          <!-- Show all types (including non-submittable) so user can see their current
+               submission's type, even if it was changed to non-submittable after submission -->
           <ContributionSelection
             bind:selectedCategory
             bind:selectedContributionType
+            bind:selectedMission
             defaultContributionType={defaultContributionTypeId}
-            onlySubmittable={true}
+            defaultMission={missionIdFromUrl || submission?.mission}
+            onlySubmittable={false}
             stewardMode={false}
             onSelectionChange={handleSelectionChange}
           />

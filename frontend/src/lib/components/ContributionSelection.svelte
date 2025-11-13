@@ -1,19 +1,27 @@
 <script>
 	import { onMount } from 'svelte';
 	import { getContributionTypes } from '../api/contributions.js';
+	import { contributionsAPI } from '../api.js';
+	import Badge from '../../components/Badge.svelte';
 
 	let {
 		selectedCategory = $bindable('validator'),
 		selectedContributionType = $bindable(null),
 		defaultContributionType = null,
+		defaultMission = null,  // Default mission to preselect
 		onlySubmittable = true,
 		stewardMode = false,
 		providedContributionTypes = null,  // Allow passing types from parent
+		disabled = false,  // Disable selection when locked (e.g., mission)
+		selectedMission = $bindable(null),  // Currently selected mission
 		onSelectionChange = () => {}
 	} = $props();
 
 	let contributionTypes = $state([]);
+	let missions = $state([]);  // All missions
 	let filteredTypes = $state([]);
+	let filteredItems = $state([]);  // Flat list of types + missions
+	let selectedMissionData = $state(null);  // Full mission object
 	let searchQuery = $state('');
 	let dropdownOpen = $state(false);
 	let loading = $state(true);
@@ -22,15 +30,35 @@
 		if (providedContributionTypes) {
 			// Use provided types instead of loading
 			contributionTypes = providedContributionTypes;
+
+			// Load missions even when types are provided
+			await loadMissions();
+
 			loading = false;
 			filterTypes();
-			
-			// Set default if provided
-			if (defaultContributionType) {
-				const defaultType = contributionTypes.find(t => t.id === defaultContributionType);
+
+			// Set default mission if provided
+			if (defaultMission) {
+				const mission = missions.find(m => m.id === defaultMission);
+				if (mission) {
+					const parentType = contributionTypes.find(t => t.id === mission.contribution_type);
+					if (parentType) {
+						selectedContributionType = parentType;
+						selectedMission = mission.id;
+						selectedMissionData = mission;
+						searchQuery = mission.name;
+						if (parentType.category) {
+							selectedCategory = parentType.category;
+						}
+					}
+				}
+			} else if (defaultContributionType) {
+				// Set default contribution type if provided and no mission
+				const defaultType = contributionTypes.find(t => t.id == defaultContributionType); // Use == to handle string/number mismatch
 				if (defaultType) {
 					selectedContributionType = defaultType;
 					selectedCategory = defaultType.category || 'validator';
+					searchQuery = defaultType.name;
 				}
 			}
 		} else {
@@ -48,14 +76,34 @@
 			}
 			const types = await getContributionTypes(params);
 			contributionTypes = types;
+
+			// Fetch missions for all types in current category
+			await loadMissions();
+
 			filterTypes();
-			
-			// Set default if provided
-			if (defaultContributionType) {
-				const defaultType = contributionTypes.find(t => t.id === defaultContributionType);
+
+			// Set default mission if provided
+			if (defaultMission) {
+				const mission = missions.find(m => m.id === defaultMission);
+				if (mission) {
+					const parentType = contributionTypes.find(t => t.id === mission.contribution_type);
+					if (parentType) {
+						selectedContributionType = parentType;
+						selectedMission = mission.id;
+						selectedMissionData = mission;
+						searchQuery = mission.name;
+						if (parentType.category) {
+							selectedCategory = parentType.category;
+						}
+					}
+				}
+			} else if (defaultContributionType) {
+				// Set default contribution type if provided and no mission
+				const defaultType = contributionTypes.find(t => t.id == defaultContributionType); // Use == to handle string/number mismatch
 				if (defaultType) {
 					selectedContributionType = defaultType;
 					selectedCategory = defaultType.category || 'validator';
+					searchQuery = defaultType.name;
 				}
 			}
 		} catch (error) {
@@ -65,35 +113,108 @@
 		}
 	}
 
+
+	async function loadMissions() {
+		try {
+			const response = await contributionsAPI.getMissions({
+				is_active: true,
+				// If we have a defaultMission, load all missions to find it regardless of category
+				category: defaultMission ? undefined : selectedCategory
+			});
+			missions = response.data.results || response.data || [];
+		} catch (error) {
+			console.error('Failed to load missions:', error);
+			missions = [];
+		}
+	}
+
 	function filterTypes() {
-		let filtered = contributionTypes.filter(type => 
+		// Filter types by category
+		let filtered = contributionTypes.filter(type =>
 			type.category === selectedCategory
 		);
 
+		// Filter missions by category (via contribution type)
+		let filteredMissions = missions.filter(mission => {
+			const missionType = contributionTypes.find(t => t.id === mission.contribution_type);
+			return missionType && missionType.category === selectedCategory;
+		});
+
+		// Apply search filter
 		if (searchQuery) {
 			const query = searchQuery.toLowerCase();
-			filtered = filtered.filter(type => 
+
+			// Find types that match search
+			const matchingTypes = filtered.filter(type =>
 				type.name.toLowerCase().includes(query) ||
 				(type.description && type.description.toLowerCase().includes(query))
+			);
+
+			// Find missions that match search
+			filteredMissions = filteredMissions.filter(mission =>
+				mission.name.toLowerCase().includes(query) ||
+				(mission.description && mission.description.toLowerCase().includes(query))
+			);
+
+			// Include types that have matching missions, even if type itself doesn't match
+			const typeIdsWithMatchingMissions = new Set(filteredMissions.map(m => m.contribution_type));
+			filtered = filtered.filter(type =>
+				matchingTypes.includes(type) || typeIdsWithMatchingMissions.has(type.id)
 			);
 		}
 
 		filteredTypes = filtered;
+
+		// Build flat list: types followed by their missions
+		const items = [];
+		filtered.forEach(type => {
+			items.push({ itemType: 'type', data: type });
+
+			// Add missions for this type
+			const typeMissions = filteredMissions.filter(m => m.contribution_type === type.id);
+			typeMissions.forEach(mission => {
+				items.push({ itemType: 'mission', data: mission, parentType: type });
+			});
+		});
+
+		filteredItems = items;
 	}
 
-	function selectCategory(category) {
+	async function selectCategory(category) {
 		selectedCategory = category;
 		selectedContributionType = null;
+		selectedMission = null;
+		selectedMissionData = null;
 		searchQuery = '';
+
+		// Reload missions for new category
+		await loadMissions();
 		filterTypes();
+
 		onSelectionChange(selectedCategory, selectedContributionType);
 	}
 
 	function selectContributionType(type) {
 		selectedContributionType = type;
+		selectedMission = null;
+		selectedMissionData = null;
 		dropdownOpen = false;
 		searchQuery = type.name;
 		onSelectionChange(selectedCategory, selectedContributionType);
+	}
+
+	function selectItem(item) {
+		if (item.itemType === 'type') {
+			selectContributionType(item.data);
+		} else if (item.itemType === 'mission') {
+			// Select both the mission and its parent type
+			selectedContributionType = item.parentType;
+			selectedMission = item.data.id;
+			selectedMissionData = item.data;
+			dropdownOpen = false;
+			searchQuery = item.data.name;
+			onSelectionChange(selectedCategory, item.parentType);
+		}
 	}
 
 	function handleSearchInput(event) {
@@ -103,7 +224,10 @@
 	}
 
 	function handleSearchFocus() {
-		if (selectedContributionType && searchQuery === selectedContributionType.name) {
+		// Clear search if it matches current selection
+		if (selectedMissionData && searchQuery === selectedMissionData.name) {
+			searchQuery = '';
+		} else if (selectedContributionType && searchQuery === selectedContributionType.name) {
 			searchQuery = '';
 		}
 		dropdownOpen = true;
@@ -114,8 +238,13 @@
 		// Delay to allow click on dropdown items
 		setTimeout(() => {
 			dropdownOpen = false;
-			if (selectedContributionType && !searchQuery) {
-				searchQuery = selectedContributionType.name;
+			if (!searchQuery) {
+				// Restore the name of the selected item
+				if (selectedMissionData) {
+					searchQuery = selectedMissionData.name;
+				} else if (selectedContributionType) {
+					searchQuery = selectedContributionType.name;
+				}
 			}
 		}, 200);
 	}
@@ -167,17 +296,17 @@
 			<input
 				type="text"
 				class="search-input"
-				placeholder={loading ? "Loading..." : "Select or search contribution type..."}
+				placeholder={loading ? "Loading..." : disabled ? "Locked to mission" : "Select or search contribution type..."}
 				bind:value={searchQuery}
 				oninput={handleSearchInput}
 				onfocus={handleSearchFocus}
 				onblur={handleSearchBlur}
-				disabled={loading}
+				disabled={loading || disabled}
 			/>
-			<button 
-				class="dropdown-arrow" 
+			<button
+				class="dropdown-arrow"
 				onclick={handleDropdownClick}
-				disabled={loading}
+				disabled={loading || disabled}
 			>
 				<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
 					<path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -186,28 +315,53 @@
 			
 			{#if dropdownOpen && !loading}
 				<div class="dropdown-menu">
-					{#if filteredTypes.length === 0}
+					{#if filteredItems.length === 0}
 						<div class="dropdown-item no-results">
-							No contribution types found
+							No contribution types or missions found
 						</div>
 					{:else}
-						{#each filteredTypes as type}
+						{#each filteredItems as item}
 							<button
 								class="dropdown-item"
-								class:selected={selectedContributionType?.id === type.id}
-								onclick={() => selectContributionType(type)}
+								class:selected={selectedMissionData ?
+									(item.itemType === 'mission' && selectedMission === item.data.id) :
+									(item.itemType === 'type' ? selectedContributionType?.id === item.data.id : selectedMission === item.data.id)
+								}
+								onclick={() => selectItem(item)}
 							>
-								<div class="item-name">{type.name}</div>
-								{#if type.description}
-									<div class="item-description">{type.description}</div>
-								{/if}
-								<div class="item-points">
-									{#if type.current_multiplier}
-										{Math.round(type.min_points * type.current_multiplier)} - {Math.round(type.max_points * type.current_multiplier)}
-									{:else}
-										{type.min_points} - {type.max_points}
+								<div class="item-header">
+									<div class="item-name">{item.data.name}</div>
+									{#if item.itemType === 'mission'}
+										<Badge
+											badge={{ id: null, name: 'Mission', description: '', points: 0 }}
+											color="indigo"
+											size="sm"
+											clickable={false}
+											bold={false}
+										/>
 									{/if}
 								</div>
+								{#if item.data.description}
+									<div class="item-description">
+										{#if item.itemType === 'mission' && item.data.description.length > 120}
+											{item.data.description.substring(0, 120)}...
+										{:else}
+											{item.data.description}
+										{/if}
+									</div>
+								{/if}
+								{#if item.itemType === 'mission' && item.parentType}
+									<div class="item-type-name">For: {item.parentType.name}</div>
+								{/if}
+								{#if item.itemType === 'type'}
+									<div class="item-points">
+										{#if item.data.current_multiplier}
+											{Math.round(item.data.min_points * item.data.current_multiplier)} - {Math.round(item.data.max_points * item.data.current_multiplier)}
+										{:else}
+											{item.data.min_points} - {item.data.max_points}
+										{/if}
+									</div>
+								{/if}
 							</button>
 						{/each}
 					{/if}
@@ -215,25 +369,61 @@
 			{/if}
 		</div>
 	</div>
-		
+
 		{#if selectedContributionType}
 			<div class="selection-info">
-				<h4>{selectedContributionType.name}</h4>
-				{#if selectedContributionType.description}
-					<p>{selectedContributionType.description}</p>
-				{/if}
-				<div class="points-info">
-					<div class="points-row">
-						<span class="final-label">Points:</span>
-						<span class="final-value">
-							{#if selectedContributionType.current_multiplier}
-								{Math.round(selectedContributionType.min_points * selectedContributionType.current_multiplier)} - {Math.round(selectedContributionType.max_points * selectedContributionType.current_multiplier)}
-							{:else}
-								{selectedContributionType.min_points} - {selectedContributionType.max_points}
-							{/if}
-						</span>
+				{#if selectedMissionData}
+					<!-- Show mission details -->
+					<div class="selection-header">
+						<h4>{selectedMissionData.name}</h4>
+						<Badge
+							badge={{ id: null, name: 'Mission', description: '', points: 0 }}
+							color="indigo"
+							size="sm"
+							clickable={false}
+							bold={false}
+						/>
 					</div>
-				</div>
+					{#if selectedMissionData.description}
+						<p>
+							{#if selectedMissionData.description.length > 120}
+								{selectedMissionData.description.substring(0, 120)}...
+							{:else}
+								{selectedMissionData.description}
+							{/if}
+						</p>
+					{/if}
+					{#if selectedMissionData.end_date}
+						<div class="mission-end-date">
+							<span class="final-label">Ends:</span>
+							<span class="final-value">{new Date(selectedMissionData.end_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+						</div>
+					{/if}
+					<div class="points-info">
+						<div class="points-row">
+							<span class="final-label">Contribution Type:</span>
+							<span class="type-name">{selectedContributionType.name}</span>
+						</div>
+					</div>
+				{:else}
+					<!-- Show contribution type details -->
+					<h4>{selectedContributionType.name}</h4>
+					{#if selectedContributionType.description}
+						<p>{selectedContributionType.description}</p>
+					{/if}
+					<div class="points-info">
+						<div class="points-row">
+							<span class="final-label">Points:</span>
+							<span class="final-value">
+								{#if selectedContributionType.current_multiplier}
+									{Math.round(selectedContributionType.min_points * selectedContributionType.current_multiplier)} - {Math.round(selectedContributionType.max_points * selectedContributionType.current_multiplier)}
+								{:else}
+									{selectedContributionType.min_points} - {selectedContributionType.max_points}
+								{/if}
+							</span>
+						</div>
+					</div>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -436,10 +626,16 @@
 		background: transparent;
 	}
 
+	.item-header {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 0.25rem;
+	}
+
 	.item-name {
 		font-weight: 500;
 		color: var(--color-text-primary, #333);
-		margin-bottom: 0.25rem;
 	}
 
 	.item-description {
@@ -447,6 +643,12 @@
 		color: var(--color-text-secondary, #666);
 		margin-bottom: 0.25rem;
 		line-height: 1.4;
+	}
+
+	.item-type-name {
+		font-size: 0.75rem;
+		color: var(--color-text-secondary, #666);
+		font-style: italic;
 	}
 
 	.item-points {
@@ -467,9 +669,29 @@
 		border-bottom-right-radius: 0.5rem;
 	}
 
+	.selection-header {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 0.5rem;
+	}
+
 	.selection-info h4 {
-		margin: 0 0 0.5rem 0;
+		margin: 0;
 		color: var(--color-text-primary, #333);
+	}
+
+	.mission-end-date {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 0.75rem;
+		font-size: 0.875rem;
+	}
+
+	.type-name {
+		color: var(--color-text-primary, #333);
+		font-weight: 500;
 	}
 
 	.selection-info p {

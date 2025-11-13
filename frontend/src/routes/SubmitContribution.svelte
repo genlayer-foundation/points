@@ -1,8 +1,8 @@
 <script>
-  import { push } from 'svelte-spa-router';
+  import { push, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { onMount } from 'svelte';
-  import api from '../lib/api.js';
+  import api, { contributionsAPI } from '../lib/api.js';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
 
   let loading = $state(false);
@@ -14,6 +14,12 @@
 
   // Get reCAPTCHA site key from environment
   const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+
+  // Mission-related state
+  let missionId = $state(null);
+  let mission = $state(null);
+  let loadingMission = $state(false);
+  let selectedMission = $state(null);
 
   // Selection state
   let selectedCategory = $state('validator');
@@ -51,7 +57,60 @@
     }
   });
 
+  async function fetchMission() {
+    if (!missionId) return;
+
+    loadingMission = true;
+    try {
+      const response = await contributionsAPI.getMission(missionId);
+      mission = response.data;
+
+      // Pre-select contribution type from mission
+      // Note: ContributionSelection component will handle matching mission.contribution_type
+      // to the loaded contribution types and set the proper selection
+      selectedMission = mission.id;
+    } catch (err) {
+      console.error('Error loading mission:', err);
+      error = 'Failed to load mission details';
+    } finally {
+      loadingMission = false;
+    }
+  }
+
+  async function fetchContributionType(typeId) {
+    if (!typeId) return;
+
+    loading = true;
+    try {
+      const response = await contributionsAPI.getContributionType(typeId);
+      const type = response.data;
+
+      // Pre-select contribution type from URL
+      selectedCategory = type.category || 'validator';
+      selectedContributionType = type;
+      formData.contribution_type = type.id;
+    } catch (err) {
+      console.error('Error loading contribution type:', err);
+      error = 'Failed to load contribution type details';
+    } finally {
+      loading = false;
+    }
+  }
+
   onMount(async () => {
+    // Parse query parameters
+    const params = new URLSearchParams($querystring);
+    const missionParam = params.get('mission');
+    const typeParam = params.get('type');
+
+    if (missionParam) {
+      missionId = parseInt(missionParam);
+      // ContributionSelection will handle mission preselection via defaultMission prop
+    } else if (typeParam) {
+      // Pre-select contribution type from URL parameter
+      await fetchContributionType(parseInt(typeParam));
+    }
+
     // Wait a moment for auth state to be verified
     await new Promise(resolve => setTimeout(resolve, 100));
     authChecked = true;
@@ -192,6 +251,11 @@
         recaptcha: recaptchaToken
       };
 
+      // Include mission if selected
+      if (selectedMission) {
+        submissionData.mission = selectedMission;
+      }
+
       const response = await api.post('/submissions/', submissionData);
       const submissionId = response.data.id;
 
@@ -246,7 +310,7 @@
 <div class="container mx-auto px-4 py-8">
   <h1 class="text-2xl font-bold mb-6">Submit Contribution</h1>
 
-  {#if !authChecked || loading}
+  {#if !authChecked || loading || loadingMission}
     <div class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
     </div>
@@ -281,6 +345,9 @@
         <ContributionSelection
           bind:selectedCategory
           bind:selectedContributionType
+          bind:selectedMission
+          defaultMission={missionId}
+          defaultContributionType={formData.contribution_type}
           onlySubmittable={true}
           stewardMode={false}
           onSelectionChange={handleSelectionChange}

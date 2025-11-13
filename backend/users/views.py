@@ -75,15 +75,32 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)/highlights')
     def user_highlights(self, request, address=None):
         """
-        Get highlights for a specific user by their address
+        Get highlights for a specific user by their address, optionally filtered by category
         """
-        from contributions.models import ContributionHighlight
+        from contributions.models import ContributionHighlight, Category
         from contributions.serializers import ContributionHighlightSerializer
-        
+
         user = get_object_or_404(User, address__iexact=address)
         limit = int(request.query_params.get('limit', 5))
-        
-        highlights = ContributionHighlight.get_active_highlights(user=user, limit=limit)
+        category = request.query_params.get('category')
+
+        # Build the queryset for filtering
+        queryset = ContributionHighlight.objects.filter(contribution__user=user)
+
+        # Filter by category if provided
+        if category and category != 'global':
+            category_obj = get_object_or_404(Category, slug=category)
+            queryset = queryset.filter(contribution__contribution_type__category=category_obj)
+
+        # Order by contribution date (newest first) and apply limit
+        queryset = queryset.order_by('-contribution__contribution_date')
+        queryset = queryset.select_related(
+            'contribution',
+            'contribution__user',
+            'contribution__contribution_type'
+        )
+
+        highlights = queryset[:limit]
         serializer = ContributionHighlightSerializer(highlights, many=True)
         return Response(serializer.data)
     

@@ -5,6 +5,7 @@
   import { contributionsAPI, usersAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
   import Avatar from './Avatar.svelte';
+  import Badge from './Badge.svelte';
   import ContributionCard from './ContributionCard.svelte';
 
   let {
@@ -31,11 +32,20 @@
 
   // Determine button colors based on theme
   const buttonClasses = $derived(
-    colorTheme === 'orange' 
+    colorTheme === 'orange'
       ? 'border-orange-300 text-orange-700 bg-orange-100 hover:bg-orange-200 hover:border-orange-400'
       : colorTheme === 'sky'
       ? 'border-sky-300 text-sky-700 bg-sky-100 hover:bg-sky-200 hover:border-sky-400'
       : 'border-primary-200 text-primary-700 bg-primary-50 hover:bg-primary-100 hover:border-primary-300'
+  );
+
+  // Determine contribution type badge colors based on theme
+  const contributionTypeBadgeClasses = $derived(
+    colorTheme === 'orange'
+      ? 'bg-orange-100 text-orange-800'
+      : colorTheme === 'sky'
+      ? 'bg-sky-100 text-sky-800'
+      : 'bg-primary-100 text-primary-800'
   );
 
   const formatDate = (dateString) => {
@@ -56,7 +66,11 @@
       
       if (userId) {
         // Fetch user-specific highlights
-        response = await usersAPI.getUserHighlights(userId, { limit });
+        const params = { limit };
+        if (filterCategory && filterCategory !== 'global') {
+          params.category = filterCategory;
+        }
+        response = await usersAPI.getUserHighlights(userId, params);
       } else if (contributionTypeId) {
         // Fetch contribution type specific highlights
         response = await contributionsAPI.getContributionTypeHighlights(contributionTypeId);
@@ -196,6 +210,10 @@
               title: highlight.title,
               description: highlight.description
             },
+            mission: highlight.mission_name ? {
+              id: highlight.mission_id,
+              name: highlight.mission_name
+            } : null,
             count: 1,
             category: highlight.category || category || $currentCategory
           }}
@@ -235,7 +253,7 @@
               size="xs"
               clickable={true}
             />
-            <button 
+            <button
               class="hover:text-purple-600"
               onclick={() => push(`/participant/${highlight.user_address}`)}
             >
@@ -245,6 +263,28 @@
             <span>{formatDate(highlight.contribution_date)}</span>
             <span>•</span>
             <span class="font-semibold text-purple-600">{highlight.contribution_points} pts</span>
+            <span>•</span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {contributionTypeBadgeClasses}">
+              {highlight.contribution_type_name || 'Contribution'}
+            </span>
+            {#if highlight.mission_name}
+              <span>•</span>
+              <Badge
+                badge={{
+                  id: null,
+                  name: highlight.mission_name,
+                  description: '',
+                  points: 0,
+                  actionId: null,
+                  actionName: '',
+                  evidenceUrl: ''
+                }}
+                color="indigo"
+                size="sm"
+                clickable={false}
+                bold={false}
+              />
+            {/if}
           </div>
         </div>
           {/each}
@@ -283,9 +323,26 @@
                     {highlight.user_name || `${highlight.user_address.slice(0, 6)}...${highlight.user_address.slice(-4)}`}
                   </button>
                 </div>
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {contributionTypeBadgeClasses}">
                   {highlight.contribution_type_name || 'Contribution'}
                 </span>
+                {#if highlight.mission_name}
+                  <Badge
+                    badge={{
+                      id: null,
+                      name: highlight.mission_name,
+                      description: '',
+                      points: 0,
+                      actionId: null,
+                      actionName: '',
+                      evidenceUrl: ''
+                    }}
+                    color="indigo"
+                    size="sm"
+                    clickable={false}
+                    bold={false}
+                  />
+                {/if}
                 <span>{highlight.contribution_points} points</span>
                 <span>{formatDate(highlight.contribution_date)}</span>
               </div>

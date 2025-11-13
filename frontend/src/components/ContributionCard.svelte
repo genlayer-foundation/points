@@ -20,13 +20,10 @@
   let isExpanded = $state(false);
   
   // Determine category and colors
-  // Use passed category prop first, then try multiple paths where category might be stored
+  // Category is always in contribution_type_details.category (from backend serializer)
+  // category prop can override it for mixed lists
   let actualCategory = $derived(
-    category ||
-    contribution?.contribution_type_details?.category || 
-    contribution?.contribution_type?.category ||
-    contribution?.category || 
-    'global'
+    category || contribution?.contribution_type_details?.category || 'global'
   );
   
   let categoryColors = $derived(getCategoryColors(actualCategory));

@@ -112,8 +112,15 @@ class Contribution(BaseModel):
         related_name='contributions'
     )
     contribution_type = models.ForeignKey(
-        ContributionType, 
-        on_delete=models.CASCADE, 
+        ContributionType,
+        on_delete=models.CASCADE,
+        related_name='contributions'
+    )
+    mission = models.ForeignKey(
+        'Mission',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='contributions'
     )
     points = models.PositiveIntegerField(default=0)
@@ -166,7 +173,7 @@ class Contribution(BaseModel):
             # Check if there's an active multiplier for this contribution type on the contribution date
             # The method returns a tuple of (multiplier_obj, multiplier_value)
             _, multiplier_value = GlobalLeaderboardMultiplier.get_active_for_type(
-                self.contribution_type, 
+                self.contribution_type,
                 at_date=self.contribution_date
             )
             self.multiplier_at_creation = multiplier_value
@@ -239,6 +246,13 @@ class SubmittedContribution(BaseModel):
         ContributionType,
         on_delete=models.CASCADE,
         related_name='submitted_contributions'
+    )
+    mission = models.ForeignKey(
+        'Mission',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='submissions'
     )
     contribution_date = models.DateTimeField(
         help_text="Date when the contribution was made"
