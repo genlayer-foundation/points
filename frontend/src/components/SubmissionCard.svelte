@@ -540,3 +540,27 @@
     </div>
   </div>
 </div>
+
+<style>
+  :global(.text-gray-600 ul),
+  :global(.text-red-700 ul),
+  :global(.text-blue-800 ul) {
+    list-style-type: disc;
+    margin-left: 1.5rem;
+    margin-top: 0.5rem;
+  }
+
+  :global(.text-gray-600 ol),
+  :global(.text-red-700 ol),
+  :global(.text-blue-800 ol) {
+    list-style-type: decimal;
+    margin-left: 1.5rem;
+    margin-top: 0.5rem;
+  }
+
+  :global(.text-gray-600 li),
+  :global(.text-red-700 li),
+  :global(.text-blue-800 li) {
+    margin-bottom: 0.25rem;
+  }
+</style>

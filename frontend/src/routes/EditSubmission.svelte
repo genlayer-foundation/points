@@ -468,3 +468,21 @@
   onConfirm={confirmDelete}
   onCancel={cancelDelete}
 />
+
+<style>
+  :global(.text-blue-800 ul) {
+    list-style-type: disc;
+    margin-left: 1.5rem;
+    margin-top: 0.5rem;
+  }
+
+  :global(.text-blue-800 ol) {
+    list-style-type: decimal;
+    margin-left: 1.5rem;
+    margin-top: 0.5rem;
+  }
+
+  :global(.text-blue-800 li) {
+    margin-bottom: 0.25rem;
+  }
+</style>
