@@ -4,6 +4,7 @@
   import { getCategoryColors } from '../lib/categoryColors';
   import Avatar from './Avatar.svelte';
   import Icons from './Icons.svelte';
+  import { parseMarkdown } from '../lib/markdownLoader.js';
 
   let {
     contribution,
@@ -164,7 +165,7 @@
         {#if submission?.notes}
           <div>
             <h5 class="text-xs font-medium text-gray-700 mb-1">Notes</h5>
-            <p class="text-xs text-gray-600">{submission.notes}</p>
+            <div class="markdown-content text-xs text-gray-600">{@html parseMarkdown(submission.notes)}</div>
           </div>
         {/if}
 
@@ -264,3 +265,15 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .markdown-content :global(ul) {
+    list-style-type: disc;
+    margin-left: 1.5rem;
+  }
+
+  .markdown-content :global(ol) {
+    list-style-type: decimal;
+    margin-left: 1.5rem;
+  }
+</style>

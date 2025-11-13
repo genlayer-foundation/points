@@ -20,13 +20,14 @@ def has_contribution_badge(user, slug):
 
 def has_category_contributions(user, category_slug):
     """Helper to check if user has contributions in a category"""
+    # For builder category, check if user has a Builder record (completed journey)
+    if category_slug == 'builder':
+        return hasattr(user, 'builder') and user.builder is not None
+
     query = Contribution.objects.filter(
         user=user,
         contribution_type__category__slug=category_slug
     )
-    # Exclude Builder Welcome from builder category checks
-    if category_slug == 'builder':
-        query = query.exclude(contribution_type__slug='builder-welcome')
     return query.exists()
 
 
@@ -36,9 +37,6 @@ def calculate_category_points(user, category_slug):
         user=user,
         contribution_type__category__slug=category_slug
     )
-    # Exclude Builder Welcome from builder category points
-    if category_slug == 'builder':
-        query = query.exclude(contribution_type__slug='builder-welcome')
     return query.aggregate(
         total=Sum('frozen_global_points')
     )['total'] or 0

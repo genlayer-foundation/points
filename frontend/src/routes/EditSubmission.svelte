@@ -5,6 +5,7 @@
   import api from '../lib/api.js';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
+  import { parseMarkdown } from '../lib/markdownLoader.js';
 
   let { params = {} } = $props();
 
@@ -323,7 +324,7 @@
       {#if submission.staff_reply}
         <div class="mb-6 bg-blue-50 border border-blue-200 p-4 rounded">
           <h3 class="font-semibold text-blue-900 mb-2">Staff Feedback:</h3>
-          <p class="text-blue-800">{submission.staff_reply}</p>
+          <div class="markdown-content text-blue-800">{@html parseMarkdown(submission.staff_reply)}</div>
         </div>
       {/if}
       
@@ -488,3 +489,15 @@
   onConfirm={confirmDelete}
   onCancel={cancelDelete}
 />
+
+<style>
+  .markdown-content :global(ul) {
+    list-style-type: disc;
+    margin-left: 1.5rem;
+  }
+
+  .markdown-content :global(ol) {
+    list-style-type: decimal;
+    margin-left: 1.5rem;
+  }
+</style>

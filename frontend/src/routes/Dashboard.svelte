@@ -120,23 +120,19 @@
           };
         }
       } else {
-        // For categories, fetch filtered data using type endpoint
-        const [leaderboardRes, contributionsRes] = await Promise.all([
-          leaderboardAPI.getLeaderboardByType($currentCategory),
-          contributionsAPI.getContributions({ category: $currentCategory, limit: 1 })
+        // For categories, fetch stats and limited leaderboard
+        const [statsRes, leaderboardRes] = await Promise.all([
+          statsAPI.getDashboardStats($currentCategory),
+          leaderboardAPI.getLeaderboardByType($currentCategory, 'asc', { limit: 5 })
         ]);
 
-        // API now returns array directly
-        const categoryEntries = Array.isArray(leaderboardRes.data) ? leaderboardRes.data : [];
-        const categoryContributions = contributionsRes.data;
-
-        // Store leaderboard data for reuse by TopLeaderboard component
-        leaderboardData = categoryEntries;
+        // Store limited leaderboard data for reuse by TopLeaderboard component
+        leaderboardData = Array.isArray(leaderboardRes.data) ? leaderboardRes.data : [];
 
         stats = {
-          totalParticipants: categoryEntries.length,
-          totalContributions: categoryContributions.count || 0,
-          totalPoints: categoryEntries.reduce((sum, entry) => sum + (entry.total_points || 0), 0),
+          totalParticipants: statsRes.data.participant_count || 0,
+          totalContributions: statsRes.data.contribution_count || 0,
+          totalPoints: statsRes.data.total_points || 0,
           lastUpdated: new Date().toISOString()
         };
       }
@@ -291,7 +287,7 @@
           </h2>
         </div>
         <button
-          onclick={() => push($currentCategory === 'builder' ? '/builders/participants' : $currentCategory === 'validator' ? '/validators/participants' : '/participants')}
+          onclick={() => push($currentCategory === 'builder' ? '/builders/leaderboard' : $currentCategory === 'validator' ? '/validators/participants' : '/participants')}
           class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
           View all
