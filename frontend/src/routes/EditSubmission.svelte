@@ -307,7 +307,7 @@
       {#if submission.staff_reply}
         <div class="mb-6 bg-blue-50 border border-blue-200 p-4 rounded">
           <h3 class="font-semibold text-blue-900 mb-2">Staff Feedback:</h3>
-          <div class="text-blue-800">{@html parseMarkdown(submission.staff_reply)}</div>
+          <div class="markdown-content text-blue-800">{@html parseMarkdown(submission.staff_reply)}</div>
         </div>
       {/if}
       
@@ -470,19 +470,13 @@
 />
 
 <style>
-  :global(.text-blue-800 ul) {
+  .markdown-content :global(ul) {
     list-style-type: disc;
     margin-left: 1.5rem;
-    margin-top: 0.5rem;
   }
 
-  :global(.text-blue-800 ol) {
+  .markdown-content :global(ol) {
     list-style-type: decimal;
     margin-left: 1.5rem;
-    margin-top: 0.5rem;
-  }
-
-  :global(.text-blue-800 li) {
-    margin-bottom: 0.25rem;
   }
 </style>
