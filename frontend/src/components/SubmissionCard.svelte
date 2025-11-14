@@ -5,6 +5,7 @@
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
   import Link from '../lib/components/Link.svelte';
   import Avatar from './Avatar.svelte';
+  import { parseMarkdown } from '../lib/markdownLoader.js';
   
   let {
     submission,
@@ -228,7 +229,7 @@
         {#if submission.notes}
           <div>
             <h4 class="text-sm font-medium text-gray-700">Notes</h4>
-            <p class="mt-1 text-sm text-gray-900">{submission.notes}</p>
+            <div class="markdown-content mt-1 text-sm text-gray-900">{@html parseMarkdown(submission.notes)}</div>
           </div>
         {/if}
         
@@ -255,7 +256,7 @@
         {#if submission.staff_reply && submission.state !== 'rejected'}
           <div class="bg-gray-50 p-3 rounded">
             <h4 class="text-sm font-medium text-gray-700 mb-1">Staff Response</h4>
-            <p class="text-sm text-gray-600">{submission.staff_reply}</p>
+            <div class="markdown-content text-sm text-gray-600">{@html parseMarkdown(submission.staff_reply)}</div>
           </div>
         {/if}
       </div>
@@ -522,7 +523,7 @@
         {:else if submission.state === 'rejected' && submission.staff_reply}
           <div class="border border-red-200 rounded-lg p-4 bg-red-50">
             <h4 class="text-sm font-medium text-red-900 mb-2">Rejection Reason</h4>
-            <p class="text-sm text-red-700">{submission.staff_reply}</p>
+            <div class="markdown-content text-sm text-red-700">{@html parseMarkdown(submission.staff_reply)}</div>
           </div>
         {:else if isOwnSubmission && (submission.state === 'pending' || submission.state === 'more_info_needed')}
           <!-- Edit button for pending and more_info_needed submissions -->
@@ -539,3 +540,15 @@
     </div>
   </div>
 </div>
+
+<style>
+  .markdown-content :global(ul) {
+    list-style-type: disc;
+    margin-left: 1.5rem;
+  }
+
+  .markdown-content :global(ol) {
+    list-style-type: decimal;
+    margin-left: 1.5rem;
+  }
+</style>
