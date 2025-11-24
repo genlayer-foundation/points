@@ -32,6 +32,16 @@ class LightContributionTypeSerializer(serializers.Serializer):
         return obj.category.slug if obj.category else None
 
 
+class LightMissionSerializer(serializers.Serializer):
+    """
+    Minimal mission serializer for nested relationships.
+    Only includes basic mission information without expensive computed fields.
+    """
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    contribution_type = serializers.PrimaryKeyRelatedField(read_only=True)
+
+
 class LightContributionSerializer(serializers.Serializer):
     """
     Minimal contribution serializer for recent contributions and highlights.
@@ -89,7 +99,7 @@ class ContributionSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name',
                   'contribution_type_min_points', 'contribution_type_max_points', 'contribution_type_details',
                   'points', 'frozen_global_points', 'multiplier_at_creation', 'contribution_date',
-                  'evidence_items', 'notes', 'highlight', 'created_at', 'updated_at']
+                  'evidence_items', 'notes', 'highlight', 'mission', 'created_at', 'updated_at']
         read_only_fields = ['id', 'frozen_global_points', 'created_at', 'updated_at']
 
     def get_user_details(self, obj):
@@ -130,11 +140,12 @@ class ContributionSerializer(serializers.ModelSerializer):
                 'description': highlight.description
             }
         return None
-    
+
+
     def to_representation(self, instance):
-        """Override to_representation to handle invalid decimal values gracefully"""
+        """Override to_representation to handle invalid decimal values gracefully and smart mission serialization"""
         ret = super().to_representation(instance)
-        
+
         # Handle potentially corrupted multiplier_at_creation
         try:
             if ret.get('multiplier_at_creation') is not None:
@@ -144,7 +155,15 @@ class ContributionSerializer(serializers.ModelSerializer):
         except (decimal.InvalidOperation, TypeError, ValueError):
             # If there's an error, set a default value
             ret['multiplier_at_creation'] = '1.00'
-            
+
+        # Transform mission from ID to full object for reads
+        if instance.mission:
+            use_light = self.context.get('use_light_serializers', True)
+            if use_light:
+                ret['mission'] = LightMissionSerializer(instance.mission).data
+            else:
+                ret['mission'] = MissionSerializer(instance.mission, context=self.context).data
+
         return ret
 
 
@@ -189,7 +208,7 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name',
                   'contribution_type_details', 'contribution_date', 'notes', 'state', 'state_display',
                   'staff_reply', 'reviewed_by', 'reviewed_at', 'evidence_items', 'can_edit',
-                  'suggested_points', 'converted_contribution', 'contribution',
+                  'suggested_points', 'converted_contribution', 'contribution', 'mission',
                   'created_at', 'updated_at', 'last_edited_at', 'recaptcha']
         read_only_fields = ['id', 'user', 'state', 'staff_reply', 'reviewed_by',
                           'reviewed_at', 'created_at', 'updated_at', 'last_edited_at',
@@ -321,6 +340,20 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
 
         return instance
 
+    def to_representation(self, instance):
+        """Transform mission from ID to full object for reads"""
+        ret = super().to_representation(instance)
+
+        # Transform mission from ID to full object for reads
+        if instance.mission:
+            use_light = self.context.get('use_light_serializers', True)
+            if use_light:
+                ret['mission'] = LightMissionSerializer(instance.mission).data
+            else:
+                ret['mission'] = MissionSerializer(instance.mission, context=self.context).data
+
+        return ret
+
 
 class ContributionHighlightSerializer(serializers.ModelSerializer):
     contribution_details = serializers.SerializerMethodField()
@@ -339,6 +372,9 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
     contribution_type_category = serializers.CharField(source='contribution.contribution_type.category.slug', read_only=True)
     contribution_points = serializers.IntegerField(source='contribution.frozen_global_points', read_only=True)
     contribution_date = serializers.DateTimeField(source='contribution.contribution_date', read_only=True)
+    # Mission fields for indicating when highlight is from a mission
+    mission_name = serializers.CharField(source='contribution.mission.name', read_only=True)
+    mission_id = serializers.IntegerField(source='contribution.mission.id', read_only=True)
 
     class Meta:
         model = ContributionHighlight
@@ -347,7 +383,8 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
                   'user_validator', 'user_builder', 'user_steward',
                   'user_has_validator_waitlist', 'user_has_builder_welcome',
                   'contribution_type_name', 'contribution_type_id', 'contribution_type_slug',
-                  'contribution_type_category', 'contribution_points', 'contribution_date', 'created_at']
+                  'contribution_type_category', 'contribution_points', 'contribution_date',
+                  'mission_name', 'mission_id', 'created_at']
         read_only_fields = ['id', 'created_at']
 
     def get_contribution_details(self, obj):
@@ -390,6 +427,7 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
             ).exists()
         except ContributionType.DoesNotExist:
             return False
+
 
 
 class StewardSubmissionReviewSerializer(serializers.Serializer):
@@ -479,7 +517,8 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_details',
                   'contribution_date', 'notes', 'state', 'state_display', 'staff_reply',
                   'reviewed_by', 'reviewed_at', 'evidence_items', 'suggested_points',
-                  'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution']
+                  'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution',
+                  'mission']
         read_only_fields = ['id', 'created_at', 'updated_at', 'suggested_points']
 
     def get_user_details(self, obj):
@@ -542,16 +581,29 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
             return contribution_data
         return None
 
+    def to_representation(self, instance):
+        """Transform mission from ID to full object for reads"""
+        ret = super().to_representation(instance)
+
+        # Transform mission from ID to full object for reads
+        if instance.mission:
+            use_light = self.context.get('use_light_serializers', True)
+            if use_light:
+                ret['mission'] = LightMissionSerializer(instance.mission).data
+            else:
+                ret['mission'] = MissionSerializer(instance.mission, context=self.context).data
+
+        return ret
+
 
 class MissionSerializer(serializers.ModelSerializer):
-    contribution_type_details = ContributionTypeSerializer(source='contribution_type', read_only=True)
     is_active = serializers.SerializerMethodField()
 
     class Meta:
         model = Mission
         fields = [
             'id', 'name', 'description',
-            'start_date', 'end_date', 'contribution_type', 'contribution_type_details',
+            'start_date', 'end_date', 'contribution_type',
             'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']

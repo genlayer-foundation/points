@@ -126,7 +126,7 @@
               {highlight.contribution_points} pts
             </span>
           </div>
-          
+
           <h3 class="text-lg font-semibold text-gray-900 mb-2">
             {highlight.title}
           </h3>
