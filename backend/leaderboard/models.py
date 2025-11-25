@@ -525,6 +525,43 @@ def update_referrer_points(contribution):
         LeaderboardEntry.update_leaderboard_ranks('validator-waitlist')
 
 
+def ensure_builder_status(user, reference_date):
+    """
+    Create missing builder-welcome, builder contributions and Builder profile.
+    Used to auto-grant builder status to users who have builder contributions.
+    """
+    from builders.models import Builder
+
+    try:
+        welcome_type = ContributionType.objects.get(slug='builder-welcome')
+        builder_type = ContributionType.objects.get(slug='builder')
+    except ContributionType.DoesNotExist:
+        return
+
+    # Create Builder profile FIRST so user qualifies for builder leaderboard
+    # when contribution signals fire
+    if not hasattr(user, 'builder'):
+        Builder.objects.create(user=user)
+
+    # Create builder-welcome if missing
+    if not Contribution.objects.filter(user=user, contribution_type=welcome_type).exists():
+        Contribution.objects.create(
+            user=user,
+            contribution_type=welcome_type,
+            points=20,
+            contribution_date=reference_date
+        )
+
+    # Create builder contribution if missing
+    if not Contribution.objects.filter(user=user, contribution_type=builder_type).exists():
+        Contribution.objects.create(
+            user=user,
+            contribution_type=builder_type,
+            points=50,
+            contribution_date=reference_date
+        )
+
+
 @transaction.atomic
 def recalculate_referrer_points(referrer):
     """
@@ -604,7 +641,38 @@ def recalculate_all_leaderboards():
         LeaderboardEntry.objects.all().delete()
         ReferralPoints.objects.all().delete()
 
-        # Load ALL contribution data in a single query
+        # STEP 1: Auto-grant builder status to users with builder contributions but no Builder profile
+        # Load contributions to identify users who need builder status
+        initial_contributions = list(Contribution.objects.select_related(
+            'contribution_type__category'
+        ).values(
+            'user_id',
+            'contribution_type__slug',
+            'contribution_type__category__slug',
+            'contribution_date'
+        ))
+
+        # Load current Builder profiles
+        initial_builders_set = set(Builder.objects.values_list('user_id', flat=True))
+
+        # Group contributions by user and find those needing builder status
+        user_builder_contribs = defaultdict(list)
+        for contrib in initial_contributions:
+            if (contrib['contribution_type__category__slug'] == 'builder' and
+                contrib['contribution_type__slug'] not in ['builder-welcome', 'builder']):
+                user_builder_contribs[contrib['user_id']].append(contrib['contribution_date'])
+
+        # Create builder status for users who need it
+        for user_id, dates in user_builder_contribs.items():
+            if user_id not in initial_builders_set:
+                try:
+                    user = User.objects.get(id=user_id)
+                    earliest_date = min(dates)
+                    ensure_builder_status(user, earliest_date)
+                except User.DoesNotExist:
+                    pass
+
+        # STEP 2: Load ALL contribution data (including newly created)
         contributions = list(Contribution.objects.select_related(
             'contribution_type__category'
         ).values(
