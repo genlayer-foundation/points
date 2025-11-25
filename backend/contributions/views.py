@@ -836,8 +836,10 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             # Auto-grant builder status if accepting builder contribution for non-builder
             if (contribution_type.category and contribution_type.category.slug == 'builder'
                 and not hasattr(contribution_user, 'builder')):
-                from leaderboard.models import ensure_builder_status
+                from leaderboard.models import ensure_builder_status, update_user_leaderboard_entries
                 ensure_builder_status(contribution_user, submission.contribution_date)
+                # Manually update leaderboard since ensure_builder_status uses bulk_create (no signals)
+                update_user_leaderboard_entries(contribution_user)
 
             # Copy evidence items
             for evidence in submission.evidence_items.all():

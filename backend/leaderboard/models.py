@@ -538,28 +538,33 @@ def ensure_builder_status(user, reference_date):
     except ContributionType.DoesNotExist:
         return
 
-    # Create Builder profile FIRST so user qualifies for builder leaderboard
-    # when contribution signals fire
+    # Create Builder profile
     if not hasattr(user, 'builder'):
         Builder.objects.create(user=user)
 
-    # Create builder-welcome if missing
+    # (signals would create LeaderboardEntry records, causing duplicates during recalculation)
+    contributions_to_create = []
+
     if not Contribution.objects.filter(user=user, contribution_type=welcome_type).exists():
-        Contribution.objects.create(
+        contributions_to_create.append(Contribution(
             user=user,
             contribution_type=welcome_type,
             points=20,
-            contribution_date=timezone.now()
+            contribution_date=timezone.now(),
+            frozen_global_points=20
         )
 
-    # Create builder contribution if missing
     if not Contribution.objects.filter(user=user, contribution_type=builder_type).exists():
-        Contribution.objects.create(
+        contributions_to_create.append(Contribution(
             user=user,
             contribution_type=builder_type,
             points=50,
-            contribution_date=timezone.now()
-        )
+            contribution_date=timezone.now(),
+            frozen_global_points=50
+        ))
+
+    if contributions_to_create:
+        Contribution.objects.bulk_create(contributions_to_create)
 
 
 @transaction.atomic
