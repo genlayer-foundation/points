@@ -550,16 +550,16 @@ def ensure_builder_status(user, reference_date):
             user=user,
             contribution_type=welcome_type,
             points=20,
-            contribution_date=reference_date,
+            contribution_date=timezone.now(),
             frozen_global_points=20
-        ))
+        )
 
     if not Contribution.objects.filter(user=user, contribution_type=builder_type).exists():
         contributions_to_create.append(Contribution(
             user=user,
             contribution_type=builder_type,
             points=50,
-            contribution_date=reference_date,
+            contribution_date=timezone.now(),
             frozen_global_points=50
         ))
 
