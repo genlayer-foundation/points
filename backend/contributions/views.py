@@ -832,7 +832,13 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 notes=submission.notes,
                 mission=submission.mission
             )
-            
+
+            # Auto-grant builder status if accepting builder contribution for non-builder
+            if (contribution_type.category and contribution_type.category.slug == 'builder'
+                and not hasattr(contribution_user, 'builder')):
+                from leaderboard.models import ensure_builder_status
+                ensure_builder_status(contribution_user, submission.contribution_date)
+
             # Copy evidence items
             for evidence in submission.evidence_items.all():
                 Evidence.objects.create(
