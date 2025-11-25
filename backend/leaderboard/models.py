@@ -549,7 +549,7 @@ def ensure_builder_status(user, reference_date):
             user=user,
             contribution_type=welcome_type,
             points=20,
-            contribution_date=reference_date
+            contribution_date=timezone.now()
         )
 
     # Create builder contribution if missing
@@ -558,7 +558,7 @@ def ensure_builder_status(user, reference_date):
             user=user,
             contribution_type=builder_type,
             points=50,
-            contribution_date=reference_date
+            contribution_date=timezone.now()
         )
 
 
