@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django_filters import FilterSet, CharFilter, BooleanFilter
 from django.utils import timezone
 from django.db.models import Count, Max, F, Q
 from django.db.models.functions import Coalesce
@@ -748,6 +749,34 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         )
 
 
+class StewardSubmissionFilterSet(FilterSet):
+    """Custom filterset for steward submission filtering."""
+    username_search = CharFilter(method='filter_username')
+    assigned_to = CharFilter(method='filter_assigned_to')
+
+    def filter_username(self, queryset, name, value):
+        """Filter by submitter name, email, or address (case-insensitive partial match)."""
+        if value:
+            return queryset.filter(
+                Q(user__name__icontains=value) |
+                Q(user__email__icontains=value) |
+                Q(user__address__icontains=value)
+            )
+        return queryset
+
+    def filter_assigned_to(self, queryset, name, value):
+        """Filter by assigned steward or unassigned."""
+        if value == 'null' or value == 'unassigned':
+            return queryset.filter(assigned_to__isnull=True)
+        elif value:
+            return queryset.filter(assigned_to_id=value)
+        return queryset
+
+    class Meta:
+        model = SubmittedContribution
+        fields = ['state', 'contribution_type', 'user']
+
+
 class StewardSubmissionViewSet(viewsets.ModelViewSet):
     """
     API endpoint for stewards to review submissions.
@@ -756,7 +785,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     authentication_classes = [EthereumAuthentication]
     permission_classes = [IsSteward]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['state', 'contribution_type', 'user']
+    filterset_class = StewardSubmissionFilterSet
     ordering_fields = ['created_at', 'contribution_date']
     ordering = ['-created_at']
 
@@ -781,6 +810,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'contribution_type',
             'contribution_type__category',
             'reviewed_by',
+            'assigned_to',
             'converted_contribution',
             'mission'  # Avoid N+1 queries when accessing mission details
         ).prefetch_related('evidence_items')
@@ -953,6 +983,40 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             })
         
         return Response(user_data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsSteward])
+    def assign(self, request, pk=None):
+        """Assign submission to a steward."""
+        from users.models import User
+
+        submission = self.get_object()
+        steward_id = request.data.get('steward_id')
+
+        if steward_id is None:
+            # Unassign
+            submission.assigned_to = None
+            submission.save()
+            return Response({'status': 'unassigned'})
+
+        # Validate steward exists and has steward profile
+        try:
+            steward_user = User.objects.get(id=steward_id)
+            if not hasattr(steward_user, 'steward'):
+                return Response(
+                    {'error': 'User is not a steward'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Steward not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        submission.assigned_to = steward_user
+        submission.save()
+
+        serializer = self.get_serializer(submission)
+        return Response(serializer.data)
 
 
 class MissionViewSet(viewsets.ReadOnlyModelViewSet):

@@ -292,7 +292,17 @@ class SubmittedContribution(BaseModel):
         related_name='reviewed_submissions'
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
-    
+
+    # Assignment field - who should review this submission
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='assigned_submissions',
+        help_text="Steward assigned to review this submission"
+    )
+
     # Link to actual contribution when accepted
     converted_contribution = models.ForeignKey(
         'Contribution',

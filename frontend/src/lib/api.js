@@ -176,6 +176,9 @@ export const stewardAPI = {
   // Get list of all stewards
   getStewards: () => api.get('/stewards/'),
 
+  // Assign submission to a steward
+  assignSubmission: (id, data) => api.post(`/steward-submissions/${id}/assign/`, data),
+
 };
 
 // Image upload API
