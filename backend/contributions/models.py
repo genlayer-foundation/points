@@ -121,7 +121,8 @@ class Contribution(BaseModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='contributions'
+        related_name='contributions',
+        help_text='Mission this contribution fulfills (optional)'
     )
     points = models.PositiveIntegerField(default=0)
     frozen_global_points = models.PositiveIntegerField(
@@ -252,7 +253,8 @@ class SubmittedContribution(BaseModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='submissions'
+        related_name='submissions',
+        help_text='Mission that prompted this submission (optional)'
     )
     contribution_date = models.DateTimeField(
         help_text="Date when the contribution was made"

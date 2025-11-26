@@ -3,7 +3,7 @@
   import { format } from 'date-fns';
   import { marked } from 'marked';
   import RecentContributions from '../components/RecentContributions.svelte';
-  import FeaturedContributions from '../components/FeaturedContributions.svelte';
+  import HighlightedContributions from '../components/HighlightedContributions.svelte';
   import LeaderboardTable from '../components/LeaderboardTable.svelte';
   import StatCard from '../components/StatCard.svelte';
   import Icons from '../components/Icons.svelte';
@@ -456,10 +456,10 @@
       </div>
     {/if}
 
-    <!-- Featured User Contributions -->
-    <FeaturedContributions
+    <!-- Highlighted User Contributions -->
+    <HighlightedContributions
       contributionTypeId={params.id}
-      title="Featured Contributions"
+      title="Highlighted Contributions"
       cardStyle="compact"
       showViewAll={false}
       className="mb-6"
