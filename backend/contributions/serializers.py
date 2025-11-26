@@ -42,6 +42,14 @@ class LightMissionSerializer(serializers.Serializer):
     contribution_type = serializers.PrimaryKeyRelatedField(read_only=True)
 
 
+class EvidenceSerializer(serializers.ModelSerializer):
+    """Serializer for evidence items."""
+    class Meta:
+        model = Evidence
+        fields = ['id', 'description', 'url', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
 class LightContributionSerializer(serializers.Serializer):
     """
     Minimal contribution serializer for recent contributions and highlights.
@@ -55,7 +63,14 @@ class LightContributionSerializer(serializers.Serializer):
     multiplier_at_creation = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
     contribution_date = serializers.DateTimeField(read_only=True)
     notes = serializers.CharField(read_only=True)
+    evidence_items = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(read_only=True)
+
+    def get_evidence_items(self, obj):
+        """Returns serialized evidence items for this contribution."""
+        # ViewSet prefetches evidence_items to avoid N+1 queries
+        evidence_items = obj.evidence_items.all().order_by('-created_at')
+        return EvidenceSerializer(evidence_items, many=True).data
 
 
 # ============================================================================
@@ -165,14 +180,6 @@ class ContributionSerializer(serializers.ModelSerializer):
                 ret['mission'] = MissionSerializer(instance.mission, context=self.context).data
 
         return ret
-
-
-class EvidenceSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Evidence
-        fields = ['id', 'description', 'url', 'created_at']
-        read_only_fields = ['id', 'created_at']
 
 
 class SubmittedEvidenceSerializer(serializers.ModelSerializer):

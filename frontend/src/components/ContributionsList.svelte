@@ -137,7 +137,7 @@
     }
     
     // Data is not grouped - group consecutive contributions of the same type
-    // but don't group if there's a featured/highlighted contribution
+    // but don't group if there's a highlighted contribution
     const grouped = [];
     let currentGroup = null;
     

@@ -184,6 +184,14 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             limit=limit
         )
 
+        # Prefetch evidence items to avoid N+1 queries and enable evidence display
+        highlights = highlights.select_related(
+            'contribution__user',
+            'contribution__contribution_type'
+        ).prefetch_related(
+            'contribution__evidence_items'
+        )
+
         serializer = ContributionHighlightSerializer(highlights, many=True)
         return Response(serializer.data)
     
@@ -455,6 +463,8 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             'contribution__user__steward',
             'contribution__contribution_type',
             'contribution__contribution_type__category'
+        ).prefetch_related(
+            'contribution__evidence_items'
         ).order_by('-contribution__contribution_date')[:limit]
         
         serializer = ContributionHighlightSerializer(highlights, many=True)

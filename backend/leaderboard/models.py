@@ -552,7 +552,7 @@ def ensure_builder_status(user, reference_date):
             points=20,
             contribution_date=timezone.now(),
             frozen_global_points=20
-        )
+        ))
 
     if not Contribution.objects.filter(user=user, contribution_type=builder_type).exists():
         contributions_to_create.append(Contribution(

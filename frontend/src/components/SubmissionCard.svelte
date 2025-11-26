@@ -456,7 +456,7 @@
                     {#if createHighlight}
                       <div class="px-4 py-3 bg-white border-t border-yellow-300 space-y-3">
                         <p class="text-xs text-yellow-700 mb-2">
-                          Featured contributions are highlighted on the dashboard and earn special recognition
+                          Highlighted contributions are displayed on the dashboard and earn special recognition
                         </p>
                         
                         <div>
@@ -477,7 +477,7 @@
                           </label>
                           <textarea
                             bind:value={highlightDescription}
-                            placeholder="Describe why this contribution is being featured..."
+                            placeholder="Describe why this contribution is being highlighted..."
                             rows="3"
                             class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
                           ></textarea>
