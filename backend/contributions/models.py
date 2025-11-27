@@ -112,9 +112,17 @@ class Contribution(BaseModel):
         related_name='contributions'
     )
     contribution_type = models.ForeignKey(
-        ContributionType, 
-        on_delete=models.CASCADE, 
+        ContributionType,
+        on_delete=models.CASCADE,
         related_name='contributions'
+    )
+    mission = models.ForeignKey(
+        'Mission',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='contributions',
+        help_text='Mission this contribution fulfills (optional)'
     )
     points = models.PositiveIntegerField(default=0)
     frozen_global_points = models.PositiveIntegerField(
@@ -166,7 +174,7 @@ class Contribution(BaseModel):
             # Check if there's an active multiplier for this contribution type on the contribution date
             # The method returns a tuple of (multiplier_obj, multiplier_value)
             _, multiplier_value = GlobalLeaderboardMultiplier.get_active_for_type(
-                self.contribution_type, 
+                self.contribution_type,
                 at_date=self.contribution_date
             )
             self.multiplier_at_creation = multiplier_value
@@ -240,6 +248,14 @@ class SubmittedContribution(BaseModel):
         on_delete=models.CASCADE,
         related_name='submitted_contributions'
     )
+    mission = models.ForeignKey(
+        'Mission',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='submissions',
+        help_text='Mission that prompted this submission (optional)'
+    )
     contribution_date = models.DateTimeField(
         help_text="Date when the contribution was made"
     )
@@ -278,7 +294,17 @@ class SubmittedContribution(BaseModel):
         related_name='reviewed_submissions'
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
-    
+
+    # Assignment field - who should review this submission
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='assigned_submissions',
+        help_text="Steward assigned to review this submission"
+    )
+
     # Link to actual contribution when accepted
     converted_contribution = models.ForeignKey(
         'Contribution',

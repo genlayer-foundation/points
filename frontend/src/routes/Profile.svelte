@@ -3,7 +3,7 @@
   import { push, querystring } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import RecentContributions from '../components/RecentContributions.svelte';
-  import FeaturedContributions from '../components/FeaturedContributions.svelte';
+  import HighlightedContributions from '../components/HighlightedContributions.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import ProfileStats from '../components/ProfileStats.svelte';
   import ContributionBreakdown from '../components/ContributionBreakdown.svelte';
@@ -970,10 +970,10 @@
         {#if !isValidatorOnly}
           <!-- Highlights Section -->
           <div class="px-4 mt-6">
-            <FeaturedContributions
+            <HighlightedContributions
               userId={participant.address}
               limit={5}
-              title="Featured Contributions"
+              title="Highlighted Contributions"
               cardStyle="highlight"
               showViewAll={false}
               isOwnProfile={isOwnProfile}
@@ -1036,11 +1036,11 @@
             />
           </div>
           
-          <!-- Featured Section -->
-          <FeaturedContributions
+          <!-- Highlighted Section -->
+          <HighlightedContributions
             userId={participant.address}
             limit={3}
-            title="Featured"
+            title="Highlights"
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
@@ -1116,11 +1116,11 @@
             </div>
           {/if}
           
-          <!-- Featured Section -->
-          <FeaturedContributions
+          <!-- Highlighted Section -->
+          <HighlightedContributions
             userId={participant.address}
             limit={3}
-            title="Featured"
+            title="Highlights"
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
@@ -1210,11 +1210,11 @@
             />
           </div>
           
-          <!-- Featured Section -->
-          <FeaturedContributions
+          <!-- Highlighted Section -->
+          <HighlightedContributions
             userId={participant.address}
             limit={3}
-            title="Featured"
+            title="Highlights"
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}

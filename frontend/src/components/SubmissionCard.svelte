@@ -5,6 +5,7 @@
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
   import Link from '../lib/components/Link.svelte';
   import Avatar from './Avatar.svelte';
+  import Badge from './Badge.svelte';
   import { parseMarkdown } from '../lib/markdownLoader.js';
   
   let {
@@ -34,6 +35,7 @@
   // For ContributionSelection component
   let selectedCategory = $state(submission.contribution_type_details?.category || 'validator');
   let selectedContributionTypeObj = $state(null);
+  let selectedMission = $state(submission.mission || null);
   
   // Reset form when submission changes
   $effect(() => {
@@ -160,9 +162,27 @@
   <div class="px-6 py-4 border-b {getStateBackgroundClass(submission.state)}">
     <div class="flex justify-between items-start">
       <div>
-        <h3 class="text-lg font-semibold">
+        <h3 class="text-lg font-semibold flex items-center gap-2 flex-wrap">
           {#if isOwnSubmission}
-            {submission.contribution_type_name || getTypeName(submission.contribution_type)}
+            {#if submission.mission}
+              <!-- Show mission name as title with Mission badge -->
+              <span>{submission.mission.name}</span>
+              <Badge
+                badge={{
+                  id: null,
+                  name: 'Mission',
+                  description: '',
+                  points: 0
+                }}
+                color="indigo"
+                size="sm"
+                clickable={false}
+                bold={false}
+              />
+            {:else}
+              <!-- Show contribution type as title when no mission -->
+              <span>{submission.contribution_type_name || getTypeName(submission.contribution_type)}</span>
+            {/if}
           {:else}
             <div class="flex items-center gap-2">
               <Avatar
@@ -212,20 +232,42 @@
           
           <div>
             <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
-            <p class="mt-1 text-sm text-gray-900">
-              {submission.contribution_type_details?.name}
-              <span class="text-xs text-gray-500 ml-2">
+            <div class="mt-1 flex items-center gap-2 flex-wrap">
+              <span class="text-sm text-gray-900">
+                {submission.contribution_type_details?.name}
+              </span>
+              <span class="text-xs text-gray-500">
                 ({submission.contribution_type_details?.min_points}-{submission.contribution_type_details?.max_points} points)
               </span>
+            </div>
+          </div>
+
+          {#if submission.mission}
+            <div>
+              <h4 class="text-sm font-medium text-gray-700">Mission</h4>
+              <div class="mt-1 flex items-center gap-2 flex-wrap">
+                <span class="text-sm text-gray-900">
+                  {submission.mission.name}
+                </span>
+              </div>
+            </div>
+          {/if}
+        {/if}
+
+        {#if isOwnSubmission && submission.mission}
+          <div>
+            <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
+            <p class="mt-1 text-sm text-gray-900">
+              {submission.contribution_type_name || getTypeName(submission.contribution_type)}
             </p>
           </div>
         {/if}
-        
+
         <div>
           <h4 class="text-sm font-medium text-gray-700">Contribution Date</h4>
           <p class="mt-1 text-sm text-gray-900">{formatDate(submission.contribution_date)}</p>
         </div>
-        
+
         {#if submission.notes}
           <div>
             <h4 class="text-sm font-medium text-gray-700">Notes</h4>
@@ -335,7 +377,9 @@
                     <ContributionSelection
                       bind:selectedCategory
                       bind:selectedContributionType={selectedContributionTypeObj}
+                      bind:selectedMission
                       defaultContributionType={submission.contribution_type}
+                      defaultMission={submission.mission?.id}
                       onlySubmittable={false}
                       stewardMode={true}
                       providedContributionTypes={contributionTypes}
@@ -412,7 +456,7 @@
                     {#if createHighlight}
                       <div class="px-4 py-3 bg-white border-t border-yellow-300 space-y-3">
                         <p class="text-xs text-yellow-700 mb-2">
-                          Featured contributions are highlighted on the dashboard and earn special recognition
+                          Highlighted contributions are displayed on the dashboard and earn special recognition
                         </p>
                         
                         <div>
@@ -433,7 +477,7 @@
                           </label>
                           <textarea
                             bind:value={highlightDescription}
-                            placeholder="Describe why this contribution is being featured..."
+                            placeholder="Describe why this contribution is being highlighted..."
                             rows="3"
                             class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
                           ></textarea>
@@ -529,7 +573,13 @@
           <!-- Edit button for pending and more_info_needed submissions -->
           <div class="flex justify-end">
             <button
-              onclick={() => push(`/contributions/${submission.id}`)}
+              onclick={() => {
+                let url = `/contributions/${submission.id}`;
+                if (submission.mission?.id) {
+                  url += `?mission=${submission.mission.id}`;
+                }
+                push(url);
+              }}
               class="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700"
             >
               Edit

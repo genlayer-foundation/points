@@ -538,7 +538,7 @@ npm run preview
 ### Component Card Wrappers
 **IMPORTANT**: When using reusable components in pages, do NOT wrap them in additional card containers.
 
-Components like `RecentContributions`, `FeaturedContributions`, `UserContributions`, etc. already include their own styling and structure. Adding wrapper cards creates unnecessary nesting and visual clutter.
+Components like `RecentContributions`, `HighlightedContributions`, `UserContributions`, etc. already include their own styling and structure. Adding wrapper cards creates unnecessary nesting and visual clutter.
 
 ```javascript
 // ❌ WRONG - Don't wrap components in cards
@@ -550,7 +550,7 @@ Components like `RecentContributions`, `FeaturedContributions`, `UserContributio
 <RecentContributions />
 
 // ✅ CORRECT - Components can have className for spacing
-<FeaturedContributions className="mb-6" />
+<HighlightedContributions className="mb-6" />
 ```
 
 The only exception is when you need to group multiple related elements that aren't already in a component.

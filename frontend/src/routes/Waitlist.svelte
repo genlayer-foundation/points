@@ -18,7 +18,7 @@
   let topWaitlistUsers = $state([]);  // Top 10 for Race to Testnet
   let newestWaitlistUsers = $state([]);
   let recentlyGraduated = $state([]);
-  let featuredContributions = $state([]);
+  let highlightedContributions = $state([]);
   let topLoading = $state(true);  // Loading for top section
   let error = $state(null);
   let statistics = $state({
@@ -35,14 +35,14 @@
   
   let statsLoading = $state(true);
   let graduatesLoading = $state(true);
-  let featuredLoading = $state(true);
+  let highlightedLoading = $state(true);
   
   onMount(async () => {
     await Promise.all([
       fetchTopWaitlistUsers(),  // Fast: only top 10
       fetchNewestWaitlistUsers(),  // Get 5 newest for sidebar
       fetchRecentlyGraduated(),
-      fetchFeaturedContributions(),
+      fetchHighlightedContributions(),
       fetchStats()  // Fetch stats separately
     ]);
   });
@@ -149,24 +149,24 @@
     }
   }
   
-  async function fetchFeaturedContributions() {
+  async function fetchHighlightedContributions() {
     try {
-      featuredLoading = true;
+      highlightedLoading = true;
       
-      // Fetch featured contributions from waitlist users only
+      // Fetch highlighted contributions from waitlist users only
       const response = await contributionsAPI.getHighlights({
         waitlist_only: true,
         limit: 5
       });
       
       if (response.data) {
-        featuredContributions = response.data;
+        highlightedContributions = response.data;
       }
       
-      featuredLoading = false;
+      highlightedLoading = false;
     } catch (err) {
-      console.error('Failed to load featured contributions:', err);
-      featuredLoading = false;
+      console.error('Failed to load highlighted contributions:', err);
+      highlightedLoading = false;
     }
   }
   
@@ -376,9 +376,9 @@
     </div>
   </div>
   
-  <!-- Second Row: Featured Contributions and Newest Participants -->
+  <!-- Second Row: Highlighted Contributions and Newest Participants -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-    <!-- Featured Contributions -->
+    <!-- Highlighted Contributions -->
     <div class="space-y-4">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
@@ -387,7 +387,7 @@
               <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
             </svg>
           </div>
-          <h2 class="text-lg font-semibold text-gray-900">Featured Contributions</h2>
+          <h2 class="text-lg font-semibold text-gray-900">Highlighted Contributions</h2>
         </div>
         <button
           onclick={() => push('/validators/contributions/highlights')}
@@ -400,17 +400,17 @@
         </button>
       </div>
       
-      {#if featuredLoading}
+      {#if highlightedLoading}
         <div class="flex justify-center items-center p-8">
           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
-      {:else if featuredContributions.length === 0}
+      {:else if highlightedContributions.length === 0}
         <div class="bg-gray-50 rounded-lg p-6 text-center">
-          <p class="text-gray-500">No featured contributions yet.</p>
+          <p class="text-gray-500">No highlighted contributions yet.</p>
         </div>
       {:else}
         <div class="space-y-3">
-          {#each featuredContributions.slice(0, 3) as highlight}
+          {#each highlightedContributions.slice(0, 3) as highlight}
             <ContributionCard 
               contribution={highlight.contribution}
               submission={{

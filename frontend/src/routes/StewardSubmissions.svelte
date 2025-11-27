@@ -20,7 +20,12 @@
   // Filters
   let stateFilter = $state('pending');
   let typeFilter = $state('');
-  
+  let assignedToFilter = $state('');  // '' = all, 'me' = assigned to me, steward_id = specific steward
+  let usernameSearch = $state('');
+  let searchTimeout = null;
+  let stewardsList = $state([]);
+  let assigningSubmissions = $state(new Set());  // Track which submissions are being assigned
+
   // Review states
   let processingSubmissions = $state(new Set());
   let multipliers = $state({});
@@ -31,9 +36,10 @@
       push('/');
       return;
     }
-    
+
     await loadContributionTypes();
     await loadUsers();
+    await loadStewards();
     await loadSubmissions();
   });
   
@@ -45,7 +51,38 @@
       console.error('Error loading users:', err);
     }
   }
-  
+
+  async function loadStewards() {
+    try {
+      const response = await stewardAPI.getStewards();
+      // Response is array with: { id, user_id, name, address, user_details }
+      stewardsList = response.data;
+    } catch (err) {
+      console.error('Error loading stewards:', err);
+    }
+  }
+
+  async function handleAssignment(submissionId, stewardId) {
+    assigningSubmissions.add(submissionId);
+    assigningSubmissions = new Set(assigningSubmissions);
+
+    try {
+      await stewardAPI.assignSubmission(submissionId, {
+        steward_id: stewardId === 'unassigned' ? null : stewardId
+      });
+      showSuccess('Assignment updated successfully');
+
+      // Reload submissions to get updated data
+      await loadSubmissions();
+    } catch (err) {
+      console.error('Error assigning submission:', err);
+      showError('Failed to update assignment: ' + (err.response?.data?.error || err.message));
+    } finally {
+      assigningSubmissions.delete(submissionId);
+      assigningSubmissions = new Set(assigningSubmissions);
+    }
+  }
+
   async function loadContributionTypes() {
     try {
       // Fetch all contribution types by setting a high page_size
@@ -83,15 +120,26 @@
         page: currentPage,
         page_size: pageSize
       };
-      
+
       if (stateFilter) {
         params.state = stateFilter;
       }
-      
+
       if (typeFilter) {
         params.contribution_type = typeFilter;
       }
-      
+
+      if (usernameSearch) {
+        params.username_search = usernameSearch;
+      }
+
+      // Handle assigned_to filter
+      if (assignedToFilter === 'unassigned') {
+        params.assigned_to = 'unassigned';
+      } else if (assignedToFilter) {
+        params.assigned_to = assignedToFilter;
+      }
+
       const response = await stewardAPI.getSubmissions(params);
       submissions = response.data.results || [];
       totalCount = response.data.count || 0;
@@ -201,6 +249,14 @@
     currentPage = 1;
     loadSubmissions();
   }
+
+  function handleSearchChange() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      currentPage = 1;
+      loadSubmissions();
+    }, 500);
+  }
 </script>
 
 <div class="container mx-auto px-4 py-8">
@@ -213,7 +269,8 @@
   
   <!-- Filters -->
   <div class="bg-white shadow rounded-lg p-4 mb-6">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Status Filter -->
       <div>
         <label for="state-filter" class="block text-sm font-medium text-gray-700 mb-1">
           Status
@@ -231,7 +288,8 @@
           <option value="more_info_needed">More Info Needed</option>
         </select>
       </div>
-      
+
+      <!-- Contribution Type Filter -->
       <div>
         <label for="type-filter" class="block text-sm font-medium text-gray-700 mb-1">
           Contribution Type
@@ -248,12 +306,46 @@
           {/each}
         </select>
       </div>
-      
-      <div class="flex items-end">
-        <div class="text-sm text-gray-600">
-          Total: <span class="font-semibold text-gray-900">{totalCount}</span> submissions
-        </div>
+
+      <!-- Assigned To Filter -->
+      <div>
+        <label for="assigned-filter" class="block text-sm font-medium text-gray-700 mb-1">
+          Assigned To
+        </label>
+        <select
+          id="assigned-filter"
+          bind:value={assignedToFilter}
+          onchange={handleFilterChange}
+          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          <option value="">All</option>
+          <option value="unassigned">Unassigned</option>
+          {#each stewardsList as steward}
+            <option value={steward.user_id}>
+              {steward.name || steward.address?.slice(0, 10) + '...'}
+            </option>
+          {/each}
+        </select>
       </div>
+
+      <!-- Username Search -->
+      <div>
+        <label for="username-search" class="block text-sm font-medium text-gray-700 mb-1">
+          Search User
+        </label>
+        <input
+          id="username-search"
+          type="text"
+          bind:value={usernameSearch}
+          oninput={handleSearchChange}
+          placeholder="Name or address..."
+          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+        />
+      </div>
+    </div>
+
+    <div class="mt-3 text-sm text-gray-600">
+      Total: <span class="font-semibold text-gray-900">{totalCount}</span> submissions
     </div>
   </div>
   
@@ -287,18 +379,41 @@
     
     <div class="space-y-4">
       {#each submissions as submission}
-        <SubmissionCard
-          {submission}
-          showReviewForm={true}
-          onReview={handleReview}
-          reviewData={reviewData[submission.id]}
-          isProcessing={processingSubmissions.has(submission.id)}
-          successMessage={''}
-          {contributionTypes}
-          {users}
-          {multipliers}
-          isOwnSubmission={false}
-        />
+        <div class="relative">
+          <!-- Assignment Dropdown - Only for pending/more_info_needed -->
+          {#if submission.state === 'pending' || submission.state === 'more_info_needed'}
+            <div class="absolute top-4 right-4 z-10">
+              <select
+                value={submission.assigned_to || 'unassigned'}
+                onchange={(e) => handleAssignment(submission.id, e.target.value)}
+                disabled={assigningSubmissions.has(submission.id)}
+                class="px-3 py-1 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
+                title="Assign to steward"
+              >
+                <option value="unassigned">Unassigned</option>
+                {#each stewardsList as steward}
+                  <option value={steward.user_id}>
+                    {steward.name || steward.address?.slice(0, 10) + '...'}
+                  </option>
+                {/each}
+              </select>
+            </div>
+          {/if}
+
+          <!-- Existing SubmissionCard -->
+          <SubmissionCard
+            {submission}
+            showReviewForm={true}
+            onReview={handleReview}
+            reviewData={reviewData[submission.id]}
+            isProcessing={processingSubmissions.has(submission.id)}
+            successMessage={''}
+            {contributionTypes}
+            {users}
+            {multipliers}
+            isOwnSubmission={false}
+          />
+        </div>
       {/each}
     </div>
     
