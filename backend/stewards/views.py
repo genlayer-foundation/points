@@ -30,10 +30,12 @@ class StewardViewSet(viewsets.ModelViewSet):
                 'user_id': steward.user.id,
                 'name': steward.user.name,
                 'address': steward.user.address,
+                'profile_image_url': steward.user.profile_image_url,
                 'created_at': steward.created_at,
                 'user_details': {
                     'name': steward.user.name,
                     'address': steward.user.address,
+                    'profile_image_url': steward.user.profile_image_url,
                 }
             }
             data.append(steward_data)
