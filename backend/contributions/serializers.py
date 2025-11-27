@@ -518,12 +518,14 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
     evidence_items = serializers.SerializerMethodField()
     state_display = serializers.CharField(source='get_state_display', read_only=True)
     contribution = serializers.SerializerMethodField()
+    assigned_to = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = SubmittedContribution
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_details',
                   'contribution_date', 'notes', 'state', 'state_display', 'staff_reply',
-                  'reviewed_by', 'reviewed_at', 'evidence_items', 'suggested_points',
+                  'reviewed_by', 'reviewed_at', 'assigned_to',
+                  'evidence_items', 'suggested_points',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution',
                   'mission']
         read_only_fields = ['id', 'created_at', 'updated_at', 'suggested_points']
