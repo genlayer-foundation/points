@@ -42,18 +42,26 @@ def calculate_category_points(user, category_slug):
     )['total'] or 0
 
 
+def get_eligible_referred_user_ids(referrer):
+    """Get IDs of referred users eligible for referral rewards (have contributions beyond onboarding)."""
+    from users.models import User
+
+    referred_user_ids = list(User.objects.filter(
+        referred_by=referrer
+    ).values_list('id', flat=True))
+
+    if not referred_user_ids:
+        return set()
+
+    return set(Contribution.objects.filter(
+        user_id__in=referred_user_ids
+    ).exclude(
+        contribution_type__slug__in=['builder-welcome', 'validator-waitlist']
+    ).values_list('user_id', flat=True).distinct())
+
+
 def calculate_waitlist_points(user):
-    """
-    Calculate waitlist points including both contributions and referral points.
-    Formula: contribution_points + referral_points (simple sum, easy to adjust)
-
-    Anti-bot: Referral points only count contributions from referred users with real engagement:
-    - Builder: referred user must be in Builder table
-    - Validator: referred user must have other validator contributions besides validator-waitlist
-    """
-    from builders.models import Builder
-
-    # Find graduation contribution if exists
+    """Calculate waitlist points: contributions + referral points."""
     grad_contrib = Contribution.objects.filter(
         user=user,
         contribution_type__slug='validator'
@@ -65,43 +73,21 @@ def calculate_waitlist_points(user):
     ).exclude(contribution_type__slug='validator')
 
     if grad_contrib:
-        # Only count contributions before and on graduation day
         query = query.filter(contribution_date__lte=grad_contrib.contribution_date)
 
     contribution_points = query.aggregate(total=Sum('frozen_global_points'))['total'] or 0
 
-    # Calculate referral points
     if grad_contrib:
-        # For graduated users: calculate referral points ONLY from contributions before graduation
-        # Anti-bot: Only count contributions from referred users with real engagement
-        from users.models import User
-        referred_user_ids = list(User.objects.filter(referred_by=user).values_list('id', flat=True))
-
-        if referred_user_ids:
-            # Get referred users who are in Builder table
-            referred_builders = set(Builder.objects.filter(
-                user_id__in=referred_user_ids
-            ).values_list('user_id', flat=True))
-
-            # Get referred users who have real validator contributions (not just validator-waitlist)
-            # Note: Check for any real validator contribution, not just before graduation
-            referred_with_real_validator = set(Contribution.objects.filter(
-                user_id__in=referred_user_ids,
-                contribution_type__category__slug='validator'
-            ).exclude(
-                contribution_type__slug='validator-waitlist'
-            ).values_list('user_id', flat=True))
-
-            # Builder referrals - only from referred users in Builder table
+        eligible_ids = get_eligible_referred_user_ids(user)
+        if eligible_ids:
             builder_referral = int((Contribution.objects.filter(
-                user_id__in=referred_builders,
+                user_id__in=eligible_ids,
                 contribution_type__category__slug='builder',
                 contribution_date__lte=grad_contrib.contribution_date
             ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
 
-            # Validator referrals - only from referred users with real validator contributions
             validator_referral = int((Contribution.objects.filter(
-                user_id__in=referred_with_real_validator,
+                user_id__in=eligible_ids,
                 contribution_type__category__slug='validator',
                 contribution_date__lte=grad_contrib.contribution_date
             ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
@@ -110,8 +96,6 @@ def calculate_waitlist_points(user):
         else:
             referral_points = 0
     else:
-        # For current waitlist users: use total referral points from ReferralPoints table
-        # (which is already maintained with anti-bot filtering by update_referrer_points)
         try:
             referral_points = user.referral_points.builder_points + user.referral_points.validator_points
         except ReferralPoints.DoesNotExist:
@@ -499,88 +483,32 @@ class ReferralPoints(BaseModel):
 
 
 def update_referrer_points(contribution):
-    """
-    Update referral points when a referred user makes a contribution.
-
-    Anti-bot: Only counts contributions from referred users with real engagement:
-    - Builder: referred user must be in Builder table (uses mini-recalculation)
-    - Validator: referred user must have other validator contributions besides validator-waitlist
-    """
-    from builders.models import Builder
-    from users.models import User
-
+    """Update referral points when a referred user makes a contribution."""
     referrer = contribution.user.referred_by
     if not referrer:
         return
 
-    # Get or create referral points record
-    rp, _ = ReferralPoints.objects.get_or_create(user=referrer)
-
-    # Get the contribution category and slug
-    category_slug = contribution.contribution_type.category.slug if contribution.contribution_type.category else None
-    contribution_slug = contribution.contribution_type.slug
-
-    if category_slug == 'builder':
-        # For builder contributions: recalculate all builder referral points
-        # This ensures builder-welcome is only counted when user is in Builder table
-        referred_user_ids = list(User.objects.filter(referred_by=referrer).values_list('id', flat=True))
-        referred_builders = set(Builder.objects.filter(
-            user_id__in=referred_user_ids
-        ).values_list('user_id', flat=True))
-
-        rp.builder_points = int((Contribution.objects.filter(
-            user_id__in=referred_builders,
-            contribution_type__category__slug='builder'
-        ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
-        rp.save(update_fields=['builder_points'])
-
-    elif category_slug == 'validator':
-        # For validator contributions: use incremental logic with anti-bot check
-        user = contribution.user
-        points_to_add = int(contribution.frozen_global_points * 0.1)
-
-        if contribution_slug == 'validator-waitlist':
-            # Check if user has any OTHER validator contributions
-            has_other_validator = Contribution.objects.filter(
-                user=user,
-                contribution_type__category__slug='validator'
-            ).exclude(contribution_type__slug='validator-waitlist').exists()
-
-            if not has_other_validator:
-                # Don't count validator-waitlist until user has real engagement
-                return
-            # User has other contributions, count validator-waitlist
-            rp.validator_points += points_to_add
-        else:
-            # Non-waitlist validator contribution - always count it
-            rp.validator_points += points_to_add
-
-            # Check if this is the first non-waitlist validator contribution
-            # If so, retroactively add validator-waitlist points
-            other_validator_count = Contribution.objects.filter(
-                user=user,
-                contribution_type__category__slug='validator'
-            ).exclude(contribution_type__slug='validator-waitlist').count()
-
-            if other_validator_count == 1:  # This is the first non-waitlist contribution
-                waitlist_points = Contribution.objects.filter(
-                    user=user,
-                    contribution_type__slug='validator-waitlist'
-                ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0
-                if waitlist_points > 0:
-                    rp.validator_points += int(waitlist_points * 0.1)
-
-        rp.save(update_fields=['validator_points'])
-    else:
-        # No category means no points added, no need to update leaderboard
+    eligible_ids = get_eligible_referred_user_ids(referrer)
+    if not eligible_ids:
         return
 
-    # CRITICAL: Update referrer's validator-waitlist leaderboard entry
-    # This prevents LeaderboardEntry.total_points from being stale
+    rp, _ = ReferralPoints.objects.get_or_create(user=referrer)
+
+    rp.builder_points = int((Contribution.objects.filter(
+        user_id__in=eligible_ids,
+        contribution_type__category__slug='builder'
+    ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+
+    rp.validator_points = int((Contribution.objects.filter(
+        user_id__in=eligible_ids,
+        contribution_type__category__slug='validator'
+    ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+
+    rp.save(update_fields=['builder_points', 'validator_points'])
+
     if LeaderboardEntry.objects.filter(user=referrer, type='validator-waitlist').exists():
         config = LEADERBOARD_CONFIG['validator-waitlist']
-        calculator = config['points_calculator']
-        points = calculator(referrer)
+        points = config['points_calculator'](referrer)
 
         LeaderboardEntry.objects.update_or_create(
             user=referrer,
@@ -604,11 +532,9 @@ def ensure_builder_status(user, reference_date):
     except ContributionType.DoesNotExist:
         return
 
-    # Create Builder profile
     if not hasattr(user, 'builder'):
         Builder.objects.create(user=user)
 
-    # (signals would create LeaderboardEntry records, causing duplicates during recalculation)
     contributions_to_create = []
 
     if not Contribution.objects.filter(user=user, contribution_type=welcome_type).exists():
@@ -635,47 +561,24 @@ def ensure_builder_status(user, reference_date):
 
 @transaction.atomic
 def recalculate_referrer_points(referrer):
-    """
-    Update referral points when referred user makes contribution.
-    Efficiently calculates points per category.
-
-    Anti-bot: Only counts contributions from referred users with real engagement:
-    - Builder: referred user must be in Builder table
-    - Validator: referred user must have other validator contributions besides validator-waitlist
-    """
-    from users.models import User
-    from builders.models import Builder
-
-    referred_user_ids = list(User.objects.filter(referred_by=referrer).values_list('id', flat=True))
-    if not referred_user_ids:
-        return
-
+    """Recalculate all referral points for a referrer."""
     rp, _ = ReferralPoints.objects.get_or_create(user=referrer)
 
-    # Get referred users who are in Builder table
-    referred_builders = set(Builder.objects.filter(
-        user_id__in=referred_user_ids
-    ).values_list('user_id', flat=True))
+    eligible_ids = get_eligible_referred_user_ids(referrer)
 
-    # Get referred users who have real validator contributions (not just validator-waitlist)
-    referred_with_real_validator = set(Contribution.objects.filter(
-        user_id__in=referred_user_ids,
-        contribution_type__category__slug='validator'
-    ).exclude(
-        contribution_type__slug='validator-waitlist'
-    ).values_list('user_id', flat=True))
+    if eligible_ids:
+        rp.builder_points = int((Contribution.objects.filter(
+            user_id__in=eligible_ids,
+            contribution_type__category__slug='builder'
+        ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
 
-    # Calculate builder points - only from referred users in Builder table
-    rp.builder_points = int((Contribution.objects.filter(
-        user_id__in=referred_builders,
-        contribution_type__category__slug='builder'
-    ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
-
-    # Calculate validator points - only from referred users with real validator contributions
-    rp.validator_points = int((Contribution.objects.filter(
-        user_id__in=referred_with_real_validator,
-        contribution_type__category__slug='validator'
-    ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+        rp.validator_points = int((Contribution.objects.filter(
+            user_id__in=eligible_ids,
+            contribution_type__category__slug='validator'
+        ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
+    else:
+        rp.builder_points = 0
+        rp.validator_points = 0
 
     rp.save(update_fields=['builder_points', 'validator_points'])
 
@@ -696,17 +599,7 @@ def update_all_ranks():
 
 
 def recalculate_all_leaderboards():
-    """
-    Optimized admin command to recalculate all leaderboard entries and referral points from scratch.
-
-    Performance: Reduces queries from ~26,000 to ~15 by:
-    - Loading all data in single queries
-    - Processing qualifications in Python
-    - Using bulk operations
-    - Updating ranks once per leaderboard
-
-    Called from admin panel shortcut.
-    """
+    """Recalculate all leaderboard entries and referral points from scratch."""
     from django.db import transaction
     from users.models import User
     from builders.models import Builder
@@ -714,10 +607,6 @@ def recalculate_all_leaderboards():
     from collections import defaultdict
 
     with transaction.atomic():
-        # Save existing graduation entries to preserve frozen points
-        # OPEN QUESTION: Should we recalculate graduation snapshots instead of preserving them?
-        # Current: Preserves existing snapshots (performance, stability)
-        # Alternative: Recalculate all snapshots (ensures correctness if logic changed)
         existing_graduations = {
             entry.user_id: {
                 'points': entry.total_points,
@@ -726,12 +615,10 @@ def recalculate_all_leaderboards():
             for entry in LeaderboardEntry.objects.filter(type='validator-waitlist-graduation')
         }
 
-        # Clear all existing calculated data (except graduation entries are preserved above)
         LeaderboardEntry.objects.all().delete()
         ReferralPoints.objects.all().delete()
 
-        # STEP 1: Auto-grant builder status to users with builder contributions but no Builder profile
-        # Load contributions to identify users who need builder status
+        # Auto-grant builder status to users with builder contributions but no Builder profile
         initial_contributions = list(Contribution.objects.select_related(
             'contribution_type__category'
         ).values(
@@ -741,17 +628,13 @@ def recalculate_all_leaderboards():
             'contribution_date'
         ))
 
-        # Load current Builder profiles
         initial_builders_set = set(Builder.objects.values_list('user_id', flat=True))
-
-        # Group contributions by user and find those needing builder status
         user_builder_contribs = defaultdict(list)
         for contrib in initial_contributions:
             if (contrib['contribution_type__category__slug'] == 'builder' and
                 contrib['contribution_type__slug'] not in ['builder-welcome', 'builder']):
                 user_builder_contribs[contrib['user_id']].append(contrib['contribution_date'])
 
-        # Create builder status for users who need it
         for user_id, dates in user_builder_contribs.items():
             if user_id not in initial_builders_set:
                 try:
@@ -761,7 +644,7 @@ def recalculate_all_leaderboards():
                 except User.DoesNotExist:
                     pass
 
-        # STEP 2: Load ALL contribution data (including newly created)
+        # Load all contribution data (including newly created)
         contributions = list(Contribution.objects.select_related(
             'contribution_type__category'
         ).values(
@@ -775,85 +658,65 @@ def recalculate_all_leaderboards():
             'frozen_global_points'
         ))
 
-        # Load Builder and Validator profiles to determine leaderboard qualification
         builders_set = set(Builder.objects.values_list('user_id', flat=True))
         validators_set = set(Validator.objects.values_list('user_id', flat=True))
 
-        # Group contributions by user
         user_contributions = defaultdict(list)
         for contrib in contributions:
             user_contributions[contrib['user_id']].append(contrib)
 
-        # Group contributions by referrer for referral point calculation
         referrer_contributions = defaultdict(list)
         for contrib in contributions:
             if contrib['user__referred_by_id']:
                 referrer_contributions[contrib['user__referred_by_id']].append(contrib)
 
-        # Track which users have which contribution badges
         user_badges = defaultdict(set)
         for contrib in contributions:
             user_badges[contrib['user_id']].add(contrib['contribution_type__slug'])
 
-        # Track users who have validator contributions OTHER than validator-waitlist
-        # Used for anti-bot filtering in referral calculations
-        users_with_real_validator_contribs = set()
+        users_eligible_for_referrals = set()
         for contrib in contributions:
-            if (contrib['contribution_type__category__slug'] == 'validator' and
-                contrib['contribution_type__slug'] != 'validator-waitlist'):
-                users_with_real_validator_contribs.add(contrib['user_id'])
+            if contrib['contribution_type__slug'] not in ['builder-welcome', 'validator-waitlist']:
+                users_eligible_for_referrals.add(contrib['user_id'])
 
-        # Prepare bulk operations
         entries_to_create = []
         referral_points_to_create = []
 
-        # Process each user with contributions
         for user_id, user_contribs in user_contributions.items():
-            # Determine which leaderboards this user qualifies for
             qualified_leaderboards = []
 
-            # Validator leaderboard: has Validator profile
             if user_id in validators_set:
                 qualified_leaderboards.append('validator')
 
-            # Builder leaderboard: has Builder profile
             if user_id in builders_set:
                 qualified_leaderboards.append('builder')
 
-            # Validator waitlist: has 'validator-waitlist' badge but NO Validator profile
             if 'validator-waitlist' in user_badges[user_id] and user_id not in validators_set:
                 qualified_leaderboards.append('validator-waitlist')
 
-            # Validator waitlist graduation: has 'validator-waitlist' badge AND Validator profile
             if 'validator-waitlist' in user_badges[user_id] and user_id in validators_set:
                 qualified_leaderboards.append('validator-waitlist-graduation')
 
-            # Calculate points for each qualified leaderboard
             for leaderboard_type in qualified_leaderboards:
                 points = 0
                 graduation_date = None
 
                 if leaderboard_type == 'validator':
-                    # Sum ALL validator category contributions
                     for contrib in user_contribs:
                         if contrib['contribution_type__category__slug'] == 'validator':
                             points += contrib['frozen_global_points'] or 0
 
                 elif leaderboard_type == 'builder':
-                    # Sum ALL builder category contributions (including builder-welcome)
                     for contrib in user_contribs:
                         if contrib['contribution_type__category__slug'] == 'builder':
                             points += contrib['frozen_global_points'] or 0
 
                 elif leaderboard_type == 'validator-waitlist':
-                    # Sum all validator category contributions (excluding graduation marker) + referral points
                     for contrib in user_contribs:
                         if (contrib['contribution_type__category__slug'] == 'validator' and
                             contrib['contribution_type__slug'] != 'validator'):
                             points += contrib['frozen_global_points'] or 0
 
-                    # Add referral points if user is a referrer
-                    # Anti-bot: Only count contributions from referred users with real engagement
                     if user_id in referrer_contributions:
                         builder_referral = 0
                         validator_referral = 0
@@ -863,24 +726,19 @@ def recalculate_all_leaderboards():
                             category = referred_contrib['contribution_type__category__slug']
                             contrib_points = referred_contrib['frozen_global_points'] or 0
 
-                            # Builder: only count if referred user is in Builder table
-                            if category == 'builder' and referred_user_id in builders_set:
-                                builder_referral += int(contrib_points * 0.1)
-                            # Validator: only count if referred user has real validator contributions
-                            elif category == 'validator' and referred_user_id in users_with_real_validator_contribs:
-                                validator_referral += int(contrib_points * 0.1)
+                            if referred_user_id in users_eligible_for_referrals:
+                                if category == 'builder':
+                                    builder_referral += int(contrib_points * 0.1)
+                                elif category == 'validator':
+                                    validator_referral += int(contrib_points * 0.1)
 
                         points += builder_referral + validator_referral
 
                 elif leaderboard_type == 'validator-waitlist-graduation':
-                    # Check if this user already has a frozen graduation entry
                     if user_id in existing_graduations:
-                        # Use existing frozen values - points never change after graduation
                         points = existing_graduations[user_id]['points']
                         graduation_date = existing_graduations[user_id]['graduation_date']
                     else:
-                        # New graduation - calculate points to freeze
-                        # Find graduation date (earliest validator contribution)
                         grad_date = None
                         for contrib in user_contribs:
                             if contrib['contribution_type__slug'] == 'validator':
@@ -890,19 +748,13 @@ def recalculate_all_leaderboards():
 
                         graduation_date = grad_date
 
-                        # Calculate waitlist points at graduation
-                        # Include all validator contributions up to (but not after) graduation
                         if grad_date is not None:
                             for contrib in user_contribs:
                                 if contrib['contribution_type__category__slug'] == 'validator':
-                                    # Include contributions on or before graduation date
-                                    # but exclude the 'validator' contribution itself (graduation marker)
                                     if (contrib['contribution_date'] <= grad_date and
                                         contrib['contribution_type__slug'] != 'validator'):
                                         points += contrib['frozen_global_points'] or 0
 
-                            # Add referral points earned up to graduation
-                            # Anti-bot: Only count contributions from referred users with real engagement
                             if user_id in referrer_contributions:
                                 builder_referral = 0
                                 validator_referral = 0
@@ -913,12 +765,11 @@ def recalculate_all_leaderboards():
                                         category = referred_contrib['contribution_type__category__slug']
                                         contrib_points = referred_contrib['frozen_global_points'] or 0
 
-                                        # Builder: only count if referred user is in Builder table
-                                        if category == 'builder' and referred_user_id in builders_set:
-                                            builder_referral += int(contrib_points * 0.1)
-                                        # Validator: only count if referred user has real validator contributions
-                                        elif category == 'validator' and referred_user_id in users_with_real_validator_contribs:
-                                            validator_referral += int(contrib_points * 0.1)
+                                        if referred_user_id in users_eligible_for_referrals:
+                                            if category == 'builder':
+                                                builder_referral += int(contrib_points * 0.1)
+                                            elif category == 'validator':
+                                                validator_referral += int(contrib_points * 0.1)
 
                                 points += builder_referral + validator_referral
 
@@ -930,8 +781,6 @@ def recalculate_all_leaderboards():
                     graduation_date=graduation_date
                 ))
 
-        # Calculate referral points for all referrers
-        # Anti-bot: Only count contributions from referred users with real engagement
         for referrer_id, referred_contribs in referrer_contributions.items():
             builder_points = 0
             validator_points = 0
@@ -941,12 +790,11 @@ def recalculate_all_leaderboards():
                 category = contrib['contribution_type__category__slug']
                 contrib_points = contrib['frozen_global_points'] or 0
 
-                # Builder: only count if referred user is in Builder table
-                if category == 'builder' and referred_user_id in builders_set:
-                    builder_points += int(contrib_points * 0.1)
-                # Validator: only count if referred user has real validator contributions
-                elif category == 'validator' and referred_user_id in users_with_real_validator_contribs:
-                    validator_points += int(contrib_points * 0.1)
+                if referred_user_id in users_eligible_for_referrals:
+                    if category == 'builder':
+                        builder_points += int(contrib_points * 0.1)
+                    elif category == 'validator':
+                        validator_points += int(contrib_points * 0.1)
 
             referral_points_to_create.append(ReferralPoints(
                 user_id=referrer_id,
@@ -954,13 +802,9 @@ def recalculate_all_leaderboards():
                 validator_points=validator_points
             ))
 
-        # Bulk create leaderboard entries
         LeaderboardEntry.objects.bulk_create(entries_to_create, batch_size=500)
-
-        # Bulk create referral points
         ReferralPoints.objects.bulk_create(referral_points_to_create, batch_size=500)
 
-        # Update ranks once per leaderboard type
         for leaderboard_type in ['validator', 'builder', 'validator-waitlist', 'validator-waitlist-graduation']:
             LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
