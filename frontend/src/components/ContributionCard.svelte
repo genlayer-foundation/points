@@ -216,7 +216,7 @@
                 {#if item.notes}
                   <div class="mb-2">
                     <h5 class="text-xs font-medium text-gray-700 mb-1">Notes</h5>
-                    <p class="text-xs text-gray-600">{item.notes}</p>
+                    <div class="markdown-content text-xs text-gray-600">{@html parseMarkdown(item.notes)}</div>
                   </div>
                 {/if}
                 {#if item.evidence_items?.length > 0}
