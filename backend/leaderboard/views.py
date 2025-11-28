@@ -393,7 +393,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def supporters(self, request):
         """
-        Get supporters statistics and top 10 supporters.
+        Get supporters statistics and all supporters with referral points.
         Returns users with referrals sorted by total referral points.
         """
         from .models import ReferralPoints
@@ -403,16 +403,16 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         # Get all referral points ordered by total points (builder + validator)
         referral_points = ReferralPoints.objects.select_related('user').annotate(
             total_points=F('builder_points') + F('validator_points')
-        ).filter(user__visible=True).order_by('-total_points')
+        ).filter(user__visible=True, total_points__gt=0).order_by('-total_points')
 
         # Calculate aggregate stats
         total_supporters = referral_points.count()
         total_builder_points = sum(rp.builder_points for rp in referral_points)
         total_validator_points = sum(rp.validator_points for rp in referral_points)
 
-        # Get top 10
+        # Get all supporters
         top_supporters = []
-        for rp in referral_points[:10]:
+        for rp in referral_points:
             user_data = UserSerializer(rp.user).data
             top_supporters.append({
                 **user_data,
