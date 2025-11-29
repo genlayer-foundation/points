@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from disposable_email_domains import blocklist
 from .models import User
-from validators.models import Validator
+from validators.models import Validator, ValidatorWallet
 from builders.models import Builder
 from stewards.models import Steward
 from creators.models import Creator
@@ -38,6 +38,8 @@ class LightValidatorSerializer(serializers.Serializer):
     node_version = serializers.CharField(read_only=True)
     matches_target = serializers.SerializerMethodField()
     target_version = serializers.SerializerMethodField()
+    active_validators_count = serializers.SerializerMethodField()
+    total_validators_count = serializers.SerializerMethodField()
 
     def get_matches_target(self, obj):
         """Check if the validator's version matches or is higher than the target."""
@@ -52,6 +54,17 @@ class LightValidatorSerializer(serializers.Serializer):
         from contributions.node_upgrade.models import TargetNodeVersion
         target = TargetNodeVersion.get_active()
         return target.version if target else None
+
+    def get_active_validators_count(self, obj):
+        """Get count of active validator wallets for this operator."""
+        return ValidatorWallet.objects.filter(
+            operator=obj,
+            status='active'
+        ).count()
+
+    def get_total_validators_count(self, obj):
+        """Get total count of validator wallets for this operator."""
+        return ValidatorWallet.objects.filter(operator=obj).count()
 
 
 class LightBuilderSerializer(serializers.Serializer):
@@ -88,11 +101,14 @@ class ValidatorSerializer(serializers.ModelSerializer):
     rank = serializers.SerializerMethodField()
     total_contributions = serializers.SerializerMethodField()
     contribution_types = serializers.SerializerMethodField()
-    
+    active_validators_count = serializers.SerializerMethodField()
+    total_validators_count = serializers.SerializerMethodField()
+
     class Meta:
         model = Validator
-        fields = ['node_version', 'matches_target', 'target_version', 'target_date', 'target_created_at', 
-                 'total_points', 'rank', 'total_contributions', 'contribution_types', 'created_at', 'updated_at']
+        fields = ['node_version', 'matches_target', 'target_version', 'target_date', 'target_created_at',
+                 'total_points', 'rank', 'total_contributions', 'contribution_types',
+                 'active_validators_count', 'total_validators_count', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
     
     def get_matches_target(self, obj):
@@ -191,6 +207,17 @@ class ValidatorSerializer(serializers.ModelSerializer):
             return result
         except Category.DoesNotExist:
             return []
+
+    def get_active_validators_count(self, obj):
+        """Get count of active validator wallets for this operator."""
+        return ValidatorWallet.objects.filter(
+            operator=obj,
+            status='active'
+        ).count()
+
+    def get_total_validators_count(self, obj):
+        """Get total count of validator wallets for this operator."""
+        return ValidatorWallet.objects.filter(operator=obj).count()
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):

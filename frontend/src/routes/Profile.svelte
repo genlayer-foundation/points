@@ -11,7 +11,7 @@
   import ReferralSection from '../components/ReferralSection.svelte';
   import Icons from '../components/Icons.svelte';
   import Tooltip from '../components/Tooltip.svelte';
-  import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, creatorAPI, getCurrentUser, githubAPI } from '../lib/api';
+  import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, creatorAPI, getCurrentUser, githubAPI, validatorsAPI } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
   import Avatar from '../components/Avatar.svelte';
@@ -59,6 +59,8 @@
   let referralData = $state(null);
   let loadingReferrals = $state(false);
   let hasShownStatsErrorToast = $state(false);
+  let validatorWallets = $state([]);
+  let loadingValidatorWallets = $state(false);
 
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
@@ -241,7 +243,24 @@
       loadingReferrals = false;
     }
   }
-  
+
+  async function fetchValidatorWallets() {
+    if (loadingValidatorWallets || !participant?.address) {
+      return;
+    }
+
+    loadingValidatorWallets = true;
+    try {
+      const response = await validatorsAPI.getValidatorWalletsByOperator(participant.address);
+      validatorWallets = response.data?.wallets || [];
+    } catch (err) {
+      console.error('Failed to fetch validator wallets:', err);
+      validatorWallets = [];
+    } finally {
+      loadingValidatorWallets = false;
+    }
+  }
+
   async function claimBuilderWelcome() {
     if (!$authState.isAuthenticated) {
       document.querySelector('.auth-button')?.click();
@@ -448,6 +467,11 @@
 
       // Fetch referral data for all profiles
       fetchReferrals();
+
+      // Fetch validator wallets if user has validator profile
+      if (participant.validator) {
+        fetchValidatorWallets();
+      }
 
       // Load additional data asynchronously for own profile
       if (isOwnProfile) {
@@ -894,7 +918,7 @@
             <h3 class="text-base font-semibold text-gray-900 mb-3">Testnet Asimov</h3>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              <!-- Status -->
+              <!-- Active Validators Count -->
               <div class="flex items-center">
                 <div class="p-3 bg-sky-100 rounded-lg mr-4">
                   <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -902,8 +926,14 @@
                   </svg>
                 </div>
                 <div>
-                  <p class="text-sm text-gray-500">Status</p>
-                  <ValidatorStatus address={participant.address} />
+                  <p class="text-sm text-gray-500">Validators</p>
+                  <p class="text-xl font-bold text-gray-900">
+                    {#if loadingValidatorWallets}
+                      <span class="text-gray-400">Loading...</span>
+                    {:else}
+                      {participant.validator?.active_validators_count || 0} Active
+                    {/if}
+                  </p>
                 </div>
               </div>
               
@@ -1007,10 +1037,49 @@
               viewAllText="View All →"
             />
           </div>
+
+          <!-- Validator Wallets List -->
+          {#if validatorWallets.length > 0 || loadingValidatorWallets}
+            <div class="px-4 mt-6 pb-6">
+              <h3 class="text-base font-semibold text-gray-900 mb-3">Validator Wallets</h3>
+              {#if loadingValidatorWallets}
+                <div class="text-center py-4">
+                  <span class="text-gray-500">Loading validator wallets...</span>
+                </div>
+              {:else}
+                <div class="space-y-2">
+                  {#each validatorWallets as wallet}
+                    <div class="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                      <div class="flex items-center gap-3">
+                        <span class="font-mono text-sm text-gray-600">
+                          {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+                        </span>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        {#if wallet.status === 'active'}
+                          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Active
+                          </span>
+                        {:else if wallet.status === 'banned'}
+                          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            Banned
+                          </span>
+                        {:else if wallet.status === 'permabanned'}
+                          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            Permabanned
+                          </span>
+                        {/if}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/if}
         {/if}
       </div>
     {/if}
-    
+
     <!-- Builder Card -->
     {#if participant.builder}
       <div class="bg-orange-50 rounded-lg shadow-sm border border-orange-200 overflow-hidden mb-6">

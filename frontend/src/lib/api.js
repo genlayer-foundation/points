@@ -131,7 +131,11 @@ export const statsAPI = {
 
 // Validators API
 export const validatorsAPI = {
-  getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } })
+  getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } }),
+  // Validator Wallets
+  getAllValidatorWallets: (params = {}) => api.get('/validators/wallets/', { params }),
+  getValidatorWalletsByOperator: (operatorAddress) => api.get(`/validators/wallets/by-operator/${operatorAddress}/`),
+  getMyValidatorWallets: () => api.get('/validators/my-wallets/')
 };
 
 // Builders API
