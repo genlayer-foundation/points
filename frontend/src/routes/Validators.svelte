@@ -12,7 +12,8 @@
     total: 0,
     active: 0,
     banned: 0,
-    permabanned: 0
+    permabanned: 0,
+    inactive: 0
   });
 
   let previousCategory = null;
@@ -36,7 +37,8 @@
         total: 0,
         active: 0,
         banned: 0,
-        permabanned: 0
+        permabanned: 0,
+        inactive: 0
       };
 
       loading = false;
@@ -54,6 +56,8 @@
         return 'bg-red-100 text-red-800';
       case 'permabanned':
         return 'bg-gray-100 text-gray-800';
+      case 'inactive':
+        return 'bg-yellow-100 text-yellow-800';
       default:
         return 'bg-gray-100 text-gray-500';
     }
@@ -67,6 +71,8 @@
         return 'Banned';
       case 'permabanned':
         return 'Permabanned';
+      case 'inactive':
+        return 'Inactive';
       default:
         return 'Unknown';
     }
@@ -101,7 +107,8 @@
           <p class="mt-1 max-w-2xl text-sm text-gray-500">
             Active: {stats.active} |
             Banned: {stats.banned} |
-            Permabanned: {stats.permabanned}
+            Permabanned: {stats.permabanned} |
+            Inactive: {stats.inactive}
           </p>
         </div>
       </div>

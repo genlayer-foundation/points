@@ -1068,6 +1068,10 @@
                           <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                             Permabanned
                           </span>
+                        {:else if wallet.status === 'inactive'}
+                          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Inactive
+                          </span>
                         {/if}
                       </div>
                     </div>

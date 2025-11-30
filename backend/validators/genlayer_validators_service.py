@@ -331,17 +331,26 @@ class GenLayerValidatorsService:
                     'until_epoch': banned['until_epoch_banned']
                 }
 
-            # Combine all addresses
+            # Combine all addresses from chain data
             all_addresses = set(active_addresses)
             for banned in banned_data:
                 all_addresses.add(banned['address'])
+
+            # Also include existing validators from DB to catch "zombie" validators
+            # that disappeared from both active and banned lists
+            existing_addresses = ValidatorWallet.objects.values_list('address', flat=True)
+            for addr in existing_addresses:
+                all_addresses.add(addr)
+
+            # Create lowercase set of active addresses for comparison
+            active_addresses_lower = {addr.lower() for addr in active_addresses}
 
             # Process each validator
             for address in all_addresses:
                 try:
                     self._process_validator(
                         address=address,
-                        is_active=address in active_addresses,
+                        is_active=address.lower() in active_addresses_lower,
                         banned_info=banned_lookup.get(address.lower()),
                         stats=stats
                     )
@@ -381,14 +390,6 @@ class GenLayerValidatorsService:
 
         address_lower = address.lower()
 
-        # Determine status
-        if is_active:
-            status = 'active'
-        elif banned_info:
-            status = 'permabanned' if banned_info['permanently_banned'] else 'banned'
-        else:
-            status = 'active'  # Default if not in any list
-
         # Check if exists
         try:
             wallet = ValidatorWallet.objects.get(address__iexact=address_lower)
@@ -420,15 +421,28 @@ class GenLayerValidatorsService:
                 wallet.website = identity.get('website', '')
                 wallet.description = identity.get('description', '')
 
-        # Always update status and stake info
-        wallet.status = status
-
-        # Fetch validator view for stake info
+        # Fetch validator view for stake info and status verification
         view = self.fetch_validator_view(address)
         if view:
             wallet.v_stake = view.get('v_stake', '')
             wallet.d_stake = view.get('d_stake', '')
 
+        # Determine status using both list membership and validatorView data
+        # Priority: 1. Active list, 2. Banned info, 3. validatorView.live field, 4. Default to inactive
+        if is_active:
+            status = 'active'
+        elif banned_info:
+            status = 'permabanned' if banned_info['permanently_banned'] else 'banned'
+        elif view and view.get('live'):
+            # Not in active list but validatorView says live=True
+            # This could be a transitional state, treat as active
+            status = 'active'
+        else:
+            # Not in active list, not banned, and either no view or live=False
+            # This is a "zombie" or inactive validator
+            status = 'inactive'
+
+        wallet.status = status
         wallet.save()
 
         if is_new:

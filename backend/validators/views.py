@@ -170,6 +170,7 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         active_count = queryset.filter(status='active').count()
         banned_count = queryset.filter(status='banned').count()
         permabanned_count = queryset.filter(status='permabanned').count()
+        inactive_count = queryset.filter(status='inactive').count()
 
         return Response({
             'wallets': serializer.data,
@@ -177,7 +178,8 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
                 'total': queryset.count(),
                 'active': active_count,
                 'banned': banned_count,
-                'permabanned': permabanned_count
+                'permabanned': permabanned_count,
+                'inactive': inactive_count
             }
         })
 

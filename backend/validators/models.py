@@ -15,6 +15,7 @@ class ValidatorWallet(BaseModel):
         ('active', 'Active'),
         ('banned', 'Banned'),           # GenLayer "quarantined"
         ('permabanned', 'Permabanned'),  # GenLayer "banned"
+        ('inactive', 'Inactive'),       # Not in any list, no longer active
     ]
 
     address = models.CharField(max_length=42, unique=True, db_index=True)
