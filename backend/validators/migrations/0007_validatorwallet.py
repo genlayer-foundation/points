@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('address', models.CharField(db_index=True, max_length=42, unique=True)),
                 ('operator_address', models.CharField(db_index=True, max_length=42)),
-                ('status', models.CharField(choices=[('active', 'Active'), ('banned', 'Banned'), ('permabanned', 'Permabanned')], default='active', max_length=20)),
+                ('status', models.CharField(choices=[('active', 'Active'), ('banned', 'Banned'), ('permabanned', 'Permabanned'), ('inactive', 'Inactive')], default='active', max_length=20)),
                 ('moniker', models.CharField(blank=True, max_length=255)),
                 ('logo_uri', models.URLField(blank=True, max_length=500)),
                 ('website', models.URLField(blank=True, max_length=500)),

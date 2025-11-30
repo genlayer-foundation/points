@@ -398,28 +398,29 @@ class GenLayerValidatorsService:
             wallet = ValidatorWallet(address=address_lower)
             is_new = True
 
-        # For new validators, fetch full metadata
-        if is_new:
-            # Fetch operator address
+        # Fetch operator address if new or not yet set
+        if is_new or not wallet.operator_address:
             operator_address = self.fetch_operator_for_wallet(address)
             if operator_address:
                 wallet.operator_address = operator_address.lower()
 
-                # Try to link to existing Validator model
-                try:
-                    user = User.objects.get(address__iexact=operator_address)
-                    if hasattr(user, 'validator'):
-                        wallet.operator = user.validator
-                except User.DoesNotExist:
-                    pass
+        # Try to link to existing Validator model if not already linked
+        # This handles the case where a user creates their profile after their wallet was synced
+        if wallet.operator_address and not wallet.operator:
+            try:
+                user = User.objects.get(address__iexact=wallet.operator_address)
+                if hasattr(user, 'validator'):
+                    wallet.operator = user.validator
+            except User.DoesNotExist:
+                pass
 
-            # Fetch identity metadata
-            identity = self.fetch_validator_identity(address)
-            if identity:
-                wallet.moniker = identity.get('moniker', '')
-                wallet.logo_uri = identity.get('logo_uri', '')
-                wallet.website = identity.get('website', '')
-                wallet.description = identity.get('description', '')
+        # Always fetch identity metadata to catch on-chain updates
+        identity = self.fetch_validator_identity(address)
+        if identity:
+            wallet.moniker = identity.get('moniker', '')
+            wallet.logo_uri = identity.get('logo_uri', '')
+            wallet.website = identity.get('website', '')
+            wallet.description = identity.get('description', '')
 
         # Fetch validator view for stake info and status verification
         view = self.fetch_validator_view(address)
