@@ -183,14 +183,14 @@ class GenLayerValidatorsService:
 
     def fetch_banned_validators(self, start_index: int = 0, size: int = 1000) -> List[Dict[str, Any]]:
         """
-        Fetch list of banned/permabanned validators from Staking contract.
+        Fetch list of quarantined/banned validators from Staking contract.
 
         Args:
             start_index: Starting index for pagination
             size: Number of validators to fetch
 
         Returns:
-            List of banned validator data with address, untilEpochBanned, permanentlyBanned
+            List of validator data with address, untilEpochBanned, permanently_banned
         """
         try:
             banned_list = self.staking_contract.functions.getAllBannedValidators(
