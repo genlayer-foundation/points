@@ -11,8 +11,8 @@
   let stats = $state({
     total: 0,
     active: 0,
+    quarantined: 0,
     banned: 0,
-    permabanned: 0,
     inactive: 0
   });
 
@@ -36,8 +36,8 @@
       stats = response.data?.stats || {
         total: 0,
         active: 0,
+        quarantined: 0,
         banned: 0,
-        permabanned: 0,
         inactive: 0
       };
 
@@ -52,9 +52,9 @@
     switch (status) {
       case 'active':
         return 'bg-green-100 text-green-800';
-      case 'banned':
+      case 'quarantined':
         return 'bg-red-100 text-red-800';
-      case 'permabanned':
+      case 'banned':
         return 'bg-gray-100 text-gray-800';
       case 'inactive':
         return 'bg-yellow-100 text-yellow-800';
@@ -67,10 +67,10 @@
     switch (status) {
       case 'active':
         return 'Active';
+      case 'quarantined':
+        return 'Quarantined';
       case 'banned':
         return 'Banned';
-      case 'permabanned':
-        return 'Permabanned';
       case 'inactive':
         return 'Inactive';
       default:
@@ -106,8 +106,8 @@
           </h3>
           <p class="mt-1 max-w-2xl text-sm text-gray-500">
             Active: {stats.active} |
+            Quarantined: {stats.quarantined} |
             Banned: {stats.banned} |
-            Permabanned: {stats.permabanned} |
             Inactive: {stats.inactive}
           </p>
         </div>

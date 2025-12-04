@@ -168,8 +168,8 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Get counts
         active_count = queryset.filter(status='active').count()
+        quarantined_count = queryset.filter(status='quarantined').count()
         banned_count = queryset.filter(status='banned').count()
-        permabanned_count = queryset.filter(status='permabanned').count()
         inactive_count = queryset.filter(status='inactive').count()
 
         return Response({
@@ -177,8 +177,8 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
             'stats': {
                 'total': queryset.count(),
                 'active': active_count,
+                'quarantined': quarantined_count,
                 'banned': banned_count,
-                'permabanned': permabanned_count,
                 'inactive': inactive_count
             }
         })

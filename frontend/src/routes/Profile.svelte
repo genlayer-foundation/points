@@ -1060,13 +1060,13 @@
                           <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             Active
                           </span>
-                        {:else if wallet.status === 'banned'}
+                        {:else if wallet.status === 'quarantined'}
                           <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            Banned
+                            Quarantined
                           </span>
-                        {:else if wallet.status === 'permabanned'}
+                        {:else if wallet.status === 'banned'}
                           <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            Permabanned
+                            Banned
                           </span>
                         {:else if wallet.status === 'inactive'}
                           <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">

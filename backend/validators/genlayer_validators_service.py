@@ -433,7 +433,7 @@ class GenLayerValidatorsService:
         if is_active:
             status = 'active'
         elif banned_info:
-            status = 'permabanned' if banned_info['permanently_banned'] else 'banned'
+            status = 'banned' if banned_info['permanently_banned'] else 'quarantined'
         elif view and view.get('live'):
             # Not in active list but validatorView says live=True
             # This could be a transitional state, treat as active
