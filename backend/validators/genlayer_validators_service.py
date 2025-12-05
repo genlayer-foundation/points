@@ -144,7 +144,6 @@ class GenLayerValidatorsService:
             else:
                 logger.warning("FACTORY_CONTRACT_ADDRESS not configured")
 
-            logger.info("GenLayerValidatorsService initialized successfully")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize GenLayerValidatorsService: {str(e)}")
@@ -175,7 +174,6 @@ class GenLayerValidatorsService:
                     '0x0000000000000000000000000000000000000000'
                 ]
             ]
-            logger.info(f"Fetched {len(valid_validators)} active validators")
             return valid_validators
         except Exception as e:
             logger.error(f"Error fetching active validators: {str(e)}")
@@ -205,7 +203,6 @@ class GenLayerValidatorsService:
                     'permanently_banned': banned[2]
                 })
 
-            logger.info(f"Fetched {len(result)} banned validators")
             return result
         except Exception as e:
             logger.error(f"Error fetching banned validators: {str(e)}")
@@ -346,8 +343,6 @@ class GenLayerValidatorsService:
             # Create lowercase set of active addresses for comparison
             active_addresses_lower = {addr.lower() for addr in active_addresses}
 
-            logger.info(f"Processing {len(all_addresses)} unique addresses...")
-
             # Process each validator
             for address in all_addresses:
                 try:
@@ -360,11 +355,6 @@ class GenLayerValidatorsService:
                 except Exception as e:
                     logger.error(f"Error processing validator {address}: {str(e)}")
                     stats['errors'] += 1
-
-            logger.info(
-                f"Sync completed: {stats['created']} created, "
-                f"{stats['updated']} updated, {stats['errors']} errors"
-            )
 
         except Exception as e:
             logger.error(f"Error during sync: {str(e)}")
@@ -430,7 +420,6 @@ class GenLayerValidatorsService:
                 wallet.logo_uri = identity.get('logo_uri', '')
                 wallet.website = identity.get('website', '')
                 wallet.description = identity.get('description', '')
-                logger.info(f"New validator {address[:10]}... identity: moniker={wallet.moniker or 'N/A'}")
 
         # Determine status using list membership and banned info
         # Priority: 1. Active list, 2. Banned info, 3. Default to inactive
@@ -447,14 +436,11 @@ class GenLayerValidatorsService:
         if old_status != new_status:
             wallet.status = new_status
             has_changes = True
-            if not is_new:
-                logger.info(f"Validator {address[:10]}... status: {old_status} -> {new_status}")
 
         # Only save and count if there are actual changes
         if has_changes:
             wallet.save()
             if is_new:
-                logger.info(f"Created validator {address[:10]}... operator={wallet.operator_address[:10] if wallet.operator_address else 'N/A'}... status={new_status}")
                 stats['created'] += 1
             else:
                 stats['updated'] += 1
