@@ -3,6 +3,7 @@ Management command to sync validator wallets from GenLayer blockchain.
 Should be run via cron every 5 minutes:
     */5 * * * * python manage.py sync_validators
 """
+import logging
 from django.core.management.base import BaseCommand
 from validators.genlayer_validators_service import GenLayerValidatorsService
 
@@ -16,8 +17,21 @@ class Command(BaseCommand):
             action='store_true',
             help='Run without making changes to the database',
         )
+        parser.add_argument(
+            '-v', '--verbosity',
+            type=int,
+            default=1,
+            help='Verbosity level: 0=minimal, 1=normal, 2=verbose',
+        )
 
     def handle(self, *args, **options):
+        # Configure logging based on verbosity
+        verbosity = options.get('verbosity', 1)
+        if verbosity >= 2:
+            logging.getLogger('validators.genlayer_validators_service').setLevel(logging.INFO)
+            handler = logging.StreamHandler(self.stdout)
+            handler.setFormatter(logging.Formatter('%(message)s'))
+            logging.getLogger('validators.genlayer_validators_service').addHandler(handler)
         self.stdout.write(self.style.SUCCESS('Starting validator wallet sync...'))
 
         dry_run = options.get('dry_run', False)

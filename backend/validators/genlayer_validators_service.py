@@ -346,6 +346,8 @@ class GenLayerValidatorsService:
             # Create lowercase set of active addresses for comparison
             active_addresses_lower = {addr.lower() for addr in active_addresses}
 
+            logger.info(f"Processing {len(all_addresses)} unique addresses...")
+
             # Process each validator
             for address in all_addresses:
                 try:
@@ -428,6 +430,7 @@ class GenLayerValidatorsService:
                 wallet.logo_uri = identity.get('logo_uri', '')
                 wallet.website = identity.get('website', '')
                 wallet.description = identity.get('description', '')
+                logger.info(f"New validator {address[:10]}... identity: moniker={wallet.moniker or 'N/A'}")
 
         # Determine status using list membership and banned info
         # Priority: 1. Active list, 2. Banned info, 3. Default to inactive
@@ -440,14 +443,18 @@ class GenLayerValidatorsService:
             new_status = 'inactive'
 
         # Check if status changed
-        if wallet.status != new_status:
+        old_status = wallet.status
+        if old_status != new_status:
             wallet.status = new_status
             has_changes = True
+            if not is_new:
+                logger.info(f"Validator {address[:10]}... status: {old_status} -> {new_status}")
 
         # Only save and count if there are actual changes
         if has_changes:
             wallet.save()
             if is_new:
+                logger.info(f"Created validator {address[:10]}... operator={wallet.operator_address[:10] if wallet.operator_address else 'N/A'}... status={new_status}")
                 stats['created'] += 1
             else:
                 stats['updated'] += 1
