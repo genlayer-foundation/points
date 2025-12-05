@@ -287,6 +287,7 @@ AUTH_USER_MODEL = 'users.User'
 # Blockchain settings
 VALIDATOR_CONTRACT_ADDRESS = get_required_env('VALIDATOR_CONTRACT_ADDRESS')
 VALIDATOR_RPC_URL = get_required_env('VALIDATOR_RPC_URL')
+FACTORY_CONTRACT_ADDRESS = os.environ.get('FACTORY_CONTRACT_ADDRESS')  # Optional
 
 # AWS Health Check IPs - Allow these IPs to bypass ALLOWED_HOSTS
 # Required environment variable with AWS internal/metadata service IPs
