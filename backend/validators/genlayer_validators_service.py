@@ -331,16 +331,17 @@ class GenLayerValidatorsService:
                     'until_epoch': banned['until_epoch_banned']
                 }
 
-            # Combine all addresses from chain data
-            all_addresses = set(active_addresses)
+            # Normalize all addresses to lowercase to avoid duplicate processing
+            # (chain returns checksummed addresses, DB stores lowercase)
+            all_addresses = {addr.lower() for addr in active_addresses}
             for banned in banned_data:
-                all_addresses.add(banned['address'])
+                all_addresses.add(banned['address'].lower())
 
             # Also include existing validators from DB to catch "zombie" validators
             # that disappeared from both active and banned lists
             existing_addresses = ValidatorWallet.objects.values_list('address', flat=True)
             for addr in existing_addresses:
-                all_addresses.add(addr)
+                all_addresses.add(addr.lower())
 
             # Create lowercase set of active addresses for comparison
             active_addresses_lower = {addr.lower() for addr in active_addresses}
@@ -398,11 +399,15 @@ class GenLayerValidatorsService:
             wallet = ValidatorWallet(address=address_lower)
             is_new = True
 
+        # Track if anything changed
+        has_changes = is_new
+
         # Fetch operator address if new or not yet set
         if is_new or not wallet.operator_address:
             operator_address = self.fetch_operator_for_wallet(address)
             if operator_address:
                 wallet.operator_address = operator_address.lower()
+                has_changes = True
 
         # Try to link to existing Validator model if not already linked
         # This handles the case where a user creates their profile after their wallet was synced
@@ -411,45 +416,41 @@ class GenLayerValidatorsService:
                 user = User.objects.get(address__iexact=wallet.operator_address)
                 if hasattr(user, 'validator'):
                     wallet.operator = user.validator
+                    has_changes = True
             except User.DoesNotExist:
                 pass
 
-        # Always fetch identity metadata to catch on-chain updates
-        identity = self.fetch_validator_identity(address)
-        if identity:
-            wallet.moniker = identity.get('moniker', '')
-            wallet.logo_uri = identity.get('logo_uri', '')
-            wallet.website = identity.get('website', '')
-            wallet.description = identity.get('description', '')
-
-        # Fetch validator view for stake info and status verification
-        view = self.fetch_validator_view(address)
-        if view:
-            wallet.v_stake = view.get('v_stake', '')
-            wallet.d_stake = view.get('d_stake', '')
-
-        # Determine status using both list membership and validatorView data
-        # Priority: 1. Active list, 2. Banned info, 3. validatorView.live field, 4. Default to inactive
-        if is_active:
-            status = 'active'
-        elif banned_info:
-            status = 'banned' if banned_info['permanently_banned'] else 'quarantined'
-        elif view and view.get('live'):
-            # Not in active list but validatorView says live=True
-            # This could be a transitional state, treat as active
-            status = 'active'
-        else:
-            # Not in active list, not banned, and either no view or live=False
-            # This is a "zombie" or inactive validator
-            status = 'inactive'
-
-        wallet.status = status
-        wallet.save()
-
+        # Only fetch identity for new validators (expensive RPC call)
         if is_new:
-            stats['created'] += 1
+            identity = self.fetch_validator_identity(address)
+            if identity:
+                wallet.moniker = identity.get('moniker', '')
+                wallet.logo_uri = identity.get('logo_uri', '')
+                wallet.website = identity.get('website', '')
+                wallet.description = identity.get('description', '')
+
+        # Determine status using list membership and banned info
+        # Priority: 1. Active list, 2. Banned info, 3. Default to inactive
+        if is_active:
+            new_status = 'active'
+        elif banned_info:
+            new_status = 'banned' if banned_info['permanently_banned'] else 'quarantined'
         else:
-            stats['updated'] += 1
+            # Not in active list and not banned - mark as inactive
+            new_status = 'inactive'
+
+        # Check if status changed
+        if wallet.status != new_status:
+            wallet.status = new_status
+            has_changes = True
+
+        # Only save and count if there are actual changes
+        if has_changes:
+            wallet.save()
+            if is_new:
+                stats['created'] += 1
+            else:
+                stats['updated'] += 1
 
     def get_validators_for_operator(self, operator_address: str) -> List[Dict[str, Any]]:
         """
