@@ -17,12 +17,6 @@ class Command(BaseCommand):
             action='store_true',
             help='Run without making changes to the database',
         )
-        parser.add_argument(
-            '-v', '--verbosity',
-            type=int,
-            default=1,
-            help='Verbosity level: 0=minimal, 1=normal, 2=verbose',
-        )
 
     def handle(self, *args, **options):
         # Configure logging based on verbosity
