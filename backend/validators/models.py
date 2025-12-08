@@ -26,7 +26,7 @@ class ValidatorWallet(BaseModel):
         null=True,
         blank=True
     )
-    operator_address = models.CharField(max_length=42, db_index=True, blank=True, default='')
+    operator_address = models.CharField(max_length=42, db_index=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
 
     # Metadata from getIdentity() - stored but not displayed yet
