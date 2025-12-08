@@ -422,11 +422,13 @@ class GenLayerValidatorsService:
                 wallet.description = identity.get('description', '')
 
         # Determine status using list membership and banned info
-        # Priority: 1. Active list, 2. Banned info, 3. Default to inactive
-        if is_active:
-            new_status = 'active'
-        elif banned_info:
+        # Priority: 1. Banned info, 2. Active list, 3. Default to inactive
+        # Note: activeValidators() returns ALL validators including quarantined/banned ones,
+        # so we check banned_info first to properly categorize them
+        if banned_info:
             new_status = 'banned' if banned_info['permanently_banned'] else 'quarantined'
+        elif is_active:
+            new_status = 'active'
         else:
             # Not in active list and not banned - mark as inactive
             new_status = 'inactive'
