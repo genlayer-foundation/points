@@ -1,85 +1,83 @@
 <script>
   import { push } from 'svelte-spa-router';
-  import { fetchValidatorsData, getValidatorStatus } from '../lib/validators';
+  import { validatorsAPI } from '../lib/api';
   import { currentCategory, categoryTheme } from '../stores/category.js';
   import Avatar from '../components/Avatar.svelte';
-  
+
   // State variables
-  let validators = $state([]);
+  let validatorWallets = $state([]);
   let loading = $state(true);
   let error = $state(null);
-  let stats = $state({});
-  
+  let stats = $state({
+    total: 0,
+    active: 0,
+    quarantined: 0,
+    banned: 0,
+    inactive: 0
+  });
+
   let previousCategory = null;
-  
+
   // Fetch validators when component mounts or category changes
   $effect(() => {
     if ($currentCategory && $currentCategory !== previousCategory) {
       previousCategory = $currentCategory;
-      fetchValidators();
+      fetchValidatorWallets();
     }
   });
-  
-  async function fetchValidators() {
+
+  async function fetchValidatorWallets() {
     try {
       loading = true;
       error = null;
-      
-      // Define callback for when RPC data is ready
-      const handleRpcDataReady = (enhancedData) => {
-        // Update validators with enhanced RPC data
-        if ($currentCategory === 'validator') {
-          validators = enhancedData.validators;
-        } else {
-          validators = enhancedData.validators.filter(v => {
-            if (!v.user) return false;
-            if ($currentCategory === 'builder') {
-              return v.user.builder !== null;
-            }
-            if ($currentCategory === 'steward') {
-              return v.user.steward !== null;
-            }
-            return false;
-          });
-        }
-        stats = enhancedData.stats;
+
+      const response = await validatorsAPI.getAllValidatorWallets();
+      validatorWallets = response.data?.wallets || [];
+      stats = response.data?.stats || {
+        total: 0,
+        active: 0,
+        quarantined: 0,
+        banned: 0,
+        inactive: 0
       };
-      
-      // Use the shared validators utility with callback
-      const result = await fetchValidatorsData($currentCategory, handleRpcDataReady);
-      
-      // Show initial data immediately
-      if ($currentCategory === 'validator') {
-        validators = result.validators;
-      } else {
-        validators = result.validators.filter(v => {
-          if (!v.user) return false;
-          if ($currentCategory === 'builder') {
-            return v.user.builder !== null;
-          }
-          if ($currentCategory === 'steward') {
-            return v.user.steward !== null;
-          }
-          return false;
-        });
-      }
-      
-      stats = result.stats;
+
       loading = false;
     } catch (err) {
-      error = err.message || 'Failed to load participants';
+      error = err.message || 'Failed to load validator wallets';
       loading = false;
     }
   }
-  
-  function getStatusClass(validator) {
-    return getValidatorStatus(validator).class;
+
+  function getStatusClass(status) {
+    switch (status) {
+      case 'active':
+        return 'bg-green-100 text-green-800';
+      case 'quarantined':
+        return 'bg-red-100 text-red-800';
+      case 'banned':
+        return 'bg-gray-100 text-gray-800';
+      case 'inactive':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-500';
+    }
   }
-  
-  function getStatusText(validator) {
-    return getValidatorStatus(validator).text;
+
+  function getStatusText(status) {
+    switch (status) {
+      case 'active':
+        return 'Active';
+      case 'quarantined':
+        return 'Quarantined';
+      case 'banned':
+        return 'Banned';
+      case 'inactive':
+        return 'Inactive';
+      default:
+        return 'Unknown';
+    }
   }
-  
+
   function truncateAddress(address) {
     if (!address) return '';
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
@@ -88,11 +86,9 @@
 
 <div>
   <h1 class="text-2xl font-bold text-gray-900 mb-6">
-    {$currentCategory === 'builder' ? 'GenLayer Builders' : 
-     $currentCategory === 'validator' ? 'GenLayer Validators' :
-     'GenLayer Participants'}
+    Validator Wallets
   </h1>
-  
+
   {#if loading}
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
@@ -106,23 +102,17 @@
       <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
         <div>
           <h3 class="text-lg leading-6 font-medium text-gray-900">
-            {$currentCategory === 'builder' ? 'Builders' : 
-             $currentCategory === 'validator' ? 'Validators' :
-             'Participants'} ({validators.length})
+            Validator Wallets ({stats.total})
           </h3>
           <p class="mt-1 max-w-2xl text-sm text-gray-500">
-            {#if $currentCategory === 'validator'}
-              Active: {validators.filter(v => v.isActive).length} | 
-              Banned: {validators.filter(v => v.isBanned).length} | 
-              Inactive: {validators.filter(v => !v.isActive && !v.isBanned).length} | 
-              Up to date: {validators.filter(v => v.matchesTarget).length}/{validators.filter(v => v.targetVersion).length}
-            {:else}
-              Total participants in {$currentCategory} category
-            {/if}
+            Active: {stats.active} |
+            Quarantined: {stats.quarantined} |
+            Banned: {stats.banned} |
+            Inactive: {stats.inactive}
           </p>
         </div>
       </div>
-      
+
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-gray-50">
@@ -131,43 +121,28 @@
                 Status
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Address
+                Validator Address
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Name
-              </th>
-              {#if $currentCategory === 'validator'}
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Node Version
-                </th>
-              {/if}
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Score
-              </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Rank
+                Operator
               </th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
-            {#each validators as validator, i}
+            {#each validatorWallets as wallet, i}
               <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusClass(validator)}`}>
-                    {getStatusText(validator)}
+                  <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusClass(wallet.status)}`}>
+                    {getStatusText(wallet.status)}
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center gap-2">
-                    <a 
-                      href={`/participant/${validator.address}`}
-                      onclick={(e) => { e.preventDefault(); push(`/participant/${validator.address}`); }}
-                      class="text-primary-600 hover:text-primary-800 font-mono"
-                    >
-                      {truncateAddress(validator.address)}
-                    </a>
-                    <a 
-                      href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${validator.address}`}
+                    <span class="text-gray-900 font-mono">
+                      {truncateAddress(wallet.address)}
+                    </span>
+                    <a
+                      href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${wallet.address}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="text-gray-400 hover:text-gray-600"
@@ -181,70 +156,35 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center gap-3">
-                    {#if validator.user}
-                      <Avatar 
-                        user={validator.user}
+                    {#if wallet.operator_user}
+                      <Avatar
+                        user={wallet.operator_user}
                         size="sm"
                         clickable={true}
                       />
-                      <span class="text-gray-900">{validator.user.name || 'Unnamed'}</span>
+                      <a
+                        href={`/participant/${wallet.operator_user.address}`}
+                        onclick={(e) => { e.preventDefault(); push(`/participant/${wallet.operator_user.address}`); }}
+                        class="text-primary-600 hover:text-primary-800"
+                      >
+                        {wallet.operator_user.name || truncateAddress(wallet.operator_user.address)}
+                      </a>
                     {:else}
-                      <span class="text-gray-400">—</span>
+                      <span class="text-gray-500 font-mono">{truncateAddress(wallet.operator_address)}</span>
                     {/if}
                   </div>
-                </td>
-                {#if $currentCategory === 'validator'}
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    {#if validator.nodeVersion}
-                    <div class="flex items-center gap-2">
-                      <span class="font-mono text-sm">{validator.nodeVersion}</span>
-                      {#if validator.matchesTarget}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                          </svg>
-                          Current
-                        </span>
-                      {:else if validator.targetVersion}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                          <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-                          </svg>
-                          Outdated
-                        </span>
-                      {/if}
-                    </div>
-                  {:else if validator.targetVersion}
-                    <span class="text-gray-400 text-sm">
-                      Not set
-                      <span class="text-xs text-amber-600 ml-1">(Target: {validator.targetVersion})</span>
-                    </span>
-                  {:else}
-                    <span class="text-gray-400">—</span>
-                  {/if}
-                  </td>
-                {/if}
-                <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">
-                  {#if validator.user}
-                    {validator.score || '—'}
-                  {:else}
-                    <span class="text-gray-400">—</span>
-                  {/if}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                  {#if validator.rank}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800">
-                      #{validator.rank}
-                    </span>
-                  {:else}
-                    <span class="text-gray-400">—</span>
-                  {/if}
                 </td>
               </tr>
             {/each}
           </tbody>
         </table>
       </div>
+
+      {#if validatorWallets.length === 0}
+        <div class="px-6 py-8 text-center text-gray-500">
+          No validator wallets found. Data will be available after the sync job runs.
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
