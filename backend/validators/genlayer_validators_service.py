@@ -197,11 +197,18 @@ class GenLayerValidatorsService:
 
             result = []
             for banned in banned_list:
-                result.append({
-                    'address': banned[0],
-                    'until_epoch_banned': banned[1],
-                    'permanently_banned': banned[2]
-                })
+                address = banned[0]
+                # Filter out zero/invalid addresses
+                if address and address.lower() not in [
+                    '0x0',
+                    '0x000',
+                    '0x0000000000000000000000000000000000000000'
+                ]:
+                    result.append({
+                        'address': address,
+                        'until_epoch_banned': banned[1],
+                        'permanently_banned': banned[2]
+                    })
 
             return result
         except Exception as e:
