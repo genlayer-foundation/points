@@ -3,6 +3,7 @@
 	import { getContributionTypes } from '../api/contributions.js';
 	import { contributionsAPI } from '../api.js';
 	import Badge from '../../components/Badge.svelte';
+	import { showError } from '../toastStore';
 
 	let {
 		selectedCategory = $bindable('validator'),
@@ -107,7 +108,7 @@
 				}
 			}
 		} catch (error) {
-			console.error('Failed to load contribution types:', error);
+			showError('Failed to load contribution types. Please refresh the page.');
 		} finally {
 			loading = false;
 		}
@@ -123,7 +124,6 @@
 			});
 			missions = response.data.results || response.data || [];
 		} catch (error) {
-			console.error('Failed to load missions:', error);
 			missions = [];
 		}
 	}

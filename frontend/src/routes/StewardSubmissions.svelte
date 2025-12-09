@@ -48,7 +48,7 @@
       const response = await stewardAPI.getUsers();
       users = response.data;
     } catch (err) {
-      console.error('Error loading users:', err);
+      // Error loading users silently handled
     }
   }
 
@@ -58,7 +58,7 @@
       // Response is array with: { id, user_id, name, address, user_details }
       stewardsList = response.data;
     } catch (err) {
-      console.error('Error loading stewards:', err);
+      // Error loading stewards silently handled
     }
   }
 
@@ -75,7 +75,6 @@
       // Reload submissions to get updated data
       await loadSubmissions();
     } catch (err) {
-      console.error('Error assigning submission:', err);
       showError('Failed to update assignment: ' + (err.response?.data?.error || err.message));
     } finally {
       assigningSubmissions.delete(submissionId);
@@ -93,21 +92,20 @@
       try {
         const multipliersRes = await leaderboardAPI.getActiveMultipliers();
         const activeMultipliers = multipliersRes.data;
-        
+
         // Build multipliers map
         contributionTypes.forEach(type => {
           const multiplier = activeMultipliers.find(m => m.contribution_type === type.id);
           multipliers[type.id] = multiplier ? multiplier.multiplier_value : 1;
         });
       } catch (err) {
-        console.error('Error loading multipliers:', err);
         // Default all to 1 if error
         contributionTypes.forEach(type => {
           multipliers[type.id] = 1;
         });
       }
     } catch (err) {
-      console.error('Error loading contribution types:', err);
+      // Error loading contribution types silently handled
     }
   }
   
@@ -168,8 +166,6 @@
         }
       });
     } catch (err) {
-      console.error('Error loading submissions:', err);
-      
       // If we get a 404 error and we're not on page 1, it might mean the page doesn't exist
       // Try going to the previous page
       if (err.response?.status === 404 && currentPage > 1) {
@@ -217,7 +213,6 @@
       // Reload submissions
       await loadSubmissions();
     } catch (err) {
-      console.error('Error reviewing submission:', err);
       showError('Failed to review submission: ' + (err.response?.data?.detail || err.message));
     } finally {
       processingSubmissions.delete(submissionId);

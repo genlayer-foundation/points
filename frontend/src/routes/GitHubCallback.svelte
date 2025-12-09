@@ -30,7 +30,7 @@
         }, 500);
       }
     } catch (e) {
-      console.error('Error processing OAuth callback:', e);
+      // Error processing OAuth callback silently handled
     }
   });
 </script>

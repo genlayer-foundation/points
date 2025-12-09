@@ -47,24 +47,19 @@
   
   $effect(() => {
     const currentParams = $params;
-    console.log("BadgeDetail params:", currentParams);
-    
+
     if (currentParams && currentParams.id) {
-      console.log("Using params.id:", currentParams.id);
       fetchBadgeData(currentParams.id);
     } else {
-      console.log("No valid ID found");
       error = "Badge ID not provided";
       loading = false;
     }
   });
-  
+
   async function fetchBadgeData(badgeId) {
     try {
       loading = true;
       error = null;
-      
-      console.log("Fetching badge data for ID:", badgeId);
       
       // This would be a real API call in production
       // const res = await badgesAPI.getBadge(badgeId);

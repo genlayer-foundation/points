@@ -28,7 +28,7 @@ const createAuthStore = () => {
       }
     }
   } catch (e) {
-    console.error('Error loading auth state from localStorage:', e);
+    // Silently handle localStorage errors
   }
   
   // Create the store
@@ -149,7 +149,6 @@ export async function connectWallet(provider = null, walletName = 'wallet') {
     } catch (permissionError) {
       // If the wallet doesn't support wallet_requestPermissions or user rejected,
       // we'll continue with the normal flow
-      console.log('wallet_requestPermissions not supported or rejected:', permissionError);
     }
 
     // Now get the accounts (either newly selected or existing)
@@ -260,7 +259,6 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet',
     const referralCode = localStorage.getItem('referral_code');
 
     // Send to backend for verification
-    console.log('Sending login request to:', API_ENDPOINTS.LOGIN);
     const loginData = {
       message,
       signature
@@ -289,7 +287,7 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet',
     try {
       userData = await userStore.loadUser();
     } catch (err) {
-      console.error('Failed to load user data after login:', err);
+      // Silently handle user data load failure
     }
 
     // Immediately verify the auth worked
@@ -376,13 +374,12 @@ async function performVerification() {
       try {
         await userStore.loadUser();
       } catch (err) {
-        console.error('Failed to load user data during auth verification:', err);
+        // Silently handle user data load failure
       }
     }
 
     return isAuthenticated;
   } catch (error) {
-    console.error('Auth verification failed:', error);
     authState.setAuthenticated(false, null);
     return false;
   }
@@ -396,7 +393,7 @@ export async function logout() {
   try {
     await authAxios.post(API_ENDPOINTS.LOGOUT);
   } catch (error) {
-    console.error('Logout error:', error);
+    // Silently handle logout errors
   } finally {
     // Clear auth state using our store method
     authState.setAuthenticated(false, null);
@@ -481,7 +478,6 @@ async function handleAccountsChanged(accounts) {
         }, 500);
       }
     } catch (error) {
-      console.error('Failed to reconnect with new account:', error);
       authState.setError('Failed to connect with new account. Please try again.');
     }
   } else if (!state.isAuthenticated && accounts.length > 0) {
@@ -535,7 +531,7 @@ export function removeWalletListeners() {
 // Initialize auth state on page load
 if (typeof window !== 'undefined') {
   // Only verify auth in browser environment
-  verifyAuth().catch(console.error);
+  verifyAuth().catch(() => {});
   
   // Set up wallet event listeners
   setupWalletListeners();
@@ -547,7 +543,7 @@ if (typeof window !== 'undefined') {
       try {
         await refreshSession();
       } catch (error) {
-        console.error('Session refresh failed:', error);
+        // Silently handle session refresh failure
       }
     }
   }, 5 * 60 * 1000); // Refresh every 5 minutes

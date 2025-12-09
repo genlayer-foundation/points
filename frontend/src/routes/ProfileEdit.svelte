@@ -104,13 +104,11 @@
           const walletsResponse = await validatorsAPI.getMyValidatorWallets();
           validatorWallets = walletsResponse.data.wallets || [];
         } catch (err) {
-          console.error('Error loading validator wallets:', err);
           validatorWallets = [];
         }
       }
     } catch (err) {
       error = 'Failed to load profile';
-      console.error('Error loading profile:', err);
     } finally {
       authChecked = true;
     }

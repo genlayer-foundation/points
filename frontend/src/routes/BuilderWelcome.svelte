@@ -74,7 +74,7 @@
         // - checkRepoStar() - Removed: only check when user clicks refresh
       }
     } catch (err) {
-      console.error('Failed to load user data:', err);
+      // Failed to load user data
     } finally {
       loading = false;
     }
@@ -87,7 +87,6 @@
         testnetBalance = parseFloat(result.formatted);
       }
     } catch (err) {
-      console.error('Failed to check testnet balance:', err);
       testnetBalance = 0;
     }
   }
@@ -102,13 +101,7 @@
     try {
       const response = await usersAPI.getDeploymentStatus();
       hasDeployedContract = response.data.has_deployments || false;
-      
-      // If deployments found, log for debugging
-      if (hasDeployedContract) {
-        console.log('Contract deployments detected');
-      }
     } catch (err) {
-      console.error('Failed to check deployments:', err);
       hasDeployedContract = false;
     } finally {
       hasCheckedDeploymentsOnce = true;
@@ -151,7 +144,6 @@
       const result = await getValidatorBalance($authState.address);
       testnetBalance = parseFloat(result.formatted);
     } catch (err) {
-      console.error('Failed to refresh balance:', err);
       testnetBalance = 0;
     } finally {
       isRefreshingBalance = false;
@@ -167,7 +159,6 @@
       hasStarredRepo = response.data.has_starred;
       repoToStar = response.data.repo || 'genlayerlabs/genlayer-project-boilerplate';
     } catch (err) {
-      console.error('Failed to check repo star:', err);
       hasStarredRepo = false;
     } finally {
       isCheckingRepoStar = false;
@@ -237,7 +228,6 @@
       if (err.response?.status === 200) {
         push(`/participant/${$authState.address}`);
       } else {
-        console.error('Failed to complete builder journey:', err);
         // Reset flag to allow retry
         hasCalledComplete = false;
       }

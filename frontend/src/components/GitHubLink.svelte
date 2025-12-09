@@ -28,7 +28,7 @@
       const initialUser = await getCurrentUser();
       initialGithubUsername = initialUser.github_username || null;
     } catch (err) {
-      console.error('Failed to get initial user state:', err);
+      // Silently handle initial user state error
     }
 
     // Use absolute backend URL to avoid proxy issues
@@ -64,7 +64,6 @@
           // Call the onLinked callback with updated user data
           onLinked(currentUser);
         } catch (err) {
-          console.error('Failed to reload data after OAuth:', err);
           showError('GitHub linked but failed to refresh data. Please refresh the page.');
         }
       } else {
@@ -119,7 +118,7 @@
             onLinked(currentUser);
           }
         } catch (err) {
-          console.error('Failed to reload data after popup closed:', err);
+          // Silently handle reload error
         } finally {
           isLinking = false;
         }

@@ -43,7 +43,6 @@
       
       loading = false;
     } catch (err) {
-      console.error('Error fetching metrics:', err);
       error = err.message || 'Failed to load metrics data';
       loading = false;
     }

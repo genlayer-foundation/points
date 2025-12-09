@@ -141,14 +141,13 @@
       if (referralCode && referralCode.length === 8) {
         // Store referral code in localStorage for later use during login
         localStorage.setItem('referral_code', referralCode.toUpperCase());
-        console.log('Referral code captured:', referralCode.toUpperCase());
-        
+
         // Clean URL without page reload to remove the ref parameter
         const cleanUrl = window.location.pathname + window.location.hash;
         window.history.replaceState({}, '', cleanUrl);
       }
     } catch (error) {
-      console.error('Error capturing referral code:', error);
+      // Error capturing referral code silently handled
     }
   }
   

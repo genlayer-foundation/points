@@ -6,7 +6,7 @@ import './styles.css';
 // Initialize Google Analytics (async, non-blocking)
 import('./lib/analytics.js')
   .then(({ initializeAnalytics }) => initializeAnalytics())
-  .catch(err => console.warn('Analytics not loaded:', err.message));
+  .catch(() => {});
 
 // Create the app using Svelte 5's mount function
 const app = mount(App, {

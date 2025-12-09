@@ -6,6 +6,7 @@
   import HighlightedContributions from './HighlightedContributions.svelte';
   import Avatar from './Avatar.svelte';
   import { leaderboardAPI, statsAPI, validatorsAPI, buildersAPI } from '../lib/api';
+  import { showError } from '../lib/toastStore';
   
   // State management
   let validatorStats = $state({ total: 0, contributions: 0, points: 0 });
@@ -79,7 +80,7 @@
       newestValidatorsLoading = false;
       newestBuildersLoading = false;
     } catch (error) {
-      console.error('Error fetching global dashboard data:', error);
+      showError('Failed to load dashboard data. Please refresh the page.');
       statsLoading = false;
       newestValidatorsLoading = false;
       newestBuildersLoading = false;

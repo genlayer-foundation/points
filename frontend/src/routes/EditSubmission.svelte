@@ -48,7 +48,6 @@
       };
 
       formInitialized = true;
-      console.log('Form data initialized from submission:', formData);
     }
   });
 
@@ -69,7 +68,7 @@
   });
 
   function handleSelectionChange(category, contributionType) {
-    console.log('Selection changed:', { category, contributionType });
+    // Selection changed
   }
 
   function addEvidenceSlot() {
@@ -114,8 +113,6 @@
       const submissionResponse = await api.get(`/submissions/${params.id}/`);
       submission = submissionResponse.data;
 
-      console.log('Loaded submission:', submission);
-
       // Check if editing is allowed
       if (!submission.can_edit) {
         error = 'This submission cannot be edited';
@@ -144,7 +141,6 @@
       } else {
         error = 'Failed to load submission';
       }
-      console.error(err);
     } finally {
       loading = false;
       authChecked = true;
@@ -243,8 +239,6 @@
         evidence_items: evidence_items  // Send all evidence in one request
       };
 
-      console.log('Submitting update:', updateData);
-
       await api.put(`/submissions/${params.id}/`, updateData);
 
       // Store success message in sessionStorage to show on My Submissions page
@@ -255,7 +249,6 @@
 
     } catch (err) {
       error = err.response?.data?.error || err.response?.data?.detail || 'Failed to update submission';
-      console.error('Update error:', err.response?.data || err);
     } finally {
       submitting = false;
     }
@@ -281,7 +274,6 @@
 
     } catch (err) {
       error = err.response?.data?.error || 'Failed to delete submission';
-      console.error(err);
     } finally {
       submitting = false;
     }
