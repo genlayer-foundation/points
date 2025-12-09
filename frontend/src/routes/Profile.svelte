@@ -528,6 +528,17 @@
     }
   }
 
+  function formatStake(stakeWei) {
+    if (!stakeWei) return '0 GEN';
+    try {
+      const stake = BigInt(stakeWei);
+      const gen = Number(stake / BigInt(10 ** 18));
+      return `${gen.toLocaleString()} GEN`;
+    } catch {
+      return '0 GEN';
+    }
+  }
+
 
   // Icons for stat cards
   const icons = {
@@ -1047,15 +1058,26 @@
                   <span class="text-gray-500">Loading validator wallets...</span>
                 </div>
               {:else}
-                <div class="space-y-2">
+                <div class="space-y-3">
                   {#each validatorWallets as wallet}
-                    <div class="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                      <div class="flex items-center gap-3">
-                        <span class="font-mono text-sm text-gray-600">
-                          {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
-                        </span>
-                      </div>
-                      <div class="flex items-center gap-2">
+                    <div class="p-4 bg-white rounded-lg border border-gray-200">
+                      <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                          <span class="font-mono text-sm text-gray-900">
+                            {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+                          </span>
+                          <a
+                            href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${wallet.address}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="text-gray-400 hover:text-gray-600"
+                            title="View in Explorer"
+                          >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                            </svg>
+                          </a>
+                        </div>
                         {#if wallet.status === 'active'}
                           <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             Active
@@ -1073,6 +1095,10 @@
                             Inactive
                           </span>
                         {/if}
+                      </div>
+                      <div class="flex items-center gap-4 text-sm text-gray-600">
+                        <span>vStake: <span class="font-medium text-gray-900">{formatStake(wallet.v_stake)}</span></span>
+                        <span>dStake: <span class="font-medium text-gray-900">{formatStake(wallet.d_stake)}</span></span>
                       </div>
                     </div>
                   {/each}

@@ -313,3 +313,6 @@ RECAPTCHA_PRIVATE_KEY = get_required_env('RECAPTCHA_PRIVATE_KEY')
 SILENCED_SYSTEM_CHECKS = []
 if DEBUG and RECAPTCHA_PUBLIC_KEY == '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI':
     SILENCED_SYSTEM_CHECKS.append('django_recaptcha.recaptcha_test_key_error')
+
+# Cron job authentication token for validator sync endpoint
+CRON_SYNC_TOKEN = os.environ.get('CRON_SYNC_TOKEN', '')
