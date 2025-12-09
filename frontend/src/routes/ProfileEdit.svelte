@@ -696,10 +696,10 @@
             {#if validatorWallets.length === 0}
               <div class="mt-6 pt-4 border-t border-sky-200">
                 <label for="operatorAddress" class="block text-sm font-medium text-sky-900 mb-2">
-                  Link Your Validator Wallets
+                  Link to Operator Wallet
                 </label>
                 <p class="text-xs text-sky-700 mb-3">
-                  Enter the wallet address you used as operator when creating your validator on GenLayer.
+                  Enter the operator wallet address you used when creating your validator on GenLayer.
                 </p>
                 <div class="flex gap-3 items-start">
                   <div class="flex-1">
