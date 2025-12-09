@@ -76,7 +76,6 @@
 
       topLoading = false;
     } catch (err) {
-      console.error('Failed to load top waitlist users:', err);
       topLoading = false;
     }
   }
@@ -98,7 +97,7 @@
         }));
       }
     } catch (err) {
-      console.error('Failed to load newest waitlist users:', err);
+      // Failed to load newest waitlist users silently handled
     }
   }
 
@@ -143,7 +142,6 @@
       
       graduatesLoading = false;
     } catch (err) {
-      console.error('Failed to load recently graduated:', err);
       recentlyGraduated = [];
       graduatesLoading = false;
     }
@@ -165,7 +163,6 @@
       
       highlightedLoading = false;
     } catch (err) {
-      console.error('Failed to load highlighted contributions:', err);
       highlightedLoading = false;
     }
   }

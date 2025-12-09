@@ -94,7 +94,6 @@
 
       loading = false;
     } catch (err) {
-      console.error('Error loading banned validators:', err);
       error = err.message || 'Failed to load banned validators from blockchain';
       loading = false;
     }
@@ -186,8 +185,6 @@
       }
 
     } catch (error) {
-      console.error('Error executing unban:', error);
-
       // If user rejected the transaction, just close modal without showing error
       if (error.code === 4001 || error.message?.includes('rejected')) {
         closeModal();

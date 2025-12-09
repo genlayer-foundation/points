@@ -89,7 +89,6 @@
       const response = await contributionsAPI.getContributionTypeTopContributors(params.id);
       return response.data || [];
     } catch (err) {
-      console.error('Error fetching top contributors:', err);
       return [];
     }
   };
@@ -107,7 +106,6 @@
         return response.data || [];
       }
     } catch (err) {
-      console.error('Error fetching missions:', err);
       return [];
     }
   };
@@ -139,7 +137,6 @@
     try {
       return marked.parse(text);
     } catch (error) {
-      console.error('Error parsing markdown:', error);
       return text;
     }
   }

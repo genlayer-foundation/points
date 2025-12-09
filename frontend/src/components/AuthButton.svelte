@@ -55,7 +55,6 @@
       // ProfileCompletionGuard will automatically show if profile is incomplete
       // Otherwise user continues to their profile or intended destination
     } catch (err) {
-      console.error('Auth error:', err);
       // Error is already handled by the reactive statement that watches storeError
       // No need to show toast here to avoid duplicate notifications
       // Keep modal open on error so user can try again

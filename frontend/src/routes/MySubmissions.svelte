@@ -37,14 +37,11 @@
         params.state = stateFilter;
       }
       
-      console.log('Making API request to /submissions/my/ with params:', params);
       const response = await api.get('/submissions/my/', { params });
-      console.log('Response received:', response);
       submissions = response.data.results || response.data;
       totalCount = response.data.count || submissions.length;
     } catch (err) {
       error = 'Failed to load submissions';
-      console.error(err);
     } finally {
       loading = false;
       authChecked = true;

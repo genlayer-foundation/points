@@ -31,7 +31,6 @@
       supporters = data.top_supporters || [];
       loading = false;
     } catch (err) {
-      console.error('Error fetching supporters:', err);
       error = err.message || 'Failed to load supporters';
       loading = false;
     }
@@ -60,7 +59,6 @@
         push(`/participant/${user.address}`);
       }
     } catch (err) {
-      console.error('Error joining as supporter:', err);
       error = err.response?.data?.message || 'Failed to join as supporter';
     } finally {
       joiningSupporter = false;

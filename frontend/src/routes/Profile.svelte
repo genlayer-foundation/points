@@ -160,7 +160,6 @@
   
   $effect(() => {
     const currentParams = $params;
-    console.log("ParticipantProfile params:", currentParams);
 
     // Check for success message from profile update
     const savedMessage = sessionStorage.getItem('profileUpdateSuccess');
@@ -177,10 +176,8 @@
     }
 
     if (currentParams && currentParams.address) {
-      console.log("Using params.address:", currentParams.address);
       fetchParticipantData(currentParams.address);
     } else {
-      console.log("No valid address found");
       error = "No valid wallet address provided";
       loading = false;
     }
@@ -214,7 +211,6 @@
       const result = await getValidatorBalance(participant.address);
       testnetBalance = parseFloat(result.formatted);
     } catch (err) {
-      console.error('Failed to refresh balance:', err);
       testnetBalance = 0;
     } finally {
       isRefreshingBalance = false;
@@ -237,7 +233,6 @@
         referralData = participant.referral_details;
       }
     } catch (err) {
-      console.error('Failed to fetch referrals:', err);
       referralData = null;
     } finally {
       loadingReferrals = false;
@@ -254,7 +249,6 @@
       const response = await validatorsAPI.getValidatorWalletsByUserAddress(participant.address);
       validatorWallets = response.data?.wallets || [];
     } catch (err) {
-      console.error('Failed to fetch validator wallets:', err);
       validatorWallets = [];
     } finally {
       loadingValidatorWallets = false;
@@ -275,7 +269,7 @@
       const updatedUser = await getCurrentUser();
       participant = updatedUser;
     } catch (err) {
-      console.error('Failed to claim builder contribution:', err);
+      // Failed to claim builder contribution
     } finally {
       isClaimingBuilderBadge = false;
     }
@@ -302,7 +296,6 @@
         participant = updatedUser;
       }
     } catch (err) {
-      console.error('Error joining as creator:', err);
       error = err.response?.data?.message || 'Failed to join as supporter';
     }
   }
@@ -330,7 +323,6 @@
         const updatedUser = await getCurrentUser();
         participant = updatedUser;
       } else {
-        console.error('Failed to complete builder journey:', err);
         // Reset flag to allow retry
         hasCalledComplete = false;
       }
@@ -351,7 +343,6 @@
       hasStarredRepo = response.data.has_starred;
       repoToStar = response.data.repo || 'genlayerlabs/genlayer-project-boilerplate';
     } catch (err) {
-      console.error('Failed to check repo star:', err);
       hasStarredRepo = false;
     } finally {
       isCheckingRepoStar = false;
@@ -364,7 +355,6 @@
       const response = await usersAPI.getDeploymentStatus();
       hasDeployedContract = response.data.has_deployments || false;
     } catch (err) {
-      console.error('Failed to check deployments:', err);
       hasDeployedContract = false;
     } finally {
       isCheckingDeployments = false;
@@ -379,13 +369,9 @@
     try {
       loading = true;
       error = null;
-      
-      console.log("Fetching participant data for address:", participantAddress);
-      
+
       // Fetch participant details
       const res = await usersAPI.getUserByAddress(participantAddress);
-      console.log("Participant data received:", res.data);
-      console.log("Leaderboard entry data:", res.data.leaderboard_entry);
       participant = res.data;
       
       // Set loading to false immediately to show UI progressively
@@ -398,7 +384,6 @@
           balance = result;
           loadingBalance = false;
         }).catch(err => {
-          console.error('Failed to fetch balance:', err);
           loadingBalance = false;
           // Don't show error, just leave balance as null
         });
@@ -406,39 +391,31 @@
       
       // Fetch leaderboard entry asynchronously
       leaderboardAPI.getLeaderboardEntry(participantAddress).then(leaderboardRes => {
-        console.log("Leaderboard data received:", leaderboardRes.data);
-        
         // Store all leaderboard entries (user can be on multiple leaderboards)
         if (leaderboardRes.data && Array.isArray(leaderboardRes.data)) {
           participant.leaderboard_entries = leaderboardRes.data;
-          
+
           // Find the waitlist entry if they're on the waitlist
-          participant.waitlist_entry = leaderboardRes.data.find(entry => 
+          participant.waitlist_entry = leaderboardRes.data.find(entry =>
             entry.type === 'validator-waitlist'
           );
-          
+
           // Find the validator entry if they're a validator
-          participant.validator_entry = leaderboardRes.data.find(entry => 
+          participant.validator_entry = leaderboardRes.data.find(entry =>
             entry.type === 'validator'
           );
-          
-          console.log("Added leaderboard entries from separate request:", participant.leaderboard_entries);
-          console.log("Waitlist entry:", participant.waitlist_entry);
-          console.log("Validator entry:", participant.validator_entry);
         }
       }).catch(leaderboardError => {
-        console.warn('Leaderboard API error:', leaderboardError);
+        // Leaderboard API error silently handled
       });
       
       // Fetch participant stats asynchronously
       statsAPI.getUserStats(participantAddress).then(statsRes => {
         if (statsRes.data) {
           contributionStats = statsRes.data;
-          console.log("Stats data received:", statsRes.data);
         }
-      }).catch(statsError => {
-        console.warn('Stats API error, will use basic data:', statsError);
-        statsError = statsError.message || 'Failed to load participant statistics';
+      }).catch(statsErr => {
+        statsError = statsErr.message || 'Failed to load participant statistics';
       });
       
       // Fetch validator-specific stats if user has validator waitlist
@@ -446,22 +423,20 @@
         statsAPI.getUserStats(participantAddress, 'validator').then(validatorStatsRes => {
           if (validatorStatsRes.data) {
             validatorStats = validatorStatsRes.data;
-            console.log("Validator stats data received:", validatorStatsRes.data);
           }
         }).catch(error => {
-          console.warn('Validator stats API error:', error);
+          // Validator stats API error silently handled
         });
       }
-      
+
       // Fetch builder-specific stats if user has builder welcome
       if (participant.has_builder_welcome) {
         statsAPI.getUserStats(participantAddress, 'builder').then(builderStatsRes => {
           if (builderStatsRes.data) {
             builderStats = builderStatsRes.data;
-            console.log("Builder stats data received:", builderStatsRes.data);
           }
         }).catch(error => {
-          console.warn('Builder stats API error:', error);
+          // Builder stats API error silently handled
         });
       }
 
@@ -481,7 +456,6 @@
           getValidatorBalance(participant.address).then(result => {
             testnetBalance = parseFloat(result.formatted);
           }).catch(err => {
-            console.error('Failed to check testnet balance:', err);
             testnetBalance = 0;
           });
 
@@ -489,7 +463,6 @@
           usersAPI.getDeploymentStatus().then(deploymentResult => {
             hasDeployedContract = deploymentResult.data.has_deployments || false;
           }).catch(err => {
-            console.error('Failed to check deployments:', err);
             hasDeployedContract = false;
           });
         }

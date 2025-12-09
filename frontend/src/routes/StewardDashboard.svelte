@@ -40,7 +40,6 @@
       const response = await stewardAPI.getStats();
       stats = response.data;
     } catch (err) {
-      console.error('Error loading steward stats:', err);
       error = 'Failed to load dashboard statistics';
       // Check if it's a permission error
       if (err.response?.status === 403) {
@@ -61,7 +60,6 @@
       // Ensure stewards is always an array
       stewards = stewardsRes.data || [];
     } catch (err) {
-      console.error('Error loading stewards:', err);
       // Keep stewards as empty array on error
       stewards = [];
     } finally {

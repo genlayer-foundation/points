@@ -104,8 +104,6 @@
             };
           }
         } catch (statsApiError) {
-          console.warn('Stats API failed, falling back to individual requests', statsApiError);
-
           // Fallback to individual requests
           const [participantCountRes, contributionsRes] = await Promise.all([
             usersAPI.getParticipantCount(),
@@ -141,7 +139,6 @@
     } catch (error) {
       statsError = error.message || 'Failed to load statistics';
       statsLoading = false;
-      console.error('Error fetching dashboard statistics:', error);
     }
   }
   
