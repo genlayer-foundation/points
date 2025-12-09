@@ -82,6 +82,17 @@
     if (!address) return '';
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   }
+
+  function formatStake(stakeWei) {
+    if (!stakeWei) return '0 GEN';
+    try {
+      const stake = BigInt(stakeWei);
+      const gen = Number(stake / BigInt(10 ** 18));
+      return `${gen.toLocaleString()} GEN`;
+    } catch {
+      return '0 GEN';
+    }
+  }
 </script>
 
 <div>
@@ -124,6 +135,12 @@
                 Validator Address
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                vStake
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                dStake
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Operator
               </th>
             </tr>
@@ -153,6 +170,12 @@
                       </svg>
                     </a>
                   </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {formatStake(wallet.v_stake)}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {formatStake(wallet.d_stake)}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center gap-3">

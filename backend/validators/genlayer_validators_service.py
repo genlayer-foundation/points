@@ -421,6 +421,16 @@ class GenLayerValidatorsService:
                 wallet.website = identity.get('website', '')
                 wallet.description = identity.get('description', '')
 
+        # Always fetch validator view to get current stake values
+        validator_view = self.fetch_validator_view(address)
+        if validator_view:
+            new_v_stake = validator_view.get('v_stake', '')
+            new_d_stake = validator_view.get('d_stake', '')
+            if wallet.v_stake != new_v_stake or wallet.d_stake != new_d_stake:
+                wallet.v_stake = new_v_stake
+                wallet.d_stake = new_d_stake
+                has_changes = True
+
         # Determine status using list membership and banned info
         # Priority: 1. Banned info, 2. Active list, 3. Default to inactive
         # Note: activeValidators() returns ALL validators including quarantined/banned ones,
