@@ -97,7 +97,7 @@
 
 <div>
   <h1 class="text-2xl font-bold text-gray-900 mb-6">
-    Validator Wallets
+    Participants
   </h1>
 
   {#if loading}
@@ -113,7 +113,7 @@
       <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
         <div>
           <h3 class="text-lg leading-6 font-medium text-gray-900">
-            Validator Wallets ({stats.total})
+            Participants ({stats.total})
           </h3>
           <p class="mt-1 max-w-2xl text-sm text-gray-500">
             Active: {stats.active} |
@@ -192,6 +192,17 @@
                       >
                         {wallet.operator_user.name || truncateAddress(wallet.operator_user.address)}
                       </a>
+                    {:else if wallet.logo_uri || wallet.moniker}
+                      {#if wallet.logo_uri}
+                        <div class="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                          <img src={wallet.logo_uri} alt={wallet.moniker || 'Validator'} class="w-full h-full object-cover" />
+                        </div>
+                      {:else}
+                        <div class="w-8 h-8 rounded-full bg-sky-500 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                          {wallet.moniker.substring(0, 2).toUpperCase()}
+                        </div>
+                      {/if}
+                      <span class="text-gray-700">{wallet.moniker || truncateAddress(wallet.operator_address)}</span>
                     {:else}
                       <span class="text-gray-500 font-mono">{truncateAddress(wallet.operator_address)}</span>
                     {/if}
