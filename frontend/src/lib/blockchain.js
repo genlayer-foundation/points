@@ -126,7 +126,6 @@ export async function getBannedValidators() {
     return bannedAddresses
       .filter(addr => addr.toLowerCase() !== '0x0000000000000000000000000000000000000000');
   } catch (error) {
-    console.error('Error fetching banned validators:', error);
     throw error;
   }
 }
@@ -150,7 +149,6 @@ export async function getActiveValidators() {
     return validators
       .filter(addr => addr.toLowerCase() !== '0x0000000000000000000000000000000000000000');
   } catch (error) {
-    console.error('Error fetching active validators:', error);
     throw error;
   }
 }
@@ -173,7 +171,6 @@ export async function getValidatorBalance(address) {
       formatted // String value in GEN
     };
   } catch (error) {
-    console.error('Error fetching validator balance:', error);
     throw error;
   }
 }
@@ -211,8 +208,6 @@ export async function unbanValidator(address) {
       gasLimit: gasLimit
     });
 
-    console.log('Unban transaction sent:', tx.hash);
-
     // Wait for transaction confirmation
     const receipt = await tx.wait();
 
@@ -230,8 +225,6 @@ export async function unbanValidator(address) {
       };
     }
   } catch (error) {
-    console.error('Error unbanning validator:', error);
-
     // If user rejected, re-throw the original error for UI to handle
     if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
       throw error;
@@ -285,8 +278,6 @@ export async function unbanAllValidators() {
       gasLimit: gasLimit
     });
 
-    console.log('Unban all transaction sent:', tx.hash);
-
     // Wait for transaction confirmation
     const receipt = await tx.wait();
 
@@ -304,8 +295,6 @@ export async function unbanAllValidators() {
       };
     }
   } catch (error) {
-    console.error('Error unbanning all validators:', error);
-
     // If user rejected, re-throw the original error for UI to handle
     if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
       throw error;

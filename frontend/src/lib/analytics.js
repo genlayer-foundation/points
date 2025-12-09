@@ -14,7 +14,6 @@ export function initializeAnalytics() {
 
   // Only initialize if tracking ID is configured
   if (!trackingId) {
-    console.log('Google Analytics: No tracking ID configured');
     return;
   }
 
@@ -37,6 +36,4 @@ export function initializeAnalytics() {
 
   // Configure with tracking ID
   window.gtag('config', trackingId);
-
-  console.log(`Google Analytics initialized with ID: ${trackingId}`);
 }

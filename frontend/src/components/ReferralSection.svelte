@@ -32,7 +32,6 @@
       }, 2000);
 
     } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
       // Fallback for older browsers
       try {
         const textArea = document.createElement('textarea');

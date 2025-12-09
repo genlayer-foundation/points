@@ -90,7 +90,6 @@
 
       // Modal will close automatically when user data updates
     } catch (err) {
-      console.error('Profile update error:', err);
       // Handle field-specific errors from Django REST Framework
       if (err.response?.data) {
         const data = err.response.data;

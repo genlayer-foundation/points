@@ -70,7 +70,6 @@
       // to the loaded contribution types and set the proper selection
       selectedMission = mission.id;
     } catch (err) {
-      console.error('Error loading mission:', err);
       error = 'Failed to load mission details';
     } finally {
       loadingMission = false;
@@ -90,7 +89,6 @@
       selectedContributionType = type;
       formData.contribution_type = type.id;
     } catch (err) {
-      console.error('Error loading contribution type:', err);
       error = 'Failed to load contribution type details';
     } finally {
       loading = false;
@@ -139,7 +137,7 @@
   });
 
   function handleSelectionChange(category, contributionType) {
-    console.log('Selection changed:', { category, contributionType });
+    // Selection changed
   }
 
   function addEvidenceSlot() {
@@ -189,7 +187,6 @@
       });
       return true;
     } catch (e) {
-      console.error('reCAPTCHA render error:', e);
       return false;
     }
   }
@@ -290,7 +287,6 @@
       } else {
         error = err.response?.data?.error || err.response?.data?.detail || 'Failed to submit contribution';
       }
-      console.error('Submission error:', err);
 
       // Reset reCAPTCHA on error using widget ID
       if (recaptchaWidgetId !== null && window.grecaptcha) {
@@ -298,7 +294,7 @@
           window.grecaptcha.reset(recaptchaWidgetId);
           recaptchaToken = '';
         } catch (e) {
-          console.error('Error resetting reCAPTCHA:', e);
+          // Error resetting reCAPTCHA silently handled
         }
       }
     } finally {

@@ -18,7 +18,6 @@ export async function getContributionTypes(params = {}) {
 		// Handle paginated response
 		return response.data.results || response.data;
 	} catch (error) {
-		console.error('Error fetching contribution types:', error);
 		throw error;
 	}
 }
@@ -33,7 +32,6 @@ export async function submitContribution(data) {
 		const response = await api.post('/submissions/', data);
 		return response.data;
 	} catch (error) {
-		console.error('Error submitting contribution:', error);
 		throw error;
 	}
 }
@@ -48,7 +46,6 @@ export async function getMySubmissions(params = {}) {
 		const response = await api.get('/submissions/my/', { params });
 		return response.data;
 	} catch (error) {
-		console.error('Error fetching submissions:', error);
 		throw error;
 	}
 }
@@ -63,7 +60,6 @@ export async function getContributions(params = {}) {
 		const response = await api.get('/contributions/', { params });
 		return response.data;
 	} catch (error) {
-		console.error('Error fetching contributions:', error);
 		throw error;
 	}
 }

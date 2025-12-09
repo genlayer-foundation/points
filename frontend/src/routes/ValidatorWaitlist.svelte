@@ -22,7 +22,7 @@
         currentUser = await getCurrentUser();
       }
     } catch (err) {
-      console.error('Failed to load user data:', err);
+      // Failed to load user data silently handled
     } finally {
       loading = false;
     }

@@ -191,7 +191,6 @@ export async function fetchValidatorsData(category = 'validator', onRpcDataReady
         bannedValidators: filteredBannedValidators
       });
     }).catch(error => {
-      console.error('Error fetching RPC data:', error);
       // Even on error, remove the pending flag
       const updatedValidators = initialValidators.map(v => ({
         ...v,

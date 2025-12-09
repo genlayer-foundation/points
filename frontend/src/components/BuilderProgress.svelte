@@ -111,7 +111,7 @@
         if (key) localStorage.setItem(key, 'true');
       }
     } catch (error) {
-      console.error('Error checking networks:', error);
+      // Failed to check networks
     } finally {
       isCheckingNetworks = false;
     }
@@ -149,7 +149,6 @@
         if (key) localStorage.setItem(key, 'true');
       }
     } catch (error) {
-      console.error('Error adding network:', error);
       if (error.code !== 4001) { // User didn't reject
         showError('Failed to add network. Please try manually.');
       }
