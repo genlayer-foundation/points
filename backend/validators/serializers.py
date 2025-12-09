@@ -19,6 +19,8 @@ class ValidatorWalletSerializer(serializers.ModelSerializer):
             'operator_user',
             'v_stake',
             'd_stake',
+            'moniker',
+            'logo_uri',
             'created_at',
             'updated_at'
         ]
