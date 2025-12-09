@@ -261,6 +261,40 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
             'total_count': wallets.count()
         })
 
+    @action(detail=False, methods=['get'], url_path='by-user-address/(?P<user_address>[^/.]+)')
+    def by_user_address(self, request, user_address=None):
+        """
+        Get all validator wallets for a user by their account address.
+        Uses the operator FK relationship, which works even when the user's
+        login address differs from their operator address on the blockchain.
+        Falls back to operator_address matching if no FK link exists.
+        """
+        wallets = ValidatorWallet.objects.none()
+
+        # First, try to find wallets via the operator FK relationship
+        try:
+            user = User.objects.get(address__iexact=user_address)
+            if hasattr(user, 'validator'):
+                wallets = ValidatorWallet.objects.filter(
+                    operator=user.validator
+                ).select_related('operator', 'operator__user').order_by('-created_at')
+        except User.DoesNotExist:
+            pass
+
+        # If no wallets found via FK, fall back to operator_address matching
+        if not wallets.exists():
+            wallets = ValidatorWallet.objects.filter(
+                operator_address__iexact=user_address
+            ).select_related('operator', 'operator__user').order_by('-created_at')
+
+        serializer = self.get_serializer(wallets, many=True)
+        return Response({
+            'user_address': user_address,
+            'wallets': serializer.data,
+            'active_count': wallets.filter(status='active').count(),
+            'total_count': wallets.count()
+        })
+
     @action(detail=False, methods=['post'], permission_classes=[IsCronToken], authentication_classes=[])
     def sync(self, request):
         """

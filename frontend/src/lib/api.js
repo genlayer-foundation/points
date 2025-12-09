@@ -135,6 +135,7 @@ export const validatorsAPI = {
   // Validator Wallets
   getAllValidatorWallets: (params = {}) => api.get('/validators/wallets/', { params }),
   getValidatorWalletsByOperator: (operatorAddress) => api.get(`/validators/wallets/by-operator/${operatorAddress}/`),
+  getValidatorWalletsByUserAddress: (userAddress) => api.get(`/validators/wallets/by-user-address/${userAddress}/`),
   getMyValidatorWallets: () => api.get('/validators/my-wallets/'),
   linkValidatorWalletsByOperator: (operatorAddress) => api.post('/validators/link-by-operator/', { operator_address: operatorAddress })
 };

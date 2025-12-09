@@ -251,7 +251,7 @@
 
     loadingValidatorWallets = true;
     try {
-      const response = await validatorsAPI.getValidatorWalletsByOperator(participant.address);
+      const response = await validatorsAPI.getValidatorWalletsByUserAddress(participant.address);
       validatorWallets = response.data?.wallets || [];
     } catch (err) {
       console.error('Failed to fetch validator wallets:', err);
