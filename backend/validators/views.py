@@ -1,3 +1,4 @@
+import re
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -131,6 +132,64 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             'total_count': wallets.count()
         })
 
+    @action(detail=False, methods=['post'], url_path='link-by-operator')
+    def link_by_operator(self, request):
+        """
+        Link validator wallets to the current user by operator address.
+        Only available for validators who don't have any wallets linked yet.
+        """
+        user = request.user
+
+        # Verify user is a validator
+        if not hasattr(user, 'validator'):
+            return Response(
+                {'error': 'Only validators can link wallets'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        validator = user.validator
+
+        # Check user has no linked wallets
+        if ValidatorWallet.objects.filter(operator=validator).exists():
+            return Response(
+                {'error': 'You already have validator wallets linked'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        operator_address = request.data.get('operator_address', '').strip().lower()
+
+        # Validate format (0x + 40 hex chars)
+        if not re.match(r'^0x[a-fA-F0-9]{40}$', operator_address):
+            return Response(
+                {'error': 'Invalid Ethereum address format'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Find wallets with this operator_address
+        wallets = ValidatorWallet.objects.filter(operator_address__iexact=operator_address)
+
+        if not wallets.exists():
+            return Response(
+                {'error': 'No validator wallets found for this operator address'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if any wallet is already linked to another validator
+        already_linked = wallets.exclude(operator__isnull=True).first()
+        if already_linked:
+            return Response(
+                {'error': 'This operator address is already linked to another validator'},
+                status=status.HTTP_409_CONFLICT
+            )
+
+        # Link all wallets to this validator
+        count = wallets.update(operator=validator)
+
+        return Response({
+            'success': True,
+            'wallets_linked': count
+        })
+
 
 class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -197,6 +256,40 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = self.get_serializer(wallets, many=True)
         return Response({
             'operator_address': operator_address,
+            'wallets': serializer.data,
+            'active_count': wallets.filter(status='active').count(),
+            'total_count': wallets.count()
+        })
+
+    @action(detail=False, methods=['get'], url_path='by-user-address/(?P<user_address>[^/.]+)')
+    def by_user_address(self, request, user_address=None):
+        """
+        Get all validator wallets for a user by their account address.
+        Uses the operator FK relationship, which works even when the user's
+        login address differs from their operator address on the blockchain.
+        Falls back to operator_address matching if no FK link exists.
+        """
+        wallets = ValidatorWallet.objects.none()
+
+        # First, try to find wallets via the operator FK relationship
+        try:
+            user = User.objects.get(address__iexact=user_address)
+            if hasattr(user, 'validator'):
+                wallets = ValidatorWallet.objects.filter(
+                    operator=user.validator
+                ).select_related('operator', 'operator__user').order_by('-created_at')
+        except User.DoesNotExist:
+            pass
+
+        # If no wallets found via FK, fall back to operator_address matching
+        if not wallets.exists():
+            wallets = ValidatorWallet.objects.filter(
+                operator_address__iexact=user_address
+            ).select_related('operator', 'operator__user').order_by('-created_at')
+
+        serializer = self.get_serializer(wallets, many=True)
+        return Response({
+            'user_address': user_address,
             'wallets': serializer.data,
             'active_count': wallets.filter(status='active').count(),
             'total_count': wallets.count()

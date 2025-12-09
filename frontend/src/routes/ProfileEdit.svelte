@@ -3,11 +3,11 @@
   import { push } from 'svelte-spa-router';
   import { getCurrentUser, updateUserProfile, imageAPI } from '../lib/api';
   import { authState } from '../lib/auth';
-  import { journeyAPI, creatorAPI } from '../lib/api';
+  import { journeyAPI, creatorAPI, validatorsAPI } from '../lib/api';
   import Icon from '../components/Icons.svelte';
   import ImageCropper from '../components/ImageCropper.svelte';
   import { userStore } from '../lib/userStore';
-  import { showSuccess } from '../lib/toastStore';
+  import { showSuccess, showError } from '../lib/toastStore';
   import GitHubLink from '../components/GitHubLink.svelte';
   
   // State management
@@ -39,6 +39,11 @@
   let cropperTitle = $state('');
   let cropperCallback = $state(null);
   let uploadingImage = $state(false);
+
+  // Operator address linking state
+  let operatorAddress = $state('');
+  let isLinkingWallets = $state(false);
+  let validatorWallets = $state([]);
 
   // Validation state
   let nameError = $state('');
@@ -91,6 +96,17 @@
       if (journeySuccess) {
         showSuccess(journeySuccess);
         sessionStorage.removeItem('journeySuccess');
+      }
+
+      // Load validator wallets if user is a validator
+      if (userData.validator) {
+        try {
+          const walletsResponse = await validatorsAPI.getMyValidatorWallets();
+          validatorWallets = walletsResponse.data.wallets || [];
+        } catch (err) {
+          console.error('Error loading validator wallets:', err);
+          validatorWallets = [];
+        }
       }
     } catch (err) {
       error = 'Failed to load profile';
@@ -230,8 +246,30 @@
       error = err.response?.data?.message || 'Failed to join as supporter';
     }
   }
-  
-  
+
+  async function handleLinkWallets() {
+    if (!operatorAddress.trim()) {
+      showError('Please enter an operator address');
+      return;
+    }
+
+    isLinkingWallets = true;
+    try {
+      const response = await validatorsAPI.linkValidatorWalletsByOperator(operatorAddress.trim());
+      const walletsLinked = response.data.wallets_linked;
+      showSuccess(`Successfully linked ${walletsLinked} wallet${walletsLinked !== 1 ? 's' : ''}`);
+      // Refresh data to update the UI
+      await loadUserData();
+      operatorAddress = '';
+    } catch (err) {
+      const message = err.response?.data?.error || 'Failed to link wallets';
+      showError(message);
+    } finally {
+      isLinkingWallets = false;
+    }
+  }
+
+
   function handleProfileImageSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -641,7 +679,7 @@
                   />
                   <p class="mt-2 text-xs text-sky-700">Enter your current GenLayer node version</p>
                 </div>
-                
+
                 {#if user.validator && nodeVersion !== (user.validator?.node_version || '')}
                   <button
                     onclick={handleSave}
@@ -653,6 +691,38 @@
                 {/if}
               </div>
             </div>
+
+            <!-- Link Validator Wallets (only show if no wallets linked) -->
+            {#if validatorWallets.length === 0}
+              <div class="mt-6 pt-4 border-t border-sky-200">
+                <label for="operatorAddress" class="block text-sm font-medium text-sky-900 mb-2">
+                  Link Your Validator Wallets
+                </label>
+                <p class="text-xs text-sky-700 mb-3">
+                  Enter the wallet address you used as operator when creating your validator on GenLayer.
+                </p>
+                <div class="flex gap-3 items-start">
+                  <div class="flex-1">
+                    <input
+                      id="operatorAddress"
+                      type="text"
+                      bind:value={operatorAddress}
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-mono text-sm"
+                      placeholder="0x..."
+                      maxlength="42"
+                      disabled={isLinkingWallets}
+                    />
+                  </div>
+                  <button
+                    onclick={handleLinkWallets}
+                    disabled={isLinkingWallets || !operatorAddress.trim()}
+                    class="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isLinkingWallets ? 'Linking...' : 'Link Wallets'}
+                  </button>
+                </div>
+              </div>
+            {/if}
           </div>
         </div>
       {/if}
