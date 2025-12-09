@@ -3,10 +3,12 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
-from django.db.models import Min, Q
+from django.db.models import Min, Q, Count
 from django.conf import settings
 from .models import Validator, ValidatorWallet
 from .serializers import ValidatorWalletSerializer, LightValidatorWalletSerializer
+from .permissions import IsCronToken
+from .genlayer_validators_service import GenLayerValidatorsService
 from users.models import User
 from users.serializers import ValidatorSerializer, UserSerializer
 from contributions.models import Contribution, ContributionType
@@ -199,3 +201,32 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
             'active_count': wallets.filter(status='active').count(),
             'total_count': wallets.count()
         })
+
+    @action(detail=False, methods=['post'], permission_classes=[IsCronToken], authentication_classes=[])
+    def sync(self, request):
+        """
+        Trigger validator sync from GenLayer blockchain.
+        Protected by X-Cron-Token header authentication.
+        """
+        try:
+            service = GenLayerValidatorsService()
+
+            # Perform sync (internally fetches active and banned validators)
+            stats = service.sync_all_validators()
+
+            # Get DB state after sync
+            db_stats = ValidatorWallet.objects.values('status').annotate(
+                count=Count('status')
+            ).order_by('status')
+            db_state = {stat['status']: stat['count'] for stat in db_stats}
+
+            return Response({
+                'success': True,
+                'stats': stats,
+                'db_state': db_state
+            })
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
