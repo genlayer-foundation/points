@@ -3,6 +3,7 @@
   import { validatorsAPI } from '../lib/api';
   import { currentCategory, categoryTheme } from '../stores/category.js';
   import Avatar from '../components/Avatar.svelte';
+  import { showSuccess } from '../lib/toastStore';
 
   // State variables
   let validatorWallets = $state([]);
@@ -158,6 +159,18 @@
                     <span class="text-gray-900 font-mono">
                       {truncateAddress(wallet.address)}
                     </span>
+                    <button
+                      onclick={() => {
+                        navigator.clipboard.writeText(wallet.address);
+                        showSuccess('Address copied to clipboard!');
+                      }}
+                      title="Copy address"
+                      class="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100 transition-colors"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                      </svg>
+                    </button>
                     <a
                       href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${wallet.address}`}
                       target="_blank"
@@ -192,6 +205,18 @@
                       >
                         {wallet.operator_user.name || truncateAddress(wallet.operator_user.address)}
                       </a>
+                      <button
+                        onclick={() => {
+                          navigator.clipboard.writeText(wallet.operator_address);
+                          showSuccess('Address copied to clipboard!');
+                        }}
+                        title="Copy address"
+                        class="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100 transition-colors"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                        </svg>
+                      </button>
                     {:else if wallet.logo_uri || wallet.moniker}
                       {#if wallet.logo_uri}
                         <div class="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
@@ -203,8 +228,32 @@
                         </div>
                       {/if}
                       <span class="text-gray-700">{wallet.moniker || truncateAddress(wallet.operator_address)}</span>
+                      <button
+                        onclick={() => {
+                          navigator.clipboard.writeText(wallet.operator_address);
+                          showSuccess('Address copied to clipboard!');
+                        }}
+                        title="Copy address"
+                        class="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100 transition-colors"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                        </svg>
+                      </button>
                     {:else}
                       <span class="text-gray-500 font-mono">{truncateAddress(wallet.operator_address)}</span>
+                      <button
+                        onclick={() => {
+                          navigator.clipboard.writeText(wallet.operator_address);
+                          showSuccess('Address copied to clipboard!');
+                        }}
+                        title="Copy address"
+                        class="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100 transition-colors"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                        </svg>
+                      </button>
                     {/if}
                   </div>
                 </td>
