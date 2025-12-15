@@ -412,14 +412,20 @@ class GenLayerValidatorsService:
             except User.DoesNotExist:
                 pass
 
-        # Only fetch identity for new validators (expensive RPC call)
-        if is_new:
-            identity = self.fetch_validator_identity(address)
-            if identity:
-                wallet.moniker = identity.get('moniker', '')
-                wallet.logo_uri = identity.get('logo_uri', '')
-                wallet.website = identity.get('website', '')
-                wallet.description = identity.get('description', '')
+        # Always fetch identity to capture updates
+        identity = self.fetch_validator_identity(address)
+        if identity:
+            new_moniker = identity.get('moniker', '')
+            new_logo_uri = identity.get('logo_uri', '')
+            new_website = identity.get('website', '')
+            new_description = identity.get('description', '')
+            if (wallet.moniker != new_moniker or wallet.logo_uri != new_logo_uri or
+                    wallet.website != new_website or wallet.description != new_description):
+                wallet.moniker = new_moniker
+                wallet.logo_uri = new_logo_uri
+                wallet.website = new_website
+                wallet.description = new_description
+                has_changes = True
 
         # Always fetch validator view to get current stake values
         validator_view = self.fetch_validator_view(address)
