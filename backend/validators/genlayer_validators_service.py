@@ -107,6 +107,13 @@ VALIDATOR_WALLET_ABI = [
         ],
         'stateMutability': 'view',
         'type': 'function'
+    },
+    {
+        'inputs': [],
+        'name': 'operator',
+        'outputs': [{'type': 'address', 'name': ''}],
+        'stateMutability': 'view',
+        'type': 'function'
     }
 ]
 
@@ -238,7 +245,8 @@ class GenLayerValidatorsService:
 
     def fetch_operator_for_wallet(self, wallet_address: str) -> Optional[str]:
         """
-        Fetch the operator address for a validator wallet.
+        Fetch the operator address for a validator wallet by calling operator()
+        directly on the validator wallet contract.
 
         Args:
             wallet_address: The validator wallet address
@@ -246,13 +254,9 @@ class GenLayerValidatorsService:
         Returns:
             Operator address or None on error
         """
-        if not self.factory_contract:
-            logger.warning("Factory contract not initialized")
-            return None
-
         try:
-            checksum_address = Web3.to_checksum_address(wallet_address)
-            operator = self.factory_contract.functions.getOperatorForWallet(checksum_address).call()
+            contract = self._get_validator_wallet_contract(wallet_address)
+            operator = contract.functions.operator().call()
 
             # Check for zero address
             if operator.lower() == '0x0000000000000000000000000000000000000000':
