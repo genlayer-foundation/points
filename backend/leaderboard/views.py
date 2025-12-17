@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
+from django.db.models import Count, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ranks, recalculate_all_leaderboards, LEADERBOARD_CONFIG
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
@@ -69,6 +70,17 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             'user__builder',
             'user__steward',
             'user__creator'
+        )
+
+        # Annotate with validator wallet counts to avoid N+1 queries
+        queryset = queryset.annotate(
+            _active_validators_count=Count(
+                'user__validator__validator_wallets',
+                filter=Q(user__validator__validator_wallets__status='active')
+            ),
+            _total_validators_count=Count(
+                'user__validator__validator_wallets'
+            )
         )
 
         # Filter by user address if provided
