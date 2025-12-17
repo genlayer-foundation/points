@@ -394,11 +394,12 @@ class GenLayerValidatorsService:
         # Track if anything changed
         has_changes = is_new
 
-        # Fetch operator address if new or not yet set
-        if is_new or not wallet.operator_address:
-            operator_address = self.fetch_operator_for_wallet(address)
-            if operator_address:
-                wallet.operator_address = operator_address.lower()
+        # Always fetch operator address to capture updates (like identity)
+        operator_address = self.fetch_operator_for_wallet(address)
+        if operator_address:
+            new_operator_address = operator_address.lower()
+            if wallet.operator_address != new_operator_address:
+                wallet.operator_address = new_operator_address
                 has_changes = True
 
         # Try to link to existing Validator model if not already linked
