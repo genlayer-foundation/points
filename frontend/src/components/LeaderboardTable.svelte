@@ -1,6 +1,7 @@
 <script>
   import { push } from 'svelte-spa-router';
   import Avatar from './Avatar.svelte';
+  import { currentCategory } from '../stores/category.js';
 
   let {
     entries = [],
@@ -60,6 +61,11 @@
             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Points
             </th>
+            {#if $currentCategory === 'validator'}
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Active Validators
+              </th>
+            {/if}
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -99,6 +105,23 @@
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-900 font-medium">{entry.total_points}</div>
               </td>
+              {#if $currentCategory === 'validator'}
+                <td class="px-6 py-4 whitespace-nowrap">
+                  {#if entry.active_validators_count === null}
+                    <span class="inline-block font-semibold rounded-full px-2.5 py-1.5 text-xs bg-gray-100 text-gray-500">
+                      No validator
+                    </span>
+                  {:else}
+                    <a
+                      href="/validators/participants"
+                      onclick={(e) => { e.preventDefault(); push('/validators/participants'); }}
+                      class="inline-block font-semibold rounded-full px-2.5 py-1.5 text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer transition-colors"
+                    >
+                      {entry.active_validators_count} active
+                    </a>
+                  {/if}
+                </td>
+              {/if}
             </tr>
           {/each}
         </tbody>
