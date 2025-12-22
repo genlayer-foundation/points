@@ -519,6 +519,9 @@ class UserSerializer(serializers.ModelSerializer):
     total_referrals = serializers.SerializerMethodField()
     referral_details = serializers.SerializerMethodField()
 
+    # Working groups
+    working_groups = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward',
@@ -528,7 +531,9 @@ class UserSerializer(serializers.ModelSerializer):
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle', 'github_username', 'github_linked_at',
                   'email', 'is_email_verified',
                   # Referral fields
-                  'referral_code', 'referred_by_info', 'total_referrals', 'referral_details']
+                  'referral_code', 'referred_by_info', 'total_referrals', 'referral_details',
+                  # Working groups
+                  'working_groups']
         read_only_fields = ['id', 'created_at', 'updated_at', 'referral_code', 'github_linked_at']
     
     def get_validator(self, obj):
@@ -723,6 +728,19 @@ class UserSerializer(serializers.ModelSerializer):
             'validator_points': validator_pts,
             'referrals': referral_list
         }
+
+    def get_working_groups(self, obj):
+        """
+        Get list of working groups the user belongs to.
+        """
+        from stewards.models import WorkingGroupParticipant
+        memberships = WorkingGroupParticipant.objects.filter(
+            user=obj
+        ).select_related('working_group')
+        return [
+            {'id': m.working_group.id, 'name': m.working_group.name}
+            for m in memberships
+        ]
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
