@@ -23,6 +23,8 @@ class WorkingGroup(BaseModel):
     A working group that participants can be members of.
     """
     name = models.CharField(max_length=200)
+    icon = models.CharField(max_length=10, blank=True, help_text="Emoji icon for the working group")
+    description = models.TextField(blank=True, help_text="Description of the working group")
     discord_url = models.URLField(blank=True)
 
     def __str__(self):

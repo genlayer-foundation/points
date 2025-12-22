@@ -1,7 +1,5 @@
 from rest_framework import serializers
 from .models import Steward, WorkingGroup, WorkingGroupParticipant
-from users.models import User
-from users.serializers import UserSerializer
 
 
 class StewardSerializer(serializers.ModelSerializer):
@@ -16,61 +14,16 @@ class StewardSerializer(serializers.ModelSerializer):
 
 class WorkingGroupParticipantSerializer(serializers.ModelSerializer):
     """
-    Serializer for working group participant with user details and points.
+    Serializer for working group participant with user details.
     """
     id = serializers.IntegerField(source='user.id', read_only=True)
     name = serializers.CharField(source='user.name', read_only=True)
     address = serializers.CharField(source='user.address', read_only=True)
     profile_image_url = serializers.URLField(source='user.profile_image_url', read_only=True)
-    builder_points = serializers.SerializerMethodField()
-    validator_points = serializers.SerializerMethodField()
-    steward = serializers.SerializerMethodField()
-    validator = serializers.SerializerMethodField()
-    builder = serializers.SerializerMethodField()
-    has_validator_waitlist = serializers.SerializerMethodField()
-    has_builder_welcome = serializers.SerializerMethodField()
 
     class Meta:
         model = WorkingGroupParticipant
-        fields = [
-            'id', 'name', 'address', 'profile_image_url',
-            'builder_points', 'validator_points',
-            'steward', 'validator', 'builder',
-            'has_validator_waitlist', 'has_builder_welcome'
-        ]
-
-    def get_builder_points(self, obj):
-        from leaderboard.models import LeaderboardEntry
-        entry = LeaderboardEntry.objects.filter(user=obj.user, type='builder').first()
-        return entry.total_points if entry else 0
-
-    def get_validator_points(self, obj):
-        from leaderboard.models import LeaderboardEntry
-        entry = LeaderboardEntry.objects.filter(user=obj.user, type='validator').first()
-        return entry.total_points if entry else 0
-
-    def get_steward(self, obj):
-        return hasattr(obj.user, 'steward') and obj.user.steward is not None
-
-    def get_validator(self, obj):
-        return hasattr(obj.user, 'validator') and obj.user.validator is not None
-
-    def get_builder(self, obj):
-        return hasattr(obj.user, 'builder') and obj.user.builder is not None
-
-    def get_has_validator_waitlist(self, obj):
-        from contributions.models import Contribution
-        return Contribution.objects.filter(
-            user=obj.user,
-            contribution_type__slug='validator-waitlist'
-        ).exists()
-
-    def get_has_builder_welcome(self, obj):
-        from contributions.models import Contribution
-        return Contribution.objects.filter(
-            user=obj.user,
-            contribution_type__slug='builder-welcome'
-        ).exists()
+        fields = ['id', 'name', 'address', 'profile_image_url']
 
 
 class WorkingGroupListSerializer(serializers.ModelSerializer):
@@ -82,7 +35,7 @@ class WorkingGroupListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WorkingGroup
-        fields = ['id', 'name', 'participant_count', 'is_member', 'created_at']
+        fields = ['id', 'name', 'icon', 'description', 'participant_count', 'is_member', 'created_at']
 
     def get_is_member(self, obj):
         request = self.context.get('request')
@@ -102,7 +55,7 @@ class WorkingGroupDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WorkingGroup
-        fields = ['id', 'name', 'discord_url', 'participant_count', 'is_member', 'participants', 'created_at']
+        fields = ['id', 'name', 'icon', 'description', 'discord_url', 'participant_count', 'is_member', 'participants', 'created_at']
 
     def get_participant_count(self, obj):
         return obj.participants.count()
@@ -137,4 +90,13 @@ class WorkingGroupCreateSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = WorkingGroup
-        fields = ['name', 'discord_url']
+        fields = ['name', 'icon', 'description', 'discord_url']
+
+
+class WorkingGroupUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating a working group.
+    """
+    class Meta:
+        model = WorkingGroup
+        fields = ['name', 'icon', 'description', 'discord_url']

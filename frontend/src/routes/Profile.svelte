@@ -604,8 +604,8 @@
               {#if participant.working_groups && participant.working_groups.length > 0}
                 {#each participant.working_groups as group}
                   <a
-                    href="/stewards/working-groups"
-                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+                    href="/stewards"
+                    class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors"
                   >
                     {group.name}
                   </a>
@@ -835,8 +835,8 @@
       </div>
     {/if}
     
-    <!-- Steward Section -->
-    {#if participant.steward}
+    <!-- Ecosystem Steward Section (shows if steward OR working group member) -->
+    {#if participant.steward || (participant.working_groups && participant.working_groups.length > 0)}
       <div class="bg-green-50/30 rounded-lg shadow-sm border border-green-100 overflow-hidden mb-6">
         <!-- Header -->
         <div class="bg-green-100/50 px-5 py-3 border-b border-green-200">
@@ -845,42 +845,78 @@
             Ecosystem Steward
           </h2>
         </div>
-        
+
         <!-- Content -->
-        <div class="p-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Role Stat -->
-            <div class="flex items-center">
-              <div class="p-3 bg-green-100 rounded-lg mr-4">
-                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
-                </svg>
-              </div>
-              <div>
-                <p class="text-sm text-gray-500">Role</p>
-                <p class="text-2xl font-bold text-gray-900">Admin</p>
-              </div>
-            </div>
-            
-            <!-- Since Date Stat -->
-            {#if participant.steward?.created_at}
+        <div class="p-4 space-y-4">
+          <!-- Steward Stats (if steward) -->
+          {#if participant.steward}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Role Stat -->
               <div class="flex items-center">
                 <div class="p-3 bg-green-100 rounded-lg mr-4">
                   <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
                   </svg>
                 </div>
                 <div>
-                  <p class="text-sm text-gray-500">Steward Since</p>
-                  <p class="text-2xl font-bold text-gray-900">{formatDate(participant.steward.created_at)}</p>
+                  <p class="text-sm text-gray-500">Role</p>
+                  <p class="text-2xl font-bold text-gray-900">Admin</p>
                 </div>
               </div>
-            {/if}
-          </div>
+
+              <!-- Since Date Stat -->
+              {#if participant.steward?.created_at}
+                <div class="flex items-center">
+                  <div class="p-3 bg-green-100 rounded-lg mr-4">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-500">Steward Since</p>
+                    <p class="text-2xl font-bold text-gray-900">{formatDate(participant.steward.created_at)}</p>
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/if}
+
+          <!-- Working Groups (only for non-steward WG members) -->
+          {#if !participant.steward && participant.working_groups && participant.working_groups.length > 0}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Role Stat -->
+              <div class="flex items-center">
+                <div class="p-3 bg-green-100 rounded-lg mr-4">
+                  <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-500">Role</p>
+                  <p class="text-2xl font-bold text-gray-900">WG Member</p>
+                </div>
+              </div>
+
+              <!-- Member Since Stat -->
+              {#if participant.working_groups.some(g => g.joined_at)}
+                <div class="flex items-center">
+                  <div class="p-3 bg-green-100 rounded-lg mr-4">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-500">Member Since</p>
+                    <p class="text-2xl font-bold text-gray-900">{format(new Date(Math.min(...participant.working_groups.filter(g => g.joined_at).map(g => new Date(g.joined_at).getTime()))), 'MMM yyyy')}</p>
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
-    
+
     <!-- Validator Section -->
     {#if participant.validator}
       <div class="bg-sky-50/30 rounded-lg shadow-sm border border-sky-100 overflow-hidden mb-6">
