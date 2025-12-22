@@ -10,6 +10,7 @@ from .serializers import (
     WorkingGroupListSerializer,
     WorkingGroupDetailSerializer,
     WorkingGroupCreateSerializer,
+    WorkingGroupUpdateSerializer,
 )
 from contributions.permissions import IsSteward
 import logging
@@ -110,11 +111,13 @@ class WorkingGroupViewSet(viewsets.ModelViewSet):
         return [IsSteward()]
 
     def get_serializer_class(self):
-        """Use different serializers for list vs detail."""
+        """Use different serializers for list vs detail vs update."""
         if self.action == 'list':
             return WorkingGroupListSerializer
         if self.action == 'create':
             return WorkingGroupCreateSerializer
+        if self.action in ['update', 'partial_update']:
+            return WorkingGroupUpdateSerializer
         return WorkingGroupDetailSerializer
 
     def get_queryset(self):

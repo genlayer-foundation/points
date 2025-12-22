@@ -189,6 +189,7 @@ export const stewardAPI = {
   getWorkingGroups: () => api.get('/stewards/working-groups/'),
   getWorkingGroup: (id) => api.get(`/stewards/working-groups/${id}/`),
   createWorkingGroup: (data) => api.post('/stewards/working-groups/', data),
+  updateWorkingGroup: (id, data) => api.patch(`/stewards/working-groups/${id}/`, data),
   deleteWorkingGroup: (id) => api.delete(`/stewards/working-groups/${id}/`),
   addParticipant: (groupId, userId) => api.post(`/stewards/working-groups/${groupId}/add_participant/`, { user_id: userId }),
   removeParticipant: (groupId, userId) => api.post(`/stewards/working-groups/${groupId}/remove_participant/`, { user_id: userId }),
