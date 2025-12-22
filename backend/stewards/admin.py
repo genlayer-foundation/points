@@ -45,8 +45,8 @@ class WorkingGroupParticipantInline(admin.TabularInline):
 
 @admin.register(WorkingGroup)
 class WorkingGroupAdmin(admin.ModelAdmin):
-    list_display = ('name', 'participant_count', 'discord_url', 'created_at')
-    search_fields = ('name',)
+    list_display = ('name', 'icon', 'description', 'participant_count', 'discord_url', 'created_at')
+    search_fields = ('name', 'description')
     list_filter = ('created_at',)
     ordering = ('name',)
     inlines = [WorkingGroupParticipantInline]
