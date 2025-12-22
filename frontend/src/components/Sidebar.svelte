@@ -230,16 +230,33 @@
           <h3 class="text-xs font-medium uppercase tracking-wider flex-1 text-left {$currentCategory === 'steward' ? 'text-green-700' : 'text-gray-700'}">
             STEWARDS
           </h3>
-          {#if $userStore.user?.steward}
-            <Icon 
+  <Icon
               name={getActiveSection() === 'steward' ? "chevronDown" : "chevronRight"}
               size="xs"
               className="text-gray-400 transition-transform duration-200"
             />
-          {/if}
         </button>
-        {#if getActiveSection() === 'steward' && $userStore.user?.steward}
+        {#if getActiveSection() === 'steward'}
         <div class="space-y-0.5 pl-2">
+          <!-- Working Groups - visible to all users -->
+          <a
+            href="/stewards/working-groups"
+            onclick={(e) => { e.preventDefault(); navigate('/stewards/working-groups'); }}
+            class="group flex items-center px-3 py-1.5 text-sm rounded-md {
+              isActive('/stewards/working-groups') || $location.startsWith('/stewards/working-groups/')
+                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            }"
+          >
+            <Icon
+              name="participants"
+              size="sm"
+              className="mr-2 text-green-600"
+            />
+            Working Groups
+          </a>
+          <!-- Steward-only links -->
+          {#if $userStore.user?.steward}
           <a
             href="/stewards/submissions"
             onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
@@ -272,6 +289,7 @@
             />
             Manage Users
           </a>
+          {/if}
         </div>
         {/if}
       </div>
@@ -483,8 +501,26 @@
               STEWARDS
             </h3>
           </button>
-          {#if $userStore.user?.steward}
           <div class="space-y-0.5 pl-2">
+            <!-- Working Groups - visible to all users -->
+            <a
+              href="/stewards/working-groups"
+              onclick={(e) => { e.preventDefault(); navigate('/stewards/working-groups'); }}
+              class="group flex items-center px-3 py-1.5 text-base rounded-md {
+                isActive('/stewards/working-groups') || $location.startsWith('/stewards/working-groups/')
+                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+              }"
+            >
+              <Icon
+                name="participants"
+                size="sm"
+                className="mr-2 text-green-600"
+              />
+              Working Groups
+            </a>
+            <!-- Steward-only links -->
+            {#if $userStore.user?.steward}
             <a
               href="/stewards/submissions"
               onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
@@ -517,8 +553,8 @@
               />
               Manage Users
             </a>
+            {/if}
           </div>
-          {/if}
         </div>
 
         <!-- Supporters section -->

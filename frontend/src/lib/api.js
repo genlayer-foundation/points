@@ -166,16 +166,16 @@ export const githubAPI = {
 export const stewardAPI = {
   // Get all submissions for review
   getSubmissions: (params = {}) => api.get('/steward-submissions/', { params }),
-  
+
   // Get a single submission
   getSubmission: (id) => api.get(`/steward-submissions/${id}/`),
-  
+
   // Review a submission (accept, reject, or request more info)
   reviewSubmission: (id, data) => api.post(`/steward-submissions/${id}/review/`, data),
-  
+
   // Get all users for reassignment dropdown
   getUsers: () => api.get('/steward-submissions/users/'),
-  
+
   // Get steward statistics
   getStats: () => api.get('/steward-submissions/stats/'),
 
@@ -185,6 +185,14 @@ export const stewardAPI = {
   // Assign submission to a steward
   assignSubmission: (id, data) => api.post(`/steward-submissions/${id}/assign/`, data),
 
+  // Working Groups
+  getWorkingGroups: () => api.get('/stewards/working-groups/'),
+  getWorkingGroup: (id) => api.get(`/stewards/working-groups/${id}/`),
+  createWorkingGroup: (data) => api.post('/stewards/working-groups/', data),
+  deleteWorkingGroup: (id) => api.delete(`/stewards/working-groups/${id}/`),
+  addParticipant: (groupId, userId) => api.post(`/stewards/working-groups/${groupId}/add_participant/`, { user_id: userId }),
+  removeParticipant: (groupId, userId) => api.post(`/stewards/working-groups/${groupId}/remove_participant/`, { user_id: userId }),
+  searchUsersForGroup: (query) => api.get('/stewards/working-groups/search_users/', { params: { q: query } })
 };
 
 // Image upload API
