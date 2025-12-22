@@ -600,6 +600,17 @@
                   </span>
                 {/if}
               {/if}
+              <!-- Working Group badges -->
+              {#if participant.working_groups && participant.working_groups.length > 0}
+                {#each participant.working_groups as group}
+                  <a
+                    href="/stewards/working-groups"
+                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+                  >
+                    {group.name}
+                  </a>
+                {/each}
+              {/if}
             </div>
             
             {#if participant.address}
