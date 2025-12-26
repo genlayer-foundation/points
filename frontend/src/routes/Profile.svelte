@@ -16,6 +16,7 @@
   import { getValidatorBalance } from '../lib/blockchain';
   import Avatar from '../components/Avatar.svelte';
   import { showSuccess, showWarning } from '../lib/toastStore';
+  import { parseMarkdown } from '../lib/markdownLoader.js';
 
   // Import route params from svelte-spa-router
   import { params } from 'svelte-spa-router';
@@ -600,16 +601,14 @@
                   </span>
                 {/if}
               {/if}
-              <!-- Working Group badges -->
+              <!-- Working Group Member badge -->
               {#if participant.working_groups && participant.working_groups.length > 0}
-                {#each participant.working_groups as group}
-                  <a
-                    href="/stewards"
-                    class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors"
-                  >
-                    {group.name}
-                  </a>
-                {/each}
+                <button
+                  onclick={() => push('/stewards')}
+                  class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors cursor-pointer"
+                >
+                  Working Group Member
+                </button>
               {/if}
             </div>
             
@@ -893,7 +892,7 @@
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Role</p>
-                  <p class="text-2xl font-bold text-gray-900">WG Member</p>
+                  <p class="text-2xl font-bold text-gray-900">Working Group Member</p>
                 </div>
               </div>
 
@@ -911,6 +910,32 @@
                   </div>
                 </div>
               {/if}
+            </div>
+
+            <!-- Working Groups List -->
+            <div class="mt-4 pt-4 border-t border-green-100">
+              <h3 class="text-sm font-medium text-gray-700 mb-3">Member of</h3>
+              <div class="space-y-2">
+                {#each participant.working_groups as group}
+                  <div class="flex items-start gap-3 p-3 bg-white rounded-lg border border-green-100">
+                    <span class="text-lg flex-shrink-0">{group.icon || '👥'}</span>
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2">
+                        <p class="text-sm font-medium text-gray-900">{group.name}</p>
+                        <span class="text-xs text-gray-500 flex items-center gap-1">
+                          {group.participant_count || 0}
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                          </svg>
+                        </span>
+                      </div>
+                      {#if group.description}
+                        <div class="markdown-content text-xs text-gray-500 mt-0.5">{@html parseMarkdown(group.description)}</div>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+              </div>
             </div>
           {/if}
         </div>
@@ -1849,3 +1874,32 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .markdown-content :global(ul) {
+    list-style-type: disc;
+    margin-left: 1.5rem;
+  }
+
+  .markdown-content :global(ol) {
+    list-style-type: decimal;
+    margin-left: 1.5rem;
+  }
+
+  .markdown-content :global(a) {
+    color: #059669;
+    text-decoration: underline;
+  }
+
+  .markdown-content :global(a:hover) {
+    color: #047857;
+  }
+
+  .markdown-content :global(p) {
+    margin: 0;
+  }
+
+  .markdown-content :global(p + p) {
+    margin-top: 0.5rem;
+  }
+</style>
