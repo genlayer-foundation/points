@@ -201,58 +201,55 @@
   });
 </script>
 
-<!-- Working Groups Container -->
-<div class="space-y-4">
-  <!-- Section Header -->
-  <div class="flex items-center justify-between">
-    <div class="flex items-center gap-2">
-      <div class="p-1.5 {$categoryTheme.bgSecondary} rounded-lg">
-        <svg class="w-4 h-4 {$categoryTheme.text}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+<!-- Working Groups Container with Colored Header -->
+<div class="{$categoryTheme.bg} rounded-lg shadow-sm border {$categoryTheme.border} overflow-hidden">
+  <!-- Colored Header Bar -->
+  <div class="{$categoryTheme.bgSecondary} px-5 py-3 border-b {$categoryTheme.border}">
+    <div class="flex items-center justify-between">
+      <h2 class="text-lg font-semibold {$categoryTheme.text} uppercase tracking-wider flex items-center">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
         </svg>
-      </div>
-      <h2 class="text-lg font-semibold text-gray-900">Working Groups</h2>
+        Working Groups
+      </h2>
+      {#if isSteward}
+        <button
+          onclick={openCreateModal}
+          class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-md hover:bg-primary-700 transition-colors flex items-center gap-1.5"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+          Create Group
+        </button>
+      {/if}
     </div>
-    {#if isSteward}
-      <button
-        onclick={openCreateModal}
-        class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-md hover:bg-primary-700 transition-colors flex items-center gap-1.5"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
-        Create Group
-      </button>
-    {/if}
   </div>
 
-  <!-- Description (no container) -->
-  <p class="text-gray-600 text-sm">
-    Join specialized teams focused on different aspects of the GenLayer ecosystem.
-    Collaborate on technical proposals, standards, and implementations.
-  </p>
-
-  <!-- Interested in joining? (full width container) -->
-  <div class="{$categoryTheme.bgSecondary} rounded-lg p-3 border {$categoryTheme.border}">
-    <p class="text-sm text-gray-600">
-      <span class="mr-1">💡</span> <strong>Interested in joining?</strong> Contact <span class="font-mono {$categoryTheme.bgSecondary} px-1.5 py-0.5 rounded {$categoryTheme.text} font-semibold">@ras</span> on <a href="https://discord.com/invite/qjCU4AWnKE" target="_blank" rel="noopener noreferrer" class="{$categoryTheme.text} hover:text-green-700 underline font-semibold">Discord</a> to learn more.
+  <!-- Content Area -->
+  <div class="p-5 space-y-6">
+    <!-- Description -->
+    <p class="text-gray-600 text-sm">
+      Specialized teams focused on different aspects of the GenLayer ecosystem.
     </p>
-  </div>
 
-  <!-- Working Groups List -->
-  {#if loading}
-    <div class="bg-white rounded-lg shadow-sm border {$categoryTheme.border} p-8">
-      <div class="flex justify-center">
+    <!-- Contact @ras message -->
+    <div class="bg-white rounded-lg border {$categoryTheme.border} p-3">
+      <p class="text-sm text-gray-600">
+        <span class="mr-1">💡</span> <strong>Interested in joining?</strong> Contact <span class="font-mono {$categoryTheme.bgSecondary} px-1.5 py-0.5 rounded {$categoryTheme.text} font-semibold">@ras</span> on <a href="https://discord.com/invite/qjCU4AWnKE" target="_blank" rel="noopener noreferrer" class="{$categoryTheme.text} hover:text-green-700 underline font-semibold">Discord</a> to learn more.
+      </p>
+    </div>
+
+    <!-- Loading State -->
+    {#if loading}
+      <div class="flex justify-center py-8">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
       </div>
-    </div>
-  {:else if workingGroups.length === 0}
-    <div class="bg-white rounded-lg shadow-sm border {$categoryTheme.border} p-6">
-      <div class="text-center text-gray-500">
+    <!-- Empty State -->
+    {:else if workingGroups.length === 0}
+      <div class="text-center text-gray-500 py-6">
         <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
         </svg>
         <p>No working groups yet</p>
         {#if isSteward}
@@ -264,39 +261,26 @@
           </button>
         {/if}
       </div>
-    </div>
-  {:else}
-    <div class="bg-white rounded-lg shadow-sm border {$categoryTheme.border} divide-y divide-gray-200">
-      {#each workingGroups as group (group.id)}
-        <div class="overflow-hidden">
-          <!-- Group Header Row -->
-          <div class="p-4">
+    <!-- Working Groups List -->
+    {:else}
+      <div class="divide-y divide-gray-200">
+        {#each workingGroups as group (group.id)}
+          <div class="space-y-3 py-5 first:pt-0 last:pb-0">
+            <!-- Group Header (smaller than parent) -->
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3 min-w-0 flex-1">
-                <span class="text-xl flex-shrink-0">{group.icon || '👥'}</span>
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2">
-                    <span class="text-sm font-medium text-gray-900 truncate">{group.name}</span>
-                    <span class="text-xs text-gray-500 flex items-center gap-1 flex-shrink-0">
-                      {group.participant_count || group.participants?.length || 0}
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
-                      </svg>
-                    </span>
-                  </div>
-                  {#if group.description}
-                    <div class="markdown-content text-xs text-gray-500 mt-1">
-                      {@html parseMarkdown(group.description)}
-                    </div>
-                  {/if}
-                </div>
+              <div class="flex items-center gap-2">
+                <span class="text-lg">{group.icon || '👥'}</span>
+                <h3 class="text-base font-medium text-gray-900">{group.name}</h3>
+                <span class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                  {group.participant_count || group.participants?.length || 0} members
+                </span>
               </div>
               {#if isSteward}
-                <div class="flex items-center gap-2 flex-shrink-0">
+                <div class="flex items-center gap-1">
                   <button
                     onclick={() => openAddParticipantModal(group.id)}
                     class="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                    title="Add participant"
+                    title="Add member"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
@@ -323,12 +307,17 @@
                 </div>
               {/if}
             </div>
-          </div>
 
-          <!-- Participants List (always visible) -->
-          {#if group.participants && group.participants.length > 0}
-            <div class="px-4 pb-4">
-              <div class="rounded-lg border border-gray-200 divide-y divide-gray-200">
+            <!-- Group Description (if exists) -->
+            {#if group.description}
+              <div class="markdown-content text-sm text-gray-500">
+                {@html parseMarkdown(group.description)}
+              </div>
+            {/if}
+
+            <!-- Members Card -->
+            {#if group.participants && group.participants.length > 0}
+              <div class="bg-white rounded-lg border border-gray-200 divide-y divide-gray-200">
                 {#each group.participants as participant}
                   <div class="p-3 hover:bg-gray-50 transition-colors">
                     <div class="flex items-center justify-between">
@@ -358,7 +347,7 @@
                           <button
                             onclick={() => handleRemoveParticipant(group.id, participant.id)}
                             class="text-red-500 hover:text-red-700 p-1"
-                            title="Remove participant"
+                            title="Remove member"
                           >
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -370,14 +359,16 @@
                   </div>
                 {/each}
               </div>
-            </div>
-          {:else}
-            <p class="px-4 pb-4 text-sm text-gray-500">No participants yet</p>
-          {/if}
-        </div>
-      {/each}
-    </div>
-  {/if}
+            {:else}
+              <div class="bg-white rounded-lg border border-gray-200 p-3 text-sm text-gray-500">
+                No members yet
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
 </div>
 
 <!-- Create/Edit Group Modal -->
