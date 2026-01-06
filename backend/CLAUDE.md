@@ -97,6 +97,52 @@ backend/
 - **Run migrations**: `python manage.py migrate`
 - **Create migrations**: `python manage.py makemigrations`
 
+### Database Migration from Production
+- **Script**: `backend/scripts/migrate-prod-to-dev.sh`
+- **Documentation**: `backend/scripts/README.md`
+- **Purpose**: Sync production PostgreSQL database to local/dev environment
+- **Prerequisites**:
+  - Virtual environment activated
+  - AWS CLI configured with Parameter Store access
+  - Docker installed (for database operations)
+
+**Usage:**
+```bash
+# Navigate to scripts directory
+cd backend/scripts
+
+# Download production database only (safest option)
+./migrate-prod-to-dev.sh --download
+
+# Upload latest dump to dev database
+./migrate-prod-to-dev.sh --upload
+
+# Run Django migrations and create admin user only
+./migrate-prod-to-dev.sh --setup
+
+# Full migration (download + upload + setup)
+./migrate-prod-to-dev.sh
+```
+
+**What it does:**
+1. Fetches production database credentials from AWS Parameter Store (`/tally/prod/database_url`)
+2. Downloads production data to `backend/backups/` using Docker
+3. Restores to development database (local PostgreSQL or AWS dev instance)
+4. Runs Django migrations
+5. Creates/updates admin user (`dev@genlayer.foundation` / `password`) with Steward role
+
+**Notes:**
+- Uses Docker to avoid PostgreSQL version mismatch issues
+- Modular operation allows partial runs (download, upload, setup separately)
+- Creates timestamped backups in `backend/backups/`
+- See `backend/scripts/README.md` for detailed setup and troubleshooting
+
+### RDS to SQLite Migration
+- **Script**: `backend/scripts/migrate_rds_to_sqlite.py`
+- **Purpose**: Convert production PostgreSQL to local SQLite for development
+- **Usage**: `python scripts/migrate_rds_to_sqlite.py` (from backend directory)
+- **Notes**: Resets all passwords to 'pass', excludes leaderboard entries, backs up existing db.sqlite3
+
 ## API Endpoints Summary
 
 ### Base URL
