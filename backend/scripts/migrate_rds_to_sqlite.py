@@ -24,6 +24,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 import boto3
 
+# Add backend directory to Python path
+SCRIPT_DIR = Path(__file__).resolve().parent
+BACKEND_DIR = SCRIPT_DIR.parent
+sys.path.insert(0, str(BACKEND_DIR))
+
 # Load environment variables
 load_dotenv()
 
@@ -246,7 +251,7 @@ def import_to_sqlite(json_file):
     # Load data
     print(f"Loading data from {json_file}...")
     result = subprocess.run(
-        ['python', 'manage.py', 'loaddata', json_file],
+        ['python', 'manage.py', 'loaddata', json_file, 'exclude', 'leaderboard'],
         capture_output=True,
         text=True
     )

@@ -244,7 +244,12 @@ remove_session() {
     if [ -d "$HOME/Dev/tally-$name" ]; then
         echo "Removing git worktree..."
         cd "$TALLY_ROOT"
-        git worktree remove "../tally-$name" --force
+        git worktree remove "../tally-$name" --force 2>/dev/null || true
+        # If directory still exists (worktree remove failed), remove it manually
+        if [ -d "$HOME/Dev/tally-$name" ]; then
+            echo "Removing directory manually..."
+            rm -rf "$HOME/Dev/tally-$name"
+        fi
     fi
     
     # Remove branch if it exists
@@ -440,18 +445,28 @@ checkout_pr() {
     # Fetch PR branch without changing current branch
     echo "Fetching PR branch..."
     cd "$TALLY_ROOT"
-    
+
     # Store current branch to restore later
     current_branch=$(git branch --show-current)
-    
-    # Fetch the PR ref directly and create a local branch
-    git fetch origin "pull/$pr_number/head:$name-branch"
-    
+
+    # Always fetch the latest version from origin, even if branch exists locally
+    echo "Fetching latest version of PR branch..."
+    # First try to fetch as a regular branch, if that fails try as a PR ref
+    if ! git fetch origin "$pr_branch:$pr_branch" 2>/dev/null; then
+        git fetch origin "pull/$pr_number/head:$pr_branch"
+    fi
+
     # Create git worktree using the actual PR branch
     echo "Creating git worktree..."
     git worktree add "../tally-$name" "$pr_branch"
-    
-    # Make sure we're still on the original branch
+
+    # Set up tracking information for the branch in the worktree
+    echo "Setting up branch tracking..."
+    cd "$HOME/Dev/tally-$name"
+    git branch --set-upstream-to=origin/$pr_branch $pr_branch 2>/dev/null || true
+
+    # Return to tally root and restore original branch
+    cd "$TALLY_ROOT"
     git checkout "$current_branch" 2>/dev/null || true
     
     # Create symlink for node_modules
