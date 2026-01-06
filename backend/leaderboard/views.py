@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
+from django.db.models import Count, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ranks, recalculate_all_leaderboards, LEADERBOARD_CONFIG
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
@@ -59,7 +60,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Filter leaderboard by type, user address, and handle ordering.
         Optimized with select_related to avoid N+1 queries.
-        Supports limit parameter for efficient top-N queries.
         """
         queryset = super().get_queryset()
 
@@ -70,6 +70,17 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             'user__builder',
             'user__steward',
             'user__creator'
+        )
+
+        # Annotate with validator wallet counts to avoid N+1 queries
+        queryset = queryset.annotate(
+            _active_validators_count=Count(
+                'user__validator__validator_wallets',
+                filter=Q(user__validator__validator_wallets__status='active')
+            ),
+            _total_validators_count=Count(
+                'user__validator__validator_wallets'
+            )
         )
 
         # Filter by user address if provided
@@ -97,16 +108,25 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         else:
             queryset = queryset.order_by('rank')
 
-        # Apply limit if provided (for efficient top-N queries)
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        """
+        Override to apply limit after filtering/ordering.
+        """
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # Apply limit after filtering and ordering
         limit = self.request.query_params.get('limit')
         if limit:
             try:
                 limit = int(limit)
                 queryset = queryset[:limit]
             except (ValueError, TypeError):
-                pass  # Ignore invalid limit values
+                pass
 
-        return queryset
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def get_serializer_context(self):
         """
@@ -145,25 +165,57 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     def stats(self, request):
         """
         Get statistics for the dashboard.
+        Supports optional 'type' parameter for category-specific stats.
         """
         from django.db.models import Sum, Count
         from contributions.models import Contribution
         from users.models import User
-        
-        # Get total participants (only visible users)
-        participant_count = User.objects.filter(
-            contributions__isnull=False,
-            visible=True
-        ).distinct().count()
-        
-        # Get total contributions
-        contribution_count = Contribution.objects.count()
-        
-        # Get total points
-        total_points = Contribution.objects.aggregate(
-            total=Sum('frozen_global_points')
-        )['total'] or 0
-        
+
+        leaderboard_type = request.query_params.get('type')
+
+        if leaderboard_type:
+            # Category-specific stats
+            leaderboard_entries = LeaderboardEntry.objects.filter(
+                type=leaderboard_type,
+                user__visible=True
+            )
+
+            participant_count = leaderboard_entries.count()
+            total_points = leaderboard_entries.aggregate(
+                total=Sum('total_points')
+            )['total'] or 0
+
+            # Get contribution count for this category
+            category_map = {
+                'validator': 'validator',
+                'builder': 'builder',
+                'steward': 'steward'
+            }
+            category = category_map.get(leaderboard_type)
+
+            if category:
+                contribution_count = Contribution.objects.filter(
+                    contribution_type__category__slug=category
+                ).exclude(
+                    contribution_type__slug__in=['builder-welcome', 'validator-waitlist']
+                ).count()
+            else:
+                contribution_count = 0
+        else:
+            # Global stats
+            participant_count = User.objects.filter(
+                contributions__isnull=False,
+                visible=True
+            ).distinct().count()
+
+            contribution_count = Contribution.objects.exclude(
+                contribution_type__slug__in=['builder-welcome', 'validator-waitlist']
+            ).count()
+
+            total_points = Contribution.objects.aggregate(
+                total=Sum('frozen_global_points')
+            )['total'] or 0
+
         return Response({
             'participant_count': participant_count,
             'contribution_count': contribution_count,
@@ -353,7 +405,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def supporters(self, request):
         """
-        Get supporters statistics and top 10 supporters.
+        Get supporters statistics and all supporters with referral points.
         Returns users with referrals sorted by total referral points.
         """
         from .models import ReferralPoints
@@ -363,16 +415,16 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         # Get all referral points ordered by total points (builder + validator)
         referral_points = ReferralPoints.objects.select_related('user').annotate(
             total_points=F('builder_points') + F('validator_points')
-        ).filter(user__visible=True).order_by('-total_points')
+        ).filter(user__visible=True, total_points__gt=0).order_by('-total_points')
 
         # Calculate aggregate stats
         total_supporters = referral_points.count()
         total_builder_points = sum(rp.builder_points for rp in referral_points)
         total_validator_points = sum(rp.validator_points for rp in referral_points)
 
-        # Get top 10
+        # Get all supporters
         top_supporters = []
-        for rp in referral_points[:10]:
+        for rp in referral_points:
             user_data = UserSerializer(rp.user).data
             top_supporters.append({
                 **user_data,

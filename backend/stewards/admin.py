@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Steward
+from .models import Steward, WorkingGroup, WorkingGroupParticipant
 
 
 class StewardInline(admin.StackedInline):
@@ -33,3 +33,33 @@ class StewardAdmin(admin.ModelAdmin):
 
 
 # Note: StewardInline is imported and added to UserAdmin in users/admin.py
+
+
+class WorkingGroupParticipantInline(admin.TabularInline):
+    """Inline admin for participants within a WorkingGroup"""
+    model = WorkingGroupParticipant
+    extra = 0
+    autocomplete_fields = ['user']
+    readonly_fields = ('created_at',)
+
+
+@admin.register(WorkingGroup)
+class WorkingGroupAdmin(admin.ModelAdmin):
+    list_display = ('name', 'icon', 'description', 'participant_count', 'discord_url', 'created_at')
+    search_fields = ('name', 'description')
+    list_filter = ('created_at',)
+    ordering = ('name',)
+    inlines = [WorkingGroupParticipantInline]
+
+    def participant_count(self, obj):
+        return obj.participants.count()
+    participant_count.short_description = 'Participants'
+
+
+@admin.register(WorkingGroupParticipant)
+class WorkingGroupParticipantAdmin(admin.ModelAdmin):
+    list_display = ('user', 'working_group', 'created_at')
+    search_fields = ('user__name', 'user__email', 'user__address', 'working_group__name')
+    list_filter = ('working_group', 'created_at')
+    autocomplete_fields = ['user', 'working_group']
+    ordering = ('-created_at',)

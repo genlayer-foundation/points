@@ -55,7 +55,6 @@
     } catch (err) {
       error = err.message || 'Failed to load contribution type statistics';
       loading = false;
-      console.error('Failed to load contribution type statistics:', err);
     }
   }
   

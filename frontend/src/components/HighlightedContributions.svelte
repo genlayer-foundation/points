@@ -4,11 +4,13 @@
   import { format } from 'date-fns';
   import { contributionsAPI, usersAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
+  import { parseMarkdown } from '../lib/markdownLoader.js';
   import Avatar from './Avatar.svelte';
+  import Badge from './Badge.svelte';
   import ContributionCard from './ContributionCard.svelte';
 
   let {
-    title = 'Featured Contributions',
+    title = 'Highlighted Contributions',
     subtitle = null,
     limit = 3,
     userId = null,
@@ -28,14 +30,24 @@
   let highlights = $state([]);
   let loading = $state(true);
   let error = $state(null);
+  let expandedHighlights = $state(new Set());
 
   // Determine button colors based on theme
   const buttonClasses = $derived(
-    colorTheme === 'orange' 
+    colorTheme === 'orange'
       ? 'border-orange-300 text-orange-700 bg-orange-100 hover:bg-orange-200 hover:border-orange-400'
       : colorTheme === 'sky'
       ? 'border-sky-300 text-sky-700 bg-sky-100 hover:bg-sky-200 hover:border-sky-400'
       : 'border-primary-200 text-primary-700 bg-primary-50 hover:bg-primary-100 hover:border-primary-300'
+  );
+
+  // Determine contribution type badge colors based on theme
+  const contributionTypeBadgeClasses = $derived(
+    colorTheme === 'orange'
+      ? 'bg-orange-100 text-orange-800'
+      : colorTheme === 'sky'
+      ? 'bg-sky-100 text-sky-800'
+      : 'bg-primary-100 text-primary-800'
   );
 
   const formatDate = (dateString) => {
@@ -44,6 +56,15 @@
     } catch (e) {
       return dateString;
     }
+  };
+
+  const toggleExpanded = (highlightId) => {
+    if (expandedHighlights.has(highlightId)) {
+      expandedHighlights.delete(highlightId);
+    } else {
+      expandedHighlights.add(highlightId);
+    }
+    expandedHighlights = new Set(expandedHighlights); // Trigger reactivity
   };
 
   async function fetchHighlights() {
@@ -56,7 +77,11 @@
       
       if (userId) {
         // Fetch user-specific highlights
-        response = await usersAPI.getUserHighlights(userId, { limit });
+        const params = { limit };
+        if (filterCategory && filterCategory !== 'global') {
+          params.category = filterCategory;
+        }
+        response = await usersAPI.getUserHighlights(userId, params);
       } else if (contributionTypeId) {
         // Fetch contribution type specific highlights
         response = await contributionsAPI.getContributionTypeHighlights(contributionTypeId);
@@ -72,7 +97,7 @@
       highlights = response.data || [];
       loading = false;
     } catch (err) {
-      error = err.message || 'Failed to load featured contributions';
+      error = err.message || 'Failed to load highlighted contributions';
       loading = false;
     }
   }
@@ -137,7 +162,7 @@
       <div class="py-4">
         <div>
           <p class="text-sm text-gray-700 mb-3">
-            <span class="font-heading font-semibold text-gray-900">Get Highlighted!</span> Submit impactful or pioneering work to get featured.
+            <span class="font-heading font-semibold text-gray-900">Get Highlighted!</span> Submit impactful or pioneering work to get highlighted.
           </p>
           <button
             onclick={() => push('/submit-contribution')}
@@ -156,7 +181,7 @@
           <svg class="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
           </svg>
-          <p class="text-sm text-gray-500">No featured contributions yet</p>
+          <p class="text-sm text-gray-500">No highlighted contributions yet</p>
         </div>
       </div>
     {/if}
@@ -164,7 +189,7 @@
     <!-- Default card style (used in Dashboard) - Use ContributionCard -->
     <div class="space-y-3">
       {#each highlights as highlight}
-        <ContributionCard 
+        <ContributionCard
           contribution={{
             id: highlight.id,
             contribution_type: highlight.contribution_type,
@@ -196,11 +221,19 @@
               title: highlight.title,
               description: highlight.description
             },
+            mission: highlight.mission_name ? {
+              id: highlight.mission_id,
+              name: highlight.mission_name
+            } : null,
             count: 1,
             category: highlight.category || category || $currentCategory
           }}
+          submission={{
+            evidence_items: highlight.contribution_details?.evidence_items || [],
+            notes: highlight.contribution_details?.notes
+          }}
           showUser={true}
-          showExpand={false}
+          showExpand={true}
           category={category || $currentCategory}
         />
       {/each}
@@ -217,10 +250,47 @@
         </div>
         <div class="space-y-3">
           {#each highlights as highlight}
-          <div class="border-l-4 border-yellow-400 pl-4 py-2">
-          <h3 class="font-semibold text-gray-900">{highlight.title}</h3>
-          <p class="text-sm text-gray-600 mt-1">{highlight.description}</p>
-          <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
+          {@const hasEvidence = highlight.contribution_details?.evidence_items?.length > 0}
+          {@const isExpanded = expandedHighlights.has(highlight.id)}
+          <div class="border-l-4 border-yellow-400 pl-4 py-2 relative">
+            {#if hasEvidence}
+              <button
+                onclick={() => toggleExpanded(highlight.id)}
+                class="absolute top-2 right-0 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                title="{isExpanded ? 'Hide' : 'Show'} evidence"
+              >
+                <svg
+                  class="w-4 h-4 transition-transform {isExpanded ? 'rotate-180' : ''}"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            {/if}
+            <h3 class="font-semibold text-gray-900 pr-6">{highlight.title}</h3>
+            <div class="markdown-content text-sm text-gray-600 mt-1">{@html parseMarkdown(highlight.description)}</div>
+            {#if hasEvidence && isExpanded}
+              <div class="mt-2">
+                <h5 class="text-xs font-medium text-gray-700 mb-1">Evidence</h5>
+                <ul class="space-y-1">
+                  {#each highlight.contribution_details.evidence_items as evidence}
+                    <li class="text-xs text-gray-600">
+                      {#if evidence.description}
+                        • {evidence.description}
+                      {/if}
+                      {#if evidence.url}
+                        <a href={evidence.url} target="_blank" class="text-primary-600 underline ml-1">
+                          View URL
+                        </a>
+                      {/if}
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+            {/if}
+            <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
             <Avatar
               user={{
                 name: highlight.user_name,
@@ -235,7 +305,7 @@
               size="xs"
               clickable={true}
             />
-            <button 
+            <button
               class="hover:text-purple-600"
               onclick={() => push(`/participant/${highlight.user_address}`)}
             >
@@ -245,6 +315,28 @@
             <span>{formatDate(highlight.contribution_date)}</span>
             <span>•</span>
             <span class="font-semibold text-purple-600">{highlight.contribution_points} pts</span>
+            <span>•</span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {contributionTypeBadgeClasses}">
+              {highlight.contribution_type_name || 'Contribution'}
+            </span>
+            {#if highlight.mission_name}
+              <span>•</span>
+              <Badge
+                badge={{
+                  id: null,
+                  name: highlight.mission_name,
+                  description: '',
+                  points: 0,
+                  actionId: null,
+                  actionName: '',
+                  evidenceUrl: ''
+                }}
+                color="indigo"
+                size="sm"
+                clickable={false}
+                bold={false}
+              />
+            {/if}
           </div>
         </div>
           {/each}
@@ -255,11 +347,48 @@
     <!-- Highlight style (used in ParticipantProfile) -->
     <div class="space-y-4">
       {#each highlights as highlight}
-        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+        {@const hasEvidence = highlight.contribution_details?.evidence_items?.length > 0}
+        {@const isExpanded = expandedHighlights.has(highlight.id)}
+        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 relative">
+          {#if hasEvidence}
+            <button
+              onclick={() => toggleExpanded(highlight.id)}
+              class="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+              title="{isExpanded ? 'Hide' : 'Show'} evidence"
+            >
+              <svg
+                class="w-5 h-5 transition-transform {isExpanded ? 'rotate-180' : ''}"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          {/if}
           <div class="flex justify-between items-start">
-            <div class="flex-1">
+            <div class="flex-1 pr-8">
               <h4 class="text-lg font-semibold text-gray-900">{highlight.title}</h4>
-              <p class="mt-2 text-sm text-gray-700">{highlight.description}</p>
+              <div class="markdown-content mt-2 text-sm text-gray-700">{@html parseMarkdown(highlight.description)}</div>
+              {#if hasEvidence && isExpanded}
+                <div class="mt-3 pt-3 border-t border-yellow-200">
+                  <h5 class="text-xs font-medium text-gray-700 mb-1">Evidence</h5>
+                  <ul class="space-y-1">
+                    {#each highlight.contribution_details.evidence_items as evidence}
+                      <li class="text-xs text-gray-600">
+                        {#if evidence.description}
+                          • {evidence.description}
+                        {/if}
+                        {#if evidence.url}
+                          <a href={evidence.url} target="_blank" class="text-primary-600 underline ml-1">
+                            View URL
+                          </a>
+                        {/if}
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
               <div class="mt-3 flex items-center gap-4 text-xs text-gray-600">
                 <div class="flex items-center gap-2">
                   <Avatar
@@ -283,9 +412,26 @@
                     {highlight.user_name || `${highlight.user_address.slice(0, 6)}...${highlight.user_address.slice(-4)}`}
                   </button>
                 </div>
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {contributionTypeBadgeClasses}">
                   {highlight.contribution_type_name || 'Contribution'}
                 </span>
+                {#if highlight.mission_name}
+                  <Badge
+                    badge={{
+                      id: null,
+                      name: highlight.mission_name,
+                      description: '',
+                      points: 0,
+                      actionId: null,
+                      actionName: '',
+                      evidenceUrl: ''
+                    }}
+                    color="indigo"
+                    size="sm"
+                    clickable={false}
+                    bold={false}
+                  />
+                {/if}
                 <span>{highlight.contribution_points} points</span>
                 <span>{formatDate(highlight.contribution_date)}</span>
               </div>

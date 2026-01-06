@@ -17,11 +17,12 @@ class GlobalLeaderboardMultiplierSerializer(serializers.ModelSerializer):
 class LeaderboardEntrySerializer(serializers.ModelSerializer):
     user_details = serializers.SerializerMethodField()
     referral_points = serializers.SerializerMethodField()
+    active_validators_count = serializers.SerializerMethodField()
 
     class Meta:
         model = LeaderboardEntry
-        fields = ['id', 'user', 'user_details', 'type', 'total_points', 'rank', 'graduation_date', 'referral_points', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'type', 'total_points', 'rank', 'graduation_date', 'referral_points', 'created_at', 'updated_at']
+        fields = ['id', 'user', 'user_details', 'type', 'total_points', 'rank', 'graduation_date', 'referral_points', 'active_validators_count', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'type', 'total_points', 'rank', 'graduation_date', 'referral_points', 'active_validators_count', 'created_at', 'updated_at']
 
     def get_user_details(self, obj):
         """
@@ -45,3 +46,28 @@ class LeaderboardEntrySerializer(serializers.ModelSerializer):
             }
         except ReferralPoints.DoesNotExist:
             return None
+
+    def get_active_validators_count(self, obj):
+        """
+        Get count of active validator wallets for this user's validator.
+        Returns null if user has no validator wallets linked, otherwise returns the active count.
+        Uses annotated values from queryset to avoid N+1 queries.
+        """
+        # Use annotated values if available (from optimized queryset)
+        if hasattr(obj, '_total_validators_count') and hasattr(obj, '_active_validators_count'):
+            # If no validator wallets at all, return null
+            if obj._total_validators_count == 0:
+                return None
+            return obj._active_validators_count
+
+        # Fallback to query if annotation not available
+        if not hasattr(obj.user, 'validator') or obj.user.validator is None:
+            return None
+        from validators.models import ValidatorWallet
+        total = ValidatorWallet.objects.filter(operator=obj.user.validator).count()
+        if total == 0:
+            return None
+        return ValidatorWallet.objects.filter(
+            operator=obj.user.validator,
+            status='active'
+        ).count()

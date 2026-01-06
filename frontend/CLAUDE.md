@@ -370,6 +370,9 @@ const routes = {
     - Disconnect - Logs out
   - Reactively updates name from `userStore`
 - `SubmitContribution.svelte` - Contribution form (supports URL and description evidence only - no file uploads)
+  - Includes Google reCAPTCHA v2 verification for spam prevention
+  - reCAPTCHA token validated on backend before submission
+  - Uses VITE_RECAPTCHA_SITE_KEY from environment (falls back to test key)
 - `EditSubmission.svelte` - Edit submitted contributions (supports URL and description evidence only - no file uploads)
 - `EditProfile.svelte` - User profile editing (name and node version)
 - `Profile.svelte` - Public participant profile view
@@ -489,6 +492,7 @@ Set in `.env` file:
 - `VITE_VALIDATOR_RPC_URL` - Blockchain RPC endpoint for Asimov testnet
 - `VITE_VALIDATOR_CONTRACT_ADDRESS` - Validator contract address
 - `VITE_EXPLORER_URL` - Blockchain explorer URL
+- `VITE_RECAPTCHA_SITE_KEY` - Google reCAPTCHA site key (required - use test key from .env.example for development)
 
 ## Common Commands
 ```bash
@@ -534,7 +538,7 @@ npm run preview
 ### Component Card Wrappers
 **IMPORTANT**: When using reusable components in pages, do NOT wrap them in additional card containers.
 
-Components like `RecentContributions`, `FeaturedContributions`, `UserContributions`, etc. already include their own styling and structure. Adding wrapper cards creates unnecessary nesting and visual clutter.
+Components like `RecentContributions`, `HighlightedContributions`, `UserContributions`, etc. already include their own styling and structure. Adding wrapper cards creates unnecessary nesting and visual clutter.
 
 ```javascript
 // ❌ WRONG - Don't wrap components in cards
@@ -546,7 +550,7 @@ Components like `RecentContributions`, `FeaturedContributions`, `UserContributio
 <RecentContributions />
 
 // ✅ CORRECT - Components can have className for spacing
-<FeaturedContributions className="mb-6" />
+<HighlightedContributions className="mb-6" />
 ```
 
 The only exception is when you need to group multiple related elements that aren't already in a component.

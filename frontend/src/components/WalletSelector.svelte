@@ -209,7 +209,6 @@
   async function selectWallet(wallet) {
     // Prevent double connections
     if (isConnecting) {
-      console.log('Connection already in progress');
       return;
     }
     
@@ -235,7 +234,6 @@
       
       // Check if user aborted
       if (connectionAborted) {
-        console.log('Connection aborted by user');
         return;
       }
       
@@ -268,7 +266,6 @@
       
       // Check again if user aborted before calling onSelect
       if (connectionAborted) {
-        console.log('Connection aborted by user');
         return;
       }
       
@@ -293,7 +290,7 @@
       
       // Only show error if not aborted and not user rejection
       if (!connectionAborted && !isUserRejection && error?.message !== 'Connection aborted by user') {
-        console.error('Wallet connection error:', error);
+        showError('Failed to connect wallet. Please try again.');
       }
     } finally {
       // Always clear connecting state

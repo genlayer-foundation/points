@@ -3,6 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { marked } from 'marked';
   import { contributionsAPI } from '../lib/api';
+  import { showError } from '../lib/toastStore';
   import { currentCategory } from '../stores/category.js';
   import { getPioneerContributionsColors } from '../lib/categoryColors.js';
   import Icons from './Icons.svelte';
@@ -59,7 +60,7 @@
       // Initialize countdowns
       updateCountdowns();
     } catch (err) {
-      console.error('Error loading missions:', err);
+      showError('Failed to load missions. Please refresh the page.');
       missions = [];
     } finally {
       loading = false;
@@ -113,7 +114,6 @@
     try {
       return marked.parse(text);
     } catch (error) {
-      console.error('Error parsing markdown:', error);
       return text;
     }
   }
@@ -287,7 +287,7 @@
           {/if}
 
           <button
-            onclick={() => push(`/submit-contribution?type=${mission.contribution_type}`)}
+            onclick={() => push(`/submit-contribution?mission=${mission.id}`)}
             class="ml-auto flex-shrink-0 text-sm font-normal {colors.titleText} {colors.titleTextHover} transition-colors"
           >
             Submit →

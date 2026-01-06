@@ -3,6 +3,7 @@
   import { authState } from '../lib/auth';
   import { onMount } from 'svelte';
   import { showWarning, showError } from '../lib/toastStore';
+  import { FAUCET_URL } from '../lib/config';
   import GitHubLink from './GitHubLink.svelte';
   
   let {
@@ -110,7 +111,7 @@
         if (key) localStorage.setItem(key, 'true');
       }
     } catch (error) {
-      console.error('Error checking networks:', error);
+      // Failed to check networks
     } finally {
       isCheckingNetworks = false;
     }
@@ -148,7 +149,6 @@
         if (key) localStorage.setItem(key, 'true');
       }
     } catch (error) {
-      console.error('Error adding network:', error);
       if (error.code !== 4001) { // User didn't reject
         showError('Failed to add network. Please try manually.');
       }
@@ -463,7 +463,7 @@
               {:else}
                 <span>Visit the faucet to get testnet tokens</span>
               {/if}
-              {#if showActions && onRefreshBalance && testnetBalance !== null && hasAsimovNetwork}
+              {#if showActions && onRefreshBalance && hasAsimovNetwork}
                 <button
                   onclick={onRefreshBalance}
                   disabled={isRefreshingBalance}
@@ -487,7 +487,7 @@
         </div>
         {#if showActions}
           <a
-            href="https://genlayer-faucet.vercel.app/"
+            href={FAUCET_URL}
             target="_blank"
             rel="noopener noreferrer"
             class="px-3 py-1 bg-orange-500 text-white text-xs font-medium rounded-md hover:bg-orange-600 transition-colors flex items-center whitespace-nowrap"

@@ -230,16 +230,16 @@
           <h3 class="text-xs font-medium uppercase tracking-wider flex-1 text-left {$currentCategory === 'steward' ? 'text-green-700' : 'text-gray-700'}">
             STEWARDS
           </h3>
-          {#if $userStore.user?.steward}
-            <Icon 
+  <Icon
               name={getActiveSection() === 'steward' ? "chevronDown" : "chevronRight"}
               size="xs"
               className="text-gray-400 transition-transform duration-200"
             />
-          {/if}
         </button>
-        {#if getActiveSection() === 'steward' && $userStore.user?.steward}
+        {#if getActiveSection() === 'steward'}
         <div class="space-y-0.5 pl-2">
+          <!-- Steward-only links -->
+          {#if $userStore.user?.steward}
           <a
             href="/stewards/submissions"
             onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
@@ -272,6 +272,7 @@
             />
             Manage Users
           </a>
+          {/if}
         </div>
         {/if}
       </div>
@@ -483,8 +484,9 @@
               STEWARDS
             </h3>
           </button>
-          {#if $userStore.user?.steward}
           <div class="space-y-0.5 pl-2">
+            <!-- Steward-only links -->
+            {#if $userStore.user?.steward}
             <a
               href="/stewards/submissions"
               onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
@@ -517,8 +519,8 @@
               />
               Manage Users
             </a>
+            {/if}
           </div>
-          {/if}
         </div>
 
         <!-- Supporters section -->

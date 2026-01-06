@@ -4,6 +4,7 @@
   import { getCategoryColors } from '../lib/categoryColors';
   import Avatar from './Avatar.svelte';
   import Icons from './Icons.svelte';
+  import { parseMarkdown } from '../lib/markdownLoader.js';
 
   let {
     contribution,
@@ -19,13 +20,10 @@
   let isExpanded = $state(false);
   
   // Determine category and colors
-  // Use passed category prop first, then try multiple paths where category might be stored
+  // Category is always in contribution_type_details.category (from backend serializer)
+  // category prop can override it for mixed lists
   let actualCategory = $derived(
-    category ||
-    contribution?.contribution_type_details?.category || 
-    contribution?.contribution_type?.category ||
-    contribution?.category || 
-    'global'
+    category || contribution?.contribution_type_details?.category || 'global'
   );
   
   let categoryColors = $derived(getCategoryColors(actualCategory));
@@ -167,7 +165,7 @@
         {#if submission?.notes}
           <div>
             <h5 class="text-xs font-medium text-gray-700 mb-1">Notes</h5>
-            <p class="text-xs text-gray-600">{submission.notes}</p>
+            <div class="markdown-content text-xs text-gray-600">{@html parseMarkdown(submission.notes)}</div>
           </div>
         {/if}
 
@@ -218,7 +216,7 @@
                 {#if item.notes}
                   <div class="mb-2">
                     <h5 class="text-xs font-medium text-gray-700 mb-1">Notes</h5>
-                    <p class="text-xs text-gray-600">{item.notes}</p>
+                    <div class="markdown-content text-xs text-gray-600">{@html parseMarkdown(item.notes)}</div>
                   </div>
                 {/if}
                 {#if item.evidence_items?.length > 0}
@@ -260,10 +258,22 @@
           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
         </svg>
         <div class="flex-1">
-          <h4 class="text-sm font-semibold text-yellow-900 mb-1">Featured: {contribution.highlight.title}</h4>
-          <p class="text-sm text-yellow-800">{contribution.highlight.description}</p>
+          <h4 class="text-sm font-semibold text-yellow-900 mb-1">Highlighted: {contribution.highlight.title}</h4>
+          <div class="markdown-content text-sm text-yellow-800">{@html parseMarkdown(contribution.highlight.description)}</div>
         </div>
       </div>
     </div>
   {/if}
 </div>
+
+<style>
+  .markdown-content :global(ul) {
+    list-style-type: disc;
+    margin-left: 1.5rem;
+  }
+
+  .markdown-content :global(ol) {
+    list-style-type: decimal;
+    margin-left: 1.5rem;
+  }
+</style>

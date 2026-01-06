@@ -25,10 +25,9 @@ function createUserStore() {
         }));
         return userData;
       } catch (err) {
-        console.error('Error loading user:', err);
-        update(state => ({ 
-          ...state, 
-          user: null, 
+        update(state => ({
+          ...state,
+          user: null,
           loading: false,
           error: err.message || 'Failed to load user data'
         }));

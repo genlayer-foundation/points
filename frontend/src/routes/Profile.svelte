@@ -3,7 +3,7 @@
   import { push, querystring } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import RecentContributions from '../components/RecentContributions.svelte';
-  import FeaturedContributions from '../components/FeaturedContributions.svelte';
+  import HighlightedContributions from '../components/HighlightedContributions.svelte';
   import ValidatorStatus from '../components/ValidatorStatus.svelte';
   import ProfileStats from '../components/ProfileStats.svelte';
   import ContributionBreakdown from '../components/ContributionBreakdown.svelte';
@@ -11,11 +11,12 @@
   import ReferralSection from '../components/ReferralSection.svelte';
   import Icons from '../components/Icons.svelte';
   import Tooltip from '../components/Tooltip.svelte';
-  import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, creatorAPI, getCurrentUser, githubAPI } from '../lib/api';
+  import { usersAPI, statsAPI, leaderboardAPI, journeyAPI, creatorAPI, getCurrentUser, githubAPI, validatorsAPI } from '../lib/api';
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
   import Avatar from '../components/Avatar.svelte';
   import { showSuccess, showWarning } from '../lib/toastStore';
+  import { parseMarkdown } from '../lib/markdownLoader.js';
 
   // Import route params from svelte-spa-router
   import { params } from 'svelte-spa-router';
@@ -59,6 +60,8 @@
   let referralData = $state(null);
   let loadingReferrals = $state(false);
   let hasShownStatsErrorToast = $state(false);
+  let validatorWallets = $state([]);
+  let loadingValidatorWallets = $state(false);
 
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
@@ -158,7 +161,6 @@
   
   $effect(() => {
     const currentParams = $params;
-    console.log("ParticipantProfile params:", currentParams);
 
     // Check for success message from profile update
     const savedMessage = sessionStorage.getItem('profileUpdateSuccess');
@@ -175,10 +177,8 @@
     }
 
     if (currentParams && currentParams.address) {
-      console.log("Using params.address:", currentParams.address);
       fetchParticipantData(currentParams.address);
     } else {
-      console.log("No valid address found");
       error = "No valid wallet address provided";
       loading = false;
     }
@@ -212,7 +212,6 @@
       const result = await getValidatorBalance(participant.address);
       testnetBalance = parseFloat(result.formatted);
     } catch (err) {
-      console.error('Failed to refresh balance:', err);
       testnetBalance = 0;
     } finally {
       isRefreshingBalance = false;
@@ -235,13 +234,28 @@
         referralData = participant.referral_details;
       }
     } catch (err) {
-      console.error('Failed to fetch referrals:', err);
       referralData = null;
     } finally {
       loadingReferrals = false;
     }
   }
-  
+
+  async function fetchValidatorWallets() {
+    if (loadingValidatorWallets || !participant?.address) {
+      return;
+    }
+
+    loadingValidatorWallets = true;
+    try {
+      const response = await validatorsAPI.getValidatorWalletsByUserAddress(participant.address);
+      validatorWallets = response.data?.wallets || [];
+    } catch (err) {
+      validatorWallets = [];
+    } finally {
+      loadingValidatorWallets = false;
+    }
+  }
+
   async function claimBuilderWelcome() {
     if (!$authState.isAuthenticated) {
       document.querySelector('.auth-button')?.click();
@@ -256,7 +270,7 @@
       const updatedUser = await getCurrentUser();
       participant = updatedUser;
     } catch (err) {
-      console.error('Failed to claim builder contribution:', err);
+      // Failed to claim builder contribution
     } finally {
       isClaimingBuilderBadge = false;
     }
@@ -283,7 +297,6 @@
         participant = updatedUser;
       }
     } catch (err) {
-      console.error('Error joining as creator:', err);
       error = err.response?.data?.message || 'Failed to join as supporter';
     }
   }
@@ -311,7 +324,6 @@
         const updatedUser = await getCurrentUser();
         participant = updatedUser;
       } else {
-        console.error('Failed to complete builder journey:', err);
         // Reset flag to allow retry
         hasCalledComplete = false;
       }
@@ -332,7 +344,6 @@
       hasStarredRepo = response.data.has_starred;
       repoToStar = response.data.repo || 'genlayerlabs/genlayer-project-boilerplate';
     } catch (err) {
-      console.error('Failed to check repo star:', err);
       hasStarredRepo = false;
     } finally {
       isCheckingRepoStar = false;
@@ -345,7 +356,6 @@
       const response = await usersAPI.getDeploymentStatus();
       hasDeployedContract = response.data.has_deployments || false;
     } catch (err) {
-      console.error('Failed to check deployments:', err);
       hasDeployedContract = false;
     } finally {
       isCheckingDeployments = false;
@@ -360,13 +370,9 @@
     try {
       loading = true;
       error = null;
-      
-      console.log("Fetching participant data for address:", participantAddress);
-      
+
       // Fetch participant details
       const res = await usersAPI.getUserByAddress(participantAddress);
-      console.log("Participant data received:", res.data);
-      console.log("Leaderboard entry data:", res.data.leaderboard_entry);
       participant = res.data;
       
       // Set loading to false immediately to show UI progressively
@@ -379,7 +385,6 @@
           balance = result;
           loadingBalance = false;
         }).catch(err => {
-          console.error('Failed to fetch balance:', err);
           loadingBalance = false;
           // Don't show error, just leave balance as null
         });
@@ -387,39 +392,31 @@
       
       // Fetch leaderboard entry asynchronously
       leaderboardAPI.getLeaderboardEntry(participantAddress).then(leaderboardRes => {
-        console.log("Leaderboard data received:", leaderboardRes.data);
-        
         // Store all leaderboard entries (user can be on multiple leaderboards)
         if (leaderboardRes.data && Array.isArray(leaderboardRes.data)) {
           participant.leaderboard_entries = leaderboardRes.data;
-          
+
           // Find the waitlist entry if they're on the waitlist
-          participant.waitlist_entry = leaderboardRes.data.find(entry => 
+          participant.waitlist_entry = leaderboardRes.data.find(entry =>
             entry.type === 'validator-waitlist'
           );
-          
+
           // Find the validator entry if they're a validator
-          participant.validator_entry = leaderboardRes.data.find(entry => 
+          participant.validator_entry = leaderboardRes.data.find(entry =>
             entry.type === 'validator'
           );
-          
-          console.log("Added leaderboard entries from separate request:", participant.leaderboard_entries);
-          console.log("Waitlist entry:", participant.waitlist_entry);
-          console.log("Validator entry:", participant.validator_entry);
         }
       }).catch(leaderboardError => {
-        console.warn('Leaderboard API error:', leaderboardError);
+        // Leaderboard API error silently handled
       });
       
       // Fetch participant stats asynchronously
       statsAPI.getUserStats(participantAddress).then(statsRes => {
         if (statsRes.data) {
           contributionStats = statsRes.data;
-          console.log("Stats data received:", statsRes.data);
         }
-      }).catch(statsError => {
-        console.warn('Stats API error, will use basic data:', statsError);
-        statsError = statsError.message || 'Failed to load participant statistics';
+      }).catch(statsErr => {
+        statsError = statsErr.message || 'Failed to load participant statistics';
       });
       
       // Fetch validator-specific stats if user has validator waitlist
@@ -427,27 +424,30 @@
         statsAPI.getUserStats(participantAddress, 'validator').then(validatorStatsRes => {
           if (validatorStatsRes.data) {
             validatorStats = validatorStatsRes.data;
-            console.log("Validator stats data received:", validatorStatsRes.data);
           }
         }).catch(error => {
-          console.warn('Validator stats API error:', error);
+          // Validator stats API error silently handled
         });
       }
-      
+
       // Fetch builder-specific stats if user has builder welcome
       if (participant.has_builder_welcome) {
         statsAPI.getUserStats(participantAddress, 'builder').then(builderStatsRes => {
           if (builderStatsRes.data) {
             builderStats = builderStatsRes.data;
-            console.log("Builder stats data received:", builderStatsRes.data);
           }
         }).catch(error => {
-          console.warn('Builder stats API error:', error);
+          // Builder stats API error silently handled
         });
       }
 
       // Fetch referral data for all profiles
       fetchReferrals();
+
+      // Fetch validator wallets if user has validator profile
+      if (participant.validator) {
+        fetchValidatorWallets();
+      }
 
       // Load additional data asynchronously for own profile
       if (isOwnProfile) {
@@ -457,7 +457,6 @@
           getValidatorBalance(participant.address).then(result => {
             testnetBalance = parseFloat(result.formatted);
           }).catch(err => {
-            console.error('Failed to check testnet balance:', err);
             testnetBalance = 0;
           });
 
@@ -465,7 +464,6 @@
           usersAPI.getDeploymentStatus().then(deploymentResult => {
             hasDeployedContract = deploymentResult.data.has_deployments || false;
           }).catch(err => {
-            console.error('Failed to check deployments:', err);
             hasDeployedContract = false;
           });
         }
@@ -501,6 +499,17 @@
       return format(new Date(dateString), 'MMM d, yyyy');
     } catch (e) {
       return dateString;
+    }
+  }
+
+  function formatStake(stakeWei) {
+    if (!stakeWei) return '0 GEN';
+    try {
+      const stake = BigInt(stakeWei);
+      const gen = Number(stake / BigInt(10 ** 18));
+      return `${gen.toLocaleString()} GEN`;
+    } catch {
+      return '0 GEN';
     }
   }
 
@@ -591,6 +600,15 @@
                     Supporter
                   </span>
                 {/if}
+              {/if}
+              <!-- Working Group Member badge -->
+              {#if participant.working_groups && participant.working_groups.length > 0}
+                <button
+                  onclick={() => push('/stewards')}
+                  class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors cursor-pointer"
+                >
+                  Working Group Member
+                </button>
               {/if}
             </div>
             
@@ -816,8 +834,8 @@
       </div>
     {/if}
     
-    <!-- Steward Section -->
-    {#if participant.steward}
+    <!-- Ecosystem Steward Section (shows if steward OR working group member) -->
+    {#if participant.steward || (participant.working_groups && participant.working_groups.length > 0)}
       <div class="bg-green-50/30 rounded-lg shadow-sm border border-green-100 overflow-hidden mb-6">
         <!-- Header -->
         <div class="bg-green-100/50 px-5 py-3 border-b border-green-200">
@@ -826,42 +844,104 @@
             Ecosystem Steward
           </h2>
         </div>
-        
+
         <!-- Content -->
-        <div class="p-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Role Stat -->
-            <div class="flex items-center">
-              <div class="p-3 bg-green-100 rounded-lg mr-4">
-                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
-                </svg>
-              </div>
-              <div>
-                <p class="text-sm text-gray-500">Role</p>
-                <p class="text-2xl font-bold text-gray-900">Admin</p>
-              </div>
-            </div>
-            
-            <!-- Since Date Stat -->
-            {#if participant.steward?.created_at}
+        <div class="p-4 space-y-4">
+          <!-- Steward Stats (if steward) -->
+          {#if participant.steward}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Role Stat -->
               <div class="flex items-center">
                 <div class="p-3 bg-green-100 rounded-lg mr-4">
                   <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
                   </svg>
                 </div>
                 <div>
-                  <p class="text-sm text-gray-500">Steward Since</p>
-                  <p class="text-2xl font-bold text-gray-900">{formatDate(participant.steward.created_at)}</p>
+                  <p class="text-sm text-gray-500">Role</p>
+                  <p class="text-2xl font-bold text-gray-900">Admin</p>
                 </div>
               </div>
-            {/if}
-          </div>
+
+              <!-- Since Date Stat -->
+              {#if participant.steward?.created_at}
+                <div class="flex items-center">
+                  <div class="p-3 bg-green-100 rounded-lg mr-4">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-500">Steward Since</p>
+                    <p class="text-2xl font-bold text-gray-900">{formatDate(participant.steward.created_at)}</p>
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/if}
+
+          <!-- Working Groups (only for non-steward WG members) -->
+          {#if !participant.steward && participant.working_groups && participant.working_groups.length > 0}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Role Stat -->
+              <div class="flex items-center">
+                <div class="p-3 bg-green-100 rounded-lg mr-4">
+                  <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-500">Role</p>
+                  <p class="text-2xl font-bold text-gray-900">Working Group Member</p>
+                </div>
+              </div>
+
+              <!-- Member Since Stat -->
+              {#if participant.working_groups.some(g => g.joined_at)}
+                <div class="flex items-center">
+                  <div class="p-3 bg-green-100 rounded-lg mr-4">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-500">Member Since</p>
+                    <p class="text-2xl font-bold text-gray-900">{format(new Date(Math.min(...participant.working_groups.filter(g => g.joined_at).map(g => new Date(g.joined_at).getTime()))), 'MMM yyyy')}</p>
+                  </div>
+                </div>
+              {/if}
+            </div>
+
+            <!-- Working Groups List -->
+            <div class="mt-4 pt-4 border-t border-green-100">
+              <h3 class="text-sm font-medium text-gray-700 mb-3">Member of</h3>
+              <div class="space-y-2">
+                {#each participant.working_groups as group}
+                  <div class="flex items-start gap-3 p-3 bg-white rounded-lg border border-green-100">
+                    <span class="text-lg flex-shrink-0">{group.icon || '👥'}</span>
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2">
+                        <p class="text-sm font-medium text-gray-900">{group.name}</p>
+                        <span class="text-xs text-gray-500 flex items-center gap-1">
+                          {group.participant_count || 0}
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                          </svg>
+                        </span>
+                      </div>
+                      {#if group.description}
+                        <div class="markdown-content text-xs text-gray-500 mt-0.5">{@html parseMarkdown(group.description)}</div>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
-    
+
     <!-- Validator Section -->
     {#if participant.validator}
       <div class="bg-sky-50/30 rounded-lg shadow-sm border border-sky-100 overflow-hidden mb-6">
@@ -894,7 +974,7 @@
             <h3 class="text-base font-semibold text-gray-900 mb-3">Testnet Asimov</h3>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              <!-- Status -->
+              <!-- Active Validators Count -->
               <div class="flex items-center">
                 <div class="p-3 bg-sky-100 rounded-lg mr-4">
                   <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -902,8 +982,14 @@
                   </svg>
                 </div>
                 <div>
-                  <p class="text-sm text-gray-500">Status</p>
-                  <ValidatorStatus address={participant.address} />
+                  <p class="text-sm text-gray-500">Validators</p>
+                  <p class="text-xl font-bold text-gray-900">
+                    {#if loadingValidatorWallets}
+                      <span class="text-gray-400">Loading...</span>
+                    {:else}
+                      {participant.validator?.active_validators_count || 0} Active
+                    {/if}
+                  </p>
                 </div>
               </div>
               
@@ -970,10 +1056,10 @@
         {#if !isValidatorOnly}
           <!-- Highlights Section -->
           <div class="px-4 mt-6">
-            <FeaturedContributions
+            <HighlightedContributions
               userId={participant.address}
               limit={5}
-              title="Featured Contributions"
+              title="Highlighted Contributions"
               cardStyle="highlight"
               showViewAll={false}
               isOwnProfile={isOwnProfile}
@@ -1007,10 +1093,80 @@
               viewAllText="View All →"
             />
           </div>
+
+          <!-- Validator Wallets List -->
+          {#if validatorWallets.length > 0 || loadingValidatorWallets}
+            <div class="px-4 mt-6 pb-6">
+              <h3 class="text-base font-semibold text-gray-900 mb-3">Validator Wallets</h3>
+              {#if loadingValidatorWallets}
+                <div class="text-center py-4">
+                  <span class="text-gray-500">Loading validator wallets...</span>
+                </div>
+              {:else}
+                <div class="space-y-3">
+                  {#each validatorWallets as wallet}
+                    <div class="p-4 bg-white rounded-lg border border-gray-200">
+                      <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                          <span class="font-mono text-sm text-gray-900">
+                            {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+                          </span>
+                          <button
+                            onclick={() => {
+                              navigator.clipboard.writeText(wallet.address);
+                              showSuccess('Address copied to clipboard!');
+                            }}
+                            title="Copy address"
+                            class="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100 transition-colors"
+                          >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                            </svg>
+                          </button>
+                          <a
+                            href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${wallet.address}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="text-gray-400 hover:text-gray-600"
+                            title="View in Explorer"
+                          >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                            </svg>
+                          </a>
+                        </div>
+                        {#if wallet.status === 'active'}
+                          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Active
+                          </span>
+                        {:else if wallet.status === 'quarantined'}
+                          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            Quarantined
+                          </span>
+                        {:else if wallet.status === 'banned'}
+                          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            Banned
+                          </span>
+                        {:else if wallet.status === 'inactive'}
+                          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Inactive
+                          </span>
+                        {/if}
+                      </div>
+                      <div class="flex items-center gap-4 text-sm text-gray-600">
+                        <span>vStake: <span class="font-medium text-gray-900">{formatStake(wallet.v_stake)}</span></span>
+                        <span>dStake: <span class="font-medium text-gray-900">{formatStake(wallet.d_stake)}</span></span>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/if}
         {/if}
       </div>
     {/if}
-    
+
     <!-- Builder Card -->
     {#if participant.builder}
       <div class="bg-orange-50 rounded-lg shadow-sm border border-orange-200 overflow-hidden mb-6">
@@ -1036,11 +1192,11 @@
             />
           </div>
           
-          <!-- Featured Section -->
-          <FeaturedContributions
+          <!-- Highlighted Section -->
+          <HighlightedContributions
             userId={participant.address}
             limit={3}
-            title="Featured"
+            title="Highlights"
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
@@ -1116,11 +1272,11 @@
             </div>
           {/if}
           
-          <!-- Featured Section -->
-          <FeaturedContributions
+          <!-- Highlighted Section -->
+          <HighlightedContributions
             userId={participant.address}
             limit={3}
-            title="Featured"
+            title="Highlights"
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
@@ -1210,11 +1366,11 @@
             />
           </div>
           
-          <!-- Featured Section -->
-          <FeaturedContributions
+          <!-- Highlighted Section -->
+          <HighlightedContributions
             userId={participant.address}
             limit={3}
-            title="Featured"
+            title="Highlights"
             cardStyle="compact"
             showViewAll={false}
             isOwnProfile={isOwnProfile}
@@ -1718,3 +1874,32 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .markdown-content :global(ul) {
+    list-style-type: disc;
+    margin-left: 1.5rem;
+  }
+
+  .markdown-content :global(ol) {
+    list-style-type: decimal;
+    margin-left: 1.5rem;
+  }
+
+  .markdown-content :global(a) {
+    color: #059669;
+    text-decoration: underline;
+  }
+
+  .markdown-content :global(a:hover) {
+    color: #047857;
+  }
+
+  .markdown-content :global(p) {
+    margin: 0;
+  }
+
+  .markdown-content :global(p + p) {
+    margin-top: 0.5rem;
+  }
+</style>

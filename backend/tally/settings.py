@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'drf_yasg',
     'django_filters',
+    'django_recaptcha',
     'allow_cidr',
     
     # Local apps
@@ -286,6 +287,7 @@ AUTH_USER_MODEL = 'users.User'
 # Blockchain settings
 VALIDATOR_CONTRACT_ADDRESS = get_required_env('VALIDATOR_CONTRACT_ADDRESS')
 VALIDATOR_RPC_URL = get_required_env('VALIDATOR_RPC_URL')
+FACTORY_CONTRACT_ADDRESS = os.environ.get('FACTORY_CONTRACT_ADDRESS')
 
 # AWS Health Check IPs - Allow these IPs to bypass ALLOWED_HOSTS
 # Required environment variable with AWS internal/metadata service IPs
@@ -298,3 +300,19 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # Use forwarded headers for generating URLs
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
+
+# Google reCAPTCHA settings
+# Required for contribution submission spam protection
+# For development: Use Google's test keys (see .env.example)
+# For production: Get real keys at https://www.google.com/recaptcha/admin
+RECAPTCHA_PUBLIC_KEY = get_required_env('RECAPTCHA_PUBLIC_KEY')
+RECAPTCHA_PRIVATE_KEY = get_required_env('RECAPTCHA_PRIVATE_KEY')
+
+# Silence the test key warning in development when using Google's test keys
+# In production, this warning will still appear if test keys are accidentally used
+SILENCED_SYSTEM_CHECKS = []
+if DEBUG and RECAPTCHA_PUBLIC_KEY == '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI':
+    SILENCED_SYSTEM_CHECKS.append('django_recaptcha.recaptcha_test_key_error')
+
+# Cron job authentication token for validator sync endpoint
+CRON_SYNC_TOKEN = os.environ.get('CRON_SYNC_TOKEN', '')

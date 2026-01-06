@@ -92,7 +92,25 @@ aws ssm put-parameter --name "/tally/prod/csrf_trusted_origins" --value "https:/
 aws ssm put-parameter --name "/tally/prod/siwe_domain" --value "your-domain.com" --type "String"
 aws ssm put-parameter --name "/tally/prod/validator_contract_address" --value "0x7CceE43964F70CEAEfDED4b8b07410D30d64eC37" --type "String"
 aws ssm put-parameter --name "/tally/prod/validator_rpc_url" --value "https://genlayer-testnet.rpc.caldera.xyz/http" --type "String"
+
+# reCAPTCHA configuration (required for spam protection)
+# Get keys from https://www.google.com/recaptcha/admin
+# Select "reCAPTCHA v2" > "I'm not a robot" Checkbox
+aws ssm put-parameter --name "/tally/prod/recaptcha_public_key" --value "your-recaptcha-site-key" --type "String"
+aws ssm put-parameter --name "/tally/prod/recaptcha_private_key" --value "your-recaptcha-secret-key" --type "SecureString"
 ```
+
+### For Development Environment
+
+For development/testing, you can use Google's official test keys (these always pass validation):
+
+```bash
+# Development environment uses /tally-backend/dev/* prefix
+aws ssm put-parameter --name "/tally-backend/dev/recaptcha_public_key" --value "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI" --type "String"
+aws ssm put-parameter --name "/tally-backend/dev/recaptcha_private_key" --value "6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe" --type "SecureString"
+```
+
+**Note:** All other development parameters should also use the `/tally-backend/dev/*` prefix.
 
 ## 4. Deploy Django Backend with App Runner
 

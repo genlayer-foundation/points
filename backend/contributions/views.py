@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django_filters import FilterSet, CharFilter, BooleanFilter
 from django.utils import timezone
 from django.db.models import Count, Max, F, Q
 from django.db.models.functions import Coalesce
@@ -184,6 +185,14 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             limit=limit
         )
 
+        # Prefetch evidence items to avoid N+1 queries and enable evidence display
+        highlights = highlights.select_related(
+            'contribution__user',
+            'contribution__contribution_type'
+        ).prefetch_related(
+            'contribution__evidence_items'
+        )
+
         serializer = ContributionHighlightSerializer(highlights, many=True)
         return Response(serializer.data)
     
@@ -212,7 +221,8 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             'user__validator',  # For validator info in user details
             'user__builder',    # For builder info in user details
             'contribution_type',
-            'contribution_type__category'
+            'contribution_type__category',
+            'mission'  # Avoid N+1 queries when accessing mission details
         ).prefetch_related(
             'evidence_items',  # Only queried in detail view (light serializers skip this)
             'highlights'       # Only queried in detail view (light serializers skip this)
@@ -227,11 +237,13 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         category = self.request.query_params.get('category')
         if category:
             queryset = queryset.filter(contribution_type__category__slug=category)
-            # Note: We do NOT exclude builder-welcome here because users should see
-            # their builder-welcome contribution in their recent contributions list.
-            # Builder-welcome is only excluded from:
-            # - Leaderboard calculations (in leaderboard/models.py)
-            # - ContributionType listings (in ContributionTypeViewSet above)
+
+        # Exclude onboarding contributions (builder-welcome and validator-waitlist)
+        # EXCEPT when viewing a specific user's profile (user_address is present)
+        if not user_address:
+            queryset = queryset.exclude(
+                contribution_type__slug__in=['builder-welcome', 'validator-waitlist']
+            )
 
         return queryset
 
@@ -452,6 +464,8 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             'contribution__user__steward',
             'contribution__contribution_type',
             'contribution__contribution_type__category'
+        ).prefetch_related(
+            'contribution__evidence_items'
         ).order_by('-contribution__contribution_date')[:limit]
         
         serializer = ContributionHighlightSerializer(highlights, many=True)
@@ -497,7 +511,7 @@ class SubmissionListView(ListView):
             queryset = queryset.filter(state=state_filter)
         
         # Order by creation date, newest first
-        return queryset.select_related('user', 'contribution_type', 'reviewed_by').prefetch_related('evidence_items').order_by('-created_at')
+        return queryset.select_related('user', 'contribution_type', 'reviewed_by', 'mission').prefetch_related('evidence_items').order_by('-created_at')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -597,7 +611,8 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             'contribution_type__category',
             'reviewed_by',
             'converted_contribution',
-            'user'  # Optimize user access
+            'user',  # Optimize user access
+            'mission'  # Avoid N+1 queries when accessing mission details
         ).prefetch_related(
             'evidence_items'
         ).order_by('-created_at')
@@ -614,8 +629,35 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         return context
     
     def create(self, request, *args, **kwargs):
-        """Create a new submission."""
-        serializer = self.get_serializer(data=request.data)
+        """Create a new submission with optional mission tracking."""
+        mission_id = request.data.get('mission')
+        data = request.data.copy()  # Create mutable copy for modifications
+
+        # Validate mission if provided
+        if mission_id:
+            try:
+                mission = Mission.objects.get(id=mission_id)
+                # Validate mission timing with specific error messages
+                now = timezone.now()
+                if mission.start_date and now < mission.start_date:
+                    return Response(
+                        {'error': 'This mission has not started yet.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                if mission.end_date and now > mission.end_date:
+                    return Response(
+                        {'error': 'This mission has ended.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                # Always enforce contribution_type consistency with mission
+                data['contribution_type'] = mission.contribution_type_id
+            except Mission.DoesNotExist:
+                return Response(
+                    {'error': 'Invalid mission ID.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
@@ -717,6 +759,34 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         )
 
 
+class StewardSubmissionFilterSet(FilterSet):
+    """Custom filterset for steward submission filtering."""
+    username_search = CharFilter(method='filter_username')
+    assigned_to = CharFilter(method='filter_assigned_to')
+
+    def filter_username(self, queryset, name, value):
+        """Filter by submitter name, email, or address (case-insensitive partial match)."""
+        if value:
+            return queryset.filter(
+                Q(user__name__icontains=value) |
+                Q(user__email__icontains=value) |
+                Q(user__address__icontains=value)
+            )
+        return queryset
+
+    def filter_assigned_to(self, queryset, name, value):
+        """Filter by assigned steward or unassigned."""
+        if value == 'null' or value == 'unassigned':
+            return queryset.filter(assigned_to__isnull=True)
+        elif value:
+            return queryset.filter(assigned_to_id=value)
+        return queryset
+
+    class Meta:
+        model = SubmittedContribution
+        fields = ['state', 'contribution_type', 'user']
+
+
 class StewardSubmissionViewSet(viewsets.ModelViewSet):
     """
     API endpoint for stewards to review submissions.
@@ -725,7 +795,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     authentication_classes = [EthereumAuthentication]
     permission_classes = [IsSteward]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['state', 'contribution_type', 'user']
+    filterset_class = StewardSubmissionFilterSet
     ordering_fields = ['created_at', 'contribution_date']
     ordering = ['-created_at']
 
@@ -750,7 +820,9 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'contribution_type',
             'contribution_type__category',
             'reviewed_by',
-            'converted_contribution'
+            'assigned_to',
+            'converted_contribution',
+            'mission'  # Avoid N+1 queries when accessing mission details
         ).prefetch_related('evidence_items')
 
         return queryset
@@ -797,9 +869,18 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 contribution_type=contribution_type,
                 points=serializer.validated_data['points'],
                 contribution_date=submission.contribution_date,
-                notes=submission.notes
+                notes=submission.notes,
+                mission=submission.mission
             )
-            
+
+            # Auto-grant builder status if accepting builder contribution for non-builder
+            if (contribution_type.category and contribution_type.category.slug == 'builder'
+                and not hasattr(contribution_user, 'builder')):
+                from leaderboard.models import ensure_builder_status, update_user_leaderboard_entries
+                ensure_builder_status(contribution_user, submission.contribution_date)
+                # Manually update leaderboard since ensure_builder_status uses bulk_create (no signals)
+                update_user_leaderboard_entries(contribution_user)
+
             # Copy evidence items
             for evidence in submission.evidence_items.all():
                 Evidence.objects.create(
@@ -912,6 +993,40 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             })
         
         return Response(user_data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsSteward])
+    def assign(self, request, pk=None):
+        """Assign submission to a steward."""
+        from users.models import User
+
+        submission = self.get_object()
+        steward_id = request.data.get('steward_id')
+
+        if steward_id is None:
+            # Unassign
+            submission.assigned_to = None
+            submission.save()
+            return Response({'status': 'unassigned'})
+
+        # Validate steward exists and has steward profile
+        try:
+            steward_user = User.objects.get(id=steward_id)
+            if not hasattr(steward_user, 'steward'):
+                return Response(
+                    {'error': 'User is not a steward'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Steward not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        submission.assigned_to = steward_user
+        submission.save()
+
+        serializer = self.get_serializer(submission)
+        return Response(serializer.data)
 
 
 class MissionViewSet(viewsets.ReadOnlyModelViewSet):

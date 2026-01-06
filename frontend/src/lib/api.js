@@ -119,7 +119,10 @@ export const leaderboardAPI = {
 
 // Stats API
 export const statsAPI = {
-  getDashboardStats: () => api.get('/leaderboard/stats/'),
+  getDashboardStats: (type = null) => {
+    const params = type && type !== 'global' ? { type } : {};
+    return api.get('/leaderboard/stats/', { params });
+  },
   getUserStats: (address, category = null) => {
     const params = category ? { category } : {};
     return api.get(`/leaderboard/user_stats/by-address/${address}/`, { params });
@@ -128,7 +131,13 @@ export const statsAPI = {
 
 // Validators API
 export const validatorsAPI = {
-  getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } })
+  getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } }),
+  // Validator Wallets
+  getAllValidatorWallets: (params = {}) => api.get('/validators/wallets/', { params }),
+  getValidatorWalletsByOperator: (operatorAddress) => api.get(`/validators/wallets/by-operator/${operatorAddress}/`),
+  getValidatorWalletsByUserAddress: (userAddress) => api.get(`/validators/wallets/by-user-address/${userAddress}/`),
+  getMyValidatorWallets: () => api.get('/validators/my-wallets/'),
+  linkValidatorWalletsByOperator: (operatorAddress) => api.post('/validators/link-by-operator/', { operator_address: operatorAddress })
 };
 
 // Builders API
@@ -157,22 +166,34 @@ export const githubAPI = {
 export const stewardAPI = {
   // Get all submissions for review
   getSubmissions: (params = {}) => api.get('/steward-submissions/', { params }),
-  
+
   // Get a single submission
   getSubmission: (id) => api.get(`/steward-submissions/${id}/`),
-  
+
   // Review a submission (accept, reject, or request more info)
   reviewSubmission: (id, data) => api.post(`/steward-submissions/${id}/review/`, data),
-  
+
   // Get all users for reassignment dropdown
   getUsers: () => api.get('/steward-submissions/users/'),
-  
+
   // Get steward statistics
   getStats: () => api.get('/steward-submissions/stats/'),
 
   // Get list of all stewards
   getStewards: () => api.get('/stewards/'),
 
+  // Assign submission to a steward
+  assignSubmission: (id, data) => api.post(`/steward-submissions/${id}/assign/`, data),
+
+  // Working Groups
+  getWorkingGroups: () => api.get('/stewards/working-groups/'),
+  getWorkingGroup: (id) => api.get(`/stewards/working-groups/${id}/`),
+  createWorkingGroup: (data) => api.post('/stewards/working-groups/', data),
+  updateWorkingGroup: (id, data) => api.patch(`/stewards/working-groups/${id}/`, data),
+  deleteWorkingGroup: (id) => api.delete(`/stewards/working-groups/${id}/`),
+  addParticipant: (groupId, userId) => api.post(`/stewards/working-groups/${groupId}/add_participant/`, { user_id: userId }),
+  removeParticipant: (groupId, userId) => api.post(`/stewards/working-groups/${groupId}/remove_participant/`, { user_id: userId }),
+  searchUsersForGroup: (query) => api.get('/stewards/working-groups/search_users/', { params: { q: query } })
 };
 
 // Image upload API

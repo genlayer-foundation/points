@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Validator
+from .models import Validator, ValidatorWallet
 
 
 class ValidatorInline(admin.StackedInline):
@@ -30,6 +30,33 @@ class ValidatorAdmin(admin.ModelAdmin):
         }),
     )
     readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(ValidatorWallet)
+class ValidatorWalletAdmin(admin.ModelAdmin):
+    list_display = ('address', 'status', 'operator_address', 'operator', 'moniker', 'created_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('address', 'operator_address', 'moniker')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'updated_at')
+
+    fieldsets = (
+        (None, {
+            'fields': ('address', 'status', 'operator_address', 'operator')
+        }),
+        ('Metadata', {
+            'fields': ('moniker', 'logo_uri', 'website', 'description'),
+            'classes': ('collapse',)
+        }),
+        ('Stake Info', {
+            'fields': ('v_stake', 'd_stake'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
 
 
 # Note: ValidatorInline is imported and added to UserAdmin in users/admin.py

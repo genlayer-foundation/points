@@ -68,8 +68,6 @@
           onclick={() => {
             if (toggleSidebar) {
               toggleSidebar();
-            } else {
-              console.error('toggleSidebar function not provided to Navbar');
             }
           }} 
           class="p-2 rounded-md text-gray-700 hover:bg-gray-100 relative"
