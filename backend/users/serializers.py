@@ -743,6 +743,7 @@ class UserSerializer(serializers.ModelSerializer):
                 'name': m.working_group.name,
                 'icon': m.working_group.icon,
                 'description': m.working_group.description,
+                'participant_count': m.working_group.participants.count(),
                 'joined_at': m.created_at
             }
             for m in memberships
