@@ -211,6 +211,14 @@ export const imageAPI = {
   getCloudinaryConfig: (type) => api.get('/users/cloudinary_config/', { params: { type } })
 };
 
+// Notifications API
+export const notificationsAPI = {
+  getAll: (params) => api.get('/notifications/', { params }),
+  getUnreadCount: () => api.get('/notifications/unread_count/'),
+  markRead: (id) => api.post(`/notifications/${id}/mark_read/`),
+  markAllRead: () => api.post('/notifications/mark_all_read/')
+};
+
 // Convenience exports for profile functions
 export const getCurrentUser = async () => {
   const response = await usersAPI.getCurrentUser();
