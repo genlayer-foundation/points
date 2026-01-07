@@ -1,13 +1,13 @@
 <script>
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
-  import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
-  import { stewardAPI, usersAPI, leaderboardAPI } from '../lib/api.js';
+  import { stewardAPI } from '../lib/api.js';
   import { format, formatDistanceToNow } from 'date-fns';
   import { categoryTheme } from '../stores/category.js';
   import Avatar from '../components/Avatar.svelte';
-  
+  import WorkingGroupsSection from '../components/WorkingGroupsSection.svelte';
+
   let stats = $state({
     pending_count: 0,
     total_reviewed: 0,
@@ -17,22 +17,21 @@
     total_rejected: 0,
     total_info_requested: 0
   });
-  
+
   let stewards = $state([]);
-  let stewardCategory = $state(null);
   let loading = $state(true);
   let error = $state(null);
   let stewardsLoading = $state(true);
   let isSteward = $derived($userStore.user?.steward ? true : false);
-  
+
   onMount(async () => {
-    // Load both stats and stewards for everyone
+    // Load stats and stewards for everyone
     await Promise.all([
       loadStats(),
       loadStewards()
     ]);
   });
-  
+
   async function loadStats() {
     try {
       loading = true;
@@ -49,14 +48,14 @@
       loading = false;
     }
   }
-  
+
   async function loadStewards() {
     try {
       stewardsLoading = true;
-      
+
       // Get list of stewards directly
       const stewardsRes = await stewardAPI.getStewards();
-      
+
       // Ensure stewards is always an array
       stewards = stewardsRes.data || [];
     } catch (err) {
@@ -66,7 +65,7 @@
       stewardsLoading = false;
     }
   }
-  
+
   function formatDate(dateString) {
     if (!dateString) return 'Never';
     try {
@@ -269,49 +268,7 @@
       </div>
       
       <!-- Working Groups Section -->
-      <div class="space-y-4">
-          <div class="flex items-center gap-2">
-            <div class="p-1.5 bg-gray-100 rounded-lg">
-              <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-              </svg>
-            </div>
-            <h2 class="text-lg font-semibold text-gray-900">Working Groups</h2>
-          </div>
-          
-          <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div class="bg-teal-500 p-4">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <div class="inline-flex items-center gap-2 px-3 py-1 bg-white/20 text-white rounded-full text-sm font-medium">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    Coming Soon
-                  </div>
-                </div>
-                <div class="flex -space-x-2">
-                  <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">👥</div>
-                  <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">🔧</div>
-                  <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">📊</div>
-                </div>
-              </div>
-            </div>
-            <div class="p-6">
-              <p class="text-gray-700 mb-4">
-                Join specialized teams focused on different aspects of the GenLayer ecosystem. 
-                Collaborate on technical proposals, standards, and implementations.
-              </p>
-              <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <p class="text-sm text-gray-600 mb-2">💡 <strong>Interested in joining?</strong></p>
-                <p class="text-sm text-gray-600">
-                  Contact <span class="font-mono bg-teal-100 px-1.5 py-0.5 rounded text-teal-700 font-semibold">@ras</span> on <a href="https://discord.com/invite/qjCU4AWnKE" target="_blank" rel="noopener noreferrer" class="text-teal-600 hover:text-teal-700 underline font-semibold">Discord</a> to learn more about upcoming working groups.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+      <WorkingGroupsSection />
       </div>
     </div>
   {/if}

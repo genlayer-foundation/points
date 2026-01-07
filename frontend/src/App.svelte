@@ -37,7 +37,6 @@
   import StewardDashboard from './routes/StewardDashboard.svelte';
   import StewardSubmissions from './routes/StewardSubmissions.svelte';
   import StewardManageUsers from './routes/StewardManageUsers.svelte';
-  import WorkingGroups from './routes/WorkingGroups.svelte';
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
   import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
@@ -104,7 +103,6 @@
     '/stewards': StewardDashboard,
     '/stewards/submissions': StewardSubmissions,
     '/stewards/manage-users': StewardManageUsers,
-    '/stewards/working-groups': WorkingGroups,
 
     // Legal routes
     '/terms-of-use': TermsOfUse,

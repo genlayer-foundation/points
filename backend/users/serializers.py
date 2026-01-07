@@ -738,7 +738,14 @@ class UserSerializer(serializers.ModelSerializer):
             user=obj
         ).select_related('working_group')
         return [
-            {'id': m.working_group.id, 'name': m.working_group.name}
+            {
+                'id': m.working_group.id,
+                'name': m.working_group.name,
+                'icon': m.working_group.icon,
+                'description': m.working_group.description,
+                'participant_count': m.working_group.participants.count(),
+                'joined_at': m.created_at
+            }
             for m in memberships
         ]
 

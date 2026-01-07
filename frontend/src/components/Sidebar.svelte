@@ -238,23 +238,6 @@
         </button>
         {#if getActiveSection() === 'steward'}
         <div class="space-y-0.5 pl-2">
-          <!-- Working Groups - visible to all users -->
-          <a
-            href="/stewards/working-groups"
-            onclick={(e) => { e.preventDefault(); navigate('/stewards/working-groups'); }}
-            class="group flex items-center px-3 py-1.5 text-sm rounded-md {
-              isActive('/stewards/working-groups') || $location.startsWith('/stewards/working-groups/')
-                ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
-                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-            }"
-          >
-            <Icon
-              name="participants"
-              size="sm"
-              className="mr-2 text-green-600"
-            />
-            Working Groups
-          </a>
           <!-- Steward-only links -->
           {#if $userStore.user?.steward}
           <a
@@ -502,23 +485,6 @@
             </h3>
           </button>
           <div class="space-y-0.5 pl-2">
-            <!-- Working Groups - visible to all users -->
-            <a
-              href="/stewards/working-groups"
-              onclick={(e) => { e.preventDefault(); navigate('/stewards/working-groups'); }}
-              class="group flex items-center px-3 py-1.5 text-base rounded-md {
-                isActive('/stewards/working-groups') || $location.startsWith('/stewards/working-groups/')
-                  ? `${$categoryTheme.buttonLight} ${$categoryTheme.text}`
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-              }"
-            >
-              <Icon
-                name="participants"
-                size="sm"
-                className="mr-2 text-green-600"
-              />
-              Working Groups
-            </a>
             <!-- Steward-only links -->
             {#if $userStore.user?.steward}
             <a

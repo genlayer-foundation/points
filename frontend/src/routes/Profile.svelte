@@ -16,6 +16,7 @@
   import { getValidatorBalance } from '../lib/blockchain';
   import Avatar from '../components/Avatar.svelte';
   import { showSuccess, showWarning } from '../lib/toastStore';
+  import { parseMarkdown } from '../lib/markdownLoader.js';
 
   // Import route params from svelte-spa-router
   import { params } from 'svelte-spa-router';
@@ -600,16 +601,14 @@
                   </span>
                 {/if}
               {/if}
-              <!-- Working Group badges -->
+              <!-- Working Group Member badge -->
               {#if participant.working_groups && participant.working_groups.length > 0}
-                {#each participant.working_groups as group}
-                  <a
-                    href="/stewards/working-groups"
-                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
-                  >
-                    {group.name}
-                  </a>
-                {/each}
+                <button
+                  onclick={() => push('/stewards')}
+                  class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors cursor-pointer"
+                >
+                  Working Group Member
+                </button>
               {/if}
             </div>
             
@@ -835,8 +834,8 @@
       </div>
     {/if}
     
-    <!-- Steward Section -->
-    {#if participant.steward}
+    <!-- Ecosystem Steward Section (shows if steward OR working group member) -->
+    {#if participant.steward || (participant.working_groups && participant.working_groups.length > 0)}
       <div class="bg-green-50/30 rounded-lg shadow-sm border border-green-100 overflow-hidden mb-6">
         <!-- Header -->
         <div class="bg-green-100/50 px-5 py-3 border-b border-green-200">
@@ -845,42 +844,104 @@
             Ecosystem Steward
           </h2>
         </div>
-        
+
         <!-- Content -->
-        <div class="p-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Role Stat -->
-            <div class="flex items-center">
-              <div class="p-3 bg-green-100 rounded-lg mr-4">
-                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
-                </svg>
-              </div>
-              <div>
-                <p class="text-sm text-gray-500">Role</p>
-                <p class="text-2xl font-bold text-gray-900">Admin</p>
-              </div>
-            </div>
-            
-            <!-- Since Date Stat -->
-            {#if participant.steward?.created_at}
+        <div class="p-4 space-y-4">
+          <!-- Steward Stats (if steward) -->
+          {#if participant.steward}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Role Stat -->
               <div class="flex items-center">
                 <div class="p-3 bg-green-100 rounded-lg mr-4">
                   <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
                   </svg>
                 </div>
                 <div>
-                  <p class="text-sm text-gray-500">Steward Since</p>
-                  <p class="text-2xl font-bold text-gray-900">{formatDate(participant.steward.created_at)}</p>
+                  <p class="text-sm text-gray-500">Role</p>
+                  <p class="text-2xl font-bold text-gray-900">Admin</p>
                 </div>
               </div>
-            {/if}
-          </div>
+
+              <!-- Since Date Stat -->
+              {#if participant.steward?.created_at}
+                <div class="flex items-center">
+                  <div class="p-3 bg-green-100 rounded-lg mr-4">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-500">Steward Since</p>
+                    <p class="text-2xl font-bold text-gray-900">{formatDate(participant.steward.created_at)}</p>
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/if}
+
+          <!-- Working Groups (only for non-steward WG members) -->
+          {#if !participant.steward && participant.working_groups && participant.working_groups.length > 0}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Role Stat -->
+              <div class="flex items-center">
+                <div class="p-3 bg-green-100 rounded-lg mr-4">
+                  <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-500">Role</p>
+                  <p class="text-2xl font-bold text-gray-900">Working Group Member</p>
+                </div>
+              </div>
+
+              <!-- Member Since Stat -->
+              {#if participant.working_groups.some(g => g.joined_at)}
+                <div class="flex items-center">
+                  <div class="p-3 bg-green-100 rounded-lg mr-4">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-500">Member Since</p>
+                    <p class="text-2xl font-bold text-gray-900">{format(new Date(Math.min(...participant.working_groups.filter(g => g.joined_at).map(g => new Date(g.joined_at).getTime()))), 'MMM yyyy')}</p>
+                  </div>
+                </div>
+              {/if}
+            </div>
+
+            <!-- Working Groups List -->
+            <div class="mt-4 pt-4 border-t border-green-100">
+              <h3 class="text-sm font-medium text-gray-700 mb-3">Member of</h3>
+              <div class="space-y-2">
+                {#each participant.working_groups as group}
+                  <div class="flex items-start gap-3 p-3 bg-white rounded-lg border border-green-100">
+                    <span class="text-lg flex-shrink-0">{group.icon || '👥'}</span>
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2">
+                        <p class="text-sm font-medium text-gray-900">{group.name}</p>
+                        <span class="text-xs text-gray-500 flex items-center gap-1">
+                          {group.participant_count || 0}
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                          </svg>
+                        </span>
+                      </div>
+                      {#if group.description}
+                        <div class="markdown-content text-xs text-gray-500 mt-0.5">{@html parseMarkdown(group.description)}</div>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
-    
+
     <!-- Validator Section -->
     {#if participant.validator}
       <div class="bg-sky-50/30 rounded-lg shadow-sm border border-sky-100 overflow-hidden mb-6">
@@ -1813,3 +1874,32 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .markdown-content :global(ul) {
+    list-style-type: disc;
+    margin-left: 1.5rem;
+  }
+
+  .markdown-content :global(ol) {
+    list-style-type: decimal;
+    margin-left: 1.5rem;
+  }
+
+  .markdown-content :global(a) {
+    color: #059669;
+    text-decoration: underline;
+  }
+
+  .markdown-content :global(a:hover) {
+    color: #047857;
+  }
+
+  .markdown-content :global(p) {
+    margin: 0;
+  }
+
+  .markdown-content :global(p + p) {
+    margin-top: 0.5rem;
+  }
+</style>

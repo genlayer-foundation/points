@@ -181,6 +181,9 @@ cython_debug/
 **/.claude/settings.local.json
 .tally-sessions
 
+# Development artifacts
+backend/backups/
+
 **/node_modules
 
 # amplify
