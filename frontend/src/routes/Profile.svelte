@@ -1599,12 +1599,6 @@
                     </svg>
                     Earn 10% of points from every contribution your referrals make
                   </li>
-                  <li class="flex items-center text-sm text-purple-600">
-                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                    </svg>
-                    Receive 500 Discord XP for each valid referral
-                  </li>
                 </ul>
                 <button
                   onclick={startCreatorJourney}
@@ -1750,10 +1744,7 @@
                 <!-- Text and Action -->
                 <div class="w-full lg:w-2/3 space-y-4">
                   <p class="text-gray-700">
-                    For each builder referred who submits at least one contribution, the referrer receives 10% of the points that builder earns permanently. In addition, referrers receive 500 Discord XP for each valid referral.
-                  </p>
-                  <p class="text-gray-700 font-bold italic">
-                    Share the image with your referral link on X to be eligible for the $1000 raffle.
+                    For each builder referred who submits at least one contribution, the referrer receives 10% of the points that builder earns permanently.
                   </p>
                   <div class="flex justify-start" style="overflow: visible;">
                     <ReferralSection />
