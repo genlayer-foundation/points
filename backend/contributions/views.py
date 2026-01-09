@@ -657,6 +657,25 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+        # Validate category restrictions based on user role
+        contribution_type_id = data.get('contribution_type')
+        if contribution_type_id:
+            try:
+                contribution_type = ContributionType.objects.select_related('category').get(id=contribution_type_id)
+                if contribution_type.category:
+                    if contribution_type.category.slug == 'builder' and not hasattr(request.user, 'builder'):
+                        return Response(
+                            {'error': 'You must complete the Builder Welcome journey before submitting builder contributions.'},
+                            status=status.HTTP_403_FORBIDDEN
+                        )
+                    if contribution_type.category.slug == 'validator' and not hasattr(request.user, 'validator'):
+                        return Response(
+                            {'error': 'You must complete the Validator Waitlist journey before submitting validator contributions.'},
+                            status=status.HTTP_403_FORBIDDEN
+                        )
+            except ContributionType.DoesNotExist:
+                pass
+
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)

@@ -15,8 +15,13 @@
 		providedContributionTypes = null,  // Allow passing types from parent
 		disabled = false,  // Disable selection when locked (e.g., mission)
 		selectedMission = $bindable(null),  // Currently selected mission
+		isValidator = true,
+		isBuilder = true,
 		onSelectionChange = () => {}
 	} = $props();
+
+	let validatorTabDisabled = $derived(!isValidator && !stewardMode);
+	let builderTabDisabled = $derived(!isBuilder && !stewardMode);
 
 	let contributionTypes = $state([]);
 	let missions = $state([]);  // All missions
@@ -268,8 +273,10 @@
 				type="button"
 				class="category-btn"
 				class:active={selectedCategory === 'validator'}
+				class:disabled={validatorTabDisabled}
 				style={selectedCategory === 'validator' ? 'background: #e0f2fe; color: #0369a1;' : ''}
-				onclick={() => selectCategory('validator')}
+				onclick={() => !validatorTabDisabled && selectCategory('validator')}
+				disabled={validatorTabDisabled}
 			>
 				Validator
 			</button>
@@ -277,12 +284,26 @@
 				type="button"
 				class="category-btn"
 				class:active={selectedCategory === 'builder'}
+				class:disabled={builderTabDisabled}
 				style={selectedCategory === 'builder' ? 'background: #ffedd5; color: #c2410c;' : ''}
-				onclick={() => selectCategory('builder')}
+				onclick={() => !builderTabDisabled && selectCategory('builder')}
+				disabled={builderTabDisabled}
 			>
 				Builder
 			</button>
 		</div>
+
+		{#if validatorTabDisabled || builderTabDisabled}
+			<div class="category-locked-message">
+				{#if validatorTabDisabled && builderTabDisabled}
+					Complete a journey to submit contributions: <a href="#/validators/waitlist">Validator Waitlist</a> or <a href="#/builders/welcome">Builder Welcome</a>
+				{:else if validatorTabDisabled}
+					<a href="#/validators/waitlist">Complete the Validator Waitlist journey</a> to submit validator contributions.
+				{:else}
+					<a href="#/builders/welcome">Complete the Builder Welcome journey</a> to submit builder contributions.
+				{/if}
+			</div>
+		{/if}
 
 		<!-- Contribution Type Dropdown/Search -->
 		<div class="contribution-type-selector">
@@ -493,6 +514,31 @@
 	.category-btn.active {
 		font-weight: 600;
 		position: relative;
+	}
+
+	.category-btn.disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.category-btn.disabled:hover {
+		background: transparent;
+	}
+
+	.category-locked-message {
+		padding: 0.75rem 1rem;
+		background: #fef3c7;
+		border: 1px solid #f59e0b;
+		border-radius: 0.375rem;
+		margin-top: 0.75rem;
+		font-size: 0.875rem;
+		color: #92400e;
+	}
+
+	.category-locked-message a {
+		color: #d97706;
+		font-weight: 500;
+		text-decoration: underline;
 	}
 
 	.contribution-type-selector {
