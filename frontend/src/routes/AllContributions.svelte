@@ -10,11 +10,13 @@
   let participantFilter = $state(''); // Name or address
   let selectedCategory = $state('validator'); // 'validator' or 'builder' (no "all" option)
   let selectedContributionType = $state(null); // Full contribution type object
+  let selectedMission = $state(null); // Mission ID from ContributionSelection
   let sortBy = $state('-contribution_date'); // Sorting
 
   // === APPLIED FILTERS (what's actually being used) ===
   let appliedCategory = $state('validator');
   let appliedTypeId = $state(''); // Track which type filter is actually applied
+  let appliedMissionId = $state(''); // Track which mission filter is actually applied
 
   // === DATA STATE ===
   let contributions = $state([]);
@@ -42,8 +44,8 @@
         page: currentPage,
         page_size: pageSize,
         ordering: sortBy,
-        // Only group if no specific type is applied
-        group_consecutive: !appliedTypeId
+        // Only group if no specific type or mission is applied
+        group_consecutive: !appliedTypeId && !appliedMissionId
       };
 
       // Participant filter
@@ -61,6 +63,9 @@
 
       // Type filter - use the applied type, not the selected one
       if (appliedTypeId) params.contribution_type = appliedTypeId;
+
+      // Mission filter
+      if (appliedMissionId) params.mission = appliedMissionId;
 
       // Fetch contributions
       const response = await contributionsAPI.getContributions(params);
@@ -92,6 +97,7 @@
     // Store the applied filters
     appliedCategory = selectedCategory;
     appliedTypeId = selectedContributionType?.id || '';
+    appliedMissionId = selectedMission || '';
 
     if (participantFilter && looksLikeAddress(participantFilter)) {
       loadUserDetails(participantFilter);
@@ -106,8 +112,10 @@
     participantFilter = '';
     selectedCategory = 'validator'; // Reset to default
     selectedContributionType = null;
+    selectedMission = null;
     appliedCategory = 'validator';
     appliedTypeId = '';
+    appliedMissionId = '';
     sortBy = '-contribution_date';
     userDetails = null;
     currentPage = 1;
@@ -143,6 +151,11 @@
       appliedTypeId = typeId;
       // selectedContributionType will be set by ContributionSelection when it loads
     }
+    if (params.get('mission')) {
+      const missionId = params.get('mission');
+      appliedMissionId = missionId;
+      selectedMission = Number(missionId);
+    }
     if (params.get('sort')) sortBy = params.get('sort');
     if (params.get('page')) currentPage = Number(params.get('page'));
   }
@@ -152,6 +165,7 @@
     if (participantFilter) params.set('user', participantFilter);
     if (appliedCategory) params.set('category', appliedCategory);
     if (appliedTypeId) params.set('type', String(appliedTypeId));
+    if (appliedMissionId) params.set('mission', String(appliedMissionId));
     if (sortBy !== '-contribution_date') params.set('sort', sortBy);
     if (currentPage > 1) params.set('page', String(currentPage));
 
@@ -199,6 +213,7 @@
       <ContributionSelection
         bind:selectedCategory
         bind:selectedContributionType
+        bind:selectedMission
         defaultContributionType={appliedTypeId ? Number(appliedTypeId) : null}
         onlySubmittable={false}
       />
@@ -260,7 +275,7 @@
     {error}
     showUser={true}
     category={appliedCategory}
-    disableGrouping={!!appliedTypeId}
+    disableGrouping={!!appliedTypeId || !!appliedMissionId}
   />
 
   <!-- PAGINATION -->

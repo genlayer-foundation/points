@@ -258,7 +258,12 @@
       <div class="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors">
         <!-- Title row with badges and submit button -->
         <div class="flex items-center gap-3 mb-2 flex-wrap">
-          <h3 class="text-base font-bold font-heading text-gray-900">{mission.name}</h3>
+          <button
+            onclick={() => push(`/all-contributions?mission=${mission.id}&category=${$currentCategory !== 'global' ? $currentCategory : 'validator'}`)}
+            class="text-base font-bold font-heading text-gray-900 {colors.titleTextHover} transition-colors text-left"
+          >
+            {mission.name}
+          </button>
 
           {#if mission.contribution_type_details}
             <Badge
