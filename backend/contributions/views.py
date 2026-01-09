@@ -1028,6 +1028,48 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(submission)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['post'], url_path='bulk-reject')
+    def bulk_reject(self, request):
+        """Bulk reject multiple submissions with a single rejection message."""
+        submission_ids = request.data.get('submission_ids', [])
+        staff_reply = request.data.get('staff_reply', '')
+
+        if not submission_ids:
+            return Response(
+                {'error': 'No submission IDs provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not staff_reply:
+            return Response(
+                {'error': 'Rejection reason is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        submissions = SubmittedContribution.objects.filter(
+            id__in=submission_ids,
+            state__in=['pending', 'more_info_needed']
+        )
+
+        rejected_count = submissions.count()
+        if rejected_count == 0:
+            return Response(
+                {'error': 'No valid submissions found to reject'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        submissions.update(
+            state='rejected',
+            staff_reply=staff_reply,
+            reviewed_by=request.user,
+            reviewed_at=timezone.now()
+        )
+
+        return Response({
+            'status': 'success',
+            'rejected_count': rejected_count
+        })
+
 
 class MissionViewSet(viewsets.ReadOnlyModelViewSet):
     """
