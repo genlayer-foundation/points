@@ -22,6 +22,10 @@
 
 	let validatorTabDisabled = $derived(!isValidator && !stewardMode);
 	let builderTabDisabled = $derived(!isBuilder && !stewardMode);
+	let currentCategoryDisabled = $derived(
+		(selectedCategory === 'validator' && !isValidator && !stewardMode) ||
+		(selectedCategory === 'builder' && !isBuilder && !stewardMode)
+	);
 
 	let contributionTypes = $state([]);
 	let missions = $state([]);  // All missions
@@ -275,8 +279,7 @@
 				class:active={selectedCategory === 'validator'}
 				class:disabled={validatorTabDisabled}
 				style={selectedCategory === 'validator' ? 'background: #e0f2fe; color: #0369a1;' : ''}
-				onclick={() => !validatorTabDisabled && selectCategory('validator')}
-				disabled={validatorTabDisabled}
+				onclick={() => selectCategory('validator')}
 			>
 				Validator
 			</button>
@@ -286,24 +289,11 @@
 				class:active={selectedCategory === 'builder'}
 				class:disabled={builderTabDisabled}
 				style={selectedCategory === 'builder' ? 'background: #ffedd5; color: #c2410c;' : ''}
-				onclick={() => !builderTabDisabled && selectCategory('builder')}
-				disabled={builderTabDisabled}
+				onclick={() => selectCategory('builder')}
 			>
 				Builder
 			</button>
 		</div>
-
-		{#if validatorTabDisabled || builderTabDisabled}
-			<div class="category-locked-message">
-				{#if validatorTabDisabled && builderTabDisabled}
-					Complete a journey to submit contributions: <a href="#/validators/waitlist">Validator Waitlist</a> or <a href="#/builders/welcome">Builder Welcome</a>
-				{:else if validatorTabDisabled}
-					<a href="#/validators/waitlist">Complete the Validator Waitlist journey</a> to submit validator contributions.
-				{:else}
-					<a href="#/builders/welcome">Complete the Builder Welcome journey</a> to submit builder contributions.
-				{/if}
-			</div>
-		{/if}
 
 		<!-- Contribution Type Dropdown/Search -->
 		<div class="contribution-type-selector">
@@ -317,17 +307,17 @@
 			<input
 				type="text"
 				class="search-input"
-				placeholder={loading ? "Loading..." : disabled ? "Locked to mission" : "Select or search contribution type..."}
+				placeholder={loading ? "Loading..." : disabled ? "Locked to mission" : currentCategoryDisabled ? "Role required" : "Select or search contribution type..."}
 				bind:value={searchQuery}
 				oninput={handleSearchInput}
 				onfocus={handleSearchFocus}
 				onblur={handleSearchBlur}
-				disabled={loading || disabled}
+				disabled={loading || disabled || currentCategoryDisabled}
 			/>
 			<button
 				class="dropdown-arrow"
 				onclick={handleDropdownClick}
-				disabled={loading || disabled}
+				disabled={loading || disabled || currentCategoryDisabled}
 			>
 				<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
 					<path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -444,6 +434,16 @@
 							</span>
 						</div>
 					</div>
+				{/if}
+			</div>
+		{/if}
+
+		{#if currentCategoryDisabled}
+			<div class="category-locked-message">
+				{#if selectedCategory === 'validator'}
+					You need to be a validator to submit validator contributions. You can enter the <a href="#/validators/waitlist">Validator Waitlist</a>.
+				{:else}
+					Complete the <a href="#/builders/welcome">Builder Welcome journey</a> to submit builder contributions.
 				{/if}
 			</div>
 		{/if}
