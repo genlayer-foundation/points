@@ -30,6 +30,12 @@
   let processingSubmissions = $state(new Set());
   let multipliers = $state({});
   let reviewData = $state({});
+
+  // Bulk selection state
+  let selectedSubmissions = $state(new Set());
+  let showRejectDialog = $state(false);
+  let rejectMessage = $state('');
+  let bulkRejecting = $state(false);
   
   onMount(async () => {
     if (!$authState.isAuthenticated) {
@@ -112,7 +118,8 @@
   async function loadSubmissions() {
     loading = true;
     error = null;
-    
+    clearSelection();
+
     try {
       const params = {
         page: currentPage,
@@ -252,6 +259,61 @@
       loadSubmissions();
     }, 500);
   }
+
+  // Bulk selection handlers
+  function toggleSubmissionSelection(submissionId) {
+    if (selectedSubmissions.has(submissionId)) {
+      selectedSubmissions.delete(submissionId);
+    } else {
+      selectedSubmissions.add(submissionId);
+    }
+    selectedSubmissions = new Set(selectedSubmissions);
+  }
+
+  function clearSelection() {
+    selectedSubmissions = new Set();
+  }
+
+  function openRejectDialog() {
+    if (selectedSubmissions.size === 0) return;
+    rejectMessage = '';
+    showRejectDialog = true;
+  }
+
+  function closeRejectDialog() {
+    showRejectDialog = false;
+    rejectMessage = '';
+  }
+
+  async function handleBulkReject() {
+    if (!rejectMessage.trim()) {
+      showError('Please enter a rejection message');
+      return;
+    }
+
+    if (selectedSubmissions.size === 0) {
+      showError('No submissions selected');
+      return;
+    }
+
+    bulkRejecting = true;
+
+    try {
+      const response = await stewardAPI.bulkRejectSubmissions(
+        Array.from(selectedSubmissions),
+        rejectMessage.trim()
+      );
+
+      showSuccess(`Successfully rejected ${response.data.rejected_count} submission(s)`);
+      closeRejectDialog();
+      clearSelection();
+      await loadSubmissions();
+    } catch (err) {
+      showError('Failed to reject submissions: ' + (err.response?.data?.error || err.message));
+    } finally {
+      bulkRejecting = false;
+    }
+  }
 </script>
 
 <div class="container mx-auto px-4 py-8">
@@ -343,6 +405,73 @@
       Total: <span class="font-semibold text-gray-900">{totalCount}</span> submissions
     </div>
   </div>
+
+  <!-- Bulk Action Bar -->
+  {#if selectedSubmissions.size > 0}
+    <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex flex-wrap items-center gap-4">
+      <div class="flex items-center gap-2">
+        <span class="font-medium text-red-900">
+          {selectedSubmissions.size} selected
+        </span>
+        <button
+          onclick={clearSelection}
+          class="text-sm text-red-600 hover:text-red-800 underline"
+        >
+          Clear
+        </button>
+      </div>
+
+      <div class="flex-1 flex justify-end">
+        <button
+          onclick={openRejectDialog}
+          class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium transition-colors"
+        >
+          Reject Selected
+        </button>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Bulk Reject Dialog -->
+  {#if showRejectDialog}
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+          Reject {selectedSubmissions.size} Submission{selectedSubmissions.size > 1 ? 's' : ''}
+        </h3>
+
+        <div class="mb-4">
+          <label for="reject-message" class="block text-sm font-medium text-gray-700 mb-2">
+            Rejection Message
+          </label>
+          <textarea
+            id="reject-message"
+            bind:value={rejectMessage}
+            rows="4"
+            placeholder="Enter the reason for rejection..."
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+          ></textarea>
+        </div>
+
+        <div class="flex justify-end gap-3">
+          <button
+            onclick={closeRejectDialog}
+            disabled={bulkRejecting}
+            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onclick={handleBulkReject}
+            disabled={bulkRejecting || !rejectMessage.trim()}
+            class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {bulkRejecting ? 'Rejecting...' : `Reject ${selectedSubmissions.size} Submission${selectedSubmissions.size > 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
   
   {#if loading}
     <div class="flex justify-center py-12">
@@ -375,6 +504,18 @@
     <div class="space-y-4">
       {#each submissions as submission}
         <div class="relative">
+          <!-- Checkbox for bulk selection - Only for pending/more_info_needed -->
+          {#if submission.state === 'pending' || submission.state === 'more_info_needed'}
+            <div class="absolute top-4 left-4 z-10">
+              <input
+                type="checkbox"
+                checked={selectedSubmissions.has(submission.id)}
+                onchange={() => toggleSubmissionSelection(submission.id)}
+                class="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+              />
+            </div>
+          {/if}
+
           <!-- Assignment Dropdown - Only for pending/more_info_needed -->
           {#if submission.state === 'pending' || submission.state === 'more_info_needed'}
             <div class="absolute top-4 right-4 z-10">
@@ -395,19 +536,21 @@
             </div>
           {/if}
 
-          <!-- Existing SubmissionCard -->
-          <SubmissionCard
-            {submission}
-            showReviewForm={true}
-            onReview={handleReview}
-            reviewData={reviewData[submission.id]}
-            isProcessing={processingSubmissions.has(submission.id)}
-            successMessage={''}
-            {contributionTypes}
-            {users}
-            {multipliers}
-            isOwnSubmission={false}
-          />
+          <!-- Submission Card with left padding for checkbox -->
+          <div class={submission.state === 'pending' || submission.state === 'more_info_needed' ? 'pl-10' : ''}>
+            <SubmissionCard
+              {submission}
+              showReviewForm={true}
+              onReview={handleReview}
+              reviewData={reviewData[submission.id]}
+              isProcessing={processingSubmissions.has(submission.id)}
+              successMessage={''}
+              {contributionTypes}
+              {users}
+              {multipliers}
+              isOwnSubmission={false}
+            />
+          </div>
         </div>
       {/each}
     </div>

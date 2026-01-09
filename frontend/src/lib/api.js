@@ -185,6 +185,10 @@ export const stewardAPI = {
   // Assign submission to a steward
   assignSubmission: (id, data) => api.post(`/steward-submissions/${id}/assign/`, data),
 
+  // Bulk reject multiple submissions
+  bulkRejectSubmissions: (submissionIds, staffReply) =>
+    api.post('/steward-submissions/bulk-reject/', { submission_ids: submissionIds, staff_reply: staffReply }),
+
   // Working Groups
   getWorkingGroups: () => api.get('/stewards/working-groups/'),
   getWorkingGroup: (id) => api.get(`/stewards/working-groups/${id}/`),
