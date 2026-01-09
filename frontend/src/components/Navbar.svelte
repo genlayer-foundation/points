@@ -2,6 +2,7 @@
   import { push, location } from 'svelte-spa-router';
   import AuthButton from './AuthButton.svelte';
   import ReferralSection from './ReferralSection.svelte';
+  import SearchBar from './SearchBar.svelte';
   import Icon from './Icons.svelte';
   import { authState } from '../lib/auth.js';
   import { categoryTheme, currentCategory } from '../stores/category.js';
@@ -52,8 +53,11 @@
     <!-- Right section with actions -->
     <div class="flex-1 flex justify-end items-center h-16 px-4">
       <div class="hidden md:flex items-center gap-4">
+        {#if $authState.isAuthenticated}
+          <SearchBar />
+        {/if}
         <ReferralSection />
-        <button 
+        <button
           onclick={handleSubmitContribution}
           class="px-4 py-2 {$categoryTheme.button} rounded-md font-medium"
         >

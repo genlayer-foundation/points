@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.conf import settings
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from .models import User
 from .serializers import UserSerializer, UserCreateSerializer, UserProfileUpdateSerializer
 from .cloudinary_service import CloudinaryService
@@ -788,3 +788,31 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             'validator_points': validator_pts,
             'referrals': referral_list
         })
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def search(self, request):
+        """Search users by name, address, email, or social handles."""
+        query = request.query_params.get('q', '').strip()
+
+        if len(query) < 2:
+            return Response([])
+
+        users = User.objects.filter(
+            Q(name__icontains=query) |
+            Q(address__icontains=query) |
+            Q(email__icontains=query) |
+            Q(twitter_handle__icontains=query) |
+            Q(discord_handle__icontains=query) |
+            Q(telegram_handle__icontains=query) |
+            Q(github_username__icontains=query)
+        ).filter(visible=True)[:10]
+
+        return Response([
+            {
+                'id': user.id,
+                'name': user.name,
+                'address': user.address,
+                'profile_image_url': user.profile_image_url
+            }
+            for user in users
+        ])
