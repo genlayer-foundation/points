@@ -62,7 +62,8 @@ export const usersAPI = {
   getDeploymentStatus: () => api.get('/users/deployment_status/'),
   getActiveValidators: () => api.get('/users/validators/'),
   getReferrals: () => api.get('/users/referrals/'),
-  getReferralPoints: () => api.get('/users/referral_points/')
+  getReferralPoints: () => api.get('/users/referral_points/'),
+  searchUsers: (query) => api.get('/users/search/', { params: { q: query } })
 };
 
 // API endpoints for contributions

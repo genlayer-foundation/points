@@ -1,6 +1,7 @@
 <script>
   import { push, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
+  import { userStore } from '../lib/userStore';
   import { onMount } from 'svelte';
   import api, { contributionsAPI } from '../lib/api.js';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
@@ -346,6 +347,8 @@
           defaultContributionType={formData.contribution_type}
           onlySubmittable={true}
           stewardMode={false}
+          isValidator={!!$userStore.user?.validator}
+          isBuilder={!!$userStore.user?.builder}
           onSelectionChange={handleSelectionChange}
         />
       </div>

@@ -211,7 +211,8 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "GITHUB_ENCRYPTION_KEY": "$SSM_PREFIX/prod/github_encryption_key",
           "GITHUB_REPO_TO_STAR": "$SSM_PREFIX/prod/github_repo_to_star",
           "RECAPTCHA_PUBLIC_KEY": "$SSM_PREFIX/prod/recaptcha_public_key",
-          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/prod/recaptcha_private_key"
+          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/prod/recaptcha_private_key",
+          "CRON_SYNC_TOKEN": "$SSM_PREFIX/prod/cron_sync_token"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
@@ -223,8 +224,6 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
     }
   },
   "InstanceConfiguration": {
-    "Cpu": "0.25 vCPU",
-    "Memory": "0.5 GB",
     "InstanceRoleArn": "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerInstanceRole"
   },
   "HealthCheckConfiguration": {
@@ -293,7 +292,8 @@ else
           "GITHUB_ENCRYPTION_KEY": "$SSM_PREFIX/prod/github_encryption_key",
           "GITHUB_REPO_TO_STAR": "$SSM_PREFIX/prod/github_repo_to_star",
           "RECAPTCHA_PUBLIC_KEY": "$SSM_PREFIX/prod/recaptcha_public_key",
-          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/prod/recaptcha_private_key"
+          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/prod/recaptcha_private_key",
+          "CRON_SYNC_TOKEN": "$SSM_PREFIX/prod/cron_sync_token"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
@@ -305,8 +305,6 @@ else
     }
   },
   "InstanceConfiguration": {
-    "Cpu": "0.25 vCPU",
-    "Memory": "0.5 GB",
     "InstanceRoleArn": "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerInstanceRole"
   },
   "HealthCheckConfiguration": {
