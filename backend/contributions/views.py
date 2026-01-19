@@ -111,8 +111,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Get top contributors by summing their frozen global points for this type
         top_contributors = Contribution.objects.filter(
-            contribution_type=contribution_type,
-            state='accepted'
+            contribution_type=contribution_type
         ).values('user').annotate(
             total_points=Sum('frozen_global_points'),
             contribution_count=Count('id')
