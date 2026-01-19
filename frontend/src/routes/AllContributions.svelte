@@ -215,6 +215,7 @@
         bind:selectedContributionType
         bind:selectedMission
         defaultContributionType={appliedTypeId ? Number(appliedTypeId) : null}
+        defaultMission={appliedMissionId ? Number(appliedMissionId) : null}
         onlySubmittable={false}
       />
     </div>
