@@ -29,4 +29,4 @@ RUN chmod +x startup.sh
 EXPOSE 8000
 
 # Run startup script
-CMD ["./startup.sh", "gunicorn", "--bind", "0.0.0.0:8000", "--timeout", "180", "--workers", "2", "core.wsgi:application"]
+CMD ["./startup.sh", "gunicorn", "--bind", "0.0.0.0:8000", "--timeout", "180", "--workers", "2", "tally.wsgi:application"]

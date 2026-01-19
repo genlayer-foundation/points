@@ -3,7 +3,7 @@ from django.utils import timezone
 from rest_framework import authentication, exceptions
 from rest_framework.authentication import SessionAuthentication
 
-from core.middleware.logging_utils import get_app_logger
+from tally.middleware.logging_utils import get_app_logger
 
 User = get_user_model()
 logger = get_app_logger('auth')
