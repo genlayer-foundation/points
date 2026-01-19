@@ -17,7 +17,7 @@ from rest_framework import status
 
 from cryptography.fernet import Fernet, InvalidToken
 from .models import User
-from tally.middleware.logging_utils import get_app_logger
+from core.middleware.logging_utils import get_app_logger
 
 logger = get_app_logger('github_oauth')
 

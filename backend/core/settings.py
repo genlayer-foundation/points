@@ -78,7 +78,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'tally.middleware.APILoggingMiddleware',  # Request logging (must be first for timing)
+    'core.middleware.APILoggingMiddleware',  # Request logging (must be first for timing)
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -89,10 +89,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'tally.middleware.DBLoggingMiddleware',  # DB query logging (must be last)
+    'core.middleware.DBLoggingMiddleware',  # DB query logging (must be last)
 ]
 
-ROOT_URLCONF = 'tally.urls'
+ROOT_URLCONF = 'core.urls'
 
 TEMPLATES = [
     {
@@ -109,7 +109,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'tally.wsgi.application'
+WSGI_APPLICATION = 'core.wsgi.application'
 
 
 # Database
@@ -331,10 +331,10 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'layered': {
-            '()': 'tally.middleware.logging_utils.LayeredFormatter',
+            '()': 'core.middleware.logging_utils.LayeredFormatter',
         },
         'layered_json': {
-            '()': 'tally.middleware.logging_utils.LayeredJSONFormatter',
+            '()': 'core.middleware.logging_utils.LayeredJSONFormatter',
         },
     },
     'handlers': {
@@ -345,17 +345,17 @@ LOGGING = {
     },
     'loggers': {
         # Application layer loggers
-        'tally.api': {
+        'core.api': {
             'handlers': ['console'],
             'level': 'DEBUG' if DEBUG else 'WARNING',
             'propagate': False,
         },
-        'tally.db': {
+        'core.db': {
             'handlers': ['console'],
             'level': 'DEBUG' if DEBUG else 'WARNING',
             'propagate': False,
         },
-        'tally.app': {
+        'core.app': {
             'handlers': ['console'],
             'level': 'DEBUG' if DEBUG else 'WARNING',
             'propagate': False,

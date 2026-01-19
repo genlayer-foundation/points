@@ -13,7 +13,7 @@ from eth_account import Account
 
 from .models import Nonce
 from .authentication import CsrfExemptSessionAuthentication
-from tally.middleware.logging_utils import get_app_logger
+from core.middleware.logging_utils import get_app_logger
 
 User = get_user_model()
 logger = get_app_logger('auth')

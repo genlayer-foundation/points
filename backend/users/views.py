@@ -16,7 +16,7 @@ from web3 import Web3
 import secrets
 import string
 
-from tally.middleware.logging_utils import get_app_logger
+from core.middleware.logging_utils import get_app_logger
 
 logger = get_app_logger('users')
 

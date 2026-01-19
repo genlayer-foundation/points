@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Any
 from django.conf import settings
 from web3 import Web3
 
-from tally.middleware.logging_utils import get_app_logger
+from core.middleware.logging_utils import get_app_logger
 
 logger = get_app_logger('validators')
 

@@ -6,7 +6,7 @@ from django.conf import settings
 from genlayer_py import create_client
 from web3 import Web3
 
-from tally.middleware.logging_utils import get_app_logger
+from core.middleware.logging_utils import get_app_logger
 
 logger = get_app_logger('genlayer')
 

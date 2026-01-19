@@ -296,7 +296,7 @@ def main():
         sys.exit(1)
     
     # Import Django settings to enable password hashing
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tally.settings')
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
     import django
     django.setup()
     

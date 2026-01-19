@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Sum
 from utils.models import BaseModel
 from contributions.models import ContributionType, Contribution, Category
-from tally.middleware.logging_utils import get_app_logger
+from core.middleware.logging_utils import get_app_logger
 
 logger = get_app_logger('leaderboard')
 

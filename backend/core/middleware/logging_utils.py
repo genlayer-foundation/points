@@ -53,9 +53,9 @@ class LayeredFormatter(logging.Formatter):
     """
 
     LAYER_MAP = {
-        'tally.api': 'API',
-        'tally.db': 'DB',
-        'tally.app': 'APP',
+        'core.api': 'API',
+        'core.db': 'DB',
+        'core.app': 'APP',
     }
 
     def format(self, record: logging.LogRecord) -> str:
@@ -83,9 +83,9 @@ class LayeredJSONFormatter(logging.Formatter):
     """
 
     LAYER_MAP = {
-        'tally.api': 'API',
-        'tally.db': 'DB',
-        'tally.app': 'APP',
+        'core.api': 'API',
+        'core.db': 'DB',
+        'core.app': 'APP',
     }
 
     def format(self, record: logging.LogRecord) -> str:
@@ -117,12 +117,12 @@ class LayeredJSONFormatter(logging.Formatter):
 
 def get_api_logger() -> logging.Logger:
     """Get the [API] layer logger."""
-    return logging.getLogger('tally.api')
+    return logging.getLogger('core.api')
 
 
 def get_db_logger() -> logging.Logger:
     """Get the [DB] layer logger."""
-    return logging.getLogger('tally.db')
+    return logging.getLogger('core.db')
 
 
 def get_app_logger(name: Optional[str] = None) -> logging.Logger:
@@ -133,5 +133,5 @@ def get_app_logger(name: Optional[str] = None) -> logging.Logger:
         name: Optional sub-logger name (e.g., 'auth', 'users')
     """
     if name:
-        return logging.getLogger(f'tally.app.{name}')
-    return logging.getLogger('tally.app')
+        return logging.getLogger(f'core.app.{name}')
+    return logging.getLogger('core.app')

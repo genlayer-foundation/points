@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from packaging import version
 import re
 
-from tally.middleware.logging_utils import get_app_logger
+from core.middleware.logging_utils import get_app_logger
 
 logger = get_app_logger('validators')
 
