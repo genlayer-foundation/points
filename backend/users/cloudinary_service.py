@@ -4,7 +4,7 @@ from django.conf import settings
 from typing import Optional, Dict
 import time
 
-from core.middleware.logging_utils import get_app_logger
+from tally.middleware.logging_utils import get_app_logger
 
 logger = get_app_logger('cloudinary')
 
