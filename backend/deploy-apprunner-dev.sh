@@ -49,7 +49,7 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
         "Port": "8000",
         "RuntimeEnvironmentVariables": {
           "PYTHONPATH": "/app",
-          "DJANGO_SETTINGS_MODULE": "core.settings"
+          "DJANGO_SETTINGS_MODULE": "tally.settings"
         },
         "RuntimeEnvironmentSecrets": {
           "SECRET_KEY": "$SSM_PREFIX/$SSM_ENV/secret_key",
@@ -75,7 +75,7 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_private_key",
           "CRON_SYNC_TOKEN": "$SSM_PREFIX/$SSM_ENV/cron_sync_token"
         },
-        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 core.wsgi:application"
+        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
       "ImageRepositoryType": "ECR"
     },
@@ -205,7 +205,7 @@ EOF
         "Port": "8000",
         "RuntimeEnvironmentVariables": {
           "PYTHONPATH": "/app",
-          "DJANGO_SETTINGS_MODULE": "core.settings"
+          "DJANGO_SETTINGS_MODULE": "tally.settings"
         },
         "RuntimeEnvironmentSecrets": {
           "SECRET_KEY": "$SSM_PREFIX/$SSM_ENV/secret_key",
@@ -231,7 +231,7 @@ EOF
           "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_private_key",
           "CRON_SYNC_TOKEN": "$SSM_PREFIX/$SSM_ENV/cron_sync_token"
         },
-        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 core.wsgi:application"
+        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
       "ImageRepositoryType": "ECR"
     },

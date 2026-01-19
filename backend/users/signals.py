@@ -3,7 +3,7 @@ import secrets
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from core.middleware.logging_utils import get_app_logger
+from tally.middleware.logging_utils import get_app_logger
 from .models import User
 
 logger = get_app_logger('users')

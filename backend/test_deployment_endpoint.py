@@ -12,7 +12,7 @@ import django
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Set up Django environment
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tally.settings')
 
 # Minimal settings for testing
 os.environ['SECRET_KEY'] = 'test-secret-key'
