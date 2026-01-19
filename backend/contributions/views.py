@@ -111,22 +111,15 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Get top contributors by summing their frozen global points for this type
         top_contributors = Contribution.objects.filter(
-            contribution_type=contribution_type
+            contribution_type=contribution_type,
+            state='accepted'
         ).values('user').annotate(
             total_points=Sum('frozen_global_points'),
             contribution_count=Count('id')
         ).order_by('-total_points')[:10]
 
-        # Get user objects with select_related for efficiency
-        user_ids = [c['user'] for c in top_contributors]
-        users = {
-            user.id: user
-            for user in ContributionType.objects.get(pk=pk).contributions.filter(
-                user_id__in=user_ids
-            ).select_related('user', 'user__validator', 'user__builder').values_list('user', flat=True).distinct()
-        }
-
         # Fetch users directly with optimization
+        user_ids = [c['user'] for c in top_contributors]
         from users.models import User
         users_dict = {
             user.id: user
