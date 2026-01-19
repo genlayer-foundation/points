@@ -9,6 +9,10 @@ import decimal
 import os
 import uuid
 
+from core.middleware.logging_utils import get_app_logger
+
+logger = get_app_logger('contributions')
+
 
 class Category(BaseModel):
     """
@@ -224,7 +228,7 @@ def validate_multiplier_at_creation(sender, instance, **kwargs):
             float(instance.multiplier_at_creation)
         except (decimal.InvalidOperation, TypeError, ValueError):
             # If conversion fails, reset the multiplier to 1.0
-            print(f"WARNING: Fixing corrupted multiplier_at_creation value for contribution {instance.id}")
+            logger.warning("Fixing corrupted multiplier_at_creation value")
             instance.multiplier_at_creation = 1.0
             instance.frozen_global_points = instance.points
 

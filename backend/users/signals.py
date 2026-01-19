@@ -2,7 +2,11 @@ import string
 import secrets
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+
+from core.middleware.logging_utils import get_app_logger
 from .models import User
+
+logger = get_app_logger('users')
 
 
 def generate_unique_referral_code():
@@ -12,12 +16,12 @@ def generate_unique_referral_code():
     """
     characters = string.ascii_uppercase + string.digits  # A-Z, 0-9
     max_attempts = 100
-    
+
     for _ in range(max_attempts):
         code = ''.join(secrets.choice(characters) for _ in range(8))
         if not User.objects.filter(referral_code=code).exists():
             return code
-    
+
     # If we can't find a unique code after max_attempts, raise an error
     raise ValueError("Unable to generate unique referral code after maximum attempts")
 
@@ -34,4 +38,4 @@ def create_referral_code(sender, instance, created, **kwargs):
             User.objects.filter(pk=instance.pk).update(referral_code=referral_code)
         except Exception as e:
             # Log the error but don't fail user creation
-            print(f"Failed to generate referral code for user {instance.id}: {str(e)}")
+            logger.error(f"Failed to generate referral code: {str(e)}")

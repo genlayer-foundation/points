@@ -2,10 +2,11 @@ import cloudinary
 import cloudinary.uploader
 from django.conf import settings
 from typing import Optional, Dict
-import logging
 import time
 
-logger = logging.getLogger(__name__)
+from core.middleware.logging_utils import get_app_logger
+
+logger = get_app_logger('cloudinary')
 
 
 class CloudinaryService:
@@ -164,7 +165,7 @@ class CloudinaryService:
             result = cloudinary.uploader.destroy(public_id)
             return result.get('result') == 'ok'
         except Exception as e:
-            logger.error(f"Failed to delete image {public_id}: {str(e)}")
+            logger.error(f"Failed to delete image: {str(e)}")
             return False
     
     @classmethod

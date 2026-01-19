@@ -2,7 +2,6 @@
 GitHub OAuth authentication handling
 """
 import secrets
-import logging
 from urllib.parse import urlencode
 
 import requests
@@ -18,8 +17,9 @@ from rest_framework import status
 
 from cryptography.fernet import Fernet, InvalidToken
 from .models import User
+from core.middleware.logging_utils import get_app_logger
 
-logger = logging.getLogger(__name__)
+logger = get_app_logger('github_oauth')
 
 # Cache to track used OAuth codes (prevents duplicate exchanges)
 # Format: {code: timestamp}
@@ -58,7 +58,7 @@ def github_oauth_initiate(request):
     """Initiate GitHub OAuth flow"""
     # User is guaranteed to be authenticated due to @permission_classes([IsAuthenticated])
     user_id = request.user.id
-    logger.info(f"GitHub OAuth initiated by authenticated user {user_id}")
+    logger.debug("GitHub OAuth initiated")
 
     # Generate state token with user ID embedded
     state_data = {
@@ -69,7 +69,7 @@ def github_oauth_initiate(request):
     # Sign the state data to make it tamper-proof and not rely on session
     # This works even if session cookies don't persist across OAuth redirects
     state = signing.dumps(state_data, salt='github_oauth_state')
-    logger.info(f"Generated signed OAuth state for user {user_id}")
+    logger.debug("Generated signed OAuth state")
 
     # Build GitHub OAuth URL with minimal read-only permissions
     # Empty scope gives read access to public user info including starred repos
@@ -95,7 +95,7 @@ def github_oauth_callback(request):
     error = request.GET.get('error')
     error_description = request.GET.get('error_description')
 
-    logger.info(f"OAuth callback - Session key: {request.session.session_key}")
+    logger.debug("OAuth callback received")
 
     # Handle errors from GitHub
     if error:
@@ -122,7 +122,7 @@ def github_oauth_callback(request):
         # Unsign the state with max_age of 10 minutes to prevent replay attacks
         state_data = signing.loads(state, salt='github_oauth_state', max_age=600)
         user_id = state_data.get('user_id')
-        logger.info(f"Successfully validated signed OAuth state for user_id: {user_id}")
+        logger.debug("Successfully validated signed OAuth state")
     except signing.SignatureExpired:
         logger.error("OAuth state token has expired (>10 minutes old)")
         return render(request, 'github_callback.html', {
@@ -147,11 +147,11 @@ def github_oauth_callback(request):
         del _used_oauth_codes[expired_code]
 
     if expired_codes:
-        logger.info(f"Cleaned up {len(expired_codes)} expired OAuth codes")
+        logger.debug(f"Cleaned up {len(expired_codes)} expired OAuth codes")
 
     # Check if this code has already been used (prevent duplicate exchanges)
     if code in _used_oauth_codes:
-        logger.warning(f"OAuth code {code[:10]}... has already been used, rejecting duplicate request")
+        logger.warning("OAuth code already used, rejecting duplicate request")
         return render(request, 'github_callback.html', {
             'success': False,
             'error': 'code_already_used',
@@ -161,10 +161,10 @@ def github_oauth_callback(request):
 
     # Mark code as used immediately (before exchange attempt)
     _used_oauth_codes[code] = timezone.now()
-    logger.info(f"Marked OAuth code {code[:10]}... as used ({len(_used_oauth_codes)} codes in cache)")
+    logger.debug(f"Marked OAuth code as used ({len(_used_oauth_codes)} codes in cache)")
 
     # Exchange code for access token
-    logger.info(f"Attempting to exchange OAuth code {code[:10]}... for access token")
+    logger.debug("Attempting to exchange OAuth code for access token")
     token_url = "https://github.com/login/oauth/access_token"
     token_params = {
         'client_id': settings.GITHUB_CLIENT_ID,
@@ -181,7 +181,7 @@ def github_oauth_callback(request):
         token_data = token_response.json()
 
         if 'error' in token_data:
-            logger.error(f"GitHub token exchange error: {token_data}")
+            logger.error("GitHub token exchange error")
             # Check if it's because the code was already used
             if token_data.get('error') == 'bad_verification_code':
                 return render(request, 'github_callback.html', {
@@ -231,9 +231,9 @@ def github_oauth_callback(request):
 
         try:
             user = User.objects.get(id=user_id)
-            logger.info(f"Found user {user.id} from state token")
+            logger.debug("Found user from state token")
         except User.DoesNotExist:
-            logger.error(f"User {user_id} from state not found")
+            logger.error("User from state not found")
             return render(request, 'github_callback.html', {
                 'success': False,
                 'error': 'user_not_found',
@@ -247,7 +247,7 @@ def github_oauth_callback(request):
         ).exclude(id=user.id).first()
 
         if existing_user:
-            logger.warning(f"GitHub account already linked to another user")
+            logger.warning("GitHub account already linked to another user")
             return render(request, 'github_callback.html', {
                 'success': False,
                 'error': 'already_linked',
@@ -262,7 +262,7 @@ def github_oauth_callback(request):
         user.github_linked_at = timezone.now()
         user.save()
 
-        logger.info(f"GitHub account linked for user {user.id}")
+        logger.debug("GitHub account linked successfully")
         # Success! Render the callback template
         return render(request, 'github_callback.html', {
             'success': True,
@@ -297,7 +297,7 @@ def disconnect_github(request):
             'message': 'GitHub account disconnected successfully'
         }, status=status.HTTP_200_OK)
     except Exception as e:
-        logger.error(f"Failed to disconnect GitHub for user {request.user.id}: {e}")
+        logger.error(f"Failed to disconnect GitHub: {e}")
         return Response({
             'error': 'Failed to disconnect GitHub account'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -326,7 +326,7 @@ def check_repo_star(request):
             except InvalidToken:
                 # Token decryption failed, likely due to encryption key change
                 # Clear the invalid token
-                logger.warning(f"Failed to decrypt GitHub token for user id={user.id}, clearing token")
+                logger.warning("Failed to decrypt GitHub token, clearing token")
                 user.github_access_token = ''
                 user.save()
                 # Continue without auth header to use public API
@@ -367,7 +367,7 @@ def check_repo_star(request):
         }, status=status.HTTP_200_OK)
 
     except requests.RequestException as e:
-        logger.error(f"Failed to check star status for {user.github_username}: {e}")
+        logger.error(f"Failed to check star status: {e}")
         return Response({
             'has_starred': False,
             'repo': settings.GITHUB_REPO_TO_STAR,

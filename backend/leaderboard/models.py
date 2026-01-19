@@ -7,6 +7,9 @@ from django.core.exceptions import ValidationError
 from django.db.models import Sum
 from utils.models import BaseModel
 from contributions.models import ContributionType, Contribution, Category
+from core.middleware.logging_utils import get_app_logger
+
+logger = get_app_logger('leaderboard')
 
 
 # Helper functions for leaderboard configuration
@@ -370,8 +373,8 @@ def log_multiplier_creation(sender, instance, created, **kwargs):
     When a new multiplier is created, log it for debugging purposes.
     """
     if created:
-        print(f"New global multiplier: {instance.contribution_type.name} - "
-              f"{instance.multiplier_value}x valid from {instance.valid_from.strftime('%Y-%m-%d %H:%M')}")
+        logger.debug(f"New global multiplier: {instance.contribution_type.name} - "
+                     f"{instance.multiplier_value}x")
 
 
 @receiver(post_save, sender=Contribution)
@@ -383,9 +386,8 @@ def update_leaderboard_on_contribution(sender, instance, created, **kwargs):
     # Only update if points have changed or it's a new contribution
     if created or kwargs.get('update_fields') is None or 'points' in kwargs.get('update_fields', []):
         # Log the contribution's point calculation
-        contribution_date_str = instance.contribution_date.strftime('%Y-%m-%d %H:%M') if instance.contribution_date else "N/A"
-        print(f"Contribution saved: {instance.points} points × {instance.multiplier_at_creation} = "
-              f"{instance.frozen_global_points} global points (contribution date: {contribution_date_str})")
+        logger.debug(f"Contribution saved: {instance.points} points × {instance.multiplier_at_creation} = "
+                     f"{instance.frozen_global_points} global points")
     
     # Update the user's leaderboard entries
     update_user_leaderboard_entries(instance.user)

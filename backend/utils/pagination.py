@@ -3,6 +3,10 @@ from django.db.models.query import QuerySet
 import decimal
 from django.db import connection
 
+from core.middleware.logging_utils import get_app_logger
+
+logger = get_app_logger('utils')
+
 
 class SafePageNumberPagination(PageNumberPagination):
     """
@@ -24,7 +28,7 @@ class SafePageNumberPagination(PageNumberPagination):
             return super().paginate_queryset(queryset, request, view)
         except decimal.InvalidOperation:
             # If we encounter decimal error, we need to handle it directly in the database
-            print("WARNING: Encountered invalid decimal error in pagination. Applying direct database fix...")
+            logger.warning("Encountered invalid decimal error in pagination. Applying direct database fix...")
             
             # Emergency fix - run direct SQL to fix the corrupted data
             with connection.cursor() as cursor:

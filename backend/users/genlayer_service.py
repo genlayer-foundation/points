@@ -1,13 +1,14 @@
 """
 GenLayer blockchain integration service for checking user deployments.
 """
-import logging
 from typing import Dict, List, Optional, Any
 from django.conf import settings
 from genlayer_py import create_client
 from web3 import Web3
 
-logger = logging.getLogger(__name__)
+from core.middleware.logging_utils import get_app_logger
+
+logger = get_app_logger('genlayer')
 
 
 class GenLayerDeploymentService:
@@ -27,7 +28,7 @@ class GenLayerDeploymentService:
             
             # Use the built-in studionet chain configuration
             self.client = create_client(chain=studionet)
-            logger.info(f"GenLayer client initialized with StudioNet")
+            logger.debug("GenLayer client initialized with StudioNet")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize GenLayer client: {str(e)}")
@@ -66,11 +67,11 @@ class GenLayerDeploymentService:
                         'error': 'GenLayer client initialization failed'
                     }
             
-            logger.info(f"Checking deployments for address: {wallet_address}")
+            logger.debug("Checking deployments")
             
             try:
                 # Use the sim_getTransactionsForAddress method to get all transactions
-                logger.debug(f"Making request to Studio API for address: {wallet_address}")
+                logger.debug("Making request to Studio API")
                 
                 try:
                     response = self.client.provider.make_request(
@@ -79,22 +80,17 @@ class GenLayerDeploymentService:
                     )
                 except Exception as api_error:
                     # Log the raw error for debugging
-                    logger.error(f"Raw API error for {wallet_address}: {str(api_error)}")
+                    logger.error(f"Raw API error: {str(api_error)}")
                     logger.error(f"Error type: {type(api_error).__name__}")
-                    
+
                     # Try to get the raw response if available
                     if hasattr(api_error, 'response'):
                         logger.error(f"Response status code: {getattr(api_error.response, 'status_code', 'N/A')}")
-                        logger.error(f"Response headers: {getattr(api_error.response, 'headers', 'N/A')}")
-                        try:
-                            logger.error(f"Response text: {api_error.response.text[:500]}")  # First 500 chars
-                        except:
-                            logger.error("Could not get response text")
-                    
+
                     # Try to handle common Studio API issues
                     error_msg = str(api_error).lower()
                     if "expecting value" in error_msg:
-                        logger.warning(f"Studio API returned empty or non-JSON response for {wallet_address}")
+                        logger.warning("Studio API returned empty or non-JSON response")
                         # Return empty deployments but not an error - Studio might not have data
                         return {
                             'has_deployments': False,
@@ -107,7 +103,7 @@ class GenLayerDeploymentService:
                 
                 # Extract transactions from the response
                 transactions = response.get('result', [])
-                logger.info(f"Found {len(transactions)} transactions for {wallet_address}")
+                logger.debug(f"Found {len(transactions)} transactions")
                 
                 # Check for contract deployments
                 deployments = []
@@ -144,12 +140,12 @@ class GenLayerDeploymentService:
                             'type': tx_type
                         }
                         deployments.append(deployment_info)
-                        logger.info(f"Found deployment: {tx_hash}")
+                        logger.debug("Found deployment")
                 
-                logger.info(f"Address {wallet_address} has {len(deployments)} deployments")
+                logger.debug(f"Found {len(deployments)} deployments")
                 
             except Exception as e:
-                logger.error(f"Error checking deployments via sim_getTransactionsForAddress: {str(e)}")
+                logger.error(f"Error checking deployments via API: {str(e)}")
                 deployments = []
             
             return {
@@ -160,7 +156,7 @@ class GenLayerDeploymentService:
             }
             
         except Exception as e:
-            logger.error(f"Error checking deployments for address {wallet_address}: {str(e)}")
+            logger.error(f"Error checking deployments: {str(e)}")
             return {
                 'has_deployments': False,
                 'deployments': [],
@@ -253,7 +249,7 @@ class GenLayerDeploymentService:
             }
             
         except Exception as e:
-            logger.error(f"Error getting contract details for {contract_address}: {str(e)}")
+            logger.error(f"Error getting contract details: {str(e)}")
             return {
                 'address': contract_address,
                 'status': 'unknown',

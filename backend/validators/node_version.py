@@ -7,6 +7,10 @@ from django.core.exceptions import ValidationError
 from packaging import version
 import re
 
+from core.middleware.logging_utils import get_app_logger
+
+logger = get_app_logger('validators')
+
 
 class NodeVersionMixin(models.Model):
     """
@@ -52,7 +56,7 @@ class NodeVersionMixin(models.Model):
             return current >= target
         except Exception as e:
             # If parsing fails, fall back to string comparison
-            print(f"Version parsing error: {e}")
+            logger.warning(f"Version parsing error: {e}")
             return self.node_version >= target_version
     
     def save(self, *args, **kwargs):
