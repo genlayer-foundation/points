@@ -2,12 +2,13 @@
 GenLayer blockchain integration service for validator wallet synchronization.
 Handles RPC calls to Staking, Factory, and ValidatorWallet contracts.
 """
-import logging
 from typing import Dict, List, Optional, Any
 from django.conf import settings
 from web3 import Web3
 
-logger = logging.getLogger(__name__)
+from tally.middleware.logging_utils import get_app_logger
+
+logger = get_app_logger('validators')
 
 
 # Contract ABIs
@@ -240,7 +241,7 @@ class GenLayerValidatorsService:
                 'live': view[11]
             }
         except Exception as e:
-            logger.error(f"Error fetching validator view for {validator_address}: {str(e)}")
+            logger.error(f"Error fetching validator view: {str(e)}")
             return None
 
     def fetch_operator_for_wallet(self, wallet_address: str) -> Optional[str]:
@@ -264,7 +265,7 @@ class GenLayerValidatorsService:
 
             return operator
         except Exception as e:
-            logger.error(f"Error fetching operator for wallet {wallet_address}: {str(e)}")
+            logger.error(f"Error fetching operator: {str(e)}")
             return None
 
     def fetch_validator_identity(self, wallet_address: str) -> Optional[Dict[str, Any]]:
@@ -292,7 +293,7 @@ class GenLayerValidatorsService:
                 'github': identity[7],
             }
         except Exception as e:
-            logger.error(f"Error fetching identity for wallet {wallet_address}: {str(e)}")
+            logger.error(f"Error fetching identity: {str(e)}")
             return None
 
     def sync_all_validators(self) -> Dict[str, Any]:
@@ -357,7 +358,7 @@ class GenLayerValidatorsService:
                         stats=stats
                     )
                 except Exception as e:
-                    logger.error(f"Error processing validator {address}: {str(e)}")
+                    logger.error(f"Error processing validator: {str(e)}")
                     stats['errors'] += 1
 
         except Exception as e:

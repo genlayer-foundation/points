@@ -13,8 +13,10 @@ from eth_account import Account
 
 from .models import Nonce
 from .authentication import CsrfExemptSessionAuthentication
+from tally.middleware.logging_utils import get_app_logger
 
 User = get_user_model()
+logger = get_app_logger('auth')
 
 
 def generate_nonce(length=32):
@@ -137,10 +139,10 @@ def login(request):
                 if referrer != user:
                     user.referred_by = referrer
                     user.save(update_fields=['referred_by'])
-                    print(f"New user {ethereum_address} referred by {referrer.address}")
+                    logger.debug("New user referred successfully")
             except User.DoesNotExist:
                 # Invalid referral code, but don't fail the login
-                print(f"Invalid referral code provided during login: {referral_code}")
+                logger.warning("Invalid referral code provided during login")
         
         # Refresh user data from database to get referral_code from signal
         user.refresh_from_db()
@@ -149,12 +151,9 @@ def login(request):
         request.session['ethereum_address'] = ethereum_address
         request.session['authenticated'] = True
         request.session.save()  # Explicitly save the session
-        
-        # Debug logging
-        print(f"Login - Session ID: {request.session.session_key}")
-        print(f"Login - Setting ethereum_address: {ethereum_address}")
-        print(f"Login - Session data: {dict(request.session)}")
-        
+
+        logger.debug("Login successful, session created")
+
         # Return the authenticated user with referral data
         return Response({
             'authenticated': True,
@@ -186,13 +185,7 @@ def verify_auth(request):
     """
     ethereum_address = request.session.get('ethereum_address')
     authenticated = request.session.get('authenticated', False)
-    
-    # Debug logging
-    print(f"Verify - Session ID: {request.session.session_key}")
-    print(f"Verify - Ethereum Address: {ethereum_address}")
-    print(f"Verify - Authenticated: {authenticated}")
-    print(f"Verify - Session data: {dict(request.session)}")
-    
+
     if authenticated and ethereum_address:
         try:
             user = User.objects.get(address__iexact=ethereum_address)

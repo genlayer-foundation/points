@@ -509,14 +509,15 @@
               rank: i + 1,
               user_details: {
                 name: c.name,
-                address: c.address
+                address: c.address,
+                profile_image_url: c.profile_image_url
               },
               total_points: c.total_points
             }))}
             loading={false}
             error={null}
             showHeader={false}
-            compact={true}
+            compact={false}
             hideAddress={true}
           />
         </div>

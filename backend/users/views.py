@@ -13,11 +13,12 @@ from .genlayer_service import GenLayerDeploymentService
 from contributions.models import Contribution
 from leaderboard.models import LeaderboardEntry
 from web3 import Web3
-import logging
 import secrets
 import string
 
-logger = logging.getLogger(__name__)
+from tally.middleware.logging_utils import get_app_logger
+
+logger = get_app_logger('users')
 
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
@@ -192,7 +193,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             })
             
         except Exception as e:
-            logger.error(f"Profile image upload failed for user {request.user.id}: {str(e)}")
+            logger.error(f"Profile image upload failed: {str(e)}")
             return Response(
                 {'error': 'Failed to upload image'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -249,7 +250,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             })
             
         except Exception as e:
-            logger.error(f"Banner image upload failed for user {request.user.id}: {str(e)}")
+            logger.error(f"Banner image upload failed: {str(e)}")
             return Response(
                 {'error': 'Failed to upload image'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -380,7 +381,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             }, status=status.HTTP_201_CREATED)
             
         except Exception as e:
-            logger.error(f"Failed to start builder journey for user {user.id}: {str(e)}")
+            logger.error(f"Failed to start builder journey: {str(e)}")
             return Response(
                 {'error': f'Failed to start journey: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -512,7 +513,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         except Exception as e:
-            logger.warning(f"Failed to check balance for {user.address}: {str(e)}")
+            logger.warning(f"Failed to check balance: {str(e)}")
             # If we can't check balance, we'll allow proceeding (fail open)
             pass
         
@@ -531,10 +532,10 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            logger.info(f"User {user.id} has {deployment_result.get('deployment_count', 0)} deployments")
+            logger.debug(f"Deployment check passed: {deployment_result.get('deployment_count', 0)} deployments")
             
         except Exception as e:
-            logger.error(f"Failed to check deployments for {user.address}: {str(e)}")
+            logger.error(f"Failed to check deployments: {str(e)}")
             return Response(
                 {'error': 'Failed to verify contract deployments. Please try again later.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -579,7 +580,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             
         except Exception as e:
             # Transaction will be rolled back automatically
-            logger.error(f"Failed to complete builder journey for user {user.id}: {str(e)}")
+            logger.error(f"Failed to complete builder journey: {str(e)}")
             return Response(
                 {'error': f'Failed to complete journey: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -640,14 +641,12 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             # Check for deployments
             deployment_result = genlayer_service.get_user_deployments(checksum_address)
             
-            # Log the check for monitoring
-            logger.info(f"Deployment check for user {user.id} (address: {user.address}): "
-                       f"{deployment_result.get('deployment_count', 0)} deployments found")
+            logger.debug(f"Deployment check: {deployment_result.get('deployment_count', 0)} deployments found")
             
             return Response(deployment_result, status=status.HTTP_200_OK)
             
         except Exception as e:
-            logger.error(f"Error checking deployments for user {user.id}: {str(e)}")
+            logger.error(f"Error checking deployments: {str(e)}")
             return Response({
                 'has_deployments': False,
                 'deployments': [],
@@ -684,7 +683,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             })
             
         except Exception as e:
-            logger.error(f"Error checking deployment status for user {user.id}: {str(e)}")
+            logger.error(f"Error checking deployment status: {str(e)}")
             return Response({
                 'has_deployments': False,
                 'deployment_count': 0,

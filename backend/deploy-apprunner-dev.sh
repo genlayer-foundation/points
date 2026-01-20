@@ -72,7 +72,8 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "GITHUB_ENCRYPTION_KEY": "$SSM_PREFIX/$SSM_ENV/github_encryption_key",
           "GITHUB_REPO_TO_STAR": "$SSM_PREFIX/$SSM_ENV/github_repo_to_star",
           "RECAPTCHA_PUBLIC_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_public_key",
-          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_private_key"
+          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_private_key",
+          "CRON_SYNC_TOKEN": "$SSM_PREFIX/$SSM_ENV/cron_sync_token"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
@@ -98,7 +99,7 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
   }
 }
 EOF
-    
+
     aws apprunner update-service \
         --region $REGION \
         --service-arn arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/$SERVICE_NAME \
@@ -227,7 +228,8 @@ EOF
           "GITHUB_ENCRYPTION_KEY": "$SSM_PREFIX/$SSM_ENV/github_encryption_key",
           "GITHUB_REPO_TO_STAR": "$SSM_PREFIX/$SSM_ENV/github_repo_to_star",
           "RECAPTCHA_PUBLIC_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_public_key",
-          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_private_key"
+          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_private_key",
+          "CRON_SYNC_TOKEN": "$SSM_PREFIX/$SSM_ENV/cron_sync_token"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
@@ -253,7 +255,7 @@ EOF
   }
 }
 EOF
-    
+
     aws apprunner create-service \
         --region $REGION \
         --cli-input-json file://apprunner-create-config.json

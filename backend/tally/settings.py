@@ -78,6 +78,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'tally.middleware.APILoggingMiddleware',  # Request logging (must be first for timing)
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -88,6 +89,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'tally.middleware.DBLoggingMiddleware',  # DB query logging (must be last)
 ]
 
 ROOT_URLCONF = 'tally.urls'
@@ -269,7 +271,7 @@ if DEBUG and 'runserver' in sys.argv:
     port = get_port_from_argv()
     SESSION_COOKIE_NAME = f'tally_sessionid_{port}'
     CSRF_COOKIE_NAME = f'tally_csrftoken_{port}'
-    print(f"[DEV] Using port-specific cookies for port {port}: {SESSION_COOKIE_NAME}")
+    # Port-specific cookies configured for development
 else:
     # Production settings
     SESSION_COOKIE_NAME = 'tally_sessionid'
@@ -316,3 +318,67 @@ if DEBUG and RECAPTCHA_PUBLIC_KEY == '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI':
 
 # Cron job authentication token for validator sync endpoint
 CRON_SYNC_TOKEN = os.environ.get('CRON_SYNC_TOKEN', '')
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+# Layer-based logging: [API], [DB], [APP]
+# DEBUG=true: All logs (requests, queries, app debug)
+# DEBUG=false: Only errors and warnings
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'layered': {
+            '()': 'tally.middleware.logging_utils.LayeredFormatter',
+        },
+        'layered_json': {
+            '()': 'tally.middleware.logging_utils.LayeredJSONFormatter',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'layered' if DEBUG else 'layered_json',
+        },
+    },
+    'loggers': {
+        # Application layer loggers
+        'tally.api': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'WARNING',
+            'propagate': False,
+        },
+        'tally.db': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'WARNING',
+            'propagate': False,
+        },
+        'tally.app': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'WARNING',
+            'propagate': False,
+        },
+        # Silence noisy Django loggers
+        'django': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.db.backends': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
+}
