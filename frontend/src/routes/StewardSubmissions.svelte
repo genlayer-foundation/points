@@ -29,10 +29,12 @@
   // Exclusion filter states (checkbox values)
   let excludeMediumBlogpost = $state(false);
   let excludeEmptyEvidence = $state(false);
+  let minAcceptedContributions = $state(0);
 
   // Applied exclusion filter states (what's actually sent to API)
   let appliedExcludeMediumBlogpost = $state(false);
   let appliedExcludeEmptyEvidence = $state(false);
+  let appliedMinAcceptedContributions = $state(0);
 
   // Review states
   let processingSubmissions = $state(new Set());
@@ -160,6 +162,9 @@
       if (appliedExcludeEmptyEvidence) {
         params.exclude_empty_evidence = true;
       }
+      if (appliedMinAcceptedContributions > 0) {
+        params.min_accepted_contributions = appliedMinAcceptedContributions;
+      }
 
       const response = await stewardAPI.getSubmissions(params);
       submissions = response.data.results || [];
@@ -279,6 +284,7 @@
   function applyExclusionFilters() {
     appliedExcludeMediumBlogpost = excludeMediumBlogpost;
     appliedExcludeEmptyEvidence = excludeEmptyEvidence;
+    appliedMinAcceptedContributions = minAcceptedContributions;
     currentPage = 1;
     loadSubmissions();
   }
@@ -435,6 +441,18 @@
         <label class="flex items-center gap-2 text-sm">
           <input type="checkbox" bind:checked={excludeEmptyEvidence} class="rounded border-gray-300" />
           Submissions without URLs
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          Users with less than
+          <select bind:value={minAcceptedContributions} class="rounded border-gray-300 text-sm py-1 px-2">
+            <option value={0}>0</option>
+            <option value={1}>1</option>
+            <option value={2}>2</option>
+            <option value={3}>3</option>
+            <option value={4}>4</option>
+            <option value={5}>5</option>
+          </select>
+          accepted contributions
         </label>
         <button
           onclick={applyExclusionFilters}
