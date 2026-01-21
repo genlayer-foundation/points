@@ -2,9 +2,10 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from django_filters import FilterSet, CharFilter, BooleanFilter
+from django_filters import FilterSet, CharFilter, BooleanFilter, NumberFilter
 from django.utils import timezone
-from django.db.models import Count, Max, F, Q
+from django.db.models import Count, Max, F, Q, Exists, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from django.db.models.functions import Coalesce
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -774,6 +775,9 @@ class StewardSubmissionFilterSet(FilterSet):
     """Custom filterset for steward submission filtering."""
     username_search = CharFilter(method='filter_username')
     assigned_to = CharFilter(method='filter_assigned_to')
+    exclude_medium_blogpost = BooleanFilter(method='filter_exclude_medium_blogpost')
+    exclude_empty_evidence = BooleanFilter(method='filter_exclude_empty_evidence')
+    min_accepted_contributions = NumberFilter(method='filter_min_accepted_contributions')
 
     def filter_username(self, queryset, name, value):
         """Filter by submitter name, email, or address (case-insensitive partial match)."""
@@ -791,6 +795,55 @@ class StewardSubmissionFilterSet(FilterSet):
             return queryset.filter(assigned_to__isnull=True)
         elif value:
             return queryset.filter(assigned_to_id=value)
+        return queryset
+
+    def filter_exclude_medium_blogpost(self, queryset, name, value):
+        """Exclude submissions that have Medium blog post URLs in evidence or notes."""
+        if value:
+            # Subquery: check if submission has any evidence with medium.com URL
+            has_medium_evidence = Evidence.objects.filter(
+                submitted_contribution=OuterRef('pk'),
+                url__icontains='medium.com'
+            )
+            # Exclude submissions where:
+            # - Any evidence URL contains medium.com OR
+            # - Notes contain medium.com
+            return queryset.exclude(
+                Exists(has_medium_evidence) |
+                Q(notes__icontains='medium.com')
+            )
+        return queryset
+
+    def filter_exclude_empty_evidence(self, queryset, name, value):
+        """Exclude submissions that have no evidence URL AND no URL in notes."""
+        if value:
+            # Subquery: check if submission has at least one evidence item with URL
+            has_url_evidence = Evidence.objects.filter(
+                submitted_contribution=OuterRef('pk'),
+                url__gt=''
+            )
+            # Exclude submissions where:
+            # - No evidence item has a URL AND
+            # - Notes don't contain a URL (http:// or https://)
+            return queryset.exclude(
+                ~Exists(has_url_evidence) &
+                ~Q(notes__icontains='http://') &
+                ~Q(notes__icontains='https://')
+            )
+        return queryset
+
+    def filter_min_accepted_contributions(self, queryset, name, value):
+        """Exclude submissions from users with less than N accepted contributions."""
+        if value and value > 0:
+            # Subquery: count accepted submissions for each user
+            accepted_count = SubmittedContribution.objects.filter(
+                user=OuterRef('user'),
+                state='accepted'
+            ).values('user').annotate(count=Count('id')).values('count')
+            # Annotate queryset with accepted count and filter
+            return queryset.annotate(
+                user_accepted_count=Coalesce(Subquery(accepted_count), 0)
+            ).filter(user_accepted_count__gte=value)
         return queryset
 
     class Meta:

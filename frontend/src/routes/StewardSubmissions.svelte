@@ -26,6 +26,16 @@
   let stewardsList = $state([]);
   let assigningSubmissions = $state(new Set());  // Track which submissions are being assigned
 
+  // Exclusion filter states (checkbox values)
+  let excludeMediumBlogpost = $state(false);
+  let excludeEmptyEvidence = $state(false);
+  let minAcceptedContributions = $state(0);
+
+  // Applied exclusion filter states (what's actually sent to API)
+  let appliedExcludeMediumBlogpost = $state(false);
+  let appliedExcludeEmptyEvidence = $state(false);
+  let appliedMinAcceptedContributions = $state(0);
+
   // Review states
   let processingSubmissions = $state(new Set());
   let multipliers = $state({});
@@ -145,6 +155,17 @@
         params.assigned_to = assignedToFilter;
       }
 
+      // Handle exclusion filters
+      if (appliedExcludeMediumBlogpost) {
+        params.exclude_medium_blogpost = true;
+      }
+      if (appliedExcludeEmptyEvidence) {
+        params.exclude_empty_evidence = true;
+      }
+      if (appliedMinAcceptedContributions > 0) {
+        params.min_accepted_contributions = appliedMinAcceptedContributions;
+      }
+
       const response = await stewardAPI.getSubmissions(params);
       submissions = response.data.results || [];
       totalCount = response.data.count || 0;
@@ -258,6 +279,14 @@
       currentPage = 1;
       loadSubmissions();
     }, 500);
+  }
+
+  function applyExclusionFilters() {
+    appliedExcludeMediumBlogpost = excludeMediumBlogpost;
+    appliedExcludeEmptyEvidence = excludeEmptyEvidence;
+    appliedMinAcceptedContributions = minAcceptedContributions;
+    currentPage = 1;
+    loadSubmissions();
   }
 
   // Bulk selection handlers
@@ -398,6 +427,39 @@
           placeholder="Name or address..."
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
+      </div>
+    </div>
+
+    <!-- Exclusion Filters -->
+    <div class="border-t pt-4 mt-4">
+      <div class="flex flex-wrap items-center gap-4">
+        <span class="text-sm font-medium text-gray-700">Exclude:</span>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" bind:checked={excludeMediumBlogpost} class="rounded border-gray-300" />
+          Medium Blog Posts
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" bind:checked={excludeEmptyEvidence} class="rounded border-gray-300" />
+          Submissions without URLs
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          Users with less than
+          <select bind:value={minAcceptedContributions} class="rounded border-gray-300 text-sm py-1 px-2">
+            <option value={0}>0</option>
+            <option value={1}>1</option>
+            <option value={2}>2</option>
+            <option value={3}>3</option>
+            <option value={4}>4</option>
+            <option value={5}>5</option>
+          </select>
+          accepted contributions
+        </label>
+        <button
+          onclick={applyExclusionFilters}
+          class="px-3 py-1 bg-primary-600 text-white text-sm rounded-md hover:bg-primary-700"
+        >
+          Apply
+        </button>
       </div>
     </div>
 
