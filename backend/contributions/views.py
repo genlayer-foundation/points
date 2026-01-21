@@ -796,9 +796,20 @@ class StewardSubmissionFilterSet(FilterSet):
         return queryset
 
     def filter_exclude_medium_blogpost(self, queryset, name, value):
-        """Exclude submissions with contribution type 'Medium Blog Post'."""
+        """Exclude submissions that have Medium blog post URLs in evidence or notes."""
         if value:
-            return queryset.exclude(contribution_type__name__iexact='Medium Blog Post')
+            # Subquery: check if submission has any evidence with medium.com URL
+            has_medium_evidence = Evidence.objects.filter(
+                submitted_contribution=OuterRef('pk'),
+                url__icontains='medium.com'
+            )
+            # Exclude submissions where:
+            # - Any evidence URL contains medium.com OR
+            # - Notes contain medium.com
+            return queryset.exclude(
+                Exists(has_medium_evidence) |
+                Q(notes__icontains='medium.com')
+            )
         return queryset
 
     def filter_exclude_empty_evidence(self, queryset, name, value):
