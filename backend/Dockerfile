@@ -22,6 +22,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project
 COPY . .
 
+# Remove any cached Python bytecode that might have been copied
+# This ensures fresh .py files are always used
+RUN find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+RUN find . -name "*.pyc" -delete 2>/dev/null || true
+
 # Make startup script executable
 RUN chmod +x startup.sh
 
