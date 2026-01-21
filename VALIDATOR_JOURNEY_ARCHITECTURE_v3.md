@@ -212,7 +212,7 @@ def update_user_leaderboard_entries(user):
     for leaderboard_type in qualified_leaderboards:
         update_leaderboard_type_ranks(leaderboard_type)
     
-    # Also update waitlist ranks if user graduated (they were removed) FIX: with the fix above this is not necesarry
+    # Also update waitlist ranks if user graduated (they were removed) FIX: with the fix above this is not necessary
     if 'validator-waitlist-graduation' in qualified_leaderboards:
         update_leaderboard_type_ranks('validator-waitlist')
 
