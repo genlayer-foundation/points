@@ -26,6 +26,14 @@
   let stewardsList = $state([]);
   let assigningSubmissions = $state(new Set());  // Track which submissions are being assigned
 
+  // Exclusion filter states (checkbox values)
+  let excludeMediumBlogpost = $state(false);
+  let excludeEmptyEvidence = $state(false);
+
+  // Applied exclusion filter states (what's actually sent to API)
+  let appliedExcludeMediumBlogpost = $state(false);
+  let appliedExcludeEmptyEvidence = $state(false);
+
   // Review states
   let processingSubmissions = $state(new Set());
   let multipliers = $state({});
@@ -145,6 +153,14 @@
         params.assigned_to = assignedToFilter;
       }
 
+      // Handle exclusion filters
+      if (appliedExcludeMediumBlogpost) {
+        params.exclude_medium_blogpost = true;
+      }
+      if (appliedExcludeEmptyEvidence) {
+        params.exclude_empty_evidence = true;
+      }
+
       const response = await stewardAPI.getSubmissions(params);
       submissions = response.data.results || [];
       totalCount = response.data.count || 0;
@@ -258,6 +274,13 @@
       currentPage = 1;
       loadSubmissions();
     }, 500);
+  }
+
+  function applyExclusionFilters() {
+    appliedExcludeMediumBlogpost = excludeMediumBlogpost;
+    appliedExcludeEmptyEvidence = excludeEmptyEvidence;
+    currentPage = 1;
+    loadSubmissions();
   }
 
   // Bulk selection handlers
@@ -398,6 +421,27 @@
           placeholder="Name or address..."
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
+      </div>
+    </div>
+
+    <!-- Exclusion Filters -->
+    <div class="border-t pt-4 mt-4">
+      <div class="flex flex-wrap items-center gap-4">
+        <span class="text-sm font-medium text-gray-700">Exclude:</span>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" bind:checked={excludeMediumBlogpost} class="rounded border-gray-300" />
+          Medium Blog Posts
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" bind:checked={excludeEmptyEvidence} class="rounded border-gray-300" />
+          Submissions without URLs
+        </label>
+        <button
+          onclick={applyExclusionFilters}
+          class="px-3 py-1 bg-primary-600 text-white text-sm rounded-md hover:bg-primary-700"
+        >
+          Apply
+        </button>
       </div>
     </div>
 
