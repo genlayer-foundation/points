@@ -201,6 +201,12 @@
       return;
     }
 
+    // Validate notes length
+    if (formData.notes.length > 1000) {
+      error = 'Notes cannot exceed 1000 characters';
+      return;
+    }
+
     // Validate evidence slots - if any field is filled, both must be filled
     for (let i = 0; i < evidenceSlots.length; i++) {
       const slot = evidenceSlots[i];
@@ -375,9 +381,13 @@
           id="notes"
           bind:value={formData.notes}
           rows="6"
+          maxlength="1000"
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           placeholder="Describe your contribution..."
         ></textarea>
+        <div class="text-sm text-gray-500 mt-1 text-right">
+          {formData.notes.length} / 1000
+        </div>
       </div>
 
       <div class="mb-6">
