@@ -1,4 +1,5 @@
-# Python
+# Python - exclude ALL __pycache__ directories (not just root level)
+**/__pycache__/
 __pycache__/
 *.py[cod]
 *$py.class
