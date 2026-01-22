@@ -7,6 +7,7 @@ from django.conf import settings
 from web3 import Web3
 
 from tally.middleware.logging_utils import get_app_logger
+from tally.middleware.tracing import trace_external
 
 logger = get_app_logger('validators')
 
@@ -172,7 +173,8 @@ class GenLayerValidatorsService:
             List of validator wallet addresses
         """
         try:
-            validators = self.staking_contract.functions.activeValidators().call()
+            with trace_external('web3', 'active_validators'):
+                validators = self.staking_contract.functions.activeValidators().call()
             # Filter out invalid addresses
             valid_validators = [
                 addr for addr in validators
@@ -199,9 +201,10 @@ class GenLayerValidatorsService:
             List of validator data with address, untilEpochBanned, permanently_banned
         """
         try:
-            banned_list = self.staking_contract.functions.getAllBannedValidators(
-                start_index, size
-            ).call()
+            with trace_external('web3', 'banned_validators'):
+                banned_list = self.staking_contract.functions.getAllBannedValidators(
+                    start_index, size
+                ).call()
 
             result = []
             for banned in banned_list:
@@ -228,7 +231,8 @@ class GenLayerValidatorsService:
         """
         try:
             checksum_address = Web3.to_checksum_address(validator_address)
-            view = self.staking_contract.functions.validatorView(checksum_address).call()
+            with trace_external('web3', 'validator_view'):
+                view = self.staking_contract.functions.validatorView(checksum_address).call()
 
             return {
                 'left': view[0],
@@ -257,7 +261,8 @@ class GenLayerValidatorsService:
         """
         try:
             contract = self._get_validator_wallet_contract(wallet_address)
-            operator = contract.functions.operator().call()
+            with trace_external('web3', 'get_operator'):
+                operator = contract.functions.operator().call()
 
             # Check for zero address
             if operator.lower() == '0x0000000000000000000000000000000000000000':
@@ -280,7 +285,8 @@ class GenLayerValidatorsService:
         """
         try:
             contract = self._get_validator_wallet_contract(wallet_address)
-            identity = contract.functions.getIdentity().call()
+            with trace_external('web3', 'get_identity'):
+                identity = contract.functions.getIdentity().call()
 
             return {
                 'moniker': identity[0],

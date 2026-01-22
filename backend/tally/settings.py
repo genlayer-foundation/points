@@ -360,6 +360,11 @@ LOGGING = {
             'level': 'DEBUG' if DEBUG else 'WARNING',
             'propagate': False,
         },
+        'tally.trace': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'WARNING',
+            'propagate': False,
+        },
         # Silence noisy Django loggers
         'django': {
             'handlers': ['console'],

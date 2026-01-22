@@ -17,6 +17,7 @@ import secrets
 import string
 
 from tally.middleware.logging_utils import get_app_logger
+from tally.middleware.tracing import trace_external
 
 logger = get_app_logger('users')
 
@@ -504,7 +505,8 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             from django.conf import settings
             web3 = Web3(Web3.HTTPProvider(settings.VALIDATOR_RPC_URL))
             checksum_address = Web3.to_checksum_address(user.address)
-            balance_wei = web3.eth.get_balance(checksum_address)
+            with trace_external('web3', 'get_balance'):
+                balance_wei = web3.eth.get_balance(checksum_address)
             balance_eth = web3.from_wei(balance_wei, 'ether')
             
             if balance_eth <= 0:

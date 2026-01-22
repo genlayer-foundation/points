@@ -9,6 +9,8 @@ from rest_framework import serializers
 from django_recaptcha.fields import ReCaptchaField as DjangoReCaptchaField
 from django_recaptcha.widgets import ReCaptchaV2Checkbox
 
+from tally.middleware.tracing import trace_external
+
 
 class ReCaptchaField(serializers.Field):
     """
@@ -55,7 +57,8 @@ class ReCaptchaField(serializers.Field):
         try:
             # Use django-recaptcha's validation
             # The field expects the token value directly
-            cleaned_value = self.django_field.clean(data)
+            with trace_external('recaptcha', 'verify'):
+                cleaned_value = self.django_field.clean(data)
             return cleaned_value
         except Exception as e:
             # Handle various validation errors
