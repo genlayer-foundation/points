@@ -18,6 +18,7 @@ from rest_framework import status
 from cryptography.fernet import Fernet, InvalidToken
 from .models import User
 from tally.middleware.logging_utils import get_app_logger
+from tally.middleware.tracing import trace_external
 
 logger = get_app_logger('github_oauth')
 
@@ -176,9 +177,10 @@ def github_oauth_callback(request):
     headers = {'Accept': 'application/json'}
 
     try:
-        token_response = requests.post(token_url, data=token_params, headers=headers)
-        token_response.raise_for_status()
-        token_data = token_response.json()
+        with trace_external('github', 'token_exchange'):
+            token_response = requests.post(token_url, data=token_params, headers=headers)
+            token_response.raise_for_status()
+            token_data = token_response.json()
 
         if 'error' in token_data:
             logger.error("GitHub token exchange error")
@@ -214,9 +216,10 @@ def github_oauth_callback(request):
             'Accept': 'application/json'
         }
 
-        user_response = requests.get(user_url, headers=user_headers)
-        user_response.raise_for_status()
-        github_user = user_response.json()
+        with trace_external('github', 'get_user'):
+            user_response = requests.get(user_url, headers=user_headers)
+            user_response.raise_for_status()
+            github_user = user_response.json()
 
         # Get user from state token
         # User ID must be present in state since we require authentication to initiate OAuth
@@ -345,13 +348,15 @@ def check_repo_star(request):
         if user.github_access_token and 'Authorization' in headers:
             # Authenticated API: GET /user/starred/{owner}/{repo} returns 204 if starred, 404 if not
             url = f'https://api.github.com/user/starred/{owner}/{repo}'
-            response = requests.get(url, headers=headers)
+            with trace_external('github', 'check_star'):
+                response = requests.get(url, headers=headers)
             has_starred = response.status_code == 204
         else:
             # Public API: Check in user's starred repos list
             # This is less efficient but works without authentication
             url = f'https://api.github.com/users/{user.github_username}/starred'
-            response = requests.get(url, headers={'Accept': 'application/json'})
+            with trace_external('github', 'check_star_public'):
+                response = requests.get(url, headers={'Accept': 'application/json'})
 
             if response.status_code == 200:
                 starred_repos = response.json()

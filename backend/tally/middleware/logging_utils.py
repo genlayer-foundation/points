@@ -56,6 +56,7 @@ class LayeredFormatter(logging.Formatter):
         'tally.api': 'API',
         'tally.db': 'DB',
         'tally.app': 'APP',
+        'tally.trace': 'TRACE',
     }
 
     def format(self, record: logging.LogRecord) -> str:
@@ -86,6 +87,7 @@ class LayeredJSONFormatter(logging.Formatter):
         'tally.api': 'API',
         'tally.db': 'DB',
         'tally.app': 'APP',
+        'tally.trace': 'TRACE',
     }
 
     def format(self, record: logging.LogRecord) -> str:
