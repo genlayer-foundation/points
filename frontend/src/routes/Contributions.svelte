@@ -1,6 +1,7 @@
 <script>
   import ContributionTypeStats from '../components/ContributionTypeStats.svelte';
   import Missions from '../components/Missions.svelte';
+  import StartupRequests from '../components/StartupRequests.svelte';
   import RecentContributions from '../components/RecentContributions.svelte';
   import { currentCategory } from '../stores/category.js';
 
@@ -17,6 +18,11 @@
   <div class="flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-900">Contributions</h1>
   </div>
+
+  <!-- Request for Startups (only for builders) -->
+  {#if $currentCategory === 'builder'}
+    <StartupRequests />
+  {/if}
 
   <Missions />
 

@@ -47,6 +47,7 @@
   import Referrals from './routes/Referrals.svelte';
   import Supporters from './routes/Supporters.svelte';
   import GlobalDashboard from './components/GlobalDashboard.svelte';
+  import StartupRequestDetail from './routes/StartupRequestDetail.svelte';
 
   // Define routes
   const routes = {
@@ -75,6 +76,7 @@
     '/builders/highlights': Highlights,
     '/builders/leaderboard': Leaderboard,
     '/builders/welcome': BuilderWelcome,
+    '/builders/startup-requests/:id': StartupRequestDetail,
     
     // Validators routes
     '/validators': Dashboard,
