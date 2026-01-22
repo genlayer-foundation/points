@@ -505,5 +505,51 @@ class ContributionHighlight(BaseModel):
             'contribution__user',
             'contribution__contribution_type'
         )
-        
+
         return queryset[:limit]
+
+
+class StartupRequest(BaseModel):
+    """
+    Represents a startup idea/opportunity for the community to pursue.
+    Displayed in the builder contributions section as informational content.
+    """
+    title = models.CharField(
+        max_length=200,
+        help_text="Title of the startup request"
+    )
+    description = models.TextField(
+        help_text="Full description (supports Markdown)"
+    )
+    short_description = models.CharField(
+        max_length=300,
+        help_text="Brief description shown in listing (plain text)"
+    )
+    documents = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Array of document objects: [{title, url, type}]"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this startup request is currently visible"
+    )
+    order = models.PositiveIntegerField(
+        default=0,
+        help_text="Display order (lower numbers appear first)"
+    )
+
+    class Meta:
+        ordering = ['order', '-created_at']
+        verbose_name = "Startup Request"
+        verbose_name_plural = "Startup Requests"
+
+    def __str__(self):
+        return self.title
+
+    @classmethod
+    def get_active_requests(cls):
+        """
+        Get all active startup requests ordered by display order.
+        """
+        return cls.objects.filter(is_active=True).order_by('order', '-created_at')

@@ -12,12 +12,12 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.generic import ListView
 from django.utils.decorators import method_decorator
-from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission
+from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission, StartupRequest
 from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
                          StewardSubmissionSerializer, StewardSubmissionReviewSerializer,
-                         MissionSerializer)
+                         MissionSerializer, StartupRequestListSerializer, StartupRequestDetailSerializer)
 from .forms import SubmissionReviewForm
 from .permissions import IsSteward
 from leaderboard.models import GlobalLeaderboardMultiplier
@@ -1170,3 +1170,25 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(contribution_type__category__slug=category)
 
         return queryset
+
+
+class StartupRequestViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only ViewSet for startup requests.
+    Management is done through Django admin.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        """
+        Return active startup requests ordered by display order.
+        """
+        return StartupRequest.get_active_requests()
+
+    def get_serializer_class(self):
+        """
+        Use appropriate serializer based on action.
+        """
+        if self.action == 'retrieve':
+            return StartupRequestDetailSerializer
+        return StartupRequestListSerializer

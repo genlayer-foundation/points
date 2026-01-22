@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission
+from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest
 from users.serializers import UserSerializer, LightUserSerializer
 from users.models import User
 from .recaptcha_field import ReCaptchaField
@@ -619,3 +619,27 @@ class MissionSerializer(serializers.ModelSerializer):
 
     def get_is_active(self, obj):
         return obj.is_active()
+
+
+class StartupRequestListSerializer(serializers.ModelSerializer):
+    """
+    Lightweight serializer for listing startup requests.
+    """
+    class Meta:
+        model = StartupRequest
+        fields = ['id', 'title', 'short_description', 'is_active', 'order', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class StartupRequestDetailSerializer(serializers.ModelSerializer):
+    """
+    Full serializer for startup request detail view.
+    Includes all fields for rendering the full page with markdown and documents.
+    """
+    class Meta:
+        model = StartupRequest
+        fields = [
+            'id', 'title', 'description', 'short_description',
+            'documents', 'is_active', 'order', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']

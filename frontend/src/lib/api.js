@@ -97,7 +97,9 @@ export const contributionsAPI = {
     data: { count: res.data.contribution_count }
   })),
   getMissions: (params) => api.get('/missions/', { params }),
-  getMission: (id) => api.get(`/missions/${id}/`)
+  getMission: (id) => api.get(`/missions/${id}/`),
+  getStartupRequests: () => api.get('/startup-requests/'),
+  getStartupRequest: (id) => api.get(`/startup-requests/${id}/`)
 };
 
 
