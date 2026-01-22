@@ -99,6 +99,7 @@ def trace_external(service: str, operation: str):
 def format_breakdown(segments: list, indent: str = "  ") -> str:
     """
     Format segments as an indented breakdown for logging.
+    Aggregates duplicate segment names to reduce noise.
 
     Args:
         segments: List of segment dicts from get_segments()
@@ -110,14 +111,34 @@ def format_breakdown(segments: list, indent: str = "  ") -> str:
     if not segments:
         return ""
 
-    lines = []
-    sorted_segments = sorted(segments, key=lambda s: s['duration_ms'], reverse=True)
+    # Aggregate segments with the same name
+    aggregated = {}
+    for segment in segments:
+        name = segment['name']
+        if name in aggregated:
+            aggregated[name]['duration_ms'] += segment['duration_ms']
+            aggregated[name]['count'] += 1
+        else:
+            aggregated[name] = {
+                'name': name,
+                'duration_ms': segment['duration_ms'],
+                'is_external': segment['is_external'],
+                'count': 1,
+            }
 
+    # Sort by duration descending
+    sorted_segments = sorted(aggregated.values(), key=lambda s: s['duration_ms'], reverse=True)
+
+    lines = []
     for i, segment in enumerate(sorted_segments):
         is_last = i == len(sorted_segments) - 1
         prefix = "└─" if is_last else "├─"
         name = segment['name']
         duration = segment['duration_ms']
+        count = segment['count']
+
+        # Show count if more than 1 call
+        count_suffix = f" x{count}" if count > 1 else ""
 
         # Mark slowest segment as bottleneck if it's significantly slower
         bottleneck_marker = ""
@@ -126,7 +147,7 @@ def format_breakdown(segments: list, indent: str = "  ") -> str:
             if duration > second_slowest * 2:
                 bottleneck_marker = "  <- bottleneck"
 
-        lines.append(f"{indent}{prefix} {name}: {duration:.0f}ms{bottleneck_marker}")
+        lines.append(f"{indent}{prefix} {name}: {duration:.0f}ms{count_suffix}{bottleneck_marker}")
 
     return "\n".join(lines)
 
