@@ -59,10 +59,8 @@ def install_drf_tracing() -> None:
     Instruments the following DRF methods:
     - APIView.check_permissions() -> "permissions"
     - APIView.check_throttles() -> "throttles"
-    - GenericAPIView.get_serializer() -> "serializer:init"
+    - GenericAPIView.get_serializer() -> "serializer"
     - GenericAPIView.get_queryset() -> "queryset:{ClassName}"
-    - Serializer.to_representation() -> "serializer:render"
-    - Serializer.to_internal_value() -> "serializer:parse"
     """
     global _installed
     if _installed:
@@ -71,7 +69,6 @@ def install_drf_tracing() -> None:
     try:
         from rest_framework.views import APIView
         from rest_framework.generics import GenericAPIView
-        from rest_framework.serializers import Serializer
 
         # Instrument APIView methods
         if hasattr(APIView, 'check_permissions'):
@@ -96,44 +93,8 @@ def install_drf_tracing() -> None:
         if hasattr(GenericAPIView, 'get_serializer'):
             GenericAPIView.get_serializer = _wrap_method(
                 GenericAPIView.get_serializer,
-                'serializer:init'
+                'serializer'
             )
-
-        # Instrument Serializer methods
-        if hasattr(Serializer, 'to_representation'):
-            original_to_representation = Serializer.to_representation
-
-            @functools.wraps(original_to_representation)
-            def traced_to_representation(self, instance):
-                # Only trace if this is the top-level serializer call
-                # to avoid tracing nested serializer calls
-                if not getattr(self, '_tracing_render', False):
-                    self._tracing_render = True
-                    try:
-                        with trace_segment('serializer:render'):
-                            return original_to_representation(self, instance)
-                    finally:
-                        self._tracing_render = False
-                return original_to_representation(self, instance)
-
-            Serializer.to_representation = traced_to_representation
-
-        if hasattr(Serializer, 'to_internal_value'):
-            original_to_internal = Serializer.to_internal_value
-
-            @functools.wraps(original_to_internal)
-            def traced_to_internal_value(self, data):
-                # Only trace if this is the top-level serializer call
-                if not getattr(self, '_tracing_parse', False):
-                    self._tracing_parse = True
-                    try:
-                        with trace_segment('serializer:parse'):
-                            return original_to_internal(self, data)
-                    finally:
-                        self._tracing_parse = False
-                return original_to_internal(self, data)
-
-            Serializer.to_internal_value = traced_to_internal_value
 
         _installed = True
 

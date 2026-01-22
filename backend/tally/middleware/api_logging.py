@@ -93,17 +93,16 @@ class APILoggingMiddleware:
         is_slow = should_expand_trace(duration_ms)
         has_segments = len(segments) > 0
 
+        # Build complete log message with optional breakdown
+        show_breakdown = has_segments and (is_server_error or (settings.DEBUG and is_slow))
+        if show_breakdown:
+            breakdown = format_breakdown(segments)
+            log_message = f"{log_message}\n{breakdown}"
+
         if is_server_error:
-            # Always log 5xx errors with breakdown
             logger.error(log_message)
-            if has_segments:
-                self._log_breakdown(segments, level='error')
         elif settings.DEBUG:
-            # In DEBUG mode, log all requests
             logger.debug(log_message)
-            # Show breakdown for slow requests
-            if is_slow and has_segments:
-                self._log_breakdown(segments, level='debug')
 
         # Clear request tracking
         clear_correlation_id()
@@ -116,14 +115,3 @@ class APILoggingMiddleware:
         if db_query_count > 0:
             return f"{duration_ms:.0f}ms (db: {db_time_ms:.0f}ms/{db_query_count}q)"
         return f"{duration_ms:.0f}ms"
-
-    def _log_breakdown(self, segments: list, level: str = 'debug') -> None:
-        """Log the trace breakdown with indentation."""
-        breakdown = format_breakdown(segments)
-        if breakdown:
-            # Log each line of the breakdown
-            for line in breakdown.split('\n'):
-                if level == 'error':
-                    logger.error(line)
-                else:
-                    logger.debug(line)
