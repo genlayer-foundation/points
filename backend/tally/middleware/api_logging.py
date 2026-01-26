@@ -21,6 +21,7 @@ from .tracing import (
     get_segments,
     format_breakdown,
     should_expand_trace,
+    get_external_segments,
 )
 
 
@@ -76,9 +77,22 @@ class APILoggingMiddleware:
 
         # Get trace segments
         segments = get_segments()
+        external_segments = get_external_segments(segments)
 
-        # Build timing info string
-        timing_info = self._build_timing_info(duration_ms, db_time_ms, db_query_count)
+        # Determine logging behavior
+        is_server_error = response.status_code >= 500
+        is_slow = should_expand_trace(duration_ms)
+        has_external = len(external_segments) > 0
+
+        # Show breakdown for slow requests or errors (only if there's something interesting)
+        show_breakdown = is_server_error or (settings.DEBUG and is_slow and (has_external or db_query_count > 0))
+
+        # Build timing info string - use full breakdown for slow/error requests
+        if show_breakdown:
+            breakdown = format_breakdown(duration_ms, db_time_ms, db_query_count, segments)
+            timing_info = f"{duration_ms:.0f}ms ({breakdown})"
+        else:
+            timing_info = self._build_timing_info(duration_ms, db_time_ms, db_query_count)
 
         # Build log message
         log_message = (
@@ -87,17 +101,6 @@ class APILoggingMiddleware:
             f"{timing_info} "
             f"{format_bytes(response_size)}"
         )
-
-        # Determine logging behavior
-        is_server_error = response.status_code >= 500
-        is_slow = should_expand_trace(duration_ms)
-        has_segments = len(segments) > 0
-
-        # Build complete log message with optional breakdown
-        show_breakdown = has_segments and (is_server_error or (settings.DEBUG and is_slow))
-        if show_breakdown:
-            breakdown = format_breakdown(segments)
-            log_message = f"{log_message}\n{breakdown}"
 
         if is_server_error:
             logger.error(log_message)
