@@ -96,24 +96,21 @@ def trace_external(service: str, operation: str):
         record_segment(segment_name, duration_ms, is_external=True)
 
 
-def format_breakdown(segments: list, indent: str = "  ") -> str:
+def get_external_segments(segments: list) -> list:
     """
-    Format segments as an indented breakdown for logging.
-    Aggregates duplicate segment names to reduce noise.
+    Get only external segments from the segment list.
 
     Args:
         segments: List of segment dicts from get_segments()
-        indent: Indentation string
 
     Returns:
-        Multi-line string with tree-formatted breakdown
+        List of external segment dicts (aggregated by name)
     """
-    if not segments:
-        return ""
-
-    # Aggregate segments with the same name
+    # Aggregate external segments with the same name
     aggregated = {}
     for segment in segments:
+        if not segment.get('is_external', False):
+            continue
         name = segment['name']
         if name in aggregated:
             aggregated[name]['duration_ms'] += segment['duration_ms']
@@ -122,34 +119,65 @@ def format_breakdown(segments: list, indent: str = "  ") -> str:
             aggregated[name] = {
                 'name': name,
                 'duration_ms': segment['duration_ms'],
-                'is_external': segment['is_external'],
                 'count': 1,
             }
 
     # Sort by duration descending
-    sorted_segments = sorted(aggregated.values(), key=lambda s: s['duration_ms'], reverse=True)
+    return sorted(aggregated.values(), key=lambda s: s['duration_ms'], reverse=True)
 
-    lines = []
-    for i, segment in enumerate(sorted_segments):
-        is_last = i == len(sorted_segments) - 1
-        prefix = "└─" if is_last else "├─"
+
+def format_breakdown(
+    total_ms: float,
+    db_time_ms: float,
+    db_query_count: int,
+    segments: list,
+) -> str:
+    """
+    Format a timing breakdown as a single-line string.
+
+    Shows:
+    - db: Database query time (with query count)
+    - ext:*: External API calls (if any)
+    - app: Application code time (serialization, view logic, etc.)
+
+    Args:
+        total_ms: Total request duration in milliseconds
+        db_time_ms: Database query time in milliseconds
+        db_query_count: Number of database queries
+        segments: List of segment dicts from get_segments()
+
+    Returns:
+        Single-line string with timing breakdown, e.g.:
+        "db: 317ms/45q, app: 1243ms" or
+        "db: 50ms/5q, ext:github:check_star: 780ms, app: 20ms"
+    """
+    external_segments = get_external_segments(segments)
+
+    # Calculate total external time
+    total_external_ms = sum(s['duration_ms'] for s in external_segments)
+
+    # Calculate app time (everything not db or external)
+    app_time_ms = max(0, total_ms - db_time_ms - total_external_ms)
+
+    # Build the breakdown parts
+    parts = []
+
+    # Add db time first
+    if db_query_count > 0:
+        parts.append(f"db: {db_time_ms:.0f}ms/{db_query_count}q")
+
+    # Add external segments
+    for segment in external_segments:
         name = segment['name']
         duration = segment['duration_ms']
         count = segment['count']
-
-        # Show count if more than 1 call
         count_suffix = f" x{count}" if count > 1 else ""
+        parts.append(f"{name}: {duration:.0f}ms{count_suffix}")
 
-        # Mark slowest segment as bottleneck if it's significantly slower
-        bottleneck_marker = ""
-        if i == 0 and duration > EXPAND_THRESHOLD_MS and len(sorted_segments) > 1:
-            second_slowest = sorted_segments[1]['duration_ms'] if len(sorted_segments) > 1 else 0
-            if duration > second_slowest * 2:
-                bottleneck_marker = "  <- bottleneck"
+    # Add app time
+    parts.append(f"app: {app_time_ms:.0f}ms")
 
-        lines.append(f"{indent}{prefix} {name}: {duration:.0f}ms{count_suffix}{bottleneck_marker}")
-
-    return "\n".join(lines)
+    return ", ".join(parts)
 
 
 def should_expand_trace(duration_ms: float) -> bool:
