@@ -5,6 +5,7 @@ from typing import Optional, Dict
 import time
 
 from tally.middleware.logging_utils import get_app_logger
+from tally.middleware.tracing import trace_external
 
 logger = get_app_logger('cloudinary')
 
@@ -63,13 +64,14 @@ class CloudinaryService:
             upload_preset = getattr(settings, 'CLOUDINARY_UPLOAD_PRESET', 'tally_unsigned')
             timestamp = int(time.time())
             
-            result = cloudinary.uploader.unsigned_upload(
-                image_file,
-                upload_preset,
-                public_id=f"user_{user_id}_profile_{timestamp}",
-                folder="tally/profiles"
-            )
-            
+            with trace_external('cloudinary', 'upload_profile'):
+                result = cloudinary.uploader.unsigned_upload(
+                    image_file,
+                    upload_preset,
+                    public_id=f"user_{user_id}_profile_{timestamp}",
+                    folder="tally/profiles"
+                )
+
             # Build URL with transformations
             transformation_str = "w_400,h_400,c_fill,g_face,q_auto:good,f_auto"
             base_url = result['secure_url']
@@ -114,13 +116,14 @@ class CloudinaryService:
             upload_preset = getattr(settings, 'CLOUDINARY_UPLOAD_PRESET', 'tally_unsigned')
             timestamp = int(time.time())
             
-            result = cloudinary.uploader.unsigned_upload(
-                image_file,
-                upload_preset,
-                public_id=f"user_{user_id}_banner_{timestamp}",
-                folder="tally/banners"
-            )
-            
+            with trace_external('cloudinary', 'upload_banner'):
+                result = cloudinary.uploader.unsigned_upload(
+                    image_file,
+                    upload_preset,
+                    public_id=f"user_{user_id}_banner_{timestamp}",
+                    folder="tally/banners"
+                )
+
             # Build URL with transformations
             transformation_str = "w_1500,h_500,c_fill,g_center,q_auto:good,f_auto"
             base_url = result['secure_url']
@@ -162,7 +165,8 @@ class CloudinaryService:
             
         try:
             cls.configure()
-            result = cloudinary.uploader.destroy(public_id)
+            with trace_external('cloudinary', 'delete'):
+                result = cloudinary.uploader.destroy(public_id)
             return result.get('result') == 'ok'
         except Exception as e:
             logger.error(f"Failed to delete image: {str(e)}")

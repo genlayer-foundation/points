@@ -1,13 +1,16 @@
 <script>
   import { onMount } from 'svelte';
-  import { push } from 'svelte-spa-router';
+  import { push, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
+  import { userStore } from '../lib/userStore.js';
   import { stewardAPI, contributionsAPI, leaderboardAPI } from '../lib/api.js';
-  import { format } from 'date-fns';
   import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
   import SubmissionCard from '../components/SubmissionCard.svelte';
+  import StewardSearchBar from '../components/StewardSearchBar.svelte';
   import { showSuccess, showError } from '../lib/toastStore';
-  
+  import { parseSearch } from '../lib/searchParser.js';
+  import { searchToParams } from '../lib/searchToParams.js';
+
   let submissions = $state([]);
   let contributionTypes = $state([]);
   let users = $state([]);
@@ -16,25 +19,12 @@
   let currentPage = $state(1);
   let totalCount = $state(0);
   let pageSize = $state(10);
-  
-  // Filters
+
+  // Filters - Status dropdown + search bar
   let stateFilter = $state('pending');
-  let typeFilter = $state('');
-  let assignedToFilter = $state('');  // '' = all, 'me' = assigned to me, steward_id = specific steward
-  let usernameSearch = $state('');
-  let searchTimeout = null;
+  let searchQuery = $state('');
   let stewardsList = $state([]);
   let assigningSubmissions = $state(new Set());  // Track which submissions are being assigned
-
-  // Exclusion filter states (checkbox values)
-  let excludeMediumBlogpost = $state(false);
-  let excludeEmptyEvidence = $state(false);
-  let minAcceptedContributions = $state(0);
-
-  // Applied exclusion filter states (what's actually sent to API)
-  let appliedExcludeMediumBlogpost = $state(false);
-  let appliedExcludeEmptyEvidence = $state(false);
-  let appliedMinAcceptedContributions = $state(0);
 
   // Review states
   let processingSubmissions = $state(new Set());
@@ -52,6 +42,11 @@
       push('/');
       return;
     }
+
+    // Sync filters from URL
+    const params = new URLSearchParams($querystring);
+    if (params.has('status')) stateFilter = params.get('status');
+    if (params.has('q')) searchQuery = params.get('q');
 
     await loadContributionTypes();
     await loadUsers();
@@ -125,46 +120,39 @@
     }
   }
   
+  function updateURL() {
+    const urlParams = new URLSearchParams();
+    if (stateFilter) urlParams.set('status', stateFilter);
+    if (searchQuery) urlParams.set('q', searchQuery);
+    const newUrl = urlParams.toString() ? `?${urlParams.toString()}` : '';
+    window.history.replaceState({}, '', `#/steward/submissions${newUrl}`);
+  }
+
   async function loadSubmissions() {
     loading = true;
     error = null;
     clearSelection();
 
     try {
-      const params = {
-        page: currentPage,
-        page_size: pageSize
-      };
+      // Update URL with current filters
+      updateURL();
 
+      // Build API params from search query
+      const parsed = parseSearch(searchQuery);
+      const currentUserId = $userStore.user?.id;
+      const params = searchToParams(parsed, {
+        contributionTypes,
+        stewardsList,
+        currentUserId
+      });
+
+      // Add status from dropdown (overrides search query if present)
       if (stateFilter) {
         params.state = stateFilter;
       }
 
-      if (typeFilter) {
-        params.contribution_type = typeFilter;
-      }
-
-      if (usernameSearch) {
-        params.username_search = usernameSearch;
-      }
-
-      // Handle assigned_to filter
-      if (assignedToFilter === 'unassigned') {
-        params.assigned_to = 'unassigned';
-      } else if (assignedToFilter) {
-        params.assigned_to = assignedToFilter;
-      }
-
-      // Handle exclusion filters
-      if (appliedExcludeMediumBlogpost) {
-        params.exclude_medium_blogpost = true;
-      }
-      if (appliedExcludeEmptyEvidence) {
-        params.exclude_empty_evidence = true;
-      }
-      if (appliedMinAcceptedContributions > 0) {
-        params.min_accepted_contributions = appliedMinAcceptedContributions;
-      }
+      params.page = currentPage;
+      params.page_size = pageSize;
 
       const response = await stewardAPI.getSubmissions(params);
       submissions = response.data.results || [];
@@ -273,18 +261,8 @@
     loadSubmissions();
   }
 
-  function handleSearchChange() {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
-      currentPage = 1;
-      loadSubmissions();
-    }, 500);
-  }
-
-  function applyExclusionFilters() {
-    appliedExcludeMediumBlogpost = excludeMediumBlogpost;
-    appliedExcludeEmptyEvidence = excludeEmptyEvidence;
-    appliedMinAcceptedContributions = minAcceptedContributions;
+  function handleSearchChange(query) {
+    searchQuery = query;
     currentPage = 1;
     loadSubmissions();
   }
@@ -355,9 +333,9 @@
   
   <!-- Filters -->
   <div class="bg-white shadow rounded-lg p-4 mb-6">
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="flex flex-col md:flex-row gap-4">
       <!-- Status Filter -->
-      <div>
+      <div class="w-full md:w-48 flex-shrink-0">
         <label for="state-filter" class="block text-sm font-medium text-gray-700 mb-1">
           Status
         </label>
@@ -375,91 +353,18 @@
         </select>
       </div>
 
-      <!-- Contribution Type Filter -->
-      <div>
-        <label for="type-filter" class="block text-sm font-medium text-gray-700 mb-1">
-          Contribution Type
+      <!-- Search Bar -->
+      <div class="flex-1">
+        <label for="search-bar" class="block text-sm font-medium text-gray-700 mb-1">
+          Search
         </label>
-        <select
-          id="type-filter"
-          bind:value={typeFilter}
-          onchange={handleFilterChange}
-          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-        >
-          <option value="">All Types</option>
-          {#each contributionTypes as type}
-            <option value={type.id}>{type.name}</option>
-          {/each}
-        </select>
-      </div>
-
-      <!-- Assigned To Filter -->
-      <div>
-        <label for="assigned-filter" class="block text-sm font-medium text-gray-700 mb-1">
-          Assigned To
-        </label>
-        <select
-          id="assigned-filter"
-          bind:value={assignedToFilter}
-          onchange={handleFilterChange}
-          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-        >
-          <option value="">All</option>
-          <option value="unassigned">Unassigned</option>
-          {#each stewardsList as steward}
-            <option value={steward.user_id}>
-              {steward.name || steward.address?.slice(0, 10) + '...'}
-            </option>
-          {/each}
-        </select>
-      </div>
-
-      <!-- Username Search -->
-      <div>
-        <label for="username-search" class="block text-sm font-medium text-gray-700 mb-1">
-          Search User
-        </label>
-        <input
-          id="username-search"
-          type="text"
-          bind:value={usernameSearch}
-          oninput={handleSearchChange}
-          placeholder="Name or address..."
-          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+        <StewardSearchBar
+          bind:value={searchQuery}
+          {contributionTypes}
+          {stewardsList}
+          onSearch={handleSearchChange}
+          placeholder="type:blog-post assigned:me exclude:medium.com..."
         />
-      </div>
-    </div>
-
-    <!-- Exclusion Filters -->
-    <div class="border-t pt-4 mt-4">
-      <div class="flex flex-wrap items-center gap-4">
-        <span class="text-sm font-medium text-gray-700">Exclude:</span>
-        <label class="flex items-center gap-2 text-sm">
-          <input type="checkbox" bind:checked={excludeMediumBlogpost} class="rounded border-gray-300" />
-          Medium Blog Posts
-        </label>
-        <label class="flex items-center gap-2 text-sm">
-          <input type="checkbox" bind:checked={excludeEmptyEvidence} class="rounded border-gray-300" />
-          Submissions without URLs
-        </label>
-        <label class="flex items-center gap-2 text-sm">
-          Users with less than
-          <select bind:value={minAcceptedContributions} class="rounded border-gray-300 text-sm py-1 px-2">
-            <option value={0}>0</option>
-            <option value={1}>1</option>
-            <option value={2}>2</option>
-            <option value={3}>3</option>
-            <option value={4}>4</option>
-            <option value={5}>5</option>
-          </select>
-          accepted contributions
-        </label>
-        <button
-          onclick={applyExclusionFilters}
-          class="px-3 py-1 bg-primary-600 text-white text-sm rounded-md hover:bg-primary-700"
-        >
-          Apply
-        </button>
       </div>
     </div>
 

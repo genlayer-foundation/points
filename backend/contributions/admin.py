@@ -11,7 +11,7 @@ from django.db.models import Count
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from datetime import datetime
-from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission
+from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
 
@@ -624,6 +624,41 @@ class MissionAdmin(admin.ModelAdmin):
 
     def get_status(self, obj):
         if obj.is_active():
+            return format_html('<span style="color: green;">●</span> Active')
+        else:
+            return format_html('<span style="color: red;">●</span> Inactive')
+    get_status.short_description = 'Status'
+
+
+@admin.register(StartupRequest)
+class StartupRequestAdmin(admin.ModelAdmin):
+    list_display = ('id', 'title', 'get_status', 'order', 'created_at')
+    list_filter = ('is_active', 'created_at')
+    search_fields = ('title', 'description', 'short_description')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    list_editable = ('order',)
+    ordering = ('order', '-created_at')
+
+    fieldsets = (
+        (None, {
+            'fields': ('id', 'title', 'is_active', 'order')
+        }),
+        ('Content', {
+            'fields': ('short_description', 'description'),
+            'description': 'Short description is shown in the listing. Full description supports Markdown.'
+        }),
+        ('Documents', {
+            'fields': ('documents',),
+            'description': 'JSON array of document objects: [{"title": "...", "url": "...", "type": "pdf|image"}]'
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def get_status(self, obj):
+        if obj.is_active:
             return format_html('<span style="color: green;">●</span> Active')
         else:
             return format_html('<span style="color: red;">●</span> Inactive')

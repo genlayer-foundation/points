@@ -7,6 +7,7 @@ from genlayer_py import create_client
 from web3 import Web3
 
 from tally.middleware.logging_utils import get_app_logger
+from tally.middleware.tracing import trace_external
 
 logger = get_app_logger('genlayer')
 
@@ -74,10 +75,11 @@ class GenLayerDeploymentService:
                 logger.debug("Making request to Studio API")
                 
                 try:
-                    response = self.client.provider.make_request(
-                        method="sim_getTransactionsForAddress",
-                        params=[wallet_address]
-                    )
+                    with trace_external('genlayer', 'get_transactions'):
+                        response = self.client.provider.make_request(
+                            method="sim_getTransactionsForAddress",
+                            params=[wallet_address]
+                        )
                 except Exception as api_error:
                     # Log the raw error for debugging
                     logger.error(f"Raw API error: {str(api_error)}")

@@ -12,12 +12,12 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.generic import ListView
 from django.utils.decorators import method_decorator
-from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission
+from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission, StartupRequest
 from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
                          StewardSubmissionSerializer, StewardSubmissionReviewSerializer,
-                         MissionSerializer)
+                         MissionSerializer, StartupRequestListSerializer, StartupRequestDetailSerializer)
 from .forms import SubmissionReviewForm
 from .permissions import IsSteward
 from leaderboard.models import GlobalLeaderboardMultiplier
@@ -774,15 +774,31 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
 class StewardSubmissionFilterSet(FilterSet):
     """Custom filterset for steward submission filtering."""
     username_search = CharFilter(method='filter_username')
+    exclude_username = CharFilter(method='filter_exclude_username')
     assigned_to = CharFilter(method='filter_assigned_to')
-    exclude_medium_blogpost = BooleanFilter(method='filter_exclude_medium_blogpost')
+    exclude_assigned_to = CharFilter(method='filter_exclude_assigned_to')
+    exclude_contribution_type = NumberFilter(method='filter_exclude_contribution_type')
+    exclude_content = CharFilter(method='filter_exclude_content')
+    include_content = CharFilter(method='filter_include_content')
     exclude_empty_evidence = BooleanFilter(method='filter_exclude_empty_evidence')
+    only_empty_evidence = BooleanFilter(method='filter_only_empty_evidence')
+    exclude_state = CharFilter(method='filter_exclude_state')
     min_accepted_contributions = NumberFilter(method='filter_min_accepted_contributions')
 
     def filter_username(self, queryset, name, value):
         """Filter by submitter name, email, or address (case-insensitive partial match)."""
         if value:
             return queryset.filter(
+                Q(user__name__icontains=value) |
+                Q(user__email__icontains=value) |
+                Q(user__address__icontains=value)
+            )
+        return queryset
+
+    def filter_exclude_username(self, queryset, name, value):
+        """Exclude submissions from users matching the search."""
+        if value:
+            return queryset.exclude(
                 Q(user__name__icontains=value) |
                 Q(user__email__icontains=value) |
                 Q(user__address__icontains=value)
@@ -797,21 +813,58 @@ class StewardSubmissionFilterSet(FilterSet):
             return queryset.filter(assigned_to_id=value)
         return queryset
 
-    def filter_exclude_medium_blogpost(self, queryset, name, value):
-        """Exclude submissions that have Medium blog post URLs in evidence or notes."""
+    def filter_exclude_assigned_to(self, queryset, name, value):
+        """Exclude submissions assigned to a specific steward."""
+        if value == 'null' or value == 'unassigned':
+            return queryset.exclude(assigned_to__isnull=True)
+        elif value:
+            return queryset.exclude(assigned_to_id=value)
+        return queryset
+
+    def filter_exclude_contribution_type(self, queryset, name, value):
+        """Exclude submissions of a specific contribution type."""
         if value:
-            # Subquery: check if submission has any evidence with medium.com URL
-            has_medium_evidence = Evidence.objects.filter(
-                submitted_contribution=OuterRef('pk'),
-                url__icontains='medium.com'
-            )
-            # Exclude submissions where:
-            # - Any evidence URL contains medium.com OR
-            # - Notes contain medium.com
-            return queryset.exclude(
-                Exists(has_medium_evidence) |
-                Q(notes__icontains='medium.com')
-            )
+            return queryset.exclude(contribution_type_id=value)
+        return queryset
+
+    def filter_exclude_state(self, queryset, name, value):
+        """Exclude submissions with specific state."""
+        if value:
+            return queryset.exclude(state=value)
+        return queryset
+
+    def filter_exclude_content(self, queryset, name, value):
+        """Exclude submissions containing text in notes or evidence. Supports comma-separated values."""
+        if value:
+            for term in value.split(','):
+                term = term.strip()
+                if term:
+                    has_matching_evidence = Evidence.objects.filter(
+                        submitted_contribution=OuterRef('pk')
+                    ).filter(
+                        Q(url__icontains=term) | Q(description__icontains=term)
+                    )
+                    queryset = queryset.exclude(
+                        Exists(has_matching_evidence) |
+                        Q(notes__icontains=term)
+                    )
+        return queryset
+
+    def filter_include_content(self, queryset, name, value):
+        """Include ONLY submissions containing text in notes or evidence. Supports comma-separated values."""
+        if value:
+            for term in value.split(','):
+                term = term.strip()
+                if term:
+                    has_matching_evidence = Evidence.objects.filter(
+                        submitted_contribution=OuterRef('pk')
+                    ).filter(
+                        Q(url__icontains=term) | Q(description__icontains=term)
+                    )
+                    queryset = queryset.filter(
+                        Exists(has_matching_evidence) |
+                        Q(notes__icontains=term)
+                    )
         return queryset
 
     def filter_exclude_empty_evidence(self, queryset, name, value):
@@ -826,6 +879,20 @@ class StewardSubmissionFilterSet(FilterSet):
             # - No evidence item has a URL AND
             # - Notes don't contain a URL (http:// or https://)
             return queryset.exclude(
+                ~Exists(has_url_evidence) &
+                ~Q(notes__icontains='http://') &
+                ~Q(notes__icontains='https://')
+            )
+        return queryset
+
+    def filter_only_empty_evidence(self, queryset, name, value):
+        """Include ONLY submissions without URL evidence (inverse of exclude_empty_evidence)."""
+        if value:
+            has_url_evidence = Evidence.objects.filter(
+                submitted_contribution=OuterRef('pk'),
+                url__gt=''
+            )
+            return queryset.filter(
                 ~Exists(has_url_evidence) &
                 ~Q(notes__icontains='http://') &
                 ~Q(notes__icontains='https://')
@@ -1170,3 +1237,25 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(contribution_type__category__slug=category)
 
         return queryset
+
+
+class StartupRequestViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only ViewSet for startup requests.
+    Management is done through Django admin.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        """
+        Return active startup requests ordered by display order.
+        """
+        return StartupRequest.get_active_requests()
+
+    def get_serializer_class(self):
+        """
+        Use appropriate serializer based on action.
+        """
+        if self.action == 'retrieve':
+            return StartupRequestDetailSerializer
+        return StartupRequestListSerializer
