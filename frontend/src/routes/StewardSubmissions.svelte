@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { push, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
+  import { userStore } from '../lib/userStore.js';
   import { stewardAPI, contributionsAPI, leaderboardAPI } from '../lib/api.js';
   import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
   import SubmissionCard from '../components/SubmissionCard.svelte';
@@ -138,7 +139,7 @@
 
       // Build API params from search query
       const parsed = parseSearch(searchQuery);
-      const currentUserId = $authState.user?.id;
+      const currentUserId = $userStore.user?.id;
       const params = searchToParams(parsed, {
         contributionTypes,
         stewardsList,

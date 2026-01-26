@@ -32,6 +32,7 @@ export function searchToParams(parsed, options = {}) {
     const type = contributionTypes.find(t =>
       t.slug?.toLowerCase() === typeValue ||
       t.name?.toLowerCase() === typeValue ||
+      t.name?.toLowerCase().replace(/\s+/g, '-') === typeValue ||
       String(t.id) === filters.type.value
     );
     if (type) {

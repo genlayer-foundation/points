@@ -85,7 +85,7 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContributionType
         fields = [
-            'id', 'name', 'description', 'category', 'min_points', 'max_points',
+            'id', 'name', 'slug', 'description', 'category', 'min_points', 'max_points',
             'current_multiplier', 'is_submittable', 'examples',
             'created_at', 'updated_at'
         ]
