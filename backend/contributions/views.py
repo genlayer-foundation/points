@@ -776,6 +776,8 @@ class StewardSubmissionFilterSet(FilterSet):
     username_search = CharFilter(method='filter_username')
     exclude_username = CharFilter(method='filter_exclude_username')
     assigned_to = CharFilter(method='filter_assigned_to')
+    exclude_assigned_to = CharFilter(method='filter_exclude_assigned_to')
+    exclude_contribution_type = NumberFilter(method='filter_exclude_contribution_type')
     exclude_content = CharFilter(method='filter_exclude_content')
     include_content = CharFilter(method='filter_include_content')
     exclude_empty_evidence = BooleanFilter(method='filter_exclude_empty_evidence')
@@ -811,6 +813,20 @@ class StewardSubmissionFilterSet(FilterSet):
             return queryset.filter(assigned_to_id=value)
         return queryset
 
+    def filter_exclude_assigned_to(self, queryset, name, value):
+        """Exclude submissions assigned to a specific steward."""
+        if value == 'null' or value == 'unassigned':
+            return queryset.exclude(assigned_to__isnull=True)
+        elif value:
+            return queryset.exclude(assigned_to_id=value)
+        return queryset
+
+    def filter_exclude_contribution_type(self, queryset, name, value):
+        """Exclude submissions of a specific contribution type."""
+        if value:
+            return queryset.exclude(contribution_type_id=value)
+        return queryset
+
     def filter_exclude_state(self, queryset, name, value):
         """Exclude submissions with specific state."""
         if value:
@@ -826,7 +842,7 @@ class StewardSubmissionFilterSet(FilterSet):
                     has_matching_evidence = Evidence.objects.filter(
                         submitted_contribution=OuterRef('pk')
                     ).filter(
-                        Q(url__icontains=term) | Q(notes__icontains=term)
+                        Q(url__icontains=term) | Q(description__icontains=term)
                     )
                     queryset = queryset.exclude(
                         Exists(has_matching_evidence) |
@@ -843,7 +859,7 @@ class StewardSubmissionFilterSet(FilterSet):
                     has_matching_evidence = Evidence.objects.filter(
                         submitted_contribution=OuterRef('pk')
                     ).filter(
-                        Q(url__icontains=term) | Q(notes__icontains=term)
+                        Q(url__icontains=term) | Q(description__icontains=term)
                     )
                     queryset = queryset.filter(
                         Exists(has_matching_evidence) |
