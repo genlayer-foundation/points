@@ -353,7 +353,7 @@
           defaultContributionType={formData.contribution_type}
           onlySubmittable={true}
           stewardMode={false}
-          isValidator={!!$userStore.user?.validator}
+          isValidator={!!$userStore.user?.validator || !!$userStore.user?.has_validator_waitlist}
           isBuilder={!!$userStore.user?.builder}
           onSelectionChange={handleSelectionChange}
         />

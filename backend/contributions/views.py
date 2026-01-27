@@ -662,10 +662,16 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_403_FORBIDDEN
                         )
                     if contribution_type.category.slug == 'validator' and not hasattr(request.user, 'validator'):
-                        return Response(
-                            {'error': 'You must complete the Validator Waitlist journey before submitting validator contributions.'},
-                            status=status.HTTP_403_FORBIDDEN
-                        )
+                        # Allow users on the validator waitlist to submit validator contributions
+                        has_waitlist = Contribution.objects.filter(
+                            user=request.user,
+                            contribution_type__slug='validator-waitlist'
+                        ).exists()
+                        if not has_waitlist:
+                            return Response(
+                                {'error': 'You must complete the Validator Waitlist journey before submitting validator contributions.'},
+                                status=status.HTTP_403_FORBIDDEN
+                            )
             except ContributionType.DoesNotExist:
                 pass
 
