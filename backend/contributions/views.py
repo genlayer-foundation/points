@@ -1018,14 +1018,16 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 # Manually update leaderboard since ensure_builder_status uses bulk_create (no signals)
                 update_user_leaderboard_entries(contribution_user)
 
-            # Copy evidence items
-            for evidence in submission.evidence_items.all():
-                Evidence.objects.create(
+            # Copy evidence items using bulk_create for better performance
+            Evidence.objects.bulk_create([
+                Evidence(
                     contribution=contribution,
                     description=evidence.description,
                     url=evidence.url,
                     file=evidence.file
                 )
+                for evidence in submission.evidence_items.all()
+            ])
             
             # Create highlight if requested
             if serializer.validated_data.get('create_highlight'):
