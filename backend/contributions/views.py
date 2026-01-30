@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters import FilterSet, CharFilter, BooleanFilter, NumberFilter
 from django.utils import timezone
-from django.db.models import Count, Max, F, Q, Exists, OuterRef, Subquery
+from django.db.models import Count, Max, F, Q, Exists, OuterRef, Subquery, Sum
+from django.db.models.functions import TruncDate, TruncWeek, TruncMonth
 from django.db.models.functions import Coalesce
 from django.db.models.functions import Coalesce
 from django.shortcuts import render, redirect, get_object_or_404
@@ -939,9 +940,9 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         """
         Instantiates and returns the list of permissions that this view requires.
-        Stats endpoint is public, all others require steward permission.
+        Stats and daily_metrics endpoints are public, all others require steward permission.
         """
-        if self.action == 'stats':
+        if self.action in ['stats', 'daily_metrics']:
             return [permissions.AllowAny()]
         return super().get_permissions()
 
@@ -1018,14 +1019,16 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 # Manually update leaderboard since ensure_builder_status uses bulk_create (no signals)
                 update_user_leaderboard_entries(contribution_user)
 
-            # Copy evidence items
-            for evidence in submission.evidence_items.all():
-                Evidence.objects.create(
+            # Copy evidence items using bulk_create for better performance
+            Evidence.objects.bulk_create([
+                Evidence(
                     contribution=contribution,
                     description=evidence.description,
                     url=evidence.url,
                     file=evidence.file
                 )
+                for evidence in submission.evidence_items.all()
+            ])
             
             # Create highlight if requested
             if serializer.validated_data.get('create_highlight'):
@@ -1110,7 +1113,211 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'total_rejected': total_rejected,
             'total_info_requested': total_info_requested
         })
-    
+
+    @action(detail=False, methods=['get'], url_path='daily-metrics')
+    def daily_metrics(self, request):
+        """
+        Get time-series metrics for submissions.
+
+        Query parameters:
+        - start_date: Start date (YYYY-MM-DD), defaults to first submission date
+        - end_date: End date (YYYY-MM-DD), defaults to today
+        - group_by: Grouping period - 'day', 'week', or 'month' (default: 'week')
+        - category: Filter by category slug (validator, builder, steward, creator)
+        - contribution_type: Filter by contribution type ID
+
+        Returns counts grouped by period for:
+        - ingress: New submissions created
+        - accepted: Submissions accepted
+        - rejected: Submissions rejected
+        - more_info_requested: Submissions requesting more info
+        - points_awarded: Total points from accepted contributions
+        """
+        from datetime import datetime, timedelta
+        from django.db.models import Min, Max
+        import calendar
+
+        # Build base queryset with optional filters first (needed for date detection)
+        base_qs = SubmittedContribution.objects.all()
+
+        category = request.query_params.get('category')
+        if category:
+            base_qs = base_qs.filter(contribution_type__category__slug=category)
+
+        contribution_type_id = request.query_params.get('contribution_type')
+        if contribution_type_id:
+            base_qs = base_qs.filter(contribution_type_id=contribution_type_id)
+
+        # Get grouping parameter (default to week)
+        group_by = request.query_params.get('group_by', 'week')
+        if group_by not in ['day', 'week', 'month']:
+            group_by = 'week'
+
+        # Select truncation function based on grouping
+        trunc_func = {
+            'day': TruncDate,
+            'week': TruncWeek,
+            'month': TruncMonth
+        }[group_by]
+
+        # Parse date range from query params, or auto-detect from data
+        end_date = None
+        start_date = None
+
+        if request.query_params.get('start_date'):
+            try:
+                start_date = datetime.strptime(
+                    request.query_params['start_date'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                pass
+
+        if request.query_params.get('end_date'):
+            try:
+                end_date = datetime.strptime(
+                    request.query_params['end_date'], '%Y-%m-%d'
+                ).date()
+            except ValueError:
+                pass
+
+        # Auto-detect date range from data if not provided
+        if start_date is None or end_date is None:
+            date_range = base_qs.aggregate(
+                min_date=Min('created_at'),
+                max_date=Max('created_at')
+            )
+            if start_date is None:
+                start_date = date_range['min_date'].date() if date_range['min_date'] else timezone.now().date()
+            if end_date is None:
+                end_date = timezone.now().date()
+
+        # Get ingress (new submissions by created_at)
+        ingress = (
+            base_qs
+            .filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
+            .annotate(period=trunc_func('created_at'))
+            .values('period')
+            .annotate(count=Count('id'))
+            .order_by('period')
+        )
+
+        # Get reviews by outcome (by reviewed_at date)
+        reviews_base = base_qs.filter(
+            reviewed_at__date__gte=start_date,
+            reviewed_at__date__lte=end_date
+        )
+
+        accepted = (
+            reviews_base
+            .filter(state='accepted')
+            .annotate(period=trunc_func('reviewed_at'))
+            .values('period')
+            .annotate(count=Count('id'))
+            .order_by('period')
+        )
+
+        rejected = (
+            reviews_base
+            .filter(state='rejected')
+            .annotate(period=trunc_func('reviewed_at'))
+            .values('period')
+            .annotate(count=Count('id'))
+            .order_by('period')
+        )
+
+        more_info = (
+            reviews_base
+            .filter(state='more_info_needed')
+            .annotate(period=trunc_func('reviewed_at'))
+            .values('period')
+            .annotate(count=Count('id'))
+            .order_by('period')
+        )
+
+        # Get points awarded (from converted contributions)
+        points_qs = Contribution.objects.filter(
+            created_at__date__gte=start_date,
+            created_at__date__lte=end_date,
+            source_submission__isnull=False  # Only from submissions
+        )
+
+        # Apply category/type filters to points query if specified
+        if category:
+            points_qs = points_qs.filter(contribution_type__category__slug=category)
+        if contribution_type_id:
+            points_qs = points_qs.filter(contribution_type_id=contribution_type_id)
+
+        points = (
+            points_qs
+            .annotate(period=trunc_func('created_at'))
+            .values('period')
+            .annotate(total_points=Sum('frozen_global_points'))
+            .order_by('period')
+        )
+
+        # Convert querysets to dict for easier lookup (handle both date and datetime)
+        def to_date(val):
+            if hasattr(val, 'date'):
+                return val.date()
+            return val
+
+        ingress_dict = {to_date(item['period']): item['count'] for item in ingress}
+        accepted_dict = {to_date(item['period']): item['count'] for item in accepted}
+        rejected_dict = {to_date(item['period']): item['count'] for item in rejected}
+        more_info_dict = {to_date(item['period']): item['count'] for item in more_info}
+        points_dict = {to_date(item['period']): item['total_points'] for item in points}
+
+        # Build response with all periods in range
+        data = []
+        current_date = start_date
+
+        # Align to period start
+        if group_by == 'week':
+            # Align to Monday
+            current_date = current_date - timedelta(days=current_date.weekday())
+        elif group_by == 'month':
+            # Align to first of month
+            current_date = current_date.replace(day=1)
+
+        while current_date <= end_date:
+            data.append({
+                'period': current_date.isoformat(),
+                'ingress': ingress_dict.get(current_date, 0),
+                'accepted': accepted_dict.get(current_date, 0),
+                'rejected': rejected_dict.get(current_date, 0),
+                'more_info_requested': more_info_dict.get(current_date, 0),
+                'points_awarded': points_dict.get(current_date, 0) or 0
+            })
+
+            # Advance to next period
+            if group_by == 'day':
+                current_date += timedelta(days=1)
+            elif group_by == 'week':
+                current_date += timedelta(weeks=1)
+            else:  # month
+                # Add one month
+                if current_date.month == 12:
+                    current_date = current_date.replace(year=current_date.year + 1, month=1)
+                else:
+                    current_date = current_date.replace(month=current_date.month + 1)
+
+        # Calculate totals for the period
+        totals = {
+            'ingress': sum(d['ingress'] for d in data),
+            'accepted': sum(d['accepted'] for d in data),
+            'rejected': sum(d['rejected'] for d in data),
+            'more_info_requested': sum(d['more_info_requested'] for d in data),
+            'points_awarded': sum(d['points_awarded'] for d in data)
+        }
+
+        return Response({
+            'start_date': start_date.isoformat(),
+            'end_date': end_date.isoformat(),
+            'group_by': group_by,
+            'totals': totals,
+            'data': data
+        })
+
     @action(detail=False, methods=['get'], url_path='users')
     def users(self, request):
         """Get all users sorted alphabetically by name for steward dropdown."""

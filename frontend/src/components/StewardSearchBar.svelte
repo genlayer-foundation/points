@@ -95,13 +95,16 @@
     const before = value.slice(0, start);
     const after = value.slice(end);
 
-    value = before + suggestion + (after.startsWith(' ') ? after : ' ' + after.trimStart());
+    // Don't add space if suggestion ends with ':' (user needs to type value)
+    const needsSpace = !suggestion.endsWith(':');
+    const spacer = needsSpace ? ' ' : '';
+    value = before + suggestion + (after.startsWith(' ') || !needsSpace ? after.trimStart() : spacer + after.trimStart());
     showAutocomplete = false;
 
     // Focus input and move cursor
     if (inputRef) {
       inputRef.focus();
-      const newPos = before.length + suggestion.length + 1;
+      const newPos = before.length + suggestion.length + (needsSpace ? 1 : 0);
       setTimeout(() => inputRef.setSelectionRange(newPos, newPos), 0);
     }
 

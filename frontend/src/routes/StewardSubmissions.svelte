@@ -10,6 +10,7 @@
   import { showSuccess, showError } from '../lib/toastStore';
   import { parseSearch } from '../lib/searchParser.js';
   import { searchToParams } from '../lib/searchToParams.js';
+  import { prefetchMissions } from '../lib/missionsStore.js';
 
   let submissions = $state([]);
   let contributionTypes = $state([]);
@@ -47,6 +48,14 @@
     const params = new URLSearchParams($querystring);
     if (params.has('status')) stateFilter = params.get('status');
     if (params.has('q')) searchQuery = params.get('q');
+
+    // Prefetch missions for both categories to warm the cache
+    // This prevents duplicate API calls from individual SubmissionCard components
+    prefetchMissions([
+      { is_active: true, category: 'validator' },
+      { is_active: true, category: 'builder' },
+      { is_active: true }  // Also prefetch all missions (for defaultMission lookups)
+    ]);
 
     await loadContributionTypes();
     await loadUsers();
@@ -125,7 +134,7 @@
     if (stateFilter) urlParams.set('status', stateFilter);
     if (searchQuery) urlParams.set('q', searchQuery);
     const newUrl = urlParams.toString() ? `?${urlParams.toString()}` : '';
-    window.history.replaceState({}, '', `#/steward/submissions${newUrl}`);
+    window.history.replaceState({}, '', `#/stewards/submissions${newUrl}`);
   }
 
   async function loadSubmissions() {
