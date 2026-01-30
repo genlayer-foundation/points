@@ -1,9 +1,9 @@
 <script>
 	import { onMount } from 'svelte';
 	import { getContributionTypes } from '../api/contributions.js';
-	import { contributionsAPI } from '../api.js';
 	import Badge from '../../components/Badge.svelte';
 	import { showError } from '../toastStore';
+	import { getMissions } from '../missionsStore.js';
 
 	let {
 		selectedCategory = $bindable('validator'),
@@ -126,12 +126,12 @@
 
 	async function loadMissions() {
 		try {
-			const response = await contributionsAPI.getMissions({
+			// Use the missions store which caches and deduplicates requests
+			missions = await getMissions({
 				is_active: true,
 				// If we have a defaultMission, load all missions to find it regardless of category
 				category: defaultMission ? undefined : selectedCategory
 			});
-			missions = response.data.results || response.data || [];
 		} catch (error) {
 			missions = [];
 		}

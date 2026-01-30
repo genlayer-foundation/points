@@ -85,11 +85,11 @@ class ContributionTypesStatsView(APIView):
     """
     Get time series data showing how many contribution types have been assigned on each date.
     """
-    
+
     def get(self, request):
         from django.db.models.functions import TruncDate
         from datetime import date, timedelta
-        
+
         # Get contributions grouped by date and contribution type
         daily_contributions = (
             Contribution.objects
@@ -101,51 +101,119 @@ class ContributionTypesStatsView(APIView):
             )
             .order_by('date')
         )
-        
+
         # Build cumulative data
         data = []
         cumulative_types = set()
-        
+
         # Get all contributions to track cumulative unique types
         all_contributions = (
             Contribution.objects
             .values('contribution_date', 'contribution_type')
             .order_by('contribution_date')
         )
-        
+
         # Group by date and count cumulative types
         from collections import defaultdict
         contributions_by_date = defaultdict(set)
-        
+
         for contrib in all_contributions:
             date_key = contrib['contribution_date'].date()
             contributions_by_date[date_key].add(contrib['contribution_type'])
-        
+
         if contributions_by_date:
             # Get date range
             start_date = min(contributions_by_date.keys())
             end_date = max(contributions_by_date.keys())
-            
+
             # Extend to today if needed
             today = date.today()
             if end_date < today:
                 end_date = today
-            
+
             # Build continuous time series with cumulative count
             current_date = start_date
-            
+
             while current_date <= end_date:
                 # Add new types for this date
                 if current_date in contributions_by_date:
                     cumulative_types.update(contributions_by_date[current_date])
-                
+
                 data.append({
                     'date': current_date.isoformat(),
                     'count': len(cumulative_types),
                     'new_types': len(contributions_by_date.get(current_date, set()))
                 })
-                
+
                 # Move to next day
                 current_date += timedelta(days=1)
-        
+
+        return Response({'data': data})
+
+
+class ParticipantsGrowthView(APIView):
+    """
+    Get time series data for validators, waitlist users, and builders growth over time.
+    """
+
+    def get(self, request):
+        from django.db.models.functions import TruncDate
+        from datetime import date, timedelta
+        from collections import defaultdict
+        from validators.models import Validator
+        from builders.models import Builder
+
+        # Get validators by creation date
+        validators_by_date = defaultdict(int)
+        for v in Validator.objects.all():
+            date_key = v.created_at.date()
+            validators_by_date[date_key] += 1
+
+        # Get waitlist users by contribution date (users with validator-waitlist contribution)
+        waitlist_by_date = defaultdict(int)
+        try:
+            waitlist_type = ContributionType.objects.get(slug='validator-waitlist')
+            for c in Contribution.objects.filter(contribution_type=waitlist_type):
+                date_key = c.contribution_date.date()
+                waitlist_by_date[date_key] += 1
+        except ContributionType.DoesNotExist:
+            pass
+
+        # Get builders by creation date
+        builders_by_date = defaultdict(int)
+        for b in Builder.objects.all():
+            date_key = b.created_at.date()
+            builders_by_date[date_key] += 1
+
+        # Find date range across all sources
+        all_dates = set(validators_by_date.keys()) | set(waitlist_by_date.keys()) | set(builders_by_date.keys())
+
+        if not all_dates:
+            return Response({'data': []})
+
+        start_date = min(all_dates)
+        end_date = max(max(all_dates), date.today())
+
+        # Build cumulative time series
+        data = []
+        cum_validators = 0
+        cum_waitlist = 0
+        cum_builders = 0
+
+        current_date = start_date
+        while current_date <= end_date:
+            cum_validators += validators_by_date.get(current_date, 0)
+            cum_waitlist += waitlist_by_date.get(current_date, 0)
+            cum_builders += builders_by_date.get(current_date, 0)
+
+            data.append({
+                'date': current_date.isoformat(),
+                'validators': cum_validators,
+                'waitlist': cum_waitlist,
+                'builders': cum_builders,
+                'total': cum_validators + cum_waitlist + cum_builders
+            })
+
+            current_date += timedelta(days=1)
+
         return Response({'data': data})

@@ -186,6 +186,10 @@ GET    /api/v1/leaderboard/user_stats/by-address/{address}/
 # Multipliers
 GET    /api/v1/multipliers/
 GET    /api/v1/multiplier-periods/
+
+# Steward Submissions (public metrics)
+GET    /api/v1/steward-submissions/stats/           (public - aggregate stats)
+GET    /api/v1/steward-submissions/daily-metrics/   (public - time-series data)
 ```
 
 ## Environment Variables
