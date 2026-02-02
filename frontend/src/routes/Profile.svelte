@@ -52,7 +52,6 @@
   let hasDeployedContract = $state(false);
   let isRefreshingBalance = $state(false);
   let isClaimingBuilderBadge = $state(false);
-  let hasCalledComplete = $state(false);
   let hasStarredRepo = $state(false);
   let repoToStar = $state('genlayerlabs/genlayer-project-boilerplate');
   let isCheckingRepoStar = $state(false);
@@ -69,19 +68,6 @@
     participant?.address && 
     $authState.address?.toLowerCase() === participant.address.toLowerCase()
   );
-  
-  // Derived states for builder requirements
-  let requirement1Met = $derived(participant?.has_builder_welcome || false);
-  let requirement2Met = $derived(testnetBalance > 0);
-  let allRequirementsMet = $derived(requirement1Met && requirement2Met);
-  
-  // Auto-complete journey when all requirements are met
-  $effect(() => {
-    if (allRequirementsMet && !hasCalledComplete && isOwnProfile && !participant?.builder) {
-      hasCalledComplete = true;
-      completeBuilderJourney();
-    }
-  });
   
   // Determine participant type
   let participantType = $derived(
@@ -298,35 +284,6 @@
       }
     } catch (err) {
       error = err.response?.data?.message || 'Failed to join as supporter';
-    }
-  }
-
-  async function completeBuilderJourney() {
-    if (!$authState.isAuthenticated || !allRequirementsMet) {
-      return;
-    }
-
-    try {
-      const response = await journeyAPI.completeBuilderJourney();
-
-      // If successful, show success notification and reload data
-      if (response.status === 201 || response.status === 200) {
-        showSuccess('Congratulations! 🎉 You are now a GenLayer Builder! Your Builder profile has been created and you can start contributing to the ecosystem.');
-
-        // Reload participant data to get Builder profile
-        const updatedUser = await getCurrentUser();
-        participant = updatedUser;
-      }
-    } catch (err) {
-      // If already has the contribution and Builder profile
-      if (err.response?.status === 200) {
-        // Still reload data
-        const updatedUser = await getCurrentUser();
-        participant = updatedUser;
-      } else {
-        // Reset flag to allow retry
-        hasCalledComplete = false;
-      }
     }
   }
 

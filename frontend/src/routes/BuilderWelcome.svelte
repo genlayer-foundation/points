@@ -3,6 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { authState } from '../lib/auth';
   import { getCurrentUser, journeyAPI, usersAPI, githubAPI } from '../lib/api';
+  import { showError } from '../lib/toastStore';
   import { getValidatorBalance } from '../lib/blockchain';
   import Icon from '../components/Icons.svelte';
   import BuilderProgress from '../components/BuilderProgress.svelte';
@@ -46,16 +47,6 @@
   let requirement4Met = $derived(testnetBalance > 0);
   let requirement5Met = $derived(hasDeployedContract);
   let allRequirementsMet = $derived(requirement1Met && requirement2Met && requirement3Met && requirement4Met && requirement5Met);
-  let hasCalledComplete = $state(false);
-  
-  // Auto-complete journey when all requirements are met
-  $effect(() => {
-    if (allRequirementsMet && !hasCalledComplete && $authState.isAuthenticated && !isCompletingJourney) {
-      hasCalledComplete = true;
-      // If we already know deployments exist, just complete immediately
-      completeBuilderJourney();
-    }
-  });
   
   onMount(async () => {
     await loadData();
@@ -116,8 +107,7 @@
       await checkDeployments();
       
       // If deployments detected and all requirements met, complete immediately
-      if (hasDeployedContract && requirement1Met && requirement2Met && !hasCalledComplete) {
-        hasCalledComplete = true;
+      if (hasDeployedContract && allRequirementsMet) {
         await completeBuilderJourney();
       }
       // Show instructions if still no deployments after manual check
@@ -203,33 +193,28 @@
   }
 
   async function completeBuilderJourney() {
-    if (!$authState.isAuthenticated || !allRequirementsMet) {
+    if (!$authState.isAuthenticated || !allRequirementsMet || isCompletingJourney) {
       return;
     }
 
-    // Don't re-check deployments if we already know they exist
-    // Just proceed with completion
     isCompletingJourney = true;
 
     try {
       const response = await journeyAPI.completeBuilderJourney();
 
-      // If successful, redirect to profile with success message
       if (response.status === 201) {
-        // New builder created
         sessionStorage.setItem('builderJourneySuccess', 'true');
         push(`/participant/${$authState.address}`);
       } else if (response.status === 200) {
-        // Already a builder, just redirect
         push(`/participant/${$authState.address}`);
       }
     } catch (err) {
-      // If already has the contribution and Builder profile, redirect anyway
       if (err.response?.status === 200) {
         push(`/participant/${$authState.address}`);
+      } else if (err.response?.status === 400) {
+        showError(err.response?.data?.error || 'Some requirements are not yet met. Please check and try again.');
       } else {
-        // Reset flag to allow retry
-        hasCalledComplete = false;
+        showError('Something went wrong. Please try again later.');
       }
     } finally {
       isCompletingJourney = false;
@@ -240,6 +225,7 @@
   const debouncedRefreshBalance = debounce(refreshBalance, 500);
   const debouncedRefreshDeployments = debounce(refreshDeployments, 500);
   const debouncedCheckRepoStar = debounce(checkRepoStar, 500);
+  const debouncedCompleteJourney = debounce(completeBuilderJourney, 500);
 
 </script>
 
@@ -424,14 +410,14 @@
             Completing your Builder Journey...
           </div>
         </div>
-      {:else if hasBuilderWelcome || (allRequirementsMet && hasCalledComplete)}
+      {:else if allRequirementsMet}
         <div class="pt-4">
           <button
-            onclick={() => push(`/participant/${$authState.address}`)}
+            onclick={debouncedCompleteJourney}
             class="w-full inline-flex items-center justify-center px-8 py-3 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition-colors shadow-sm"
           >
             <Icon name="builder" className="mr-2 text-white" />
-            View Your Profile
+            Complete Builder Journey
           </button>
         </div>
       {/if}
