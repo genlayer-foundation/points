@@ -36,7 +36,9 @@ def get_required_env(key):
 SECRET_KEY = get_required_env('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = get_required_env('DEBUG').lower() == 'true'
+_debug_raw = get_required_env('DEBUG')
+DEBUG = _debug_raw.lower() == 'true'
+print(f"[STARTUP] DEBUG={DEBUG} (raw: {repr(_debug_raw)})")
 
 ALLOWED_HOSTS = get_required_env('ALLOWED_HOSTS').split(',')
 
