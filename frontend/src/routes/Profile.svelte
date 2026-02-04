@@ -15,7 +15,7 @@
   import { authState } from '../lib/auth';
   import { getValidatorBalance } from '../lib/blockchain';
   import Avatar from '../components/Avatar.svelte';
-  import { showSuccess, showWarning } from '../lib/toastStore';
+  import { showSuccess, showWarning, showError } from '../lib/toastStore';
   import { parseMarkdown } from '../lib/markdownLoader.js';
 
   // Import route params from svelte-spa-router
@@ -55,7 +55,7 @@
   let hasStarredRepo = $state(false);
   let repoToStar = $state('genlayerlabs/genlayer-project-boilerplate');
   let isCheckingRepoStar = $state(false);
-  let isCheckingDeployments = $state(false);
+  let isCompletingJourney = $state(false);
   let referralData = $state(null);
   let loadingReferrals = $state(false);
   let hasShownStatsErrorToast = $state(false);
@@ -307,20 +307,32 @@
     }
   }
 
-  async function checkDeployments() {
-    isCheckingDeployments = true;
-    try {
-      const response = await usersAPI.getDeploymentStatus();
-      hasDeployedContract = response.data.has_deployments || false;
-    } catch (err) {
-      hasDeployedContract = false;
-    } finally {
-      isCheckingDeployments = false;
-    }
+  function openStudio() {
+    hasDeployedContract = true;
+    window.open('https://studio.genlayer.com', '_blank', 'noopener,noreferrer');
   }
 
-  function openStudio() {
-    window.open('https://studio.genlayer.com', '_blank', 'noopener,noreferrer');
+  async function completeBuilderJourney() {
+    if (!$authState.isAuthenticated || isCompletingJourney) return;
+
+    isCompletingJourney = true;
+    try {
+      const response = await journeyAPI.completeBuilderJourney();
+      if (response.status === 201 || response.status === 200) {
+        // Reload participant data to reflect builder status
+        await fetchParticipantData($authState.address);
+      }
+    } catch (err) {
+      if (err.response?.status === 200) {
+        await fetchParticipantData($authState.address);
+      } else if (err.response?.status === 400) {
+        showError(err.response?.data?.error || 'Some requirements are not yet met.');
+      } else {
+        showError('Something went wrong. Please try again later.');
+      }
+    } finally {
+      isCompletingJourney = false;
+    }
   }
 
   async function fetchParticipantData(participantAddress) {
@@ -417,12 +429,6 @@
             testnetBalance = 0;
           });
 
-          // Check for contract deployments asynchronously
-          usersAPI.getDeploymentStatus().then(deploymentResult => {
-            hasDeployedContract = deploymentResult.data.has_deployments || false;
-          }).catch(err => {
-            hasDeployedContract = false;
-          });
         }
       }
     } catch (err) {
@@ -1304,9 +1310,9 @@
                 onGitHubLinked={handleGitHubLinked}
                 onCheckRepoStar={checkRepoStar}
                 isCheckingRepoStar={isCheckingRepoStar}
-                onCheckDeployments={checkDeployments}
-                isCheckingDeployments={isCheckingDeployments}
                 onOpenStudio={openStudio}
+                onCompleteJourney={completeBuilderJourney}
+                isCompletingJourney={isCompletingJourney}
               />
             </div>
           {:else}

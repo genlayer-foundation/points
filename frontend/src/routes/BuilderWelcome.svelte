@@ -2,10 +2,9 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { authState } from '../lib/auth';
-  import { getCurrentUser, journeyAPI, usersAPI, githubAPI } from '../lib/api';
+  import { getCurrentUser, journeyAPI, githubAPI } from '../lib/api';
   import { showError } from '../lib/toastStore';
   import { getValidatorBalance } from '../lib/blockchain';
-  import Icon from '../components/Icons.svelte';
   import BuilderProgress from '../components/BuilderProgress.svelte';
   import GitHubLink from '../components/GitHubLink.svelte';
 
@@ -22,9 +21,6 @@
   let error = $state('');
   let loading = $state(true);
   let isRefreshingBalance = $state(false);
-  let isCheckingDeployments = $state(false);
-  let hasCheckedDeploymentsOnce = $state(false);
-  let showStudioInstructions = $state(false);
   let isCompletingJourney = $state(false);
 
   // Debounce utility to prevent button spam
@@ -61,7 +57,6 @@
         githubUsername = currentUser?.github_username || '';
         // Removed all automatic checks - user must manually refresh each requirement
         // - checkTestnetBalance() - Removed: only check when user clicks refresh
-        // - checkDeployments() - Removed: only check when user clicks refresh
         // - checkRepoStar() - Removed: only check when user clicks refresh
       }
     } catch (err) {
@@ -83,45 +78,9 @@
   }
   
   
-  async function checkDeployments() {
-    // Show spinner on first check
-    if (!hasCheckedDeploymentsOnce) {
-      isCheckingDeployments = true;
-    }
-    
-    try {
-      const response = await usersAPI.getDeploymentStatus();
-      hasDeployedContract = response.data.has_deployments || false;
-    } catch (err) {
-      hasDeployedContract = false;
-    } finally {
-      hasCheckedDeploymentsOnce = true;
-      isCheckingDeployments = false;
-    }
-  }
-  
-  async function refreshDeployments() {
-    // Manual refresh of deployment status
-    isCheckingDeployments = true;
-    try {
-      await checkDeployments();
-      
-      // If deployments detected and all requirements met, complete immediately
-      if (hasDeployedContract && allRequirementsMet) {
-        await completeBuilderJourney();
-      }
-      // Show instructions if still no deployments after manual check
-      else if (!hasDeployedContract && hasCheckedDeploymentsOnce) {
-        showStudioInstructions = true;
-      }
-    } finally {
-      isCheckingDeployments = false;
-    }
-  }
-  
-  function openStudioWithInstructions() {
-    // Show instructions popup (Studio will be opened from the popup button)
-    showStudioInstructions = true;
+  function openStudio() {
+    hasDeployedContract = true;
+    window.open('https://studio.genlayer.com', '_blank', 'noopener,noreferrer');
   }
   
   async function refreshBalance() {
@@ -156,11 +115,7 @@
   }
   
   async function checkRequirements() {
-    // Check balance and deployments
-    await Promise.all([
-      refreshBalance(),
-      checkDeployments()
-    ]);
+    await refreshBalance();
   }
 
   async function claimBuilderWelcome() {
@@ -223,7 +178,6 @@
 
   // Create debounced versions AFTER all functions are defined (500ms delay)
   const debouncedRefreshBalance = debounce(refreshBalance, 500);
-  const debouncedRefreshDeployments = debounce(refreshDeployments, 500);
   const debouncedCheckRepoStar = debounce(checkRepoStar, 500);
   const debouncedCompleteJourney = debounce(completeBuilderJourney, 500);
 
@@ -391,102 +345,14 @@
       isRefreshingBalance={isRefreshingBalance}
       onCheckRequirements={checkRequirements}
       isCheckingRequirements={false}
-      onCheckDeployments={debouncedRefreshDeployments}
-      isCheckingDeployments={isCheckingDeployments}
-      onOpenStudio={openStudioWithInstructions}
+      onOpenStudio={openStudio}
       onGitHubLinked={handleGitHubLinked}
       onCheckRepoStar={debouncedCheckRepoStar}
       isCheckingRepoStar={isCheckingRepoStar}
+      onCompleteJourney={debouncedCompleteJourney}
+      isCompletingJourney={isCompletingJourney}
     />
 
-      <!-- Status Message -->
-      {#if isCompletingJourney}
-        <div class="pt-4">
-          <div class="w-full inline-flex items-center justify-center px-8 py-3 bg-green-100 text-green-800 rounded-lg font-medium shadow-sm">
-            <svg class="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Completing your Builder Journey...
-          </div>
-        </div>
-      {:else if allRequirementsMet}
-        <div class="pt-4">
-          <button
-            onclick={debouncedCompleteJourney}
-            class="w-full inline-flex items-center justify-center px-8 py-3 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition-colors shadow-sm"
-          >
-            <Icon name="builder" className="mr-2 text-white" />
-            Complete Builder Journey
-          </button>
-        </div>
-      {/if}
-      
   </div>
 
-  <!-- Studio Instructions Modal -->
-  {#if showStudioInstructions}
-    <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" onclick={() => showStudioInstructions = false}>
-      <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white" onclick={(e) => e.stopPropagation()}>
-        <div class="mt-3">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg leading-6 font-medium text-gray-900">
-              Connect Your Wallet in Studio
-            </h3>
-            <button
-              onclick={() => showStudioInstructions = false}
-              class="text-gray-400 hover:text-gray-500"
-            >
-              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
-          
-          <div class="mt-2 px-2 py-3">
-            <p class="text-sm text-gray-600 mb-4">
-              To deploy contracts on GenLayer Studio, you need to:
-            </p>
-            
-            <ol class="text-sm text-gray-600 space-y-3 list-decimal list-inside">
-              <li>
-                <span class="font-medium">Connect your wallet</span> in GenLayer Studio using the same address: 
-                <code class="text-xs bg-gray-100 px-1 py-0.5 rounded break-all">{$authState.address}</code>
-              </li>
-              <li>
-                <span class="font-medium">Deploy your contract</span> using the Studio interface
-              </li>
-              <li>
-                <span class="font-medium">Return here and click refresh</span> to verify your deployment
-              </li>
-            </ol>
-            
-            <div class="mt-4 p-3 bg-orange-50 rounded-md">
-              <p class="text-xs text-orange-800">
-                <strong>Important:</strong> Make sure to use the same wallet address in Studio that you're using here.
-              </p>
-            </div>
-          </div>
-          
-          <div class="flex gap-3 mt-5">
-            <button
-              onclick={() => showStudioInstructions = false}
-              class="flex-1 px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300"
-            >
-              Close
-            </button>
-            <button
-              onclick={() => {
-                showStudioInstructions = false;
-                window.open('https://studio.genlayer.com', '_blank', 'noopener,noreferrer');
-              }}
-              class="flex-1 px-4 py-2 bg-orange-600 text-white text-base font-medium rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300"
-            >
-              Open Studio
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  {/if}
 </div>
