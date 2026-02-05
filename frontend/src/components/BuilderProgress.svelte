@@ -21,12 +21,12 @@
     isRefreshingBalance = false,
     onCheckRequirements = null,
     isCheckingRequirements = false,
-    onCheckDeployments = null,
-    isCheckingDeployments = false,
     onOpenStudio = null,
     onGitHubLinked = null,
     onCheckRepoStar = null,
-    isCheckingRepoStar = false
+    isCheckingRepoStar = false,
+    onCompleteJourney = null,
+    isCompletingJourney = false
   } = $props();
   
   // Network states
@@ -181,6 +181,11 @@
   
   // Check if wallet has testnet balance
   let hasTestnetBalance = $derived(testnetBalance && testnetBalance > 0);
+
+  // Core requirements that gate journey completion
+  let allCoreRequirementsMet = $derived(
+    hasBuilderWelcome && !!githubUsername && hasStarredRepo && hasTestnetBalance && hasDeployedContract
+  );
 </script>
 
 <div class="bg-white rounded-lg p-5 border border-orange-200">
@@ -584,25 +589,6 @@
         </div>
         {#if showActions}
           <div class="flex items-center gap-2">
-            {#if !hasDeployedContract && onCheckDeployments}
-              <button
-                onclick={onCheckDeployments}
-                disabled={isCheckingDeployments || !$authState.isAuthenticated}
-                class="px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Check for deployed contracts"
-              >
-                {#if isCheckingDeployments}
-                  <svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                {:else}
-                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
-                  </svg>
-                {/if}
-              </button>
-            {/if}
             {#if onOpenStudio}
               <button
                 onclick={onOpenStudio}
@@ -638,6 +624,27 @@
       <div class="mt-4 text-xs text-gray-500">
         <span class="font-medium">{completedCount} of 8</span> requirements completed
       </div>
+
+      <!-- Complete Builder Journey button -->
+      {#if onCompleteJourney}
+        <div class="mt-4">
+          <button
+            onclick={onCompleteJourney}
+            disabled={!allCoreRequirementsMet || isCompletingJourney}
+            class="w-full inline-flex items-center justify-center px-6 py-2.5 rounded-lg font-medium text-sm transition-colors shadow-sm {allCoreRequirementsMet && !isCompletingJourney ? 'bg-orange-600 text-white hover:bg-orange-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}"
+          >
+            {#if isCompletingJourney}
+              <svg class="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Completing your Builder Journey...
+            {:else}
+              Complete Builder Journey
+            {/if}
+          </button>
+        </div>
+      {/if}
     {/if}
   </div>
 </div>

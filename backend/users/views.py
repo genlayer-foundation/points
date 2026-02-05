@@ -443,8 +443,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         Requirements:
         1. Has at least one contribution (any type)
         2. Has testnet balance > 0
-        3. Has deployed at least one contract on GenLayer
-        
+
         Also creates Builder profile if it doesn't exist.
         """
         from contributions.models import Contribution, ContributionType
@@ -518,30 +517,6 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             logger.warning(f"Failed to check balance: {str(e)}")
             # If we can't check balance, we'll allow proceeding (fail open)
             pass
-        
-        # Check requirement 3: Has deployed at least one contract
-        try:
-            genlayer_service = GenLayerDeploymentService()
-            
-            # Convert address to checksum format for GenLayer API
-            checksum_address = Web3.to_checksum_address(user.address)
-            
-            deployment_result = genlayer_service.get_user_deployments(checksum_address)
-            
-            if not deployment_result.get('has_deployments', False):
-                return Response(
-                    {'error': 'You need to deploy at least one contract to complete the builder journey. Use GenLayer Studio to deploy your first contract.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            logger.debug(f"Deployment check passed: {deployment_result.get('deployment_count', 0)} deployments")
-            
-        except Exception as e:
-            logger.error(f"Failed to check deployments: {str(e)}")
-            return Response(
-                {'error': 'Failed to verify contract deployments. Please try again later.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
         
         # All requirements met, create the BUILDER contribution and Builder profile atomically
         try:
