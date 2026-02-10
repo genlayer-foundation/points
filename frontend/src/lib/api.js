@@ -190,6 +190,17 @@ export const stewardAPI = {
   bulkRejectSubmissions: (submissionIds, staffReply) =>
     api.post('/steward-submissions/bulk-reject/', { submission_ids: submissionIds, staff_reply: staffReply }),
 
+  // Steward permissions and templates
+  getMyPermissions: () => api.get('/steward-submissions/my-permissions/'),
+  getTemplates: () => api.get('/steward-submissions/templates/'),
+
+  // Proposals
+  proposeSubmission: (id, data) => api.post(`/steward-submissions/${id}/propose/`, data),
+
+  // CRM Notes
+  getNotes: (id) => api.get(`/steward-submissions/${id}/notes/`),
+  addNote: (id, message) => api.post(`/steward-submissions/${id}/notes/`, { message }),
+
   // Working Groups
   getWorkingGroups: () => api.get('/stewards/working-groups/'),
   getWorkingGroup: (id) => api.get(`/stewards/working-groups/${id}/`),

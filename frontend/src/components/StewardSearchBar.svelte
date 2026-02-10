@@ -23,8 +23,8 @@
     { name: 'assigned', description: 'Filter by assignment', values: () => ['me', 'unassigned', ...stewardsList.map(s => s.name || s.address?.slice(0, 10))] },
     { name: 'exclude', description: 'Exclude submissions containing text', values: () => ['medium.com'] },
     { name: 'include', description: 'Only show submissions containing text', values: () => [] },
-    { name: 'has', description: 'Filter by presence', values: () => ['url', 'evidence'] },
-    { name: 'no', description: 'Filter by absence', values: () => ['url', 'evidence'] },
+    { name: 'has', description: 'Filter by presence', values: () => ['url', 'evidence', 'proposal'] },
+    { name: 'no', description: 'Filter by absence', values: () => ['url', 'evidence', 'proposal'] },
     { name: 'min-contributions', description: 'Min accepted contributions', values: () => ['1', '2', '3', '4', '5'] },
     { name: 'sort', description: 'Sort order', values: () => ['created', '-created', 'date', '-date'] }
   ];
@@ -218,6 +218,7 @@
           <div class="help-row"><code>exclude:medium.com</code><span>Exclude submissions containing text</span></div>
           <div class="help-row"><code>include:genlayer</code><span>Only show submissions containing text</span></div>
           <div class="help-row"><code>has:url</code><span>Only submissions with URLs</span></div>
+          <div class="help-row"><code>has:proposal</code><span>Only submissions with a proposal</span></div>
           <div class="help-row"><code>no:url</code><span>Only submissions without URLs</span></div>
           <div class="help-row"><code>min-contributions:3</code><span>Users with N+ accepted contributions</span></div>
           <div class="help-row"><code>sort:-created</code><span>Sort order (created, -created, date, -date)</span></div>

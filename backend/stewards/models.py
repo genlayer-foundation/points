@@ -18,6 +18,51 @@ class Steward(BaseModel):
         return f"{self.user.email} - Steward"
 
 
+class StewardPermission(BaseModel):
+    """
+    Per-action, per-contribution-type permission for stewards.
+    Controls what actions a steward can perform on submissions of each type.
+    """
+    ACTION_CHOICES = [
+        ('propose', 'Propose'),
+        ('accept', 'Accept'),
+        ('reject', 'Reject'),
+        ('request_more_info', 'Request More Info'),
+    ]
+    steward = models.ForeignKey(
+        Steward,
+        on_delete=models.CASCADE,
+        related_name='permissions'
+    )
+    contribution_type = models.ForeignKey(
+        'contributions.ContributionType',
+        on_delete=models.CASCADE,
+        related_name='steward_permissions'
+    )
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+
+    class Meta:
+        unique_together = ['steward', 'contribution_type', 'action']
+        ordering = ['steward', 'contribution_type', 'action']
+
+    def __str__(self):
+        return f"{self.steward.user} - {self.contribution_type} - {self.action}"
+
+
+class ReviewTemplate(BaseModel):
+    """
+    Admin-managed template messages for steward review workflows.
+    """
+    label = models.CharField(max_length=100, help_text="Short label, e.g. 'Insufficient evidence'")
+    text = models.TextField(help_text="Full template text to insert into reply fields")
+
+    class Meta:
+        ordering = ['label']
+
+    def __str__(self):
+        return self.label
+
+
 class WorkingGroup(BaseModel):
     """
     A working group that participants can be members of.

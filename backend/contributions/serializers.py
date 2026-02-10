@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest
+from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote
 from users.serializers import UserSerializer, LightUserSerializer
 from users.models import User
 from .recaptcha_field import ReCaptchaField
@@ -215,11 +215,11 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name',
                   'contribution_type_details', 'contribution_date', 'notes', 'state', 'state_display',
                   'staff_reply', 'reviewed_by', 'reviewed_at', 'evidence_items', 'can_edit',
-                  'suggested_points', 'converted_contribution', 'contribution', 'mission',
+                  'proposed_points', 'converted_contribution', 'contribution', 'mission',
                   'created_at', 'updated_at', 'last_edited_at', 'recaptcha']
         read_only_fields = ['id', 'user', 'state', 'staff_reply', 'reviewed_by',
                           'reviewed_at', 'created_at', 'updated_at', 'last_edited_at',
-                          'suggested_points', 'converted_contribution']
+                          'proposed_points', 'converted_contribution']
 
     def get_user_details(self, obj):
         """
@@ -508,6 +508,70 @@ class StewardSubmissionReviewSerializer(serializers.Serializer):
         return data
 
 
+class SubmissionNoteSerializer(serializers.ModelSerializer):
+    """Serializer for CRM notes on submissions."""
+    user_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SubmissionNote
+        fields = ['id', 'user', 'user_name', 'message', 'is_proposal', 'created_at']
+        read_only_fields = ['id', 'user', 'user_name', 'is_proposal', 'created_at']
+
+    def get_user_name(self, obj):
+        return obj.user.name or obj.user.address[:10] + '...'
+
+
+class SubmissionProposeSerializer(serializers.Serializer):
+    """Serializer for steward proposal actions on submissions."""
+    proposed_action = serializers.ChoiceField(choices=['accept', 'reject', 'more_info'])
+
+    # Fields for acceptance proposals
+    proposed_points = serializers.IntegerField(required=False, min_value=0)
+    proposed_contribution_type = serializers.PrimaryKeyRelatedField(
+        queryset=ContributionType.objects.all(),
+        required=False,
+    )
+    proposed_user = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        required=False,
+    )
+    proposed_staff_reply = serializers.CharField(required=False, allow_blank=True, default='')
+    proposed_create_highlight = serializers.BooleanField(default=False, required=False)
+    proposed_highlight_title = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
+    proposed_highlight_description = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def validate(self, data):
+        action = data.get('proposed_action')
+        if action == 'accept':
+            if not data.get('proposed_points'):
+                raise serializers.ValidationError({
+                    'proposed_points': 'Points are required when proposing acceptance.'
+                })
+            ct = data.get('proposed_contribution_type')
+            if ct:
+                pts = data['proposed_points']
+                if pts < ct.min_points or pts > ct.max_points:
+                    raise serializers.ValidationError({
+                        'proposed_points': f'Points must be between {ct.min_points} and {ct.max_points} for {ct.name}.'
+                    })
+            if data.get('proposed_create_highlight'):
+                if not data.get('proposed_highlight_title'):
+                    raise serializers.ValidationError({
+                        'proposed_highlight_title': 'Title is required when proposing a highlight.'
+                    })
+                if not data.get('proposed_highlight_description'):
+                    raise serializers.ValidationError({
+                        'proposed_highlight_description': 'Description is required when proposing a highlight.'
+                    })
+        elif action in ['reject', 'more_info']:
+            if not data.get('proposed_staff_reply'):
+                action_text = 'rejecting' if action == 'reject' else 'requesting more information'
+                raise serializers.ValidationError({
+                    'proposed_staff_reply': f'Reply is required when proposing {action_text}.'
+                })
+        return data
+
+
 class StewardSubmissionSerializer(serializers.ModelSerializer):
     """
     Enhanced serializer for steward view of submissions with all needed data.
@@ -519,58 +583,53 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
     state_display = serializers.CharField(source='get_state_display', read_only=True)
     contribution = serializers.SerializerMethodField()
     assigned_to = serializers.PrimaryKeyRelatedField(read_only=True)
+    # Proposal fields
+    proposed_by_details = serializers.SerializerMethodField()
+    has_proposal = serializers.SerializerMethodField()
+    notes_count = serializers.SerializerMethodField()
 
     class Meta:
         model = SubmittedContribution
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_details',
                   'contribution_date', 'notes', 'state', 'state_display', 'staff_reply',
                   'reviewed_by', 'reviewed_at', 'assigned_to',
-                  'evidence_items', 'suggested_points',
+                  'evidence_items', 'proposed_points',
+                  # Proposal fields
+                  'proposed_action', 'proposed_contribution_type', 'proposed_user',
+                  'proposed_staff_reply', 'proposed_create_highlight',
+                  'proposed_highlight_title', 'proposed_highlight_description',
+                  'proposed_by', 'proposed_at', 'proposed_by_details', 'has_proposal',
+                  'notes_count',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution',
                   'mission']
-        read_only_fields = ['id', 'created_at', 'updated_at', 'suggested_points']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'proposed_points']
 
     def get_user_details(self, obj):
-        """
-        Returns user details using lightweight or full serializer based on context.
-        Use lightweight serializer for list views to avoid N+1 queries.
-        """
         use_light = self.context.get('use_light_serializers', False)
         if use_light:
             return LightUserSerializer(obj.user).data
         return UserSerializer(obj.user, context=self.context).data
 
     def get_contribution_type_details(self, obj):
-        """
-        Returns contribution type details using lightweight or full serializer based on context.
-        Use lightweight serializer for list views to avoid N+1 queries.
-        """
         use_light = self.context.get('use_light_serializers', False)
         if use_light:
             return LightContributionTypeSerializer(obj.contribution_type).data
         return ContributionTypeSerializer(obj.contribution_type, context=self.context).data
 
     def get_evidence_items(self, obj):
-        """Returns serialized evidence items for this submission."""
-        # Always include evidence - ViewSet already prefetches to avoid N+1 queries
-        # Stewards need evidence to make informed review decisions
         evidence_items = obj.evidence_items.all().order_by('-created_at')
         return EvidenceSerializer(evidence_items, many=True, context=self.context).data
 
     def get_contribution(self, obj):
-        """Get the created contribution if submission was accepted."""
-        # Skip for list views
         if self.context.get('use_light_serializers', False):
             return None
 
         if obj.converted_contribution:
             from .models import ContributionHighlight
-            # Use light context to avoid deep nesting
             contrib_context = self.context.copy()
             contrib_context['use_light_serializers'] = True
             contribution_data = ContributionSerializer(obj.converted_contribution, context=contrib_context).data
 
-            # Add highlight info if exists
             try:
                 highlight = ContributionHighlight.objects.get(contribution=obj.converted_contribution)
                 contribution_data['is_highlighted'] = True
@@ -582,7 +641,6 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                 contribution_data['is_highlighted'] = False
                 contribution_data['highlight'] = None
 
-            # Add contribution type details with light serializer
             contribution_data['contribution_type_details'] = LightContributionTypeSerializer(
                 obj.converted_contribution.contribution_type
             ).data
@@ -590,11 +648,26 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
             return contribution_data
         return None
 
+    def get_proposed_by_details(self, obj):
+        if obj.proposed_by:
+            return {
+                'name': obj.proposed_by.name or obj.proposed_by.address[:10] + '...',
+                'address': obj.proposed_by.address,
+            }
+        return None
+
+    def get_has_proposal(self, obj):
+        return obj.proposed_action is not None
+
+    def get_notes_count(self, obj):
+        # Use prefetched data if available
+        if hasattr(obj, '_prefetched_objects_cache') and 'internal_notes' in obj._prefetched_objects_cache:
+            return len(obj._prefetched_objects_cache['internal_notes'])
+        return obj.internal_notes.count()
+
     def to_representation(self, instance):
-        """Transform mission from ID to full object for reads"""
         ret = super().to_representation(instance)
 
-        # Transform mission from ID to full object for reads
         if instance.mission:
             use_light = self.context.get('use_light_serializers', True)
             if use_light:

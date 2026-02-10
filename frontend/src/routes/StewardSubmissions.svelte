@@ -4,6 +4,7 @@
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { stewardAPI, contributionsAPI, leaderboardAPI } from '../lib/api.js';
+  import { stewardPermissions } from '../lib/stewardPermissions.js';
   import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
   import SubmissionCard from '../components/SubmissionCard.svelte';
   import StewardSearchBar from '../components/StewardSearchBar.svelte';
@@ -32,12 +33,20 @@
   let multipliers = $state({});
   let reviewData = $state({});
 
+  // Permissions & templates
+  let permissionsMap = $state({});
+  let templates = $state([]);
+
+  // CRM Notes state - keyed by submission ID
+  let submissionNotes = $state({});
+  let notesLoading = $state({});
+
   // Bulk selection state
   let selectedSubmissions = $state(new Set());
   let showRejectDialog = $state(false);
   let rejectMessage = $state('');
   let bulkRejecting = $state(false);
-  
+
   onMount(async () => {
     if (!$authState.isAuthenticated) {
       push('/');
@@ -57,12 +66,38 @@
       { is_active: true }  // Also prefetch all missions (for defaultMission lookups)
     ]);
 
-    await loadContributionTypes();
-    await loadUsers();
-    await loadStewards();
+    // Load permissions and templates in parallel with other data
+    await Promise.all([
+      loadPermissions(),
+      loadTemplates(),
+      loadContributionTypes(),
+      loadUsers(),
+      loadStewards()
+    ]);
     await loadSubmissions();
   });
-  
+
+  async function loadPermissions() {
+    try {
+      await stewardPermissions.load();
+      // Subscribe to get the current value
+      stewardPermissions.subscribe(value => {
+        permissionsMap = value;
+      })();
+    } catch (err) {
+      // Error loading permissions silently handled
+    }
+  }
+
+  async function loadTemplates() {
+    try {
+      const response = await stewardAPI.getTemplates();
+      templates = response.data || [];
+    } catch (err) {
+      // Error loading templates silently handled
+    }
+  }
+
   async function loadUsers() {
     try {
       const response = await stewardAPI.getUsers();
@@ -87,13 +122,21 @@
     assigningSubmissions = new Set(assigningSubmissions);
 
     try {
-      await stewardAPI.assignSubmission(submissionId, {
+      const response = await stewardAPI.assignSubmission(submissionId, {
         steward_id: stewardId === 'unassigned' ? null : stewardId
       });
-      showSuccess('Assignment updated successfully');
 
-      // Reload submissions to get updated data
-      await loadSubmissions();
+      // Update submission in-place
+      const idx = submissions.findIndex(s => s.id === submissionId);
+      if (idx !== -1) {
+        if (stewardId === 'unassigned') {
+          submissions[idx] = { ...submissions[idx], assigned_to: null };
+        } else {
+          submissions[idx] = response.data;
+        }
+        submissions = [...submissions];
+      }
+      showSuccess('Assignment updated');
     } catch (err) {
       showError('Failed to update assignment: ' + (err.response?.data?.error || err.message));
     } finally {
@@ -107,7 +150,7 @@
       // Fetch all contribution types by setting a high page_size
       const response = await contributionsAPI.getContributionTypes({ page_size: 100 });
       contributionTypes = response.data.results || response.data;
-      
+
       // Load active multipliers
       try {
         const multipliersRes = await leaderboardAPI.getActiveMultipliers();
@@ -128,7 +171,7 @@
       // Error loading contribution types silently handled
     }
   }
-  
+
   function updateURL() {
     const urlParams = new URLSearchParams();
     if (stateFilter) urlParams.set('status', stateFilter);
@@ -166,7 +209,7 @@
       const response = await stewardAPI.getSubmissions(params);
       submissions = response.data.results || [];
       totalCount = response.data.count || 0;
-      
+
       // If we got no results and we're not on page 1, it means this page doesn't exist anymore
       // Try going to the previous page
       if (submissions.length === 0 && currentPage > 1 && totalCount > 0) {
@@ -174,7 +217,7 @@
         // Recursively call loadSubmissions with the new page
         return loadSubmissions();
       }
-      
+
       // Initialize review data for each submission
       submissions.forEach(sub => {
         if (!reviewData[sub.id]) {
@@ -182,7 +225,7 @@
             action: 'accept',
             user: sub.user,
             contribution_type: sub.contribution_type,
-            points: sub.suggested_points || sub.contribution_type_details?.min_points || 0,
+            points: sub.proposed_points || sub.contribution_type_details?.min_points || 0,
             staff_reply: '',
             create_highlight: false,
             highlight_title: '',
@@ -190,6 +233,13 @@
           };
         }
       });
+
+      // Load notes for visible pending/more_info_needed submissions
+      for (const sub of submissions) {
+        if (sub.state === 'pending' || sub.state === 'more_info_needed') {
+          loadNotes(sub.id);
+        }
+      }
     } catch (err) {
       // If we get a 404 error and we're not on page 1, it might mean the page doesn't exist
       // Try going to the previous page
@@ -198,45 +248,83 @@
         // Recursively call loadSubmissions with the new page
         return loadSubmissions();
       }
-      
+
       // For other errors, show appropriate message
-      error = err.response?.status === 403 
+      error = err.response?.status === 403
         ? 'You do not have permission to access steward tools'
         : 'Failed to load submissions';
     } finally {
       loading = false;
     }
   }
-  
+
+  async function loadNotes(submissionId) {
+    notesLoading[submissionId] = true;
+    notesLoading = { ...notesLoading };
+    try {
+      const response = await stewardAPI.getNotes(submissionId);
+      submissionNotes[submissionId] = response.data || [];
+      submissionNotes = { ...submissionNotes };
+    } catch (err) {
+      submissionNotes[submissionId] = [];
+      submissionNotes = { ...submissionNotes };
+    } finally {
+      notesLoading[submissionId] = false;
+      notesLoading = { ...notesLoading };
+    }
+  }
+
+  async function handleAddNote(submissionId, message) {
+    try {
+      await stewardAPI.addNote(submissionId, message);
+      // Reload notes for this submission
+      await loadNotes(submissionId);
+    } catch (err) {
+      showError('Failed to add note: ' + (err.response?.data?.detail || err.message));
+    }
+  }
+
   async function handleReview(submissionId, data) {
     processingSubmissions.add(submissionId);
     processingSubmissions = new Set(processingSubmissions);
-    
+
     try {
       const apiData = {
         action: data.action,
         staff_reply: data.staff_reply
       };
-      
+
       if (data.action === 'accept') {
         apiData.points = parseInt(data.points);
         apiData.contribution_type = data.contribution_type;
         apiData.user = parseInt(data.user);
-        
+
         if (data.create_highlight) {
           apiData.create_highlight = true;
           apiData.highlight_title = data.highlight_title;
           apiData.highlight_description = data.highlight_description;
         }
       }
-      
-      await stewardAPI.reviewSubmission(submissionId, apiData);
+
+      const response = await stewardAPI.reviewSubmission(submissionId, apiData);
+      const updatedSub = response.data;
 
       // Show success message
       showSuccess(getSuccessMessage(data.action));
 
-      // Reload submissions
-      await loadSubmissions();
+      // Update in-place: remove if state no longer matches filter, otherwise update
+      if (!stateFilter || stateFilter === updatedSub.state) {
+        const idx = submissions.findIndex(s => s.id === submissionId);
+        if (idx !== -1) {
+          submissions[idx] = updatedSub;
+          submissions = [...submissions];
+        }
+        // Reload notes since review creates a CRM note
+        loadNotes(submissionId);
+      } else {
+        submissions = submissions.filter(s => s.id !== submissionId);
+        totalCount = Math.max(0, totalCount - 1);
+      }
     } catch (err) {
       showError('Failed to review submission: ' + (err.response?.data?.detail || err.message));
     } finally {
@@ -244,27 +332,51 @@
       processingSubmissions = new Set(processingSubmissions);
     }
   }
-  
+
+  async function handlePropose(submissionId, data) {
+    processingSubmissions.add(submissionId);
+    processingSubmissions = new Set(processingSubmissions);
+
+    try {
+      const response = await stewardAPI.proposeSubmission(submissionId, data);
+
+      // Update submission in-place with proposal data
+      const idx = submissions.findIndex(s => s.id === submissionId);
+      if (idx !== -1) {
+        submissions[idx] = response.data;
+        submissions = [...submissions];
+      }
+      // Also reload notes since a proposal creates a CRM note
+      loadNotes(submissionId);
+      showSuccess('Proposal submitted successfully');
+    } catch (err) {
+      showError('Failed to submit proposal: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      processingSubmissions.delete(submissionId);
+      processingSubmissions = new Set(processingSubmissions);
+    }
+  }
+
   function getSuccessMessage(action) {
     switch(action) {
-      case 'accept': return '✓ Submission accepted successfully';
+      case 'accept': return 'Submission accepted successfully';
       case 'reject': return 'Submission rejected';
       case 'more_info': return 'Information request sent';
       default: return 'Action completed';
     }
   }
-  
+
   function handlePageChange(event) {
     currentPage = event.detail;
     loadSubmissions();
   }
-  
+
   function handlePageSizeChange(event) {
     pageSize = event.detail;
     currentPage = 1; // Reset to first page
     loadSubmissions();
   }
-  
+
   function handleFilterChange() {
     currentPage = 1;
     loadSubmissions();
@@ -320,10 +432,15 @@
         rejectMessage.trim()
       );
 
-      showSuccess(`Successfully rejected ${response.data.rejected_count} submission(s)`);
+      const rejectedCount = response.data.rejected_count;
+      showSuccess(`Successfully rejected ${rejectedCount} submission(s)`);
       closeRejectDialog();
+
+      // Remove rejected submissions from the local array
+      const rejectedIds = response.data.rejected_ids || Array.from(selectedSubmissions);
+      submissions = submissions.filter(s => !rejectedIds.includes(s.id));
+      totalCount = Math.max(0, totalCount - rejectedCount);
       clearSelection();
-      await loadSubmissions();
     } catch (err) {
       showError('Failed to reject submissions: ' + (err.response?.data?.error || err.message));
     } finally {
@@ -339,7 +456,7 @@
       <p class="text-sm text-gray-600 mt-1">Review and manage user contribution submissions</p>
     </div>
   </div>
-  
+
   <!-- Filters -->
   <div class="bg-white shadow rounded-lg p-4 mb-6">
     <div class="flex flex-col md:flex-row gap-4">
@@ -372,7 +489,7 @@
           {contributionTypes}
           {stewardsList}
           onSearch={handleSearchChange}
-          placeholder="type:blog-post assigned:me exclude:medium.com..."
+          placeholder="type:blog-post assigned:me has:proposal..."
         />
       </div>
     </div>
@@ -420,6 +537,21 @@
           <label for="reject-message" class="block text-sm font-medium text-gray-700 mb-2">
             Rejection Message
           </label>
+          {#if templates.length > 0}
+            <select
+              onchange={(e) => {
+                const tpl = templates.find(t => String(t.id) === e.target.value);
+                if (tpl) rejectMessage = tpl.text;
+                e.target.value = '';
+              }}
+              class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
+            >
+              <option value="">-- Select template --</option>
+              {#each templates as template}
+                <option value={template.id}>{template.label}</option>
+              {/each}
+            </select>
+          {/if}
           <textarea
             id="reject-message"
             bind:value={rejectMessage}
@@ -448,7 +580,7 @@
       </div>
     </div>
   {/if}
-  
+
   {#if loading}
     <div class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -476,7 +608,7 @@
         />
       </div>
     {/if}
-    
+
     <div class="space-y-4">
       {#each submissions as submission}
         <div class="relative">
@@ -518,6 +650,7 @@
               {submission}
               showReviewForm={true}
               onReview={handleReview}
+              onPropose={handlePropose}
               reviewData={reviewData[submission.id]}
               isProcessing={processingSubmissions.has(submission.id)}
               successMessage={''}
@@ -525,12 +658,17 @@
               {users}
               {multipliers}
               isOwnSubmission={false}
+              permissions={permissionsMap}
+              {templates}
+              notes={submissionNotes[submission.id] || []}
+              notesLoading={notesLoading[submission.id] || false}
+              onAddNote={handleAddNote}
             />
           </div>
         </div>
       {/each}
     </div>
-    
+
     <!-- Bottom Pagination -->
     {#if totalCount > 10}
       <div class="mt-6">
