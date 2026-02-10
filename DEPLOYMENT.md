@@ -132,7 +132,7 @@ Replace these URLs in your configuration:
 # Check App Runner service status
 aws apprunner describe-service --service-arn your-service-arn
 
-# Check RDS instance status  
+# Check RDS instance status
 aws rds describe-db-instances --db-instance-identifier tally-db
 
 # View Amplify app

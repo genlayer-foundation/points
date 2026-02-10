@@ -3,7 +3,7 @@ set -e
 
 # AWS App Runner Deployment Script with VPC Connector Support
 # 
-# Usage: 
+# Usage:
 #   ./deploy-apprunner.sh [service-name] [vpc-connector-arn]
 #
 # Examples:

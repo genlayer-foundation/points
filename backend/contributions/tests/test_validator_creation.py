@@ -350,7 +350,7 @@ class ValidatorCreationTestCase(TestCase):
         
         response = self.client.post(url, form_data, follow=False)
         
-        # Should redirect to user detail page  
+        # Should redirect to user detail page
         self.assertEqual(response.status_code, 302)
         
         # Check user was created (address should be normalized to lowercase)
