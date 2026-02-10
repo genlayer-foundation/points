@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
 from contributions.models import SubmittedContribution, ContributionType, Category
-from stewards.models import Steward
+from stewards.models import Steward, StewardPermission
 from datetime import datetime
 from django.utils import timezone
 
@@ -45,8 +45,16 @@ class StewardPermissionTest(TestCase):
             address='0x0987654321098765432109876543210987654321',
             password='testpass123'
         )
-        Steward.objects.create(user=self.steward_user)
-        
+        self.steward = Steward.objects.create(user=self.steward_user)
+
+        # Grant all permissions to steward for the test contribution type
+        for action in ['propose', 'accept', 'reject', 'request_more_info']:
+            StewardPermission.objects.create(
+                steward=self.steward,
+                contribution_type=self.contribution_type,
+                action=action
+            )
+
         # Create admin user
         self.admin_user = User.objects.create_superuser(
             email='admin@test.com',

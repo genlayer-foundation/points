@@ -11,7 +11,7 @@ from django.db.models import Count
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from datetime import datetime
-from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest
+from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
 
@@ -361,20 +361,31 @@ class ContributionAdmin(admin.ModelAdmin):
         js = ('admin/js/contribution_type_dynamic.js',)
 
 
+class SubmissionNoteInline(admin.TabularInline):
+    model = SubmissionNote
+    extra = 0
+    readonly_fields = ('user', 'message', 'is_proposal', 'created_at')
+    fields = ('user', 'message', 'is_proposal', 'created_at')
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(SubmittedContribution)
 class SubmittedContributionAdmin(admin.ModelAdmin):
-    list_display = ('user', 'contribution_type', 'suggested_points', 'evidence_count', 'state',
+    list_display = ('user', 'contribution_type', 'proposed_points', 'evidence_count', 'state',
                    'contribution_date', 'created_at', 'reviewed_by')
     list_filter = ('state', 'contribution_type__category', 'contribution_type', 'created_at', 'reviewed_at')
     search_fields = ('user__email', 'user__name', 'notes', 'staff_reply', 'mission__name')
     date_hierarchy = 'created_at'
     readonly_fields = ('id', 'created_at', 'updated_at', 'last_edited_at',
-                      'converted_contribution_link', 'contribution_type_info', 'suggested_points')
-    inlines = [EvidenceInline]
+                      'converted_contribution_link', 'contribution_type_info', 'proposed_points')
+    inlines = [EvidenceInline, SubmissionNoteInline]
     
     fieldsets = (
         ('Submission Info', {
-            'fields': ('id', 'user', 'contribution_type', 'contribution_type_info', 'suggested_points', 'contribution_date', 'notes')
+            'fields': ('id', 'user', 'contribution_type', 'contribution_type_info', 'proposed_points', 'contribution_date', 'notes')
         }),
         ('Review Status', {
             'fields': ('state', 'staff_reply', 'reviewed_by', 'reviewed_at')

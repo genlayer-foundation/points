@@ -18,9 +18,10 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
                          StewardSubmissionSerializer, StewardSubmissionReviewSerializer,
+                         SubmissionNoteSerializer, SubmissionProposeSerializer,
                          MissionSerializer, StartupRequestListSerializer, StartupRequestDetailSerializer)
 from .forms import SubmissionReviewForm
-from .permissions import IsSteward
+from .permissions import IsSteward, steward_has_permission, steward_permitted_type_ids
 from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from ethereum_auth.authentication import EthereumAuthentication
@@ -791,6 +792,7 @@ class StewardSubmissionFilterSet(FilterSet):
     only_empty_evidence = BooleanFilter(method='filter_only_empty_evidence')
     exclude_state = CharFilter(method='filter_exclude_state')
     min_accepted_contributions = NumberFilter(method='filter_min_accepted_contributions')
+    has_proposal = BooleanFilter(method='filter_has_proposal')
 
     def filter_username(self, queryset, name, value):
         """Filter by submitter name, email, or address (case-insensitive partial match)."""
@@ -920,6 +922,14 @@ class StewardSubmissionFilterSet(FilterSet):
             ).filter(user_accepted_count__gte=value)
         return queryset
 
+    def filter_has_proposal(self, queryset, name, value):
+        """Filter submissions that have/don't have an active proposal."""
+        if value is True:
+            return queryset.filter(proposed_action__isnull=False)
+        elif value is False:
+            return queryset.filter(proposed_action__isnull=True)
+        return queryset
+
     class Meta:
         model = SubmittedContribution
         fields = ['state', 'contribution_type', 'user']
@@ -947,8 +957,16 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        """Get all submissions for steward review."""
+        """Get submissions for steward review, filtered by steward permissions."""
         queryset = SubmittedContribution.objects.all()
+
+        # Filter by steward's permitted contribution types
+        if self.request.user and self.request.user.is_authenticated and hasattr(self.request.user, 'steward'):
+            permitted_ids = steward_permitted_type_ids(self.request.user)
+            if permitted_ids:
+                queryset = queryset.filter(contribution_type_id__in=permitted_ids)
+            else:
+                queryset = queryset.none()
 
         # Comprehensive prefetch for optimization
         queryset = queryset.select_related(
@@ -960,8 +978,11 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'reviewed_by',
             'assigned_to',
             'converted_contribution',
-            'mission'  # Avoid N+1 queries when accessing mission details
-        ).prefetch_related('evidence_items')
+            'mission',
+            'proposed_by',
+            'proposed_contribution_type',
+            'proposed_user',
+        ).prefetch_related('evidence_items', 'internal_notes')
 
         return queryset
 
@@ -980,27 +1001,40 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     def review(self, request, pk=None):
         """Review and take action on a submission."""
         submission = self.get_object()
-        
+
         serializer = StewardSubmissionReviewSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
-        action = serializer.validated_data['action']
-        
+
+        action_name = serializer.validated_data['action']
+
+        # Per-action permission checks
+        permission_map = {
+            'accept': 'accept',
+            'reject': 'reject',
+            'more_info': 'request_more_info',
+        }
+        required_permission = permission_map.get(action_name)
+        if required_permission and not steward_has_permission(request.user, submission.contribution_type_id, required_permission):
+            return Response(
+                {'detail': f'You do not have permission to {action_name} submissions of this contribution type.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         # Update submission fields
         submission.reviewed_by = request.user
         submission.reviewed_at = timezone.now()
-        
-        if action == 'accept':
+
+        if action_name == 'accept':
             # Get the contribution type (use provided or keep original)
             contribution_type = serializer.validated_data.get('contribution_type', submission.contribution_type)
-            
+
             # Get the user for the contribution (use provided or keep original submitter)
             contribution_user = serializer.validated_data.get('user', submission.user)
-            
+
             # Update submission contribution type if changed
             if contribution_type != submission.contribution_type:
                 submission.contribution_type = contribution_type
-            
+
             # Create the actual contribution with the selected user
             contribution = Contribution.objects.create(
                 user=contribution_user,
@@ -1016,7 +1050,6 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 and not hasattr(contribution_user, 'builder')):
                 from leaderboard.models import ensure_builder_status, update_user_leaderboard_entries
                 ensure_builder_status(contribution_user, submission.contribution_date)
-                # Manually update leaderboard since ensure_builder_status uses bulk_create (no signals)
                 update_user_leaderboard_entries(contribution_user)
 
             # Copy evidence items using bulk_create for better performance
@@ -1029,7 +1062,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 )
                 for evidence in submission.evidence_items.all()
             ])
-            
+
             # Create highlight if requested
             if serializer.validated_data.get('create_highlight'):
                 ContributionHighlight.objects.create(
@@ -1037,21 +1070,44 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                     title=serializer.validated_data['highlight_title'],
                     description=serializer.validated_data['highlight_description']
                 )
-            
+
             submission.state = 'accepted'
             submission.converted_contribution = contribution
             submission.staff_reply = serializer.validated_data.get('staff_reply', '')
-            
-        elif action == 'reject':
+
+        elif action_name == 'reject':
             submission.state = 'rejected'
             submission.staff_reply = serializer.validated_data['staff_reply']
-            
-        elif action == 'more_info':
+
+        elif action_name == 'more_info':
             submission.state = 'more_info_needed'
             submission.staff_reply = serializer.validated_data['staff_reply']
-        
+
+        # Clear all proposal fields after review
+        submission.proposed_action = None
+        submission.proposed_points = None
+        submission.proposed_contribution_type = None
+        submission.proposed_user = None
+        submission.proposed_staff_reply = ''
+        submission.proposed_create_highlight = False
+        submission.proposed_highlight_title = ''
+        submission.proposed_highlight_description = ''
+        submission.proposed_by = None
+        submission.proposed_at = None
+
         submission.save()
-        
+
+        # Create CRM note recording the final decision
+        from .models import SubmissionNote
+        reviewer_name = request.user.name or request.user.address[:10] + '...'
+        pts_str = f" with **{serializer.validated_data.get('points', '')} points**" if action_name == 'accept' else ''
+        SubmissionNote.objects.create(
+            submitted_contribution=submission,
+            user=request.user,
+            message=f"Reviewed: **{action_name}**{pts_str} by {reviewer_name}",
+            is_proposal=False,
+        )
+
         return Response(
             self.get_serializer(submission).data,
             status=status.HTTP_200_OK
@@ -1395,14 +1451,20 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             state__in=['pending', 'more_info_needed']
         )
 
-        rejected_count = submissions.count()
+        # Filter by steward's reject permission on each submission's contribution type
+        permitted_reject_ids = steward_permitted_type_ids(request.user, actions=['reject'])
+        permitted = submissions.filter(contribution_type_id__in=permitted_reject_ids)
+        skipped_count = submissions.count() - permitted.count()
+
+        rejected_ids = list(permitted.values_list('id', flat=True))
+        rejected_count = len(rejected_ids)
         if rejected_count == 0:
             return Response(
-                {'error': 'No valid submissions found to reject'},
+                {'error': 'No valid submissions found to reject (you may lack reject permission on these types)'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        submissions.update(
+        permitted.update(
             state='rejected',
             staff_reply=staff_reply,
             reviewed_by=request.user,
@@ -1411,8 +1473,117 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
 
         return Response({
             'status': 'success',
-            'rejected_count': rejected_count
+            'rejected_count': rejected_count,
+            'skipped_count': skipped_count,
+            'rejected_ids': rejected_ids,
         })
+
+    @action(detail=False, methods=['get'], url_path='my-permissions')
+    def my_permissions(self, request):
+        """Get current steward's permissions map: { contribution_type_id: [actions] }."""
+        from stewards.models import StewardPermission
+        if not hasattr(request.user, 'steward'):
+            return Response({})
+
+        perms = StewardPermission.objects.filter(
+            steward=request.user.steward
+        ).values_list('contribution_type_id', 'action')
+
+        result = {}
+        for ct_id, action_name in perms:
+            result.setdefault(str(ct_id), []).append(action_name)
+
+        return Response(result)
+
+    @action(detail=False, methods=['get'], url_path='templates')
+    def templates(self, request):
+        """Get all review templates."""
+        from stewards.models import ReviewTemplate
+        templates = ReviewTemplate.objects.all()
+        data = [{'id': t.id, 'label': t.label, 'text': t.text} for t in templates]
+        return Response(data)
+
+    @action(detail=True, methods=['post'], url_path='propose')
+    def propose(self, request, pk=None):
+        """Submit a proposal for a submission."""
+        submission = self.get_object()
+
+        # Check propose permission
+        if not steward_has_permission(request.user, submission.contribution_type_id, 'propose'):
+            return Response(
+                {'detail': 'You do not have permission to propose on submissions of this contribution type.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = SubmissionProposeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Set proposed_* fields on the submission
+        submission.proposed_action = data['proposed_action']
+        submission.proposed_points = data.get('proposed_points')
+        submission.proposed_contribution_type = data.get('proposed_contribution_type')
+        submission.proposed_user = data.get('proposed_user')
+        submission.proposed_staff_reply = data.get('proposed_staff_reply', '')
+        submission.proposed_create_highlight = data.get('proposed_create_highlight', False)
+        submission.proposed_highlight_title = data.get('proposed_highlight_title', '')
+        submission.proposed_highlight_description = data.get('proposed_highlight_description', '')
+        submission.proposed_by = request.user
+        submission.proposed_at = timezone.now()
+        submission.save()
+
+        # Create CRM note recording the proposal
+        from .models import SubmissionNote
+        proposer_name = request.user.name or request.user.address[:10] + '...'
+        action_str = data['proposed_action']
+        pts_str = f" with **{data.get('proposed_points', '')} points**" if action_str == 'accept' else ''
+        ct_name = data.get('proposed_contribution_type')
+        ct_str = f" ({ct_name.name})" if ct_name else ''
+        user_obj = data.get('proposed_user')
+        user_str = f", assigned to {user_obj.name or user_obj.address[:10]}" if user_obj else ''
+        reply_str = f". Reply: '{data.get('proposed_staff_reply', '')[:100]}'" if data.get('proposed_staff_reply') else ''
+
+        SubmissionNote.objects.create(
+            submitted_contribution=submission,
+            user=request.user,
+            message=f"Proposed: **{action_str}**{pts_str}{ct_str}{user_str}{reply_str} by {proposer_name}",
+            is_proposal=True,
+        )
+
+        return Response(
+            self.get_serializer(submission).data,
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['get', 'post'], url_path='notes')
+    def notes(self, request, pk=None):
+        """List or create CRM notes on a submission."""
+        submission = self.get_object()
+
+        if request.method == 'GET':
+            notes = submission.internal_notes.select_related('user').all()
+            serializer = SubmissionNoteSerializer(notes, many=True)
+            return Response(serializer.data)
+
+        elif request.method == 'POST':
+            message = request.data.get('message', '').strip()
+            if not message:
+                return Response(
+                    {'error': 'Message is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            from .models import SubmissionNote
+            note = SubmissionNote.objects.create(
+                submitted_contribution=submission,
+                user=request.user,
+                message=message,
+                is_proposal=False,
+            )
+            return Response(
+                SubmissionNoteSerializer(note).data,
+                status=status.HTTP_201_CREATED
+            )
 
 
 class MissionViewSet(viewsets.ReadOnlyModelViewSet):
