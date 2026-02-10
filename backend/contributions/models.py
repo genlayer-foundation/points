@@ -278,9 +278,9 @@ class SubmittedContribution(BaseModel):
         default='pending'
     )
     
-    # Suggested points for automatic submissions
-    suggested_points = models.PositiveIntegerField(
-        null=True, 
+    # Proposed points for automatic submissions
+    proposed_points = models.PositiveIntegerField(
+        null=True,
         blank=True,
         help_text="Pre-calculated points for automatic submissions (e.g., node upgrades)"
     )
@@ -309,6 +309,61 @@ class SubmittedContribution(BaseModel):
         help_text="Steward assigned to review this submission"
     )
 
+    # Proposal fields - filled by stewards with 'propose' permission
+    proposed_action = models.CharField(
+        max_length=20,
+        choices=[('accept', 'Accept'), ('reject', 'Reject'), ('more_info', 'More Info')],
+        null=True,
+        blank=True,
+        help_text="Proposed review action"
+    )
+    proposed_contribution_type = models.ForeignKey(
+        ContributionType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='proposed_submissions',
+        help_text="Proposed contribution type for acceptance"
+    )
+    proposed_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='proposed_contributions',
+        help_text="Proposed user to assign the contribution to"
+    )
+    proposed_staff_reply = models.TextField(
+        blank=True,
+        help_text="Proposed staff reply message"
+    )
+    proposed_create_highlight = models.BooleanField(
+        default=False,
+        help_text="Whether to create a highlight for the contribution"
+    )
+    proposed_highlight_title = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Proposed highlight title"
+    )
+    proposed_highlight_description = models.TextField(
+        blank=True,
+        help_text="Proposed highlight description"
+    )
+    proposed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='submission_proposals',
+        help_text="Steward who made the proposal"
+    )
+    proposed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the proposal was made"
+    )
+
     # Link to actual contribution when accepted
     converted_contribution = models.ForeignKey(
         'Contribution',
@@ -328,6 +383,36 @@ class SubmittedContribution(BaseModel):
         ordering = ['-created_at']
         verbose_name = "Submitted Contribution"
         verbose_name_plural = "Submitted Contributions"
+
+
+class SubmissionNote(BaseModel):
+    """
+    Internal CRM note on a submitted contribution.
+    Visible to stewards only, not to the submitting user.
+    Auto-generated notes record proposal history.
+    """
+    submitted_contribution = models.ForeignKey(
+        SubmittedContribution,
+        on_delete=models.CASCADE,
+        related_name='internal_notes'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='submission_notes'
+    )
+    message = models.TextField()
+    is_proposal = models.BooleanField(
+        default=False,
+        help_text="True for auto-generated proposal notes"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        prefix = "[Proposal] " if self.is_proposal else ""
+        return f"{prefix}{self.user} on {self.submitted_contribution} at {self.created_at}"
 
 
 class Evidence(BaseModel):

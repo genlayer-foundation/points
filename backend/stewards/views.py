@@ -28,12 +28,31 @@ class StewardViewSet(viewsets.ModelViewSet):
     
     def list(self, request, *args, **kwargs):
         """
-        List all stewards with user details.
+        List all stewards with user details, role, and permitted categories.
         Allow public access to view steward list.
         """
-        stewards = self.get_queryset().select_related('user')
+        stewards = self.get_queryset().select_related('user').prefetch_related(
+            'permissions__contribution_type'
+        )
         data = []
         for steward in stewards:
+            # Compute role based on permissions
+            actions = set(steward.permissions.values_list('action', flat=True))
+            if 'accept' in actions:
+                role = 'Steward'
+            elif actions:
+                role = 'Reviewer'
+            else:
+                role = 'Steward'  # Default for stewards with no explicit permissions yet
+
+            # Compute permitted categories
+            categories = set(
+                steward.permissions.values_list(
+                    'contribution_type__category', flat=True
+                )
+            )
+            categories.discard(None)
+
             steward_data = {
                 'id': steward.id,
                 'user_id': steward.user.id,
@@ -41,6 +60,8 @@ class StewardViewSet(viewsets.ModelViewSet):
                 'address': steward.user.address,
                 'profile_image_url': steward.user.profile_image_url,
                 'created_at': steward.created_at,
+                'role': role,
+                'permitted_categories': sorted(categories),
                 'user_details': {
                     'name': steward.user.name,
                     'address': steward.user.address,

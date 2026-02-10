@@ -237,20 +237,31 @@
                 <div class="p-4 hover:bg-gray-50 transition-colors">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                      <Avatar 
+                      <Avatar
                         user={steward}
                         size="sm"
                         clickable={true}
                       />
                       <div class="min-w-0">
-                        <button
-                          onclick={() => push(`/participant/${steward.address}`)}
-                          class="text-sm font-medium text-gray-900 hover:{$categoryTheme.text} transition-colors truncate"
-                        >
-                          {steward.name || `${steward.address.slice(0, 6)}...${steward.address.slice(-4)}`}
-                        </button>
-                        <div class="text-xs text-gray-500">
-                          Steward since {format(new Date(steward.created_at), 'MMM yyyy')}
+                        <div class="flex items-center gap-2">
+                          <button
+                            onclick={() => push(`/participant/${steward.address}`)}
+                            class="text-sm font-medium text-gray-900 hover:{$categoryTheme.text} transition-colors truncate"
+                          >
+                            {steward.name || `${steward.address.slice(0, 6)}...${steward.address.slice(-4)}`}
+                          </button>
+                          {#if steward.role === 'Steward'}
+                            <span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-green-100 text-green-700">Steward</span>
+                          {:else if steward.role === 'Reviewer'}
+                            <span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-700">Reviewer</span>
+                          {/if}
+                        </div>
+                        <div class="flex items-center gap-1.5 text-xs text-gray-500">
+                          <span>Since {format(new Date(steward.created_at), 'MMM yyyy')}</span>
+                          {#if steward.permitted_categories?.length > 0}
+                            <span class="text-gray-300">·</span>
+                            <span class="text-gray-400">{steward.permitted_categories.join(', ')}</span>
+                          {/if}
                         </div>
                       </div>
                     </div>

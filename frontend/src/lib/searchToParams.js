@@ -99,6 +99,13 @@ export function searchToParams(parsed, options = {}) {
     params.exclude_empty_evidence = true;
   }
 
+  // has:proposal / no:proposal → proposal filter
+  if (filters.has && filters.has.includes('proposal')) {
+    params.has_proposal = true;
+  } else if (filters.no && filters.no.includes('proposal')) {
+    params.has_proposal = false;
+  }
+
   // min-contributions
   if (filters.minContributions !== null && filters.minContributions > 0) {
     params.min_accepted_contributions = filters.minContributions;
