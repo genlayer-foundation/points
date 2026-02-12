@@ -238,7 +238,7 @@
   }
 </style>
 
-<div class="min-h-screen {categoryColors.pageBg} -m-8 p-8">
+<div class="{categoryColors.pageBg} rounded-lg p-6 sm:p-8">
   <div class="space-y-6 sm:space-y-8">
     {#if loading}
     <div class="flex justify-center items-center p-8">

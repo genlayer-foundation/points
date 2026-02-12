@@ -27,7 +27,7 @@ except:
     pass
 " | sort -n)
     
-    # Get all used frontend ports  
+    # Get all used frontend ports
     used_frontend_ports=$(python3 -c "
 import json
 try:

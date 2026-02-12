@@ -77,10 +77,10 @@
   }
 </script>
 
-<div class="container mx-auto px-4 py-8 min-h-screen {$categoryTheme.bg}" style="margin: -2rem -1rem; padding: 2rem 3rem;">
+<div class="container mx-auto px-4 py-8">
   <!-- Header -->
   <h1 class="text-2xl font-bold text-gray-900 mb-6">Steward Dashboard</h1>
-  
+
   {#if loading}
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
