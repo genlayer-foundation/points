@@ -77,7 +77,7 @@
   }
 </script>
 
-<div class="container mx-auto px-4 py-8 min-h-screen {$categoryTheme.bg}" style="margin: -2rem -1rem; padding: 2rem 3rem;">
+<div class="container mx-auto px-4 py-8">
   <!-- Header -->
   <h1 class="text-2xl font-bold text-gray-900 mb-6">Steward Dashboard</h1>
 
