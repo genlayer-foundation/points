@@ -81,16 +81,6 @@
   <!-- Header -->
   <h1 class="text-2xl font-bold text-gray-900 mb-6">Steward Dashboard</h1>
 
-  <!-- Temporary review delay notice -->
-  <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-    <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-    </svg>
-    <p class="text-sm text-amber-800">
-      Contribution reviews will experience a brief delay this week. All submissions are being recorded and will be reviewed shortly. Thank you for your patience and continued participation.
-    </p>
-  </div>
-
   {#if loading}
     <div class="flex justify-center items-center p-8">
       <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
