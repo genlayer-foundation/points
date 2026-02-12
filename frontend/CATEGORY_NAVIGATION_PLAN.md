@@ -17,7 +17,7 @@ Create a category-based navigation system with three modes: Global, Builders, an
 - Border: `#FED7AA` (orange-200)
 - Text: `#EA580C` (orange-600)
 
-### Validators  
+### Validators
 - Primary: Light blue (cool/sterile/technical)
 - Background: `#F0F9FF` (sky-50)
 - Accent: `#38BDF8` (sky-400)

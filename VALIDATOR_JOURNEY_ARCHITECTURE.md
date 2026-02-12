@@ -36,7 +36,7 @@ FIX: - `last-update`: date
 ```python
 TYPES_RULES = {
     'validator': lambda user: (
-        # Has validator badge OR is in Validator model  FIX: only has validator badge
+        # Has validator badge OR is in Validator model FIX: only has validator badge
         Contribution.objects.filter(
             user=user,
             contribution_type__slug='validator'

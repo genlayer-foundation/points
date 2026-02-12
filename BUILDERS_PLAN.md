@@ -315,7 +315,7 @@ GET /api/v1/users/{id}/                  # Returns user with all profiles
 
 # Category-specific profile updates
 PATCH /api/v1/validators/me/             # Update validator profile
-PATCH /api/v1/builders/me/               # Update builder profile  
+PATCH /api/v1/builders/me/               # Update builder profile
 PATCH /api/v1/stewards/me/               # Update steward profile
 
 # Leaderboards
