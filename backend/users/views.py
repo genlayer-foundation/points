@@ -548,6 +548,13 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
                     Builder.objects.create(user=user)
                     builder_created = True
             
+            # Ensure leaderboard is updated with fresh user state after transaction commits.
+            # The post_save signal on Contribution fires before the Builder profile exists,
+            # so we explicitly recalculate here with a fresh user that has the Builder relation.
+            from leaderboard.models import update_user_leaderboard_entries
+            fresh_user = type(user).objects.get(pk=user.pk)
+            update_user_leaderboard_entries(fresh_user)
+
             # Transaction successful, return response
             serializer = self.get_serializer(user)
             return Response({

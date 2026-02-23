@@ -1050,7 +1050,9 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 and not hasattr(contribution_user, 'builder')):
                 from leaderboard.models import ensure_builder_status, update_user_leaderboard_entries
                 ensure_builder_status(contribution_user, submission.contribution_date)
-                update_user_leaderboard_entries(contribution_user)
+                # Re-fetch user to avoid stale reverse-relation cache from the hasattr check above
+                fresh_user = type(contribution_user).objects.get(pk=contribution_user.pk)
+                update_user_leaderboard_entries(fresh_user)
 
             # Copy evidence items using bulk_create for better performance
             Evidence.objects.bulk_create([
