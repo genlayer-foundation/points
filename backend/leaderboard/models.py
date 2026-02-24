@@ -397,6 +397,22 @@ def update_leaderboard_on_contribution(sender, instance, created, **kwargs):
         update_referrer_points(instance)
 
 
+def update_leaderboard_on_builder_creation(sender, instance, created, **kwargs):
+    """
+    When a Builder profile is created, update the user's leaderboard entries.
+    This ensures users appear on the builder leaderboard immediately after
+    their Builder profile is created, even if the profile was created after
+    their contributions (which is the case in complete_builder_journey).
+    """
+    if created:
+        from users.models import User
+        # Re-fetch user from DB to avoid stale reverse-relation cache
+        # (hasattr(user, 'builder') may have been cached as False before the Builder was created)
+        user = User.objects.get(pk=instance.user_id)
+        logger.debug(f"Builder profile created for {user.email}, updating leaderboard entries")
+        update_user_leaderboard_entries(user)
+
+
 def update_user_leaderboard_entries(user):
     """
     Core function that manages all of a user's leaderboard placements.
@@ -603,211 +619,219 @@ def update_all_ranks():
 def recalculate_all_leaderboards():
     """Recalculate all leaderboard entries and referral points from scratch."""
     from django.db import transaction
+    from django.db.models.signals import post_save
     from users.models import User
     from builders.models import Builder
     from validators.models import Validator
     from collections import defaultdict
 
-    with transaction.atomic():
-        existing_graduations = {
-            entry.user_id: {
-                'points': entry.total_points,
-                'graduation_date': entry.graduation_date
+    # Disconnect builder creation signal during bulk recalculation to avoid
+    # IntegrityError conflicts with the bulk_create at the end of this function.
+    post_save.disconnect(update_leaderboard_on_builder_creation, sender=Builder)
+
+    try:
+        with transaction.atomic():
+            existing_graduations = {
+                entry.user_id: {
+                    'points': entry.total_points,
+                    'graduation_date': entry.graduation_date
+                }
+                for entry in LeaderboardEntry.objects.filter(type='validator-waitlist-graduation')
             }
-            for entry in LeaderboardEntry.objects.filter(type='validator-waitlist-graduation')
-        }
 
-        LeaderboardEntry.objects.all().delete()
-        ReferralPoints.objects.all().delete()
+            LeaderboardEntry.objects.all().delete()
+            ReferralPoints.objects.all().delete()
 
-        # Auto-grant builder status to users with builder contributions but no Builder profile
-        initial_contributions = list(Contribution.objects.select_related(
-            'contribution_type__category'
-        ).values(
-            'user_id',
-            'contribution_type__slug',
-            'contribution_type__category__slug',
-            'contribution_date'
-        ))
-
-        initial_builders_set = set(Builder.objects.values_list('user_id', flat=True))
-        user_builder_contribs = defaultdict(list)
-        for contrib in initial_contributions:
-            if (contrib['contribution_type__category__slug'] == 'builder' and
-                contrib['contribution_type__slug'] not in ['builder-welcome', 'builder']):
-                user_builder_contribs[contrib['user_id']].append(contrib['contribution_date'])
-
-        for user_id, dates in user_builder_contribs.items():
-            if user_id not in initial_builders_set:
-                try:
-                    user = User.objects.get(id=user_id)
-                    earliest_date = min(dates)
-                    ensure_builder_status(user, earliest_date)
-                except User.DoesNotExist:
-                    pass
-
-        # Load all contribution data (including newly created)
-        contributions = list(Contribution.objects.select_related(
-            'contribution_type__category'
-        ).values(
-            'id',
-            'user_id',
-            'user__referred_by_id',
-            'user__visible',
-            'contribution_type__slug',
-            'contribution_type__category__slug',
-            'contribution_date',
-            'frozen_global_points'
-        ))
-
-        builders_set = set(Builder.objects.values_list('user_id', flat=True))
-        validators_set = set(Validator.objects.values_list('user_id', flat=True))
-
-        user_contributions = defaultdict(list)
-        for contrib in contributions:
-            user_contributions[contrib['user_id']].append(contrib)
-
-        referrer_contributions = defaultdict(list)
-        for contrib in contributions:
-            if contrib['user__referred_by_id']:
-                referrer_contributions[contrib['user__referred_by_id']].append(contrib)
-
-        user_badges = defaultdict(set)
-        for contrib in contributions:
-            user_badges[contrib['user_id']].add(contrib['contribution_type__slug'])
-
-        users_eligible_for_referrals = set()
-        for contrib in contributions:
-            if contrib['contribution_type__slug'] not in ['builder-welcome', 'validator-waitlist']:
-                users_eligible_for_referrals.add(contrib['user_id'])
-
-        entries_to_create = []
-        referral_points_to_create = []
-
-        for user_id, user_contribs in user_contributions.items():
-            qualified_leaderboards = []
-
-            if user_id in validators_set:
-                qualified_leaderboards.append('validator')
-
-            if user_id in builders_set:
-                qualified_leaderboards.append('builder')
-
-            if 'validator-waitlist' in user_badges[user_id] and user_id not in validators_set:
-                qualified_leaderboards.append('validator-waitlist')
-
-            if 'validator-waitlist' in user_badges[user_id] and user_id in validators_set:
-                qualified_leaderboards.append('validator-waitlist-graduation')
-
-            for leaderboard_type in qualified_leaderboards:
-                points = 0
-                graduation_date = None
-
-                if leaderboard_type == 'validator':
-                    for contrib in user_contribs:
-                        if contrib['contribution_type__category__slug'] == 'validator':
-                            points += contrib['frozen_global_points'] or 0
-
-                elif leaderboard_type == 'builder':
-                    for contrib in user_contribs:
-                        if contrib['contribution_type__category__slug'] == 'builder':
-                            points += contrib['frozen_global_points'] or 0
-
-                elif leaderboard_type == 'validator-waitlist':
-                    for contrib in user_contribs:
-                        if (contrib['contribution_type__category__slug'] == 'validator' and
-                            contrib['contribution_type__slug'] != 'validator'):
-                            points += contrib['frozen_global_points'] or 0
-
-                    if user_id in referrer_contributions:
-                        builder_referral = 0
-                        validator_referral = 0
-
-                        for referred_contrib in referrer_contributions[user_id]:
-                            referred_user_id = referred_contrib['user_id']
-                            category = referred_contrib['contribution_type__category__slug']
-                            contrib_points = referred_contrib['frozen_global_points'] or 0
-
-                            if referred_user_id in users_eligible_for_referrals:
-                                if category == 'builder':
-                                    builder_referral += int(contrib_points * 0.1)
-                                elif category == 'validator':
-                                    validator_referral += int(contrib_points * 0.1)
-
-                        points += builder_referral + validator_referral
-
-                elif leaderboard_type == 'validator-waitlist-graduation':
-                    if user_id in existing_graduations:
-                        points = existing_graduations[user_id]['points']
-                        graduation_date = existing_graduations[user_id]['graduation_date']
-                    else:
-                        grad_date = None
-                        for contrib in user_contribs:
-                            if contrib['contribution_type__slug'] == 'validator':
-                                contrib_date = contrib['contribution_date']
-                                if grad_date is None or contrib_date < grad_date:
-                                    grad_date = contrib_date
-
-                        graduation_date = grad_date
-
-                        if grad_date is not None:
-                            for contrib in user_contribs:
-                                if contrib['contribution_type__category__slug'] == 'validator':
-                                    if (contrib['contribution_date'] <= grad_date and
-                                        contrib['contribution_type__slug'] != 'validator'):
-                                        points += contrib['frozen_global_points'] or 0
-
-                            if user_id in referrer_contributions:
-                                builder_referral = 0
-                                validator_referral = 0
-
-                                for referred_contrib in referrer_contributions[user_id]:
-                                    if referred_contrib['contribution_date'] <= grad_date:
-                                        referred_user_id = referred_contrib['user_id']
-                                        category = referred_contrib['contribution_type__category__slug']
-                                        contrib_points = referred_contrib['frozen_global_points'] or 0
-
-                                        if referred_user_id in users_eligible_for_referrals:
-                                            if category == 'builder':
-                                                builder_referral += int(contrib_points * 0.1)
-                                            elif category == 'validator':
-                                                validator_referral += int(contrib_points * 0.1)
-
-                                points += builder_referral + validator_referral
-
-                # Create entry
-                entries_to_create.append(LeaderboardEntry(
-                    user_id=user_id,
-                    type=leaderboard_type,
-                    total_points=points,
-                    graduation_date=graduation_date
-                ))
-
-        for referrer_id, referred_contribs in referrer_contributions.items():
-            builder_points = 0
-            validator_points = 0
-
-            for contrib in referred_contribs:
-                referred_user_id = contrib['user_id']
-                category = contrib['contribution_type__category__slug']
-                contrib_points = contrib['frozen_global_points'] or 0
-
-                if referred_user_id in users_eligible_for_referrals:
-                    if category == 'builder':
-                        builder_points += int(contrib_points * 0.1)
-                    elif category == 'validator':
-                        validator_points += int(contrib_points * 0.1)
-
-            referral_points_to_create.append(ReferralPoints(
-                user_id=referrer_id,
-                builder_points=builder_points,
-                validator_points=validator_points
+            # Auto-grant builder status to users with builder contributions but no Builder profile
+            initial_contributions = list(Contribution.objects.select_related(
+                'contribution_type__category'
+            ).values(
+                'user_id',
+                'contribution_type__slug',
+                'contribution_type__category__slug',
+                'contribution_date'
             ))
 
-        LeaderboardEntry.objects.bulk_create(entries_to_create, batch_size=500)
-        ReferralPoints.objects.bulk_create(referral_points_to_create, batch_size=500)
+            initial_builders_set = set(Builder.objects.values_list('user_id', flat=True))
+            user_builder_contribs = defaultdict(list)
+            for contrib in initial_contributions:
+                if (contrib['contribution_type__category__slug'] == 'builder' and
+                    contrib['contribution_type__slug'] not in ['builder-welcome', 'builder']):
+                    user_builder_contribs[contrib['user_id']].append(contrib['contribution_date'])
 
-        for leaderboard_type in ['validator', 'builder', 'validator-waitlist', 'validator-waitlist-graduation']:
-            LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
+            for user_id, dates in user_builder_contribs.items():
+                if user_id not in initial_builders_set:
+                    try:
+                        user = User.objects.get(id=user_id)
+                        earliest_date = min(dates)
+                        ensure_builder_status(user, earliest_date)
+                    except User.DoesNotExist:
+                        pass
 
-        return f"Recalculated {len(user_contributions)} users across {len(LEADERBOARD_CONFIG)} leaderboards with {len(referral_points_to_create)} referrers"
+            # Load all contribution data (including newly created)
+            contributions = list(Contribution.objects.select_related(
+                'contribution_type__category'
+            ).values(
+                'id',
+                'user_id',
+                'user__referred_by_id',
+                'user__visible',
+                'contribution_type__slug',
+                'contribution_type__category__slug',
+                'contribution_date',
+                'frozen_global_points'
+            ))
+
+            builders_set = set(Builder.objects.values_list('user_id', flat=True))
+            validators_set = set(Validator.objects.values_list('user_id', flat=True))
+
+            user_contributions = defaultdict(list)
+            for contrib in contributions:
+                user_contributions[contrib['user_id']].append(contrib)
+
+            referrer_contributions = defaultdict(list)
+            for contrib in contributions:
+                if contrib['user__referred_by_id']:
+                    referrer_contributions[contrib['user__referred_by_id']].append(contrib)
+
+            user_badges = defaultdict(set)
+            for contrib in contributions:
+                user_badges[contrib['user_id']].add(contrib['contribution_type__slug'])
+
+            users_eligible_for_referrals = set()
+            for contrib in contributions:
+                if contrib['contribution_type__slug'] not in ['builder-welcome', 'validator-waitlist']:
+                    users_eligible_for_referrals.add(contrib['user_id'])
+
+            entries_to_create = []
+            referral_points_to_create = []
+
+            for user_id, user_contribs in user_contributions.items():
+                qualified_leaderboards = []
+
+                if user_id in validators_set:
+                    qualified_leaderboards.append('validator')
+
+                if user_id in builders_set:
+                    qualified_leaderboards.append('builder')
+
+                if 'validator-waitlist' in user_badges[user_id] and user_id not in validators_set:
+                    qualified_leaderboards.append('validator-waitlist')
+
+                if 'validator-waitlist' in user_badges[user_id] and user_id in validators_set:
+                    qualified_leaderboards.append('validator-waitlist-graduation')
+
+                for leaderboard_type in qualified_leaderboards:
+                    points = 0
+                    graduation_date = None
+
+                    if leaderboard_type == 'validator':
+                        for contrib in user_contribs:
+                            if contrib['contribution_type__category__slug'] == 'validator':
+                                points += contrib['frozen_global_points'] or 0
+
+                    elif leaderboard_type == 'builder':
+                        for contrib in user_contribs:
+                            if contrib['contribution_type__category__slug'] == 'builder':
+                                points += contrib['frozen_global_points'] or 0
+
+                    elif leaderboard_type == 'validator-waitlist':
+                        for contrib in user_contribs:
+                            if (contrib['contribution_type__category__slug'] == 'validator' and
+                                contrib['contribution_type__slug'] != 'validator'):
+                                points += contrib['frozen_global_points'] or 0
+
+                        if user_id in referrer_contributions:
+                            builder_referral = 0
+                            validator_referral = 0
+
+                            for referred_contrib in referrer_contributions[user_id]:
+                                referred_user_id = referred_contrib['user_id']
+                                category = referred_contrib['contribution_type__category__slug']
+                                contrib_points = referred_contrib['frozen_global_points'] or 0
+
+                                if referred_user_id in users_eligible_for_referrals:
+                                    if category == 'builder':
+                                        builder_referral += int(contrib_points * 0.1)
+                                    elif category == 'validator':
+                                        validator_referral += int(contrib_points * 0.1)
+
+                            points += builder_referral + validator_referral
+
+                    elif leaderboard_type == 'validator-waitlist-graduation':
+                        if user_id in existing_graduations:
+                            points = existing_graduations[user_id]['points']
+                            graduation_date = existing_graduations[user_id]['graduation_date']
+                        else:
+                            grad_date = None
+                            for contrib in user_contribs:
+                                if contrib['contribution_type__slug'] == 'validator':
+                                    contrib_date = contrib['contribution_date']
+                                    if grad_date is None or contrib_date < grad_date:
+                                        grad_date = contrib_date
+
+                            graduation_date = grad_date
+
+                            if grad_date is not None:
+                                for contrib in user_contribs:
+                                    if contrib['contribution_type__category__slug'] == 'validator':
+                                        if (contrib['contribution_date'] <= grad_date and
+                                            contrib['contribution_type__slug'] != 'validator'):
+                                            points += contrib['frozen_global_points'] or 0
+
+                                if user_id in referrer_contributions:
+                                    builder_referral = 0
+                                    validator_referral = 0
+
+                                    for referred_contrib in referrer_contributions[user_id]:
+                                        if referred_contrib['contribution_date'] <= grad_date:
+                                            referred_user_id = referred_contrib['user_id']
+                                            category = referred_contrib['contribution_type__category__slug']
+                                            contrib_points = referred_contrib['frozen_global_points'] or 0
+
+                                            if referred_user_id in users_eligible_for_referrals:
+                                                if category == 'builder':
+                                                    builder_referral += int(contrib_points * 0.1)
+                                                elif category == 'validator':
+                                                    validator_referral += int(contrib_points * 0.1)
+
+                                    points += builder_referral + validator_referral
+
+                    # Create entry
+                    entries_to_create.append(LeaderboardEntry(
+                        user_id=user_id,
+                        type=leaderboard_type,
+                        total_points=points,
+                        graduation_date=graduation_date
+                    ))
+
+            for referrer_id, referred_contribs in referrer_contributions.items():
+                builder_points = 0
+                validator_points = 0
+
+                for contrib in referred_contribs:
+                    referred_user_id = contrib['user_id']
+                    category = contrib['contribution_type__category__slug']
+                    contrib_points = contrib['frozen_global_points'] or 0
+
+                    if referred_user_id in users_eligible_for_referrals:
+                        if category == 'builder':
+                            builder_points += int(contrib_points * 0.1)
+                        elif category == 'validator':
+                            validator_points += int(contrib_points * 0.1)
+
+                referral_points_to_create.append(ReferralPoints(
+                    user_id=referrer_id,
+                    builder_points=builder_points,
+                    validator_points=validator_points
+                ))
+
+            LeaderboardEntry.objects.bulk_create(entries_to_create, batch_size=500)
+            ReferralPoints.objects.bulk_create(referral_points_to_create, batch_size=500)
+
+            for leaderboard_type in ['validator', 'builder', 'validator-waitlist', 'validator-waitlist-graduation']:
+                LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
+
+            return f"Recalculated {len(user_contributions)} users across {len(LEADERBOARD_CONFIG)} leaderboards with {len(referral_points_to_create)} referrers"
+    finally:
+        post_save.connect(update_leaderboard_on_builder_creation, sender=Builder)
