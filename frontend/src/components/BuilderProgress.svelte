@@ -70,8 +70,8 @@
       symbol: 'GEN',
       decimals: 18
     },
-    rpcUrls: ['https://genlayer-testnet.rpc.caldera.xyz/http'],
-    blockExplorerUrls: ['https://genlayer-testnet.explorer.caldera.xyz']
+    rpcUrls: ['https://zksync-os-testnet-genlayer.zksync.dev'],
+    blockExplorerUrls: ['https://zksync-os-testnet-genlayer.explorer.zksync.dev']
   };
   
   const STUDIO_NETWORK = {

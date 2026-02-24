@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 // Contract configuration - frontend-only
 const CONTRACT_INFO = {
   contract_address: import.meta.env.VITE_VALIDATOR_CONTRACT_ADDRESS || '0x10eCB157734c8152f1d84D00040c8AA46052CB27',
-  rpc_url: import.meta.env.VITE_VALIDATOR_RPC_URL || 'https://genlayer-testnet.rpc.caldera.xyz/http',
+  rpc_url: import.meta.env.VITE_VALIDATOR_RPC_URL || 'https://zksync-os-testnet-genlayer.zksync.dev',
   abi: [
     // Essential functions for validator management
     {
@@ -47,8 +47,8 @@ const ASIMOV_NETWORK = {
     symbol: 'GEN',
     decimals: 18
   },
-  rpcUrls: ['https://genlayer-testnet.rpc.caldera.xyz/http'],
-  blockExplorerUrls: ['https://genlayer-testnet.explorer.caldera.xyz']
+  rpcUrls: ['https://zksync-os-testnet-genlayer.zksync.dev'],
+  blockExplorerUrls: ['https://zksync-os-testnet-genlayer.explorer.zksync.dev']
 };
 
 /**

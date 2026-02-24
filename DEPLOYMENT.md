@@ -42,7 +42,7 @@ ALLOWED_HOSTS=your-apprunner-url.amazonaws.com,your-custom-domain.com
 FRONTEND_URL=https://main.d1234567890.amplifyapp.com
 SIWE_DOMAIN=main.d1234567890.amplifyapp.com
 VALIDATOR_CONTRACT_ADDRESS=0x7CceE43964F70CEAEfDED4b8b07410D30d64eC37
-VALIDATOR_RPC_URL=https://genlayer-testnet.rpc.caldera.xyz/http
+VALIDATOR_RPC_URL=https://zksync-os-testnet-genlayer.zksync.dev
 ```
 
 ### 3. Deploy Frontend (Amplify)
@@ -60,7 +60,7 @@ VALIDATOR_RPC_URL=https://genlayer-testnet.rpc.caldera.xyz/http
 ```
 VITE_API_URL=https://your-apprunner-url.amazonaws.com
 VITE_APP_NAME=Tally
-VITE_VALIDATOR_RPC_URL=https://genlayer-testnet.rpc.caldera.xyz/http
+VITE_VALIDATOR_RPC_URL=https://zksync-os-testnet-genlayer.zksync.dev
 VITE_VALIDATOR_CONTRACT_ADDRESS=0x143d20974FA35f72B8103f54D8A47F2991940d99
 ```
 

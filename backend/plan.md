@@ -20,9 +20,9 @@
    - SSM parameters copied from /tally/* to /points/*
 
 ### The Problem
-Both App Runner services (`tally-backend` and `points-backend`) cannot reach external APIs (specifically `genlayer-testnet.rpc.caldera.xyz`) when using VPC connector. The error:
+Both App Runner services (`tally-backend` and `points-backend`) cannot reach external APIs (specifically `zksync-os-testnet-genlayer.zksync.dev`) when using VPC connector. The error:
 ```
-Network is unreachable - HTTPSConnectionPool(host='genlayer-testnet.rpc.caldera.xyz', port=443)
+Network is unreachable - HTTPSConnectionPool(host='zksync-os-testnet-genlayer.zksync.dev', port=443)
 ```
 
 **Root Cause Identified**: The NAT Gateway was created in subnet-080dc8ee51a2732f0, which is associated with the private route table. This creates a circular dependency - the private subnets route to the NAT Gateway, but the NAT Gateway itself is in a subnet that only has a route back to itself, not to the Internet Gateway.
