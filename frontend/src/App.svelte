@@ -10,9 +10,10 @@
   import { categoryTheme, currentCategory, detectCategoryFromRoute } from './stores/category.js';
   import { location } from 'svelte-spa-router';
   
-  // State for sidebar toggle on mobile
+  // State for sidebar toggle on mobile and collapse on desktop
   let sidebarOpen = $state(false);
-  
+  let sidebarCollapsed = $state(false);
+
   function toggleSidebar() {
     sidebarOpen = !sidebarOpen;
   }
@@ -45,9 +46,10 @@
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
   import Referrals from './routes/Referrals.svelte';
-  import Supporters from './routes/Supporters.svelte';
+  import Community from './routes/Community.svelte';
   import GlobalDashboard from './components/GlobalDashboard.svelte';
   import StartupRequestDetail from './routes/StartupRequestDetail.svelte';
+  import SystemAlerts from './components/portal/SystemAlerts.svelte';
 
   // Define routes
   const routes = {
@@ -66,7 +68,7 @@
     '/leaderboard': Leaderboard,
     '/participants': Validators,
     '/referrals': Referrals,
-    '/supporters': Supporters,
+    '/community': Community,
 
     // Builders routes
     '/builders': Dashboard,
@@ -285,17 +287,9 @@
 <div class="h-screen flex flex-col {$categoryTheme.bg} transition-colors duration-300">
   <Navbar {toggleSidebar} {sidebarOpen} />
   <div class="flex-1 flex overflow-hidden">
-    <Sidebar bind:isOpen={sidebarOpen} />
-    <main class="flex-1 overflow-y-auto container mx-auto px-4 py-4 md:py-6 lg:py-8">
-      <!-- Temporary review delay notice -->
-      <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 flex items-start gap-3">
-        <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-        </svg>
-        <p class="text-sm text-amber-800">
-          Contribution reviews are currently delayed. All submissions are being recorded and will be reviewed shortly. Thank you for your patience and continued participation.
-        </p>
-      </div>
+    <Sidebar bind:isOpen={sidebarOpen} bind:collapsed={sidebarCollapsed} />
+    <main class="flex-1 overflow-y-auto px-3 py-3">
+      <SystemAlerts />
       <Router
         {routes}
         on:conditionsFailed={hideTooltips}

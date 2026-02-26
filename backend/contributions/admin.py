@@ -11,7 +11,7 @@ from django.db.models import Count
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from datetime import datetime
-from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote
+from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
 
@@ -673,4 +673,72 @@ class StartupRequestAdmin(admin.ModelAdmin):
             return format_html('<span style="color: green;">●</span> Active')
         else:
             return format_html('<span style="color: red;">●</span> Inactive')
+    get_status.short_description = 'Status'
+
+
+@admin.register(FeaturedContent)
+class FeaturedContentAdmin(admin.ModelAdmin):
+    list_display = ('title', 'content_type', 'user', 'is_active', 'order', 'created_at')
+    list_filter = ('content_type', 'is_active', 'created_at')
+    search_fields = ('title', 'description', 'user__name', 'user__address')
+    list_editable = ('order', 'is_active')
+    raw_id_fields = ('user', 'contribution')
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('order', '-created_at')
+
+    fieldsets = (
+        (None, {
+            'fields': ('content_type', 'title', 'subtitle', 'description', 'is_active', 'order')
+        }),
+        ('Relations', {
+            'fields': ('user', 'contribution')
+        }),
+        ('Links & Media', {
+            'fields': ('hero_image_url', 'hero_image_public_id', 'user_profile_image_url', 'user_profile_image_public_id', 'url'),
+            'description': 'Paste Cloudinary URLs directly. Public IDs are used for image management.'
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(Alert)
+class AlertAdmin(admin.ModelAdmin):
+    list_display = ('id', 'alert_type', 'text_preview', 'get_status', 'order', 'start_date', 'end_date', 'created_at')
+    list_filter = ('alert_type', 'is_active', 'created_at')
+    search_fields = ('text',)
+    list_editable = ('order', 'alert_type')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    ordering = ('order', '-created_at')
+
+    fieldsets = (
+        ('Content', {
+            'fields': ('id', 'alert_type', 'icon', 'text', 'is_active', 'order')
+        }),
+        ('Schedule', {
+            'fields': ('start_date', 'end_date'),
+            'description': 'Optional: Set dates to control when this alert is visible'
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def text_preview(self, obj):
+        return obj.text[:80] + '...' if len(obj.text) > 80 else obj.text
+    text_preview.short_description = 'Text'
+
+    def get_status(self, obj):
+        from django.utils import timezone as tz
+        now = tz.now()
+        if not obj.is_active:
+            return format_html('<span style="color: gray;">●</span> Inactive')
+        if obj.start_date and now < obj.start_date:
+            return format_html('<span style="color: orange;">●</span> Scheduled')
+        if obj.end_date and now > obj.end_date:
+            return format_html('<span style="color: red;">●</span> Expired')
+        return format_html('<span style="color: green;">●</span> Active')
     get_status.short_description = 'Status'
