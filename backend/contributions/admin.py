@@ -733,12 +733,13 @@ class AlertAdmin(admin.ModelAdmin):
 
     def get_status(self, obj):
         from django.utils import timezone as tz
+        from django.utils.safestring import mark_safe
         now = tz.now()
         if not obj.is_active:
-            return format_html('<span style="color: gray;">●</span> Inactive')
+            return mark_safe('<span style="color: gray;">●</span> Inactive')
         if obj.start_date and now < obj.start_date:
-            return format_html('<span style="color: orange;">●</span> Scheduled')
+            return mark_safe('<span style="color: orange;">●</span> Scheduled')
         if obj.end_date and now > obj.end_date:
-            return format_html('<span style="color: red;">●</span> Expired')
-        return format_html('<span style="color: green;">●</span> Active')
+            return mark_safe('<span style="color: red;">●</span> Expired')
+        return mark_safe('<span style="color: green;">●</span> Active')
     get_status.short_description = 'Status'
