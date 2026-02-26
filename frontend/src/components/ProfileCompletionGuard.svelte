@@ -14,7 +14,7 @@
   let hasExistingEmail = $state(false);
 
   // Determine if profile is incomplete
-  let showGuard = $derived(() => {
+  let showGuard = $derived.by(() => {
     // Don't show while loading
     if ($authState.loading || $userStore.loading) return false;
 
@@ -37,7 +37,7 @@
   // Pre-fill form fields when user data is available
   $effect(() => {
     const user = $userStore.user;
-    if (user && showGuard()) {
+    if (user && showGuard) {
       // Pre-fill name if it exists
       if (user.name && user.name.trim() !== '') {
         name = user.name;
@@ -116,7 +116,7 @@
   }
 </script>
 
-{#if showGuard()}
+{#if showGuard}
   <div class="profile-guard-backdrop">
     <div class="profile-guard-modal">
       <div class="profile-guard-header">

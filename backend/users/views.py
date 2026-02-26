@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -32,6 +32,8 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]  # Allow read-only access without authentication
     lookup_field = 'address'  # Change default lookup field from 'pk' to 'address'
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['date_joined', 'created_at']
     
     def get_object(self):
         """
@@ -56,6 +58,9 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         context['use_light_serializers'] = self.action == 'list'
         # Include referral_details only for detail/by_address views
         context['include_referral_details'] = self.action in ['retrieve', 'by_address']
+        # Pass visible flag for create action
+        if self.action == 'create' and 'visible' in self.request.data:
+            context['visible'] = self.request.data.get('visible')
         return context
 
     @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)')
@@ -111,12 +116,6 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             return UserCreateSerializer
         return UserSerializer
         
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        if self.action == 'create' and 'visible' in self.request.data:
-            context['visible'] = self.request.data.get('visible')
-        return context
-    
     @action(detail=False, methods=['get', 'patch'], permission_classes=[permissions.IsAuthenticated])
     def me(self, request):
         """
@@ -772,7 +771,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             'referrals': referral_list
         })
 
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def search(self, request):
         """Search users by name, address, email, or social handles."""
         query = request.query_params.get('q', '').strip()

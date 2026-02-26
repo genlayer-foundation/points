@@ -97,6 +97,7 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             user = users_dict.get(validator['user'])
             if user:
                 user_data = LightUserSerializer(user).data
+                user_data['validator'] = True
                 user_data['first_uptime_date'] = validator['first_uptime_date']
                 result.append(user_data)
             else:
@@ -104,6 +105,7 @@ class ValidatorViewSet(viewsets.ModelViewSet):
                 result.append({
                     'address': validator['user__address'],
                     'name': validator['user__name'],
+                    'validator': True,
                     'first_uptime_date': validator['first_uptime_date']
                 })
 

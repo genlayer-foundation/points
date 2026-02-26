@@ -113,7 +113,8 @@ export const leaderboardAPI = {
   getStats: () => api.get('/leaderboard/stats/'),
   getWaitlistStats: () => api.get('/leaderboard/validator-waitlist-stats/'),
   getWaitlistTop: (limit = 10) => api.get('/leaderboard/validator-waitlist/top/', { params: { limit } }),
-  getSupporters: () => api.get('/leaderboard/supporters/'),
+  getCommunity: () => api.get('/leaderboard/community/'),
+  getTrending: (limit = 10) => api.get('/leaderboard/trending/', { params: { limit } }),
   getTypes: () => api.get('/leaderboard/types/'),
   recalculateAll: () => api.post('/leaderboard/recalculate/')
 };
@@ -153,7 +154,7 @@ export const journeyAPI = {
   completeBuilderJourney: () => api.post('/users/complete_builder_journey/')
 };
 
-// Supporter API (backend uses 'creator' terminology)
+// Community API (backend uses 'creator' terminology)
 export const creatorAPI = {
   joinAsCreator: () => api.post('/creators/join/')
 };
@@ -238,5 +239,19 @@ export const updateUserProfile = async (data) => {
   return response.data;
 };
 
+
+// Featured content API
+export const featuredAPI = {
+  getFeatured: (params) => api.get('/featured/', { params }),
+  getHero: () => api.get('/featured/', { params: { type: 'hero' } }),
+  getBuilds: () => api.get('/featured/', { params: { type: 'build' } }),
+  getCommunity: () => api.get('/featured/', { params: { type: 'community' } }),
+  getValidatorsStewards: () => api.get('/featured/', { params: { type: 'validator_steward' } }),
+};
+
+// Alerts API
+export const alertsAPI = {
+  getAlerts: () => api.get('/alerts/'),
+};
 
 export default api;
