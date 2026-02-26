@@ -2,11 +2,11 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ranks, recalculate_all_leaderboards, LEADERBOARD_CONFIG
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
-from contributions.models import Category
+from contributions.models import Category, Contribution
 
 
 class GlobalLeaderboardMultiplierViewSet(viewsets.ReadOnlyModelViewSet):
@@ -216,10 +216,29 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 total=Sum('frozen_global_points')
             )['total'] or 0
 
+        # Category-specific counts (always included)
+        builder_count = LeaderboardEntry.objects.filter(
+            type='builder', user__visible=True
+        ).count()
+        validator_count = LeaderboardEntry.objects.filter(
+            type='validator', user__visible=True
+        ).count()
+
+        from .models import ReferralPoints
+        from django.db.models import F
+        creator_count = ReferralPoints.objects.filter(
+            user__visible=True
+        ).annotate(
+            total_pts=F('builder_points') + F('validator_points')
+        ).filter(total_pts__gt=0).count()
+
         return Response({
             'participant_count': participant_count,
             'contribution_count': contribution_count,
             'total_points': total_points,
+            'builder_count': builder_count,
+            'validator_count': validator_count,
+            'creator_count': creator_count,
         })
         
     def _get_user_stats(self, user, category=None):
@@ -403,9 +422,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(types_info)
 
     @action(detail=False, methods=['get'])
-    def supporters(self, request):
+    def community(self, request):
         """
-        Get supporters statistics and all supporters with referral points.
+        Get community statistics and all community members with referral points.
         Returns users with referrals sorted by total referral points.
         """
         from .models import ReferralPoints
@@ -418,15 +437,15 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         ).filter(user__visible=True, total_points__gt=0).order_by('-total_points')
 
         # Calculate aggregate stats
-        total_supporters = referral_points.count()
+        total_community = referral_points.count()
         total_builder_points = sum(rp.builder_points for rp in referral_points)
         total_validator_points = sum(rp.validator_points for rp in referral_points)
 
-        # Get all supporters
-        top_supporters = []
+        # Get all community members
+        top_community = []
         for rp in referral_points:
             user_data = UserSerializer(rp.user).data
-            top_supporters.append({
+            top_community.append({
                 **user_data,
                 'builder_points': rp.builder_points,
                 'validator_points': rp.validator_points,
@@ -434,9 +453,71 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             })
 
         return Response({
-            'total_supporters': total_supporters,
+            'total_community': total_community,
             'total_builder_points': total_builder_points,
             'total_validator_points': total_validator_points,
-            'top_supporters': top_supporters
+            'top_community': top_community
         })
+
+    @action(detail=False, methods=['get'])
+    def trending(self, request):
+        """
+        Get users who earned the most points recently.
+        Tries last 30 days first; falls back to all-time if no data.
+        """
+        try:
+            limit = int(request.query_params.get('limit', 10))
+        except (ValueError, TypeError):
+            limit = 10
+        limit = min(max(limit, 1), 100)
+
+        from datetime import timedelta
+        from users.models import User
+
+        cutoff = timezone.now() - timedelta(days=30)
+
+        # Aggregate points per user from last 30 days
+        trending_users = list(
+            Contribution.objects.filter(
+                created_at__gte=cutoff,
+                user__visible=True,
+            )
+            .values('user_id')
+            .annotate(total_points=Sum('frozen_global_points'))
+            .order_by('-total_points')[:limit]
+        )
+
+        # Fall back to all-time if no recent data
+        if not trending_users:
+            trending_users = list(
+                Contribution.objects.filter(user__visible=True)
+                .values('user_id')
+                .annotate(total_points=Sum('frozen_global_points'))
+                .order_by('-total_points')[:limit]
+            )
+
+        user_ids = [entry['user_id'] for entry in trending_users]
+        points_map = {entry['user_id']: entry['total_points'] for entry in trending_users}
+
+        users = User.objects.filter(id__in=user_ids).select_related(
+            'builder', 'validator', 'steward'
+        )
+        users_by_id = {u.id: u for u in users}
+
+        results = []
+        for user_id in user_ids:
+            user = users_by_id.get(user_id)
+            if not user:
+                continue
+            results.append({
+                'user_name': user.name or '',
+                'user_address': user.address or '',
+                'profile_image_url': user.profile_image_url or '',
+                'total_points': points_map[user_id] or 0,
+                'builder': hasattr(user, 'builder'),
+                'validator': hasattr(user, 'validator'),
+                'steward': hasattr(user, 'steward'),
+            })
+
+        return Response(results)
     

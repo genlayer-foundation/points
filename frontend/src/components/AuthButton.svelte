@@ -161,31 +161,33 @@
     align-items: center;
     justify-content: center;
     padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    font-weight: 600;
+    border-radius: 20px;
+    font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
-    background-color: #2563eb;
+    background-color: #131214;
     color: white;
     border: none;
     min-width: 140px;
+    height: 40px;
+    font-size: 0.875rem;
   }
-  
+
   .auth-button:hover {
-    background-color: #1d4ed8;
+    background-color: #1a1a24;
   }
-  
+
   .auth-button:disabled {
     opacity: 0.7;
     cursor: not-allowed;
   }
-  
+
   .auth-button.connected {
-    background-color: #059669;
+    background-color: #131214;
   }
-  
+
   .auth-button.connected:hover {
-    background-color: #047857;
+    background-color: #1a1a24;
   }
   
   .loading-spinner {

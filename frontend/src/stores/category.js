@@ -26,8 +26,8 @@ export const categories = [
     iconPath: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'
   },
   {
-    id: 'supporter',
-    name: 'Supporters',
+    id: 'community',
+    name: 'Community',
     iconPath: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'
   }
 ];
@@ -95,7 +95,7 @@ export const categoryTheme = derived(currentCategory, $category => {
       button: 'bg-green-600 hover:bg-green-700 text-white',
       buttonLight: 'bg-green-100 hover:bg-green-200 text-green-700'
     },
-    supporter: {
+    community: {
       // Purple theme
       bg: 'bg-purple-50',
       bgSecondary: 'bg-purple-100',
@@ -131,8 +131,8 @@ export function detectCategoryFromRoute(path) {
     return 'validator';
   } else if (path.startsWith('/stewards')) {
     return 'steward';
-  } else if (path.startsWith('/supporters')) {
-    return 'supporter';
+  } else if (path.startsWith('/community')) {
+    return 'community';
   }
   return 'global';
 }

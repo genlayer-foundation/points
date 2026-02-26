@@ -7,6 +7,7 @@ export default {
         heading: ['var(--font-heading)'],
         body: ['var(--font-body)'],
         sans: ['var(--font-body)'],
+        display: ['var(--font-display)'],
       },
       colors: {
         primary: {

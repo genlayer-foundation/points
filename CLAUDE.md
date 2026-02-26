@@ -1,5 +1,14 @@
 # Points: GenLayer Testnet Program Tracking System
 
+## ALWAYS Use Teammates (Teams), NEVER Single Tasks
+**CRITICAL**: When delegating work to agents, ALWAYS use TeamCreate + Task with `team_name` to spawn **teammates**. NEVER use the Task tool as a standalone single agent. Every piece of work must go through a team:
+1. Create a team with `TeamCreate`
+2. Spawn teammates with `Task` using `team_name` parameter
+3. Coordinate via `SendMessage` and `TaskList`
+4. Shut down teammates and `TeamDelete` when done
+
+This applies to ALL work — backend, frontend, research, everything. No exceptions.
+
 ## 📚 Quick Reference Documentation
 **Important**: This project has detailed documentation for faster development:
 - **Backend Documentation**: See `backend/CLAUDE.md` for Django structure, API endpoints, models, and patterns

@@ -194,12 +194,20 @@ The application uses custom variable fonts for better visual hierarchy:
 - Use `font-body` class only in exceptional cases (very rare)
 - Supports all weights and italic variants
 
+**Display/Numbers:** F37 Lineca VF (variable font, all weights)
+- Use `font-display` class for large display text and stat numbers
+- Used in: "Points" in header, hero titles ("Argue.fun Launch"), LiveStats numbers, PointsAwarded titles, CTAFooter headline
+- Falls back to Geist if F37 Lineca fails to load
+- Variable font supports all weights (`font-light` through `font-bold`)
+- Figma uses Medium weight — use `font-medium` with `font-display`
+
 **To change fonts globally:**
 Update CSS custom properties in `src/styles.css`:
 ```css
 :root {
   --font-heading: 'Geist', sans-serif;
   --font-body: 'Switzer', sans-serif;
+  --font-display: 'F37 Lineca', 'Geist', sans-serif;
 }
 ```
 
@@ -211,8 +219,8 @@ Update CSS custom properties in `src/styles.css`:
 // ✅ Title in non-heading element - add font-heading
 <div class="text-lg font-semibold font-heading">Card Title</div>
 
-// ✅ Large stat values - add font-heading for emphasis
-<p class="text-2xl font-bold font-heading">{totalPoints}</p>
+// ✅ Large display numbers - use font-display (F37 Lineca)
+<p class="text-[32px] font-medium font-display">{totalPoints}</p>
 
 // ✅ Body text - automatic font-body (no class needed)
 <p class="text-sm text-gray-600">Description text</p>
@@ -556,17 +564,15 @@ Components like `RecentContributions`, `HighlightedContributions`, `UserContribu
 The only exception is when you need to group multiple related elements that aren't already in a component.
 
 ### Gradients Policy
-**NO GRADIENTS**: Avoid using gradient backgrounds in the UI. Use solid colors instead for a cleaner, more professional look.
+Gradients are allowed when they match the Figma design. Use Tailwind gradient utilities (`bg-gradient-to-r`, etc.) to implement them.
 
 ```javascript
-// ❌ WRONG - Don't use gradients
+// ✅ CORRECT - Use gradients when they match the Figma design
 <div class="bg-gradient-to-r from-blue-500 to-purple-600">
 
-// ✅ CORRECT - Use solid colors
+// ✅ CORRECT - Solid colors are also fine where appropriate
 <div class="bg-blue-500">
 ```
-
-Gradients can make text harder to read and create visual complexity. Stick to the established color palette with solid colors for consistency.
 
 ## Important Notes
 
