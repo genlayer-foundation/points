@@ -173,6 +173,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
 
         leaderboard_type = request.query_params.get('type')
 
+        now = timezone.now()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
         if leaderboard_type:
             # Category-specific stats
             leaderboard_entries = LeaderboardEntry.objects.filter(
@@ -194,13 +197,37 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             category = category_map.get(leaderboard_type)
 
             if category:
-                contribution_count = Contribution.objects.filter(
+                category_contributions = Contribution.objects.filter(
                     contribution_type__category__slug=category
                 ).exclude(
                     contribution_type__slug__in=['builder-welcome', 'validator-waitlist']
+                )
+                contribution_count = category_contributions.count()
+                new_contributions_count = category_contributions.filter(
+                    created_at__gte=month_start
                 ).count()
+                new_points_count = category_contributions.filter(
+                    created_at__gte=month_start
+                ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
             else:
                 contribution_count = 0
+                new_contributions_count = 0
+                new_points_count = 0
+
+            # New participants this month for the specific leaderboard type
+            if leaderboard_type == 'builder':
+                new_builders_count = LeaderboardEntry.objects.filter(
+                    type='builder', user__created_at__gte=month_start
+                ).count()
+                new_validators_count = 0
+            elif leaderboard_type == 'validator':
+                new_builders_count = 0
+                new_validators_count = LeaderboardEntry.objects.filter(
+                    type='validator', user__created_at__gte=month_start
+                ).count()
+            else:
+                new_builders_count = 0
+                new_validators_count = 0
         else:
             # Global stats
             participant_count = User.objects.filter(
@@ -208,13 +235,28 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 visible=True
             ).distinct().count()
 
-            contribution_count = Contribution.objects.exclude(
+            all_contributions = Contribution.objects.exclude(
                 contribution_type__slug__in=['builder-welcome', 'validator-waitlist']
+            )
+            contribution_count = all_contributions.count()
+            new_contributions_count = all_contributions.filter(
+                created_at__gte=month_start
             ).count()
 
             total_points = Contribution.objects.aggregate(
                 total=Sum('frozen_global_points')
             )['total'] or 0
+
+            new_points_count = Contribution.objects.filter(
+                created_at__gte=month_start
+            ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
+
+            new_builders_count = LeaderboardEntry.objects.filter(
+                type='builder', user__created_at__gte=month_start
+            ).count()
+            new_validators_count = LeaderboardEntry.objects.filter(
+                type='validator', user__created_at__gte=month_start
+            ).count()
 
         # Category-specific counts (always included)
         builder_count = LeaderboardEntry.objects.filter(
@@ -239,6 +281,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             'builder_count': builder_count,
             'validator_count': validator_count,
             'creator_count': creator_count,
+            'new_builders_count': new_builders_count,
+            'new_validators_count': new_validators_count,
+            'new_contributions_count': new_contributions_count,
+            'new_points_count': new_points_count,
         })
         
     def _get_user_stats(self, user, category=None):
