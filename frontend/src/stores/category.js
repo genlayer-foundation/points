@@ -52,7 +52,7 @@ export const categoryTheme = derived(currentCategory, $category => {
     },
     builder: {
       // Orange/sunset theme
-      bg: 'bg-orange-50',
+      bg: 'bg-white',
       bgSecondary: 'bg-orange-100',
       primary: 'bg-orange-500',
       primaryHover: 'hover:bg-orange-600',
@@ -67,7 +67,7 @@ export const categoryTheme = derived(currentCategory, $category => {
     },
     validator: {
       // Blue/technical theme
-      bg: 'bg-sky-50',
+      bg: 'bg-white',
       bgSecondary: 'bg-sky-100',
       primary: 'bg-sky-500',
       primaryHover: 'hover:bg-sky-600',
