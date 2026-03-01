@@ -428,34 +428,53 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         Returns users with referrals sorted by total referral points.
         """
         from .models import ReferralPoints
-        from users.serializers import UserSerializer
-        from django.db.models import F
+        from django.db.models import F, Sum
 
-        # Get all referral points ordered by total points (builder + validator)
+        # Optional limit to keep response size controlled on large datasets
+        try:
+            limit = int(request.query_params.get('limit', 200))
+        except (ValueError, TypeError):
+            limit = 200
+        limit = min(max(limit, 1), 1000)
+
+        # Single optimized queryset with only fields needed by the UI
         referral_points = ReferralPoints.objects.select_related('user').annotate(
             total_points=F('builder_points') + F('validator_points')
-        ).filter(user__visible=True, total_points__gt=0).order_by('-total_points')
+        ).filter(
+            user__visible=True,
+            total_points__gt=0
+        ).order_by('-total_points')
 
-        # Calculate aggregate stats
+        # Aggregate from DB (avoid python loops over queryset)
+        aggregates = referral_points.aggregate(
+            total_builder_points=Sum('builder_points'),
+            total_validator_points=Sum('validator_points')
+        )
         total_community = referral_points.count()
-        total_builder_points = sum(rp.builder_points for rp in referral_points)
-        total_validator_points = sum(rp.validator_points for rp in referral_points)
 
-        # Get all community members
-        top_community = []
-        for rp in referral_points:
-            user_data = UserSerializer(rp.user).data
-            top_community.append({
-                **user_data,
-                'builder_points': rp.builder_points,
-                'validator_points': rp.validator_points,
-                'total_points': rp.builder_points + rp.validator_points
-            })
+        # Return lightweight rows only; avoids heavy nested serializers/N+1 queries
+        top_community = list(
+            referral_points.values(
+                'user__id',
+                'user__name',
+                'user__address',
+                'user__profile_image_url',
+                'builder_points',
+                'validator_points',
+                'total_points'
+            )[:limit]
+        )
+
+        for row in top_community:
+            row['id'] = row.pop('user__id')
+            row['name'] = row.pop('user__name')
+            row['address'] = row.pop('user__address')
+            row['profile_image_url'] = row.pop('user__profile_image_url')
 
         return Response({
             'total_community': total_community,
-            'total_builder_points': total_builder_points,
-            'total_validator_points': total_validator_points,
+            'total_builder_points': aggregates['total_builder_points'] or 0,
+            'total_validator_points': aggregates['total_validator_points'] or 0,
             'top_community': top_community
         })
 
