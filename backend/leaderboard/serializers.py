@@ -49,10 +49,12 @@ class LeaderboardEntrySerializer(serializers.ModelSerializer):
 
     def get_active_validators_count(self, obj):
         """
-        Get count of active validator wallets for this user's validator.
-        Returns null if user has no validator wallets linked, otherwise returns the active count.
-        Uses annotated values from queryset to avoid N+1 queries.
+        Get count of active validator wallets for validator-related leaderboards.
+        Returns null for other leaderboard types.
         """
+        if obj.type not in {'validator', 'validator-waitlist', 'validator-waitlist-graduation'}:
+            return None
+
         # Use annotated values if available (from optimized queryset)
         if hasattr(obj, '_total_validators_count') and hasattr(obj, '_active_validators_count'):
             # If no validator wallets at all, return null
