@@ -43,6 +43,8 @@
   import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
   import BuilderWelcome from './routes/BuilderWelcome.svelte';
   import GitHubCallback from './routes/GitHubCallback.svelte';
+  import TwitterCallback from './routes/TwitterCallback.svelte';
+  import DiscordCallback from './routes/DiscordCallback.svelte';
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
   import Referrals from './routes/Referrals.svelte';
@@ -56,6 +58,8 @@
 
     // Auth callback routes
     '/auth/github/callback': GitHubCallback,
+    '/auth/twitter/callback': TwitterCallback,
+    '/auth/discord/callback': DiscordCallback,
 
     // Global/Testnet Asimov routes
     // Overview and Testnet Asimov routes

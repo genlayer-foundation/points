@@ -159,9 +159,24 @@ export const creatorAPI = {
   joinAsCreator: () => api.post('/creators/join/')
 };
 
-// GitHub OAuth API
+// Social OAuth API
+export const socialAPI = {
+  github: {
+    disconnect: () => api.post('/social/github/disconnect/'),
+    checkStar: () => api.get('/social/github/check-star/')
+  },
+  twitter: {
+    disconnect: () => api.post('/social/twitter/disconnect/')
+  },
+  discord: {
+    disconnect: () => api.post('/social/discord/disconnect/'),
+    checkGuild: () => api.get('/social/discord/check-guild/')
+  }
+};
+
+// Legacy GitHub OAuth API (for backward compatibility)
 export const githubAPI = {
-  checkStar: () => api.get('/users/github/check-star/')
+  checkStar: () => api.get('/social/github/check-star/')
 };
 
 // Steward API
