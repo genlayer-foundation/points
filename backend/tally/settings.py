@@ -75,6 +75,10 @@ INSTALLED_APPS = [
     'builders',
     'stewards',
     'creators',
+    'social_connections',
+    'social_connections.github',
+    'social_connections.twitter',
+    'social_connections.discord',
 ]
 
 MIDDLEWARE = [
@@ -223,13 +227,28 @@ CLOUDINARY_UPLOAD_PRESET = os.environ.get('CLOUDINARY_UPLOAD_PRESET', 'tally_uns
 # Backend URL (for constructing OAuth redirect URIs)
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://localhost:8000')
 
+# Social OAuth Settings
+# Shared encryption key for all social tokens (can reuse GITHUB_ENCRYPTION_KEY)
+SOCIAL_ENCRYPTION_KEY = os.environ.get('SOCIAL_ENCRYPTION_KEY',
+                                        os.environ.get('GITHUB_ENCRYPTION_KEY', ''))
+
 # GitHub OAuth settings
 GITHUB_CLIENT_ID = os.environ.get('GITHUB_CLIENT_ID', '')
 GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET', '')
-# Auto-calculate redirect URI from backend URL
 GITHUB_REDIRECT_URI = f"{BACKEND_URL}/api/auth/github/callback/"
-GITHUB_ENCRYPTION_KEY = os.environ.get('GITHUB_ENCRYPTION_KEY', '')
+GITHUB_ENCRYPTION_KEY = os.environ.get('GITHUB_ENCRYPTION_KEY', '')  # Legacy, use SOCIAL_ENCRYPTION_KEY
 GITHUB_REPO_TO_STAR = os.environ.get('GITHUB_REPO_TO_STAR', 'genlayerlabs/genlayer-project-boilerplate')
+
+# Twitter/X OAuth 2.0 settings
+TWITTER_CLIENT_ID = os.environ.get('TWITTER_CLIENT_ID', '')
+TWITTER_CLIENT_SECRET = os.environ.get('TWITTER_CLIENT_SECRET', '')
+TWITTER_REDIRECT_URI = f"{BACKEND_URL}/api/auth/twitter/callback/"
+
+# Discord OAuth 2.0 settings
+DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', '')
+DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET', '')
+DISCORD_REDIRECT_URI = f"{BACKEND_URL}/api/auth/discord/callback/"
+DISCORD_GUILD_ID = os.environ.get('DISCORD_GUILD_ID', '')  # Optional: for checking guild membership
 
 # Frontend URL for OAuth redirects
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')

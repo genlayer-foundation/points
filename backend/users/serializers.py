@@ -8,6 +8,11 @@ from creators.models import Creator
 from contributions.node_upgrade.models import TargetNodeVersion
 from leaderboard.models import LeaderboardEntry
 from contributions.models import Category
+from social_connections.serializers import (
+    GitHubConnectionSerializer,
+    TwitterConnectionSerializer,
+    DiscordConnectionSerializer
+)
 
 
 # ============================================================================
@@ -232,8 +237,7 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['name', 'node_version', 'email', 'description', 'website',
-                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
-                  'github_username']
+                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle']
     
     def validate_email(self, value):
         """Validate email with DNS checks and block disposable providers"""
@@ -514,6 +518,15 @@ class UserSerializer(serializers.ModelSerializer):
     has_builder_welcome = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
 
+    # Social connections (new nested serializers)
+    github_connection = GitHubConnectionSerializer(read_only=True)
+    twitter_connection = TwitterConnectionSerializer(read_only=True)
+    discord_connection = DiscordConnectionSerializer(read_only=True)
+
+    # Legacy GitHub fields (computed from github_connection for backward compatibility)
+    github_username = serializers.SerializerMethodField()
+    github_linked_at = serializers.SerializerMethodField()
+
     # Referral system fields
     referred_by_info = serializers.SerializerMethodField()
     total_referrals = serializers.SerializerMethodField()
@@ -528,8 +541,12 @@ class UserSerializer(serializers.ModelSerializer):
                   'creator', 'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at',
                   # Profile fields
                   'description', 'banner_image_url', 'profile_image_url', 'website',
-                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle', 'github_username', 'github_linked_at',
+                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
                   'email', 'is_email_verified',
+                  # Social connections (new)
+                  'github_connection', 'twitter_connection', 'discord_connection',
+                  # Legacy GitHub fields (for backward compatibility)
+                  'github_username', 'github_linked_at',
                   # Referral fields
                   'referral_code', 'referred_by_info', 'total_referrals', 'referral_details',
                   # Working groups
@@ -626,7 +643,27 @@ class UserSerializer(serializers.ModelSerializer):
         if obj.is_email_verified:
             return obj.email
         return ''
-    
+
+    def get_github_username(self, obj):
+        """
+        Legacy field: Get GitHub username from github_connection.
+        Returns empty string if not connected for backward compatibility.
+        """
+        try:
+            return obj.github_connection.username or ''
+        except Exception:
+            return ''
+
+    def get_github_linked_at(self, obj):
+        """
+        Legacy field: Get GitHub linked_at from github_connection.
+        Returns None if not connected for backward compatibility.
+        """
+        try:
+            return obj.github_connection.linked_at
+        except Exception:
+            return None
+
     def get_referred_by_info(self, obj):
         """
         Get information about who referred this user.
