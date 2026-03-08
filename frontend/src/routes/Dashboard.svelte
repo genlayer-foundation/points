@@ -86,8 +86,8 @@
 
       // Newest members
       (cat === 'builder'
-        ? buildersAPI.getNewestBuilders(5)
-        : validatorsAPI.getNewestValidators(5)
+        ? buildersAPI.getNewestBuilders(10)
+        : validatorsAPI.getNewestValidators(10)
       ).then(res => {
         newestMembers = res.data?.results ?? res.data ?? [];
         membersLoading = false;
@@ -118,7 +118,7 @@
     // Builder-only fetches
     if (cat === 'builder') {
       promises.push(
-        leaderboardAPI.getTrending(5).then(res => {
+        leaderboardAPI.getTrending(10).then(res => {
           trendingEntries = res.data || [];
           trendingLoading = false;
         }).catch(() => { trendingLoading = false; })
@@ -167,6 +167,7 @@
         entries={leaderboardEntries}
         loading={leaderboardLoading}
         accentColor={isBuilder ? '#ee8521' : '#4f76f6'}
+        valueLabel={isBuilder ? 'BP' : 'GP'}
       />
     </div>
     <div>
