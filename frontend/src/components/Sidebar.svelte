@@ -144,7 +144,7 @@
                 isActive('/asimov') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               }"
             >
-              Testnet Bradbury
+              Testnets
             </a>
             <a
               href="/metrics"
@@ -431,7 +431,7 @@
               isActive('/asimov') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             }"
           >
-            Testnet Bradbury
+            Testnets
           </a>
           <a
             href="/metrics"

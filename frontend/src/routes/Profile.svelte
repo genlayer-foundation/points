@@ -934,7 +934,7 @@
           
           <!-- Testnet Asimov Section -->
           <div class="mt-6">
-            <h3 class="text-base font-semibold text-gray-900 mb-3">Testnet Asimov</h3>
+            <h3 class="text-base font-semibold text-gray-900 mb-3">Testnets</h3>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               <!-- Active Validators Count -->
@@ -1087,7 +1087,7 @@
                             </svg>
                           </button>
                           <a
-                            href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${wallet.address}`}
+                            href={`${wallet.explorer_url || import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${wallet.address}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             class="text-gray-400 hover:text-gray-600"
@@ -1097,6 +1097,9 @@
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
                             </svg>
                           </a>
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {wallet.network === 'asimov' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}">
+                            {wallet.network === 'asimov' ? 'Asimov' : 'Bradbury'}
+                          </span>
                         </div>
                         {#if wallet.status === 'active'}
                           <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -1229,7 +1232,7 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
                 </svg>
                 <p class="text-sm font-medium text-sky-800">
-                  Climb the ranks and get invited to validate on Testnet Asimov
+                  Climb the ranks and get invited to validate on GenLayer Testnets
                 </p>
               </div>
             </div>
@@ -1379,7 +1382,7 @@
         </div>
         <div class="p-6">
           <p class="text-gray-700 font-medium mb-2">
-            GenLayer Testnet Asimov is live.
+            GenLayer Testnets are live.
           </p>
           <p class="text-gray-600 mb-6">
             Join professional validators and builders in testing the trust infrastructure for the AI age.
@@ -1497,7 +1500,7 @@
                   </div>
                   <div>
                     <h3 class="text-xl font-bold text-sky-900 mb-1">Validator Journey</h3>
-                    <p class="text-sky-700 text-sm">Validate and judge subjective Intelligent Contracts on Testnet Asimov</p>
+                    <p class="text-sky-700 text-sm">Validate and judge subjective Intelligent Contracts on GenLayer Testnets</p>
                   </div>
                 </div>
                 <ul class="space-y-2 mb-6 flex-1">

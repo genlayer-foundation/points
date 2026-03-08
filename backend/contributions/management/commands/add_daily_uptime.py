@@ -11,7 +11,7 @@ import decimal
 User = get_user_model()
 
 class Command(BaseCommand):
-    help = 'Adds daily uptime contributions for all users from their first uptime to today'
+    help = 'Adds daily uptime contributions for validators with active wallets'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -35,18 +35,27 @@ class Command(BaseCommand):
             action='store_true',
             help='Force creation even if no multipliers exist (will use 1.0 as multiplier)'
         )
+        parser.add_argument(
+            '--network',
+            type=str,
+            choices=['asimov', 'bradbury'],
+            help='Only process a specific network (default: all networks)'
+        )
 
     def handle(self, *args, **options):
+        from validators.models import ValidatorWallet, Validator, ValidatorWalletStatusSnapshot
+
         dry_run = options['dry_run']
         verbose = options['verbose']
         points = options['points']
         force = options['force']
-        
+        network_filter = options.get('network')
+
         if dry_run:
             self.stdout.write(self.style.WARNING('DRY RUN - No changes will be made'))
-        
+
         self.stdout.write(self.style.SUCCESS('Starting daily uptime generation...'))
-        
+
         # Get the uptime contribution type
         try:
             uptime_type = ContributionType.objects.get(name='Uptime')
@@ -54,77 +63,86 @@ class Command(BaseCommand):
         except ContributionType.DoesNotExist:
             self.stdout.write(self.style.ERROR('Error: Uptime contribution type not found'))
             return
-        
+
+        # Determine which networks to process
+        from django.conf import settings as django_settings
+        networks_to_process = [network_filter] if network_filter else list(django_settings.TESTNET_NETWORKS.keys())
+        lookback_days = django_settings.UPTIME_LOOKBACK_DAYS
+
+        self.stdout.write(f'Networks to process: {networks_to_process}')
+        self.stdout.write(f'Lookback window: {lookback_days} days')
+
         # Track stats
         total_users = 0
-        users_with_uptime = 0
         total_new_contributions = 0
         multiplier_errors = 0
-        users_to_update_leaderboard = []  # Track users who got new contributions
-        
-        # Get all users
-        users = User.objects.all()
-        total_users = users.count()
-        
-        # Current date (end date for all ranges)
+        users_to_update_leaderboard = []
+        network_stats = {n: 0 for n in networks_to_process}
+
+        # Current date
         today = timezone.now().date()
-        
-        # Process each user
-        for user in users:
-            # Find the first uptime contribution for this user
-            first_uptime = Contribution.objects.filter(
-                user=user,
-                contribution_type=uptime_type
-            ).order_by('contribution_date').first()
-            
-            if not first_uptime:
-                if verbose:
-                    self.stdout.write(f'User {user} has no uptime contributions, skipping')
-                continue
-            
-            users_with_uptime += 1
-            
-            # Get the start date from the first contribution
-            start_date = first_uptime.contribution_date.date()
-            
-            if verbose:
-                self.stdout.write(
-                    f'Processing user {user} - first uptime on {start_date}, '
-                    f'generating daily contributions until {today}'
+        lookback_start = today - timedelta(days=lookback_days)
+
+        # Get all validators with linked wallets
+        validators = Validator.objects.filter(
+            validator_wallets__isnull=False
+        ).distinct().select_related('user')
+        total_users = validators.count()
+
+        self.stdout.write(f'Found {total_users} validators with linked wallets')
+
+        for validator in validators:
+            user = validator.user
+
+            for network in networks_to_process:
+                # Check if user has wallets on this network
+                network_wallets = ValidatorWallet.objects.filter(
+                    operator=validator,
+                    network=network
                 )
-            
-            # Get all existing uptime dates for this user to avoid duplicates
-            existing_dates = set(
-                Contribution.objects.filter(
-                    user=user,
-                    contribution_type=uptime_type
-                ).values_list('contribution_date__date', flat=True)
-            )
-            
-            # Generate a contribution for each day from start_date to today
-            # if there isn't already one for that date
-            new_contributions = []
-            current_date = start_date
-            
-            while current_date <= today:
-                # Skip if there's already a contribution for this date
-                if current_date in existing_dates:
+
+                if not network_wallets.exists():
                     if verbose:
-                        self.stdout.write(f'  - {current_date}: Uptime already exists, skipping')
-                    current_date += timedelta(days=1)
+                        self.stdout.write(f'  {user}: No wallets on {network}, skipping')
                     continue
-                
-                # Create a new contribution for this date
+
+                # Check if ANY wallet was active in the lookback window
+                has_active_in_window = ValidatorWalletStatusSnapshot.objects.filter(
+                    wallet__in=network_wallets,
+                    date__gte=lookback_start,
+                    date__lte=today,
+                    status='active'
+                ).exists()
+
+                if not has_active_in_window:
+                    if verbose:
+                        self.stdout.write(f'  {user}: No active wallets on {network} in lookback window, skipping')
+                    continue
+
+                # Check for existing uptime contribution for this user/date/network
+                network_note_marker = f'({network})'
+                existing = Contribution.objects.filter(
+                    user=user,
+                    contribution_type=uptime_type,
+                    contribution_date__date=today,
+                    notes__contains=network_note_marker
+                ).exists()
+
+                if existing:
+                    if verbose:
+                        self.stdout.write(f'  {user}: Uptime for {network} on {today} already exists, skipping')
+                    continue
+
+                # Get the active multiplier for today
                 contribution_date = datetime.combine(
-                    current_date, 
-                    datetime.min.time(), 
+                    today,
+                    datetime.min.time(),
                     tzinfo=pytz.UTC
                 )
-                
-                # Get the active multiplier for this date
+
                 try:
                     _, multiplier_value = GlobalLeaderboardMultiplier.get_active_for_type(
-                        uptime_type, 
+                        uptime_type,
                         at_date=contribution_date
                     )
                 except GlobalLeaderboardMultiplier.DoesNotExist:
@@ -132,140 +150,100 @@ class Command(BaseCommand):
                         multiplier_value = decimal.Decimal('1.0')
                         self.stdout.write(
                             self.style.WARNING(
-                                f'  - {current_date}: No multiplier found, using default of 1.0 (--force enabled)'
+                                f'  {today}: No multiplier found, using default of 1.0 (--force enabled)'
                             )
                         )
                     else:
                         multiplier_errors += 1
                         self.stdout.write(
                             self.style.ERROR(
-                                f'  - {current_date}: No multiplier found for contribution type "Uptime". '
-                                f'Skipping this date. Use --force to override.'
+                                f'  {today}: No multiplier found for "Uptime". Use --force to override.'
                             )
                         )
-                        current_date += timedelta(days=1)
                         continue
-                
-                # Calculate the global points
+
                 frozen_global_points = round(points * float(multiplier_value))
-                
+
                 if verbose:
                     self.stdout.write(
-                        f'  - {current_date}: Adding new uptime contribution '
-                        f'({points} points × {multiplier_value} = {frozen_global_points} global points)'
+                        f'  {user}: Adding uptime for {network} on {today} '
+                        f'({points} points x {multiplier_value} = {frozen_global_points} global points)'
                     )
-                
+
                 if not dry_run:
-                    # Create a new contribution
-                    new_contribution = Contribution(
+                    Contribution.objects.create(
                         user=user,
                         contribution_type=uptime_type,
                         points=points,
                         contribution_date=contribution_date,
                         multiplier_at_creation=multiplier_value,
                         frozen_global_points=frozen_global_points,
-                        notes=f'Auto-generated daily uptime for {current_date}'
+                        notes=f'Auto-generated daily uptime for {today} ({network})'
                     )
-                    new_contributions.append(new_contribution)
-                
-                total_new_contributions += 1
-                current_date += timedelta(days=1)
-            
-            # Save all new contributions in bulk
-            if new_contributions and not dry_run:
-                try:
-                    with transaction.atomic():
-                        # Save contributions directly with all fields pre-populated
-                        Contribution.objects.bulk_create(new_contributions)
-                        
-                        # Track this user for leaderboard update
+
+                    if user not in users_to_update_leaderboard:
                         users_to_update_leaderboard.append(user)
-                        
-                        if verbose:
-                            self.stdout.write(f'Added {len(new_contributions)} new contributions for {user}')
-                except Exception as e:
-                    self.stdout.write(
-                        self.style.ERROR(f'Error saving contributions for {user}: {str(e)}')
-                    )
-        
+
+                total_new_contributions += 1
+                network_stats[network] += 1
+
         # Update leaderboard entries for all affected users
         if users_to_update_leaderboard and not dry_run:
             self.stdout.write('Updating leaderboard entries...')
-            
-            # Get the category for Uptime contributions
-            uptime_category = None
-            if uptime_type.category:
-                uptime_category = uptime_type.category
-                if verbose:
-                    self.stdout.write(f'Uptime contributions belong to category: {uptime_category.name}')
-            
+
+            uptime_category = uptime_type.category if uptime_type.category else None
+
             for user in users_to_update_leaderboard:
                 # Update GLOBAL leaderboard entry
                 global_entry, created = LeaderboardEntry.objects.get_or_create(
                     user=user,
-                    category=None  # None means global
+                    category=None
                 )
                 global_points = global_entry.update_points_without_ranking()
-                
+
                 if verbose:
                     action = 'Created' if created else 'Updated'
                     self.stdout.write(f'{action} GLOBAL leaderboard for {user}: {global_points} total points')
-                
-                # Update CATEGORY-SPECIFIC leaderboard entry if uptime has a category
+
+                # Update CATEGORY-SPECIFIC leaderboard entry
                 if uptime_category:
                     category_entry, cat_created = LeaderboardEntry.objects.get_or_create(
                         user=user,
                         category=uptime_category
                     )
                     category_points = category_entry.update_points_without_ranking()
-                    
+
                     if verbose:
                         action = 'Created' if cat_created else 'Updated'
                         self.stdout.write(f'{action} {uptime_category.name} category leaderboard for {user}: {category_points} points')
-                
-                # Also check and update entries for ALL categories this user has contributions in
+
+                # Update entries for ALL categories this user has contributions in
                 user_categories = Category.objects.filter(
                     contribution_types__contributions__user=user
                 ).distinct()
-                
+
                 for category in user_categories:
-                    if category != uptime_category:  # Skip if we already updated it above
+                    if category != uptime_category:
                         cat_entry, cat_created = LeaderboardEntry.objects.get_or_create(
                             user=user,
                             category=category
                         )
                         cat_points = cat_entry.update_points_without_ranking()
-                        
+
                         if verbose and cat_created:
                             self.stdout.write(f'Created {category.name} category leaderboard for {user}: {cat_points} points')
-            
-            # Now update all ranks once, after all users have been processed
-            self.stdout.write('Updating all leaderboard ranks (global and categories)...')
+
+            self.stdout.write('Updating all leaderboard ranks...')
             update_all_ranks()
-            
-            if verbose:
-                # Show summary of category leaderboards
-                self.stdout.write('\nCategory leaderboard summary:')
-                for category in Category.objects.all():
-                    entry_count = LeaderboardEntry.objects.filter(category=category).count()
-                    self.stdout.write(f'  - {category.name}: {entry_count} participants')
-        
+
         # Print summary
         self.stdout.write(self.style.SUCCESS(
             f'Daily uptime generation completed!\n'
-            f'- Total users: {total_users}\n'
-            f'- Users with uptime: {users_with_uptime}\n'
+            f'- Validators with wallets: {total_users}\n'
             f'- New uptime contributions added: {total_new_contributions}\n'
+            f'- Per-network breakdown: {network_stats}\n'
             f'- Dates skipped due to missing multipliers: {multiplier_errors}'
         ))
-        
-        if multiplier_errors > 0:
-            self.stdout.write(
-                self.style.WARNING(
-                    f'Some contributions were skipped due to missing multipliers. '
-                    f'Use --force to use a default multiplier of 1.0 for these dates.'
-                )
-            )
-        
+
         if dry_run:
             self.stdout.write(self.style.WARNING('DRY RUN - No changes were made'))

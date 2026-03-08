@@ -38,18 +38,34 @@ const CONTRACT_INFO = {
   ]
 };
 
-// Asimov network configuration for unbanning
-const ASIMOV_NETWORK = {
-  chainId: '0x107D', // 4221 in hex
-  chainName: 'GenLayer Asimov Testnet',
-  nativeCurrency: {
-    name: 'GEN',
-    symbol: 'GEN',
-    decimals: 18
+// Network configurations
+const NETWORKS = {
+  asimov: {
+    chainId: '0x107D', // 4221 in hex
+    chainName: 'GenLayer Asimov Testnet',
+    nativeCurrency: {
+      name: 'GEN',
+      symbol: 'GEN',
+      decimals: 18
+    },
+    rpcUrls: ['https://zksync-os-testnet-genlayer.zksync.dev'],
+    blockExplorerUrls: ['https://zksync-os-testnet-genlayer.explorer.zksync.dev']
   },
-  rpcUrls: ['https://zksync-os-testnet-genlayer.zksync.dev'],
-  blockExplorerUrls: ['https://zksync-os-testnet-genlayer.explorer.zksync.dev']
+  bradbury: {
+    chainId: '0x107E', // 4222 in hex (placeholder - update when known)
+    chainName: 'GenLayer Bradbury Testnet',
+    nativeCurrency: {
+      name: 'GEN',
+      symbol: 'GEN',
+      decimals: 18
+    },
+    rpcUrls: ['https://zksync-os-testnet-genlayer.zksync.dev'],
+    blockExplorerUrls: []
+  }
 };
+
+// Backward-compatible alias
+const ASIMOV_NETWORK = NETWORKS.asimov;
 
 /**
  * Ensure the wallet is connected to the Asimov network
@@ -315,3 +331,42 @@ export async function unbanAllValidators() {
     };
   }
 }
+
+/**
+ * Ensure the wallet is connected to a specific GenLayer network
+ * @param {string} networkKey - 'asimov' or 'bradbury'
+ * @returns {Promise<void>}
+ */
+export async function ensureNetwork(networkKey = 'asimov') {
+  const network = NETWORKS[networkKey];
+  if (!network) {
+    throw new Error(`Unknown network: ${networkKey}`);
+  }
+
+  if (!window.ethereum) {
+    throw new Error('MetaMask is not installed');
+  }
+
+  try {
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    if (chainId === network.chainId) {
+      return;
+    }
+
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: network.chainId }],
+    });
+  } catch (error) {
+    if (error.code === 4902) {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [network],
+      });
+    } else {
+      throw error;
+    }
+  }
+}
+
+export { NETWORKS, ASIMOV_NETWORK };

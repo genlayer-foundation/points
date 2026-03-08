@@ -136,10 +136,17 @@ export const validatorsAPI = {
   getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } }),
   // Validator Wallets
   getAllValidatorWallets: (params = {}) => api.get('/validators/wallets/', { params }),
-  getValidatorWalletsByOperator: (operatorAddress) => api.get(`/validators/wallets/by-operator/${operatorAddress}/`),
-  getValidatorWalletsByUserAddress: (userAddress) => api.get(`/validators/wallets/by-user-address/${userAddress}/`),
+  getValidatorWalletsByOperator: (operatorAddress, network = null) => {
+    const params = network ? { network } : {};
+    return api.get(`/validators/wallets/by-operator/${operatorAddress}/`, { params });
+  },
+  getValidatorWalletsByUserAddress: (userAddress, network = null) => {
+    const params = network ? { network } : {};
+    return api.get(`/validators/wallets/by-user-address/${userAddress}/`, { params });
+  },
   getMyValidatorWallets: () => api.get('/validators/my-wallets/'),
-  linkValidatorWalletsByOperator: (operatorAddress) => api.post('/validators/link-by-operator/', { operator_address: operatorAddress })
+  linkValidatorWalletsByOperator: (operatorAddress) => api.post('/validators/link-by-operator/', { operator_address: operatorAddress }),
+  getNetworks: () => api.get('/validators/wallets/networks/')
 };
 
 // Builders API

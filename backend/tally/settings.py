@@ -289,9 +289,43 @@ ETHEREUM_AUTH = {
 AUTH_USER_MODEL = 'users.User'
 
 # Blockchain settings
-VALIDATOR_CONTRACT_ADDRESS = get_required_env('VALIDATOR_CONTRACT_ADDRESS')
+# Shared RPC URL for all networks
 VALIDATOR_RPC_URL = get_required_env('VALIDATOR_RPC_URL')
-FACTORY_CONTRACT_ADDRESS = os.environ.get('FACTORY_CONTRACT_ADDRESS')
+
+# Legacy settings (backward compatibility - deprecated, use TESTNET_NETWORKS instead)
+VALIDATOR_CONTRACT_ADDRESS = os.environ.get(
+    'ASIMOV_STAKING_CONTRACT_ADDRESS',
+    os.environ.get('VALIDATOR_CONTRACT_ADDRESS', '')
+)
+FACTORY_CONTRACT_ADDRESS = os.environ.get(
+    'ASIMOV_FACTORY_CONTRACT_ADDRESS',
+    os.environ.get('FACTORY_CONTRACT_ADDRESS', '')
+)
+
+# Multi-network configuration
+TESTNET_NETWORKS = {
+    'asimov': {
+        'name': 'Asimov',
+        'staking_contract_address': os.environ.get(
+            'ASIMOV_STAKING_CONTRACT_ADDRESS',
+            os.environ.get('VALIDATOR_CONTRACT_ADDRESS', '')
+        ),
+        'factory_contract_address': os.environ.get(
+            'ASIMOV_FACTORY_CONTRACT_ADDRESS',
+            os.environ.get('FACTORY_CONTRACT_ADDRESS', '')
+        ),
+        'explorer_url': os.environ.get('ASIMOV_EXPLORER_URL', 'https://explorer-asimov.genlayer.com'),
+    },
+    'bradbury': {
+        'name': 'Bradbury',
+        'staking_contract_address': os.environ.get('BRADBURY_STAKING_CONTRACT_ADDRESS', ''),
+        'factory_contract_address': os.environ.get('BRADBURY_FACTORY_CONTRACT_ADDRESS', ''),
+        'explorer_url': os.environ.get('BRADBURY_EXPLORER_URL', ''),
+    },
+}
+
+# Uptime lookback window (days) - how many days back to check for active status
+UPTIME_LOOKBACK_DAYS = int(os.environ.get('UPTIME_LOOKBACK_DAYS', '7'))
 
 # AWS Health Check IPs - Allow these IPs to bypass ALLOWED_HOSTS
 # Required environment variable with AWS internal/metadata service IPs

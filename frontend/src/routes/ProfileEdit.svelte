@@ -779,7 +779,7 @@
                 Validator
               </h2>
               <p class="text-sm text-sky-700 mb-2">Want to become a GenLayer Validator? Join the waitlist, start earning points, and climb the ranks.</p>
-              <p class="text-sm text-sky-700 mb-4">Top contributors will be invited to run nodes on Testnet Asimov.</p>
+              <p class="text-sm text-sky-700 mb-4">Top contributors will be invited to run nodes on GenLayer Testnets.</p>
               <button
                 onclick={startValidatorJourney}
                 class="px-3 py-1.5 bg-sky-600 text-white rounded text-sm hover:bg-sky-700 transition-colors"
