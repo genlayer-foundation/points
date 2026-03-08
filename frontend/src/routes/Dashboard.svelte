@@ -11,7 +11,7 @@
   import UserCardScroller from '../components/ui/UserCardScroller.svelte';
   import HighlightCards from '../components/ui/HighlightCards.svelte';
   import CTASection from '../components/ui/CTASection.svelte';
-  import ChartPlaceholder from '../components/ui/ChartPlaceholder.svelte';
+  import Podium from '../components/ui/Podium.svelte';
 
   // Portal components (self-fetching)
   import HeroBanner from '../components/portal/HeroBanner.svelte';
@@ -62,8 +62,8 @@
     // validator
     return [
       { value: data.validator_count ?? data.participant_count, label: 'Validators', delta: data.new_validators_count || '', category: 'validator' },
-      { value: data.total_points, label: 'Total points earned', delta: data.new_points_count || '', iconSrc: '/assets/icons/gradient-icon-points.svg' },
-      { value: data.contribution_count, label: 'Total Contributions', delta: data.new_contributions_count || '', iconSrc: '/assets/icons/gradient-icon-contributions.svg' },
+      { value: data.total_points, label: 'Total points earned', delta: data.new_points_count || '', iconSrc: '/assets/icons/gradient-icon-points-blue.svg' },
+      { value: data.contribution_count, label: 'Total Contributions', delta: data.new_contributions_count || '', iconSrc: '/assets/icons/gradient-icon-contributions-blue.svg' },
     ];
   }
 
@@ -142,7 +142,7 @@
 
 <div class="space-y-8">
   <!-- 1. Hero Banner -->
-  <HeroBanner />
+  <HeroBanner category={category} />
 
   <!-- 2. Live Dashboard Stats -->
   <div>
@@ -167,18 +167,21 @@
         entries={leaderboardEntries}
         loading={leaderboardLoading}
         accentColor={isBuilder ? '#ee8521' : '#4f76f6'}
-        valueLabel={isBuilder ? 'BP' : 'GP'}
+        valueLabel={isBuilder ? 'BP' : 'VP'}
       />
     </div>
     <div>
       <SectionHeader
         title="This month's Podium"
-        subtitle="Coming soon"
+        subtitle="Who's contributing more to GenLayer this month?"
         showLink={false}
       />
-      <ChartPlaceholder
-        title={isBuilder ? 'Builder Activity Chart' : 'Validator Activity Chart'}
-        subtitle="Coming soon"
+      <Podium
+        entries={leaderboardEntries.slice(0, 3)}
+        loading={leaderboardLoading}
+        accentColor={isBuilder ? '#ee8521' : '#3a7ce7'}
+        valueLabel={isBuilder ? 'BP' : 'VP'}
+        category={isBuilder ? 'builder' : 'validator'}
       />
     </div>
   </div>
@@ -212,99 +215,106 @@
     </div>
   {/if}
 
-  <!-- Bottom gradient area: Highlighted Contributions + CTA -->
-  <div class="relative -mx-6 px-6">
-    <!-- Gradient background -->
-    <div
-      class="absolute inset-0 pointer-events-none"
-      style="background: radial-gradient(ellipse 80% 60% at 0% 100%, rgba(233, 147, 34, 0.25) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(233, 147, 34, 0.25) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 10% 0%, rgba(248, 185, 61, 0.12) 0%, transparent 60%);"
-    ></div>
+  <!-- 7. Highlighted Contributions -->
+  <div>
+    <SectionHeader
+      title="Highlighted Contributions"
+      subtitle="This month curated builds"
+      linkText="Explore all"
+      linkPath={isBuilder ? '/builders/contributions/highlights' : '/validators/contributions/highlights'}
+    />
+    <HighlightCards
+      {highlights}
+      loading={highlightsLoading}
+      layout="grid"
+      category={category}
+    />
+  </div>
 
-    <!-- 7. Highlighted Contributions -->
-    <div class="relative z-10">
-      <SectionHeader
-        title="Highlighted Contributions"
-        subtitle="This month curated builds"
-        linkText="Explore all"
-        linkPath={isBuilder ? '/builders/contributions/highlights' : '/validators/contributions/highlights'}
-      />
-      <HighlightCards
-        {highlights}
-        loading={highlightsLoading}
-        layout="grid"
-        category={category}
-      />
-    </div>
-
-    <!-- 8. Validator-only: Waitlist + Recent Contributions -->
-    {#if isValidator}
-      <div class="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-        <div>
-          <SectionHeader
-            title="Waitlist"
-            subtitle="Top waitlisted validators"
-            linkText="View all"
-            linkPath="/validators/waitlist/join"
-          />
-          <RankedList
-            entries={waitlistEntries}
-            loading={waitlistLoading}
-            accentColor="#4f76f6"
-            showDelta={false}
-          />
-        </div>
-        <div>
-          <SectionHeader
-            title="Recent Contributions"
-            subtitle="Latest validator contributions"
-            linkText="View all"
-            linkPath="/validators/contributions"
-          />
-          <div class="bg-white border border-[#f7f7f7] rounded-[8px] overflow-clip p-[16px]">
-            {#if recentLoading}
-              <div class="space-y-3 animate-pulse">
-                {#each [1, 2, 3, 4, 5] as _}
-                  <div class="h-[40px] flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-gray-200"></div>
-                    <div class="flex-1 space-y-1">
-                      <div class="h-3 bg-gray-200 rounded w-32"></div>
-                      <div class="h-2.5 bg-gray-100 rounded w-20"></div>
-                    </div>
-                    <div class="h-3 bg-gray-100 rounded w-16"></div>
+  <!-- 8. Validator-only: Waitlist + Recent Contributions -->
+  {#if isValidator}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div>
+        <SectionHeader
+          title="Waitlist"
+          subtitle="Top waitlisted validators"
+          linkText="View all"
+          linkPath="/validators/waitlist/join"
+        />
+        <RankedList
+          entries={waitlistEntries}
+          loading={waitlistLoading}
+          accentColor="#4f76f6"
+          valueLabel="VP"
+          showDelta={false}
+        />
+      </div>
+      <div>
+        <SectionHeader
+          title="Recent Contributions"
+          subtitle="Latest validator contributions"
+          linkText="View all"
+          linkPath="/validators/contributions"
+        />
+        <div class="bg-white border border-[#f7f7f7] rounded-[8px] overflow-clip p-[16px]">
+          {#if recentLoading}
+            <div class="space-y-3 animate-pulse">
+              {#each [1, 2, 3, 4, 5] as _}
+                <div class="h-[40px] flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-gray-200"></div>
+                  <div class="flex-1 space-y-1">
+                    <div class="h-3 bg-gray-200 rounded w-32"></div>
+                    <div class="h-2.5 bg-gray-100 rounded w-20"></div>
                   </div>
-                {/each}
-              </div>
-            {:else if recentContributions.length === 0}
-              <div class="py-6 text-center text-sm text-[#6b6b6b]">No recent contributions</div>
-            {:else}
-              <div class="space-y-2">
-                {#each recentContributions as contrib}
-                  <button
-                    onclick={() => push(`/badge/${contrib.id}`)}
-                    class="w-full flex items-center gap-3 py-2 px-1 hover:bg-gray-50 rounded transition-colors text-left"
-                  >
-                    {#if contrib.user_details?.profile_image_url}
-                      <img src={contrib.user_details.profile_image_url} alt="" class="w-8 h-8 rounded-full">
-                    {:else}
-                      <div class="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center text-xs font-medium text-sky-600">
-                        {(contrib.user_details?.name || contrib.user_name || '?')[0].toUpperCase()}
-                      </div>
-                    {/if}
-                    <div class="flex-1 min-w-0">
-                      <p class="text-[13px] font-medium text-black truncate">{contrib.contribution_type_name || 'Contribution'}</p>
-                      <p class="text-[11px] text-[#999]">{contrib.user_details?.name || contrib.user_name || 'Anonymous'}</p>
+                  <div class="h-3 bg-gray-100 rounded w-16"></div>
+                </div>
+              {/each}
+            </div>
+          {:else if recentContributions.length === 0}
+            <div class="py-6 text-center text-sm text-[#6b6b6b]">No recent contributions</div>
+          {:else}
+            <div class="space-y-2">
+              {#each recentContributions as contrib}
+                <button
+                  onclick={() => push(`/badge/${contrib.id}`)}
+                  class="w-full flex items-center gap-3 py-2 px-1 hover:bg-gray-50 rounded transition-colors text-left"
+                >
+                  {#if contrib.user_details?.profile_image_url}
+                    <img src={contrib.user_details.profile_image_url} alt="" class="w-8 h-8 rounded-full">
+                  {:else}
+                    <div class="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center text-xs font-medium text-sky-600">
+                      {(contrib.user_details?.name || contrib.user_name || '?')[0].toUpperCase()}
                     </div>
-                    <span class="text-[12px] text-[#bbb] flex-shrink-0">{formatContribDate(contrib.contribution_date)}</span>
-                  </button>
-                {/each}
-              </div>
-            {/if}
-          </div>
+                  {/if}
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[13px] font-medium text-black truncate">{contrib.contribution_type_name || 'Contribution'}</p>
+                    <p class="text-[11px] text-[#999]">{contrib.user_details?.name || contrib.user_name || 'Anonymous'}</p>
+                  </div>
+                  <span class="text-[12px] text-[#bbb] flex-shrink-0">{formatContribDate(contrib.contribution_date)}</span>
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
       </div>
-    {/if}
+    </div>
+  {/if}
 
-    <!-- 9. CTA Section -->
+  <!-- 9. CTA Section with gradient background -->
+  <div class="relative -mx-3 px-3 -mt-8 pt-8">
+    <!-- Gradient background — extends beyond container to cover main padding -->
+    <div
+      class="absolute -bottom-3 inset-x-0 top-0 pointer-events-none"
+      style="background: {isBuilder
+        ? 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(233, 147, 34, 0.25) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(233, 147, 34, 0.25) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(248, 185, 61, 0.12) 0%, transparent 60%)'
+        : 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(56, 125, 232, 0.20) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(56, 125, 232, 0.20) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(109, 167, 243, 0.12) 0%, transparent 60%)'
+      };"
+    ></div>
+    <!-- White fade at top for smooth transition -->
+    <div
+      class="absolute inset-x-0 top-0 h-40 pointer-events-none z-[1]"
+      style="background: linear-gradient(to bottom, white 0%, transparent 100%);"
+    ></div>
     {#if isBuilder}
       <CTASection
         title="Start building today"
@@ -317,12 +327,12 @@
       />
     {:else}
       <CTASection
-        title="Join the validator network"
+        title="Become a Validator"
         description="Join professional validators and builders in testing the trust infrastructure for the AI age."
-        primaryButtonText="Become a validator"
+        primaryButtonText="Join the Waitlist"
         primaryButtonPath="/validators/waitlist/join"
-        secondaryLinkText="Visit the Studio"
-        secondaryLinkPath="https://studio.genlayer.com"
+        secondaryLinkText="Read the Docs"
+        secondaryLinkPath="https://docs.genlayer.com"
         secondaryLinkExternal={true}
       />
     {/if}

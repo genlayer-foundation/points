@@ -1,11 +1,21 @@
 <script>
   import { onMount } from 'svelte';
+  import { push } from 'svelte-spa-router';
   import { featuredAPI } from '../../lib/api.js';
+
+  let { category = 'builder' } = $props();
 
   let hero = $state(null);
   let loading = $state(true);
 
+  let isValidator = $derived(category === 'validator');
+
   onMount(async () => {
+    if (isValidator) {
+      // Validator uses a static banner, no API fetch needed
+      loading = false;
+      return;
+    }
     try {
       const response = await featuredAPI.getHero();
       if (response.data && response.data.length > 0) {
@@ -22,7 +32,42 @@
   let projectLink = $derived(hero?.link || hero?.url || '#');
 </script>
 
-{#if loading}
+{#if isValidator}
+  <!-- Validator static banner -->
+  <div
+    class="relative overflow-hidden rounded-[8px] p-5 flex items-end"
+    style="min-height: 300px; background: url('/assets/validator-hero-bg.svg') center/cover no-repeat;"
+  >
+    <!-- Card overlay — frosted glass -->
+    <div
+      class="relative z-10 rounded-[24px] p-4 flex flex-col gap-4 w-full md:w-[386px] backdrop-blur-[10px]"
+      style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25); box-shadow: inset 0 1px 1px rgba(255,255,255,0.15), 0 0 20px rgba(255,255,255,0.05);"
+    >
+      <div class="flex flex-col">
+        <div class="flex items-center gap-1">
+          <span class="text-white/60 text-xs font-medium leading-none" style="letter-spacing: 0.24px;">GenLayer</span>
+          <img src="/assets/icons/verified-badge-fill.svg" alt="Verified" class="w-4 h-4 flex-shrink-0">
+        </div>
+        <h2 class="font-display text-[32px] font-medium text-white leading-[48px] whitespace-nowrap" style="letter-spacing: -1.28px;">
+          Join Validator Journey
+        </h2>
+        <p class="text-white/80 text-sm" style="letter-spacing: 0.28px;">
+          The Validator Journey tracks participants who have joined the waitlist and are working towards becoming active validators on the GenLayer network.
+        </p>
+      </div>
+
+      <div>
+        <button
+          onclick={() => push('/validators/waitlist/join')}
+          class="inline-flex h-10 px-4 bg-white rounded-[20px] items-center gap-2 hover:bg-white/90 transition-colors"
+        >
+          <span class="text-black text-sm font-medium" style="letter-spacing: 0.28px;">Join the waitlist</span>
+          <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
+        </button>
+      </div>
+    </div>
+  </div>
+{:else if loading}
   <!-- Loading skeleton -->
   <div class="relative overflow-hidden rounded-[8px] p-5 flex items-end animate-pulse" style="min-height: 300px; background: linear-gradient(to right, #c4bfe8, #eae9f3);">
     <div class="relative z-10 rounded-[24px] p-4 flex flex-col gap-4 w-full md:w-[386px] backdrop-blur-[10px]" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25); box-shadow: inset 0 1px 1px rgba(255,255,255,0.15), 0 0 20px rgba(255,255,255,0.05);">

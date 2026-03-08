@@ -205,9 +205,9 @@
           </button>
 
           <!-- Right: points -->
-          <div class="flex items-center gap-[2px]" style="color: {accentColor};">
+          <div class="flex items-baseline gap-[2px]" style="color: {accentColor};">
             {#if showDelta}
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-4 h-4 self-center" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
               </svg>
             {/if}
