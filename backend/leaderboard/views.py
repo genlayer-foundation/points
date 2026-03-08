@@ -174,7 +174,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         leaderboard_type = request.query_params.get('type')
 
         now = timezone.now()
-        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_month = now - timezone.timedelta(days=30)
 
         if leaderboard_type:
             # Category-specific stats
@@ -204,26 +204,26 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 )
                 contribution_count = category_contributions.count()
                 new_contributions_count = category_contributions.filter(
-                    created_at__gte=month_start
+                    created_at__gte=last_month
                 ).count()
                 new_points_count = category_contributions.filter(
-                    created_at__gte=month_start
+                    created_at__gte=last_month
                 ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
             else:
                 contribution_count = 0
                 new_contributions_count = 0
                 new_points_count = 0
 
-            # New participants this month for the specific leaderboard type
+            # New participants in the last 30 days for the specific leaderboard type
             if leaderboard_type == 'builder':
                 new_builders_count = LeaderboardEntry.objects.filter(
-                    type='builder', user__created_at__gte=month_start
+                    type='builder', user__created_at__gte=last_month
                 ).count()
                 new_validators_count = 0
             elif leaderboard_type == 'validator':
                 new_builders_count = 0
                 new_validators_count = LeaderboardEntry.objects.filter(
-                    type='validator', user__created_at__gte=month_start
+                    type='validator', user__created_at__gte=last_month
                 ).count()
             else:
                 new_builders_count = 0
@@ -240,7 +240,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )
             contribution_count = all_contributions.count()
             new_contributions_count = all_contributions.filter(
-                created_at__gte=month_start
+                created_at__gte=last_month
             ).count()
 
             total_points = Contribution.objects.aggregate(
@@ -248,14 +248,14 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )['total'] or 0
 
             new_points_count = Contribution.objects.filter(
-                created_at__gte=month_start
+                created_at__gte=last_month
             ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
 
             new_builders_count = LeaderboardEntry.objects.filter(
-                type='builder', user__created_at__gte=month_start
+                type='builder', user__created_at__gte=last_month
             ).count()
             new_validators_count = LeaderboardEntry.objects.filter(
-                type='validator', user__created_at__gte=month_start
+                type='validator', user__created_at__gte=last_month
             ).count()
 
         # Category-specific counts (always included)
