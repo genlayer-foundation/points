@@ -22,6 +22,11 @@
       border: '#16a34a',
       iconColor: '#16a34a',
     },
+    blue: {
+      bg: '#ebf0fe',
+      border: '#387DE8',
+      iconColor: '#387DE8',
+    },
   };
 
   let styles = $derived(typeStyles[alertType] || typeStyles.info);
@@ -48,6 +53,11 @@
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12Z" stroke={styles.iconColor} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="m10 6-4 4M6 6l4 4" stroke={styles.iconColor} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    {:else if alertType === 'blue'}
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12Z" stroke={styles.iconColor} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M8 5.5V8M8 10.5h.007" stroke={styles.iconColor} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     {:else if alertType === 'success'}
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
