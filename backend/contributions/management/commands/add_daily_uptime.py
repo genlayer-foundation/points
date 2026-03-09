@@ -4,6 +4,7 @@ from django.db import transaction
 from django.contrib.auth import get_user_model
 from contributions.models import Contribution, ContributionType, Category
 from leaderboard.models import GlobalLeaderboardMultiplier, update_all_ranks, LeaderboardEntry
+from django.db.models import Q
 from datetime import datetime, timedelta
 import pytz
 import decimal
@@ -120,13 +121,22 @@ class Command(BaseCommand):
                     continue
 
                 # Check for existing uptime contribution for this user/date/network
-                network_note_marker = f'({network})'
-                existing = Contribution.objects.filter(
+                # For asimov, also match legacy contributions without any network marker
+                # (old format: "Auto-generated daily uptime for 2025-12-01")
+                today_contributions = Contribution.objects.filter(
                     user=user,
                     contribution_type=uptime_type,
                     contribution_date__date=today,
-                    notes__contains=network_note_marker
-                ).exists()
+                )
+                if network == 'asimov':
+                    existing = today_contributions.filter(
+                        Q(notes__contains='(asimov)') |
+                        (~Q(notes__contains='(asimov)') & ~Q(notes__contains='(bradbury)'))
+                    ).exists()
+                else:
+                    existing = today_contributions.filter(
+                        notes__contains=f'({network})'
+                    ).exists()
 
                 if existing:
                     if verbose:

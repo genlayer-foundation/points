@@ -520,11 +520,16 @@ class GenLayerValidatorsService:
         today = timezone.now().date()
         wallets = ValidatorWallet.objects.filter(network=self.network_key)
 
-        for wallet in wallets:
-            ValidatorWalletStatusSnapshot.objects.update_or_create(
-                wallet=wallet,
-                date=today,
-                defaults={'status': wallet.status}
+        snapshots = [
+            ValidatorWalletStatusSnapshot(wallet=wallet, date=today, status=wallet.status)
+            for wallet in wallets
+        ]
+        if snapshots:
+            ValidatorWalletStatusSnapshot.objects.bulk_create(
+                snapshots,
+                update_conflicts=True,
+                unique_fields=['wallet', 'date'],
+                update_fields=['status']
             )
 
     @classmethod

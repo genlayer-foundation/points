@@ -22,17 +22,10 @@
 
   // Fetch validators when component mounts, category changes, or network filter changes
   $effect(() => {
-    if ($currentCategory && $currentCategory !== previousCategory) {
-      previousCategory = $currentCategory;
-      fetchValidatorWallets();
-    }
-  });
-
-  // Re-fetch when network filter changes
-  $effect(() => {
-    // Track selectedNetwork to trigger re-fetch
+    const category = $currentCategory;
     const _network = selectedNetwork;
-    if (previousCategory) {
+    if (category) {
+      previousCategory = category;
       fetchValidatorWallets();
     }
   });
@@ -194,8 +187,8 @@
                   </span>
                 </td>
                 <td class="px-4 py-3 whitespace-nowrap">
-                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {wallet.network === 'asimov' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}">
-                    {wallet.network === 'asimov' ? 'Asimov' : 'Bradbury'}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {wallet.network === 'asimov' ? 'bg-blue-100 text-blue-800' : wallet.network === 'bradbury' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}">
+                    {wallet.network === 'asimov' ? 'Asimov' : wallet.network === 'bradbury' ? 'Bradbury' : (wallet.network || 'Unknown')}
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">

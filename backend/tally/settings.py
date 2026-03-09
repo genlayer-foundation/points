@@ -325,7 +325,7 @@ TESTNET_NETWORKS = {
 }
 
 # Uptime lookback window (days) - how many days back to check for active status
-UPTIME_LOOKBACK_DAYS = int(os.environ.get('UPTIME_LOOKBACK_DAYS', '7'))
+UPTIME_LOOKBACK_DAYS = int(os.environ.get('UPTIME_LOOKBACK_DAYS', '7') or '7')
 
 # AWS Health Check IPs - Allow these IPs to bypass ALLOWED_HOSTS
 # Required environment variable with AWS internal/metadata service IPs

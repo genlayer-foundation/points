@@ -28,6 +28,12 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(self.style.WARNING('DRY RUN - No changes will be made'))
 
+        self.stdout.write(self.style.WARNING(
+            'NOTE: This command uses each wallet\'s CURRENT status for all historical days. '
+            'If a wallet\'s status changed over time, backfilled data will not reflect the '
+            'actual historical status. Intended for initial bootstrap only.'
+        ))
+
         wallets = ValidatorWallet.objects.all()
         total_created = 0
 
