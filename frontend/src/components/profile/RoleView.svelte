@@ -65,9 +65,7 @@
             <AlertBanner
                 id="validator-waitlist"
                 alertType="blue"
-                text={isOwnProfile
-                    ? "You've joined the <strong>Validator Waitlist</strong>. You're waiting to be graduated to the role of Validator. In the meantime, keep contributing to earn points and climb the ranks."
-                    : "This user is on the <strong>Validator Waitlist</strong>, waiting to be graduated to the role of Validator."}
+                text="You've joined the <strong>Validator Waitlist</strong>. You're waiting to be graduated to the role of Validator. In the meantime, keep contributing to earn points and climb the ranks."
             />
         </div>
     {/if}
