@@ -328,9 +328,11 @@
               (entry) => entry.type === "validator",
             );
             // Extract referral points from any leaderboard entry (for non-own profiles)
-            const ownProfile = $authState.isAuthenticated &&
+            const ownProfile =
+              $authState.isAuthenticated &&
               participant?.address &&
-              $authState.address?.toLowerCase() === participant.address.toLowerCase();
+              $authState.address?.toLowerCase() ===
+                participant.address.toLowerCase();
             if (!ownProfile) {
               const anyEntry = leaderboardRes.data[0];
               if (anyEntry?.referral_points) {
@@ -359,7 +361,9 @@
             if (res.data) validatorStats = res.data;
             validatorStatsLoaded = true;
           })
-          .catch(() => { validatorStatsLoaded = true; });
+          .catch(() => {
+            validatorStatsLoaded = true;
+          });
       } else {
         validatorStatsLoaded = true;
       }
@@ -371,13 +375,16 @@
             if (res.data) builderStats = res.data;
             builderStatsLoaded = true;
           })
-          .catch(() => { builderStatsLoaded = true; });
+          .catch(() => {
+            builderStatsLoaded = true;
+          });
       } else {
         builderStatsLoaded = true;
       }
 
       // Fetch referral points (authenticated endpoint for own profile)
-      const isOwn = $authState.isAuthenticated &&
+      const isOwn =
+        $authState.isAuthenticated &&
         participant?.address &&
         $authState.address?.toLowerCase() === participant.address.toLowerCase();
       if (isOwn) {
@@ -393,10 +400,17 @@
       if (isOwn) {
         if (!loadingReferrals) {
           loadingReferrals = true;
-          usersAPI.getReferrals()
-            .then((response) => { referralData = response.data; })
-            .catch(() => { referralData = null; })
-            .finally(() => { loadingReferrals = false; });
+          usersAPI
+            .getReferrals()
+            .then((response) => {
+              referralData = response.data;
+            })
+            .catch(() => {
+              referralData = null;
+            })
+            .finally(() => {
+              loadingReferrals = false;
+            });
         }
       } else if (participant?.referral_details) {
         referralData = participant.referral_details;
@@ -444,11 +458,17 @@
 <div class="profile-page">
   {#if loading}
     <!-- ProfileHeader skeleton -->
-    <div class="bg-white rounded-[16px] overflow-hidden border border-[#f7f7f7] shadow-[0px_4px_12px_rgba(0,0,0,0.02)] mb-6 animate-pulse">
-      <div class="h-32 md:h-48 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200"></div>
+    <div
+      class="bg-white rounded-[16px] overflow-hidden border border-[#f7f7f7] shadow-[0px_4px_12px_rgba(0,0,0,0.02)] mb-6 animate-pulse"
+    >
+      <div
+        class="h-32 md:h-48 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200"
+      ></div>
       <div class="p-[12px]">
         <div class="flex items-center gap-[12px]">
-          <div class="w-[96px] h-[96px] rounded-full bg-gray-200 flex-shrink-0"></div>
+          <div
+            class="w-[96px] h-[96px] rounded-full bg-gray-200 flex-shrink-0"
+          ></div>
           <div class="flex flex-col gap-[8px]">
             <div class="flex gap-[12px] items-center">
               <div class="h-10 w-48 bg-gray-200 rounded"></div>
@@ -476,8 +496,12 @@
     <div class="mb-10 mt-6 w-full px-0 mx-0">
       <div class="flex flex-col md:flex-row gap-4 items-center">
         {#each [1, 2, 3] as _}
-          <div class="bg-white border border-[#f0f0f0] rounded-[16px] flex items-center p-[24px] h-[92px] w-full animate-pulse">
-            <div class="w-[48px] h-[48px] rounded-full bg-gray-200 mr-4 shrink-0"></div>
+          <div
+            class="bg-white border border-[#f0f0f0] rounded-[16px] flex items-center p-[24px] h-[92px] w-full animate-pulse"
+          >
+            <div
+              class="w-[48px] h-[48px] rounded-full bg-gray-200 mr-4 shrink-0"
+            ></div>
             <div class="flex flex-col gap-2">
               <div class="h-7 w-16 bg-gray-200 rounded"></div>
               <div class="h-3 w-24 bg-gray-100 rounded"></div>
@@ -500,10 +524,14 @@
             <div class="h-4 w-16 bg-gray-100 rounded pb-2"></div>
             <div class="h-4 w-20 bg-gray-100 rounded pb-2"></div>
           </div>
-          <div class="bg-[#fcfcfc] border border-[#f0f0f0] rounded-[16px] p-[16px] animate-pulse">
+          <div
+            class="bg-[#fcfcfc] border border-[#f0f0f0] rounded-[16px] p-[16px] animate-pulse"
+          >
             <div class="flex flex-col gap-[6px]">
               {#each [1, 2, 3, 4] as _}
-                <div class="flex items-center gap-[10px] rounded-[10px] bg-white px-3 py-[10px]">
+                <div
+                  class="flex items-center gap-[10px] rounded-[10px] bg-white px-3 py-[10px]"
+                >
                   <div class="w-5 h-4 bg-gray-200 rounded"></div>
                   <div class="w-8 h-8 rounded-full bg-gray-200"></div>
                   <div class="flex-1 h-4 bg-gray-200 rounded"></div>
@@ -514,7 +542,9 @@
         </div>
         <div class="w-full lg:w-1/2 flex flex-col gap-3 pt-[36px]">
           {#each [1, 2, 3] as _}
-            <div class="flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm animate-pulse">
+            <div
+              class="flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm animate-pulse"
+            >
               <div class="flex items-center gap-4">
                 <div class="w-[48px] h-[48px] rounded-full bg-gray-200"></div>
                 <div class="flex flex-col gap-2">
@@ -544,7 +574,9 @@
           >
             {#if !contributionStatsLoaded}
               <div class="flex h-full items-center animate-pulse">
-                <div class="w-[48px] h-[48px] rounded-full bg-gray-200 mr-4 shrink-0"></div>
+                <div
+                  class="w-[48px] h-[48px] rounded-full bg-gray-200 mr-4 shrink-0"
+                ></div>
                 <div class="flex flex-col gap-2">
                   <div class="h-7 w-16 bg-gray-200 rounded"></div>
                   <div class="h-3 w-20 bg-gray-100 rounded"></div>
@@ -581,7 +613,9 @@
           >
             {#if !contributionStatsLoaded}
               <div class="flex h-full items-center animate-pulse">
-                <div class="w-[48px] h-[48px] rounded-full bg-gray-200 mr-4 shrink-0"></div>
+                <div
+                  class="w-[48px] h-[48px] rounded-full bg-gray-200 mr-4 shrink-0"
+                ></div>
                 <div class="flex flex-col gap-2">
                   <div class="h-7 w-16 bg-gray-200 rounded"></div>
                   <div class="h-3 w-28 bg-gray-100 rounded"></div>
@@ -696,18 +730,27 @@
             stats={{
               points: builderStats.totalPoints,
               contributions: builderStats.totalContributions,
-              rank: participant.leaderboard_entries?.find((e) => e.type === "builder")?.rank || "-",
+              rank:
+                participant.leaderboard_entries?.find(
+                  (e) => e.type === "builder",
+                )?.rank || "-",
             }}
             {isOwnProfile}
             loading={!builderStatsLoaded}
           />
         </div>
       {:else if participant?.has_builder_welcome && isOwnProfile}
-        <div id="builder-journey-section" class="w-full mb-16 pt-10 border-t border-gray-100 mt-10">
+        <div
+          id="builder-journey-section"
+          class="w-full mb-16 pt-10 border-t border-gray-100 mt-10"
+        >
           <div class="w-full flex flex-col items-start mt-8">
             <!-- Header (same as RoleView) -->
             <div class="flex items-center gap-[10px] mb-4">
-              <div class="relative flex-shrink-0" style="width: 32px; height: 32px;">
+              <div
+                class="relative flex-shrink-0"
+                style="width: 32px; height: 32px;"
+              >
                 <img
                   src="/assets/icons/hexagon-builder-light.svg"
                   alt=""
@@ -763,14 +806,16 @@
             stats={{
               points: validatorStats.totalPoints,
               contributions: validatorStats.totalContributions,
-              rank: participant.leaderboard_entries?.find((e) =>
-                (!participant?.validator && participant?.has_validator_waitlist)
-                  ? e.type === "validator-waitlist"
-                  : e.type === "validator"
-              )?.rank || "-",
+              rank:
+                participant.leaderboard_entries?.find((e) =>
+                  !participant?.validator && participant?.has_validator_waitlist
+                    ? e.type === "validator-waitlist"
+                    : e.type === "validator",
+                )?.rank || "-",
             }}
             {isOwnProfile}
-            isWaitlist={!participant?.validator && participant?.has_validator_waitlist}
+            isWaitlist={!participant?.validator &&
+              participant?.has_validator_waitlist}
             loading={!validatorStatsLoaded}
           />
         </div>
@@ -784,14 +829,21 @@
             {referralData}
             {referralPoints}
             loading={loadingReferrals}
+            {isOwnProfile}
           />
         </div>
       {/if}
 
       <!-- Footer action steps component -->
       {#if isOwnProfile}
-        <div class="border-t border-gray-100 pt-10 mt-10 w-full pb-10 journey-actions-section">
-          <JourneyActions {participant} onJoinCommunity={startCreatorJourney} onApplyBuilder={claimBuilderWelcome} />
+        <div
+          class="border-t border-gray-100 pt-10 mt-10 w-full pb-10 journey-actions-section"
+        >
+          <JourneyActions
+            {participant}
+            onJoinCommunity={startCreatorJourney}
+            onApplyBuilder={claimBuilderWelcome}
+          />
         </div>
       {/if}
 
@@ -815,6 +867,11 @@
 
   .profile-page,
   .profile-page :global(*) {
-    font-family: 'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family:
+      "Switzer",
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
   }
 </style>
