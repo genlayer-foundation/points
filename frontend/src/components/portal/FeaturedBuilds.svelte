@@ -4,82 +4,22 @@
 
   let builds = $state([]);
   let loading = $state(true);
-  let error = $state(null);
-
-  // Static fallback builds matching the Figma design
-  const fallbackBuilds = [
-    {
-      id: 1,
-      title: 'Argue.fun',
-      subtitle: 'by cognocracy',
-      user_name: 'cognocracy',
-      hero_image_url: '/assets/featured-builds/argue-fun-bg.jpg',
-      user_profile_image_url: '/assets/featured-builds/cognocracy-avatar.png',
-      url: '#',
-      link: '#',
-    },
-    {
-      id: 2,
-      title: 'Internet Court',
-      subtitle: 'by raskovsky',
-      user_name: 'raskovsky',
-      hero_image_url: '/assets/featured-builds/internet-court-bg.jpg',
-      user_profile_image_url: '/assets/featured-builds/raskovsky-avatar.png',
-      url: '#',
-      link: '#',
-    },
-    {
-      id: 3,
-      title: 'Rally',
-      subtitle: 'by GenLayer',
-      user_name: 'GenLayer',
-      hero_image_url: '/assets/featured-builds/rally-bg.jpg',
-      user_profile_image_url: '/assets/featured-builds/genlayer-avatar.png',
-      url: '#',
-      link: '#',
-    },
-  ];
-
-  // Map of fallback images keyed by build title, used when API returns empty image URLs
-  const fallbackImages = {};
-  for (const fb of fallbackBuilds) {
-    fallbackImages[fb.title] = {
-      hero_image_url: fb.hero_image_url,
-      user_profile_image_url: fb.user_profile_image_url,
-    };
-  }
-
-  /**
-   * Merge API data with local fallback images.
-   * If the API returns empty hero_image_url or user_profile_image_url,
-   * use the matching fallback asset by title.
-   */
-  function mergeWithFallbackImages(apiBuild) {
-    const fb = fallbackImages[apiBuild.title] || {};
-    return {
-      ...apiBuild,
-      hero_image_url: apiBuild.hero_image_url || fb.hero_image_url || '',
-      user_profile_image_url: apiBuild.user_profile_image_url || fb.user_profile_image_url || '',
-    };
-  }
 
   onMount(async () => {
     try {
       const response = await featuredAPI.getBuilds();
       if (response.data && response.data.length > 0) {
-        builds = response.data.map(mergeWithFallbackImages);
-      } else {
-        builds = fallbackBuilds;
+        builds = response.data;
       }
     } catch (err) {
-      error = err.message;
-      builds = fallbackBuilds;
+      // API failed, builds stays empty
     } finally {
       loading = false;
     }
   });
 </script>
 
+{#if loading || builds.length > 0}
 <div>
   <div class="flex items-end justify-between mb-3">
     <div class="flex flex-col gap-1">
@@ -146,3 +86,4 @@
     </div>
   {/if}
 </div>
+{/if}
