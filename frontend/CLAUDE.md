@@ -361,6 +361,26 @@ const routes = {
 
 ### Components
 
+#### Generic UI Components (`src/components/ui/`)
+Reusable, data-driven display components that accept data via props. Used on Dashboard and can be reused on any page.
+
+- **`SectionHeader.svelte`** - Reusable section header with title, subtitle, and "View all" link
+  - Props: `title`, `subtitle`, `linkText="View all"`, `linkPath=""`, `showLink=true`, `showArrow=true`
+- **`StatCardRow.svelte`** - Row of stat cards with hexagon icons, large numbers, and delta indicators
+  - Props: `stats=[]` (array of `{ value, label, delta, category }`), `loading=false`, `columns=4`
+- **`RankedList.svelte`** - Ranked list with rank + avatar + name + value
+  - Props: `entries=[]`, `loading=false`, `accentColor="#3eb359"`, `valueLabel="GP"`, `showDelta=true`, `onRowClick=null`
+- **`UserCardScroller.svelte`** - Horizontal scroll of user cards with avatar, name, points, category icon
+  - Props: `entries=[]`, `loading=false`, `onCardClick=null`
+- **`MemberCardScroller.svelte`** - Horizontal scroll of member cards with avatar, name, join date, category hex
+  - Props: `members=[]`, `loading=false`
+- **`HighlightCards.svelte`** - Highlighted contribution cards in grid or scroll layout
+  - Props: `highlights=[]`, `loading=false`, `layout="grid"|"scroll"`, `category="builder"`
+- **`CTASection.svelte`** - Configurable CTA footer section
+  - Props: `title`, `description`, `primaryButtonText`, `primaryButtonPath`, `primaryButtonColor="dark"`, `secondaryLinkText`, `secondaryLinkPath`, `secondaryLinkExternal=false`
+- **`ChartPlaceholder.svelte`** - Empty placeholder for future chart content
+  - Props: `title`, `subtitle`
+
 #### Data Display
 - `LeaderboardTable.svelte` - Ranking table
 - `ContributionsList.svelte` - List of contributions
