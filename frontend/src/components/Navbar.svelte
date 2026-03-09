@@ -35,8 +35,8 @@
   }
 </script>
 
-<header class="bg-white relative z-50" style="border-bottom: 1.2px solid #e5e5e6;">
-  <div class="flex items-center justify-between p-3">
+<header class="bg-white relative z-50 h-[64px]" style="border-bottom: 1.2px solid #e5e5e6;">
+  <div class="flex items-center justify-between px-3 h-full">
     <!-- Left: Logo -->
     <div class="flex items-center gap-1 px-1">
       <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex items-center">
@@ -49,7 +49,7 @@
       <SearchBar />
       <button
         onclick={handleSubmitContribution}
-        class="h-10 px-4 bg-gradient-to-r from-[#be8ff5] to-[#ac6df3] text-white rounded-[20px] flex items-center gap-2 font-medium text-sm"
+        class="h-10 px-4 bg-gradient-to-r from-[#be8ff5] to-[#ac6df3] text-white rounded-[20px] flex items-center gap-2 font-medium text-[14px]"
         style="letter-spacing: 0.28px;"
       >
         <span>Submit a contribution</span>
