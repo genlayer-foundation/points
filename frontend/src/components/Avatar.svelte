@@ -68,13 +68,13 @@
     } else if (user?.address) {
       return user.address.substring(2, 4).toUpperCase();
     }
-    return '??';
+    return "??";
   }
-  
+
   // Handle click if clickable
   function handleClick() {
     if (clickable && user?.address) {
-      import('svelte-spa-router').then(({ push }) => {
+      import("svelte-spa-router").then(({ push }) => {
         push(`/participant/${user.address}`);
       });
     }
@@ -86,11 +86,11 @@
   class:cursor-pointer={clickable}
   onclick={clickable ? handleClick : undefined}
 >
-  <div 
+  <div
     class="
       {sizeClasses[size]} 
-      rounded-full 
-      overflow-hidden 
+      rounded-full
+      overflow-hidden
       {showBorder ? `${borderWidths[size]} ring-white` : ''}
       flex items-center justify-center
       {clickable ? 'hover:opacity-90 transition-opacity' : ''}

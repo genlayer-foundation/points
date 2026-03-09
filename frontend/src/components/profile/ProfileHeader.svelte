@@ -14,6 +14,7 @@
     participant?.steward
       ? "bg-green-500"
       : participant?.validator
+        ? "bg-sky-500"
         : participant?.builder
           ? "bg-orange-500"
           : participant?.has_validator_waitlist
