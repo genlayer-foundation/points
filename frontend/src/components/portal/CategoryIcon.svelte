@@ -6,6 +6,7 @@
     builder: '/assets/icons/hexagon-builder.svg',
     validator: '/assets/icons/hexagon-validator.svg',
     community: '/assets/icons/hexagon-community.svg',
+    steward: '/assets/icons/hexagon-steward.svg',
   };
 
   const whiteIconMap = {
@@ -13,6 +14,7 @@
     builder: '/assets/icons/terminal-fill-white.svg',
     validator: '/assets/icons/shield-white.svg',
     community: '/assets/icons/group-white.svg',
+    steward: '/assets/icons/seedling-line.svg',
   };
 
   const blackIconMap = {
@@ -20,6 +22,7 @@
     builder: '/assets/icons/terminal-line.svg',
     validator: '/assets/icons/folder-shield-line.svg',
     community: '/assets/icons/group-3-line.svg',
+    steward: '/assets/icons/seedling-line-green.svg',
   };
 
   let hexSize = $derived(size || 48);
@@ -34,7 +37,7 @@
       src={whiteIconMap[category]}
       alt=""
       class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-      style="width: {innerIconSize}px; height: {innerIconSize}px;"
+      style="width: {innerIconSize}px; height: {innerIconSize}px;{category === 'steward' ? ' filter: brightness(0) invert(1);' : ''}"
     />
   </div>
 {:else}

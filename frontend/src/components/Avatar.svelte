@@ -1,59 +1,66 @@
 <script>
   // Props for the Avatar component
-  let { 
-    user = null,           // User object with profile_image_url, name, address
-    size = 'md',          // Size: 'xs', 'sm', 'md', 'lg', 'xl', '2xl'
-    showBorder = false,   // Show white border (useful for overlapping)
-    clickable = false,    // Make avatar clickable
-    showStatus = false,   // Show online/offline status dot
-    className = ''        // Additional CSS classes
+  let {
+    user = null, // User object with profile_image_url, name, address
+    size = "md", // Size: 'xs', 'sm', 'md', 'lg', 'xl', '2xl'
+    showBorder = false, // Show white border (useful for overlapping)
+    clickable = false, // Make avatar clickable
+    showStatus = false, // Show online/offline status dot
+    className = "", // Additional CSS classes
   } = $props();
-  
+
   // Determine role-based color theme
   let roleColorTheme = $derived(
-    user?.steward ? 'green' :
-    user?.validator ? 'sky' :
-    user?.builder ? 'orange' :
-    user?.has_validator_waitlist ? 'sky' :
-    user?.has_builder_welcome ? 'orange' :
-    'purple'
+    user?.steward
+      ? "green"
+      : user?.validator
+        ? "sky"
+        : user?.builder
+          ? "orange"
+          : user?.has_validator_waitlist
+            ? "sky"
+            : user?.has_builder_welcome
+              ? "orange"
+              : "purple",
   );
-  
+
   // Check if user is in transition (waitlist/welcome) - removed striping
-  
+
   // Size mappings
   const sizeClasses = {
-    'xs': 'w-6 h-6 text-xs',
-    'sm': 'w-8 h-8 text-sm',
-    'md': 'w-10 h-10 text-base',
-    'lg': 'w-12 h-12 text-lg',
-    'xl': 'w-16 h-16 text-xl',
-    '2xl': 'w-20 h-20 text-2xl',
-    '3xl': 'w-24 h-24 sm:w-32 sm:h-32 text-3xl sm:text-4xl'
+    xs: "w-6 h-6 text-xs",
+    sm: "w-8 h-8 text-sm",
+    md: "w-10 h-10 text-base",
+    lg: "w-12 h-12 text-lg",
+    xl: "w-16 h-16 text-xl",
+    "2xl": "w-20 h-20 text-2xl",
+    "3xl": "w-24 h-24 sm:w-32 sm:h-32 text-3xl sm:text-4xl",
+    full: "w-full h-full text-3xl",
   };
-  
+
   const borderWidths = {
-    'xs': 'ring-1',
-    'sm': 'ring-2',
-    'md': 'ring-2',
-    'lg': 'ring-3',
-    'xl': 'ring-3',
-    '2xl': 'ring-4',
-    '3xl': 'ring-4 ring-white'
+    xs: "ring-1",
+    sm: "ring-2",
+    md: "ring-2",
+    lg: "ring-3",
+    xl: "ring-3",
+    "2xl": "ring-4",
+    "3xl": "ring-4 ring-white",
+    full: "ring-4 ring-white",
   };
-  
+
   // Color mappings for backgrounds
   const colorMap = {
-    'green': 'bg-green-500',
-    'sky': 'bg-sky-500',
-    'orange': 'bg-orange-500',
-    'purple': 'bg-purple-500'
+    green: "bg-green-500",
+    sky: "bg-sky-500",
+    orange: "bg-orange-500",
+    purple: "bg-purple-500",
   };
-  
+
   // Get initials from name or address
   function getInitials() {
     if (user?.name) {
-      const names = user.name.split(' ');
+      const names = user.name.split(" ");
       if (names.length >= 2) {
         return names[0][0] + names[names.length - 1][0];
       }
@@ -74,8 +81,8 @@
   }
 </script>
 
-<div 
-  class="relative inline-block {className}"
+<div
+  class="{size === 'full' ? 'relative block w-full h-full' : 'relative inline-block'} {className}"
   class:cursor-pointer={clickable}
   onclick={clickable ? handleClick : undefined}
 >
@@ -90,17 +97,19 @@
     "
   >
     {#if user?.profile_image_url}
-      <img 
-        src={user.profile_image_url} 
-        alt={user.name || 'User avatar'}
-        class="w-full h-full object-cover"
+      <img
+        src={user.profile_image_url}
+        alt={user.name || "User avatar"}
+        class="w-full h-full object-cover object-center block"
       />
     {:else}
       <!-- Default avatar with role-based color -->
-      <div 
+      <div
         class="
-          w-full h-full 
-          {colorMap[roleColorTheme.replace('-waitlist', '').replace('-welcome', '')]}
+          w-full h-full
+          {colorMap[
+          roleColorTheme.replace('-waitlist', '').replace('-welcome', '')
+        ]}
           flex items-center justify-center
           font-semibold text-white
           relative
@@ -110,14 +119,14 @@
       </div>
     {/if}
   </div>
-  
+
   {#if showStatus}
-    <span 
+    <span
       class="
-        absolute bottom-0 right-0 
-        block h-2.5 w-2.5 
-        rounded-full 
-        bg-green-400 
+        absolute bottom-0 right-0
+        block h-2.5 w-2.5
+        rounded-full
+        bg-green-400
         ring-2 ring-white
       "
     ></span>

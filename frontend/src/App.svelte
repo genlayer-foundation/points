@@ -41,7 +41,7 @@
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
   import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
-  import BuilderWelcome from './routes/BuilderWelcome.svelte';
+
   import GitHubCallback from './routes/GitHubCallback.svelte';
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
@@ -77,7 +77,7 @@
     '/builders/contributions/highlights': Highlights,
     '/builders/highlights': Highlights,
     '/builders/leaderboard': Leaderboard,
-    '/builders/welcome': BuilderWelcome,
+
     '/builders/startup-requests/:id': StartupRequestDetail,
     
     // Validators routes
