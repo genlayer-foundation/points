@@ -2,6 +2,7 @@
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { updateUserProfile } from '../lib/api.js';
+  import { push } from 'svelte-spa-router';
 
   // Form state
   let email = $state('');
@@ -88,7 +89,8 @@
       // Reload user data to ensure we have the latest
       await userStore.loadUser();
 
-      // Modal will close automatically when user data updates
+      // Redirect first-time users to How it works page
+      push('/how-it-works');
     } catch (err) {
       // Handle field-specific errors from Django REST Framework
       if (err.response?.data) {

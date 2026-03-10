@@ -49,6 +49,7 @@
   import Community from './routes/Community.svelte';
   import Hackathon from './routes/Hackathon.svelte';
   import ReferralProgram from './routes/ReferralProgram.svelte';
+  import HowItWorks from './routes/HowItWorks.svelte';
   import GlobalDashboard from './components/GlobalDashboard.svelte';
   import StartupRequestDetail from './routes/StartupRequestDetail.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
@@ -62,6 +63,7 @@
     // Global/Testnet Asimov routes
     // Overview and Testnet Asimov routes
     '/': Overview,
+    '/how-it-works': HowItWorks,
     '/asimov': GlobalDashboard,
     '/contributions': Contributions,
     '/all-contributions': AllContributions,
@@ -125,8 +127,8 @@
     currentCategory.set(category);
   });
 
-  // Landing page needs full-bleed (no padding)
-  let isLandingPage = $derived($location === '/');
+  // How it works page needs full-bleed (no padding)
+  let isFullBleedPage = $derived($location === '/how-it-works');
   
   // Function to hide tooltips - used for route changes
   function hideTooltips() {
@@ -295,7 +297,7 @@
   <Navbar {toggleSidebar} {sidebarOpen} />
   <div class="flex-1 flex overflow-hidden">
     <Sidebar bind:isOpen={sidebarOpen} bind:collapsed={sidebarCollapsed} />
-    <main class="flex-1 overflow-y-auto {isLandingPage ? '' : 'px-3 py-3'}">
+    <main class="flex-1 overflow-y-auto {isFullBleedPage ? '' : 'px-3 py-3'}">
       <SystemAlerts />
       <Router
         {routes}

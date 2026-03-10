@@ -16,7 +16,7 @@
   <div class="px-[20px] py-[128px] flex items-center justify-center">
     <div class="flex flex-col gap-[24px] items-center text-center">
       <h1 class="text-[64px] font-medium text-black font-display leading-[64px] w-[542px]" style="letter-spacing: -1.28px;">
-        {isLoggedIn ? `Welcome back, ${userName}` : 'Welcome to GenLayer Points'}
+        {isLoggedIn ? `Welcome, ${userName}` : 'Welcome to GenLayer Points'}
       </h1>
       <p class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">
         {isLoggedIn
