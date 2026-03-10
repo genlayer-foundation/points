@@ -46,8 +46,8 @@
   }
 </script>
 
-<header class="bg-white relative z-50 h-[64px]" style="border-bottom: 1.2px solid #e5e5e6;">
-  <div class="flex items-center justify-between px-3 h-full">
+<header class="bg-white relative z-50" style="border-bottom: 1.2px solid #e5e5e6;">
+  <div class="flex items-center justify-between p-3">
     <!-- Left: Logo -->
     <div class="flex items-center gap-1 px-1">
       <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex items-center">

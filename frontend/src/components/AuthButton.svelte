@@ -101,7 +101,7 @@
 
 <div class="auth-dropdown-container">
   <button 
-    class="auth-button {isAuthenticated ? 'connected rounded-full p-0 w-[40px] h-[40px] min-w-0 border border-[#e5e5e6] bg-transparent hover:bg-gray-50' : ''}" 
+    class="auth-button {isAuthenticated ? 'connected' : ''}" 
     on:click={handleAuth}
     disabled={loading || storeLoading}
     data-auth-button
@@ -109,17 +109,10 @@
     {#if loading || storeLoading}
       <span class="loading-spinner"></span>
     {:else if isAuthenticated}
-      <div class="w-full h-full rounded-full bg-[#f5f5f5] flex items-center justify-center overflow-hidden flex-shrink-0">
-        <span class="text-sm font-semibold text-gray-700">
-          {#if userName}
-            {userName[0].toUpperCase()}
-          {:else if address}
-            {address[2]? address[2].toUpperCase() : '?'}
-          {:else}
-            ?
-          {/if}
-        </span>
-      </div>
+      <span class="address">{$userStore.user?.name || formatAddress(address)}</span>
+      <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+      </svg>
     {:else}
       <span>Connect Wallet</span>
     {/if}
