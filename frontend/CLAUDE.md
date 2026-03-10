@@ -284,7 +284,7 @@ frontend/src/
   - Contains route definitions
   - Handles tooltip positioning
   - Manages route changes
-  - Landing page (`/`) renders full-bleed (no `px-3 py-3` padding on `<main>`)
+  - How it works page (`/how-it-works`) renders full-bleed (no `px-3 py-3` padding on `<main>`)
 - **Navigation**: `src/components/Navbar.svelte`
   - Top navigation bar
   - Auth button integration
@@ -297,6 +297,7 @@ frontend/src/
     - **Builders** - Category-specific dashboard and pages
     - **Validators** - Category-specific dashboard and pages
     - **Stewards** - Steward management pages (only visible to stewards)
+    - **How it works** (bottom pinned area, above Submit Contribution) - Links to `/how-it-works`
     - **Profile** - User profile and submissions
 
 ### Routes/Pages
@@ -307,7 +308,8 @@ const routes = {
   '/auth/github/callback': GitHubCallback,
 
   // Overview & Global
-  '/': Overview,                    // Landing page with hero, journey, role cards, CTA
+  '/': Overview,                    // Portal overview with HeroBanner, LiveStats, TrendingContributors, etc.
+  '/how-it-works': HowItWorks,      // How it works page (WelcomeHero, JourneySection, RoleCards, CTABanner)
   '/asimov': GlobalDashboard,       // Testnet Asimov dashboard
   '/contributions': Contributions,
   '/all-contributions': AllContributions,
@@ -438,7 +440,9 @@ Reusable, data-driven display components that accept data via props. Used on Das
   - Light variant: landing page — transparent bg, adapts between logged-in and anonymous states
   - Includes real rank computation logic (fetches leaderboard, computes points to next rank)
 
-#### Landing Page Components (`src/components/portal/landing-page/`)
+#### How It Works / Landing Page Components (`src/components/portal/landing-page/`)
+- Used by the `/how-it-works` route (`HowItWorks.svelte`)
+- First-time users are redirected here after completing their profile via `ProfileCompletionGuard`
 - **`WelcomeHero.svelte`** - Hero section with headline and stats
 - **`JourneySection.svelte`** - How-it-works journey steps
 - **`SubmitSection.svelte`** - Submit contribution CTA section
