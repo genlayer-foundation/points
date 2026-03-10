@@ -93,7 +93,7 @@
 
 <!-- Desktop Sidebar -->
 <aside
-  class="hidden md:flex flex-col justify-between bg-white border-r border-[#e6e6e6] h-full transition-all duration-300 ease-in-out flex-shrink-0 p-3 relative {collapsed ? 'w-16' : 'w-56'}"
+  class="hidden md:flex flex-col justify-between bg-white border-r border-[#e6e6e6] h-full transition-all duration-300 ease-in-out flex-shrink-0 p-3 relative {collapsed ? 'w-16' : 'w-[222px]'}"
 >
   <!-- Top section: Collapse toggle + Navigation -->
   <div>
@@ -119,8 +119,8 @@
         <button
           onclick={() => changeCategory('global', '/')}
           class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px]"
-          style={getActiveSection() === 'global' ? 'background: #eeedfb;' : ''}
-          onmouseenter={(e) => { if (getActiveSection() !== 'global') { e.currentTarget.style.background = '#eeedfb'; e.currentTarget.querySelector('img').src = '/assets/icons/dashboard-fill.svg'; }}}
+          style={getActiveSection() === 'global' ? 'background: #f5f5f5;' : ''}
+          onmouseenter={(e) => { if (getActiveSection() !== 'global') { e.currentTarget.style.background = '#f5f5f5'; e.currentTarget.querySelector('img').src = '/assets/icons/dashboard-fill.svg'; }}}
           onmouseleave={(e) => { if (getActiveSection() !== 'global') { e.currentTarget.style.background = ''; e.currentTarget.querySelector('img').src = '/assets/icons/dashboard-fill-black.svg'; }}}
           title={collapsed ? 'Overview' : ''}
         >
@@ -339,29 +339,30 @@
         {/if}
       </div>
 
+      <!-- GenTV -->
+      {#if !collapsed}
+        <div class="h-[1.5px] w-full bg-[#f5f5f5] my-2"></div>
+      {:else}
+        <div class="border-t border-gray-100 my-2"></div>
+      {/if}
+      <a
+        href="https://tv.genlayer.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors hover:bg-[#f5f5f5] text-[14px] font-medium text-black tracking-[0.28px]"
+        title={collapsed ? 'GenTV' : ''}
+      >
+        <img src="/assets/icons/tv-line.svg" alt="" class="w-4 h-4 flex-shrink-0">
+        {#if !collapsed}
+          <span>GenTV</span>
+        {/if}
+      </a>
+
     </nav>
   </div>
 
   <!-- Bottom pinned area -->
   <div class="space-y-2">
-    <!-- Submit Contribution link -->
-    {#if !collapsed}
-      <button
-        onclick={handleSubmitContribution}
-        class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"
-      >
-        <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
-        <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">Submit Contribution</span>
-      </button>
-    {:else}
-      <button
-        onclick={handleSubmitContribution}
-        class="w-full flex px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors"
-        title="Submit Contribution"
-      >
-        <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
-      </button>
-    {/if}
 
     <!-- User profile row -->
     <button
@@ -412,7 +413,7 @@
       <button
         onclick={() => changeCategory('global', '/')}
         class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px]"
-        style={getActiveSection() === 'global' ? 'background: #eeedfb;' : ''}
+        style={getActiveSection() === 'global' ? 'background: #f5f5f5;' : ''}
       >
         {#if getActiveSection() === 'global'}
           <img src="/assets/icons/dashboard-fill.svg" alt="" class="w-4 h-4 flex-shrink-0">
@@ -593,18 +594,23 @@
         </div>
       {/if}
 
+      <!-- GenTV -->
+      <div class="border-t border-gray-100 my-2"></div>
+      <a
+        href="https://tv.genlayer.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors hover:bg-[#f5f5f5] text-[14px] font-medium text-black tracking-[0.28px]"
+      >
+        <img src="/assets/icons/tv-line.svg" alt="" class="w-4 h-4 flex-shrink-0">
+        <span>GenTV</span>
+      </a>
+
     </nav>
   </div>
 
   <!-- Bottom pinned area (mobile) -->
   <div class="p-3 space-y-2">
-    <button
-      onclick={handleSubmitContribution}
-      class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"
-    >
-      <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
-      <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">Submit Contribution</span>
-    </button>
     <button
       onclick={handleProfileClick}
       class="w-full flex items-center justify-between pl-2 pr-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors"

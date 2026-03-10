@@ -13,9 +13,6 @@
   import CTASection from '../components/ui/CTASection.svelte';
   import Podium from '../components/ui/Podium.svelte';
 
-  // Portal components (self-fetching)
-  import HeroBanner from '../components/portal/HeroBanner.svelte';
-  import FeaturedBuilds from '../components/portal/FeaturedBuilds.svelte';
 
   // State
   let statsData = $state([]);
@@ -141,10 +138,7 @@
 </script>
 
 <div class="space-y-8">
-  <!-- 1. Hero Banner -->
-  <HeroBanner category={category} />
-
-  <!-- 2. Live Dashboard Stats -->
+  <!-- 1. Live Dashboard Stats -->
   <div>
     <SectionHeader
       title={isBuilder ? "Builder's Live Dashboard" : "Validator's Live Dashboard"}
@@ -197,12 +191,7 @@
     <UserCardScroller entries={newestAsEntries} loading={membersLoading} />
   </div>
 
-  <!-- 5. Builder-only: Featured Builds -->
-  {#if isBuilder}
-    <FeaturedBuilds />
-  {/if}
-
-  <!-- 6. Builder-only: Trending Contributors -->
+  <!-- 5. Builder-only: Trending Contributors -->
   {#if isBuilder}
     <div>
       <SectionHeader
