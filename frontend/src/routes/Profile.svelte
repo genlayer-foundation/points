@@ -31,7 +31,7 @@
   import RoleView from "../components/profile/RoleView.svelte";
   import StewardView from "../components/profile/StewardView.svelte";
   import CommunityView from "../components/profile/CommunityView.svelte";
-  import ReferralBanner from "../components/profile/ReferralBanner.svelte";
+  import CTABanner from "../components/shared/CTABanner.svelte";
   import CategoryIcon from "../components/portal/CategoryIcon.svelte";
 
   // Import route params from svelte-spa-router
@@ -848,7 +848,7 @@
       {/if}
 
       <div class="w-full px-0 mx-0">
-        <ReferralBanner {participant} {overallPoints} {referralData} />
+        <CTABanner variant="dark" {participant} {referralData} />
       </div>
     {/if}
   {:else}
