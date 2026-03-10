@@ -143,7 +143,7 @@
             <span class="text-[14px] font-medium text-white leading-[21px]" style="letter-spacing: 0.28px;">
               {role.cta}
             </span>
-            <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4" />
+            <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="w-4 h-4" />
           </button>
         </div>
       </div>

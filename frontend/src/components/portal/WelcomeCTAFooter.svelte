@@ -60,7 +60,7 @@
             {isLoggedIn ? 'Referral link' : 'Get started'}
           </span>
           {#if !isLoggedIn}
-            <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4" />
+            <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="w-4 h-4" />
           {/if}
         </button>
         <a
