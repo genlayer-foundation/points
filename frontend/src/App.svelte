@@ -124,6 +124,9 @@
     const category = detectCategoryFromRoute($location);
     currentCategory.set(category);
   });
+
+  // Landing page needs full-bleed (no padding)
+  let isLandingPage = $derived($location === '/');
   
   // Function to hide tooltips - used for route changes
   function hideTooltips() {
@@ -292,7 +295,7 @@
   <Navbar {toggleSidebar} {sidebarOpen} />
   <div class="flex-1 flex overflow-hidden">
     <Sidebar bind:isOpen={sidebarOpen} bind:collapsed={sidebarCollapsed} />
-    <main class="flex-1 overflow-y-auto px-3 py-3">
+    <main class="flex-1 overflow-y-auto {isLandingPage ? '' : 'px-3 py-3'}">
       <SystemAlerts />
       <Router
         {routes}
