@@ -3,8 +3,8 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
 from contributions.models import SubmittedContribution, ContributionType
-from stewards.models import Steward
-from datetime import date
+from stewards.models import Steward, StewardPermission
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -20,7 +20,7 @@ class StewardSubmissionPaginationTest(TestCase):
             address='0x1234567890123456789012345678901234567890'
         )
         # Create the Steward profile
-        Steward.objects.create(user=self.steward)
+        self.steward_profile = Steward.objects.create(user=self.steward)
         
         # Create a regular user for submissions
         self.user = User.objects.create_user(
@@ -37,13 +37,18 @@ class StewardSubmissionPaginationTest(TestCase):
             min_points=10,
             max_points=100
         )
+        StewardPermission.objects.create(
+            steward=self.steward_profile,
+            contribution_type=self.contribution_type,
+            action='accept'
+        )
         
         # Create 37 submissions (to match the real scenario)
         for i in range(37):
             SubmittedContribution.objects.create(
                 user=self.user,
                 contribution_type=self.contribution_type,
-                contribution_date=date.today(),
+                contribution_date=timezone.now(),
                 notes=f'Test submission {i+1}',
                 state='pending'
             )
@@ -102,7 +107,7 @@ class StewardSubmissionPaginationTest(TestCase):
             SubmittedContribution.objects.create(
                 user=self.user,
                 contribution_type=self.contribution_type,
-                contribution_date=date.today(),
+                contribution_date=timezone.now(),
                 notes=f'Accepted submission {i+1}',
                 state='accepted'
             )
