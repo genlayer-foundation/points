@@ -3,10 +3,21 @@
   import AuthButton from './AuthButton.svelte';
   import SearchBar from './SearchBar.svelte';
   import { authState } from '../lib/auth.js';
+  import { currentCategory } from '../stores/category.js';
   
   let { toggleSidebar, sidebarOpen = false } = $props();
   
   let isMenuOpen = $state(false);
+
+  const submitButtonBaseClass = 'h-10 px-4 text-white rounded-[20px] flex items-center gap-2 font-medium text-sm';
+
+  let submitButtonStyle = $derived(
+    $currentCategory === 'builder'
+      ? 'background: linear-gradient(168deg, #f8b93d 15%, #ee8d24 50%, #db6917 85%);'
+      : $currentCategory === 'validator'
+      ? 'background: linear-gradient(168deg, #6fa3f8 15%, #4f76f6 50%, #3b5dd6 85%);'
+      : 'background: linear-gradient(to right, #be8ff5, #ac6df3);'
+  );
   
   function toggleMenu() {
     isMenuOpen = !isMenuOpen;
@@ -49,8 +60,8 @@
       <SearchBar />
       <button
         onclick={handleSubmitContribution}
-        class="h-10 px-4 bg-gradient-to-r from-[#be8ff5] to-[#ac6df3] text-white rounded-[20px] flex items-center gap-2 font-medium text-[14px]"
-        style="letter-spacing: 0.28px;"
+        class={submitButtonBaseClass}
+        style={submitButtonStyle}
       >
         <span>Submit a contribution</span>
         <img src="/assets/icons/add-line.svg" alt="" class="w-4 h-4">

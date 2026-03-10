@@ -41,12 +41,14 @@
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
   import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
-  import BuilderWelcome from './routes/BuilderWelcome.svelte';
+
   import GitHubCallback from './routes/GitHubCallback.svelte';
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
   import Referrals from './routes/Referrals.svelte';
   import Community from './routes/Community.svelte';
+  import Hackathon from './routes/Hackathon.svelte';
+  import ReferralProgram from './routes/ReferralProgram.svelte';
   import GlobalDashboard from './components/GlobalDashboard.svelte';
   import StartupRequestDetail from './routes/StartupRequestDetail.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
@@ -69,6 +71,8 @@
     '/participants': Validators,
     '/referrals': Referrals,
     '/community': Community,
+    '/hackathon': Hackathon,
+    '/referral-program': ReferralProgram,
 
     // Builders routes
     '/builders': Dashboard,
@@ -77,7 +81,7 @@
     '/builders/contributions/highlights': Highlights,
     '/builders/highlights': Highlights,
     '/builders/leaderboard': Leaderboard,
-    '/builders/welcome': BuilderWelcome,
+
     '/builders/startup-requests/:id': StartupRequestDetail,
     
     // Validators routes

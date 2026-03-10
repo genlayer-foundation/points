@@ -4,6 +4,7 @@
 	import Badge from '../../components/Badge.svelte';
 	import { showError } from '../toastStore';
 	import { getMissions } from '../missionsStore.js';
+	import { authState } from '../auth';
 
 	let {
 		selectedCategory = $bindable('validator'),
@@ -443,7 +444,7 @@
 				{#if selectedCategory === 'validator'}
 					You need to be a validator to submit validator contributions. You can enter the <a href="#/validators/waitlist">Validator Waitlist</a>.
 				{:else}
-					Complete the <a href="#/builders/welcome">Builder Welcome journey</a> to submit builder contributions.
+					Complete the Builder Welcome journey on your <a href="#/participant/{$authState.address}">profile page</a> to submit builder contributions.
 				{/if}
 			</div>
 		{/if}
