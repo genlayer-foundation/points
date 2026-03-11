@@ -138,6 +138,15 @@
         {#if !collapsed && getActiveSection() === 'global'}
           <div class="pl-5">
             <a
+              href="/asimov"
+              onclick={(e) => { e.preventDefault(); navigate('/asimov'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/asimov') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Testnets
+            </a>
+            <a
               href="/metrics"
               onclick={(e) => { e.preventDefault(); navigate('/metrics'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
@@ -438,6 +447,15 @@
 
       {#if getActiveSection() === 'global'}
         <div class="pl-5">
+          <a
+            href="/asimov"
+            onclick={(e) => { e.preventDefault(); navigate('/asimov'); }}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              isActive('/asimov') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+            }"
+          >
+            Testnets
+          </a>
           <a
             href="/metrics"
             onclick={(e) => { e.preventDefault(); navigate('/metrics'); }}

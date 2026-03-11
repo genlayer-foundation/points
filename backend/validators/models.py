@@ -18,7 +18,13 @@ class ValidatorWallet(BaseModel):
         ('inactive', 'Inactive'),        # Not in any list, no longer active
     ]
 
-    address = models.CharField(max_length=42, unique=True, db_index=True)
+    NETWORK_CHOICES = [
+        ('asimov', 'Asimov'),
+        ('bradbury', 'Bradbury'),
+    ]
+
+    address = models.CharField(max_length=42, db_index=True)
+    network = models.CharField(max_length=20, choices=NETWORK_CHOICES, default='asimov', db_index=True)
     operator = models.ForeignKey(
         'Validator',
         on_delete=models.CASCADE,
@@ -41,9 +47,12 @@ class ValidatorWallet(BaseModel):
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['address', 'network'], name='unique_wallet_per_network')
+        ]
 
     def __str__(self):
-        return f"ValidatorWallet {self.address[:10]}... ({self.status})"
+        return f"ValidatorWallet {self.address[:10]}... ({self.network}/{self.status})"
 
 
 class Validator(NodeVersionMixin, BaseModel):
@@ -62,3 +71,27 @@ class Validator(NodeVersionMixin, BaseModel):
         return f"{self.user.email} - Node: {self.node_version or 'Not set'}"
     
     # Methods clean_version, version_matches_or_higher, and save are inherited from NodeVersionMixin
+
+
+class ValidatorWalletStatusSnapshot(BaseModel):
+    """
+    Daily snapshot of a validator wallet's status.
+    Used for uptime lookback logic to determine if a wallet was active
+    within a rolling window of days.
+    """
+    wallet = models.ForeignKey(
+        ValidatorWallet,
+        on_delete=models.CASCADE,
+        related_name='status_snapshots'
+    )
+    date = models.DateField(db_index=True)
+    status = models.CharField(max_length=20, choices=ValidatorWallet.STATUS_CHOICES)
+
+    class Meta:
+        ordering = ['-date']
+        constraints = [
+            models.UniqueConstraint(fields=['wallet', 'date'], name='unique_snapshot_per_wallet_date')
+        ]
+
+    def __str__(self):
+        return f"{self.wallet.address[:10]}... {self.date} ({self.status})"

@@ -17,12 +17,15 @@
     inactive: 0
   });
 
+  let selectedNetwork = $state('all');
   let previousCategory = null;
 
-  // Fetch validators when component mounts or category changes
+  // Fetch validators when component mounts, category changes, or network filter changes
   $effect(() => {
-    if ($currentCategory && $currentCategory !== previousCategory) {
-      previousCategory = $currentCategory;
+    const category = $currentCategory;
+    const _network = selectedNetwork;
+    if (category) {
+      previousCategory = category;
       fetchValidatorWallets();
     }
   });
@@ -32,7 +35,11 @@
       loading = true;
       error = null;
 
-      const response = await validatorsAPI.getAllValidatorWallets();
+      const params = {};
+      if (selectedNetwork !== 'all') {
+        params.network = selectedNetwork;
+      }
+      const response = await validatorsAPI.getAllValidatorWallets(params);
       validatorWallets = response.data?.wallets || [];
       stats = response.data?.stats || {
         total: 0,
@@ -110,6 +117,28 @@
       {error}
     </div>
   {:else}
+    <!-- Network Filter Tabs -->
+    <div class="flex space-x-1 mb-4 bg-gray-100 rounded-lg p-1 w-fit">
+      <button
+        class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors {selectedNetwork === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}"
+        onclick={() => selectedNetwork = 'all'}
+      >
+        All Networks
+      </button>
+      <button
+        class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors {selectedNetwork === 'asimov' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}"
+        onclick={() => selectedNetwork = 'asimov'}
+      >
+        Asimov
+      </button>
+      <button
+        class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors {selectedNetwork === 'bradbury' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}"
+        onclick={() => selectedNetwork = 'bradbury'}
+      >
+        Bradbury
+      </button>
+    </div>
+
     <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-8">
       <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
         <div>
@@ -133,6 +162,9 @@
                 Status
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Network
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Validator Address
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -154,6 +186,11 @@
                     {getStatusText(wallet.status)}
                   </span>
                 </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {wallet.network === 'asimov' ? 'bg-blue-100 text-blue-800' : wallet.network === 'bradbury' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}">
+                    {wallet.network === 'asimov' ? 'Asimov' : wallet.network === 'bradbury' ? 'Bradbury' : (wallet.network || 'Unknown')}
+                  </span>
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center gap-2">
                     <span class="text-gray-900 font-mono">
@@ -172,7 +209,7 @@
                       </svg>
                     </button>
                     <a
-                      href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${wallet.address}`}
+                      href={`${wallet.explorer_url || import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${wallet.address}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="text-gray-400 hover:text-gray-600"

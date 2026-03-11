@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.conf import settings
 from .models import ValidatorWallet, Validator
 
 
@@ -8,15 +9,18 @@ class ValidatorWalletSerializer(serializers.ModelSerializer):
     Used to display validator wallet data with operator info.
     """
     operator_user = serializers.SerializerMethodField()
+    explorer_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ValidatorWallet
         fields = [
             'id',
             'address',
+            'network',
             'status',
             'operator_address',
             'operator_user',
+            'explorer_url',
             'v_stake',
             'd_stake',
             'moniker',
@@ -27,10 +31,6 @@ class ValidatorWalletSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_operator_user(self, obj):
-        """
-        Get operator user info if the operator is linked to a Validator in our DB.
-        Returns user data (name, address, profile_image_url) or None if not linked.
-        """
         if obj.operator and obj.operator.user:
             user = obj.operator.user
             return {
@@ -42,15 +42,18 @@ class ValidatorWalletSerializer(serializers.ModelSerializer):
             }
         return None
 
+    def get_explorer_url(self, obj):
+        network_config = settings.TESTNET_NETWORKS.get(obj.network, {})
+        return network_config.get('explorer_url', '')
+
 
 class LightValidatorWalletSerializer(serializers.ModelSerializer):
     """
     Lightweight serializer for ValidatorWallet in list views.
-    Minimal fields for performance.
     """
     class Meta:
         model = ValidatorWallet
-        fields = ['id', 'address', 'status', 'operator_address']
+        fields = ['id', 'address', 'network', 'status', 'operator_address']
         read_only_fields = fields
 
 
