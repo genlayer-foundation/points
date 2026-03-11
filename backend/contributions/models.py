@@ -654,7 +654,7 @@ class FeaturedContent(BaseModel):
     content_type = models.CharField(max_length=20, choices=CONTENT_TYPE_CHOICES)
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    subtitle = models.CharField(max_length=200, blank=True)
+    author = models.CharField(max_length=200, blank=True)
     contribution = models.ForeignKey(
         'Contribution', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='featured_items'
@@ -663,10 +663,8 @@ class FeaturedContent(BaseModel):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
         related_name='featured_items'
     )
-    hero_image_url = models.URLField(max_length=500, blank=True, help_text="Cloudinary URL for hero/background image")
-    hero_image_public_id = models.CharField(max_length=255, blank=True, help_text="Cloudinary public ID for hero image")
-    user_profile_image_url = models.URLField(max_length=500, blank=True, help_text="Cloudinary URL for user avatar in featured card")
-    user_profile_image_public_id = models.CharField(max_length=255, blank=True, help_text="Cloudinary public ID for user avatar")
+    hero_image = models.ImageField(upload_to='featured/', blank=True, null=True)
+    user_profile_image = models.ImageField(upload_to='featured/avatars/', blank=True, null=True)
     url = models.URLField(max_length=500, blank=True)
     is_active = models.BooleanField(default=True)
     order = models.PositiveIntegerField(default=0)
