@@ -2,23 +2,23 @@
   <!-- Left: text -->
   <div class="flex-1 flex flex-col gap-[24px] justify-center">
     <h2 class="text-[32px] font-medium font-display leading-[40px] text-black" style="letter-spacing: -0.64px;">
-      Select your journey
+      There's a place for everyone
     </h2>
     <p class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">
-      Learn GenLayer's basics and deploy your first Intelligent Contract powered by Optimistic Democracy
+      GenLayer is built by its ecosystem. Whether you code, run infrastructure, or create content — your contributions move GenLayer forward and are rewarded accordingly.
     </p>
     <div class="flex flex-col gap-[4px]">
       <div class="flex gap-[10px] items-center">
         <img src="/assets/icons/checkbox-circle-fill.svg" alt="" class="w-4 h-4 flex-shrink-0" />
-        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">Explore the Studio and docs</span>
+        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">Sign up as a Builder and deploy your first Intelligent Contract</span>
       </div>
       <div class="flex gap-[10px] items-center">
         <img src="/assets/icons/checkbox-circle-fill.svg" alt="" class="w-4 h-4 flex-shrink-0" />
-        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">Learn intelligent contract fundaments</span>
+        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">Join the Validator waitlist and help secure the network</span>
       </div>
       <div class="flex gap-[10px] items-center">
         <img src="/assets/icons/checkbox-circle-fill.svg" alt="" class="w-4 h-4 flex-shrink-0" />
-        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">Deploy, contribute, and become a GenLayer Builder</span>
+        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">Join the Community to create content and participate in events</span>
       </div>
     </div>
   </div>

@@ -10,7 +10,7 @@
     <div class="flex flex-col gap-[4px]">
       <div class="flex gap-[10px] items-center">
         <img src="/assets/icons/checkbox-circle-fill.svg" alt="" class="w-4 h-4 flex-shrink-0" />
-        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">35,220 GP already distributed</span>
+        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">GenLayer Points coming soon — unifying all roles</span>
       </div>
       <div class="flex gap-[10px] items-center">
         <img src="/assets/icons/checkbox-circle-fill.svg" alt="" class="w-4 h-4 flex-shrink-0" />
