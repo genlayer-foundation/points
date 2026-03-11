@@ -793,6 +793,20 @@ class StewardSubmissionFilterSet(FilterSet):
     exclude_state = CharFilter(method='filter_exclude_state')
     min_accepted_contributions = NumberFilter(method='filter_min_accepted_contributions')
     has_proposal = BooleanFilter(method='filter_has_proposal')
+    category = CharFilter(method='filter_category')
+    exclude_category = CharFilter(method='filter_exclude_category')
+
+    def filter_category(self, queryset, name, value):
+        """Filter by contribution type category slug."""
+        if value:
+            return queryset.filter(contribution_type__category__slug=value)
+        return queryset
+
+    def filter_exclude_category(self, queryset, name, value):
+        """Exclude submissions from a specific category."""
+        if value:
+            return queryset.exclude(contribution_type__category__slug=value)
+        return queryset
 
     def filter_username(self, queryset, name, value):
         """Filter by submitter name, email, or address (case-insensitive partial match)."""
