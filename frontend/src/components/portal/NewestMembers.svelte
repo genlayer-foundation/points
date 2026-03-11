@@ -136,15 +136,6 @@
       </div>
     </div>
 
-    <!-- View all -->
-    <button
-      onclick={() => push(getTabViewPath(activeTab))}
-      class="flex items-center gap-1 text-[14px] text-[#6b6b6b] hover:text-black transition-colors"
-      style="letter-spacing: 0.28px;"
-    >
-      View all
-      <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4" />
-    </button>
   </div>
 
   <!-- Content -->

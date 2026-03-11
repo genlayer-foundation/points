@@ -22,7 +22,7 @@
     </div>
   </div>
 
-  <div class="space-y-[24px] z-10 relative">
+  <div class="space-y-[24px] z-10 relative max-w-[1200px] mx-auto">
     <WelcomeHero />
     <JourneySection />
     <SubmitSection />

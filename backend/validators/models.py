@@ -65,12 +65,12 @@ class Validator(NodeVersionMixin, BaseModel):
         on_delete=models.CASCADE,
         related_name='validator'
     )
-    # node_version field is inherited from NodeVersionMixin
-    
+    # node_version_asimov and node_version_bradbury fields are inherited from NodeVersionMixin
+
     def __str__(self):
-        return f"{self.user.email} - Node: {self.node_version or 'Not set'}"
-    
-    # Methods clean_version, version_matches_or_higher, and save are inherited from NodeVersionMixin
+        asimov = self.node_version_asimov or 'Not set'
+        bradbury = self.node_version_bradbury or 'Not set'
+        return f"{self.user.email} - Asimov: {asimov}, Bradbury: {bradbury}"
 
 
 class ValidatorWalletStatusSnapshot(BaseModel):

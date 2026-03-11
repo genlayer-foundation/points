@@ -76,11 +76,11 @@
         </p>
       </div>
 
-      <div class="flex gap-2 w-full mt-4">
+      <div class="w-full mt-4">
         {#if builderState === "completed"}
           <button
             disabled
-            class="flex-1 bg-[#ee8521]/10 text-[#ee8521] py-2 rounded-[24px] text-[14px] font-medium cursor-default"
+            class="w-full bg-[#ee8521]/10 text-[#ee8521] py-2 rounded-[24px] text-[14px] font-medium cursor-default"
           >
             <svg class="inline w-4 h-4 mr-1 -mt-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.5-1.5z"/></svg>
             Completed
@@ -88,7 +88,7 @@
         {:else if builderState === "ongoing"}
           <button
             onclick={scrollToBuilderJourney}
-            class="flex-1 bg-[#ee8521] text-white py-2 rounded-[24px] text-[14px] font-medium hover:bg-[#d9751a] transition-colors"
+            class="w-full bg-[#ee8521] text-white py-2 rounded-[24px] text-[14px] font-medium hover:bg-[#d9751a] transition-colors"
           >
             Finish the journey <img
               src="/assets/icons/arrow-right-line.svg"
@@ -100,7 +100,7 @@
           <button
             onclick={handleApplyBuilder}
             disabled={isApplyingBuilder}
-            class="flex-1 bg-[#101010] text-white py-2 rounded-[24px] text-[14px] font-medium hover:bg-black transition-colors disabled:opacity-70"
+            class="w-full bg-[#101010] text-white py-2 rounded-[24px] text-[14px] font-medium hover:bg-black transition-colors disabled:opacity-70"
           >
             {#if isApplyingBuilder}
               Applying...
@@ -113,12 +113,6 @@
             {/if}
           </button>
         {/if}
-
-        <button
-          class="flex-1 py-2 bg-white border border-[#e0e0e0] rounded-[24px] text-[14px] font-medium text-black hover:bg-gray-50 transition-colors whitespace-nowrap"
-        >
-          Learn more
-        </button>
       </div>
     </div>
 
@@ -139,11 +133,11 @@
         </p>
       </div>
 
-      <div class="flex gap-2 w-full mt-4">
+      <div class="w-full mt-4">
         {#if validatorState === "completed"}
           <button
             disabled
-            class="flex-1 bg-[#387de8]/10 text-[#387de8] py-2 rounded-[24px] text-[14px] font-medium cursor-default"
+            class="w-full bg-[#387de8]/10 text-[#387de8] py-2 rounded-[24px] text-[14px] font-medium cursor-default"
           >
             <svg class="inline w-4 h-4 mr-1 -mt-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.5-1.5z"/></svg>
             Completed
@@ -151,7 +145,7 @@
         {:else if validatorState === "ongoing"}
           <button
             disabled
-            class="flex-1 bg-[#387de8]/10 text-[#387de8] py-2 rounded-[24px] text-[14px] font-medium cursor-default"
+            class="w-full bg-[#387de8]/10 text-[#387de8] py-2 rounded-[24px] text-[14px] font-medium cursor-default"
           >
             <svg class="inline w-4 h-4 mr-1 -mt-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.5-1.5z"/></svg>
             Awaiting graduation
@@ -159,7 +153,7 @@
         {:else}
           <button
             onclick={() => push("/validators/waitlist/join")}
-            class="flex-1 bg-[#101010] text-white py-2 rounded-[24px] text-[14px] font-medium hover:bg-black transition-colors"
+            class="w-full bg-[#101010] text-white py-2 rounded-[24px] text-[14px] font-medium hover:bg-black transition-colors"
           >
             Join the waitlist <img
               src="/assets/icons/arrow-right-line.svg"
@@ -168,12 +162,6 @@
             />
           </button>
         {/if}
-
-        <button
-          class="flex-1 py-2 bg-white border border-[#e0e0e0] rounded-[24px] text-[14px] font-medium text-black hover:bg-gray-50 transition-colors whitespace-nowrap"
-        >
-          Learn more
-        </button>
       </div>
     </div>
 
@@ -194,19 +182,19 @@
         </p>
       </div>
 
-      <div class="flex gap-2 w-full mt-4">
+      <div class="w-full mt-4">
         {#if communityState === "completed"}
           <button
             disabled
-            class="flex-1 bg-[#7f52e1]/10 text-[#7f52e1] py-2 rounded-[24px] text-[14px] font-medium cursor-default"
+            class="w-full bg-[#7f52e1]/10 text-[#7f52e1] py-2 rounded-[24px] text-[14px] font-medium cursor-default"
           >
             <svg class="inline w-4 h-4 mr-1 -mt-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.5-1.5z"/></svg>
-            Completed
+            Joined
           </button>
         {:else}
           <button
             onclick={onJoinCommunity}
-            class="flex-1 bg-[#101010] text-white py-2 rounded-[24px] text-[14px] font-medium hover:bg-black transition-colors"
+            class="w-full bg-[#101010] text-white py-2 rounded-[24px] text-[14px] font-medium hover:bg-black transition-colors"
           >
             Become a referrer <img
               src="/assets/icons/arrow-right-line.svg"
@@ -215,12 +203,6 @@
             />
           </button>
         {/if}
-
-        <button
-          class="flex-1 py-2 bg-white border border-[#e0e0e0] rounded-[24px] text-[14px] font-medium text-black hover:bg-gray-50 transition-colors whitespace-nowrap"
-        >
-          Learn more
-        </button>
       </div>
     </div>
   </div>

@@ -26,10 +26,6 @@
       <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: 0.4px;">Featured Builds</h2>
       <p class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">This month curated builds</p>
     </div>
-    <div class="flex items-center gap-1">
-      <span class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">Explore all </span>
-      <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
-    </div>
   </div>
 
   {#if loading}
