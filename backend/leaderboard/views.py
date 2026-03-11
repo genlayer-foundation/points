@@ -113,18 +113,30 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
 
     def list(self, request, *args, **kwargs):
         """
-        Override to apply limit after filtering/ordering.
+        Override to apply offset and limit after filtering/ordering.
         """
         queryset = self.filter_queryset(self.get_queryset())
 
-        # Apply limit after filtering and ordering
-        limit = self.request.query_params.get('limit')
-        if limit:
+        # Parse offset and limit
+        offset = 0
+        limit = None
+        try:
+            offset = int(self.request.query_params.get('offset', 0))
+        except (ValueError, TypeError):
+            offset = 0
+
+        limit_param = self.request.query_params.get('limit')
+        if limit_param:
             try:
-                limit = int(limit)
-                queryset = queryset[:limit]
+                limit = int(limit_param)
             except (ValueError, TypeError):
-                pass
+                limit = None
+
+        # Apply offset and limit as a single slice to avoid Django slice-of-slice issues
+        if limit is not None:
+            queryset = queryset[offset:offset + limit]
+        elif offset > 0:
+            queryset = list(queryset[offset:])
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
@@ -471,57 +483,73 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def community(self, request):
         """
-        Get community statistics and top community members with referral points.
+        Get community statistics and paginated community members with referral points.
         Returns users with referrals sorted by total referral points.
+        Supports limit/offset pagination and user_address lookup.
         """
         from .models import ReferralPoints
+        from users.serializers import LightUserSerializer
         from django.db.models import F
 
-        try:
-            limit = int(request.query_params.get('limit', 50))
-        except (ValueError, TypeError):
-            limit = 50
-        limit = min(max(limit, 1), 200)
+        limit = min(int(request.query_params.get('limit', 20)), 100)
+        offset = int(request.query_params.get('offset', 0))
 
-        # Base queryset with annotation
-        base_qs = ReferralPoints.objects.annotate(
+        referral_qs = ReferralPoints.objects.select_related('user').annotate(
             total_points=F('builder_points') + F('validator_points')
         ).filter(user__visible=True, total_points__gt=0)
 
-        # Aggregate stats in the DB (avoids materializing the full queryset)
-        agg = base_qs.aggregate(
+        # Aggregate totals at DB level
+        totals = referral_qs.aggregate(
             total_community=Count('id'),
-            total_builder_points=Sum('builder_points'),
-            total_validator_points=Sum('validator_points'),
+            total_builder=Sum('builder_points'),
+            total_validator=Sum('validator_points')
         )
 
-        # Fetch only top N with user profiles pre-loaded
-        top_rps = base_qs.select_related(
-            'user', 'user__builder', 'user__validator', 'user__steward'
-        ).order_by('-total_points')[:limit]
+        # Check if user_address is requested for rank lookup
+        user_address = request.query_params.get('user_address')
+        user_rank = None
+        user_total_points = None
+        if user_address:
+            # Find user's points first with a single DB query
+            try:
+                user_rp = ReferralPoints.objects.select_related('user').annotate(
+                    total_points=F('builder_points') + F('validator_points')
+                ).get(user__address__iexact=user_address, user__visible=True)
+                user_tp = user_rp.builder_points + user_rp.validator_points
+                if user_tp > 0:
+                    user_total_points = user_tp
+                    # Count how many users have more points (DB-level rank calculation)
+                    user_rank = referral_qs.filter(total_points__gt=user_tp).count() + 1
+            except ReferralPoints.DoesNotExist:
+                pass
 
-        # Build lightweight dicts (same pattern as trending endpoint)
-        top_community = []
-        for rp in top_rps:
-            user = rp.user
-            top_community.append({
-                'name': user.name or '',
-                'address': user.address or '',
-                'profile_image_url': user.profile_image_url or '',
-                'builder': hasattr(user, 'builder'),
-                'validator': hasattr(user, 'validator'),
-                'steward': hasattr(user, 'steward'),
-                'builder_points': rp.builder_points,
-                'validator_points': rp.validator_points,
+        # Paginated results with light serializer
+        page = referral_qs[offset:offset + limit]
+        results = []
+        for rank, rp in enumerate(page, start=offset + 1):
+            user_data = LightUserSerializer(rp.user).data
+            results.append({
+                **user_data,
+                'referral_builder_points': rp.builder_points,
+                'referral_validator_points': rp.validator_points,
+                'total_referral_points': rp.builder_points + rp.validator_points,
                 'total_points': rp.builder_points + rp.validator_points,
+                'rank': rank,
             })
 
-        return Response({
-            'total_community': agg['total_community'] or 0,
-            'total_builder_points': agg['total_builder_points'] or 0,
-            'total_validator_points': agg['total_validator_points'] or 0,
-            'top_community': top_community
-        })
+        response_data = {
+            'total_community': totals['total_community'] or 0,
+            'total_builder_points': totals['total_builder'] or 0,
+            'total_validator_points': totals['total_validator'] or 0,
+            'count': totals['total_community'] or 0,
+            'results': results,
+        }
+
+        if user_address:
+            response_data['user_rank'] = user_rank
+            response_data['user_total_points'] = user_total_points
+
+        return Response(response_data)
 
     @action(detail=False, methods=['get'])
     def trending(self, request):

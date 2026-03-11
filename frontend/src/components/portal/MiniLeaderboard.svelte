@@ -24,11 +24,11 @@
       const [bRes, vRes, cRes] = await Promise.all([
         leaderboardAPI.getLeaderboard({ type: 'builder', limit: LIMIT }),
         leaderboardAPI.getLeaderboard({ type: 'validator', limit: LIMIT }),
-        leaderboardAPI.getCommunity(LIMIT),
+        leaderboardAPI.getCommunity({ limit: LIMIT }),
       ]);
       builders = extractEntries(bRes.data);
       validators = extractEntries(vRes.data);
-      community = (cRes.data?.top_community ?? []).slice(0, LIMIT);
+      community = (cRes.data?.results ?? []).slice(0, LIMIT);
     } catch (err) {
       error = err.message || 'Failed to load leaderboard';
     } finally {
