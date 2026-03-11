@@ -33,26 +33,39 @@ class LightUserSerializer(serializers.Serializer):
 class LightValidatorSerializer(serializers.Serializer):
     """
     Minimal validator serializer without expensive stat calculations.
-    Only includes node version and basic matching info.
+    Only includes node version and basic matching info per network.
     """
-    node_version = serializers.CharField(read_only=True)
-    matches_target = serializers.SerializerMethodField()
-    target_version = serializers.SerializerMethodField()
+    node_version_asimov = serializers.CharField(read_only=True)
+    node_version_bradbury = serializers.CharField(read_only=True)
+    matches_target_asimov = serializers.SerializerMethodField()
+    matches_target_bradbury = serializers.SerializerMethodField()
+    target_version_asimov = serializers.SerializerMethodField()
+    target_version_bradbury = serializers.SerializerMethodField()
     active_validators_count = serializers.SerializerMethodField()
     total_validators_count = serializers.SerializerMethodField()
 
-    def get_matches_target(self, obj):
-        """Check if the validator's version matches or is higher than the target."""
+    def get_matches_target_asimov(self, obj):
         from contributions.node_upgrade.models import TargetNodeVersion
-        target = TargetNodeVersion.get_active()
-        if target and obj.node_version:
-            return obj.version_matches_or_higher(target.version)
+        target = TargetNodeVersion.get_active(network='asimov')
+        if target and obj.node_version_asimov:
+            return obj.version_matches_or_higher(target.version, node_version=obj.node_version_asimov)
         return False
 
-    def get_target_version(self, obj):
-        """Get the current target version."""
+    def get_matches_target_bradbury(self, obj):
         from contributions.node_upgrade.models import TargetNodeVersion
-        target = TargetNodeVersion.get_active()
+        target = TargetNodeVersion.get_active(network='bradbury')
+        if target and obj.node_version_bradbury:
+            return obj.version_matches_or_higher(target.version, node_version=obj.node_version_bradbury)
+        return False
+
+    def get_target_version_asimov(self, obj):
+        from contributions.node_upgrade.models import TargetNodeVersion
+        target = TargetNodeVersion.get_active(network='asimov')
+        return target.version if target else None
+
+    def get_target_version_bradbury(self, obj):
+        from contributions.node_upgrade.models import TargetNodeVersion
+        target = TargetNodeVersion.get_active(network='bradbury')
         return target.version if target else None
 
     def get_active_validators_count(self, obj):
@@ -93,10 +106,14 @@ class ValidatorSerializer(serializers.ModelSerializer):
     """
     Serializer for Validator model.
     """
-    matches_target = serializers.SerializerMethodField()
-    target_version = serializers.SerializerMethodField()
-    target_date = serializers.SerializerMethodField()
-    target_created_at = serializers.SerializerMethodField()
+    matches_target_asimov = serializers.SerializerMethodField()
+    matches_target_bradbury = serializers.SerializerMethodField()
+    target_version_asimov = serializers.SerializerMethodField()
+    target_version_bradbury = serializers.SerializerMethodField()
+    target_date_asimov = serializers.SerializerMethodField()
+    target_date_bradbury = serializers.SerializerMethodField()
+    target_created_at_asimov = serializers.SerializerMethodField()
+    target_created_at_bradbury = serializers.SerializerMethodField()
     total_points = serializers.SerializerMethodField()
     rank = serializers.SerializerMethodField()
     total_contributions = serializers.SerializerMethodField()
@@ -106,39 +123,52 @@ class ValidatorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Validator
-        fields = ['node_version', 'matches_target', 'target_version', 'target_date', 'target_created_at',
+        fields = ['node_version_asimov', 'node_version_bradbury',
+                 'matches_target_asimov', 'matches_target_bradbury',
+                 'target_version_asimov', 'target_version_bradbury',
+                 'target_date_asimov', 'target_date_bradbury',
+                 'target_created_at_asimov', 'target_created_at_bradbury',
                  'total_points', 'rank', 'total_contributions', 'contribution_types',
                  'active_validators_count', 'total_validators_count', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
-    
-    def get_matches_target(self, obj):
-        """
-        Check if the validator's version matches or is higher than the target.
-        """
-        target = TargetNodeVersion.get_active()
-        if target and obj.node_version:
-            return obj.version_matches_or_higher(target.version)
+
+    def _get_target(self, network):
+        return TargetNodeVersion.get_active(network=network)
+
+    def get_matches_target_asimov(self, obj):
+        target = self._get_target('asimov')
+        if target and obj.node_version_asimov:
+            return obj.version_matches_or_higher(target.version, node_version=obj.node_version_asimov)
         return False
-    
-    def get_target_version(self, obj):
-        """
-        Get the current target version.
-        """
-        target = TargetNodeVersion.get_active()
+
+    def get_matches_target_bradbury(self, obj):
+        target = self._get_target('bradbury')
+        if target and obj.node_version_bradbury:
+            return obj.version_matches_or_higher(target.version, node_version=obj.node_version_bradbury)
+        return False
+
+    def get_target_version_asimov(self, obj):
+        target = self._get_target('asimov')
         return target.version if target else None
-    
-    def get_target_date(self, obj):
-        """
-        Get the target date.
-        """
-        target = TargetNodeVersion.get_active()
+
+    def get_target_version_bradbury(self, obj):
+        target = self._get_target('bradbury')
+        return target.version if target else None
+
+    def get_target_date_asimov(self, obj):
+        target = self._get_target('asimov')
         return target.target_date if target else None
-    
-    def get_target_created_at(self, obj):
-        """
-        Get when the target was created (for points calculation).
-        """
-        target = TargetNodeVersion.get_active()
+
+    def get_target_date_bradbury(self, obj):
+        target = self._get_target('bradbury')
+        return target.target_date if target else None
+
+    def get_target_created_at_asimov(self, obj):
+        target = self._get_target('asimov')
+        return target.created_at if target else None
+
+    def get_target_created_at_bradbury(self, obj):
+        target = self._get_target('bradbury')
         return target.created_at if target else None
     
     def get_total_points(self, obj):
@@ -223,15 +253,20 @@ class ValidatorSerializer(serializers.ModelSerializer):
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     """
     Serializer for updating user profile.
-    Allows updating name, profile fields, and validator node_version.
+    Allows updating name, profile fields, and validator node versions per network.
     """
-    node_version = serializers.CharField(required=False, allow_blank=True, allow_null=True, source='validator.node_version')
+    node_version_asimov = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, source='validator.node_version_asimov'
+    )
+    node_version_bradbury = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, source='validator.node_version_bradbury'
+    )
     email = serializers.EmailField(required=False, allow_blank=True)
     website = serializers.CharField(required=False, allow_blank=True, max_length=200)
 
     class Meta:
         model = User
-        fields = ['name', 'node_version', 'email', 'description', 'website',
+        fields = ['name', 'node_version_asimov', 'node_version_bradbury', 'email', 'description', 'website',
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
                   'github_username']
     
@@ -356,12 +391,15 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
         
         instance.save()
         
-        # Update or create validator if node_version is provided
-        if 'node_version' in validator_data:
+        # Update or create validator if any node_version field is provided
+        if 'node_version_asimov' in validator_data or 'node_version_bradbury' in validator_data:
             validator, created = Validator.objects.get_or_create(user=instance)
-            validator.node_version = validator_data['node_version']
+            if 'node_version_asimov' in validator_data:
+                validator.node_version_asimov = validator_data['node_version_asimov']
+            if 'node_version_bradbury' in validator_data:
+                validator.node_version_bradbury = validator_data['node_version_bradbury']
             validator.save()
-        
+
         return instance
         
 

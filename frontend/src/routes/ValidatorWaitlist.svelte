@@ -45,7 +45,7 @@
     try {
       await journeyAPI.startValidatorJourney();
       // Store success message and redirect to profile
-      sessionStorage.setItem('journeySuccess', 'Successfully joined Testnet Asimov Validator Waitlist!');
+      sessionStorage.setItem('journeySuccess', 'Successfully joined Validator Waitlist!');
       push(`/participant/${$authState.address}`);
     } catch (err) {
       error = err.response?.data?.error || 'Failed to join waitlist';
@@ -57,9 +57,9 @@
 <div class="space-y-6 sm:space-y-8">
   <!-- Clean Header -->
   <div>
-    <h1 class="text-2xl font-bold text-gray-900">Testnet Asimov Validator Waitlist</h1>
+    <h1 class="text-2xl font-bold text-gray-900">Validator Waitlist</h1>
     <p class="mt-1 text-sm text-gray-500">
-      Join the waitlist to become a validator on GenLayer's Testnet Asimov
+      Join the waitlist to become a validator on GenLayer Testnets
     </p>
   </div>
 
@@ -192,7 +192,7 @@
             class="mt-0.5 h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300 rounded"
           />
           <label for="formCompleted" class="text-sm text-gray-700">
-            I have completed the GenLayer Testnet Asimov Validator Application
+            I have completed the GenLayer Validator Application
           </label>
         </div>
         

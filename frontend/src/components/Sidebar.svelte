@@ -64,7 +64,7 @@
   // Determine which top-level section is active
   function getActiveSection() {
     const path = $location;
-    if (path === '/' || path === '/asimov' || path === '/metrics') return 'global';
+    if (path === '/' || path === '/metrics') return 'global';
     if (path.startsWith('/builders')) return 'builder';
     if (path.startsWith('/validators')) return 'validator';
     if (path.startsWith('/community')) return 'community';
@@ -144,7 +144,7 @@
                 isActive('/asimov') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               }"
             >
-              Testnet Bradbury
+              Testnets
             </a>
             <a
               href="/metrics"
@@ -454,7 +454,7 @@
               isActive('/asimov') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             }"
           >
-            Testnet Bradbury
+            Testnets
           </a>
           <a
             href="/metrics"

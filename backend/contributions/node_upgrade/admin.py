@@ -4,15 +4,15 @@ from .models import TargetNodeVersion
 
 @admin.register(TargetNodeVersion)
 class TargetNodeVersionAdmin(admin.ModelAdmin):
-    list_display = ('version', 'target_date', 'is_active', 'created_at', 'updated_at')
-    list_filter = ('is_active', 'target_date')
+    list_display = ('version', 'network', 'target_date', 'is_active', 'created_at', 'updated_at')
+    list_filter = ('is_active', 'network', 'target_date')
     search_fields = ('version',)
     ordering = ('-created_at',)
     readonly_fields = ('created_at', 'updated_at')
-    
+
     fieldsets = (
         (None, {
-            'fields': ('version', 'target_date', 'is_active')
+            'fields': ('version', 'network', 'target_date', 'is_active')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

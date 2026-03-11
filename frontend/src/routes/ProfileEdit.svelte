@@ -1,9 +1,8 @@
 <script>
   import { onMount } from "svelte";
   import { push } from "svelte-spa-router";
-  import { getCurrentUser, updateUserProfile, imageAPI } from "../lib/api";
+  import { getCurrentUser, updateUserProfile, imageAPI, validatorsAPI } from "../lib/api";
   import { authState } from "../lib/auth";
-  import Icon from "../components/Icons.svelte";
   import ImageCropper from "../components/ImageCropper.svelte";
   import { userStore } from "../lib/userStore";
   import { showSuccess, showError } from "../lib/toastStore";
@@ -18,6 +17,8 @@
 
   // Form fields
   let name = $state("");
+  let nodeVersionAsimov = $state("");
+  let nodeVersionBradbury = $state("");
 
   // New profile fields
   let email = $state("");
@@ -38,6 +39,15 @@
   let cropperCallback = $state(null);
   let uploadingImage = $state(false);
 
+  // Operator address linking state
+  let operatorAddress = $state("");
+  let isLinkingWallets = $state(false);
+  let validatorWallets = $state([]);
+
+  // Derived per-network wallets
+  let asimovWallets = $derived(validatorWallets.filter(w => w.network === 'asimov'));
+  let bradburyWallets = $derived(validatorWallets.filter(w => w.network === 'bradbury'));
+
   // Validation state
   let nameError = $state("");
   let emailError = $state("");
@@ -46,6 +56,8 @@
   let hasChanges = $derived(
     user &&
       (name !== (user.name || "") ||
+        (user.validator && nodeVersionAsimov !== (user.validator?.node_version_asimov || "")) ||
+        (user.validator && nodeVersionBradbury !== (user.validator?.node_version_bradbury || "")) ||
         email !== (user.email || "") ||
         description !== (user.description || "") ||
         website !== (user.website || "") ||
@@ -72,6 +84,8 @@
       const userData = await getCurrentUser();
       user = userData;
       name = userData.name || "";
+      nodeVersionAsimov = userData.validator?.node_version_asimov || "";
+      nodeVersionBradbury = userData.validator?.node_version_bradbury || "";
 
       // Load profile fields
       // Always show the email if it exists, regardless of verification status
@@ -90,6 +104,16 @@
       if (journeySuccess) {
         showSuccess(journeySuccess);
         sessionStorage.removeItem("journeySuccess");
+      }
+
+      // Load validator wallets if user is a validator
+      if (userData.validator) {
+        try {
+          const walletsResponse = await validatorsAPI.getMyValidatorWallets();
+          validatorWallets = walletsResponse.data.wallets || [];
+        } catch (err) {
+          validatorWallets = [];
+        }
       }
     } catch (err) {
       error = "Failed to load profile";
@@ -167,6 +191,14 @@
         updateData.email = trimmedEmail;
       }
 
+      // Only include node versions if they have changed
+      if (nodeVersionAsimov !== (user.validator?.node_version_asimov || "")) {
+        updateData.node_version_asimov = nodeVersionAsimov;
+      }
+      if (nodeVersionBradbury !== (user.validator?.node_version_bradbury || "")) {
+        updateData.node_version_bradbury = nodeVersionBradbury;
+      }
+
       const updatedUser = await updateUserProfile(updateData);
       // Update the user store with new data
       userStore.updateUser(updatedUser);
@@ -202,6 +234,28 @@
   function handleCancel() {
     // Go back to public profile without saving
     push(`/participant/${$authState.address}`);
+  }
+
+  async function handleLinkWallets() {
+    if (!operatorAddress.trim()) {
+      showError("Please enter an operator address");
+      return;
+    }
+
+    isLinkingWallets = true;
+    try {
+      const response = await validatorsAPI.linkValidatorWalletsByOperator(operatorAddress.trim());
+      const walletsLinked = response.data.wallets_linked;
+      showSuccess(`Successfully linked ${walletsLinked} wallet${walletsLinked !== 1 ? "s" : ""}`);
+      // Refresh data to update the UI
+      await loadUserData();
+      operatorAddress = "";
+    } catch (err) {
+      const message = err.response?.data?.error || "Failed to link wallets";
+      showError(message);
+    } finally {
+      isLinkingWallets = false;
+    }
   }
 
   function handleProfileImageSelect(event) {
@@ -677,6 +731,179 @@
                 </div>
               </div>
             </div>
+
+            <!-- Validator Settings Section (only for validators) -->
+            {#if user.validator}
+              <hr class="border-[#f0f0f0]" />
+
+              <div class="flex flex-col gap-4">
+                <h3
+                  class="text-[20px] font-semibold text-black tracking-[-0.36px]"
+                >
+                  Validator Settings
+                </h3>
+
+                <!-- Link Validator Wallets (operator address - applies across all networks) -->
+                {#if validatorWallets.length === 0}
+                  <div>
+                    <label
+                      for="operatorAddress"
+                      class="block text-sm font-medium text-gray-600 mb-1.5"
+                      >Link to Operator Wallet</label
+                    >
+                    <p class="text-xs text-gray-400 mb-2">
+                      Enter the operator wallet address you used when creating your validator on GenLayer.
+                    </p>
+                    <div class="flex gap-3 items-start">
+                      <div class="flex-1">
+                        <input
+                          id="operatorAddress"
+                          type="text"
+                          bind:value={operatorAddress}
+                          class="w-full px-4 py-3 bg-[#FCFCFC] border border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors font-mono text-sm"
+                          placeholder="0x..."
+                          maxlength="42"
+                          disabled={isLinkingWallets}
+                        />
+                      </div>
+                      <button
+                        onclick={handleLinkWallets}
+                        disabled={isLinkingWallets || !operatorAddress.trim()}
+                        class="px-4 py-3 bg-black text-white rounded-[8px] hover:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed font-medium transition-colors text-sm whitespace-nowrap"
+                      >
+                        {isLinkingWallets ? "Linking..." : "Link Wallets"}
+                      </button>
+                    </div>
+                  </div>
+                {/if}
+
+                <!-- Asimov Network Section -->
+                <div class="border border-[#EAEAEA] rounded-[12px] p-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <h4 class="text-[16px] font-semibold text-black tracking-[-0.2px]">
+                      Asimov Network
+                      <span class="text-sm font-normal text-gray-400 ml-1">({asimovWallets.length} {asimovWallets.length === 1 ? 'wallet' : 'wallets'})</span>
+                    </h4>
+                  </div>
+
+                  <div class="space-y-3">
+                    {#if user.validator?.target_version_asimov}
+                      {#if user.validator?.matches_target_asimov}
+                        <div class="bg-green-50 border border-green-200 rounded-[8px] p-3 text-sm flex items-center gap-2">
+                          <svg class="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span class="text-green-800">Up to date with target version {user.validator.target_version_asimov}</span>
+                        </div>
+                      {:else}
+                        <div class="bg-amber-50 border border-amber-200 rounded-[8px] p-3 text-sm flex items-center gap-2">
+                          <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                          <span class="text-amber-800">Please update your node to version {user.validator.target_version_asimov}</span>
+                        </div>
+                      {/if}
+                    {/if}
+
+                    <div>
+                      <label
+                        for="nodeVersionAsimov"
+                        class="block text-sm font-medium text-gray-600 mb-1.5"
+                        >Node Version</label
+                      >
+                      <input
+                        id="nodeVersionAsimov"
+                        type="text"
+                        bind:value={nodeVersionAsimov}
+                        class="w-full px-4 py-3 bg-[#FCFCFC] border border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors"
+                        placeholder="e.g., 0.3.9"
+                        disabled={isSaving}
+                      />
+                      <p class="mt-1 text-xs text-gray-400">Your Asimov network node version</p>
+                    </div>
+
+                    {#if asimovWallets.length > 0}
+                      <div>
+                        <span class="block text-sm font-medium text-gray-600 mb-1.5">Linked Wallets</span>
+                        <div class="space-y-2">
+                          {#each asimovWallets as wallet}
+                            <div class="flex items-center gap-2 bg-[#f7f8f9] rounded-[8px] px-3 py-2 border border-[#f0f0f0]">
+                              <span class="font-mono text-xs text-gray-700 break-all flex-1">{wallet.address}</span>
+                              {#if wallet.status}
+                                <span class="text-xs px-2 py-0.5 rounded-full whitespace-nowrap {wallet.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">{wallet.status}</span>
+                              {/if}
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+                </div>
+
+                <!-- Bradbury Network Section -->
+                <div class="border border-[#EAEAEA] rounded-[12px] p-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <h4 class="text-[16px] font-semibold text-black tracking-[-0.2px]">
+                      Bradbury Network
+                      <span class="text-sm font-normal text-gray-400 ml-1">({bradburyWallets.length} {bradburyWallets.length === 1 ? 'wallet' : 'wallets'})</span>
+                    </h4>
+                  </div>
+
+                  <div class="space-y-3">
+                    {#if user.validator?.target_version_bradbury}
+                      {#if user.validator?.matches_target_bradbury}
+                        <div class="bg-green-50 border border-green-200 rounded-[8px] p-3 text-sm flex items-center gap-2">
+                          <svg class="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span class="text-green-800">Up to date with target version {user.validator.target_version_bradbury}</span>
+                        </div>
+                      {:else}
+                        <div class="bg-amber-50 border border-amber-200 rounded-[8px] p-3 text-sm flex items-center gap-2">
+                          <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                          <span class="text-amber-800">Please update your node to version {user.validator.target_version_bradbury}</span>
+                        </div>
+                      {/if}
+                    {/if}
+
+                    <div>
+                      <label
+                        for="nodeVersionBradbury"
+                        class="block text-sm font-medium text-gray-600 mb-1.5"
+                        >Node Version</label
+                      >
+                      <input
+                        id="nodeVersionBradbury"
+                        type="text"
+                        bind:value={nodeVersionBradbury}
+                        class="w-full px-4 py-3 bg-[#FCFCFC] border border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors"
+                        placeholder="e.g., 0.1.0"
+                        disabled={isSaving}
+                      />
+                      <p class="mt-1 text-xs text-gray-400">Your Bradbury network node version</p>
+                    </div>
+
+                    {#if bradburyWallets.length > 0}
+                      <div>
+                        <span class="block text-sm font-medium text-gray-600 mb-1.5">Linked Wallets</span>
+                        <div class="space-y-2">
+                          {#each bradburyWallets as wallet}
+                            <div class="flex items-center gap-2 bg-[#f7f8f9] rounded-[8px] px-3 py-2 border border-[#f0f0f0]">
+                              <span class="font-mono text-xs text-gray-700 break-all flex-1">{wallet.address}</span>
+                              {#if wallet.status}
+                                <span class="text-xs px-2 py-0.5 rounded-full whitespace-nowrap {wallet.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">{wallet.status}</span>
+                              {/if}
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+                </div>
+              </div>
+            {/if}
           </div>
         </div>
       </div>
@@ -752,6 +979,17 @@
     </div>
   {/if}
 </div>
+
+<!-- Image Cropper Modal -->
+{#if showImageCropper && cropperImage}
+  <ImageCropper
+    image={cropperImage}
+    aspectRatio={cropperAspectRatio}
+    title={cropperTitle}
+    onCrop={cropperCallback}
+    onCancel={handleCropCancel}
+  />
+{/if}
 
 <style>
   @font-face {

@@ -50,7 +50,6 @@
   import Hackathon from './routes/Hackathon.svelte';
   import ReferralProgram from './routes/ReferralProgram.svelte';
   import HowItWorks from './routes/HowItWorks.svelte';
-  import GlobalDashboard from './components/GlobalDashboard.svelte';
   import StartupRequestDetail from './routes/StartupRequestDetail.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
 
@@ -64,7 +63,6 @@
     // Overview and Testnet Asimov routes
     '/': Overview,
     '/how-it-works': HowItWorks,
-    '/asimov': GlobalDashboard,
     '/contributions': Contributions,
     '/all-contributions': AllContributions,
     '/contributions/highlights': Highlights,

@@ -9,7 +9,7 @@
   import StatCardRow from '../components/ui/StatCardRow.svelte';
   import RankedList from '../components/ui/RankedList.svelte';
   import UserCardScroller from '../components/ui/UserCardScroller.svelte';
-  import HighlightCards from '../components/ui/HighlightCards.svelte';
+  import PortalHighlights from '../components/portal/PortalHighlights.svelte';
   import CTASection from '../components/ui/CTASection.svelte';
   import Podium from '../components/ui/Podium.svelte';
 
@@ -21,7 +21,6 @@
   let statsData = $state([]);
   let leaderboardEntries = $state([]);
   let newestMembers = $state([]);
-  let highlights = $state([]);
   let waitlistEntries = $state([]);
   let trendingEntries = $state([]);
   let recentContributions = $state([]);
@@ -29,7 +28,6 @@
   let statsLoading = $state(true);
   let leaderboardLoading = $state(true);
   let membersLoading = $state(true);
-  let highlightsLoading = $state(true);
   let waitlistLoading = $state(true);
   let trendingLoading = $state(true);
   let recentLoading = $state(true);
@@ -93,11 +91,6 @@
         membersLoading = false;
       }).catch(() => { membersLoading = false; }),
 
-      // Highlights
-      contributionsAPI.getAllHighlights({ limit: 3, category: cat }).then(res => {
-        highlights = res.data || [];
-        highlightsLoading = false;
-      }).catch(() => { highlightsLoading = false; }),
     ];
 
     // Validator-only fetches
@@ -223,11 +216,10 @@
       linkText="Explore all"
       linkPath={isBuilder ? '/builders/contributions/highlights' : '/validators/contributions/highlights'}
     />
-    <HighlightCards
-      {highlights}
-      loading={highlightsLoading}
-      layout="grid"
+    <PortalHighlights
       category={category}
+      limit={3}
+      showHeader={false}
     />
   </div>
 

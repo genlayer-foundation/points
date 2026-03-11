@@ -847,7 +847,7 @@
         </div>
       {/if}
 
-      <div class="w-full px-0 mx-0">
+      <div class="w-auto -mx-3 -mb-3">
         <CTABanner variant="dark" {participant} {referralData} />
       </div>
     {/if}

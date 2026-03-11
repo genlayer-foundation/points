@@ -69,7 +69,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             'user__validator',
             'user__builder',
             'user__steward',
-            'user__creator'
+            'user__creator',
+            'user__referral_points'
         )
 
         # Annotate with validator wallet counts to avoid N+1 queries
@@ -495,7 +496,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
 
         referral_qs = ReferralPoints.objects.select_related('user').annotate(
             total_points=F('builder_points') + F('validator_points')
-        ).filter(user__visible=True, total_points__gt=0).order_by('-total_points')
+        ).filter(user__visible=True, total_points__gt=0)
 
         # Aggregate totals at DB level
         totals = referral_qs.aggregate(

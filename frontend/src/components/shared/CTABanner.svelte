@@ -134,24 +134,22 @@
 {#if variant === "dark"}
     <!-- Dark variant (Profile page) -->
     <div
-        class="relative w-full rounded-[16px] overflow-hidden p-[48px] md:p-[64px] flex flex-col items-center justify-center text-center mt-12 mb-8 border border-white/10 shadow-2xl"
+        class="relative w-full overflow-hidden px-[20px] py-[120px] md:py-[160px] flex flex-col items-center justify-center text-center bg-[#131214]"
     >
-        <!-- Complex Gradient Background -->
+        <!-- Iridescent gradient background -->
         <div
-            class="absolute inset-0 z-0 bg-[#0f0f0f]"
+            class="absolute inset-0 pointer-events-none"
             style="
-            background: radial-gradient(circle at 15% 85%, rgba(132, 114, 255, 0.45) 0%, transparent 45%),
-                        radial-gradient(circle at 85% 95%, rgba(245, 168, 152, 0.4) 0%, transparent 45%),
-                        radial-gradient(circle at 50% 120%, rgba(105, 222, 187, 0.3) 0%, transparent 50%),
-                        #0f0f0f;
-        "
-        ></div>
-
-        <!-- Noise overlay for premium texture -->
-        <div
-            class="absolute inset-0 z-0 opacity-[0.03] mix-blend-overlay pointer-events-none"
-            style="background-image: url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E');"
-        ></div>
+                -webkit-mask-image: radial-gradient(ellipse 130% 90% at 50% 100%, black 20%, transparent 70%);
+                mask-image: radial-gradient(ellipse 130% 90% at 50% 100%, black 20%, transparent 70%);
+            "
+        >
+            <img
+                src="/assets/illustrations/cta-gradient.webp"
+                alt=""
+                class="absolute inset-0 w-full h-full object-cover"
+            />
+        </div>
 
         <!-- Content Container -->
         <div class="relative z-10 flex flex-col items-center max-w-[800px] mx-auto">

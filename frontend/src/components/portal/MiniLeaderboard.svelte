@@ -24,11 +24,11 @@
       const [bRes, vRes, cRes] = await Promise.all([
         leaderboardAPI.getLeaderboard({ type: 'builder', limit: LIMIT }),
         leaderboardAPI.getLeaderboard({ type: 'validator', limit: LIMIT }),
-        leaderboardAPI.getCommunity(),
+        leaderboardAPI.getCommunity({ limit: LIMIT }),
       ]);
       builders = extractEntries(bRes.data);
       validators = extractEntries(vRes.data);
-      community = (cRes.data?.top_community ?? []).slice(0, LIMIT);
+      community = (cRes.data?.results ?? []).slice(0, LIMIT);
     } catch (err) {
       error = err.message || 'Failed to load leaderboard';
     } finally {
@@ -132,9 +132,9 @@
     <!-- 3-column layout -->
     <div class="flex flex-col md:flex-row gap-[12px]">
       <!-- Builders column -->
-      {@render column('Builders', builders, '/builders', 'builder')}
+      {@render column('Builders', builders, '/builders/leaderboard', 'builder')}
       <!-- Validators column -->
-      {@render column('Validators', validators, '/validators', 'validator')}
+      {@render column('Validators', validators, '/validators/leaderboard', 'validator')}
       <!-- Community column -->
       {@render communityColumn()}
     </div>
@@ -221,7 +221,7 @@
         {@render labelIcon('community')}
         <span class="text-[14px] font-medium text-black" style="letter-spacing: 0.28px;">Community</span>
       </div>
-      <button onclick={() => push('/leaderboard')} class="flex items-center gap-[4px] text-[14px] text-[#6b6b6b] hover:text-black transition-colors" style="letter-spacing: 0.28px;">
+      <button onclick={() => push('/community')} class="flex items-center gap-[4px] text-[14px] text-[#6b6b6b] hover:text-black transition-colors" style="letter-spacing: 0.28px;">
         View all
         <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
       </button>
