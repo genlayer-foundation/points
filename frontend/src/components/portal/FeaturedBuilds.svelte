@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { featuredAPI } from '../../lib/api.js';
 
+  let { title = 'Featured Builds', subtitle = 'This month curated builds' } = $props();
+
   let builds = $state([]);
   let loading = $state(true);
 
@@ -23,12 +25,8 @@
 <div>
   <div class="flex items-end justify-between mb-3">
     <div class="flex flex-col gap-1">
-      <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: 0.4px;">Featured Builds</h2>
-      <p class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">This month curated builds</p>
-    </div>
-    <div class="flex items-center gap-1">
-      <span class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">Explore all </span>
-      <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
+      <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: 0.4px;">{title}</h2>
+      <p class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">{subtitle}</p>
     </div>
   </div>
 

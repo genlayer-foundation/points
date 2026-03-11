@@ -23,6 +23,7 @@
   import arrowRightDark from '../assets/hackathon/arrow-right-dark.svg';
   import pointsGradientIcon from '../assets/hackathon/points-gradient-icon.svg';
   import glSymbolSmall from '../assets/hackathon/gl-symbol-small.svg';
+  import FeaturedBuilds from '../components/portal/FeaturedBuilds.svelte';
 
   const heroTrack = {
     icon: trackPrediction,
@@ -243,9 +244,9 @@
     </div>
   </section>
 
-  <!-- Timeline Section -->
+  <!-- Details Section -->
   <section class="flex flex-col gap-6 md:gap-10 items-center py-3 md:p-5 max-w-full">
-    <h2 class="text-[32px] md:text-[48px] font-display font-medium leading-[40px] md:leading-[56px] tracking-[-0.64px] md:tracking-[-0.96px] text-center text-black">Timeline</h2>
+    <h2 class="text-[32px] md:text-[48px] font-display font-medium leading-[40px] md:leading-[56px] tracking-[-0.64px] md:tracking-[-0.96px] text-center text-black">Details</h2>
     <div class="flex flex-col md:flex-row md:flex-nowrap items-start gap-3 w-full">
       <!-- Hacking Period -->
       <div class="flex flex-col gap-3 md:gap-4 w-full md:w-auto md:shrink-0">
@@ -300,6 +301,19 @@
         </div>
       </div>
     </div>
+
+    <!-- Perks -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 w-full">
+      {#each perks as perk}
+        <div class="bg-white border border-[#f0f0f0] rounded-lg p-[21px] flex items-start gap-4" style="box-shadow: 0px 4px 12px 0px rgba(0,0,0,0.05);">
+          <img src={perk.icon} alt="" class="w-12 h-12 shrink-0" />
+          <div class="flex flex-col gap-1">
+            <h4 class="text-[18px] md:text-[20px] font-medium leading-[23px] md:leading-[25px] tracking-[0.4px] text-black">{perk.title}</h4>
+            <p class="text-[14px] leading-[21px] text-[#6b6b6b] tracking-[0.28px]">{perk.subtitle}</p>
+          </div>
+        </div>
+      {/each}
+    </div>
   </section>
 
   <!-- Requirements Section -->
@@ -320,18 +334,8 @@
     </div>
   </section>
 
-  <!-- Perks Grid -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-    {#each perks as perk}
-      <div class="bg-white border border-[#f0f0f0] rounded-lg p-[21px] flex items-start gap-4" style="box-shadow: 0px 4px 12px 0px rgba(0,0,0,0.05);">
-        <img src={perk.icon} alt="" class="w-12 h-12 shrink-0" />
-        <div class="flex flex-col gap-1">
-          <h4 class="text-[18px] md:text-[20px] font-medium leading-[23px] md:leading-[25px] tracking-[0.4px] text-black">{perk.title}</h4>
-          <p class="text-[14px] leading-[21px] text-[#6b6b6b] tracking-[0.28px]">{perk.subtitle}</p>
-        </div>
-      </div>
-    {/each}
-  </div>
+  <!-- Featured Projects -->
+  <FeaturedBuilds title="What We Expect" subtitle="Projects built on GenLayer that show what's possible" />
 
   <!-- Sponsors Section -->
   <section class="flex flex-col gap-4 md:gap-6 items-center py-3 md:py-5">
