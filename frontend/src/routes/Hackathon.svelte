@@ -123,7 +123,7 @@
           <span class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px]">Performance, security, and economics are tested live</span>
         </div>
       </div>
-      <a href="https://genlayer.com/blog/bradbury" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-[#4083ea] text-[14px] font-medium tracking-[0.28px] hover:underline">
+      <a href="https://x.com/raskovsky/status/2008978733378724180" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-[#4083ea] text-[14px] font-medium tracking-[0.28px] hover:underline">
         Read more about Bradbury →
       </a>
     </div>
@@ -134,6 +134,39 @@
         <img src={playIcon} alt="" class="w-6 h-6 opacity-40" />
       </div>
       <span class="text-[#ababab] text-[12px] tracking-[0.24px]">Video coming soon</span>
+    </div>
+  </section>
+
+  <!-- Dev Fee Section -->
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-3 md:pt-5 px-0 md:px-5">
+    <!-- Text column (first on mobile, right on desktop) -->
+    <div class="flex flex-col gap-4 lg:order-last">
+      <h2 class="text-[24px] md:text-[40px] font-display font-medium leading-[32px] md:leading-[48px] tracking-[-0.48px] md:tracking-[-0.8px] text-black">Build Once, Earn Forever</h2>
+      <p class="text-[#6b6b6b] text-[15px] md:text-[17px] leading-[24px] md:leading-[28px] tracking-[0.34px]">
+        Most hackathons give you a one-time prize. GenLayer gives you a revenue stream. Every Intelligent Contract deployed on GenLayer earns its creator up to 20% of all transaction fees it generates — permanently.
+      </p>
+      <p class="text-[#ababab] text-[13px] md:text-[14px] leading-[20px] md:leading-[22px] tracking-[0.28px]">
+        Testnet contracts don't migrate, but the best builders do. Top hackathon projects get priority mainnet deployment and first access to GenLayer's dev fee model.
+      </p>
+      <a href="https://talks.genlayer.foundation/t/dev-fee-tokenomics-build-once-earn-forever/19" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-[#4083ea] text-[14px] font-medium tracking-[0.28px] hover:underline">
+        Learn about the Dev Fee model →
+      </a>
+    </div>
+
+    <!-- Benefit cards (second on mobile, left on desktop) -->
+    <div class="flex flex-col gap-3 lg:order-first">
+      <div class="bg-white border border-[#f0f0f0] rounded-lg p-[21px] flex flex-col gap-1.5" style="box-shadow: 0px 4px 12px 0px rgba(0,0,0,0.05);">
+        <h4 class="text-[18px] md:text-[20px] font-medium leading-[23px] md:leading-[25px] tracking-[0.4px] text-black">Recurring Revenue</h4>
+        <p class="text-[14px] leading-[21px] text-[#6b6b6b] tracking-[0.28px]">Earn from every transaction your contract processes, forever</p>
+      </div>
+      <div class="bg-white border border-[#f0f0f0] rounded-lg p-[21px] flex flex-col gap-1.5" style="box-shadow: 0px 4px 12px 0px rgba(0,0,0,0.05);">
+        <h4 class="text-[18px] md:text-[20px] font-medium leading-[23px] md:leading-[25px] tracking-[0.4px] text-black">Scales With Adoption</h4>
+        <p class="text-[14px] leading-[21px] text-[#6b6b6b] tracking-[0.28px]">More users means more fees, no cap on earnings</p>
+      </div>
+      <div class="bg-white border border-[#f0f0f0] rounded-lg p-[21px] flex flex-col gap-1.5" style="box-shadow: 0px 4px 12px 0px rgba(0,0,0,0.05);">
+        <h4 class="text-[18px] md:text-[20px] font-medium leading-[23px] md:leading-[25px] tracking-[0.4px] text-black">Composability Bonus</h4>
+        <p class="text-[14px] leading-[21px] text-[#6b6b6b] tracking-[0.28px]">Other devs building on your contract amplify your revenue</p>
+      </div>
     </div>
   </section>
 
@@ -244,6 +277,24 @@
     </div>
   </section>
 
+  <!-- Requirements Section -->
+  <section class="flex flex-col items-center py-3 md:p-5">
+    <div class="flex flex-col gap-4 md:gap-6 items-center w-full">
+      <h2 class="text-[32px] md:text-[48px] font-display font-medium leading-[40px] md:leading-[56px] tracking-[-0.64px] md:tracking-[-0.96px] text-black text-center">Requirements</h2>
+      <p class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px] text-center">Your project must include an Intelligent Contract with:</p>
+      <div class="inline-flex flex-wrap justify-center items-start gap-3 px-3 py-2 rounded-[22px] border border-[#a77fee]">
+        <div class="flex items-center gap-2.5">
+          <img src={checkboxCircle} alt="" class="w-4 h-4 shrink-0" />
+          <span class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px] whitespace-nowrap">Optimistic Democracy consensus</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <img src={checkboxCircle} alt="" class="w-4 h-4 shrink-0" />
+          <span class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px] whitespace-nowrap">Equivalence Principle</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Details Section -->
   <section class="flex flex-col gap-6 md:gap-10 items-center py-3 md:p-5 max-w-full">
     <h2 class="text-[32px] md:text-[48px] font-display font-medium leading-[40px] md:leading-[56px] tracking-[-0.64px] md:tracking-[-0.96px] text-center text-black">Details</h2>
@@ -313,24 +364,6 @@
           </div>
         </div>
       {/each}
-    </div>
-  </section>
-
-  <!-- Requirements Section -->
-  <section class="flex flex-col items-center py-3 md:p-5">
-    <div class="flex flex-col gap-4 md:gap-6 items-center w-full">
-      <h2 class="text-[32px] md:text-[48px] font-display font-medium leading-[40px] md:leading-[56px] tracking-[-0.64px] md:tracking-[-0.96px] text-black text-center">Requirements</h2>
-      <p class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px] text-center">Your project must include an Intelligent Contract with:</p>
-      <div class="inline-flex flex-wrap justify-center items-start gap-3 px-3 py-2 rounded-[22px] border border-[#a77fee]">
-        <div class="flex items-center gap-2.5">
-          <img src={checkboxCircle} alt="" class="w-4 h-4 shrink-0" />
-          <span class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px] whitespace-nowrap">Optimistic Democracy consensus</span>
-        </div>
-        <div class="flex items-center gap-2.5">
-          <img src={checkboxCircle} alt="" class="w-4 h-4 shrink-0" />
-          <span class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px] whitespace-nowrap">Equivalence Principle</span>
-        </div>
-      </div>
     </div>
   </section>
 
