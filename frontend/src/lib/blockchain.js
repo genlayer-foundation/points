@@ -42,7 +42,7 @@ const CONTRACT_INFO = {
 const NETWORKS = {
   asimov: {
     chainId: '0x107D', // 4221 in hex
-    chainName: 'GenLayer Asimov Testnet',
+    chainName: 'GenLayer Testnet Chain',
     nativeCurrency: {
       name: 'GEN',
       symbol: 'GEN',
@@ -68,7 +68,7 @@ const NETWORKS = {
 const ASIMOV_NETWORK = NETWORKS.asimov;
 
 /**
- * Ensure the wallet is connected to the Asimov network
+ * Ensure the wallet is connected to the TestNet network
  * @returns {Promise<void>}
  */
 async function ensureAsimovNetwork() {
@@ -80,12 +80,12 @@ async function ensureAsimovNetwork() {
     // Get current chain ID
     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
 
-    // If already on Asimov, return
+    // If already on TestNet, return
     if (chainId === ASIMOV_NETWORK.chainId) {
       return;
     }
 
-    // Try to switch to Asimov network
+    // Try to switch to TestNet network
     await window.ethereum.request({
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: ASIMOV_NETWORK.chainId }],
@@ -202,7 +202,7 @@ export async function unbanValidator(address) {
       throw new Error('MetaMask is not installed');
     }
 
-    // Ensure wallet is on Asimov network
+    // Ensure wallet is on TestNet network
     await ensureAsimovNetwork();
 
     // Get contract info from backend
@@ -272,7 +272,7 @@ export async function unbanAllValidators() {
       throw new Error('MetaMask is not installed');
     }
 
-    // Ensure wallet is on Asimov network
+    // Ensure wallet is on TestNet network
     await ensureAsimovNetwork();
 
     // Get contract info from backend

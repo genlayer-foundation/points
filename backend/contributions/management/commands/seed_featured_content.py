@@ -1,10 +1,10 @@
 import os
+import shutil
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from contributions.models import FeaturedContent
-from users.cloudinary_service import CloudinaryService
 
 User = get_user_model()
 
@@ -12,31 +12,26 @@ User = get_user_model()
 class Command(BaseCommand):
     help = 'Seeds FeaturedContent entries for the portal home page (hero banner and featured builds).'
 
-    def _upload_to_cloudinary(self, image_path, featured_obj, upload_type='hero'):
+    def _copy_to_media(self, source_path, relative_dest):
         """
-        Upload a local image file to Cloudinary and return the result dict.
-        Returns None if the file does not exist.
-
-        Args:
-            image_path: Absolute path to the local image file
-            featured_obj: FeaturedContent instance (used for naming)
-            upload_type: 'hero' or 'avatar'
+        Copy a file to MEDIA_ROOT if it doesn't already exist at the destination.
+        Returns the relative path within MEDIA_ROOT, or None if the source doesn't exist.
         """
-        if not os.path.exists(image_path):
-            self.stdout.write(self.style.WARNING(f"    Image not found: {image_path}"))
+        if not os.path.exists(source_path):
+            self.stdout.write(self.style.WARNING(f"    Image not found: {source_path}"))
             return None
 
-        try:
-            with open(image_path, 'rb') as f:
-                if upload_type == 'hero':
-                    result = CloudinaryService.upload_featured_image(f, featured_obj.pk)
-                else:
-                    result = CloudinaryService.upload_featured_avatar(f, featured_obj.pk)
-            self.stdout.write(self.style.SUCCESS(f"    Uploaded {upload_type}: {result['url'][:80]}..."))
-            return result
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"    Cloudinary upload failed for {upload_type}: {e}"))
-            return None
+        dest_path = os.path.join(settings.MEDIA_ROOT, relative_dest)
+        dest_dir = os.path.dirname(dest_path)
+        os.makedirs(dest_dir, exist_ok=True)
+
+        if not os.path.exists(dest_path):
+            shutil.copy2(source_path, dest_path)
+            self.stdout.write(self.style.SUCCESS(f"    Copied: {relative_dest}"))
+        else:
+            self.stdout.write(f"    Already exists: {relative_dest}")
+
+        return relative_dest
 
     def handle(self, *args, **options):
         media_root = settings.MEDIA_ROOT
@@ -83,9 +78,8 @@ class Command(BaseCommand):
         # ----------------------------------------------------------------
         hero_defaults = {
             'description': 'Deploy intelligent contracts, run validators, and earn GenLayer Points on the latest testnet.',
-            'subtitle': 'cognocracy',
+            'author': 'cognocracy',
             'user': users['cognocracy'],
-            'hero_image_url': '',
             'url': '',
             'is_active': True,
             'order': 0,
@@ -97,12 +91,12 @@ class Command(BaseCommand):
             defaults=hero_defaults,
         )
 
-        # Upload hero image to Cloudinary
-        hero_image_path = os.path.join(media_root, 'featured', 'hero-bg.png')
-        result = self._upload_to_cloudinary(hero_image_path, obj, 'hero')
+        # Copy hero image to media directory
+        hero_source = os.path.join(media_root, 'featured', 'hero-bg.png')
+        hero_rel = 'featured/hero-bg.png'
+        result = self._copy_to_media(hero_source, hero_rel)
         if result:
-            obj.hero_image_url = result['url']
-            obj.hero_image_public_id = result['public_id']
+            obj.hero_image = result
             obj.save()
 
         self.stdout.write(
@@ -116,24 +110,30 @@ class Command(BaseCommand):
             {
                 'title': 'Argue.fun',
                 'user': users['cognocracy'],
-                'hero_image_file': os.path.join(media_root, 'featured', 'argue-fun-bg.jpg'),
-                'avatar_file': os.path.join(media_root, 'featured', 'avatars', 'cognocracy-avatar.png'),
+                'hero_image_source': os.path.join(media_root, 'featured', 'argue-fun-bg.jpg'),
+                'hero_image_rel': 'featured/argue-fun-bg.jpg',
+                'avatar_source': os.path.join(media_root, 'featured', 'avatars', 'cognocracy-avatar.png'),
+                'avatar_rel': 'featured/avatars/cognocracy-avatar.png',
                 'url': '',
                 'order': 0,
             },
             {
                 'title': 'Internet Court',
                 'user': users['raskovsky'],
-                'hero_image_file': os.path.join(media_root, 'featured', 'internet-court-bg.jpg'),
-                'avatar_file': os.path.join(media_root, 'featured', 'avatars', 'raskovsky-avatar.png'),
+                'hero_image_source': os.path.join(media_root, 'featured', 'internet-court-bg.jpg'),
+                'hero_image_rel': 'featured/internet-court-bg.jpg',
+                'avatar_source': os.path.join(media_root, 'featured', 'avatars', 'raskovsky-avatar.png'),
+                'avatar_rel': 'featured/avatars/raskovsky-avatar.png',
                 'url': '',
                 'order': 1,
             },
             {
                 'title': 'Rally',
                 'user': users['GenLayer'],
-                'hero_image_file': os.path.join(media_root, 'featured', 'rally-bg.jpg'),
-                'avatar_file': os.path.join(media_root, 'featured', 'avatars', 'genlayer-avatar.png'),
+                'hero_image_source': os.path.join(media_root, 'featured', 'rally-bg.jpg'),
+                'hero_image_rel': 'featured/rally-bg.jpg',
+                'avatar_source': os.path.join(media_root, 'featured', 'avatars', 'genlayer-avatar.png'),
+                'avatar_rel': 'featured/avatars/genlayer-avatar.png',
                 'url': '',
                 'order': 2,
             },
@@ -145,28 +145,26 @@ class Command(BaseCommand):
                 title=build['title'],
                 defaults={
                     'user': build['user'],
-                    'hero_image_url': '',
                     'url': build['url'],
                     'is_active': True,
                     'order': build['order'],
                     'description': '',
-                    'subtitle': '',
+                    'author': '',
                 },
             )
 
-            # Upload hero image to Cloudinary
             updated = False
-            result = self._upload_to_cloudinary(build['hero_image_file'], obj, 'hero')
+
+            # Copy hero image to media directory
+            result = self._copy_to_media(build['hero_image_source'], build['hero_image_rel'])
             if result:
-                obj.hero_image_url = result['url']
-                obj.hero_image_public_id = result['public_id']
+                obj.hero_image = result
                 updated = True
 
-            # Upload avatar to Cloudinary
-            result = self._upload_to_cloudinary(build['avatar_file'], obj, 'avatar')
+            # Copy avatar to media directory
+            result = self._copy_to_media(build['avatar_source'], build['avatar_rel'])
             if result:
-                obj.user_profile_image_url = result['url']
-                obj.user_profile_image_public_id = result['public_id']
+                obj.user_profile_image = result
                 updated = True
 
             if updated:

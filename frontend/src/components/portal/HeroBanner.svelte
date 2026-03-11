@@ -1,14 +1,33 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { featuredAPI } from '../../lib/api.js';
 
   let { category = 'builder' } = $props();
 
-  let hero = $state(null);
+  let heroes = $state([]);
+  let currentIndex = $state(0);
+  let intervalId = $state(null);
   let loading = $state(true);
 
+  let hero = $derived(heroes.length > 0 ? heroes[currentIndex] : null);
   let isValidator = $derived(category === 'validator');
+
+  function startAutoAdvance() {
+    stopAutoAdvance();
+    if (heroes.length > 1) {
+      intervalId = setInterval(() => {
+        currentIndex = (currentIndex + 1) % heroes.length;
+      }, 5000);
+    }
+  }
+
+  function stopAutoAdvance() {
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  }
 
   onMount(async () => {
     if (isValidator) {
@@ -19,13 +38,18 @@
     try {
       const response = await featuredAPI.getHero();
       if (response.data && response.data.length > 0) {
-        hero = response.data[0];
+        heroes = response.data;
+        startAutoAdvance();
       }
     } catch (err) {
-      // API failed, hero stays null
+      // API failed, heroes stays empty
     } finally {
       loading = false;
     }
+  });
+
+  onDestroy(() => {
+    stopAutoAdvance();
   });
 
   let bgImage = $derived(hero?.hero_image_url || '/assets/hero-bg.png');
@@ -80,20 +104,32 @@
     </div>
   </div>
 {:else if hero}
-  <div class="relative overflow-hidden rounded-[8px] p-5 flex items-end" style="min-height: 300px; background: linear-gradient(to right, #8d81e1, #eae9f3);">
-    <!-- Background image -->
-    <div class="absolute inset-0">
-      <img src={bgImage} alt="" class="w-full h-full object-cover">
-      <div class="absolute inset-0" style="background: linear-gradient(to right, rgba(0,0,0,0.2), transparent);"></div>
-    </div>
+  <div
+    class="relative overflow-hidden rounded-[8px] p-5 flex items-end"
+    style="min-height: 300px; background: linear-gradient(to right, #8d81e1, #eae9f3);"
+    onmouseenter={stopAutoAdvance}
+    onmouseleave={startAutoAdvance}
+  >
+    <!-- Background images — crossfade via stacked layers -->
+    {#each heroes as h, i}
+      <div
+        class="absolute inset-0 transition-opacity duration-700 ease-in-out"
+        style="opacity: {i === currentIndex ? 1 : 0};"
+      >
+        <img src={h.hero_image_url || '/assets/hero-bg.png'} alt="" class="w-full h-full object-cover">
+        <div class="absolute inset-0" style="background: linear-gradient(to right, rgba(0,0,0,0.2), transparent);"></div>
+      </div>
+    {/each}
 
     <!-- Card overlay — frosted glass matching Figma -->
     <div class="relative z-10 rounded-[24px] p-4 flex flex-col gap-4 w-full md:w-[386px] backdrop-blur-[10px]" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25); box-shadow: inset 0 1px 1px rgba(255,255,255,0.15), 0 0 20px rgba(255,255,255,0.05);">
       <div class="flex flex-col">
-        <div class="flex items-center gap-1">
-          <span class="text-white/60 text-xs font-medium leading-none" style="letter-spacing: 0.24px;">By {hero.subtitle || hero.user_name || 'Unknown'}</span>
-          <img src="/assets/icons/verified-badge-fill.svg" alt="Verified" class="w-4 h-4 flex-shrink-0">
-        </div>
+        {#if hero.author || hero.user_name}
+          <div class="flex items-center gap-1">
+            <span class="text-white/60 text-xs font-medium leading-none" style="letter-spacing: 0.24px;">By {hero.author || hero.user_name}</span>
+            <img src="/assets/icons/verified-badge-fill.svg" alt="Verified" class="w-4 h-4 flex-shrink-0">
+          </div>
+        {/if}
         <h2 class="font-display text-[32px] font-medium text-white leading-[38px]" style="letter-spacing: -1.28px;">
           {hero.title}
         </h2>
@@ -102,12 +138,26 @@
         </p>
       </div>
 
-      <div>
-        <a href={projectLink} target={projectLink.startsWith('http') ? '_blank' : undefined} rel={projectLink.startsWith('http') ? 'noopener noreferrer' : undefined} class="inline-flex h-10 px-4 bg-white rounded-[20px] items-center gap-2 hover:bg-white/90 transition-colors">
-          <span class="text-black text-sm font-medium" style="letter-spacing: 0.28px;">View project</span>
-          <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
-        </a>
-      </div>
+      {#if hero.link || hero.url}
+        <div>
+          <a href={projectLink} target={projectLink.startsWith('http') ? '_blank' : undefined} rel={projectLink.startsWith('http') ? 'noopener noreferrer' : undefined} class="inline-flex h-10 px-4 bg-white rounded-[20px] items-center gap-2 hover:bg-white/90 transition-colors">
+            <span class="text-black text-sm font-medium" style="letter-spacing: 0.28px;">View project</span>
+            <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
+          </a>
+        </div>
+      {/if}
     </div>
+
+    {#if heroes.length > 1}
+      <div class="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 rounded-full px-2 py-1.5 backdrop-blur-sm" style="background: rgba(0,0,0,0.25);">
+        {#each heroes as _, i}
+          <button
+            onclick={() => { currentIndex = i; startAutoAdvance(); }}
+            class="h-1.5 rounded-full transition-all duration-400 ease-out {i === currentIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/40 hover:bg-white/70'}"
+            aria-label="Go to slide {i + 1}"
+          ></button>
+        {/each}
+      </div>
+    {/if}
   </div>
 {/if}

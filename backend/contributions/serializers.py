@@ -722,19 +722,32 @@ class FeaturedContentSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.name', read_only=True)
     user_address = serializers.CharField(source='user.address', read_only=True)
     user_profile_image_url = serializers.SerializerMethodField()
+    hero_image_url = serializers.SerializerMethodField()
     link = serializers.SerializerMethodField()
 
     class Meta:
         model = FeaturedContent
-        fields = ['id', 'content_type', 'title', 'description', 'subtitle',
+        fields = ['id', 'content_type', 'title', 'description', 'author',
                   'hero_image_url', 'url', 'link',
                   'user', 'user_name', 'user_address', 'user_profile_image_url',
                   'contribution', 'is_active', 'order', 'created_at']
 
+    def get_hero_image_url(self, obj):
+        """Return absolute URL for the hero image if set."""
+        if obj.hero_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.hero_image.url)
+            return obj.hero_image.url
+        return ''
+
     def get_user_profile_image_url(self, obj):
-        """Return the FeaturedContent's user_profile_image_url if set, otherwise fall back to user's profile_image_url."""
-        if obj.user_profile_image_url:
-            return obj.user_profile_image_url
+        """Return the FeaturedContent's user_profile_image if set, otherwise fall back to user's profile_image_url."""
+        if obj.user_profile_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.user_profile_image.url)
+            return obj.user_profile_image.url
         if obj.user and obj.user.profile_image_url:
             return obj.user.profile_image_url
         return ''
