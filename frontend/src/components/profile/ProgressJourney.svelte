@@ -56,7 +56,7 @@
 
     const ASIMOV_NETWORK = {
         chainId: "0x107D",
-        chainName: "GenLayer Asimov Testnet",
+        chainName: "GenLayer Testnet Chain",
         nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
         rpcUrls: ["https://zksync-os-testnet-genlayer.zksync.dev"],
         blockExplorerUrls: [
@@ -527,7 +527,7 @@
             </div>
         </div>
 
-        <!-- Requirement 5: At Asimov Network -->
+        <!-- Requirement 5: Add GenLayer Testnet Chain -->
         <div class="flex items-center justify-between py-1">
             <div class="flex items-center gap-3 w-full md:w-auto">
                 <div
@@ -577,7 +577,7 @@
                 <div class="flex flex-col">
                     <span
                         class="font-['Switzer'] font-medium text-[14px] text-black tracking-[0.28px]"
-                        >Add Asimov Network</span
+                        >Add GenLayer Testnet Chain</span
                     >
                     <span
                         class="font-['Switzer'] font-medium text-[12px] text-[#6b6b6b] tracking-[0.24px]"
