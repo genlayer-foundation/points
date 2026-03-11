@@ -24,13 +24,42 @@
   import pointsGradientIcon from '../assets/hackathon/points-gradient-icon.svg';
   import glSymbolSmall from '../assets/hackathon/gl-symbol-small.svg';
 
+  const heroTrack = {
+    icon: trackPrediction,
+    title: 'Agentic Economy Infrastructure',
+    description: 'Agents will soon start interacting with each other. Build the needed infra for their economy to flourish.',
+    examples: [
+      { label: 'internetcourt.org', url: 'https://internetcourt.org' },
+      { label: 'mergeproof.com', url: 'https://mergeproof.com' },
+      { label: 'molly.fun', url: 'https://molly.fun' },
+    ],
+  };
+
   const tracks = [
-    { icon: trackPrediction, title: 'Prediction Markets & P2P Betting', description: 'Bet, predict, and trade on future outcomes with on-chain markets.', featured: false },
-    { icon: trackGovernance, title: 'AI Governance', description: 'AI-driven decisions and coordination between humans and agents.', featured: false },
-    { icon: trackWork, title: 'Future of Work', description: 'AI-verified deliverables, reputation tracking, and outcome-based payments.', featured: false },
-    { icon: trackJustice, title: 'Onchain Justice', description: 'Decentralized arbitration with AI-evaluated evidence and fair dispute resolution.', featured: false },
-    { icon: trackGaming, title: 'AI Gaming', description: 'Multiplayer games exploring coordination, social dynamics, and consensus.', featured: false },
-    { icon: trackConsensus, title: 'Bradbury: Subjective Consensus', description: 'Analyse and improve Bradbury\'s consensus: greyboxing, model routing, branchmarks, and appeals.', featured: true },
+    { icon: trackGovernance, title: 'AI Governance', description: 'AI-driven decisions and coordination between humans and agents.', featured: false, examples: [
+      { label: 'argue.fun', url: 'https://argue.fun' },
+      { label: 'Progressive Autonomy in DAOs', url: 'https://drive.google.com/file/d/1mTwAxJIaP7G_gNvxxaH3lL0zkq8Td-cA/view' },
+    ]},
+    { icon: trackPrediction, title: 'Prediction Markets & P2P Betting', description: 'Bet, predict, and trade on future outcomes with on-chain markets. Be the first P2P betting platform onchain.', featured: false, examples: [
+      { label: 'COFI bets', url: 'https://bet.courtofinternet.com/' },
+      { label: 'P2P bets', url: 'https://p2p-betting-mu.vercel.app/create' },
+      { label: 'Prediction Market Kit', url: 'https://pmkit.courtofinternet.com/' },
+    ]},
+    { icon: trackGaming, title: 'AI Gaming', description: 'Multiplayer games exploring coordination, social dynamics, and consensus.', featured: false, examples: [
+      { label: 'Mochi: Saving the Consensus', url: 'https://guess-picture.onrender.com/mochi-quest' },
+      { label: 'Unstoppable', url: 'https://unstoppable.fun/' },
+    ]},
+    { icon: trackWork, title: 'Future of Work', description: 'AI-verified deliverables, reputation tracking, and outcome-based payments.', featured: false, examples: [
+      { label: 'rally.fun', url: 'https://rally.fun' },
+      { label: 'mergeproof.com', url: 'https://mergeproof.com' },
+    ]},
+    { icon: trackJustice, title: 'Onchain Justice', description: 'Decentralized arbitration with AI-evaluated evidence and fair dispute resolution.', featured: false, examples: [
+      { label: 'internetcourt.org', url: 'https://internetcourt.org' },
+      { label: 'Cross border settlement', url: 'https://acastellana.github.io/conditional-payment-cross-border-trade/' },
+    ]},
+    { icon: trackConsensus, title: 'Bradbury Special Track', subtitle: 'Subjective Consensus', description: 'Analyse and improve Bradbury\'s consensus: greyboxing, model routing, branchmarks, and appeals.', featured: true, examples: [
+      { label: 'Intelligent Oracle Polymarket Benchmark', url: 'https://genlayer-benchmark.vercel.app/' },
+    ]},
   ];
 
   const perks = [
@@ -112,9 +141,19 @@
     <img src={prizeBackground} alt="" class="w-full h-auto min-h-[200px] md:min-h-0 object-cover" />
     <div class="absolute inset-0 flex items-center justify-center p-4 md:p-8">
       <div class="inline-grid relative scale-[0.42] sm:scale-[0.55] md:scale-75 lg:scale-100" style="grid-template-columns: max-content; grid-template-rows: max-content;">
-        <!-- $5,000 (largest, left-aligned, determines grid size) -->
-        <div class="col-start-1 row-start-1 flex items-center justify-center" style="width: 501px; height: 234px;">
-          <span class="text-white font-display font-bold text-[144px] leading-normal tracking-[-10.08px] whitespace-nowrap" style="transform: rotate(-3.75deg) skewX(-14.17deg) scaleY(0.97);">$5,000</span>
+        <!-- Builder Points (largest, center, determines grid size) -->
+        <div class="col-start-1 row-start-1 flex items-center justify-center gap-2" style="width: 501px; height: 234px;">
+          <span class="text-white font-display font-bold text-[120px] leading-normal tracking-[-8px] whitespace-nowrap" style="transform: rotate(-3.75deg) skewX(-14.17deg) scaleY(0.97);">Builder</span>
+          <!-- Rotated hexagon icon with GL symbol -->
+          <div class="relative shrink-0 flex items-center justify-center" style="width: 100px; height: 100px; transform: rotate(-3.75deg) skewX(-14.17deg) scaleY(0.97);">
+            <div style="width: 90px; height: 90px;">
+              <img src={pointsGradientIcon} alt="" class="absolute inset-0 w-full h-full" />
+              <div class="absolute inset-0 flex items-center justify-center">
+                <img src={glSymbolSmall} alt="" class="w-[48px] h-[48px]" />
+              </div>
+            </div>
+          </div>
+          <span class="text-white font-display font-bold text-[120px] leading-normal tracking-[-8px] whitespace-nowrap" style="transform: rotate(-3.75deg) skewX(-14.17deg) scaleY(0.97);">Points</span>
         </div>
         <!-- Prizes & Perks pill (centered above) -->
         <div class="col-start-1 row-start-1 ml-[199px] mt-[16px]">
@@ -122,20 +161,10 @@
             Prizes & Perks
           </span>
         </div>
-        <!-- + Builder [icon] Points (bottom-right) -->
-        <div class="col-start-1 row-start-1 flex items-center gap-1 ml-[211px] mt-[171px]">
-          <span class="text-[40px] font-display font-medium leading-[56px] tracking-[-0.8px] text-center whitespace-nowrap" style="background: linear-gradient(110deg, #f8b93d 15%, #ee8d24 50%, #db6917 85%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">+</span>
-          <span class="text-white text-[40px] font-display font-medium leading-[56px] tracking-[-0.8px] text-center whitespace-nowrap">Builder</span>
-          <!-- Rotated hexagon icon with GL symbol -->
-          <div class="relative shrink-0 flex items-center justify-center" style="width: 71px; height: 71px;">
-            <div class="rotate-[6.37deg]" style="width: 64px; height: 64px;">
-              <img src={pointsGradientIcon} alt="" class="absolute inset-0 w-full h-full" />
-              <div class="absolute inset-0 flex items-center justify-center">
-                <img src={glSymbolSmall} alt="" class="w-[34px] h-[34px]" />
-              </div>
-            </div>
-          </div>
-          <span class="text-white text-[40px] font-display font-medium leading-[56px] tracking-[-0.8px] text-center whitespace-nowrap">Points</span>
+        <!-- +$5,000 (bottom-right, smaller) -->
+        <div class="col-start-1 row-start-1 flex items-center justify-end gap-1 mt-[171px]">
+          <span class="text-[40px] font-display font-medium leading-[56px] tracking-[-0.8px] whitespace-nowrap" style="background: linear-gradient(110deg, #f8b93d 15%, #ee8d24 50%, #db6917 85%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">+</span>
+          <span class="text-white text-[40px] font-display font-medium leading-[56px] tracking-[-0.8px] whitespace-nowrap">$5,000</span>
         </div>
       </div>
     </div>
@@ -146,8 +175,41 @@
     <div class="flex flex-col gap-4 md:gap-6">
       <h2 class="text-[24px] md:text-[32px] font-display font-medium leading-[32px] md:leading-[40px] tracking-[-0.48px] md:tracking-[-0.64px] text-black">Choose your track</h2>
       <p class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px]">Build an Intelligent Contract with Optimistic Democracy consensus and Equivalence Principle</p>
+      <p class="text-[14px] md:text-[15px] text-[#6b6b6b] leading-[22px] md:leading-[24px] tracking-[0.28px]">Each track includes example projects to inspire what you could build.</p>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      <!-- Hero Track - spans full width -->
+      <div class="md:col-span-2 lg:col-span-3 rounded-lg p-[21px] md:p-[28px] flex flex-col gap-4 text-white relative overflow-hidden"
+           style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);">
+        <div class="absolute top-0 right-0 w-[300px] h-[300px] rounded-full opacity-[0.07]" style="background: radial-gradient(circle, #f8b93d, transparent 70%); transform: translate(30%, -30%);"></div>
+        <div class="absolute bottom-0 left-0 w-[200px] h-[200px] rounded-full opacity-[0.05]" style="background: radial-gradient(circle, #a77fee, transparent 70%); transform: translate(-30%, 30%);"></div>
+        <div class="relative flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          <div class="flex flex-col gap-3 md:max-w-[65%]">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-full flex items-center justify-center shrink-0" style="background: linear-gradient(135deg, #f8b93d, #ee8d24);">
+                <img src={heroTrack.icon} alt="" class="w-5 h-5 brightness-0 invert" />
+              </div>
+              <h3 class="font-display font-medium text-[20px] md:text-[24px] leading-[24px] md:leading-[28px] tracking-[-0.6px] text-white">{heroTrack.title}</h3>
+            </div>
+            <p class="text-[14px] md:text-[15px] leading-[22px] text-white/70">{heroTrack.description}</p>
+          </div>
+          <div class="flex flex-col gap-2 md:items-end shrink-0">
+            <span class="text-[11px] uppercase tracking-[1px] text-white/40 font-medium">Examples</span>
+            <div class="flex flex-wrap md:justify-end gap-2">
+              {#each heroTrack.examples as example}
+                <a href={example.url} target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium text-white/90 hover:text-white transition-colors"
+                   style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);">
+                  {example.label}
+                  <svg class="w-3 h-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                </a>
+              {/each}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Regular Tracks -->
       {#each tracks as track}
         <div class="rounded-lg p-[21px] flex flex-col gap-3 {track.featured ? 'text-white' : 'bg-white border border-[#f0f0f0]'}"
              style={track.featured ? 'background: linear-gradient(to bottom, #be8ff5, #ac6df3)' : ''}>
@@ -156,9 +218,26 @@
                  style={track.featured ? '' : 'background: linear-gradient(to bottom, #be8ff5, #ac6df3)'}>
               <img src={track.icon} alt="" class="w-5 h-5 brightness-0 invert" />
             </div>
-            <h3 class="font-display font-medium text-[18px] md:text-[20px] leading-[22px] md:leading-[24px] tracking-[-0.6px] {track.featured ? 'text-white' : 'text-black'}">{track.title}</h3>
+            <div class="flex flex-col">
+              <h3 class="font-display font-medium text-[18px] md:text-[20px] leading-[22px] md:leading-[24px] tracking-[-0.6px] {track.featured ? 'text-white' : 'text-black'}">{track.title}</h3>
+              {#if track.subtitle}
+                <span class="text-[12px] {track.featured ? 'text-white/60' : 'text-[#ababab]'}">{track.subtitle}</span>
+              {/if}
+            </div>
           </div>
           <p class="text-[14px] leading-[21px] {track.featured ? 'text-white/80' : 'text-[#6b6b6b]'}">{track.description}</p>
+          {#if track.examples?.length}
+            <div class="flex flex-wrap gap-1.5 mt-auto pt-1">
+              {#each track.examples as example}
+                <a href={example.url} target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors {track.featured ? 'text-white/80 hover:text-white' : 'text-[#6b6b6b] hover:text-black'}"
+                   style={track.featured ? 'background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2);' : 'background: #f5f5f5; border: 1px solid #ebebeb;'}>
+                  {example.label}
+                  <svg class="w-2.5 h-2.5 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                </a>
+              {/each}
+            </div>
+          {/if}
         </div>
       {/each}
     </div>
