@@ -55,7 +55,7 @@
         }
       }
 
-      document.title = `${pageTitle} - GenLayer Points`;
+      document.title = `${pageTitle} - GenLayer Portal`;
 
       // Set up Intersection Observer for active section tracking
       const observerOptions = {
@@ -95,7 +95,7 @@
 </script>
 
 <svelte:head>
-  <title>{pageTitle} - GenLayer Points</title>
+  <title>{pageTitle} - GenLayer Portal</title>
 </svelte:head>
 
 <div class="space-y-6 sm:space-y-8 pb-8 sm:pb-0">

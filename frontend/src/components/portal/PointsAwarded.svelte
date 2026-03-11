@@ -24,7 +24,7 @@
 
   <div class="relative z-10 px-8 md:px-20 py-32 md:py-40 text-center">
     <!-- Points Program label -->
-    <p class="text-[#9e9e9e] text-sm font-medium uppercase tracking-widest mb-6">Points Program</p>
+    <p class="text-[#9e9e9e] text-sm font-medium uppercase tracking-widest mb-6">Portal Program</p>
 
     <!-- Main title -->
     <h2 class="text-4xl md:text-[64px] font-medium text-white font-display leading-none mb-3" style="letter-spacing: -1.28px;">
@@ -34,7 +34,7 @@
       <span class="bg-gradient-to-r from-[#a78af8] to-[#fa8736] bg-clip-text text-transparent">Limited Supply</span>
     </p>
     <p class="text-[#9e9e9e] text-base max-w-md mx-auto mb-10">
-      Total GenLayer Points available for contributors
+      Total GenLayer Portal points available for contributors
     </p>
 
     <!-- Progress bar -->

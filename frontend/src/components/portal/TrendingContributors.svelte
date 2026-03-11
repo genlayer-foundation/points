@@ -67,7 +67,7 @@
   <div class="flex items-center justify-between">
     <div>
       <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: 0.4px;">Trending Contributors</h2>
-      <p class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">Highest GenLayer Points Contributions this week</p>
+      <p class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">Highest GenLayer Portal contributions this week</p>
     </div>
   </div>
 
