@@ -72,34 +72,41 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             'user__creator'
         )
 
-        # Annotate with validator wallet counts to avoid N+1 queries
-        queryset = queryset.annotate(
-            _active_validators_count=Count(
-                'user__validator__validator_wallets',
-                filter=Q(user__validator__validator_wallets__status='active')
-            ),
-            _total_validators_count=Count(
-                'user__validator__validator_wallets'
-            )
-        )
-
         # Filter by user address if provided
         user_address = self.request.query_params.get('user_address')
+        leaderboard_type = self.request.query_params.get('type')
+
         if user_address:
             queryset = queryset.filter(user__address__iexact=user_address)
             # When filtering by user, don't apply type filter unless explicitly provided
-            leaderboard_type = self.request.query_params.get('type')
             if leaderboard_type:
                 queryset = queryset.filter(type=leaderboard_type)
         else:
             # Get type from query params
-            leaderboard_type = self.request.query_params.get('type')
-
             if leaderboard_type:
                 queryset = queryset.filter(type=leaderboard_type)
             else:
                 # Default to validator leaderboard only when not filtering by user
+                leaderboard_type = 'validator'
                 queryset = queryset.filter(type='validator')
+
+        # Validator wallet count annotations are expensive and only needed
+        # for validator-oriented leaderboards.
+        needs_validator_counts = leaderboard_type in {
+            'validator',
+            'validator-waitlist',
+            'validator-waitlist-graduation',
+        }
+        if needs_validator_counts:
+            queryset = queryset.annotate(
+                _active_validators_count=Count(
+                    'user__validator__validator_wallets',
+                    filter=Q(user__validator__validator_wallets__status='active')
+                ),
+                _total_validators_count=Count(
+                    'user__validator__validator_wallets'
+                )
+            )
 
         # Handle rank ordering
         order = self.request.query_params.get('order', 'asc')
@@ -109,7 +116,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.order_by('rank')
 
         return queryset
-
     def list(self, request, *args, **kwargs):
         """
         Override to apply offset and limit after filtering/ordering.
@@ -612,3 +618,4 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response(results)
     
+
