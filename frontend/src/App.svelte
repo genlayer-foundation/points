@@ -41,13 +41,15 @@
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
   import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
-  import BuilderWelcome from './routes/BuilderWelcome.svelte';
+
   import GitHubCallback from './routes/GitHubCallback.svelte';
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
   import Referrals from './routes/Referrals.svelte';
   import Community from './routes/Community.svelte';
-  import GlobalDashboard from './components/GlobalDashboard.svelte';
+  import Hackathon from './routes/Hackathon.svelte';
+  import ReferralProgram from './routes/ReferralProgram.svelte';
+  import HowItWorks from './routes/HowItWorks.svelte';
   import StartupRequestDetail from './routes/StartupRequestDetail.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
 
@@ -60,7 +62,7 @@
     // Global/Testnet Asimov routes
     // Overview and Testnet Asimov routes
     '/': Overview,
-    '/asimov': GlobalDashboard,
+    '/how-it-works': HowItWorks,
     '/contributions': Contributions,
     '/all-contributions': AllContributions,
     '/contributions/highlights': Highlights,
@@ -69,6 +71,8 @@
     '/participants': Validators,
     '/referrals': Referrals,
     '/community': Community,
+    '/hackathon': Hackathon,
+    '/referral-program': ReferralProgram,
 
     // Builders routes
     '/builders': Dashboard,
@@ -77,7 +81,7 @@
     '/builders/contributions/highlights': Highlights,
     '/builders/highlights': Highlights,
     '/builders/leaderboard': Leaderboard,
-    '/builders/welcome': BuilderWelcome,
+
     '/builders/startup-requests/:id': StartupRequestDetail,
     
     // Validators routes
@@ -120,6 +124,9 @@
     const category = detectCategoryFromRoute($location);
     currentCategory.set(category);
   });
+
+  // How it works page needs full-bleed (no padding)
+  let isFullBleedPage = $derived($location === '/how-it-works');
   
   // Function to hide tooltips - used for route changes
   function hideTooltips() {
@@ -288,7 +295,7 @@
   <Navbar {toggleSidebar} {sidebarOpen} />
   <div class="flex-1 flex overflow-hidden">
     <Sidebar bind:isOpen={sidebarOpen} bind:collapsed={sidebarCollapsed} />
-    <main class="flex-1 overflow-y-auto px-3 py-3">
+    <main class="flex-1 overflow-y-auto {isFullBleedPage ? '' : 'px-3 py-3'}">
       <SystemAlerts />
       <Router
         {routes}

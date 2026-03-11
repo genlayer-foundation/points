@@ -287,8 +287,8 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         # Connect to the blockchain using environment variables
         w3 = Web3(Web3.HTTPProvider(settings.VALIDATOR_RPC_URL))
         
-        # Contract address from environment variables
-        contract_address = settings.VALIDATOR_CONTRACT_ADDRESS
+        # Contract address from network config (Asimov - this endpoint is Asimov-only)
+        contract_address = settings.TESTNET_NETWORKS['asimov']['staking_contract_address']
         
         # Minimal ABI for the validators functions
         abi = [

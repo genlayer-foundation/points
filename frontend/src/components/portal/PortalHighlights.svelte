@@ -4,6 +4,8 @@
   import { format } from 'date-fns';
   import { contributionsAPI } from '../../lib/api.js';
 
+  let { category = null, limit = 10, showHeader = true } = $props();
+
   let highlights = $state([]);
   let loading = $state(true);
   let error = $state(null);
@@ -37,7 +39,9 @@
 
   onMount(async () => {
     try {
-      const response = await contributionsAPI.getAllHighlights({ limit: 10 });
+      const params = { limit };
+      if (category) params.category = category;
+      const response = await contributionsAPI.getAllHighlights(params);
       highlights = response.data || [];
     } catch (err) {
       error = err.message;
@@ -48,16 +52,18 @@
 </script>
 
 <div>
-  <div class="flex items-center justify-between mb-4">
-    <div>
-      <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: -0.4px;">Highlighted Contributions</h2>
-      <p class="text-sm text-[#999]">Outstanding community contributions</p>
+  {#if showHeader}
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: -0.4px;">Highlighted Contributions</h2>
+        <p class="text-sm text-[#999]">Outstanding community contributions</p>
+      </div>
+      <button
+        onclick={() => push('/contributions/highlights')}
+        class="text-sm text-[#999] hover:text-black transition-colors"
+      >Explore all →</button>
     </div>
-    <button
-      onclick={() => push('/contributions/highlights')}
-      class="text-sm text-[#999] hover:text-black transition-colors"
-    >Explore all →</button>
-  </div>
+  {/if}
 
   {#if loading}
     <div class="flex gap-2.5 overflow-x-auto pb-2">
@@ -77,7 +83,7 @@
         {@const category = highlight.contribution_type_category || 'validator'}
         {@const colors = getCategoryColors(category)}
         <button
-          onclick={() => push(`/badge/${highlight.contribution}`)}
+          onclick={() => push(`/participant/${highlight.user_address}`)}
           class="flex-shrink-0 w-[300px] h-[180px] rounded-[8px] p-4 flex flex-col gap-2 text-left hover:shadow-md transition-shadow cursor-pointer"
           style="border: 1px solid #f5f5f5;"
         >
@@ -91,7 +97,7 @@
                   {(highlight.user_name || '?')[0].toUpperCase()}
                 </div>
               {/if}
-              <span class="text-sm font-medium" style="color: #bbb;">
+              <span class="text-sm font-medium text-black">
                 {highlight.user_name || `${highlight.user_address?.slice(0, 6)}...`}
               </span>
             </div>

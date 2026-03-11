@@ -67,18 +67,8 @@
   <div class="flex items-center justify-between">
     <div>
       <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: 0.4px;">Trending Contributors</h2>
-      <p class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">Highest GenLayer Points Contributions this week</p>
+      <p class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">Highest GenLayer Portal contributions this week</p>
     </div>
-    <button
-      onclick={() => push('/leaderboard')}
-      class="flex items-center gap-1 text-[14px] text-[#6b6b6b] hover:text-black transition-colors"
-      style="letter-spacing: 0.28px;"
-    >
-      View all
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-      </svg>
-    </button>
   </div>
 
   <!-- Cards -->

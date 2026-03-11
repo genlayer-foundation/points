@@ -4,6 +4,7 @@ Handles RPC calls to Staking, Factory, and ValidatorWallet contracts.
 """
 from typing import Dict, List, Optional, Any
 from django.conf import settings
+from django.utils import timezone
 from web3 import Web3
 
 from tally.middleware.logging_utils import get_app_logger
@@ -125,8 +126,10 @@ class GenLayerValidatorsService:
     Service class for syncing validator wallet data from GenLayer blockchain.
     """
 
-    def __init__(self):
-        """Initialize Web3 connection and contract instances."""
+    def __init__(self, network_key='asimov'):
+        """Initialize Web3 connection and contract instances for a specific network."""
+        self.network_key = network_key
+        self.network_config = settings.TESTNET_NETWORKS.get(network_key, {})
         self.w3 = None
         self.staking_contract = None
         self.factory_contract = None
@@ -137,25 +140,28 @@ class GenLayerValidatorsService:
         try:
             self.w3 = Web3(Web3.HTTPProvider(settings.VALIDATOR_RPC_URL))
 
-            # Staking contract (uses existing VALIDATOR_CONTRACT_ADDRESS)
+            staking_address = self.network_config.get('staking_contract_address')
+            if not staking_address:
+                logger.warning(f"No staking contract address configured for network '{self.network_key}'")
+                return False
+
             self.staking_contract = self.w3.eth.contract(
-                address=settings.VALIDATOR_CONTRACT_ADDRESS,
+                address=staking_address,
                 abi=STAKING_ABI
             )
 
-            # Factory contract (uses new FACTORY_CONTRACT_ADDRESS if available)
-            factory_address = getattr(settings, 'FACTORY_CONTRACT_ADDRESS', None)
+            factory_address = self.network_config.get('factory_contract_address')
             if factory_address:
                 self.factory_contract = self.w3.eth.contract(
                     address=factory_address,
                     abi=FACTORY_ABI
                 )
             else:
-                logger.warning("FACTORY_CONTRACT_ADDRESS not configured")
+                logger.warning(f"FACTORY_CONTRACT_ADDRESS not configured for network '{self.network_key}'")
 
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize GenLayerValidatorsService: {str(e)}")
+            logger.error(f"Failed to initialize GenLayerValidatorsService for '{self.network_key}': {str(e)}")
             return False
 
     def _get_validator_wallet_contract(self, wallet_address: str):
@@ -347,7 +353,7 @@ class GenLayerValidatorsService:
 
             # Also include existing validators from DB to catch "zombie" validators
             # that disappeared from both active and banned lists
-            existing_addresses = ValidatorWallet.objects.values_list('address', flat=True)
+            existing_addresses = ValidatorWallet.objects.filter(network=self.network_key).values_list('address', flat=True)
             for addr in existing_addresses:
                 all_addresses.add(addr.lower())
 
@@ -366,6 +372,9 @@ class GenLayerValidatorsService:
                 except Exception as e:
                     logger.error(f"Error processing validator: {str(e)}")
                     stats['errors'] += 1
+
+            # Record status snapshots for today
+            self._record_status_snapshots()
 
         except Exception as e:
             logger.error(f"Error during sync: {str(e)}")
@@ -396,10 +405,10 @@ class GenLayerValidatorsService:
 
         # Check if exists
         try:
-            wallet = ValidatorWallet.objects.get(address__iexact=address_lower)
+            wallet = ValidatorWallet.objects.get(address__iexact=address_lower, network=self.network_key)
             is_new = False
         except ValidatorWallet.DoesNotExist:
-            wallet = ValidatorWallet(address=address_lower)
+            wallet = ValidatorWallet(address=address_lower, network=self.network_key)
             is_new = True
 
         # Track if anything changed
@@ -494,6 +503,7 @@ class GenLayerValidatorsService:
         return [
             {
                 'address': w.address,
+                'network': w.network,
                 'status': w.status,
                 'v_stake': w.v_stake,
                 'd_stake': w.d_stake,
@@ -502,3 +512,47 @@ class GenLayerValidatorsService:
             }
             for w in wallets
         ]
+
+    def _record_status_snapshots(self):
+        """Record status snapshots for all wallets on this network for today."""
+        from .models import ValidatorWallet, ValidatorWalletStatusSnapshot
+
+        today = timezone.now().date()
+        wallets = ValidatorWallet.objects.filter(network=self.network_key)
+
+        snapshots = [
+            ValidatorWalletStatusSnapshot(wallet=wallet, date=today, status=wallet.status)
+            for wallet in wallets
+        ]
+        if snapshots:
+            ValidatorWalletStatusSnapshot.objects.bulk_create(
+                snapshots,
+                update_conflicts=True,
+                unique_fields=['wallet', 'date'],
+                update_fields=['status']
+            )
+
+    @classmethod
+    def sync_all_networks(cls):
+        """
+        Sync validators for all configured networks.
+        Skips networks without staking contract addresses configured.
+        Returns dict of per-network stats.
+        """
+        all_stats = {}
+        for network_key, config in settings.TESTNET_NETWORKS.items():
+            if not config.get('staking_contract_address'):
+                logger.info(f"Skipping network '{network_key}' - no staking contract configured")
+                continue
+
+            logger.info(f"Syncing validators for network '{network_key}'...")
+            try:
+                service = cls(network_key=network_key)
+                stats = service.sync_all_validators()
+                all_stats[network_key] = stats
+                logger.info(f"Network '{network_key}' sync complete: {stats}")
+            except Exception as e:
+                logger.error(f"Error syncing network '{network_key}': {str(e)}")
+                all_stats[network_key] = {'error': str(e)}
+
+        return all_stats
