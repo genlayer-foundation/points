@@ -49,7 +49,6 @@
   import Community from './routes/Community.svelte';
   import Hackathon from './routes/Hackathon.svelte';
   import ReferralProgram from './routes/ReferralProgram.svelte';
-  import GlobalDashboard from './components/GlobalDashboard.svelte';
   import StartupRequestDetail from './routes/StartupRequestDetail.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
 
@@ -62,7 +61,6 @@
     // Global/Testnet Asimov routes
     // Overview and Testnet Asimov routes
     '/': Overview,
-    '/asimov': GlobalDashboard,
     '/contributions': Contributions,
     '/all-contributions': AllContributions,
     '/contributions/highlights': Highlights,

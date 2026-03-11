@@ -113,7 +113,7 @@ export const leaderboardAPI = {
   getStats: () => api.get('/leaderboard/stats/'),
   getWaitlistStats: () => api.get('/leaderboard/validator-waitlist-stats/'),
   getWaitlistTop: (limit = 10) => api.get('/leaderboard/validator-waitlist/top/', { params: { limit } }),
-  getCommunity: () => api.get('/leaderboard/community/'),
+  getCommunity: (limit) => api.get('/leaderboard/community/', limit ? { params: { limit } } : undefined),
   getTrending: (limit = 10) => api.get('/leaderboard/trending/', { params: { limit } }),
   getTypes: () => api.get('/leaderboard/types/'),
   recalculateAll: () => api.post('/leaderboard/recalculate/')

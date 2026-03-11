@@ -215,7 +215,7 @@
   
   <!-- First Row: Race to Testnet and Recently Graduated -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-    <!-- Race to Testnet Asimov -->
+    <!-- Race to Testnet Asimov and Bradbury -->
     <div class="space-y-4">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
@@ -224,7 +224,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
             </svg>
           </div>
-          <h2 class="text-lg font-semibold text-gray-900">Race to Testnet Asimov</h2>
+          <h2 class="text-lg font-semibold text-gray-900">Race to Testnet Asimov and Bradbury</h2>
         </div>
         <button
           onclick={() => push('/validators/waitlist/participants')}
@@ -506,7 +506,7 @@
                 <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                 </svg>
-                Track your progress in the Race to Testnet Asimov
+                Track your progress in the Race to Testnet Asimov and Bradbury
               </li>
             </ul>
           </div>
@@ -539,7 +539,7 @@
             <ul class="list-disc list-inside mt-2 space-y-1">
               <li>Complete tasks and earn points to climb the leaderboard</li>
               <li>Graduates become active validators on Testnet Asimov</li>
-              <li>Track your progress in the Race to Testnet Asimov</li>
+              <li>Track your progress in the Race to Testnet Asimov and Bradbury</li>
             </ul>
           </div>
         </div>

@@ -69,7 +69,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             'user__validator',
             'user__builder',
             'user__steward',
-            'user__creator'
+            'user__creator',
+            'user__referral_points'
         )
 
         # Annotate with validator wallet counts to avoid N+1 queries
@@ -470,38 +471,55 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def community(self, request):
         """
-        Get community statistics and all community members with referral points.
+        Get community statistics and top community members with referral points.
         Returns users with referrals sorted by total referral points.
         """
         from .models import ReferralPoints
-        from users.serializers import UserSerializer
         from django.db.models import F
 
-        # Get all referral points ordered by total points (builder + validator)
-        referral_points = ReferralPoints.objects.select_related('user').annotate(
+        try:
+            limit = int(request.query_params.get('limit', 50))
+        except (ValueError, TypeError):
+            limit = 50
+        limit = min(max(limit, 1), 200)
+
+        # Base queryset with annotation
+        base_qs = ReferralPoints.objects.annotate(
             total_points=F('builder_points') + F('validator_points')
-        ).filter(user__visible=True, total_points__gt=0).order_by('-total_points')
+        ).filter(user__visible=True, total_points__gt=0)
 
-        # Calculate aggregate stats
-        total_community = referral_points.count()
-        total_builder_points = sum(rp.builder_points for rp in referral_points)
-        total_validator_points = sum(rp.validator_points for rp in referral_points)
+        # Aggregate stats in the DB (avoids materializing the full queryset)
+        agg = base_qs.aggregate(
+            total_community=Count('id'),
+            total_builder_points=Sum('builder_points'),
+            total_validator_points=Sum('validator_points'),
+        )
 
-        # Get all community members
+        # Fetch only top N with user profiles pre-loaded
+        top_rps = base_qs.select_related(
+            'user', 'user__builder', 'user__validator', 'user__steward'
+        ).order_by('-total_points')[:limit]
+
+        # Build lightweight dicts (same pattern as trending endpoint)
         top_community = []
-        for rp in referral_points:
-            user_data = UserSerializer(rp.user).data
+        for rp in top_rps:
+            user = rp.user
             top_community.append({
-                **user_data,
+                'name': user.name or '',
+                'address': user.address or '',
+                'profile_image_url': user.profile_image_url or '',
+                'builder': hasattr(user, 'builder'),
+                'validator': hasattr(user, 'validator'),
+                'steward': hasattr(user, 'steward'),
                 'builder_points': rp.builder_points,
                 'validator_points': rp.validator_points,
-                'total_points': rp.builder_points + rp.validator_points
+                'total_points': rp.builder_points + rp.validator_points,
             })
 
         return Response({
-            'total_community': total_community,
-            'total_builder_points': total_builder_points,
-            'total_validator_points': total_validator_points,
+            'total_community': agg['total_community'] or 0,
+            'total_builder_points': agg['total_builder_points'] or 0,
+            'total_validator_points': agg['total_validator_points'] or 0,
             'top_community': top_community
         })
 

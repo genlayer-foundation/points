@@ -24,7 +24,7 @@
       const [bRes, vRes, cRes] = await Promise.all([
         leaderboardAPI.getLeaderboard({ type: 'builder', limit: LIMIT }),
         leaderboardAPI.getLeaderboard({ type: 'validator', limit: LIMIT }),
-        leaderboardAPI.getCommunity(),
+        leaderboardAPI.getCommunity(LIMIT),
       ]);
       builders = extractEntries(bRes.data);
       validators = extractEntries(vRes.data);
