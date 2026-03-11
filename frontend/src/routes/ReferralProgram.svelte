@@ -225,7 +225,7 @@
               Join the portal
             </h3>
             <p class="text-[15px] md:text-[17px] text-[#656567]">
-              Sign up and create your GenLayer Points account to start tracking your contributions across the ecosystem.
+              Sign up and create your GenLayer Portal account to start tracking your contributions across the ecosystem.
             </p>
             <ul class="space-y-3">
               <li class="flex items-center gap-3">

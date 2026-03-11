@@ -1,7 +1,7 @@
 {
-  "name": "points-frontend",
+  "name": "portal-frontend",
   "version": "1.0.0",
-  "description": "Frontend for Points - GenLayer contribution tracking system",
+  "description": "Frontend for Portal - GenLayer contribution tracking system",
   "type": "module",
   "scripts": {
     "dev": "vite",

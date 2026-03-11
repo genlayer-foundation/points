@@ -137,7 +137,7 @@
           </div>
 
           <p class="text-gray-700 text-sm mb-2 text-center font-medium">
-            Welcome to GenLayer Points!
+            Welcome to GenLayer Portal!
           </p>
           <p class="text-gray-600 text-sm mb-6 text-center">
             Let's get started with the basics.
