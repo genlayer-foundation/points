@@ -386,6 +386,31 @@
       </button>
     {/if}
 
+    <!-- My Submissions link (authenticated only) -->
+    {#if $authState.isAuthenticated}
+      {#if !collapsed}
+        <button
+          onclick={() => navigate('/my-submissions')}
+          class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"
+        >
+          <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="#656567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
+          </svg>
+          <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">My Submissions</span>
+        </button>
+      {:else}
+        <button
+          onclick={() => navigate('/my-submissions')}
+          class="w-full flex px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors"
+          title="My Submissions"
+        >
+          <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="#656567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
+          </svg>
+        </button>
+      {/if}
+    {/if}
+
     <!-- User profile row -->
     <button
       onclick={handleProfileClick}
@@ -637,6 +662,17 @@
       <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
       <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">Submit Contribution</span>
     </button>
+    {#if $authState.isAuthenticated}
+      <button
+        onclick={() => navigate('/my-submissions')}
+        class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"
+      >
+        <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="#656567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
+        </svg>
+        <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">My Submissions</span>
+      </button>
+    {/if}
     <button
       onclick={handleProfileClick}
       class="w-full flex items-center justify-between pl-2 pr-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors"

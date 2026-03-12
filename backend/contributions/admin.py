@@ -688,14 +688,14 @@ class FeaturedContentAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            'fields': ('content_type', 'title', 'subtitle', 'description', 'is_active', 'order')
+            'fields': ('content_type', 'title', 'author', 'description', 'is_active', 'order')
         }),
         ('Relations', {
             'fields': ('user', 'contribution')
         }),
         ('Links & Media', {
-            'fields': ('hero_image_url', 'hero_image_public_id', 'user_profile_image_url', 'user_profile_image_public_id', 'url'),
-            'description': 'Paste Cloudinary URLs directly. Public IDs are used for image management.'
+            'fields': ('hero_image', 'user_profile_image', 'url'),
+            'description': 'Upload images directly. Django serves them from the media directory.'
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),

@@ -51,7 +51,7 @@
     <!-- Left: Logo -->
     <div class="flex items-center gap-1 px-1">
       <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex items-center">
-        <img src="/assets/gl-logo-points.svg" alt="GenLayer Portal" class="h-8 w-auto">
+        <img src="/assets/genlayer-portal-logo.svg" alt="GenLayer Portal" class="h-[32px] w-auto">
       </a>
     </div>
 
