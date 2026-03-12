@@ -51,6 +51,7 @@
   import ReferralProgram from './routes/ReferralProgram.svelte';
   import HowItWorks from './routes/HowItWorks.svelte';
   import StartupRequestDetail from './routes/StartupRequestDetail.svelte';
+  import GlobalDashboard from './components/GlobalDashboard.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
 
   // Define routes
@@ -62,6 +63,7 @@
     // Global/Testnet Asimov routes
     // Overview and Testnet Asimov routes
     '/': Overview,
+    '/testnets': GlobalDashboard,
     '/how-it-works': HowItWorks,
     '/contributions': Contributions,
     '/all-contributions': AllContributions,
