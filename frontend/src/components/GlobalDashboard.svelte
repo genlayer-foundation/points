@@ -240,7 +240,7 @@
                 style="letter-spacing: -0.96px;"
                 >{networkStats.asimov.total}</span
               >
-              <span class="text-[13px] text-gray-500">Validators</span>
+              <span class="text-[13px] text-gray-500">Active Validators</span>
             </div>
           </div>
 
