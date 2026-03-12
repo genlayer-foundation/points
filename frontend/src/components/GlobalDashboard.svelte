@@ -66,7 +66,7 @@
         bradbury.explorer_url = "https://explorer-bradbury.genlayer.com/";
       networks = [asimov, bradbury];
 
-      // Validator count from leaderboard entries per network
+      // Validator count per network from leaderboard entries (active on-chain validators)
       networkStats = {
         asimov: { total: asimovFull.length },
         bradbury: { total: bradburyFull.length },
