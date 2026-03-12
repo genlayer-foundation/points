@@ -64,7 +64,7 @@
   // Determine which top-level section is active
   function getActiveSection() {
     const path = $location;
-    if (path === '/' || path === '/metrics') return 'global';
+    if (path === '/' || path === '/testnets' || path === '/metrics') return 'global';
     if (path.startsWith('/builders')) return 'builder';
     if (path.startsWith('/validators')) return 'validator';
     if (path.startsWith('/community')) return 'community';
@@ -138,10 +138,10 @@
         {#if !collapsed && getActiveSection() === 'global'}
           <div class="pl-5">
             <a
-              href="/asimov"
-              onclick={(e) => { e.preventDefault(); navigate('/asimov'); }}
+              href="/testnets"
+              onclick={(e) => { e.preventDefault(); navigate('/testnets'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-                isActive('/asimov') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+                isActive('/testnets') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               }"
             >
               Testnets
@@ -473,10 +473,10 @@
       {#if getActiveSection() === 'global'}
         <div class="pl-5">
           <a
-            href="/asimov"
-            onclick={(e) => { e.preventDefault(); navigate('/asimov'); }}
+            href="/testnets"
+            onclick={(e) => { e.preventDefault(); navigate('/testnets'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-              isActive('/asimov') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+              isActive('/testnets') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             }"
           >
             Testnets
