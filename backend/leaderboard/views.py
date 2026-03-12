@@ -102,6 +102,11 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 # Default to validator leaderboard only when not filtering by user
                 queryset = queryset.filter(type='validator')
 
+            # Handle network filtering for validators
+            network = self.request.query_params.get('network')
+            if network and leaderboard_type == 'validator':
+                queryset = queryset.filter(user__validator__validator_wallets__network=network).distinct()
+
         # Handle rank ordering
         order = self.request.query_params.get('order', 'asc')
         if order == 'desc':

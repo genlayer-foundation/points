@@ -4,7 +4,7 @@
   import { format } from "date-fns";
   import TopLeaderboard from "./TopLeaderboard.svelte";
   import CategoryIcon from "./portal/CategoryIcon.svelte";
-  import { leaderboardAPI, validatorsAPI, statsAPI } from "../lib/api";
+  import { leaderboardAPI, validatorsAPI } from "../lib/api";
   import { showError } from "../lib/toastStore";
 
   // State management
@@ -24,29 +24,27 @@
         asimovLeaderboardRes,
         bradburyLeaderboardRes,
         waitlistLeaderboardRes,
-        validatorStatsRes,
         networksRes,
       ] = await Promise.all([
         leaderboardAPI.getLeaderboardByType("validator", "asc", {
-          limit: 5,
           network: "asimov",
         }),
         leaderboardAPI.getLeaderboardByType("validator", "asc", {
-          limit: 5,
           network: "bradbury",
         }),
         leaderboardAPI.getWaitlistTop(5),
-        statsAPI.getDashboardStats("validator"),
         validatorsAPI.getNetworks().catch(() => ({ data: [] })), // Handle if not found
       ]);
 
-      // Process leaderboards
-      asimovLeaderboard = Array.isArray(asimovLeaderboardRes.data)
+      // Process leaderboards — full list for count, top 5 for display
+      const asimovFull = Array.isArray(asimovLeaderboardRes.data)
         ? asimovLeaderboardRes.data
         : [];
-      bradburyLeaderboard = Array.isArray(bradburyLeaderboardRes.data)
+      const bradburyFull = Array.isArray(bradburyLeaderboardRes.data)
         ? bradburyLeaderboardRes.data
         : [];
+      asimovLeaderboard = asimovFull.slice(0, 5);
+      bradburyLeaderboard = bradburyFull.slice(0, 5);
       waitlistLeaderboard = Array.isArray(waitlistLeaderboardRes.data)
         ? waitlistLeaderboardRes.data
         : [];
@@ -68,11 +66,10 @@
         bradbury.explorer_url = "https://explorer-bradbury.genlayer.com/";
       networks = [asimov, bradbury];
 
-      // Validator count from leaderboard stats — same source as Validators page
-      const validatorCount = validatorStatsRes.data?.participant_count || 0;
+      // Validator count from leaderboard entries per network
       networkStats = {
-        asimov: { total: validatorCount },
-        bradbury: { total: 0 },
+        asimov: { total: asimovFull.length },
+        bradbury: { total: bradburyFull.length },
       };
 
       loading = false;
