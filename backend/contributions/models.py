@@ -664,6 +664,8 @@ class FeaturedContent(BaseModel):
         related_name='featured_items'
     )
     hero_image = models.ImageField(upload_to='featured/', blank=True, null=True)
+    hero_image_tablet = models.ImageField(upload_to='featured/', blank=True, null=True, help_text='Tablet variant (768-1023px). Falls back to hero_image if empty.')
+    hero_image_mobile = models.ImageField(upload_to='featured/', blank=True, null=True, help_text='Mobile variant (<768px). Falls back to hero_image if empty.')
     user_profile_image = models.ImageField(upload_to='featured/avatars/', blank=True, null=True)
     url = models.URLField(max_length=500, blank=True)
     is_active = models.BooleanField(default=True)
