@@ -660,7 +660,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 if contribution_type.category:
                     if contribution_type.category.slug == 'builder' and not hasattr(request.user, 'builder'):
                         return Response(
-                            {'error': 'You must complete the Builder Welcome journey before submitting builder contributions.'},
+                            {'error': 'You must complete the Builder journey before submitting builder contributions.'},
                             status=status.HTTP_403_FORBIDDEN
                         )
                     if contribution_type.category.slug == 'validator' and not hasattr(request.user, 'validator'):
