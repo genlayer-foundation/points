@@ -694,8 +694,8 @@ class FeaturedContentAdmin(admin.ModelAdmin):
             'fields': ('user', 'contribution')
         }),
         ('Links & Media', {
-            'fields': ('hero_image', 'user_profile_image', 'url'),
-            'description': 'Upload images directly. Django serves them from the media directory.'
+            'fields': ('hero_image', 'hero_image_tablet', 'hero_image_mobile', 'user_profile_image', 'url'),
+            'description': 'Upload images directly. Django serves them from the media directory. Tablet/mobile hero images are optional — falls back to the main hero image.'
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),

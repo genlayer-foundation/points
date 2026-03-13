@@ -59,8 +59,8 @@
 {#if isValidator}
   <!-- Validator static banner -->
   <div
-    class="relative overflow-hidden rounded-[8px] p-5 flex items-end"
-    style="min-height: 300px; background: url('/assets/validator-hero-bg.svg') center/cover no-repeat;"
+    class="relative overflow-hidden rounded-[8px] p-4 pt-10 md:p-5 flex items-start md:items-end min-h-[480px] md:min-h-[300px]"
+    style="background: url('/assets/validator-hero-bg.svg') center/cover no-repeat;"
   >
     <!-- Card overlay — frosted glass -->
     <div
@@ -93,7 +93,7 @@
   </div>
 {:else if loading}
   <!-- Loading skeleton -->
-  <div class="relative overflow-hidden rounded-[8px] p-5 flex items-end animate-pulse" style="min-height: 300px; background: linear-gradient(to right, #c4bfe8, #eae9f3);">
+  <div class="relative overflow-hidden rounded-[8px] p-4 pt-10 md:p-5 flex items-start md:items-end animate-pulse min-h-[480px] md:min-h-[300px]" style="background: linear-gradient(to right, #c4bfe8, #eae9f3);">
     <div class="relative z-10 rounded-[24px] p-4 flex flex-col gap-4 w-full md:w-[386px] backdrop-blur-[10px]" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25); box-shadow: inset 0 1px 1px rgba(255,255,255,0.15), 0 0 20px rgba(255,255,255,0.05);">
       <div class="flex flex-col gap-2">
         <div class="h-3 w-24 bg-white/20 rounded"></div>
@@ -105,18 +105,22 @@
   </div>
 {:else if hero}
   <div
-    class="relative overflow-hidden rounded-[8px] p-5 flex items-end"
-    style="min-height: 300px; background: linear-gradient(to right, #8d81e1, #eae9f3);"
+    class="relative overflow-hidden rounded-[8px] p-4 pt-10 md:p-5 flex items-start md:items-end min-h-[480px] md:min-h-[300px]"
+    style="background: linear-gradient(to right, #8d81e1, #eae9f3);"
     onmouseenter={stopAutoAdvance}
     onmouseleave={startAutoAdvance}
   >
-    <!-- Background images — crossfade via stacked layers -->
+    <!-- Background images — crossfade via stacked layers, responsive per breakpoint -->
     {#each heroes as h, i}
       <div
         class="absolute inset-0 transition-opacity duration-700 ease-in-out"
         style="opacity: {i === currentIndex ? 1 : 0};"
       >
-        <img src={h.hero_image_url || '/assets/hero-bg.png'} alt="" class="w-full h-full object-cover">
+        <picture>
+          <source media="(min-width: 1024px)" srcset={h.hero_image_url || '/assets/hero-bg.png'}>
+          <source media="(min-width: 768px)" srcset={h.hero_image_url_tablet || h.hero_image_url || '/assets/hero-bg.png'}>
+          <img src={h.hero_image_url_mobile || h.hero_image_url || '/assets/hero-bg.png'} alt="" class="w-full h-full object-cover">
+        </picture>
         <div class="absolute inset-0" style="background: linear-gradient(to right, rgba(0,0,0,0.2), transparent);"></div>
       </div>
     {/each}
