@@ -55,12 +55,8 @@ let { params = {} } = $props();
 - The `main` branch is reserved for production releases
 - Feature branches should be based on and merged into `dev`
 
-### No Attribution in Commits
-When creating git commits, **DO NOT** include Claude attribution lines such as:
-- 🤖 Generated with [Claude Code](https://claude.ai/code)
-- Co-Authored-By: Claude <noreply@anthropic.com>
-
-Keep commit messages clean and focused on the changes made.
+### Commits and PRs
+**Before any commit or PR**, read and follow `.claude/commands/commit.md`. It defines the commit message format, changelog workflow, and git history rules. No exceptions.
 
 ## Important Terminology
 
