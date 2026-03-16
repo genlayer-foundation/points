@@ -21,7 +21,7 @@
     );
 
     function copyReferralLink() {
-        const referralLink = `https://points.genlayer.com/?ref=${participant?.referral_code || ""}`;
+        const referralLink = `https://portal.genlayer.foundation/?ref=${participant?.referral_code || ""}`;
         navigator.clipboard.writeText(referralLink);
         showSuccess("Referral link copied!");
     }

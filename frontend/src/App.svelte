@@ -48,6 +48,7 @@
   import Referrals from './routes/Referrals.svelte';
   import Community from './routes/Community.svelte';
   import Hackathon from './routes/Hackathon.svelte';
+  import Resources from './routes/Resources.svelte';
   import ReferralProgram from './routes/ReferralProgram.svelte';
   import HowItWorks from './routes/HowItWorks.svelte';
   import StartupRequestDetail from './routes/StartupRequestDetail.svelte';
@@ -84,6 +85,7 @@
     '/builders/highlights': Highlights,
     '/builders/leaderboard': Leaderboard,
 
+    '/builders/resources': Resources,
     '/builders/startup-requests/:id': StartupRequestDetail,
     
     // Validators routes
