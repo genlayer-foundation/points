@@ -663,10 +663,14 @@ class FeaturedContent(BaseModel):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
         related_name='featured_items'
     )
-    hero_image = models.ImageField(upload_to='featured/', blank=True, null=True)
-    hero_image_tablet = models.ImageField(upload_to='featured/', blank=True, null=True, help_text='Tablet variant (768-1023px). Falls back to hero_image if empty.')
-    hero_image_mobile = models.ImageField(upload_to='featured/', blank=True, null=True, help_text='Mobile variant (<768px). Falls back to hero_image if empty.')
-    user_profile_image = models.ImageField(upload_to='featured/avatars/', blank=True, null=True)
+    hero_image_url = models.URLField(max_length=500, blank=True, help_text='Cloudinary URL for hero image')
+    hero_image_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for hero image')
+    hero_image_url_tablet = models.URLField(max_length=500, blank=True, help_text='Cloudinary URL for tablet hero image (768-1023px). Falls back to hero_image_url if empty.')
+    hero_image_tablet_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for tablet hero image')
+    hero_image_url_mobile = models.URLField(max_length=500, blank=True, help_text='Cloudinary URL for mobile hero image (<768px). Falls back to hero_image_url if empty.')
+    hero_image_mobile_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for mobile hero image')
+    user_profile_image_url = models.URLField(max_length=500, blank=True, help_text='Cloudinary URL for user profile image')
+    user_profile_image_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for user profile image')
     url = models.URLField(max_length=500, blank=True)
     is_active = models.BooleanField(default=True)
     order = models.PositiveIntegerField(default=0)

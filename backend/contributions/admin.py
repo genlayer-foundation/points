@@ -683,7 +683,9 @@ class FeaturedContentAdmin(admin.ModelAdmin):
     search_fields = ('title', 'description', 'user__name', 'user__address')
     list_editable = ('order', 'is_active')
     raw_id_fields = ('user', 'contribution')
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'hero_image_public_id',
+                       'hero_image_tablet_public_id', 'hero_image_mobile_public_id',
+                       'user_profile_image_public_id')
     ordering = ('order', '-created_at')
 
     fieldsets = (
@@ -694,8 +696,15 @@ class FeaturedContentAdmin(admin.ModelAdmin):
             'fields': ('user', 'contribution')
         }),
         ('Links & Media', {
-            'fields': ('hero_image', 'hero_image_tablet', 'hero_image_mobile', 'user_profile_image', 'url'),
-            'description': 'Upload images directly. Django serves them from the media directory. Tablet/mobile hero images are optional — falls back to the main hero image.'
+            'fields': ('hero_image_url', 'hero_image_url_tablet', 'hero_image_url_mobile',
+                       'user_profile_image_url', 'url'),
+            'description': 'Paste Cloudinary URLs for images. Tablet/mobile hero images are optional — falls back to the main hero image.'
+        }),
+        ('Cloudinary Metadata', {
+            'fields': ('hero_image_public_id', 'hero_image_tablet_public_id',
+                       'hero_image_mobile_public_id', 'user_profile_image_public_id'),
+            'classes': ('collapse',),
+            'description': 'Auto-managed Cloudinary public IDs (read-only)'
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),

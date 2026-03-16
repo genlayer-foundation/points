@@ -722,9 +722,6 @@ class FeaturedContentSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.name', read_only=True)
     user_address = serializers.CharField(source='user.address', read_only=True)
     user_profile_image_url = serializers.SerializerMethodField()
-    hero_image_url = serializers.SerializerMethodField()
-    hero_image_url_tablet = serializers.SerializerMethodField()
-    hero_image_url_mobile = serializers.SerializerMethodField()
     link = serializers.SerializerMethodField()
 
     class Meta:
@@ -735,31 +732,10 @@ class FeaturedContentSerializer(serializers.ModelSerializer):
                   'user', 'user_name', 'user_address', 'user_profile_image_url',
                   'contribution', 'is_active', 'order', 'created_at']
 
-    def _build_image_url(self, image_field):
-        """Return absolute URL for an image field if set."""
-        if image_field:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(image_field.url)
-            return image_field.url
-        return ''
-
-    def get_hero_image_url(self, obj):
-        return self._build_image_url(obj.hero_image)
-
-    def get_hero_image_url_tablet(self, obj):
-        return self._build_image_url(obj.hero_image_tablet)
-
-    def get_hero_image_url_mobile(self, obj):
-        return self._build_image_url(obj.hero_image_mobile)
-
     def get_user_profile_image_url(self, obj):
-        """Return the FeaturedContent's user_profile_image if set, otherwise fall back to user's profile_image_url."""
-        if obj.user_profile_image:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.user_profile_image.url)
-            return obj.user_profile_image.url
+        """Return the FeaturedContent's user_profile_image_url if set, otherwise fall back to user's profile_image_url."""
+        if obj.user_profile_image_url:
+            return obj.user_profile_image_url
         if obj.user and obj.user.profile_image_url:
             return obj.user.profile_image_url
         return ''
