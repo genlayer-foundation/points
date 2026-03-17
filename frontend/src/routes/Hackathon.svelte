@@ -128,17 +128,22 @@
       </a>
     </div>
 
-    <!-- Right column - Video placeholder -->
-    <div class="bg-[#f5f5f5] rounded-lg flex flex-col items-center justify-center min-h-[250px] md:min-h-[400px] border border-[#f0f0f0]">
-      <div class="w-14 h-14 rounded-full bg-[#f0f0f0] flex items-center justify-center mb-3">
-        <img src={playIcon} alt="" class="w-6 h-6 opacity-40" />
-      </div>
-      <span class="text-[#ababab] text-[12px] tracking-[0.24px]">Video coming soon</span>
+    <!-- Right column - Video -->
+    <div class="flex items-center">
+      <video
+        class="w-full h-auto rounded-lg"
+        controls
+        playsinline
+        preload="metadata"
+        poster="https://res.cloudinary.com/dfqmoeawa/video/upload/so_0,f_jpg,q_auto/hackathon/genlayer-ad-hackathon.jpg"
+      >
+        <source src="https://res.cloudinary.com/dfqmoeawa/video/upload/q_auto/hackathon/genlayer-ad-hackathon.mp4" type="video/mp4" />
+      </video>
     </div>
   </section>
 
   <!-- Dev Fee Section -->
-  <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-3 md:pt-5 px-0 md:px-5">
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 my-[40px] px-0 md:px-5">
     <!-- Text column (first on mobile, right on desktop) -->
     <div class="flex flex-col gap-4 lg:order-last">
       <h2 class="text-[24px] md:text-[40px] font-display font-medium leading-[32px] md:leading-[48px] tracking-[-0.48px] md:tracking-[-0.8px] text-black">Build Once, Earn Forever</h2>
@@ -277,78 +282,87 @@
     </div>
   </section>
 
-  <!-- Requirements Section -->
-  <section class="flex flex-col items-center py-3 md:p-5">
-    <div class="flex flex-col gap-4 md:gap-6 items-center w-full">
-      <h2 class="text-[32px] md:text-[48px] font-display font-medium leading-[40px] md:leading-[56px] tracking-[-0.64px] md:tracking-[-0.96px] text-black text-center">Requirements</h2>
-      <p class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px] text-center">Your project must include an Intelligent Contract with:</p>
-      <div class="inline-flex flex-wrap justify-center items-start gap-3 px-3 py-2 rounded-[22px] border border-[#a77fee]">
-        <div class="flex items-center gap-2.5">
-          <img src={checkboxCircle} alt="" class="w-4 h-4 shrink-0" />
-          <span class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px] whitespace-nowrap">Optimistic Democracy consensus</span>
-        </div>
-        <div class="flex items-center gap-2.5">
-          <img src={checkboxCircle} alt="" class="w-4 h-4 shrink-0" />
-          <span class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px] whitespace-nowrap">Equivalence Principle</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Details Section -->
-  <section class="flex flex-col gap-6 md:gap-10 items-center py-3 md:p-5 max-w-full">
-    <h2 class="text-[32px] md:text-[48px] font-display font-medium leading-[40px] md:leading-[56px] tracking-[-0.64px] md:tracking-[-0.96px] text-center text-black">Details</h2>
-    <div class="flex flex-col md:flex-row md:flex-nowrap items-start gap-3 w-full">
-      <!-- Hacking Period -->
-      <div class="flex flex-col gap-3 md:gap-4 w-full md:w-auto md:shrink-0">
-        <div class="flex items-center justify-center px-3 py-2 md:px-6 md:py-4 rounded-[32px] text-white text-[16px] md:text-[32px] leading-[16px] md:leading-[32px] tracking-[-0.32px] md:tracking-[-0.64px] font-display font-medium relative whitespace-nowrap"
-             style="background: linear-gradient(170deg, #f8b93d, #ee8d24, #db6917);">
-          March 20th - April 3rd
-          <div class="absolute inset-0 pointer-events-none rounded-[inherit]" style="box-shadow: inset 0.5px 0.5px 4px rgba(0,0,0,0.05), inset 1px 1px 2px rgba(255,255,255,0.5), inset -0.5px -0.5px 2px rgba(0,0,0,0.25), inset -1px -1px 2px rgba(255,255,255,0.15);"></div>
-        </div>
-        <div class="flex flex-col gap-[11px] px-3 md:px-6 text-center md:text-left">
-          <h3 class="text-[16px] md:text-[20px] font-semibold leading-[18px] md:leading-[21px] tracking-[0.28px] text-[#6b6b6b]">Hacking Period</h3>
-          <p class="text-[11px] md:text-[12px] leading-[14px] md:leading-[15px] text-[#ababab] tracking-[0.24px]">2 Weeks to build your project</p>
+  <!-- Requirements & Timeline Section -->
+  <section class="flex flex-col gap-6 md:gap-10 py-3 md:p-5 max-w-full">
+    <div class="flex flex-col lg:flex-row gap-[24px] w-full">
+      <!-- Requirements (Left) -->
+      <div class="flex-1 flex items-center justify-center p-5">
+        <div class="flex flex-col gap-[24px] items-start justify-center">
+          <h2 class="text-[32px] md:text-[48px] font-display font-medium leading-[40px] md:leading-[56px] tracking-[-0.64px] md:tracking-[-0.96px] text-black">Requirements</h2>
+          <p class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px]">Your project must include an Intelligent Contract with:</p>
+          <div class="flex flex-col gap-3">
+            <div class="inline-flex items-center gap-2.5 px-3 py-2 rounded-[22px] border border-[#a77fee]">
+              <img src={checkboxCircle} alt="" class="w-4 h-4 shrink-0" />
+              <span class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px] whitespace-nowrap">Optimistic Democracy consensus</span>
+            </div>
+            <div class="inline-flex items-center gap-2.5 px-3 py-2 rounded-[22px] border border-[#a77fee]">
+              <img src={checkboxCircle} alt="" class="w-4 h-4 shrink-0" />
+              <span class="text-[15px] md:text-[17px] text-black leading-[24px] md:leading-[28px] tracking-[0.34px] whitespace-nowrap">Equivalence Principle</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Arrow (desktop only) -->
-      <div class="hidden md:flex items-center p-5 rounded-[32px] shrink-0 relative"
-           style="background: linear-gradient(135deg, #1f1f1f, #0f0f0f, #000);">
-        <img src={arrowRightDouble} alt="" class="w-6 h-6" />
-        <div class="absolute inset-0 pointer-events-none rounded-[inherit]" style="box-shadow: inset 0.5px 0.5px 4px rgba(0,0,0,0.05), inset 1px 1px 2px rgba(255,255,255,0.5), inset -0.5px -0.5px 2px rgba(0,0,0,0.25), inset -1px -1px 2px rgba(255,255,255,0.15);"></div>
-      </div>
+      <!-- Timeline (Right) -->
+      <div class="flex-1 flex flex-col gap-[40px] items-center justify-center p-5">
+        <h2 class="text-[32px] md:text-[48px] font-display font-medium leading-[40px] md:leading-[56px] tracking-[-0.64px] md:tracking-[-0.96px] text-black text-center">Timeline</h2>
+        <div class="flex flex-col gap-3 items-center justify-center w-full">
+          <!-- Hacking Period -->
+          <div class="flex items-start justify-between w-full">
+            <div class="flex flex-col gap-[11px] px-3">
+              <h3 class="text-[20px] md:text-[24px] font-display font-medium leading-[24px] tracking-[-0.72px] text-black">Hacking Period</h3>
+              <p class="text-[12px] leading-[15px] text-[#ababab] tracking-[0.24px]">2 Weeks to build your project</p>
+            </div>
+            <div class="flex items-center justify-center px-3 py-2 rounded-[32px] shrink-0 relative whitespace-nowrap"
+                 style="background: linear-gradient(170deg, #f8b93d, #ee8d24, #db6917);">
+              <span class="text-white text-[16px] md:text-[20px] font-display font-medium leading-[24px] md:leading-[32px] tracking-[-0.4px]">March 20th - April 3rd</span>
+              <div class="absolute inset-0 pointer-events-none rounded-[inherit]" style="box-shadow: inset 0.5px 0.5px 4px rgba(0,0,0,0.05), inset 1px 1px 2px rgba(255,255,255,0.5), inset -0.5px -0.5px 2px rgba(0,0,0,0.25), inset -1px -1px 2px rgba(255,255,255,0.15);"></div>
+            </div>
+          </div>
 
-      <!-- Judging Process -->
-      <div class="flex flex-col gap-3 md:gap-4 w-full md:w-auto md:shrink-0">
-        <div class="flex items-center justify-center px-3 py-2 md:px-6 md:py-4 rounded-[32px] text-white text-[16px] md:text-[32px] leading-[16px] md:leading-[32px] tracking-[-0.32px] md:tracking-[-0.64px] font-display font-medium relative whitespace-nowrap"
-             style="background: linear-gradient(169deg, #6da7f3, #387de8, #2159d2);">
-          April 3rd - April 10th
-          <div class="absolute inset-0 pointer-events-none rounded-[inherit]" style="box-shadow: inset 0.5px 0.5px 4px rgba(0,0,0,0.05), inset 1px 1px 2px rgba(255,255,255,0.5), inset -0.5px -0.5px 2px rgba(0,0,0,0.25), inset -1px -1px 2px rgba(255,255,255,0.15);"></div>
-        </div>
-        <div class="flex flex-col gap-[11px] px-3 md:px-6 text-center md:text-left">
-          <h3 class="text-[16px] md:text-[20px] font-semibold leading-[18px] md:leading-[21px] tracking-[0.28px] text-[#6b6b6b]">Judging Process</h3>
-          <p class="text-[11px] md:text-[12px] leading-[14px] md:leading-[15px] text-[#ababab] tracking-[0.24px]">Projects reviewed by expert panel</p>
-        </div>
-      </div>
+          <!-- Arrow Down -->
+          <div class="flex items-center justify-center w-[48px] h-[48px]">
+            <div class="flex items-center p-3 rounded-[32px] relative rotate-90"
+                 style="background: linear-gradient(135deg, #1f1f1f, #0f0f0f, #000);">
+              <img src={arrowRightDouble} alt="" class="w-6 h-6" />
+              <div class="absolute inset-0 pointer-events-none rounded-[inherit]" style="box-shadow: inset 0.5px 0.5px 4px rgba(0,0,0,0.05), inset 1px 1px 2px rgba(255,255,255,0.5), inset -0.5px -0.5px 2px rgba(0,0,0,0.25), inset -1px -1px 2px rgba(255,255,255,0.15);"></div>
+            </div>
+          </div>
 
-      <!-- Arrow (desktop only) -->
-      <div class="hidden md:flex items-center p-5 rounded-[32px] shrink-0 relative"
-           style="background: linear-gradient(135deg, #1f1f1f, #0f0f0f, #000);">
-        <img src={arrowRightDouble} alt="" class="w-6 h-6" />
-        <div class="absolute inset-0 pointer-events-none rounded-[inherit]" style="box-shadow: inset 0.5px 0.5px 4px rgba(0,0,0,0.05), inset 1px 1px 2px rgba(255,255,255,0.5), inset -0.5px -0.5px 2px rgba(0,0,0,0.25), inset -1px -1px 2px rgba(255,255,255,0.15);"></div>
-      </div>
+          <!-- Judging Process -->
+          <div class="flex items-start justify-between w-full">
+            <div class="flex flex-col gap-[11px] px-3">
+              <h3 class="text-[20px] md:text-[24px] font-display font-medium leading-[24px] tracking-[-0.72px] text-black">Judging Process</h3>
+              <p class="text-[12px] leading-[15px] text-[#ababab] tracking-[0.24px]">Projects reviewed by expert panel</p>
+            </div>
+            <div class="flex items-center justify-center px-3 py-2 rounded-[32px] shrink-0 relative whitespace-nowrap"
+                 style="background: linear-gradient(169deg, #6da7f3, #387de8, #2159d2);">
+              <span class="text-white text-[16px] md:text-[20px] font-display font-medium leading-[24px] md:leading-[32px] tracking-[-0.4px]">April 3rd - April 10th</span>
+              <div class="absolute inset-0 pointer-events-none rounded-[inherit]" style="box-shadow: inset 0.5px 0.5px 4px rgba(0,0,0,0.05), inset 1px 1px 2px rgba(255,255,255,0.5), inset -0.5px -0.5px 2px rgba(0,0,0,0.25), inset -1px -1px 2px rgba(255,255,255,0.15);"></div>
+            </div>
+          </div>
 
-      <!-- Closing Remarks -->
-      <div class="flex flex-col gap-3 md:gap-4 w-full md:w-auto md:shrink-0">
-        <div class="flex items-center justify-center px-3 py-2 md:px-6 md:py-4 rounded-[32px] text-white text-[16px] md:text-[32px] leading-[16px] md:leading-[32px] tracking-[-0.32px] md:tracking-[-0.64px] font-display font-medium relative whitespace-nowrap"
-             style="background: linear-gradient(161deg, #a77fee, #7f52e1, #5f33ca);">
-          April 10th
-          <div class="absolute inset-0 pointer-events-none rounded-[inherit]" style="box-shadow: inset 0.5px 0.5px 4px rgba(0,0,0,0.05), inset 1px 1px 2px rgba(255,255,255,0.5), inset -0.5px -0.5px 2px rgba(0,0,0,0.25), inset -1px -1px 2px rgba(255,255,255,0.15);"></div>
-        </div>
-        <div class="flex flex-col gap-[11px] px-3 md:px-6 text-center md:text-left">
-          <h3 class="text-[16px] md:text-[20px] font-semibold leading-[18px] md:leading-[21px] tracking-[0.28px] text-[#6b6b6b]">Closing Remarks</h3>
-          <p class="text-[11px] md:text-[12px] leading-[14px] md:leading-[15px] text-[#ababab] tracking-[0.24px]">Virtual Demo Day for winners & mentions</p>
+          <!-- Arrow Down -->
+          <div class="flex items-center justify-center w-[48px] h-[48px]">
+            <div class="flex items-center p-3 rounded-[32px] relative rotate-90"
+                 style="background: linear-gradient(135deg, #1f1f1f, #0f0f0f, #000);">
+              <img src={arrowRightDouble} alt="" class="w-6 h-6" />
+              <div class="absolute inset-0 pointer-events-none rounded-[inherit]" style="box-shadow: inset 0.5px 0.5px 4px rgba(0,0,0,0.05), inset 1px 1px 2px rgba(255,255,255,0.5), inset -0.5px -0.5px 2px rgba(0,0,0,0.25), inset -1px -1px 2px rgba(255,255,255,0.15);"></div>
+            </div>
+          </div>
+
+          <!-- Closing Remarks -->
+          <div class="flex items-start justify-between w-full">
+            <div class="flex flex-col gap-[11px] px-3">
+              <h3 class="text-[20px] md:text-[24px] font-display font-medium leading-[24px] tracking-[-0.72px] text-black">Closing Remarks</h3>
+              <p class="text-[12px] leading-[15px] text-[#ababab] tracking-[0.24px]">Virtual Demo Day for winners & mentions</p>
+            </div>
+            <div class="flex items-center justify-center px-3 py-2 rounded-[32px] shrink-0 relative whitespace-nowrap"
+                 style="background: linear-gradient(161deg, #a77fee, #7f52e1, #5f33ca);">
+              <span class="text-white text-[16px] md:text-[20px] font-display font-medium leading-[24px] md:leading-[32px] tracking-[-0.4px]">April 10th</span>
+              <div class="absolute inset-0 pointer-events-none rounded-[inherit]" style="box-shadow: inset 0.5px 0.5px 4px rgba(0,0,0,0.05), inset 1px 1px 2px rgba(255,255,255,0.5), inset -0.5px -0.5px 2px rgba(0,0,0,0.25), inset -1px -1px 2px rgba(255,255,255,0.15);"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -396,7 +410,7 @@
         Join the first hackathon where AI participates in blockchain consensus. Register now on DoraHacks.
       </p>
       <div class="flex flex-col sm:flex-row items-center gap-2">
-        <a href="https://dorahacks.io/hackathon/genlayer" target="_blank" rel="noopener noreferrer"
+        <a href="https://dorahacks.io/hackathon/genlayer-bradbury" target="_blank" rel="noopener noreferrer"
            class="inline-flex items-center gap-2 bg-[#9e4bf6] text-white h-10 rounded-[20px] px-4 text-[14px] font-medium tracking-[0.28px]">
           Register on DoraHacks
           <img src={arrowRight} alt="" class="w-4 h-4 brightness-0 invert" />
