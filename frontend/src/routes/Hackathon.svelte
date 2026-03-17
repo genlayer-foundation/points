@@ -23,7 +23,18 @@
   import arrowRightDark from '../assets/hackathon/arrow-right-dark.svg';
   import pointsGradientIcon from '../assets/hackathon/points-gradient-icon.svg';
   import glSymbolSmall from '../assets/hackathon/gl-symbol-small.svg';
+  import sponsorChutes from '../assets/hackathon/sponsors/chutes.webp';
+  import sponsorPathrock from '../assets/hackathon/sponsors/pathrock.png';
+  import sponsorStakeme from '../assets/hackathon/sponsors/stakeme.png';
+  import sponsorCrouton from '../assets/hackathon/sponsors/crouton.webp';
   import FeaturedBuilds from '../components/portal/FeaturedBuilds.svelte';
+
+  const sponsors = [
+    { name: 'CHUTES', logo: sponsorChutes, url: 'https://chutes.ai', bg: '#131313' },
+    { name: 'Pathrock Network', logo: sponsorPathrock, url: 'https://pathrocknetwork.org', bg: '#ffffff' },
+    { name: 'Stakeme', logo: sponsorStakeme, url: 'https://stakeme.pro', bg: '#ffffff' },
+    { name: 'Crouton Digital', logo: sponsorCrouton, url: 'https://crouton.digital', bg: '#ffffff' },
+  ].sort(() => Math.random() - 0.5);
 
   const heroTrack = {
     icon: trackPrediction,
@@ -388,10 +399,10 @@
   <section class="flex flex-col gap-4 md:gap-6 items-center py-3 md:py-5">
     <h2 class="text-[32px] md:text-[48px] font-display font-medium leading-[40px] md:leading-[56px] tracking-[-0.64px] md:tracking-[-0.96px] text-center text-black">Sponsors</h2>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
-      {#each Array(4) as _, i}
-        <div class="bg-white border border-[#f0f0f0] rounded-lg h-24 flex items-center justify-center">
-          <span class="text-[#e3e3e3] text-[14px] font-medium tracking-[0.28px]">Logo</span>
-        </div>
+      {#each sponsors as sponsor}
+        <a href={sponsor.url} target="_blank" rel="noopener noreferrer" class="border border-[#f0f0f0] rounded-lg h-24 overflow-hidden flex items-center justify-center hover:border-[#e3e3e3] transition-colors" style="background: {sponsor.bg};">
+          <img src={sponsor.logo} alt={sponsor.name} class="h-full object-contain" />
+        </a>
       {/each}
     </div>
   </section>
