@@ -21,7 +21,9 @@
 
     // Helper to get formatted display name for the role
     let roleTitle = $derived(role.charAt(0).toUpperCase() + role.slice(1));
-
+let journeyTitle = $derived(isWaitlist ? 'Validator Waitlist' : roleTitle);
+let pointsLabel = $derived(isWaitlist ? 'Total waitlist points' : `Total ${role.toLowerCase()} points`);
+let rankLabel = $derived(isWaitlist ? 'Waitlist Rank' : `${roleTitle} Rank`);
 </script>
 
 <div class="w-full flex flex-col items-start mt-8">
@@ -56,7 +58,7 @@
             class="text-[20px] font-semibold text-black"
             style="letter-spacing: 0.4px;"
         >
-            {roleTitle} Journey
+            {journeyTitle} Journey
         </h2>
     </div>
 
@@ -126,7 +128,7 @@
                         <p
                             class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                         >
-                            Total {role.toLowerCase()} points
+                            {pointsLabel}
                         </p>
                     </div>
                 </div>
@@ -256,7 +258,7 @@
                         <p
                             class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                         >
-                            {roleTitle} Rank
+                            {rankLabel}
                         </p>
                     </div>
                 </div>
