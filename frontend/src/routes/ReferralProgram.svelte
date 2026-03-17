@@ -1,5 +1,7 @@
 <script>
   import { setPageMeta, resetPageMeta } from '../lib/meta.js';
+  import { authState } from '../lib/auth.js';
+  import { push } from 'svelte-spa-router';
   import checkIcon from '../assets/referral/check-icon.png';
   import cardBg1 from '../assets/referral/card-bg-1.png';
   import cardBg2 from '../assets/referral/card-bg-2.png';
@@ -181,6 +183,16 @@
       cancelAnimationFrame(frameId);
     };
   });
+
+  function handleGetReferral() {
+    if ($authState.isAuthenticated) {
+      push('/referrals');
+    } else {
+      sessionStorage.setItem('redirectAfterLogin', '/referrals');
+      const authButton = document.querySelector('[data-auth-button]');
+      if (authButton) authButton.click();
+    }
+  }
 </script>
 
 <div class="flex flex-col">
@@ -204,6 +216,7 @@
         Earn 10% of the points of their successful contributions
       </p>
       <button
+        onclick={handleGetReferral}
         class="inline-flex items-center gap-2 h-12 px-8 text-white font-medium rounded-full text-base transition-opacity hover:opacity-90"
         style="background: linear-gradient(to bottom, #be8ff5, #ac6df3);"
       >
@@ -365,6 +378,7 @@
               Write Intelligent Contracts, build dApps, and contribute developer tools to the GenLayer ecosystem.
             </p>
             <button
+              onclick={handleGetReferral}
               class="flex items-center justify-center gap-2 w-full h-11 mt-auto text-white font-medium rounded-full text-sm transition-opacity hover:opacity-90"
               style="background-color: #131214;"
             >
@@ -388,6 +402,7 @@
               Run nodes, provide AI models, and help scale and secure the network through Optimistic Democracy.
             </p>
             <button
+              onclick={handleGetReferral}
               class="flex items-center justify-center gap-2 w-full h-11 mt-auto text-white font-medium rounded-full text-sm transition-opacity hover:opacity-90"
               style="background-color: #131214;"
             >
@@ -411,6 +426,7 @@
               Create content, spread the word, and bring new contributors through referrals and outreach.
             </p>
             <button
+              onclick={handleGetReferral}
               class="flex items-center justify-center gap-2 w-full h-11 mt-auto text-white font-medium rounded-full text-sm transition-opacity hover:opacity-90"
               style="background-color: #131214;"
             >
@@ -442,6 +458,7 @@
         Every person you bring into GenLayer earns you 10% of their contribution points — forever.
       </p>
       <button
+        onclick={handleGetReferral}
         class="inline-flex items-center gap-2 h-12 px-8 text-white font-medium rounded-full text-base transition-opacity hover:opacity-90"
         style="background: linear-gradient(to bottom, #be8ff5, #ac6df3);"
       >
