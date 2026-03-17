@@ -829,7 +829,7 @@ def recalculate_all_leaderboards():
             LeaderboardEntry.objects.bulk_create(entries_to_create, batch_size=500)
             ReferralPoints.objects.bulk_create(referral_points_to_create, batch_size=500)
 
-            for leaderboard_type in ['validator', 'builder', 'validator-waitlist', 'validator-waitlist-graduation']:
+            for leaderboard_type in LEADERBOARD_CONFIG.keys():
                 LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
             return f"Recalculated {len(user_contributions)} users across {len(LEADERBOARD_CONFIG)} leaderboards with {len(referral_points_to_create)} referrers"
