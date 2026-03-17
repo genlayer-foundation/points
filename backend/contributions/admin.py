@@ -242,15 +242,36 @@ class ContributionAdmin(admin.ModelAdmin):
             user.name = name
             user.save()
 
-        from validators.models import Validator
-        Validator.objects.create(user=user)
-        
-        # Get selected contributions
-        contributions_data = form.get_selected_contributions()
-        
-        # Convert date to datetime
+         from validators.models import Validator
+
+        # Create Validator profile if it doesn't already exist
+        validator, validator_created = Validator.objects.get_or_create(user=user)
+
+        # Convert date to datetime early so we can use it for the validator badge
         contribution_datetime = datetime.combine(contribution_date, datetime.min.time())
         contribution_datetime = timezone.make_aware(contribution_datetime)
+
+        # Ensure the 'validator' badge contribution exists — without it the user
+        # won't appear on the validator leaderboard (Bug 3 from FIXES.md).
+        validator_contribution_type = ContributionType.objects.filter(slug='validator').first()
+        if validator_contribution_type:
+            validator_contrib_exists = Contribution.objects.filter(
+                user=user,
+                contribution_type=validator_contribution_type
+            ).exists()
+            if not validator_contrib_exists:
+                Contribution.objects.create(
+                    user=user,
+                    contribution_type=validator_contribution_type,
+                    points=1,
+                    contribution_date=contribution_datetime,
+                    notes=f'Validator badge created via admin on {timezone.now().strftime("%Y-%m-%d %H:%M")}'
+                )
+
+        # Get selected contributions
+        contributions_data = form.get_selected_contributions()
+
+        # Create contributions
         
         # Create contributions
         created_contributions = []
