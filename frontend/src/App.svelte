@@ -9,6 +9,7 @@
   import ProfileCompletionGuard from './components/ProfileCompletionGuard.svelte';
   import { categoryTheme, currentCategory, detectCategoryFromRoute } from './stores/category.js';
   import { location } from 'svelte-spa-router';
+  import { resetPageMeta } from './lib/meta.js';
   
   // State for sidebar toggle on mobile and collapse on desktop
   let sidebarOpen = $state(false);
@@ -170,6 +171,8 @@
   function handleRouteLoaded() {
     // Hide tooltips
     hideTooltips();
+    // Reset OG meta to defaults; page-specific components will override if needed
+    resetPageMeta();
   }
 
   // Tooltip handling

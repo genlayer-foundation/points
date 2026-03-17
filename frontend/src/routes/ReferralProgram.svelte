@@ -1,4 +1,5 @@
 <script>
+  import { setPageMeta, resetPageMeta } from '../lib/meta.js';
   import checkIcon from '../assets/referral/check-icon.png';
   import cardBg1 from '../assets/referral/card-bg-1.png';
   import cardBg2 from '../assets/referral/card-bg-2.png';
@@ -121,6 +122,16 @@
     canvas.style.webkitMaskImage = g;
     canvas.style.maskImage = g;
   }
+
+  $effect(() => {
+    setPageMeta({
+      title: 'Referral Program',
+      description: 'Invite Builders, Validators, and Community members to GenLayer. Earn 10% of all points from their successful contributions — forever, with no cap.',
+      image: 'https://portal.genlayer.foundation/assets/referral_og_image.png',
+      url: 'https://portal.genlayer.foundation/#/referral-program',
+    });
+    return () => resetPageMeta();
+  });
 
   $effect(() => {
     // Grab refs once — if null the effect re-runs when they bind

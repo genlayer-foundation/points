@@ -24,5 +24,9 @@ applications:
             VITE_APP_NAME: Tally
             VITE_VALIDATOR_RPC_URL: https://zksync-os-testnet-genlayer.zksync.dev
             VITE_VALIDATOR_CONTRACT_ADDRESS: 0x143d20974FA35f72B8103f54D8A47F2991940d99
+    customRules:
+      - source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)([^.]+$)/>'
+        target: '/index.html'
+        status: '200'
     # Backend is handled by App Runner, not Amplify
     # This configuration is for frontend-only deployment

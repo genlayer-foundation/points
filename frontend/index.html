@@ -35,6 +35,16 @@
   <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 <body>
+  <script>
+    // Redirect non-hash paths to hash-based routes (SPA uses hash routing)
+    // e.g. /referral-program → /#/referral-program
+    (function () {
+      var p = location.pathname;
+      if (p !== '/' && !p.startsWith('/assets')) {
+        location.replace('/' + location.search + '#' + p);
+      }
+    })();
+  </script>
   <div id="app"></div>
   <script type="module" src="/src/main.js"></script>
 </body>
