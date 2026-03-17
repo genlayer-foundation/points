@@ -230,6 +230,46 @@ class CloudinaryService:
             raise
 
     @classmethod
+    def upload_image(cls, image_file, folder: str = 'tally/uploads') -> Dict:
+        """
+        Generic image upload to Cloudinary. Used by the admin upload mixin.
+
+        Args:
+            image_file: The image file to upload
+            folder: Cloudinary folder path
+
+        Returns:
+            Dict with 'url' and 'public_id'
+        """
+        try:
+            cls.configure()
+
+            upload_preset = getattr(settings, 'CLOUDINARY_UPLOAD_PRESET', 'tally_unsigned')
+            timestamp = int(time.time())
+
+            with trace_external('cloudinary', 'upload_image'):
+                result = cloudinary.uploader.unsigned_upload(
+                    image_file,
+                    upload_preset,
+                    public_id=f"admin_{timestamp}",
+                    folder=folder,
+                )
+
+            return {
+                'url': result.get('secure_url', ''),
+                'public_id': result.get('public_id', ''),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to upload image: {str(e)}")
+            if "Upload preset not found" in str(e):
+                raise Exception(
+                    "Cloudinary upload preset not configured. Please create an unsigned upload preset "
+                    "named 'tally_unsigned' in your Cloudinary dashboard (Settings > Upload > Upload presets)."
+                )
+            raise
+
+    @classmethod
     def delete_image(cls, public_id: str) -> bool:
         """
         Delete an image from Cloudinary

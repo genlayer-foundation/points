@@ -14,6 +14,7 @@ from datetime import datetime
 from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
+from utils.admin_mixins import CloudinaryUploadMixin
 
 User = get_user_model()
 
@@ -677,7 +678,26 @@ class StartupRequestAdmin(admin.ModelAdmin):
 
 
 @admin.register(FeaturedContent)
-class FeaturedContentAdmin(admin.ModelAdmin):
+class FeaturedContentAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
+    cloudinary_upload_fields = {
+        'hero_image_url': {
+            'public_id_field': 'hero_image_public_id',
+            'folder': 'tally/featured',
+        },
+        'hero_image_url_tablet': {
+            'public_id_field': 'hero_image_tablet_public_id',
+            'folder': 'tally/featured',
+        },
+        'hero_image_url_mobile': {
+            'public_id_field': 'hero_image_mobile_public_id',
+            'folder': 'tally/featured',
+        },
+        'user_profile_image_url': {
+            'public_id_field': 'user_profile_image_public_id',
+            'folder': 'tally/featured/avatars',
+        },
+    }
+
     list_display = ('title', 'content_type', 'user', 'is_active', 'order', 'created_at')
     list_filter = ('content_type', 'is_active', 'created_at')
     search_fields = ('title', 'description', 'user__name', 'user__address')
@@ -698,13 +718,7 @@ class FeaturedContentAdmin(admin.ModelAdmin):
         ('Links & Media', {
             'fields': ('hero_image_url', 'hero_image_url_tablet', 'hero_image_url_mobile',
                        'user_profile_image_url', 'url'),
-            'description': 'Paste Cloudinary URLs for images. Tablet/mobile hero images are optional — falls back to the main hero image.'
-        }),
-        ('Cloudinary Metadata', {
-            'fields': ('hero_image_public_id', 'hero_image_tablet_public_id',
-                       'hero_image_mobile_public_id', 'user_profile_image_public_id'),
-            'classes': ('collapse',),
-            'description': 'Auto-managed Cloudinary public IDs (read-only)'
+            'description': 'Upload images directly or paste Cloudinary URLs. Tablet/mobile hero images are optional — falls back to the main hero image.'
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),

@@ -1,0 +1,29 @@
+<div class="cloudinary-upload-widget" style="display: flex; flex-direction: column; gap: 8px;">
+    {% if current_url %}
+    <div class="cloudinary-preview" style="margin-bottom: 4px;">
+        <img src="{{ current_url }}" alt="Current image" style="max-width: 200px; max-height: 120px; border-radius: 4px; border: 1px solid #ddd; object-fit: cover;">
+    </div>
+    {% endif %}
+
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div>
+            <label style="font-weight: bold; font-size: 0.85em; color: #666;">Upload new image:</label><br>
+            <input type="file" name="{{ file_field_name }}" accept="image/*" style="margin-top: 2px;">
+        </div>
+
+        <div>
+            <label style="font-weight: bold; font-size: 0.85em; color: #666;">Or paste URL directly:</label><br>
+            <input type="{{ url_input_type }}" name="{{ url_field_name }}" value="{{ current_url|default:'' }}"
+                   style="width: 100%; max-width: 500px; padding: 4px 6px; margin-top: 2px;"
+                   placeholder="https://res.cloudinary.com/...">
+        </div>
+
+        {% if current_url %}
+        <div>
+            <label style="font-size: 0.85em;">
+                <input type="checkbox" name="{{ clear_field_name }}"> Clear current image
+            </label>
+        </div>
+        {% endif %}
+    </div>
+</div>
