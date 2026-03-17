@@ -5,8 +5,8 @@ def seed_featured_content(apps, schema_editor):
     User = apps.get_model('users', 'User')
     FeaturedContent = apps.get_model('contributions', 'FeaturedContent')
 
-    albert = User.objects.get(email='albert@genlayer.foundation')  # cognocracy
-    ivan = User.objects.get(email='ivan@genlayer.foundation')      # raskovsky
+    albert = User.objects.filter(email='albert@genlayer.foundation').first()  # cognocracy
+    ivan = User.objects.filter(email='ivan@genlayer.foundation').first()     # raskovsky
 
     FeaturedContent.objects.create(
         content_type='hero',
