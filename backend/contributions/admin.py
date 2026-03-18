@@ -273,7 +273,7 @@ class ContributionAdmin(admin.ModelAdmin):
 
         # Create contributions
         
-        # Create contributions
+        
         created_contributions = []
         for contrib_data in contributions_data:
             contribution_type = ContributionType.objects.get(id=contrib_data['contribution_type_id'])
