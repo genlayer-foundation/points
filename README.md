@@ -66,59 +66,68 @@ eventually be part of the Deepthought DAO.
 ### Backend Setup
 
 1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/points.git
+   ```bash
+   git clone https://github.com/genlayer-foundation/points.git
    cd points
    ```
 
 2. Create and activate a virtual environment:
-   ```
+   ```bash
    cd backend
    python -m venv env
    source env/bin/activate  # On Windows: env\Scripts\activate
    ```
 
 3. Install dependencies:
-   ```
+   ```bash
    pip install -r requirements.txt
    ```
 
-4. Setup Node.js environment using nodeenv:
-   ```
-   nodeenv -p
+4. Configure environment variables:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your settings
    ```
 
 5. Run migrations:
-   ```
+   ```bash
    python manage.py migrate
    ```
 
-6. Create a superuser:
-   ```
+6. Create a superuser (optional):
+   ```bash
    python manage.py createsuperuser
    ```
 
 7. Run the development server:
-   ```
+   ```bash
    python manage.py runserver
    ```
 
 ### Frontend Setup
 
 1. Navigate to the frontend directory:
-   ```
+   ```bash
    cd frontend
    ```
 
 2. Install dependencies:
-   ```
+   ```bash
    npm install
    ```
 
-3. Run the development server:
+3. Configure environment variables:
+   ```bash
+   cp .env.example .env
+   # Edit .env to point to your backend
    ```
+
+4. Run the development server:
+   ```bash
    npm run dev
    ```
+
+5. Open http://localhost:5173 in your browser
 
 ## Development
 
@@ -159,15 +168,22 @@ The frontend is built with Svelte 5 and will include:
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please read [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines.
 
-### Development Workflow
+### Quick Start
 
-1. Create a feature branch: `git checkout -b feature/your-feature-name`
-2. Make your changes
-3. Run tests: `python manage.py test`
-4. Push your branch: `git push origin feature/your-feature-name`
-5. Submit a pull request
+1. Fork the repository
+2. Create a feature branch from `dev`: `git checkout -b feature/your-feature-name`
+3. Make your changes
+4. Run tests: `python manage.py test` and `npm test`
+5. Push your branch: `git push origin feature/your-feature-name`
+6. Submit a pull request to the `dev` branch
+
+**Note**: All pull requests should target the `dev` branch, not `main`.
+
+## Security
+
+For security concerns, please see [SECURITY.md](./SECURITY.md).
 
 ## License
 

@@ -154,6 +154,34 @@ export const buildersAPI = {
   getNewestBuilders: (limit = 5) => api.get('/builders/newest/', { params: { limit } })
 };
 
+// User Submissions API (for user's own submissions)
+export const submissionsAPI = {
+  // Get current user's submissions
+  getMySubmissions: (params = {}) => api.get('/submissions/my/', { params }),
+  
+  // Get a single submission by ID
+  getSubmission: (id) => api.get(`/submissions/${id}/`),
+  
+  // Create a new submission
+  createSubmission: (data) => {
+    if (data instanceof FormData) {
+      return api.post('/submissions/', data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+    }
+    return api.post('/submissions/', data);
+  },
+  
+  // Update an existing submission
+  updateSubmission: (id, data) => api.patch(`/submissions/${id}/`, data),
+  
+  // Cancel (soft delete) a submission
+  cancelSubmission: (id) => api.delete(`/submissions/${id}/`),
+  
+  // Add evidence to a submission
+  addEvidence: (id, data) => api.post(`/submissions/${id}/add-evidence/`, data)
+};
+
 // Journey API
 export const journeyAPI = {
   startValidatorJourney: () => api.post('/users/start_validator_journey/'),
