@@ -406,6 +406,11 @@ class SubmissionNote(BaseModel):
         default=False,
         help_text="True for auto-generated proposal notes"
     )
+    data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Structured data: action, points, staff_reply, template_id, flags, confidence"
+    )
 
     class Meta:
         ordering = ['-created_at']

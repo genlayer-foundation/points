@@ -625,6 +625,15 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
     
     def create(self, request, *args, **kwargs):
         """Create a new submission with optional mission tracking."""
+        # Block banned users from submitting
+        if request.user.is_banned:
+            return Response(
+                {'error': 'Your account has been suspended due to repeated '
+                          'policy violations. You may submit one appeal from '
+                          'your profile page.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         mission_id = request.data.get('mission')
         data = request.data.copy()  # Create mutable copy for modifications
 
@@ -793,6 +802,24 @@ class StewardSubmissionFilterSet(FilterSet):
     exclude_state = CharFilter(method='filter_exclude_state')
     min_accepted_contributions = NumberFilter(method='filter_min_accepted_contributions')
     has_proposal = BooleanFilter(method='filter_has_proposal')
+    search = CharFilter(method='filter_search')
+
+    def filter_search(self, queryset, name, value):
+        """General search across user name/email/address, notes, and evidence URLs."""
+        if value:
+            has_matching_evidence = Evidence.objects.filter(
+                submitted_contribution=OuterRef('pk')
+            ).filter(
+                Q(url__icontains=value) | Q(description__icontains=value)
+            )
+            return queryset.filter(
+                Q(user__name__icontains=value) |
+                Q(user__email__icontains=value) |
+                Q(user__address__icontains=value) |
+                Q(notes__icontains=value) |
+                Exists(has_matching_evidence)
+            )
+        return queryset
 
     def filter_username(self, queryset, name, value):
         """Filter by submitter name, email, or address (case-insensitive partial match)."""
@@ -1108,13 +1135,19 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             user=request.user,
             message=f"Reviewed: **{action_name}**{pts_str} by {reviewer_name}",
             is_proposal=False,
+            data={
+                'action': action_name,
+                'points': serializer.validated_data.get('points'),
+                'staff_reply': serializer.validated_data.get('staff_reply', ''),
+                'template_id': serializer.validated_data.get('template_id'),
+            },
         )
 
         return Response(
             self.get_serializer(submission).data,
             status=status.HTTP_200_OK
         )
-    
+
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
         """Get statistics for steward dashboard."""
@@ -1499,10 +1532,13 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='templates')
     def templates(self, request):
-        """Get all review templates."""
+        """Get all review templates, optionally filtered by action."""
         from stewards.models import ReviewTemplate
         templates = ReviewTemplate.objects.all()
-        data = [{'id': t.id, 'label': t.label, 'text': t.text} for t in templates]
+        action_filter = request.query_params.get('action')
+        if action_filter in ('accept', 'reject', 'more_info'):
+            templates = templates.filter(action=action_filter)
+        data = [{'id': t.id, 'label': t.label, 'text': t.text, 'action': t.action} for t in templates]
         return Response(data)
 
     @action(detail=True, methods=['post'], url_path='propose')
@@ -1550,6 +1586,12 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             user=request.user,
             message=f"Proposed: **{action_str}**{pts_str}{ct_str}{user_str}{reply_str} by {proposer_name}",
             is_proposal=True,
+            data={
+                'action': data['proposed_action'],
+                'points': data.get('proposed_points'),
+                'staff_reply': data.get('proposed_staff_reply', ''),
+                'template_id': data.get('template_id'),
+            },
         )
 
         return Response(
@@ -1586,6 +1628,63 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 SubmissionNoteSerializer(note).data,
                 status=status.HTTP_201_CREATED
             )
+
+    @action(detail=False, methods=['get'], url_path='ban-appeals')
+    def ban_appeals(self, request):
+        """List ban appeals, optionally filtered by status."""
+        from users.models import BanAppeal
+        from users.serializers import BanAppealSerializer
+
+        status_filter = request.query_params.get('status')
+        qs = BanAppeal.objects.select_related(
+            'user', 'reviewed_by',
+        ).order_by('-created_at')
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
+        serializer = BanAppealSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'],
+            url_path='ban-appeals/(?P<appeal_id>[^/.]+)/review')
+    def review_ban_appeal(self, request, appeal_id=None):
+        """Approve or deny a ban appeal."""
+        from users.models import BanAppeal
+        from users.serializers import BanAppealReviewSerializer, BanAppealSerializer
+
+        appeal = get_object_or_404(BanAppeal, id=appeal_id)
+
+        if appeal.status != 'pending':
+            return Response(
+                {'error': f'Appeal has already been {appeal.status}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = BanAppealReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        action_taken = serializer.validated_data['action']
+        review_notes = serializer.validated_data.get('review_notes', '')
+
+        appeal.reviewed_by = request.user
+        appeal.reviewed_at = timezone.now()
+        appeal.review_notes = review_notes
+
+        if action_taken == 'approve':
+            appeal.status = 'approved'
+            appeal.save()
+            # Unban the user
+            user = appeal.user
+            user.is_banned = False
+            user.ban_reason = ''
+            user.banned_at = None
+            user.banned_by = None
+            user.save()
+        else:
+            appeal.status = 'denied'
+            appeal.save()
+
+        return Response(BanAppealSerializer(appeal).data)
 
 
 class MissionViewSet(viewsets.ReadOnlyModelViewSet):

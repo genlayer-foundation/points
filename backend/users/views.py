@@ -6,8 +6,11 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.db.models import Sum, Q
-from .models import User
-from .serializers import UserSerializer, UserCreateSerializer, UserProfileUpdateSerializer
+from .models import BanAppeal, User
+from .serializers import (
+    BanAppealSerializer, UserSerializer, UserCreateSerializer,
+    UserProfileUpdateSerializer,
+)
 from .cloudinary_service import CloudinaryService
 from .genlayer_service import GenLayerDeploymentService
 from contributions.models import Contribution
@@ -799,3 +802,51 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             }
             for user in users
         ])
+
+    @action(detail=False, methods=['get', 'post'], permission_classes=[IsAuthenticated],
+            url_path='me/appeal')
+    def appeal(self, request):
+        """
+        GET: Get current ban appeal status (if any).
+        POST: Submit a one-time ban appeal. Only allowed if user is banned
+              and has not already submitted an appeal.
+        """
+        if request.method == 'GET':
+            appeal = BanAppeal.objects.filter(user=request.user).first()
+            if appeal is None:
+                return Response(
+                    {'appeal': None, 'can_appeal': request.user.is_banned},
+                )
+            serializer = BanAppealSerializer(appeal)
+            return Response({
+                'appeal': serializer.data,
+                'can_appeal': False,
+            })
+
+        # POST — submit appeal
+        if not request.user.is_banned:
+            return Response(
+                {'error': 'Your account is not banned.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if BanAppeal.objects.filter(user=request.user).exists():
+            return Response(
+                {'error': 'You have already submitted an appeal. '
+                          'Each user may only appeal once.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        appeal_text = request.data.get('appeal_text', '').strip()
+        if not appeal_text:
+            return Response(
+                {'error': 'Please provide an explanation for your appeal.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        appeal = BanAppeal.objects.create(
+            user=request.user,
+            appeal_text=appeal_text,
+        )
+        serializer = BanAppealSerializer(appeal)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

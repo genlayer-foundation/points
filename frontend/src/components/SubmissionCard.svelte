@@ -47,6 +47,16 @@
   // State for review form
   let reviewAction = $state(reviewData?.action || 'accept');
   let proposedAction = $state('accept');
+
+  // Filter templates by action type
+  let acceptTemplates = $derived(templates.filter(t => t.action === 'accept'));
+  let rejectTemplates = $derived(templates.filter(t => t.action === 'reject'));
+  let moreInfoTemplates = $derived(templates.filter(t => t.action === 'more_info'));
+  let proposeContextTemplates = $derived(
+    reviewAction === 'propose' && proposedAction === 'reject' ? rejectTemplates :
+    reviewAction === 'propose' && proposedAction === 'more_info' ? moreInfoTemplates :
+    acceptTemplates
+  );
   let selectedUser = $state(reviewData?.user || submission.user);
   let selectedType = $state(reviewData?.contribution_type || submission.contribution_type);
   let points = $state(reviewData?.points || submission.proposed_points || submission.contribution_type_details?.min_points || 0);
@@ -54,6 +64,7 @@
   let createHighlight = $state(reviewData?.create_highlight || false);
   let highlightTitle = $state(reviewData?.highlight_title || '');
   let highlightDescription = $state(reviewData?.highlight_description || '');
+  let selectedTemplateId = $state(null);
 
   // For ContributionSelection component
   let selectedCategory = $state(submission.contribution_type_details?.category || 'validator');
@@ -195,6 +206,7 @@
     const template = templates.find(t => String(t.id) === templateId);
     if (template) {
       staffReply = template.text;
+      selectedTemplateId = template.id;
     }
     // Reset the select
     event.target.value = '';
@@ -210,7 +222,8 @@
         staff_reply: staffReply,
         create_highlight: createHighlight,
         highlight_title: highlightTitle,
-        highlight_description: highlightDescription
+        highlight_description: highlightDescription,
+        template_id: selectedTemplateId
       };
       onReview(submission.id, data);
     }
@@ -221,6 +234,7 @@
       const data = {
         proposed_action: proposedAction,
         proposed_staff_reply: staffReply,
+        template_id: selectedTemplateId,
       };
 
       // Only include accept-specific fields when proposing accept
@@ -649,13 +663,13 @@
                       <label class="block text-sm font-medium text-gray-700 mb-1">
                         {reviewAction === 'propose' && proposedAction === 'reject' ? 'Rejection Reason' : reviewAction === 'propose' && proposedAction === 'more_info' ? 'Information Needed' : 'Note (optional)'}
                       </label>
-                      {#if templates.length > 0}
+                      {#if proposeContextTemplates.length > 0}
                         <select
                           onchange={handleTemplateSelect}
                           class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
                         >
                           <option value="">-- Select template --</option>
-                          {#each templates as template}
+                          {#each proposeContextTemplates as template}
                             <option value={template.id}>{template.label}</option>
                           {/each}
                         </select>
@@ -695,13 +709,13 @@
                       <label class="block text-sm font-medium text-gray-700 mb-1">
                         Rejection Reason
                       </label>
-                      {#if templates.length > 0}
+                      {#if rejectTemplates.length > 0}
                         <select
                           onchange={handleTemplateSelect}
                           class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
                         >
                           <option value="">-- Select template --</option>
-                          {#each templates as template}
+                          {#each rejectTemplates as template}
                             <option value={template.id}>{template.label}</option>
                           {/each}
                         </select>
@@ -730,13 +744,13 @@
                       <label class="block text-sm font-medium text-gray-700 mb-1">
                         Information Needed
                       </label>
-                      {#if templates.length > 0}
+                      {#if moreInfoTemplates.length > 0}
                         <select
                           onchange={handleTemplateSelect}
                           class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
                         >
                           <option value="">-- Select template --</option>
-                          {#each templates as template}
+                          {#each moreInfoTemplates as template}
                             <option value={template.id}>{template.label}</option>
                           {/each}
                         </select>

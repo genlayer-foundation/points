@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from disposable_email_domains import blocklist
-from .models import User
+from .models import BanAppeal, User
 from validators.models import Validator, ValidatorWallet
 from builders.models import Builder
 from stewards.models import Steward
@@ -530,6 +530,8 @@ class UserSerializer(serializers.ModelSerializer):
                   'description', 'banner_image_url', 'profile_image_url', 'website',
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle', 'github_username', 'github_linked_at',
                   'email', 'is_email_verified',
+                  # Ban status
+                  'is_banned', 'ban_reason',
                   # Referral fields
                   'referral_code', 'referred_by_info', 'total_referrals', 'referral_details',
                   # Working groups
@@ -767,10 +769,10 @@ class UserCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # Remove password_confirm as it's not needed anymore
         validated_data.pop('password_confirm')
-        
+
         # Get the visible field from the context if provided
         visible = self.context.get('visible', True)
-        
+
         # Create user
         user = User.objects.create_user(
             email=validated_data['email'],
@@ -779,5 +781,34 @@ class UserCreateSerializer(serializers.ModelSerializer):
             address=validated_data.get('address', ''),
             visible=visible
         )
-        
+
         return user
+
+
+class BanAppealSerializer(serializers.ModelSerializer):
+    """Serializer for user ban appeals."""
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    user_name = serializers.CharField(source='user.name', read_only=True)
+    user_address = serializers.CharField(source='user.address', read_only=True)
+    reviewed_by_email = serializers.CharField(
+        source='reviewed_by.email', read_only=True, default=None,
+    )
+
+    class Meta:
+        model = BanAppeal
+        fields = [
+            'id', 'user', 'user_email', 'user_name', 'user_address',
+            'appeal_text', 'status',
+            'reviewed_by', 'reviewed_by_email', 'reviewed_at', 'review_notes',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'user', 'status', 'reviewed_by', 'reviewed_at',
+            'review_notes', 'created_at', 'updated_at',
+        ]
+
+
+class BanAppealReviewSerializer(serializers.Serializer):
+    """Serializer for steward review of ban appeals."""
+    action = serializers.ChoiceField(choices=['approve', 'deny'])
+    review_notes = serializers.CharField(required=False, default='', allow_blank=True)
