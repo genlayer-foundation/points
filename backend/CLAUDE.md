@@ -93,31 +93,34 @@ backend/
 
 ### Database & Migrations
 - **Migrations**: `{app}/migrations/`
-- **Database**: SQLite by default, configured in settings.py
+- **Database**: PostgreSQL via shared `tally-postgres` Docker container (see `docker-compose.yml`)
+  - Each orca session gets its own database (`tally_<session-name>`)
+  - Main worktree uses `tally_main`
+  - Production snapshots restored to `tally_template`
+  - `DATABASE_URL` is set per-session by `orchestrator.yml`
 - **Run migrations**: `python manage.py migrate`
 - **Create migrations**: `python manage.py makemigrations`
 
 ### Database Migration from Production
 - **Script**: `backend/scripts/migrate-prod-to-dev.sh`
 - **Documentation**: `backend/scripts/README.md`
-- **Purpose**: Sync production PostgreSQL database to local/dev environment
+- **Purpose**: Sync production PostgreSQL to local `tally_template` database
 - **Prerequisites**:
+  - `tally-postgres` container running (`docker compose up -d db`)
   - Virtual environment activated
   - AWS CLI configured with Parameter Store access
-  - Docker installed (for database operations)
 
 **Usage:**
 ```bash
-# Navigate to scripts directory
 cd backend/scripts
 
-# Download production database only (safest option)
+# Download production database
 ./migrate-prod-to-dev.sh --download
 
-# Upload latest dump to dev database
+# Restore to tally_template in local PostgreSQL container
 ./migrate-prod-to-dev.sh --upload
 
-# Run Django migrations and create admin user only
+# Run Django migrations and create admin user
 ./migrate-prod-to-dev.sh --setup
 
 # Full migration (download + upload + setup)
@@ -125,23 +128,21 @@ cd backend/scripts
 ```
 
 **What it does:**
-1. Fetches production database credentials from AWS Parameter Store (`/tally/prod/database_url`)
-2. Downloads production data to `backend/backups/` using Docker
-3. Restores to development database (local PostgreSQL or AWS dev instance)
+1. Fetches production credentials from AWS Parameter Store (`/tally/prod/database_url`)
+2. Downloads production data to `backend/backups/` via Docker
+3. Restores to `tally_template` database in the local `tally-postgres` container
 4. Runs Django migrations
-5. Creates/updates admin user (`dev@genlayer.foundation` / `password`) with Steward role
+5. Creates admin user (`dev@genlayer.foundation` / `password`) with Steward role
 
-**Notes:**
-- Uses Docker to avoid PostgreSQL version mismatch issues
-- Modular operation allows partial runs (download, upload, setup separately)
-- Creates timestamped backups in `backend/backups/`
-- See `backend/scripts/README.md` for detailed setup and troubleshooting
+**Creating session databases from template:**
+```bash
+docker compose exec db psql -U tally_user -c 'CREATE DATABASE "tally-feature-x" TEMPLATE tally_template'
+```
 
-### RDS to SQLite Migration
+### RDS to SQLite Migration (Deprecated)
 - **Script**: `backend/scripts/migrate_rds_to_sqlite.py`
-- **Purpose**: Convert production PostgreSQL to local SQLite for development
-- **Usage**: `python scripts/migrate_rds_to_sqlite.py` (from backend directory)
-- **Notes**: Resets all passwords to 'pass', excludes leaderboard entries, backs up existing db.sqlite3
+- **Status**: Deprecated — use the PostgreSQL workflow above instead
+- **Purpose**: Legacy script that converted production PostgreSQL to local SQLite
 
 ## API Endpoints Summary
 
