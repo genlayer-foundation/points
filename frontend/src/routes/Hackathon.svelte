@@ -437,7 +437,7 @@
           Register on DoraHacks
           <img src={arrowRight} alt="" class="w-4 h-4 brightness-0 invert" />
         </a>
-        <a href="https://discord.gg/genlayer" target="_blank" rel="noopener noreferrer"
+        <a href="https://discord.gg/genlayerlabs" target="_blank" rel="noopener noreferrer"
            class="inline-flex items-center gap-2 bg-[#f5f5f5] text-black h-10 rounded-[20px] px-4 text-[14px] font-medium tracking-[0.28px]">
           Join Discord
           <img src={arrowRightDark} alt="" class="w-4 h-4" />
