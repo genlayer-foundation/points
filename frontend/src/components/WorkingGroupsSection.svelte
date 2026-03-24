@@ -236,7 +236,7 @@
     <!-- Contact @ras message -->
     <div class="bg-white rounded-lg border {$categoryTheme.border} p-3">
       <p class="text-sm text-gray-600">
-        <span class="mr-1">💡</span> <strong>Interested in joining?</strong> Contact <span class="font-mono {$categoryTheme.bgSecondary} px-1.5 py-0.5 rounded {$categoryTheme.text} font-semibold">@ras</span> on <a href="https://discord.com/invite/qjCU4AWnKE" target="_blank" rel="noopener noreferrer" class="{$categoryTheme.text} hover:text-green-700 underline font-semibold">Discord</a> to learn more.
+        <span class="mr-1">💡</span> <strong>Interested in joining?</strong> Contact <span class="font-mono {$categoryTheme.bgSecondary} px-1.5 py-0.5 rounded {$categoryTheme.text} font-semibold">@ras</span> on <a href="https://discord.gg/genlayerlabs" target="_blank" rel="noopener noreferrer" class="{$categoryTheme.text} hover:text-green-700 underline font-semibold">Discord</a> to learn more.
       </p>
     </div>
 
