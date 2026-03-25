@@ -3,67 +3,60 @@
   import { push } from 'svelte-spa-router';
   import Avatar from '../components/Avatar.svelte';
   import Icon from '../components/Icons.svelte';
-  import { leaderboardAPI, creatorAPI } from '../lib/api';
-  import { authState } from '../lib/auth.js';
-  import { userStore } from '../lib/userStore.js';
+  import { leaderboardAPI } from '../lib/api';
 
-  // Get current user from store
-  let user = $derived($userStore.user);
-
-  // Check if user is already a community member (has creator profile)
-  let isCommunityMember = $derived(!!user?.creator);
+  const PAGE_SIZE = 50;
 
   // State management
   let communityMembers = $state([]);
   let loading = $state(true);
+  let loadingMore = $state(false);
   let error = $state(null);
-  let joiningCommunity = $state(false);
+  let offset = $state(0);
+  let hasMore = $state(true);
+  let totalCount = $state(0);
 
   // Fetch community data
   async function fetchCommunity() {
     try {
       loading = true;
       error = null;
+      offset = 0;
 
-      const response = await leaderboardAPI.getCommunity();
+      const response = await leaderboardAPI.getCommunity({ limit: PAGE_SIZE, offset: 0 });
       const data = response.data;
 
-      communityMembers = data.top_community || [];
-      loading = false;
+      communityMembers = data.results || [];
+      totalCount = data.count || 0;
+      hasMore = communityMembers.length >= PAGE_SIZE;
+      offset = communityMembers.length;
     } catch (err) {
       error = err.message || 'Failed to load community members';
+    } finally {
       loading = false;
+    }
+  }
+
+  async function loadMore() {
+    try {
+      loadingMore = true;
+      const response = await leaderboardAPI.getCommunity({ limit: PAGE_SIZE, offset });
+      const data = response.data;
+      const newResults = data.results || [];
+
+      communityMembers = [...communityMembers, ...newResults];
+      offset += newResults.length;
+      hasMore = newResults.length >= PAGE_SIZE;
+    } catch (err) {
+      console.error('Failed to load more members:', err);
+    } finally {
+      loadingMore = false;
     }
   }
 
   onMount(() => {
     fetchCommunity();
   });
-
-  async function joinAsCommunity() {
-    if (!$authState.isAuthenticated || !user?.address) {
-      return;
-    }
-
-    try {
-      joiningCommunity = true;
-      error = null;
-
-      const response = await creatorAPI.joinAsCreator();
-
-      if (response.status === 201 || response.status === 200) {
-        // Reload user data
-        await userStore.loadUser();
-
-        // Redirect to user's profile
-        push(`/participant/${user.address}`);
-      }
-    } catch (err) {
-      error = err.response?.data?.message || 'Failed to join the community';
-    } finally {
-      joiningCommunity = false;
-    }
-  }
 
   function getRankClass(rank) {
     if (rank === 1) return 'bg-amber-100 text-amber-800';
@@ -75,7 +68,7 @@
 
 <div class="space-y-6 sm:space-y-8">
       <!-- Main Title -->
-      <h1 class="text-2xl font-bold text-gray-900">Community</h1>
+      <h1 class="text-2xl font-bold text-gray-900">Community Leaderboard</h1>
 
       <!-- Top Community Members Section -->
       <div class="space-y-4">
@@ -154,11 +147,11 @@
                         <div class="flex items-center gap-2">
                           <div class="flex items-center text-xs text-orange-600" title="Builder Referral Points">
                             <Icon name="builder" size="xs" className="mr-0.5" />
-                            {member.builder_points}
+                            {member.referral_builder_points}
                           </div>
                           <div class="flex items-center text-xs text-sky-600" title="Validator Referral Points">
                             <Icon name="validator" size="xs" className="mr-0.5" />
-                            {member.validator_points}
+                            {member.referral_validator_points}
                           </div>
                         </div>
                       </div>
@@ -172,92 +165,19 @@
       {/if}
       </div>
 
-  <!-- Become a Community Member Card (only show if NOT a community member) -->
-  {#if $authState.isAuthenticated && user && !isCommunityMember}
-    <div class="bg-purple-50 border-2 border-purple-200 rounded-xl overflow-hidden hover:shadow-lg transition-all">
-      <div class="p-6">
-        <div class="flex items-center mb-4">
-          <div class="flex items-center justify-center w-12 h-12 bg-purple-500 rounded-full mr-4 flex-shrink-0">
-            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-            </svg>
-          </div>
-          <div>
-            <h3 class="text-xl font-bold text-purple-900 mb-1">Become a Top Community Member</h3>
-            <p class="text-purple-700 text-sm">Grow the GenLayer community and earn rewards</p>
-          </div>
-        </div>
-
-        <div class="space-y-4">
-          <div>
-            <p class="text-sm text-purple-700 mb-3">Community members help grow the GenLayer ecosystem by inviting others to join as Builders or Validators. The more your referrals contribute, the more points you earn!</p>
-            <ul class="space-y-2">
-              <li class="flex items-center text-sm text-purple-600">
-                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                Earn points when your referrals complete contributions
-              </li>
-              <li class="flex items-center text-sm text-purple-600">
-                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                Track Builder and Validator referral points separately
-              </li>
-              <li class="flex items-center text-sm text-purple-600">
-                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                Climb the leaderboard by supporting the ecosystem
-              </li>
-            </ul>
-          </div>
-
-          {#if error}
-            <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
-              {error}
-            </div>
-          {/if}
-
-          <button
-            onclick={joinAsCommunity}
-            disabled={joiningCommunity}
-            class="w-full flex items-center justify-center px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold group-hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {#if joiningCommunity}
-              <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-              Joining...
-            {:else}
-              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-              </svg>
-              Join the Community
-            {/if}
-          </button>
-        </div>
-      </div>
-    </div>
-  {:else if !$authState.isAuthenticated}
-    <!-- Information Card (only shown when not authenticated) -->
-    <div class="bg-purple-50 border border-purple-200 rounded-lg p-6">
-      <div class="flex">
-        <div class="flex-shrink-0">
-          <svg class="h-5 w-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-          </svg>
-        </div>
-        <div class="ml-3">
-          <h3 class="text-sm font-medium text-purple-900">About the Community</h3>
-          <div class="mt-2 text-sm text-purple-700">
-            <p>Community members help grow the GenLayer ecosystem by inviting others to join as Builders or Validators.</p>
-            <ul class="list-disc list-inside mt-2 space-y-1">
-              <li>Earn points when your referrals complete contributions</li>
-              <li>Track Builder and Validator referral points separately</li>
-              <li>Climb the leaderboard by supporting the ecosystem</li>
-            </ul>
-          </div>
-        </div>
-      </div>
+  {#if hasMore && !loading}
+    <div class="flex justify-center py-4">
+      <button
+        onclick={loadMore}
+        disabled={loadingMore}
+        class="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+      >
+        {#if loadingMore}
+          Loading...
+        {:else}
+          Load more
+        {/if}
+      </button>
     </div>
   {/if}
 </div>
