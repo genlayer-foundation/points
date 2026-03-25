@@ -5,10 +5,10 @@
   import checkIcon from '../assets/referral/check-icon.png';
   import cardBg1 from '../assets/referral/card-bg-1.png';
   import cardBg2 from '../assets/referral/card-bg-2.png';
-  import iconPortal from '../assets/referral/icon-portal.png';
-  import iconReferral from '../assets/referral/icon-referral.png';
-  import iconShare1 from '../assets/referral/icon-share-1.png';
-  import iconShare2 from '../assets/referral/icon-share-2.png';
+  const iconPortal = '/assets/icons/hexagon-genlayer.svg';
+  const iconBuilder = '/assets/illustrations/builder-badge.svg';
+  const iconValidator = '/assets/illustrations/validator-badge.svg';
+  const iconCommunity = '/assets/illustrations/community-badge.svg';
   import arrowRightWhite from '../assets/referral/arrow-right-white.png';
   import roleBgValidators from '../assets/referral/role-bg-validators.png';
   import roleBgCommunity from '../assets/referral/role-bg-community.png';
@@ -130,7 +130,7 @@
       title: 'Referral Program',
       description: 'Invite Builders, Validators, and Community members to GenLayer. Earn 10% of all points from their successful contributions — forever, with no cap.',
       image: 'https://portal.genlayer.foundation/assets/referral_og_image.png',
-      url: 'https://portal.genlayer.foundation/#/referral-program',
+      url: 'https://portal.genlayer.foundation/#/community',
     });
     return () => resetPageMeta();
   });
@@ -307,7 +307,7 @@
           <div class="flex-1 w-full">
             <div class="relative bg-white border border-[#f5f5f5] rounded-[12px] overflow-hidden flex items-center justify-center" style="min-height: 280px;">
               <img src={cardBg1} alt="" class="absolute inset-0 w-full h-full object-contain opacity-40 pointer-events-none" />
-              <img src={iconReferral} alt="Referral" class="relative z-10 w-20 h-20" />
+              <img src={iconBuilder} alt="Referral" class="relative z-10 w-20 h-20" />
             </div>
           </div>
         </div>
@@ -346,9 +346,9 @@
             <div class="relative bg-white border border-[#f5f5f5] rounded-[12px] overflow-hidden flex items-center justify-center" style="min-height: 280px;">
               <img src={cardBg1} alt="" class="absolute inset-0 w-full h-full object-contain opacity-40 pointer-events-none" />
               <div class="relative z-10 flex items-center gap-6">
-                <img src={iconReferral} alt="Builders" class="w-14 h-14" />
-                <img src={iconShare1} alt="Validators" class="w-14 h-14 -mt-8" />
-                <img src={iconShare2} alt="Community" class="w-14 h-14" />
+                <img src={iconBuilder} alt="Builders" class="w-14 h-14" />
+                <img src={iconValidator} alt="Validators" class="w-14 h-14 -mt-8" />
+                <img src={iconCommunity} alt="Community" class="w-14 h-14" />
               </div>
             </div>
           </div>
@@ -370,7 +370,7 @@
         <div class="bg-white border border-[#e5e5e5] rounded-[12px] overflow-hidden flex flex-col">
           <div class="relative flex items-center justify-center" style="min-height: 240px;">
             <img src={cardBg1} alt="" class="absolute inset-0 w-full h-full object-contain opacity-30 pointer-events-none" />
-            <img src={iconReferral} alt="Builders" class="relative z-10 w-20 h-20" />
+            <img src={iconBuilder} alt="Builders" class="relative z-10 w-20 h-20" />
           </div>
           <div class="p-5 md:p-6 flex flex-col flex-1 gap-3">
             <h3 class="text-[22px] md:text-[24px] font-semibold font-display" style="letter-spacing: -0.48px;">Builders</h3>
@@ -394,7 +394,7 @@
         <div class="bg-white border border-[#e5e5e5] rounded-[12px] overflow-hidden flex flex-col">
           <div class="relative flex items-center justify-center" style="min-height: 240px;">
             <img src={roleBgValidators} alt="" class="absolute inset-0 w-full h-full object-contain opacity-30 pointer-events-none" />
-            <img src={iconShare1} alt="Validators" class="relative z-10 w-20 h-20" />
+            <img src={iconValidator} alt="Validators" class="relative z-10 w-20 h-20" />
           </div>
           <div class="p-5 md:p-6 flex flex-col flex-1 gap-3">
             <h3 class="text-[22px] md:text-[24px] font-semibold font-display" style="letter-spacing: -0.48px;">Validators</h3>
@@ -418,7 +418,7 @@
         <div class="bg-white border border-[#e5e5e5] rounded-[12px] overflow-hidden flex flex-col">
           <div class="relative flex items-center justify-center" style="min-height: 240px;">
             <img src={roleBgCommunity} alt="" class="absolute inset-0 w-full h-full object-contain opacity-30 pointer-events-none" />
-            <img src={iconShare2} alt="Community" class="relative z-10 w-20 h-20" />
+            <img src={iconCommunity} alt="Community" class="relative z-10 w-20 h-20" />
           </div>
           <div class="p-5 md:p-6 flex flex-col flex-1 gap-3">
             <h3 class="text-[22px] md:text-[24px] font-semibold font-display" style="letter-spacing: -0.48px;">Community</h3>

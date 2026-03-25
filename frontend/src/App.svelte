@@ -74,7 +74,8 @@
     '/leaderboard': Leaderboard,
     '/participants': Validators,
     '/referrals': Referrals,
-    '/community': Community,
+    '/community/leaderboard': Community,
+    '/community': ReferralProgram,
     '/hackathon': Hackathon,
     '/referral-program': ReferralProgram,
 

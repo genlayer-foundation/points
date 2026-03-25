@@ -275,24 +275,48 @@
       </div>
 
       <!-- Community -->
-      <a
-        href="/community"
-        onclick={(e) => { e.preventDefault(); navigate('/community'); }}
-        class="flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px]"
-        style={getActiveSection() === 'community' ? 'background: #f0eafb;' : ''}
-        onmouseenter={(e) => { if (getActiveSection() !== 'community') { e.currentTarget.style.background = '#f0eafb'; e.currentTarget.querySelector('img').src = '/assets/icons/group-3-line-purple.svg'; }}}
-        onmouseleave={(e) => { if (getActiveSection() !== 'community') { e.currentTarget.style.background = ''; e.currentTarget.querySelector('img').src = '/assets/icons/group-3-line.svg'; }}}
-        title={collapsed ? 'Community' : ''}
-      >
-        {#if getActiveSection() === 'community'}
-          <img src="/assets/icons/group-3-line-purple.svg" alt="" class="w-4 h-4 flex-shrink-0">
-        {:else}
-          <img src="/assets/icons/group-3-line.svg" alt="" class="w-4 h-4 flex-shrink-0">
+      <div>
+        <button
+          onclick={() => changeCategory('community', '/community')}
+          class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px]"
+          style={getActiveSection() === 'community' ? 'background: #f0eafb;' : ''}
+          onmouseenter={(e) => { if (getActiveSection() !== 'community') { e.currentTarget.style.background = '#f0eafb'; e.currentTarget.querySelector('img').src = '/assets/icons/group-3-line-purple.svg'; }}}
+          onmouseleave={(e) => { if (getActiveSection() !== 'community') { e.currentTarget.style.background = ''; e.currentTarget.querySelector('img').src = '/assets/icons/group-3-line.svg'; }}}
+          title={collapsed ? 'Community' : ''}
+        >
+          {#if getActiveSection() === 'community'}
+            <img src="/assets/icons/group-3-line-purple.svg" alt="" class="w-4 h-4 flex-shrink-0">
+          {:else}
+            <img src="/assets/icons/group-3-line.svg" alt="" class="w-4 h-4 flex-shrink-0">
+          {/if}
+          {#if !collapsed}
+            <span>Community</span>
+          {/if}
+        </button>
+
+        {#if !collapsed && getActiveSection() === 'community'}
+          <div class="pl-5">
+            <a
+              href="/community"
+              onclick={(e) => { e.preventDefault(); navigate('/community'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                $location === '/community' ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Referral Program
+            </a>
+            <a
+              href="/community/leaderboard"
+              onclick={(e) => { e.preventDefault(); navigate('/community/leaderboard'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Leaderboard
+            </a>
+          </div>
         {/if}
-        {#if !collapsed}
-          <span>Community</span>
-        {/if}
-      </a>
+      </div>
 
       <!-- Stewards -->
       <div>
@@ -592,7 +616,7 @@
 
       <!-- Community -->
       <button
-        onclick={() => navigate('/community')}
+        onclick={() => changeCategory('community', '/community')}
         class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px]"
         style={getActiveSection() === 'community' ? 'background: #f0eafb;' : ''}
       >
@@ -603,6 +627,29 @@
         {/if}
         <span>Community</span>
       </button>
+
+      {#if getActiveSection() === 'community'}
+        <div class="pl-5">
+          <a
+            href="/community"
+            onclick={(e) => { e.preventDefault(); navigate('/community'); }}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              $location === '/community' ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+            }"
+          >
+            Referral Program
+          </a>
+          <a
+            href="/community/leaderboard"
+            onclick={(e) => { e.preventDefault(); navigate('/community/leaderboard'); }}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+            }"
+          >
+            Leaderboard
+          </a>
+        </div>
+      {/if}
 
       <!-- Stewards -->
       <button

@@ -6,10 +6,19 @@
   import Avatar from '../components/Avatar.svelte';
   import Icon from '../components/Icons.svelte';
 
+  const PAGE_SIZE = 50;
+
   // State variables
   let waitlistUsers = $state([]);
   let loading = $state(true);
+  let loadingMore = $state(false);
   let error = $state(null);
+  let offset = $state(0);
+  let hasMore = $state(true);
+
+  // Cached enrichment data (fetched once)
+  let allUsers = [];
+  let waitlistContributions = null;
 
   onMount(async () => {
     await fetchWaitlistData();
@@ -24,69 +33,79 @@
     }
   };
 
+  function enrichEntries(rawEntries) {
+    return rawEntries.map(entry => {
+      const userDetails = entry.user_details || {};
+
+      const fullUser = allUsers.find(u =>
+        u.address && userDetails.address &&
+        u.address.toLowerCase() === userDetails.address.toLowerCase()
+      );
+
+      const waitlistContribution = waitlistContributions?.data?.results?.find(c =>
+        c.user_details?.address?.toLowerCase() === userDetails.address?.toLowerCase()
+      );
+
+      return {
+        address: userDetails.address || '',
+        isWaitlisted: true,
+        user: fullUser || userDetails,
+        score: entry.total_points,
+        waitlistRank: entry.rank,
+        nodeVersion: fullUser?.validator?.node_version || null,
+        matchesTarget: fullUser?.validator?.matches_target || false,
+        targetVersion: fullUser?.validator?.target_version || null,
+        joinedWaitlist: waitlistContribution?.contribution_date || fullUser?.created_at,
+        referral_points: entry.referral_points || null
+      };
+    });
+  }
+
   async function fetchWaitlistData() {
     try {
       loading = true;
       error = null;
+      offset = 0;
 
-      // Fetch waitlist-only users
-      const [waitlistResponse, usersRes] = await Promise.all([
-        leaderboardAPI.getLeaderboardByType('validator-waitlist'),
-        usersAPI.getUsers()
-      ]);
-
-      if (waitlistResponse.data) {
-        const rawEntries = Array.isArray(waitlistResponse.data) ? waitlistResponse.data : [];
-        const allUsers = usersRes.data.results || [];
-
-        // Get contributions for waitlist users to find their join dates
-        const waitlistContributions = await contributionsAPI.getContributions({
+      // Fetch enrichment data and first page of waitlist entries
+      const [waitlistResponse, usersRes, contribRes] = await Promise.all([
+        leaderboardAPI.getLeaderboardByType('validator-waitlist', 'asc', { limit: PAGE_SIZE, offset: 0 }),
+        usersAPI.getUsers(),
+        contributionsAPI.getContributions({
           contribution_type_slug: 'validator-waitlist',
           limit: 100
-        });
+        })
+      ]);
 
-        // Process and enrich waitlist user data
-        waitlistUsers = rawEntries.map(entry => {
-          const userDetails = entry.user_details || {};
+      allUsers = usersRes.data.results || [];
+      waitlistContributions = contribRes;
 
-          // Find full user data
-          const fullUser = allUsers.find(u =>
-            u.address && userDetails.address &&
-            u.address.toLowerCase() === userDetails.address.toLowerCase()
-          );
-
-          // Find when they joined the waitlist
-          const waitlistContribution = waitlistContributions.data?.results?.find(c =>
-            c.user_details?.address?.toLowerCase() === userDetails.address?.toLowerCase()
-          );
-
-          return {
-            address: userDetails.address || '',
-            isWaitlisted: true,
-            user: fullUser || userDetails,
-            score: entry.total_points,
-            waitlistRank: entry.rank,
-            nodeVersion: fullUser?.validator?.node_version || null,
-            matchesTarget: fullUser?.validator?.matches_target || false,
-            targetVersion: fullUser?.validator?.target_version || null,
-            joinedWaitlist: waitlistContribution?.contribution_date || fullUser?.created_at,
-            referral_points: entry.referral_points || null
-          };
-        });
-
-        // Sort by waitlist rank
-        waitlistUsers.sort((a, b) => {
-          if (a.waitlistRank && b.waitlistRank) {
-            return a.waitlistRank - b.waitlistRank;
-          }
-          return 0;
-        });
-      }
-
-      loading = false;
+      const rawEntries = Array.isArray(waitlistResponse.data) ? waitlistResponse.data : [];
+      waitlistUsers = enrichEntries(rawEntries);
+      offset = rawEntries.length;
+      hasMore = rawEntries.length >= PAGE_SIZE;
     } catch (err) {
       error = err.message || 'Failed to load waitlist data';
+    } finally {
       loading = false;
+    }
+  }
+
+  async function loadMore() {
+    try {
+      loadingMore = true;
+
+      const response = await leaderboardAPI.getLeaderboardByType('validator-waitlist', 'asc', { limit: PAGE_SIZE, offset });
+      const rawEntries = Array.isArray(response.data) ? response.data : [];
+      const enriched = enrichEntries(rawEntries);
+
+      waitlistUsers = [...waitlistUsers, ...enriched];
+      offset += rawEntries.length;
+      hasMore = rawEntries.length >= PAGE_SIZE;
+    } catch (err) {
+      error = err.message || 'Failed to load more participants';
+    } finally {
+      loadingMore = false;
     }
   }
 
@@ -271,5 +290,21 @@
         </table>
       </div>
     </div>
+
+    {#if hasMore}
+      <div class="flex justify-center py-4">
+        <button
+          onclick={loadMore}
+          disabled={loadingMore}
+          class="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+        >
+          {#if loadingMore}
+            Loading...
+          {:else}
+            Load more
+          {/if}
+        </button>
+      </div>
+    {/if}
   {/if}
 </div>
