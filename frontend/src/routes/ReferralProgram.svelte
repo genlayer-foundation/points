@@ -3,15 +3,7 @@
   import { authState } from '../lib/auth.js';
   import { push } from 'svelte-spa-router';
   import checkIcon from '../assets/referral/check-icon.png';
-  import cardBg1 from '../assets/referral/card-bg-1.png';
-  import cardBg2 from '../assets/referral/card-bg-2.png';
-  const iconPortal = '/assets/icons/hexagon-genlayer.svg';
-  const iconBuilder = '/assets/illustrations/builder-badge.svg';
-  const iconValidator = '/assets/illustrations/validator-badge.svg';
-  const iconCommunity = '/assets/illustrations/community-badge.svg';
   import arrowRightWhite from '../assets/referral/arrow-right-white.png';
-  import roleBgValidators from '../assets/referral/role-bg-validators.png';
-  import roleBgCommunity from '../assets/referral/role-bg-community.png';
 
   // --- Hex grid canvas + mouse-following gradient mask ---
   // Matches Figma: small, solid-filled, flat-top hexagons
@@ -268,8 +260,16 @@
           </div>
           <div class="flex-1 w-full">
             <div class="relative bg-white border border-[#f5f5f5] rounded-[12px] overflow-hidden flex items-center justify-center" style="min-height: 280px;">
-              <img src={cardBg2} alt="" class="absolute inset-0 w-full h-full object-contain opacity-40 pointer-events-none" />
-              <img src={iconPortal} alt="Portal" class="relative z-10 w-20 h-20" />
+              <div class="relative w-[360px] h-[240px] flex-shrink-0">
+                <div class="absolute -translate-x-1/2 w-[170px] h-[170px] left-[calc(50%+186.33px)] top-[155px]">
+                  <img alt="" class="absolute inset-[-75.29%] w-[250%] h-[250%]" src="/assets/illustrations/ellipse-purple.svg" />
+                </div>
+                <img alt="" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[360px] h-[286px] max-w-none" src="/assets/illustrations/polygon-community.svg" />
+                <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[80px] h-[80px]">
+                  <img src="/assets/icons/hexagon-genlayer.svg" alt="" class="w-full h-full" />
+                  <img src="/assets/illustrations/gl-symbol-white.svg" alt="" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50%] h-[48%]" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -306,8 +306,13 @@
           </div>
           <div class="flex-1 w-full">
             <div class="relative bg-white border border-[#f5f5f5] rounded-[12px] overflow-hidden flex items-center justify-center" style="min-height: 280px;">
-              <img src={cardBg1} alt="" class="absolute inset-0 w-full h-full object-contain opacity-40 pointer-events-none" />
-              <img src={iconBuilder} alt="Referral" class="relative z-10 w-20 h-20" />
+              <div class="relative w-[360px] h-[240px] flex-shrink-0">
+                <div class="absolute -translate-x-1/2 w-[170px] h-[170px] left-[calc(50%-180.33px)] top-[181px]">
+                  <img alt="" class="absolute inset-[-75.29%] w-[250%] h-[250%]" src="/assets/illustrations/ellipse-orange.svg" />
+                </div>
+                <img alt="" class="absolute left-[27px] top-[32px] w-[334.5px] h-[180px] max-w-none" src="/assets/illustrations/group-builder-lines.svg" />
+                <img alt="" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[80px] h-[80px]" src="/assets/illustrations/builder-badge.svg" />
+              </div>
             </div>
           </div>
         </div>
@@ -344,11 +349,16 @@
           </div>
           <div class="flex-1 w-full">
             <div class="relative bg-white border border-[#f5f5f5] rounded-[12px] overflow-hidden flex items-center justify-center" style="min-height: 280px;">
-              <img src={cardBg1} alt="" class="absolute inset-0 w-full h-full object-contain opacity-40 pointer-events-none" />
-              <div class="relative z-10 flex items-center gap-6">
-                <img src={iconBuilder} alt="Builders" class="w-14 h-14" />
-                <img src={iconValidator} alt="Validators" class="w-14 h-14 -mt-8" />
-                <img src={iconCommunity} alt="Community" class="w-14 h-14" />
+              <div class="relative w-[360px] h-[240px] flex-shrink-0">
+                <div class="absolute -translate-x-1/2 w-[170px] h-[170px] left-[calc(50%+186.33px)] top-[155px]">
+                  <img alt="" class="absolute inset-[-75.29%] w-[250%] h-[250%]" src="/assets/illustrations/ellipse-purple.svg" />
+                </div>
+                <img alt="" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[360px] h-[286px] max-w-none" src="/assets/illustrations/polygon-community.svg" />
+                <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-6">
+                  <img src="/assets/illustrations/builder-badge.svg" alt="Builders" class="w-[64px] h-[64px]" />
+                  <img src="/assets/illustrations/validator-badge.svg" alt="Validators" class="w-[64px] h-[64px] -mt-8" />
+                  <img src="/assets/illustrations/community-badge.svg" alt="Community" class="w-[64px] h-[64px]" />
+                </div>
               </div>
             </div>
           </div>
@@ -367,73 +377,96 @@
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <!-- Builders card -->
-        <div class="bg-white border border-[#e5e5e5] rounded-[12px] overflow-hidden flex flex-col">
-          <div class="relative flex items-center justify-center" style="min-height: 240px;">
-            <img src={cardBg1} alt="" class="absolute inset-0 w-full h-full object-contain opacity-30 pointer-events-none" />
-            <img src={iconBuilder} alt="Builders" class="relative z-10 w-20 h-20" />
+        <div class="bg-white border border-[#f5f5f5] rounded-[8px] p-[8px] flex flex-col">
+          <div class="border border-[#f5f5f5] rounded-[2px] h-[240px] overflow-hidden relative flex items-center justify-center">
+            <div class="relative w-[360px] h-[240px] flex-shrink-0">
+              <div class="absolute -translate-x-1/2 w-[170px] h-[170px] left-[calc(50%-180.33px)] top-[181px]">
+                <img alt="" class="absolute inset-[-75.29%] w-[250%] h-[250%]" src="/assets/illustrations/ellipse-orange.svg" />
+              </div>
+              <img alt="" class="absolute left-[27px] top-[32px] w-[334.5px] h-[180px] max-w-none" src="/assets/illustrations/group-builder-lines.svg" />
+              <img alt="" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[80px] h-[80px]" src="/assets/illustrations/builder-badge.svg" />
+            </div>
           </div>
-          <div class="p-5 md:p-6 flex flex-col flex-1 gap-3">
-            <h3 class="text-[22px] md:text-[24px] font-semibold font-display" style="letter-spacing: -0.48px;">Builders</h3>
-            <p class="text-[14px] md:text-[15px] text-[#656567] leading-relaxed">
-              Write Intelligent Contracts, build dApps, and contribute developer tools to the GenLayer ecosystem.
-            </p>
+          <div class="flex flex-col gap-[24px] p-[16px]">
+            <div class="flex flex-col gap-[12px]">
+              <h3 class="text-[24px] font-medium font-display leading-[40px] text-black" style="letter-spacing: -0.48px;">Builders</h3>
+              <p class="text-[14px] text-black leading-[21px]" style="letter-spacing: 0.28px;">
+                Write Intelligent Contracts, build dApps, and contribute developer tools to the GenLayer ecosystem.
+              </p>
+            </div>
             <button
               onclick={handleGetReferral}
-              class="flex items-center justify-center gap-2 w-full h-11 mt-auto text-white font-medium rounded-full text-sm transition-opacity hover:opacity-90"
+              class="flex gap-[8px] items-center justify-center h-[40px] px-[16px] rounded-[20px] w-full transition-colors hover:opacity-90"
               style="background-color: #131214;"
             >
-              Invite a Builder
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-              </svg>
+              <span class="text-[14px] font-medium text-white leading-[21px]" style="letter-spacing: 0.28px;">Invite a Builder</span>
+              <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="w-4 h-4" />
             </button>
           </div>
         </div>
 
         <!-- Validators card -->
-        <div class="bg-white border border-[#e5e5e5] rounded-[12px] overflow-hidden flex flex-col">
-          <div class="relative flex items-center justify-center" style="min-height: 240px;">
-            <img src={roleBgValidators} alt="" class="absolute inset-0 w-full h-full object-contain opacity-30 pointer-events-none" />
-            <img src={iconValidator} alt="Validators" class="relative z-10 w-20 h-20" />
+        <div class="bg-white border border-[#f5f5f5] rounded-[8px] p-[8px] flex flex-col">
+          <div class="border border-[#f5f5f5] rounded-[2px] h-[240px] overflow-hidden relative flex items-center justify-center">
+            <div class="relative w-[360px] h-[240px] flex-shrink-0">
+              <div class="absolute -translate-x-1/2 w-[170px] h-[170px] left-[calc(50%+186px)] top-[-85px]">
+                <img alt="" class="absolute inset-[-75.29%] w-[250%] h-[250%]" src="/assets/illustrations/ellipse-blue.svg" />
+              </div>
+              <img alt="" class="absolute left-[0.33px] top-[32px] w-[360px] h-[180px] max-w-none" src="/assets/illustrations/group-validator-lines.svg" />
+              <img alt="" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[80px] h-[80px]" src="/assets/illustrations/validator-badge.svg" />
+            </div>
           </div>
-          <div class="p-5 md:p-6 flex flex-col flex-1 gap-3">
-            <h3 class="text-[22px] md:text-[24px] font-semibold font-display" style="letter-spacing: -0.48px;">Validators</h3>
-            <p class="text-[14px] md:text-[15px] text-[#656567] leading-relaxed">
-              Run nodes, provide AI models, and help scale and secure the network through Optimistic Democracy.
-            </p>
+          <div class="flex flex-col gap-[24px] p-[16px]">
+            <div class="flex flex-col gap-[12px]">
+              <h3 class="text-[24px] font-medium font-display leading-[40px] text-black" style="letter-spacing: -0.48px;">Validators</h3>
+              <p class="text-[14px] text-black leading-[21px]" style="letter-spacing: 0.28px;">
+                Run nodes, provide AI models, and help scale and secure the network through Optimistic Democracy.
+              </p>
+            </div>
             <button
               onclick={handleGetReferral}
-              class="flex items-center justify-center gap-2 w-full h-11 mt-auto text-white font-medium rounded-full text-sm transition-opacity hover:opacity-90"
+              class="flex gap-[8px] items-center justify-center h-[40px] px-[16px] rounded-[20px] w-full transition-colors hover:opacity-90"
               style="background-color: #131214;"
             >
-              Invite a Validator
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-              </svg>
+              <span class="text-[14px] font-medium text-white leading-[21px]" style="letter-spacing: 0.28px;">Invite a Validator</span>
+              <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="w-4 h-4" />
             </button>
           </div>
         </div>
 
         <!-- Community card -->
-        <div class="bg-white border border-[#e5e5e5] rounded-[12px] overflow-hidden flex flex-col">
-          <div class="relative flex items-center justify-center" style="min-height: 240px;">
-            <img src={roleBgCommunity} alt="" class="absolute inset-0 w-full h-full object-contain opacity-30 pointer-events-none" />
-            <img src={iconCommunity} alt="Community" class="relative z-10 w-20 h-20" />
+        <div class="bg-white border border-[#f5f5f5] rounded-[8px] p-[8px] flex flex-col">
+          <div class="border border-[#f5f5f5] rounded-[2px] h-[240px] overflow-hidden relative flex items-center justify-center">
+            <div class="relative w-[360px] h-[240px] flex-shrink-0">
+              <div class="absolute -translate-x-1/2 w-[170px] h-[170px] left-[calc(50%+186.33px)] top-[155px]">
+                <img alt="" class="absolute inset-[-75.29%] w-[250%] h-[250%]" src="/assets/illustrations/ellipse-purple.svg" />
+              </div>
+              <img alt="" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[360px] h-[286px] max-w-none" src="/assets/illustrations/polygon-community.svg" />
+              <img alt="" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[80px] h-[80px]" src="/assets/illustrations/community-badge.svg" />
+              <div class="absolute w-[150px] h-[107.36px] left-[76.67px] top-[31px] pointer-events-none">
+                <img alt="" class="absolute inset-0 w-full h-full max-w-none" src="/assets/illustrations/ellipse-blue.svg" />
+              </div>
+              <img alt="" class="absolute left-[calc(50%-81.67px)] top-[148px] -translate-x-1/2 w-[40px] h-[40px]" src="/assets/illustrations/builder-badge-small.svg" />
+              <img alt="" class="absolute left-[calc(50%+82.33px)] top-[51px] -translate-x-1/2 w-[40px] h-[40px]" src="/assets/illustrations/builder-badge-small.svg" />
+              <img alt="" class="absolute left-[calc(50%+82.33px)] top-[calc(50%+48px)] -translate-x-1/2 -translate-y-1/2 w-[40px] h-[40px]" src="/assets/illustrations/validator-badge-small.svg" />
+              <img alt="" class="absolute left-[calc(50%+0.33px)] top-[calc(50%-92px)] -translate-x-1/2 -translate-y-1/2 w-[40px] h-[40px]" src="/assets/illustrations/validator-badge-small.svg" />
+              <img alt="" class="absolute left-[calc(50%+0.33px)] top-[calc(50%+92px)] -translate-x-1/2 -translate-y-1/2 w-[40px] h-[40px]" src="/assets/illustrations/community-badge-small.svg" />
+            </div>
           </div>
-          <div class="p-5 md:p-6 flex flex-col flex-1 gap-3">
-            <h3 class="text-[22px] md:text-[24px] font-semibold font-display" style="letter-spacing: -0.48px;">Community</h3>
-            <p class="text-[14px] md:text-[15px] text-[#656567] leading-relaxed">
-              Create content, spread the word, and bring new contributors through referrals and outreach.
-            </p>
+          <div class="flex flex-col gap-[24px] p-[16px]">
+            <div class="flex flex-col gap-[12px]">
+              <h3 class="text-[24px] font-medium font-display leading-[40px] text-black" style="letter-spacing: -0.48px;">Community</h3>
+              <p class="text-[14px] text-black leading-[21px]" style="letter-spacing: 0.28px;">
+                Create content, spread the word, and bring new contributors through referrals and outreach.
+              </p>
+            </div>
             <button
               onclick={handleGetReferral}
-              class="flex items-center justify-center gap-2 w-full h-11 mt-auto text-white font-medium rounded-full text-sm transition-opacity hover:opacity-90"
+              class="flex gap-[8px] items-center justify-center h-[40px] px-[16px] rounded-[20px] w-full transition-colors hover:opacity-90"
               style="background-color: #131214;"
             >
-              Invite Community
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-              </svg>
+              <span class="text-[14px] font-medium text-white leading-[21px]" style="letter-spacing: 0.28px;">Invite Community</span>
+              <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="w-4 h-4" />
             </button>
           </div>
         </div>
