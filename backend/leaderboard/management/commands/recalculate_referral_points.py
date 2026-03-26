@@ -2,7 +2,7 @@ import logging
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from users.models import User
-from leaderboard.models import ReferralPoints, recalculate_referrer_points
+from leaderboard.models import ReferralPoints, recalculate_referrer_points, VALIDATOR_REFERRAL_EXCLUDED_SLUGS
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +91,8 @@ class Command(BaseCommand):
                         new_validator = int((Contribution.objects.filter(
                             user_id__in=referred_user_ids,
                             contribution_type__category__slug='validator'
+                        ).exclude(
+                            contribution_type__slug__in=VALIDATOR_REFERRAL_EXCLUDED_SLUGS
                         ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
 
                         if new_builder != current_builder or new_validator != current_validator:
