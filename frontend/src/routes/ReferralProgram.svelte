@@ -3,6 +3,12 @@
   import { authState } from '../lib/auth.js';
   import { push } from 'svelte-spa-router';
   import checkIcon from '../assets/referral/check-icon.png';
+  import cardBg1 from '../assets/referral/card-bg-1.png';
+  import cardBg2 from '../assets/referral/card-bg-2.png';
+  const iconPortal = '/assets/icons/hexagon-genlayer.svg';
+  const iconBuilder = '/assets/illustrations/builder-badge.svg';
+  const iconValidator = '/assets/illustrations/validator-badge.svg';
+  const iconCommunity = '/assets/illustrations/community-badge.svg';
   import arrowRightWhite from '../assets/referral/arrow-right-white.png';
 
   // --- Hex grid canvas + mouse-following gradient mask ---
@@ -260,15 +266,10 @@
           </div>
           <div class="flex-1 w-full">
             <div class="relative bg-white border border-[#f5f5f5] rounded-[12px] overflow-hidden flex items-center justify-center" style="min-height: 280px;">
-              <div class="relative w-[360px] h-[240px] flex-shrink-0">
-                <div class="absolute -translate-x-1/2 w-[170px] h-[170px] left-[calc(50%+186.33px)] top-[155px]">
-                  <img alt="" class="absolute inset-[-75.29%] w-[250%] h-[250%]" src="/assets/illustrations/ellipse-purple.svg" />
-                </div>
-                <img alt="" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[360px] h-[286px] max-w-none" src="/assets/illustrations/polygon-community.svg" />
-                <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[80px] h-[80px]">
-                  <img src="/assets/icons/hexagon-genlayer.svg" alt="" class="w-full h-full" />
-                  <img src="/assets/illustrations/gl-symbol-white.svg" alt="" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50%] h-[48%]" />
-                </div>
+              <img src={cardBg2} alt="" class="absolute inset-0 w-full h-full object-contain opacity-40 pointer-events-none" />
+              <div class="relative z-10 w-20 h-20">
+                <img src={iconPortal} alt="Portal" class="w-full h-full" />
+                <img src="/assets/illustrations/gl-symbol-white.svg" alt="" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50%] h-[48%]" />
               </div>
             </div>
           </div>
@@ -306,13 +307,8 @@
           </div>
           <div class="flex-1 w-full">
             <div class="relative bg-white border border-[#f5f5f5] rounded-[12px] overflow-hidden flex items-center justify-center" style="min-height: 280px;">
-              <div class="relative w-[360px] h-[240px] flex-shrink-0">
-                <div class="absolute -translate-x-1/2 w-[170px] h-[170px] left-[calc(50%-180.33px)] top-[181px]">
-                  <img alt="" class="absolute inset-[-75.29%] w-[250%] h-[250%]" src="/assets/illustrations/ellipse-orange.svg" />
-                </div>
-                <img alt="" class="absolute left-[27px] top-[32px] w-[334.5px] h-[180px] max-w-none" src="/assets/illustrations/group-builder-lines.svg" />
-                <img alt="" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[80px] h-[80px]" src="/assets/illustrations/builder-badge.svg" />
-              </div>
+              <img src={cardBg1} alt="" class="absolute inset-0 w-full h-full object-contain opacity-40 pointer-events-none" />
+              <img src={iconBuilder} alt="Referral" class="relative z-10 w-20 h-20" />
             </div>
           </div>
         </div>
@@ -349,16 +345,11 @@
           </div>
           <div class="flex-1 w-full">
             <div class="relative bg-white border border-[#f5f5f5] rounded-[12px] overflow-hidden flex items-center justify-center" style="min-height: 280px;">
-              <div class="relative w-[360px] h-[240px] flex-shrink-0">
-                <div class="absolute -translate-x-1/2 w-[170px] h-[170px] left-[calc(50%+186.33px)] top-[155px]">
-                  <img alt="" class="absolute inset-[-75.29%] w-[250%] h-[250%]" src="/assets/illustrations/ellipse-purple.svg" />
-                </div>
-                <img alt="" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[360px] h-[286px] max-w-none" src="/assets/illustrations/polygon-community.svg" />
-                <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-6">
-                  <img src="/assets/illustrations/builder-badge.svg" alt="Builders" class="w-[64px] h-[64px]" />
-                  <img src="/assets/illustrations/validator-badge.svg" alt="Validators" class="w-[64px] h-[64px] -mt-8" />
-                  <img src="/assets/illustrations/community-badge.svg" alt="Community" class="w-[64px] h-[64px]" />
-                </div>
+              <img src={cardBg1} alt="" class="absolute inset-0 w-full h-full object-contain opacity-40 pointer-events-none" />
+              <div class="relative z-10 flex items-center gap-6">
+                <img src={iconBuilder} alt="Builders" class="w-14 h-14" />
+                <img src={iconValidator} alt="Validators" class="w-14 h-14 -mt-8" />
+                <img src={iconCommunity} alt="Community" class="w-14 h-14" />
               </div>
             </div>
           </div>
