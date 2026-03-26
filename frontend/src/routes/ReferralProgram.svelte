@@ -267,7 +267,10 @@
           <div class="flex-1 w-full">
             <div class="relative bg-white border border-[#f5f5f5] rounded-[12px] overflow-hidden flex items-center justify-center" style="min-height: 280px;">
               <img src={cardBg2} alt="" class="absolute inset-0 w-full h-full object-contain opacity-40 pointer-events-none" />
-              <img src={iconPortal} alt="Portal" class="relative z-10 w-20 h-20" />
+              <div class="relative z-10 w-20 h-20">
+                <img src={iconPortal} alt="Portal" class="w-full h-full" />
+                <img src="/assets/illustrations/gl-symbol-white.svg" alt="" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50%] h-[48%]" />
+              </div>
             </div>
           </div>
         </div>
