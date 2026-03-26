@@ -297,22 +297,13 @@
         {#if !collapsed && getActiveSection() === 'community'}
           <div class="pl-5">
             <a
-              href="/community"
-              onclick={(e) => { e.preventDefault(); navigate('/community'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-                $location === '/community' ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
-              }"
-            >
-              Referral Program
-            </a>
-            <a
               href="/community/leaderboard"
               onclick={(e) => { e.preventDefault(); navigate('/community/leaderboard'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               }"
             >
-              Leaderboard
+              Referrals
             </a>
           </div>
         {/if}
@@ -631,22 +622,13 @@
       {#if getActiveSection() === 'community'}
         <div class="pl-5">
           <a
-            href="/community"
-            onclick={(e) => { e.preventDefault(); navigate('/community'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-              $location === '/community' ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
-            }"
-          >
-            Referral Program
-          </a>
-          <a
             href="/community/leaderboard"
             onclick={(e) => { e.preventDefault(); navigate('/community/leaderboard'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             }"
           >
-            Leaderboard
+            Referrals
           </a>
         </div>
       {/if}
