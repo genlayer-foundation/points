@@ -190,6 +190,20 @@ GET    /api/v1/multiplier-periods/
 # Steward Submissions (public metrics)
 GET    /api/v1/steward-submissions/stats/           (public - aggregate stats)
 GET    /api/v1/steward-submissions/daily-metrics/   (public - time-series data)
+
+# Validators
+GET    /api/v1/validators/me/                       (requires auth)
+PATCH  /api/v1/validators/me/                       (requires auth)
+GET    /api/v1/validators/newest/
+POST   /api/v1/validators/link-by-operator/         (requires auth)
+GET    /api/v1/validators/my-wallets/               (requires auth)
+GET    /api/v1/validators/wallets/
+GET    /api/v1/validators/wallets/{id}/
+GET    /api/v1/validators/wallets/by-operator/{address}/
+GET    /api/v1/validators/wallets/by-user-address/{address}/
+GET    /api/v1/validators/wallets/networks/
+POST   /api/v1/validators/wallets/sync/             (IsCronToken)
+POST   /api/v1/validators/wallets/daily-uptime/     (IsCronToken)
 ```
 
 ## Environment Variables
@@ -223,6 +237,15 @@ python manage.py test
 
 # Collect static files
 python manage.py collectstatic
+
+# Add daily uptime points for validators with active wallets
+python manage.py add_daily_uptime                          # Today's date
+python manage.py add_daily_uptime --date 2025-01-15        # Specific date
+python manage.py add_daily_uptime --start-date 2025-01-01 --end-date 2025-01-31  # Date range
+python manage.py add_daily_uptime --dry-run --verbose      # Preview without changes
+python manage.py add_daily_uptime --network asimov         # Single network only
+python manage.py add_daily_uptime --force                  # Use default multiplier if none exists
+python manage.py add_daily_uptime --points 2               # Custom points per contribution
 ```
 
 ## Authentication Flow
