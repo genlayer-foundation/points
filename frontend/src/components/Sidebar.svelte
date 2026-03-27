@@ -208,6 +208,15 @@
             >
               Leaderboard
             </a>
+            <a
+              href="/builders/resources"
+              onclick={(e) => { e.preventDefault(); navigate('/builders/resources'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Resources
+            </a>
           </div>
         {/if}
       </div>
@@ -546,6 +555,15 @@
             }"
           >
             Leaderboard
+          </a>
+          <a
+            href="/builders/resources"
+            onclick={(e) => { e.preventDefault(); navigate('/builders/resources'); }}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
+            }"
+          >
+            Resources
           </a>
         </div>
       {/if}
