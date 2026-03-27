@@ -5,8 +5,12 @@ def seed_featured_content(apps, schema_editor):
     User = apps.get_model('users', 'User')
     FeaturedContent = apps.get_model('contributions', 'FeaturedContent')
 
-    albert = User.objects.get(email='albert@genlayer.foundation')  # cognocracy
-    ivan = User.objects.get(email='ivan@genlayer.foundation')      # raskovsky
+    try:
+        albert = User.objects.get(email='albert@genlayer.foundation')  # cognocracy
+        ivan = User.objects.get(email='ivan@genlayer.foundation')      # raskovsky
+    except User.DoesNotExist:
+        # Skip seeding in test environments where these users don't exist
+        return
 
     FeaturedContent.objects.create(
         content_type='hero',
