@@ -1,0 +1,28 @@
+name: Daily Uptime Points
+
+on:
+  schedule:
+    - cron: '30 0 * * *'  # Daily at 00:30 UTC
+  workflow_dispatch:
+
+jobs:
+  uptime:
+    runs-on: ubuntu-latest
+    environment: cron-job
+    steps:
+      - name: Trigger Daily Uptime
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "X-Cron-Token: ${{ secrets.CRON_SYNC_TOKEN }}" \
+            "${{ secrets.API_BASE_URL }}/api/v1/validators/wallets/daily-uptime/")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "Response: $body"
+          echo "HTTP Code: $http_code"
+
+          if [ "$http_code" != "200" ]; then
+            echo "Daily uptime failed with status $http_code"
+            exit 1
+          fi
