@@ -506,7 +506,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
 
         referral_qs = ReferralPoints.objects.select_related('user').annotate(
             total_points=F('builder_points') + F('validator_points')
-        ).filter(user__visible=True, total_points__gt=0)
+        ).filter(user__visible=True, total_points__gt=0).order_by('-total_points')
 
         # Aggregate totals at DB level
         totals = referral_qs.aggregate(
