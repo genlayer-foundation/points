@@ -227,7 +227,7 @@
                       {truncateAddress(user.address)}
                     </code>
                     <a
-                      href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${user.address}`}
+                      href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer.testnet-chain.genlayer.com'}/address/${user.address}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="text-gray-400 hover:text-gray-600"

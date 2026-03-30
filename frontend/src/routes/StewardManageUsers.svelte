@@ -322,7 +322,7 @@
                       {truncateAddress(validator.address)}
                     </a>
                     <a
-                      href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${validator.address}`}
+                      href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer.testnet-chain.genlayer.com'}/address/${validator.address}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="text-gray-400 hover:text-gray-600"
@@ -437,7 +437,7 @@
                       {truncateAddress(modalData.address)}
                     </p>
                     <a
-                      href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${modalData.address}`}
+                      href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer.testnet-chain.genlayer.com'}/address/${modalData.address}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="text-gray-400 hover:text-blue-600 transition-colors"
@@ -513,7 +513,7 @@
                           {transactionHash.substring(0, 10)}...{transactionHash.substring(transactionHash.length - 8)}
                         </span>
                         <a
-                          href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/tx/${transactionHash}`}
+                          href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer.testnet-chain.genlayer.com'}/tx/${transactionHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           class="text-blue-600 hover:text-blue-800 transition-colors"

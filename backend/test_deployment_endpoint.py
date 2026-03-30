@@ -18,7 +18,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tally.settings')
 os.environ['SECRET_KEY'] = 'test-secret-key'
 os.environ['DEBUG'] = 'True'
 os.environ['VALIDATOR_CONTRACT_ADDRESS'] = '0x19f030293B97281fb742D9f3699DC9bA439706dD'
-os.environ['VALIDATOR_RPC_URL'] = 'https://zksync-os-testnet-genlayer.zksync.dev'
+os.environ['VALIDATOR_RPC_URL'] = 'https://rpc.testnet-chain.genlayer.com'
 os.environ['SIWE_DOMAIN'] = 'localhost'
 
 try:
