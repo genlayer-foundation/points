@@ -91,7 +91,7 @@ aws ssm put-parameter --name "/tally/prod/allowed_hosts" --value "your-domain.co
 aws ssm put-parameter --name "/tally/prod/csrf_trusted_origins" --value "https://your-domain.com" --type "String"
 aws ssm put-parameter --name "/tally/prod/siwe_domain" --value "your-domain.com" --type "String"
 aws ssm put-parameter --name "/tally/prod/validator_contract_address" --value "0x7CceE43964F70CEAEfDED4b8b07410D30d64eC37" --type "String"
-aws ssm put-parameter --name "/tally/prod/validator_rpc_url" --value "https://zksync-os-testnet-genlayer.zksync.dev" --type "String"
+aws ssm put-parameter --name "/tally/prod/validator_rpc_url" --value "https://rpc.testnet-chain.genlayer.com" --type "String"
 
 # reCAPTCHA configuration (required for spam protection)
 # Get keys from https://www.google.com/recaptcha/admin

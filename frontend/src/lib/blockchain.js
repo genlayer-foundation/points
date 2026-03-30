@@ -3,8 +3,8 @@ import { ethers } from 'ethers';
 
 // Contract configuration - frontend-only
 const CONTRACT_INFO = {
-  contract_address: import.meta.env.VITE_VALIDATOR_CONTRACT_ADDRESS || '0x10eCB157734c8152f1d84D00040c8AA46052CB27',
-  rpc_url: import.meta.env.VITE_VALIDATOR_RPC_URL || 'https://zksync-os-testnet-genlayer.zksync.dev',
+  contract_address: import.meta.env.VITE_VALIDATOR_CONTRACT_ADDRESS || '0x63Fa5E0bb10fb6fA98F44726C5518223F767687A',
+  rpc_url: import.meta.env.VITE_VALIDATOR_RPC_URL || 'https://rpc.testnet-chain.genlayer.com',
   abi: [
     // Essential functions for validator management
     {
@@ -48,19 +48,19 @@ const NETWORKS = {
       symbol: 'GEN',
       decimals: 18
     },
-    rpcUrls: ['https://zksync-os-testnet-genlayer.zksync.dev'],
-    blockExplorerUrls: ['https://zksync-os-testnet-genlayer.explorer.zksync.dev']
+    rpcUrls: ['https://rpc.testnet-chain.genlayer.com'],
+    blockExplorerUrls: ['https://explorer.testnet-chain.genlayer.com']
   },
   bradbury: {
-    chainId: '0x107E', // 4222 in hex (placeholder - update when known)
-    chainName: 'GenLayer Bradbury Testnet',
+    chainId: '0x107D', // 4221 in hex - same chain as Asimov
+    chainName: 'GenLayer Testnet Chain',
     nativeCurrency: {
       name: 'GEN',
       symbol: 'GEN',
       decimals: 18
     },
-    rpcUrls: ['https://zksync-os-testnet-genlayer.zksync.dev'],
-    blockExplorerUrls: []
+    rpcUrls: ['https://rpc.testnet-chain.genlayer.com'],
+    blockExplorerUrls: ['https://explorer.testnet-chain.genlayer.com']
   }
 };
 

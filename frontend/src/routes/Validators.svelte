@@ -209,7 +209,7 @@
                       </svg>
                     </button>
                     <a
-                      href={`${wallet.explorer_url || import.meta.env.VITE_EXPLORER_URL || 'https://explorer-asimov.genlayer.com'}/address/${wallet.address}`}
+                      href={`${wallet.explorer_url || import.meta.env.VITE_EXPLORER_URL || 'https://explorer.testnet-chain.genlayer.com'}/address/${wallet.address}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="text-gray-400 hover:text-gray-600"
