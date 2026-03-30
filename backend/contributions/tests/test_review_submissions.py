@@ -110,21 +110,10 @@ class RuleBlocklistedUrlTest(Tier1RuleTestBase):
     """Test rule_blocklisted_url."""
 
     BLOCKLIST = [
-        'https://studio.genlayer.com/run-debug',
-        'https://studio.genlayer.com/contracts',
         'https://points.genlayer.foundation',
         'https://www.genlayer.com',
         'https://genlayer.com',
     ]
-
-    def test_catches_studio_url(self):
-        sub = self._create_submission(notes='My work')
-        ev = self._add_evidence(
-            sub, url='https://studio.genlayer.com/run-debug',
-        )
-        result = rule_blocklisted_url(sub, [ev], self.BLOCKLIST)
-        self.assertIsNotNone(result)
-        self.assertEqual(result[0], 'Reject: Invalid Evidence URL')
 
     def test_catches_points_url(self):
         sub = self._create_submission(notes='My work')
@@ -133,20 +122,22 @@ class RuleBlocklistedUrlTest(Tier1RuleTestBase):
         )
         result = rule_blocklisted_url(sub, [ev], self.BLOCKLIST)
         self.assertIsNotNone(result)
-
-    def test_catches_studio_url_with_fragment(self):
-        sub = self._create_submission(notes='My work')
-        ev = self._add_evidence(
-            sub, url='https://studio.genlayer.com/run-debug#something',
-        )
-        result = rule_blocklisted_url(sub, [ev], self.BLOCKLIST)
-        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'Reject: Invalid Evidence URL')
 
     def test_catches_genlayer_com(self):
         sub = self._create_submission(notes='My work')
         ev = self._add_evidence(sub, url='https://genlayer.com')
         result = rule_blocklisted_url(sub, [ev], self.BLOCKLIST)
         self.assertIsNotNone(result)
+
+    def test_allows_studio_url(self):
+        """studio.genlayer.com is a valid evidence URL."""
+        sub = self._create_submission(notes='My work')
+        ev = self._add_evidence(
+            sub, url='https://studio.genlayer.com/run-debug',
+        )
+        result = rule_blocklisted_url(sub, [ev], self.BLOCKLIST)
+        self.assertIsNone(result)
 
     def test_passes_real_evidence(self):
         sub = self._create_submission(notes='My work')
@@ -160,7 +151,7 @@ class RuleBlocklistedUrlTest(Tier1RuleTestBase):
         """If one URL is blocklisted but another is real, don't reject."""
         sub = self._create_submission(notes='My work')
         ev1 = self._add_evidence(
-            sub, url='https://studio.genlayer.com/run-debug',
+            sub, url='https://points.genlayer.foundation/#/submit',
         )
         ev2 = self._add_evidence(
             sub, url='https://github.com/user/real-project',
@@ -278,6 +269,42 @@ class RuleDuplicateEvidenceUrlTest(Tier1RuleTestBase):
         url_lookup, accepted_urls = self._build_lookup()
         result = rule_duplicate_evidence_url(
             newer, [ev], url_lookup, accepted_urls,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'Reject: Duplicate Submission')
+
+    def test_passes_if_at_least_one_url_unique(self):
+        """Submission with one duplicate and one unique URL should pass."""
+        other_sub = self._create_submission(
+            user=self.other_user, notes='Their work',
+        )
+        self._add_evidence(other_sub, url='https://example.com/shared')
+
+        my_sub = self._create_submission(notes='My work')
+        ev1 = self._add_evidence(my_sub, url='https://example.com/shared')
+        ev2 = self._add_evidence(my_sub, url='https://example.com/unique')
+
+        url_lookup, accepted_urls = self._build_lookup()
+        result = rule_duplicate_evidence_url(
+            my_sub, [ev1, ev2], url_lookup, accepted_urls,
+        )
+        self.assertIsNone(result)
+
+    def test_rejects_when_all_urls_are_duplicates(self):
+        """Submission where ALL URLs are duplicates should be rejected."""
+        other_sub = self._create_submission(
+            user=self.other_user, notes='Their work',
+        )
+        self._add_evidence(other_sub, url='https://example.com/post-a')
+        self._add_evidence(other_sub, url='https://example.com/post-b')
+
+        my_sub = self._create_submission(notes='My work')
+        ev1 = self._add_evidence(my_sub, url='https://example.com/post-a')
+        ev2 = self._add_evidence(my_sub, url='https://example.com/post-b')
+
+        url_lookup, accepted_urls = self._build_lookup()
+        result = rule_duplicate_evidence_url(
+            my_sub, [ev1, ev2], url_lookup, accepted_urls,
         )
         self.assertIsNotNone(result)
         self.assertEqual(result[0], 'Reject: Duplicate Submission')

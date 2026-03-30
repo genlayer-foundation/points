@@ -7,14 +7,6 @@ from django.db import migrations
 
 INITIAL_BLOCKLISTED_URLS = [
     {
-        'url_prefix': 'https://studio.genlayer.com/run-debug',
-        'reason': 'Studio IDE debugging page — not evidence of work',
-    },
-    {
-        'url_prefix': 'https://studio.genlayer.com/contracts',
-        'reason': 'Studio contracts editor — not evidence of work',
-    },
-    {
         'url_prefix': 'https://points.genlayer.foundation',
         'reason': 'The points platform itself — not evidence of work',
     },

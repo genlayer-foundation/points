@@ -100,7 +100,11 @@ def rule_duplicate_evidence_url(submission, evidence_items,
                                 url_to_sub_ids, accepted_urls,
                                 skip_pending=False,
                                 submitted_created_at=None):
-    """Any evidence URL already exists in a pending/accepted submission.
+    """Reject only when ALL evidence URLs are duplicates.
+
+    A submission with multiple evidence URLs is only rejected if every single
+    URL already exists elsewhere. If at least one URL is unique, the submission
+    passes this rule.
 
     URLs are normalized (query params, fragments, trailing slashes stripped)
     before comparison to prevent cosmetic variants from bypassing the check.
@@ -109,43 +113,68 @@ def rule_duplicate_evidence_url(submission, evidence_items,
         skip_pending: If True, only reject when an older submitted duplicate
             already exists. This keeps `--submission-id` runs deterministic.
     """
-    for e in evidence_items:
-        if not e.url:
-            continue
-        normalized = _normalize_url(e.url)
-        # Check converted/accepted contributions (always deterministic)
-        if normalized in accepted_urls:
-            return (
-                'Reject: Duplicate Submission',
-                f'Tier 1 auto-reject: Evidence URL already exists in an '
-                f'accepted contribution: {e.url[:100]}',
-            )
-        # Check pending/accepted submitted contributions (exclude self)
-        others = (url_to_sub_ids.get(normalized) or set()) - {submission.id}
-        if not others:
-            continue
+    urls_with_evidence = [(e, _normalize_url(e.url))
+                          for e in evidence_items if e.url]
+    if not urls_with_evidence:
+        return None
 
-        if not skip_pending:
-            return (
-                'Reject: Duplicate Submission',
-                f'Tier 1 auto-reject: Evidence URL already exists in another '
-                f'submission: {e.url[:100]}',
-            )
+    # Check each URL; collect reasons but only reject if ALL are duplicates.
+    duplicate_reasons = []
+    for evidence, normalized in urls_with_evidence:
+        reason = _check_single_url_duplicate(
+            submission, evidence, normalized,
+            url_to_sub_ids, accepted_urls,
+            skip_pending, submitted_created_at,
+        )
+        if reason is None:
+            # At least one URL is unique — submission passes.
+            return None
+        duplicate_reasons.append(reason)
 
-        submission_key = (submission.created_at, str(submission.id))
-        created_at_lookup = submitted_created_at or {}
-        if any(
-            (
-                created_at_lookup.get(other_id, submission.created_at),
-                str(other_id),
-            ) < submission_key
-            for other_id in others
-        ):
-            return (
-                'Reject: Duplicate Submission',
-                f'Tier 1 auto-reject: Evidence URL already exists in an older '
-                f'submission: {e.url[:100]}',
-            )
+    # All URLs are duplicates — use the first reason for the rejection message.
+    return duplicate_reasons[0]
+
+
+def _check_single_url_duplicate(submission, evidence, normalized,
+                                url_to_sub_ids, accepted_urls,
+                                skip_pending, submitted_created_at):
+    """Check whether a single normalized URL is a duplicate.
+
+    Returns (template_label, crm_reason) if duplicate, or None if unique.
+    """
+    # Check converted/accepted contributions (always deterministic)
+    if normalized in accepted_urls:
+        return (
+            'Reject: Duplicate Submission',
+            f'Tier 1 auto-reject: Evidence URL already exists in an '
+            f'accepted contribution: {evidence.url[:100]}',
+        )
+    # Check pending/accepted submitted contributions (exclude self)
+    others = (url_to_sub_ids.get(normalized) or set()) - {submission.id}
+    if not others:
+        return None
+
+    if not skip_pending:
+        return (
+            'Reject: Duplicate Submission',
+            f'Tier 1 auto-reject: Evidence URL already exists in another '
+            f'submission: {evidence.url[:100]}',
+        )
+
+    submission_key = (submission.created_at, str(submission.id))
+    created_at_lookup = submitted_created_at or {}
+    if any(
+        (
+            created_at_lookup.get(other_id, submission.created_at),
+            str(other_id),
+        ) < submission_key
+        for other_id in others
+    ):
+        return (
+            'Reject: Duplicate Submission',
+            f'Tier 1 auto-reject: Evidence URL already exists in an older '
+            f'submission: {evidence.url[:100]}',
+        )
     return None
 
 
