@@ -769,7 +769,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         # Reject file uploads
         if 'file' in request.data or request.FILES:
             return Response(
-                {'error': 'File uploads are not currently supported. Please provide a URL or description instead.'},
+                {'error': 'File uploads are not currently supported. Please provide a URL instead.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
