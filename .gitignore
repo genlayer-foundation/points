@@ -200,3 +200,6 @@ conductor-*
 .cursorrules
 run.sh
 setup.sh
+
+# gstack security reports
+.gstack/

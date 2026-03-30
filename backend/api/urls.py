@@ -40,4 +40,7 @@ urlpatterns = [
     path('metrics/active-validators/', ActiveValidatorsView.as_view(), name='active-validators'),
     path('metrics/contribution-types/', ContributionTypesStatsView.as_view(), name='contribution-types-stats'),
     path('metrics/participants-growth/', ParticipantsGrowthView.as_view(), name='participants-growth'),
+
+    # AI review agent endpoints
+    path('ai-review/', include('contributions.ai_review.urls')),
 ]

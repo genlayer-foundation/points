@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert
 from users.serializers import UserSerializer, LightUserSerializer
@@ -185,6 +186,14 @@ class ContributionSerializer(serializers.ModelSerializer):
 class SubmittedEvidenceSerializer(serializers.ModelSerializer):
     """Serializer for evidence items belonging to submitted contributions."""
     id = serializers.IntegerField(required=False)  # Optional: present for existing evidence, absent for new
+    url = serializers.URLField(
+        required=True,
+        allow_blank=False,
+        error_messages={
+            'blank': 'An evidence URL is required.',
+            'required': 'An evidence URL is required.',
+        },
+    )
 
     class Meta:
         model = Evidence
@@ -281,10 +290,71 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
 
         return data
 
+    def _validate_evidence_items(self, evidence_items_data,
+                                 require_at_least_one):
+        """Validate inline evidence payloads for create/update flows."""
+        if evidence_items_data is None:
+            if require_at_least_one:
+                raise serializers.ValidationError(
+                    {
+                        'evidence_items': (
+                            'At least one evidence item with a URL is required.'
+                        ),
+                    }
+                )
+            return None
+
+        if not isinstance(evidence_items_data, list):
+            raise serializers.ValidationError(
+                {'evidence_items': 'Expected a list of evidence items.'}
+            )
+
+        evidence_serializer = SubmittedEvidenceSerializer(
+            data=evidence_items_data, many=True,
+        )
+        if not evidence_serializer.is_valid():
+            raise serializers.ValidationError(
+                {'evidence_items': evidence_serializer.errors}
+            )
+
+        evidence_validated = evidence_serializer.validated_data
+        if require_at_least_one and not any(
+            item.get('url') for item in evidence_validated
+        ):
+            raise serializers.ValidationError(
+                {
+                    'evidence_items': (
+                        'At least one evidence item with a URL is required.'
+                    ),
+                }
+            )
+
+        return evidence_validated
+
     def create(self, validated_data):
-        """Create a new submission with the current user."""
+        """Create a new submission with the current user and inline evidence.
+
+        Requires at least one evidence item with a URL. The submission and
+        its evidence are created inside a DB transaction so a mid-loop
+        failure cannot leave a partial record behind.
+        """
         validated_data['user'] = self.context['request'].user
-        return super().create(validated_data)
+        evidence_items_data = self.initial_data.get('evidence_items', None)
+        evidence_validated = self._validate_evidence_items(
+            evidence_items_data,
+            require_at_least_one=True,
+        )
+
+        with transaction.atomic():
+            instance = super().create(validated_data)
+            for evidence_data in evidence_validated:
+                Evidence.objects.create(
+                    submitted_contribution=instance,
+                    description=evidence_data.get('description', ''),
+                    url=evidence_data.get('url', ''),
+                )
+
+        return instance
 
     def update(self, instance, validated_data):
         """
@@ -295,55 +365,67 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
         # Extract evidence items from initial_data (raw request data)
         # since evidence_items is a SerializerMethodField and not in validated_data
         evidence_items_data = self.initial_data.get('evidence_items', None)
-
-        # Update the submission fields
-        instance = super().update(instance, validated_data)
+        evidence_items_validated = None
+        if evidence_items_data is not None:
+            evidence_items_validated = self._validate_evidence_items(
+                evidence_items_data,
+                require_at_least_one=True,
+            )
 
         # Handle evidence updates if provided (formset pattern)
-        if evidence_items_data is not None:
-            # Validate and serialize the evidence items
-            evidence_serializer = SubmittedEvidenceSerializer(data=evidence_items_data, many=True)
-            if not evidence_serializer.is_valid():
-                raise serializers.ValidationError({'evidence_items': evidence_serializer.errors})
+        with transaction.atomic():
+            # Update the submission fields only after evidence validation passes
+            instance = super().update(instance, validated_data)
 
-            evidence_items_validated = evidence_serializer.validated_data
+            if evidence_items_validated is not None:
+                # Get existing evidence IDs
+                existing_evidence_ids = set(
+                    instance.evidence_items.values_list('id', flat=True)
+                )
 
-            # Get existing evidence IDs
-            existing_evidence_ids = set(instance.evidence_items.values_list('id', flat=True))
+                # Track which evidence items are being kept/updated
+                processed_evidence_ids = set()
 
-            # Track which evidence items are being kept/updated
-            processed_evidence_ids = set()
+                for evidence_data in evidence_items_validated:
+                    evidence_id = evidence_data.get('id')
 
-            for evidence_data in evidence_items_validated:
-                evidence_id = evidence_data.get('id')
-
-                if evidence_id:
-                    # Update existing evidence
-                    try:
-                        evidence = Evidence.objects.get(
-                            id=evidence_id,
-                            submitted_contribution=instance
+                    if evidence_id:
+                        # Update existing evidence
+                        try:
+                            evidence = Evidence.objects.get(
+                                id=evidence_id,
+                                submitted_contribution=instance,
+                            )
+                            # Update fields
+                            evidence.description = evidence_data.get(
+                                'description', evidence.description,
+                            )
+                            evidence.url = evidence_data.get(
+                                'url', evidence.url,
+                            )
+                            evidence.save()
+                            processed_evidence_ids.add(evidence_id)
+                        except Evidence.DoesNotExist:
+                            raise serializers.ValidationError(
+                                {
+                                    'evidence_items': (
+                                        f'Invalid evidence item ID: '
+                                        f'{evidence_id}'
+                                    ),
+                                }
+                            )
+                    else:
+                        # Create new evidence
+                        Evidence.objects.create(
+                            submitted_contribution=instance,
+                            description=evidence_data.get('description', ''),
+                            url=evidence_data.get('url', ''),
                         )
-                        # Update fields
-                        evidence.description = evidence_data.get('description', evidence.description)
-                        evidence.url = evidence_data.get('url', evidence.url)
-                        evidence.save()
-                        processed_evidence_ids.add(evidence_id)
-                    except Evidence.DoesNotExist:
-                        # Evidence doesn't belong to this submission - ignore or raise error
-                        pass
-                else:
-                    # Create new evidence
-                    Evidence.objects.create(
-                        submitted_contribution=instance,
-                        description=evidence_data.get('description', ''),
-                        url=evidence_data.get('url', '')
-                    )
 
-            # Delete evidence items that weren't in the submitted list
-            evidence_to_delete = existing_evidence_ids - processed_evidence_ids
-            if evidence_to_delete:
-                Evidence.objects.filter(id__in=evidence_to_delete).delete()
+                # Delete evidence items that weren't in the submitted list
+                evidence_to_delete = existing_evidence_ids - processed_evidence_ids
+                if evidence_to_delete:
+                    Evidence.objects.filter(id__in=evidence_to_delete).delete()
 
         return instance
 
@@ -467,6 +549,9 @@ class StewardSubmissionReviewSerializer(serializers.Serializer):
     
     # Staff reply (required for reject/more_info)
     staff_reply = serializers.CharField(required=False, allow_blank=True)
+
+    # Template tracking for calibration
+    template_id = serializers.IntegerField(required=False, allow_null=True)
     
     def validate(self, data):
         """Validate the review action and required fields."""
@@ -514,8 +599,8 @@ class SubmissionNoteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SubmissionNote
-        fields = ['id', 'user', 'user_name', 'message', 'is_proposal', 'created_at']
-        read_only_fields = ['id', 'user', 'user_name', 'is_proposal', 'created_at']
+        fields = ['id', 'user', 'user_name', 'message', 'is_proposal', 'data', 'created_at']
+        read_only_fields = ['id', 'user', 'user_name', 'is_proposal', 'data', 'created_at']
 
     def get_user_name(self, obj):
         return obj.user.name or obj.user.address[:10] + '...'
@@ -536,6 +621,8 @@ class SubmissionProposeSerializer(serializers.Serializer):
         required=False,
     )
     proposed_staff_reply = serializers.CharField(required=False, allow_blank=True, default='')
+    # Template tracking for calibration
+    template_id = serializers.IntegerField(required=False, allow_null=True)
     proposed_create_highlight = serializers.BooleanField(default=False, required=False)
     proposed_highlight_title = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
     proposed_highlight_description = serializers.CharField(required=False, allow_blank=True, default='')

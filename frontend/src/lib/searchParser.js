@@ -115,7 +115,8 @@ export function parseSearch(query) {
     has: [],
     no: [],
     minContributions: null,
-    sort: null
+    sort: null,
+    freeText: []
   };
 
   if (!query || !query.trim()) {
@@ -132,7 +133,9 @@ export function parseSearch(query) {
 
     const parsed = parseToken(token);
     if (!parsed) {
-      continue; // Ignore unrecognized tokens
+      // Untagged text — collect as free-text search terms
+      filters.freeText.push(token);
+      continue;
     }
 
     const { tag, value, negated } = parsed;

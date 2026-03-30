@@ -6,8 +6,11 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.db.models import Sum, Q
-from .models import User
-from .serializers import UserSerializer, UserCreateSerializer, UserProfileUpdateSerializer
+from .models import BanAppeal, User
+from .serializers import (
+    BanAppealSerializer, UserSerializer, UserCreateSerializer,
+    UserProfileUpdateSerializer,
+)
 from .cloudinary_service import CloudinaryService
 from .genlayer_service import GenLayerDeploymentService
 from contributions.models import Contribution
@@ -695,81 +698,9 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def referrals(self, request):
-        """
-        Full referral details including referred users list with builder/validator breakdown.
-        Used by Profile and Referrals pages.
-        """
-        from leaderboard.models import ReferralPoints
-        from contributions.models import Contribution
-        from django.db.models import Count, Sum
-
-        user = request.user
-
-        # Get referrer's referral points
-        try:
-            rp = user.referral_points
-            builder_pts = rp.builder_points
-            validator_pts = rp.validator_points
-        except ReferralPoints.DoesNotExist:
-            builder_pts = 0
-            validator_pts = 0
-
-        # Get all users referred by the current user
-        referred_users = User.objects.filter(
-            referred_by=user
-        ).select_related('validator', 'builder').annotate(
-            total_contributions=Count('contributions', distinct=True)
-        )
-
-        # Build the referral list with builder/validator breakdown
-        # Optimize: bulk query all contributions instead of N+1 queries
-        referred_user_ids = [u.id for u in referred_users]
-
-        builder_points_by_user = {
-            item['user_id']: item['total'] or 0
-            for item in Contribution.objects.filter(
-                user_id__in=referred_user_ids,
-                contribution_type__category__slug='builder'
-            ).values('user_id').annotate(total=Sum('frozen_global_points'))
-        }
-
-        validator_points_by_user = {
-            item['user_id']: item['total'] or 0
-            for item in Contribution.objects.filter(
-                user_id__in=referred_user_ids,
-                contribution_type__category__slug='validator'
-            ).values('user_id').annotate(total=Sum('frozen_global_points'))
-        }
-
-        referral_list = []
-        for referred_user in referred_users:
-            builder_contribution_points = builder_points_by_user.get(referred_user.id, 0)
-            validator_contribution_points = validator_points_by_user.get(referred_user.id, 0)
-            total_points = builder_contribution_points + validator_contribution_points
-
-            referral_list.append({
-                'id': referred_user.id,
-                'name': referred_user.name or 'Anonymous',
-                'address': referred_user.address,
-                'profile_image_url': referred_user.profile_image_url,
-                'total_points': total_points,
-                'builder_contribution_points': builder_contribution_points,
-                'validator_contribution_points': validator_contribution_points,
-                'created_at': referred_user.created_at,
-                'total_contributions': referred_user.total_contributions,
-                'is_validator': hasattr(referred_user, 'validator'),
-                'is_builder': hasattr(referred_user, 'builder'),
-            })
-
-        # Sort by total points (highest first)
-        referral_list.sort(key=lambda x: x['total_points'], reverse=True)
-
-        return Response({
-            'total_referrals': len(referral_list),
-            'builder_points': builder_pts,
-            'validator_points': validator_pts,
-            'referrals': referral_list
-        })
+        """Full referral details. Used by Referrals page."""
+        from leaderboard.models import get_referral_breakdown
+        return Response(get_referral_breakdown(request.user))
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def search(self, request):
@@ -798,3 +729,51 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             }
             for user in users
         ])
+
+    @action(detail=False, methods=['get', 'post'], permission_classes=[IsAuthenticated],
+            url_path='me/appeal')
+    def appeal(self, request):
+        """
+        GET: Get current ban appeal status (if any).
+        POST: Submit a one-time ban appeal. Only allowed if user is banned
+              and has not already submitted an appeal.
+        """
+        if request.method == 'GET':
+            appeal = BanAppeal.objects.filter(user=request.user).first()
+            if appeal is None:
+                return Response(
+                    {'appeal': None, 'can_appeal': request.user.is_banned},
+                )
+            serializer = BanAppealSerializer(appeal)
+            return Response({
+                'appeal': serializer.data,
+                'can_appeal': False,
+            })
+
+        # POST — submit appeal
+        if not request.user.is_banned:
+            return Response(
+                {'error': 'Your account is not banned.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if BanAppeal.objects.filter(user=request.user).exists():
+            return Response(
+                {'error': 'You have already submitted an appeal. '
+                          'Each user may only appeal once.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        appeal_text = request.data.get('appeal_text', '').strip()
+        if not appeal_text:
+            return Response(
+                {'error': 'Please provide an explanation for your appeal.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        appeal = BanAppeal.objects.create(
+            user=request.user,
+            appeal_text=appeal_text,
+        )
+        serializer = BanAppealSerializer(appeal)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

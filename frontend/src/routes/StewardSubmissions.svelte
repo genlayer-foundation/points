@@ -36,6 +36,7 @@
   // Permissions & templates
   let permissionsMap = $state({});
   let templates = $state([]);
+  let rejectTemplates = $derived(templates.filter(t => t.action === 'reject'));
 
   // CRM Notes state - keyed by submission ID
   let submissionNotes = $state({});
@@ -537,7 +538,7 @@
           <label for="reject-message" class="block text-sm font-medium text-gray-700 mb-2">
             Rejection Message
           </label>
-          {#if templates.length > 0}
+          {#if rejectTemplates.length > 0}
             <select
               onchange={(e) => {
                 const tpl = templates.find(t => String(t.id) === e.target.value);
@@ -547,7 +548,7 @@
               class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
             >
               <option value="">-- Select template --</option>
-              {#each templates as template}
+              {#each rejectTemplates as template}
                 <option value={template.id}>{template.label}</option>
               {/each}
             </select>

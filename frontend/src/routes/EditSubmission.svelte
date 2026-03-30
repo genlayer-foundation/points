@@ -183,14 +183,14 @@
       return;
     }
 
-    // Validate evidence slots - if any field is filled, both must be filled
+    // Validate evidence slots - URL is required for each evidence item
     for (let i = 0; i < evidenceSlots.length; i++) {
       const slot = evidenceSlots[i];
       const hasDescription = slot.description && slot.description.trim().length > 0;
       const hasUrl = slot.url && slot.url.trim().length > 0;
 
       if (hasDescription && !hasUrl) {
-        error = `Evidence ${i + 1}: Please provide a URL along with the description`;
+        error = `Evidence ${i + 1}: A URL is required for each evidence item`;
         return;
       }
       if (hasUrl && !hasDescription) {
@@ -199,17 +199,15 @@
       }
     }
 
-    // Validate that user has provided either notes or evidence
+    // Validate that user has provided at least one evidence item with a URL
     const filledSlots = evidenceSlots.filter(slot => {
       const hasDescription = slot.description && slot.description.trim().length > 0;
       const hasUrl = slot.url && slot.url.trim().length > 0;
       return hasDescription && hasUrl;
     });
-    const hasNotes = formData.notes && formData.notes.trim().length > 0;
-    const hasEvidence = filledSlots.length > 0;
 
-    if (!hasNotes && !hasEvidence) {
-      error = 'Please provide either a description or evidence to support your contribution';
+    if (filledSlots.length === 0) {
+      error = 'Please add at least one evidence item with a URL to support your contribution';
       return;
     }
 

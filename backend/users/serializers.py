@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from disposable_email_domains import blocklist
-from .models import User
+from .models import BanAppeal, User
 from validators.models import Validator, ValidatorWallet
 from builders.models import Builder
 from stewards.models import Steward
@@ -568,6 +568,8 @@ class UserSerializer(serializers.ModelSerializer):
                   'description', 'banner_image_url', 'profile_image_url', 'website',
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle', 'github_username', 'github_linked_at',
                   'email', 'is_email_verified',
+                  # Ban status
+                  'is_banned', 'ban_reason',
                   # Referral fields
                   'referral_code', 'referred_by_info', 'total_referrals', 'referral_details',
                   # Working groups
@@ -686,86 +688,11 @@ class UserSerializer(serializers.ModelSerializer):
         return User.objects.filter(referred_by=obj).count()
 
     def get_referral_details(self, obj):
-        """
-        Get comprehensive referral information including list of referred users.
-        Queries contribution points directly from Contribution table for accuracy.
-
-        IMPORTANT: This is an expensive operation and should only be included
-        when explicitly requested via include_referral_details=true in context.
-        """
-        # Skip this expensive operation unless explicitly requested
+        """Referral breakdown. Only included when include_referral_details=True."""
         if not self.context.get('include_referral_details', False):
             return None
-
-        from leaderboard.models import ReferralPoints
-        from contributions.models import Contribution
-        from django.db.models import Count, Sum
-
-        # Get referrer's referral points
-        try:
-            rp = obj.referral_points
-            builder_pts = rp.builder_points
-            validator_pts = rp.validator_points
-        except ReferralPoints.DoesNotExist:
-            builder_pts = 0
-            validator_pts = 0
-
-        # Get all users referred by this user
-        referred_users = User.objects.filter(
-            referred_by=obj
-        ).select_related('validator', 'builder').annotate(
-            total_contributions=Count('contributions', distinct=True)
-        )
-
-        # Build the referral list with builder/validator breakdown
-        # Optimize: bulk query all contributions instead of N+1 queries
-        referred_user_ids = [u.id for u in referred_users]
-
-        builder_points_by_user = {
-            item['user_id']: item['total'] or 0
-            for item in Contribution.objects.filter(
-                user_id__in=referred_user_ids,
-                contribution_type__category__slug='builder'
-            ).values('user_id').annotate(total=Sum('frozen_global_points'))
-        }
-
-        validator_points_by_user = {
-            item['user_id']: item['total'] or 0
-            for item in Contribution.objects.filter(
-                user_id__in=referred_user_ids,
-                contribution_type__category__slug='validator'
-            ).values('user_id').annotate(total=Sum('frozen_global_points'))
-        }
-
-        referral_list = []
-        for referred_user in referred_users:
-            builder_contribution_points = builder_points_by_user.get(referred_user.id, 0)
-            validator_contribution_points = validator_points_by_user.get(referred_user.id, 0)
-            total_points = builder_contribution_points + validator_contribution_points
-
-            referral_list.append({
-                'id': referred_user.id,
-                'name': referred_user.name or 'Anonymous',
-                'address': referred_user.address,
-                'profile_image_url': referred_user.profile_image_url,
-                'total_points': total_points,
-                'builder_contribution_points': builder_contribution_points,
-                'validator_contribution_points': validator_contribution_points,
-                'created_at': referred_user.created_at,
-                'total_contributions': referred_user.total_contributions,
-                'is_validator': hasattr(referred_user, 'validator'),
-                'is_builder': hasattr(referred_user, 'builder'),
-            })
-
-        # Sort by total points (highest first)
-        referral_list.sort(key=lambda x: x['total_points'], reverse=True)
-
-        return {
-            'total_referrals': len(referral_list),
-            'builder_points': builder_pts,
-            'validator_points': validator_pts,
-            'referrals': referral_list
-        }
+        from leaderboard.models import get_referral_breakdown
+        return get_referral_breakdown(obj)
 
     def get_working_groups(self, obj):
         """
@@ -805,10 +732,10 @@ class UserCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # Remove password_confirm as it's not needed anymore
         validated_data.pop('password_confirm')
-        
+
         # Get the visible field from the context if provided
         visible = self.context.get('visible', True)
-        
+
         # Create user
         user = User.objects.create_user(
             email=validated_data['email'],
@@ -817,5 +744,34 @@ class UserCreateSerializer(serializers.ModelSerializer):
             address=validated_data.get('address', ''),
             visible=visible
         )
-        
+
         return user
+
+
+class BanAppealSerializer(serializers.ModelSerializer):
+    """Serializer for user ban appeals."""
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    user_name = serializers.CharField(source='user.name', read_only=True)
+    user_address = serializers.CharField(source='user.address', read_only=True)
+    reviewed_by_email = serializers.CharField(
+        source='reviewed_by.email', read_only=True, default=None,
+    )
+
+    class Meta:
+        model = BanAppeal
+        fields = [
+            'id', 'user', 'user_email', 'user_name', 'user_address',
+            'appeal_text', 'status',
+            'reviewed_by', 'reviewed_by_email', 'reviewed_at', 'review_notes',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'user', 'status', 'reviewed_by', 'reviewed_at',
+            'review_notes', 'created_at', 'updated_at',
+        ]
+
+
+class BanAppealReviewSerializer(serializers.Serializer):
+    """Serializer for steward review of ban appeals."""
+    action = serializers.ChoiceField(choices=['approve', 'deny'])
+    review_notes = serializers.CharField(required=False, default='', allow_blank=True)

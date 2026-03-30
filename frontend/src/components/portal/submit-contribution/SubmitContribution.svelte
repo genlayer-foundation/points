@@ -307,7 +307,7 @@
       const hasUrl = slot.url && slot.url.trim().length > 0;
 
       if (hasDescription && !hasUrl) {
-        error = `Evidence ${i + 1}: Please provide a URL along with the description`;
+        error = `Evidence ${i + 1}: A URL is required for each evidence item`;
         return;
       }
       if (hasUrl && !hasDescription) {
@@ -319,11 +319,10 @@
     const filledSlots = evidenceSlots.filter(
       (s) => s.description?.trim() && s.url?.trim(),
     );
-    const hasNotes = formData.notes?.trim().length > 0;
 
-    if (!hasNotes && filledSlots.length === 0) {
+    if (filledSlots.length === 0) {
       error =
-        "Please provide either a description or evidence to support your contribution";
+        "Please add at least one evidence item with a URL to support your contribution";
       return;
     }
 
@@ -349,15 +348,13 @@
         submissionData.mission = missionToSubmit;
       }
 
-      const response = await api.post("/submissions/", submissionData);
-      const submissionId = response.data.id;
+      // Send evidence inline with the submission (atomic creation)
+      submissionData.evidence_items = filledSlots.map((slot) => ({
+        description: slot.description,
+        url: normalizeUrl(slot.url),
+      }));
 
-      for (const slot of filledSlots) {
-        await api.post(`/submissions/${submissionId}/add-evidence/`, {
-          description: slot.description,
-          url: normalizeUrl(slot.url),
-        });
-      }
+      await api.post("/submissions/", submissionData);
 
       sessionStorage.setItem(
         "submissionUpdateSuccess",

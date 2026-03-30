@@ -404,6 +404,12 @@
             .getReferrals()
             .then((response) => {
               referralData = response.data;
+              if (response.data && (referralPoints.builder_points === 0 && referralPoints.validator_points === 0)) {
+                referralPoints = {
+                  builder_points: response.data.builder_points || 0,
+                  validator_points: response.data.validator_points || 0,
+                };
+              }
             })
             .catch(() => {
               referralData = null;
@@ -414,6 +420,10 @@
         }
       } else if (participant?.referral_details) {
         referralData = participant.referral_details;
+        referralPoints = {
+          builder_points: participant.referral_details.builder_points || 0,
+          validator_points: participant.referral_details.validator_points || 0,
+        };
       }
 
       if (participant.validator) fetchValidatorWallets();

@@ -61,9 +61,9 @@
       };
 
       if (!asimov.explorer_url)
-        asimov.explorer_url = "https://explorer-asimov.genlayer.com/";
+        asimov.explorer_url = "https://explorer.testnet-chain.genlayer.com/";
       if (!bradbury.explorer_url)
-        bradbury.explorer_url = "https://explorer-bradbury.genlayer.com/";
+        bradbury.explorer_url = "https://explorer.testnet-chain.genlayer.com/";
       networks = [asimov, bradbury];
 
       // Validator count per network from leaderboard entries (active on-chain validators)
@@ -203,7 +203,7 @@
               >
               <a
                 href={networks.find((n) => n.key === "asimov")?.explorer_url ||
-                  "https://explorer-asimov.genlayer.com/"}
+                  "https://explorer.testnet-chain.genlayer.com/"}
                 target="_blank"
                 rel="noopener noreferrer"
                 class="text-[12px] text-gray-500 hover:text-[#2563eb] transition-colors mt-1 hover:underline flex items-center gap-1"
@@ -331,7 +331,7 @@
               >
               <a
                 href={networks.find((n) => n.key === "bradbury")
-                  ?.explorer_url || "https://explorer-bradbury.genlayer.com/"}
+                  ?.explorer_url || "https://explorer.testnet-chain.genlayer.com/"}
                 target="_blank"
                 rel="noopener noreferrer"
                 class="text-[12px] text-gray-500 hover:text-[#0284c7] transition-colors mt-1 hover:underline flex items-center gap-1"

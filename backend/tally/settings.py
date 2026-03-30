@@ -306,6 +306,7 @@ FACTORY_CONTRACT_ADDRESS = os.environ.get(
 TESTNET_NETWORKS = {
     'asimov': {
         'name': 'Asimov',
+        'rpc_url': os.environ.get('ASIMOV_RPC_URL', VALIDATOR_RPC_URL),
         'staking_contract_address': os.environ.get(
             'ASIMOV_STAKING_CONTRACT_ADDRESS',
             os.environ.get('VALIDATOR_CONTRACT_ADDRESS', '')
@@ -314,10 +315,11 @@ TESTNET_NETWORKS = {
             'ASIMOV_FACTORY_CONTRACT_ADDRESS',
             os.environ.get('FACTORY_CONTRACT_ADDRESS', '')
         ),
-        'explorer_url': os.environ.get('ASIMOV_EXPLORER_URL', 'https://explorer-asimov.genlayer.com'),
+        'explorer_url': os.environ.get('ASIMOV_EXPLORER_URL', 'https://explorer.testnet-chain.genlayer.com'),
     },
     'bradbury': {
         'name': 'Bradbury',
+        'rpc_url': os.environ.get('BRADBURY_RPC_URL', VALIDATOR_RPC_URL),
         'staking_contract_address': os.environ.get('BRADBURY_STAKING_CONTRACT_ADDRESS', ''),
         'factory_contract_address': os.environ.get('BRADBURY_FACTORY_CONTRACT_ADDRESS', ''),
         'explorer_url': os.environ.get('BRADBURY_EXPLORER_URL', ''),
@@ -354,6 +356,9 @@ if DEBUG and RECAPTCHA_PUBLIC_KEY == '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI':
 
 # Cron job authentication token for validator sync endpoint
 CRON_SYNC_TOKEN = os.environ.get('CRON_SYNC_TOKEN', '')
+
+# AI review agent authentication token for automated submission review
+AI_REVIEW_API_KEY = os.environ.get('AI_REVIEW_API_KEY', '')
 
 # =============================================================================
 # LOGGING CONFIGURATION

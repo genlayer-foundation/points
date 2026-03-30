@@ -406,6 +406,11 @@ class SubmissionNote(BaseModel):
         default=False,
         help_text="True for auto-generated proposal notes"
     )
+    data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Structured data: action, points, staff_reply, template_id, flags, confidence"
+    )
 
     class Meta:
         ordering = ['-created_at']
@@ -464,6 +469,46 @@ class Evidence(BaseModel):
     class Meta:
         verbose_name = "Evidence"
         verbose_name_plural = "Evidence Items"
+
+
+class BlocklistedURL(BaseModel):
+    """
+    URL prefixes that are not valid evidence for submissions.
+    Managed via Django admin. The review_submissions command checks
+    all evidence URLs against these prefixes.
+    """
+    url_prefix = models.URLField(
+        unique=True,
+        help_text="URL prefix to block (e.g. https://genlayer.com). "
+                  "Matches the prefix and any subpaths.",
+    )
+    reason = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Why this URL is blocklisted (for internal reference).",
+    )
+
+    class Meta:
+        verbose_name = "Blocklisted URL"
+        verbose_name_plural = "Blocklisted URLs"
+        ordering = ['url_prefix']
+
+    def clean(self):
+        super().clean()
+        # Normalize: strip query params, fragments, and trailing slash
+        # so admin-entered prefixes match the same normalization applied
+        # to submission URLs during review.
+        if self.url_prefix:
+            self.url_prefix = (
+                self.url_prefix.split('?')[0].split('#')[0].rstrip('/')
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.url_prefix
 
 
 class Mission(BaseModel):

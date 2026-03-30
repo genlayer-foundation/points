@@ -58,9 +58,9 @@
         chainId: "0x107D",
         chainName: "GenLayer Testnet Chain",
         nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
-        rpcUrls: ["https://zksync-os-testnet-genlayer.zksync.dev"],
+        rpcUrls: ["https://rpc.testnet-chain.genlayer.com"],
         blockExplorerUrls: [
-            "https://zksync-os-testnet-genlayer.explorer.zksync.dev",
+            "https://explorer.testnet-chain.genlayer.com",
         ],
     };
 

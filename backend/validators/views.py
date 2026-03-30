@@ -1,3 +1,4 @@
+import logging
 import re
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -13,6 +14,8 @@ from .genlayer_validators_service import GenLayerValidatorsService
 from users.models import User
 from users.serializers import ValidatorSerializer, UserSerializer
 from contributions.models import Contribution, ContributionType
+
+logger = logging.getLogger(__name__)
 
 
 class ValidatorViewSet(viewsets.ModelViewSet):
@@ -321,32 +324,29 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Trigger validator sync from GenLayer blockchain for all networks.
         Protected by X-Cron-Token header authentication.
+
+        Runs the sync in a background thread and returns 202 Accepted immediately
+        to avoid upstream proxy timeouts (504) on long-running syncs.
         """
-        try:
-            all_stats = GenLayerValidatorsService.sync_all_networks()
+        import threading
 
-            # Get DB state after sync
-            db_stats = ValidatorWallet.objects.values('network', 'status').annotate(
-                count=Count('status')
-            ).order_by('network', 'status')
+        def _run_sync():
+            from django.db import connection
+            try:
+                all_stats = GenLayerValidatorsService.sync_all_networks()
+                logger.info(f"Background validator sync completed: {all_stats}")
+            except Exception as e:
+                logger.error(f"Background validator sync failed: {e}")
+            finally:
+                connection.close()
 
-            db_state = {}
-            for stat in db_stats:
-                net = stat['network']
-                if net not in db_state:
-                    db_state[net] = {}
-                db_state[net][stat['status']] = stat['count']
+        thread = threading.Thread(target=_run_sync, daemon=True)
+        thread.start()
 
-            return Response({
-                'success': True,
-                'stats': all_stats,
-                'db_state': db_state
-            })
-        except Exception as e:
-            return Response({
-                'success': False,
-                'error': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({
+            'success': True,
+            'message': 'Validator sync started in background',
+        }, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=False, methods=['get'])
     def networks(self, request):

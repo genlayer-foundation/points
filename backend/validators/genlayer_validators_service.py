@@ -70,6 +70,29 @@ STAKING_ABI = [
     }
 ]
 
+STAKING_QUARANTINE_ABI = [
+    {
+        'inputs': [
+            {'type': 'uint256', 'name': 'startIndex'},
+            {'type': 'uint256', 'name': 'size'}
+        ],
+        'name': 'getAllQuarantinedValidators',
+        'outputs': [
+            {
+                'type': 'tuple[]',
+                'name': '',
+                'components': [
+                    {'type': 'address', 'name': 'validator'},
+                    {'type': 'uint256', 'name': 'untilEpochBanned'},
+                    {'type': 'bool', 'name': 'permanentlyBanned'}
+                ]
+            }
+        ],
+        'stateMutability': 'view',
+        'type': 'function'
+    }
+]
+
 FACTORY_ABI = [
     {
         'inputs': [{'type': 'address', 'name': 'wallet'}],
@@ -138,7 +161,8 @@ class GenLayerValidatorsService:
     def _initialize_client(self):
         """Initialize Web3 client and contract instances."""
         try:
-            self.w3 = Web3(Web3.HTTPProvider(settings.VALIDATOR_RPC_URL))
+            rpc_url = self.network_config.get('rpc_url') or settings.VALIDATOR_RPC_URL
+            self.w3 = Web3(Web3.HTTPProvider(rpc_url))
 
             staking_address = self.network_config.get('staking_contract_address')
             if not staking_address:
@@ -147,7 +171,7 @@ class GenLayerValidatorsService:
 
             self.staking_contract = self.w3.eth.contract(
                 address=staking_address,
-                abi=STAKING_ABI
+                abi=STAKING_ABI + STAKING_QUARANTINE_ABI
             )
 
             factory_address = self.network_config.get('factory_contract_address')
@@ -223,6 +247,36 @@ class GenLayerValidatorsService:
             return result
         except Exception as e:
             logger.error(f"Error fetching banned validators: {str(e)}")
+            return []
+
+    def fetch_quarantined_validators(self, start_index: int = 0, size: int = 1000) -> List[Dict[str, Any]]:
+        """
+        Fetch list of quarantined validators from Staking contract.
+
+        Args:
+            start_index: Starting index for pagination
+            size: Number of validators to fetch
+
+        Returns:
+            List of validator data with address, untilEpochBanned, permanently_banned
+        """
+        try:
+            with trace_external('web3', 'quarantined_validators'):
+                quarantined_list = self.staking_contract.functions.getAllQuarantinedValidators(
+                    start_index, size
+                ).call()
+
+            result = []
+            for item in quarantined_list:
+                result.append({
+                    'address': item[0],
+                    'until_epoch_banned': item[1],
+                    'permanently_banned': item[2]
+                })
+
+            return result
+        except Exception as e:
+            logger.error(f"Error fetching quarantined validators: {str(e)}")
             return []
 
     def fetch_validator_view(self, validator_address: str) -> Optional[Dict[str, Any]]:
@@ -322,6 +376,7 @@ class GenLayerValidatorsService:
         stats = {
             'active_fetched': 0,
             'banned_fetched': 0,
+            'quarantined_fetched': 0,
             'created': 0,
             'updated': 0,
             'errors': 0
@@ -335,6 +390,18 @@ class GenLayerValidatorsService:
             # Fetch banned validators
             banned_data = self.fetch_banned_validators()
             stats['banned_fetched'] = len(banned_data)
+
+            # Fetch quarantined validators
+            quarantined_data = self.fetch_quarantined_validators()
+            stats['quarantined_fetched'] = len(quarantined_data)
+
+            # Create lookup for quarantined validators
+            quarantined_lookup = {}
+            for item in quarantined_data:
+                addr = item['address'].lower()
+                quarantined_lookup[addr] = {
+                    'until_epoch': item['until_epoch_banned']
+                }
 
             # Create lookup for banned validators
             banned_lookup = {}
@@ -350,6 +417,8 @@ class GenLayerValidatorsService:
             all_addresses = {addr.lower() for addr in active_addresses}
             for banned in banned_data:
                 all_addresses.add(banned['address'].lower())
+            for item in quarantined_data:
+                all_addresses.add(item['address'].lower())
 
             # Also include existing validators from DB to catch "zombie" validators
             # that disappeared from both active and banned lists
@@ -367,6 +436,7 @@ class GenLayerValidatorsService:
                         address=address,
                         is_active=address.lower() in active_addresses_lower,
                         banned_info=banned_lookup.get(address.lower()),
+                        quarantined_info=quarantined_lookup.get(address.lower()),
                         stats=stats
                     )
                 except Exception as e:
@@ -387,7 +457,8 @@ class GenLayerValidatorsService:
         address: str,
         is_active: bool,
         banned_info: Optional[Dict],
-        stats: Dict[str, int]
+        stats: Dict[str, int],
+        quarantined_info: Optional[Dict] = None
     ):
         """
         Process a single validator - create or update in database.
@@ -396,6 +467,7 @@ class GenLayerValidatorsService:
             address: Validator wallet address
             is_active: Whether the validator is in the active list
             banned_info: Banned info if validator is banned
+            quarantined_info: Quarantine info if validator is quarantined
             stats: Statistics dictionary to update
         """
         from .models import ValidatorWallet, Validator
@@ -458,12 +530,14 @@ class GenLayerValidatorsService:
                 wallet.d_stake = new_d_stake
                 has_changes = True
 
-        # Determine status using list membership and banned info
-        # Priority: 1. Banned info, 2. Active list, 3. Default to inactive
-        # Note: activeValidators() returns ALL validators including quarantined/banned ones,
-        # so we check banned_info first to properly categorize them
+        # Determine status using list membership, banned info, and quarantine info
+        # Note: getAllBannedValidators() returns BOTH permanently banned AND quarantined validators.
+        # We use the permanently_banned flag to distinguish them.
+        # getAllQuarantinedValidators() is used as a fallback for validators only in that list.
         if banned_info:
             new_status = 'banned' if banned_info['permanently_banned'] else 'quarantined'
+        elif quarantined_info:
+            new_status = 'quarantined'
         elif is_active:
             new_status = 'active'
         else:

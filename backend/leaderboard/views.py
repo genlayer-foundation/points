@@ -107,8 +107,12 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             # For asimov (default network), also include validators with no wallets.
             network = self.request.query_params.get('network')
             if network and leaderboard_type == 'validator':
-                network_q = Q(user__validator__validator_wallets__network=network)
+                network_q = Q(
+                    user__validator__validator_wallets__network=network,
+                    user__validator__validator_wallets__status='active'
+                )
                 if network == 'asimov':
+                    # Also include validators with no wallets (new signups not yet synced)
                     network_q = network_q | ~Q(user__validator__validator_wallets__isnull=False)
                 queryset = queryset.filter(network_q).distinct()
 
@@ -506,7 +510,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
 
         referral_qs = ReferralPoints.objects.select_related('user').annotate(
             total_points=F('builder_points') + F('validator_points')
-        ).filter(user__visible=True, total_points__gt=0)
+        ).filter(user__visible=True, total_points__gt=0).order_by('-total_points')
 
         # Aggregate totals at DB level
         totals = referral_qs.aggregate(
