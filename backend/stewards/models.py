@@ -53,14 +53,23 @@ class ReviewTemplate(BaseModel):
     """
     Admin-managed template messages for steward review workflows.
     """
+    ACTION_CHOICES = [
+        ('accept', 'Accept'),
+        ('reject', 'Reject'),
+        ('more_info', 'More Info'),
+    ]
     label = models.CharField(max_length=100, help_text="Short label, e.g. 'Insufficient evidence'")
     text = models.TextField(help_text="Full template text to insert into reply fields")
+    action = models.CharField(
+        max_length=20, choices=ACTION_CHOICES, default='reject',
+        help_text="Which review action this template is for",
+    )
 
     class Meta:
-        ordering = ['label']
+        ordering = ['action', 'label']
 
     def __str__(self):
-        return self.label
+        return f"{self.get_action_display()}: {self.label}"
 
 
 class WorkingGroup(BaseModel):

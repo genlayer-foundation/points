@@ -56,10 +56,11 @@ class StewardPermissionAdmin(admin.ModelAdmin):
 
 @admin.register(ReviewTemplate)
 class ReviewTemplateAdmin(admin.ModelAdmin):
-    list_display = ('label', 'text_preview', 'created_at', 'updated_at')
+    list_display = ('action', 'label', 'text_preview', 'created_at', 'updated_at')
+    list_filter = ('action',)
     search_fields = ('label', 'text')
     readonly_fields = ('created_at', 'updated_at')
-    ordering = ('label',)
+    ordering = ('action', 'label')
 
     def text_preview(self, obj):
         return obj.text[:80] + '...' if len(obj.text) > 80 else obj.text

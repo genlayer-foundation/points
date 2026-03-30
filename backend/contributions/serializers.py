@@ -467,6 +467,9 @@ class StewardSubmissionReviewSerializer(serializers.Serializer):
     
     # Staff reply (required for reject/more_info)
     staff_reply = serializers.CharField(required=False, allow_blank=True)
+
+    # Template tracking for calibration
+    template_id = serializers.IntegerField(required=False, allow_null=True)
     
     def validate(self, data):
         """Validate the review action and required fields."""
@@ -514,8 +517,8 @@ class SubmissionNoteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SubmissionNote
-        fields = ['id', 'user', 'user_name', 'message', 'is_proposal', 'created_at']
-        read_only_fields = ['id', 'user', 'user_name', 'is_proposal', 'created_at']
+        fields = ['id', 'user', 'user_name', 'message', 'is_proposal', 'data', 'created_at']
+        read_only_fields = ['id', 'user', 'user_name', 'is_proposal', 'data', 'created_at']
 
     def get_user_name(self, obj):
         return obj.user.name or obj.user.address[:10] + '...'
@@ -536,6 +539,8 @@ class SubmissionProposeSerializer(serializers.Serializer):
         required=False,
     )
     proposed_staff_reply = serializers.CharField(required=False, allow_blank=True, default='')
+    # Template tracking for calibration
+    template_id = serializers.IntegerField(required=False, allow_null=True)
     proposed_create_highlight = serializers.BooleanField(default=False, required=False)
     proposed_highlight_title = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
     proposed_highlight_description = serializers.CharField(required=False, allow_blank=True, default='')

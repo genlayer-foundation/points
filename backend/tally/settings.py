@@ -355,6 +355,9 @@ if DEBUG and RECAPTCHA_PUBLIC_KEY == '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI':
 # Cron job authentication token for validator sync endpoint
 CRON_SYNC_TOKEN = os.environ.get('CRON_SYNC_TOKEN', '')
 
+# AI review agent authentication token for automated submission review
+AI_REVIEW_API_KEY = os.environ.get('AI_REVIEW_API_KEY', '')
+
 # =============================================================================
 # LOGGING CONFIGURATION
 # =============================================================================

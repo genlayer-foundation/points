@@ -62,6 +62,11 @@ export function searchToParams(parsed, options = {}) {
     }
   }
 
+  // Free text (untagged) → search across username, notes, and evidence
+  if (filters.freeText && filters.freeText.length > 0 && !params.username_search) {
+    params.search = filters.freeText.join(' ');
+  }
+
   // assigned → assigned_to
   if (filters.assigned) {
     const val = filters.assigned.value.toLowerCase();

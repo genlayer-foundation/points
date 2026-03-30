@@ -391,12 +391,16 @@ def update_leaderboard_on_contribution(sender, instance, created, **kwargs):
     When a contribution is saved, update all affected leaderboard entries.
     Also updates referrer's referral points if the user was referred.
     """
+    # Skip during fixture loading (loaddata) to avoid ordering issues
+    if kwargs.get('raw', False):
+        return
+
     # Only update if points have changed or it's a new contribution
     if created or kwargs.get('update_fields') is None or 'points' in kwargs.get('update_fields', []):
         # Log the contribution's point calculation
         logger.debug(f"Contribution saved: {instance.points} points × {instance.multiplier_at_creation} = "
                      f"{instance.frozen_global_points} global points")
-    
+
     # Update the user's leaderboard entries
     update_user_leaderboard_entries(instance.user)
 
@@ -412,6 +416,9 @@ def update_leaderboard_on_builder_creation(sender, instance, created, **kwargs):
     their Builder profile is created, even if the profile was created after
     their contributions (which is the case in complete_builder_journey).
     """
+    # Skip during fixture loading (loaddata) to avoid ordering issues
+    if kwargs.get('raw', False):
+        return
     if created:
         from users.models import User
         # Re-fetch user from DB to avoid stale reverse-relation cache

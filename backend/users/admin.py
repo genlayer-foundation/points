@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
 from django.contrib import messages
 
-from .models import User
+from .models import BanAppeal, User
 from contributions.models import Contribution
 from validators.admin import ValidatorInline
 from builders.admin import BuilderInline
@@ -46,8 +46,8 @@ class ContributionInline(admin.TabularInline):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'address', 'is_email_verified')
-    list_filter = ('is_staff', 'is_active', 'visible', 'is_email_verified')
+    list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'is_banned', 'address', 'is_email_verified')
+    list_filter = ('is_staff', 'is_active', 'visible', 'is_banned', 'is_email_verified')
     search_fields = ('email', 'name', 'address', 'referral_code', 'twitter_handle', 'discord_handle', 'telegram_handle')
     ordering = ('email',)
     
@@ -59,10 +59,11 @@ class UserAdmin(BaseUserAdmin):
         (_('GitHub Integration'), {'fields': ('github_username', 'github_user_id', 'github_linked_at')}),
         (_('Referral System'), {'fields': ('referral_code', 'referred_by')}),
         (_('Visibility'), {'fields': ('visible',)}),
+        (_('Ban Status'), {'fields': ('is_banned', 'ban_reason', 'banned_at', 'banned_by')}),
         (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         (_('Important dates'), {'fields': ('last_login', 'date_joined', 'created_at', 'updated_at')}),
     )
-    readonly_fields = ('created_at', 'updated_at', 'profile_image_public_id', 'banner_image_public_id', 'referral_code', 'github_user_id', 'github_linked_at')
+    readonly_fields = ('created_at', 'updated_at', 'profile_image_public_id', 'banner_image_public_id', 'referral_code', 'github_user_id', 'github_linked_at', 'banned_at', 'banned_by')
     
     add_fieldsets = (
         (None, {
@@ -72,7 +73,7 @@ class UserAdmin(BaseUserAdmin):
     )
     
     inlines = [ContributionInline, ValidatorInline, BuilderInline, StewardInline]
-    actions = ['set_as_builder', 'set_as_validator', 'set_as_steward', 'disconnect_github']
+    actions = ['set_as_builder', 'set_as_validator', 'set_as_steward', 'disconnect_github', 'ban_users', 'unban_users']
     
     def set_as_builder(self, request, queryset):
         """Action to set selected users as builders."""
@@ -198,3 +199,39 @@ class UserAdmin(BaseUserAdmin):
         if count > 0:
             self.message_user(request, f"Successfully disconnected GitHub from {count} user(s).", level=messages.SUCCESS)
     disconnect_github.short_description = "Disconnect GitHub accounts from selected users"
+
+    def ban_users(self, request, queryset):
+        """Ban selected users from submitting contributions."""
+        from django.utils import timezone
+        count = 0
+        for user in queryset:
+            if user.is_banned:
+                self.message_user(request, f"{user.email} is already banned.", level=messages.WARNING)
+                continue
+            user.is_banned = True
+            user.ban_reason = 'Banned by admin.'
+            user.banned_at = timezone.now()
+            user.banned_by = request.user
+            user.save()
+            count += 1
+        if count > 0:
+            self.message_user(request, f"Banned {count} user(s).", level=messages.SUCCESS)
+    ban_users.short_description = "Ban selected users"
+
+    def unban_users(self, request, queryset):
+        """Unban selected users."""
+        count = queryset.filter(is_banned=True).update(
+            is_banned=False, ban_reason='', banned_at=None, banned_by=None,
+        )
+        if count > 0:
+            self.message_user(request, f"Unbanned {count} user(s).", level=messages.SUCCESS)
+    unban_users.short_description = "Unban selected users"
+
+
+@admin.register(BanAppeal)
+class BanAppealAdmin(admin.ModelAdmin):
+    list_display = ('user', 'status', 'created_at', 'reviewed_by', 'reviewed_at')
+    list_filter = ('status',)
+    search_fields = ('user__email', 'user__name', 'appeal_text')
+    readonly_fields = ('user', 'appeal_text', 'created_at', 'updated_at')
+    raw_id_fields = ('reviewed_by',)

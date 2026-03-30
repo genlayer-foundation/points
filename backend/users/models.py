@@ -97,7 +97,18 @@ class User(AbstractUser, BaseModel):
     referred_by = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL,
                                    related_name='referrals',
                                    help_text="User who referred this user")
-    
+
+    # Ban system
+    is_banned = models.BooleanField(default=False,
+                                    help_text="Whether this user is banned from submitting")
+    ban_reason = models.TextField(blank=True, default='',
+                                  help_text="Reason for the ban (shown to user)")
+    banned_at = models.DateTimeField(null=True, blank=True,
+                                     help_text="When the user was banned")
+    banned_by = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name='users_banned',
+                                  help_text="User/steward who banned this user")
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -115,3 +126,31 @@ class User(AbstractUser, BaseModel):
 
     def __str__(self):
         return self.email
+
+
+class BanAppeal(BaseModel):
+    """
+    One-time appeal from a banned user requesting their ban be lifted.
+    Each user can only submit one appeal.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('approved', 'Approved'),
+        ('denied', 'Denied'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ban_appeals')
+    appeal_text = models.TextField(help_text="User's explanation for why the ban should be lifted")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    reviewed_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name='reviewed_appeals',
+                                    help_text="Steward who reviewed this appeal")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(blank=True, default='',
+                                    help_text="Internal notes from the reviewer")
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Appeal by {self.user.email} ({self.status})"
