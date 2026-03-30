@@ -72,7 +72,8 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "GITHUB_ENCRYPTION_KEY": "$SSM_PREFIX/$SSM_ENV/github_encryption_key",
           "GITHUB_REPO_TO_STAR": "$SSM_PREFIX/$SSM_ENV/github_repo_to_star",
           "RECAPTCHA_PUBLIC_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_public_key",
-          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_private_key"
+          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_private_key",
+          "AI_REVIEW_API_KEY": "$SSM_PREFIX/$SSM_ENV/ai_review_api_key"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
@@ -227,7 +228,8 @@ EOF
           "GITHUB_ENCRYPTION_KEY": "$SSM_PREFIX/$SSM_ENV/github_encryption_key",
           "GITHUB_REPO_TO_STAR": "$SSM_PREFIX/$SSM_ENV/github_repo_to_star",
           "RECAPTCHA_PUBLIC_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_public_key",
-          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_private_key"
+          "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_private_key",
+          "AI_REVIEW_API_KEY": "$SSM_PREFIX/$SSM_ENV/ai_review_api_key"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
