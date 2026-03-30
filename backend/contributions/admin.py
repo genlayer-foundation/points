@@ -11,7 +11,7 @@ from django.db.models import Count
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from datetime import datetime
-from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert
+from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert, BlocklistedURL
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
 from utils.admin_mixins import CloudinaryUploadMixin
@@ -504,6 +504,13 @@ class EvidenceAdmin(admin.ModelAdmin):
         qs = super().get_queryset(request)
         return qs.select_related('contribution__user', 'submitted_contribution__user', 
                                'contribution__contribution_type', 'submitted_contribution__contribution_type')
+
+
+@admin.register(BlocklistedURL)
+class BlocklistedURLAdmin(admin.ModelAdmin):
+    list_display = ('url_prefix', 'reason', 'created_at')
+    search_fields = ('url_prefix', 'reason')
+    readonly_fields = ('created_at', 'updated_at')
 
 
 @admin.register(ContributionHighlight)
