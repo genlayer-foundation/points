@@ -2,11 +2,11 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ranks, recalculate_all_leaderboards, LEADERBOARD_CONFIG
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
-from contributions.models import Category
+from contributions.models import Category, Contribution
 
 
 class GlobalLeaderboardMultiplierViewSet(viewsets.ReadOnlyModelViewSet):
@@ -69,7 +69,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             'user__validator',
             'user__builder',
             'user__steward',
-            'user__creator'
+            'user__creator',
+            'user__referral_points'
         )
 
         # Annotate with validator wallet counts to avoid N+1 queries
@@ -101,6 +102,16 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 # Default to validator leaderboard only when not filtering by user
                 queryset = queryset.filter(type='validator')
 
+            # Handle network filtering for validators
+            # Include validators with wallets on the specified network.
+            # For asimov (default network), also include validators with no wallets.
+            network = self.request.query_params.get('network')
+            if network and leaderboard_type == 'validator':
+                network_q = Q(user__validator__validator_wallets__network=network)
+                if network == 'asimov':
+                    network_q = network_q | ~Q(user__validator__validator_wallets__isnull=False)
+                queryset = queryset.filter(network_q).distinct()
+
         # Handle rank ordering
         order = self.request.query_params.get('order', 'asc')
         if order == 'desc':
@@ -112,18 +123,30 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
 
     def list(self, request, *args, **kwargs):
         """
-        Override to apply limit after filtering/ordering.
+        Override to apply offset and limit after filtering/ordering.
         """
         queryset = self.filter_queryset(self.get_queryset())
 
-        # Apply limit after filtering and ordering
-        limit = self.request.query_params.get('limit')
-        if limit:
+        # Parse offset and limit
+        offset = 0
+        limit = None
+        try:
+            offset = int(self.request.query_params.get('offset', 0))
+        except (ValueError, TypeError):
+            offset = 0
+
+        limit_param = self.request.query_params.get('limit')
+        if limit_param:
             try:
-                limit = int(limit)
-                queryset = queryset[:limit]
+                limit = int(limit_param)
             except (ValueError, TypeError):
-                pass
+                limit = None
+
+        # Apply offset and limit as a single slice to avoid Django slice-of-slice issues
+        if limit is not None:
+            queryset = queryset[offset:offset + limit]
+        elif offset > 0:
+            queryset = list(queryset[offset:])
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
@@ -173,6 +196,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
 
         leaderboard_type = request.query_params.get('type')
 
+        now = timezone.now()
+        last_month = now - timezone.timedelta(days=30)
+
         if leaderboard_type:
             # Category-specific stats
             leaderboard_entries = LeaderboardEntry.objects.filter(
@@ -194,13 +220,37 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             category = category_map.get(leaderboard_type)
 
             if category:
-                contribution_count = Contribution.objects.filter(
+                category_contributions = Contribution.objects.filter(
                     contribution_type__category__slug=category
                 ).exclude(
                     contribution_type__slug__in=['builder-welcome', 'validator-waitlist']
+                )
+                contribution_count = category_contributions.count()
+                new_contributions_count = category_contributions.filter(
+                    created_at__gte=last_month
                 ).count()
+                new_points_count = category_contributions.filter(
+                    created_at__gte=last_month
+                ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
             else:
                 contribution_count = 0
+                new_contributions_count = 0
+                new_points_count = 0
+
+            # New participants in the last 30 days for the specific leaderboard type
+            if leaderboard_type == 'builder':
+                new_builders_count = LeaderboardEntry.objects.filter(
+                    type='builder', user__created_at__gte=last_month
+                ).count()
+                new_validators_count = 0
+            elif leaderboard_type == 'validator':
+                new_builders_count = 0
+                new_validators_count = LeaderboardEntry.objects.filter(
+                    type='validator', user__created_at__gte=last_month
+                ).count()
+            else:
+                new_builders_count = 0
+                new_validators_count = 0
         else:
             # Global stats
             participant_count = User.objects.filter(
@@ -208,18 +258,56 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 visible=True
             ).distinct().count()
 
-            contribution_count = Contribution.objects.exclude(
+            all_contributions = Contribution.objects.exclude(
                 contribution_type__slug__in=['builder-welcome', 'validator-waitlist']
+            )
+            contribution_count = all_contributions.count()
+            new_contributions_count = all_contributions.filter(
+                created_at__gte=last_month
             ).count()
 
             total_points = Contribution.objects.aggregate(
                 total=Sum('frozen_global_points')
             )['total'] or 0
 
+            new_points_count = Contribution.objects.filter(
+                created_at__gte=last_month
+            ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
+
+            new_builders_count = LeaderboardEntry.objects.filter(
+                type='builder', user__created_at__gte=last_month
+            ).count()
+            new_validators_count = LeaderboardEntry.objects.filter(
+                type='validator', user__created_at__gte=last_month
+            ).count()
+
+        # Category-specific counts (always included)
+        builder_count = LeaderboardEntry.objects.filter(
+            type='builder', user__visible=True
+        ).count()
+        validator_count = LeaderboardEntry.objects.filter(
+            type='validator', user__visible=True
+        ).count()
+
+        from .models import ReferralPoints
+        from django.db.models import F
+        creator_count = ReferralPoints.objects.filter(
+            user__visible=True
+        ).annotate(
+            total_pts=F('builder_points') + F('validator_points')
+        ).filter(total_pts__gt=0).count()
+
         return Response({
             'participant_count': participant_count,
             'contribution_count': contribution_count,
             'total_points': total_points,
+            'builder_count': builder_count,
+            'validator_count': validator_count,
+            'creator_count': creator_count,
+            'new_builders_count': new_builders_count,
+            'new_validators_count': new_validators_count,
+            'new_contributions_count': new_contributions_count,
+            'new_points_count': new_points_count,
         })
         
     def _get_user_stats(self, user, category=None):
@@ -403,40 +491,135 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(types_info)
 
     @action(detail=False, methods=['get'])
-    def supporters(self, request):
+    def community(self, request):
         """
-        Get supporters statistics and all supporters with referral points.
+        Get community statistics and paginated community members with referral points.
         Returns users with referrals sorted by total referral points.
+        Supports limit/offset pagination and user_address lookup.
         """
         from .models import ReferralPoints
-        from users.serializers import UserSerializer
+        from users.serializers import LightUserSerializer
         from django.db.models import F
 
-        # Get all referral points ordered by total points (builder + validator)
-        referral_points = ReferralPoints.objects.select_related('user').annotate(
+        limit = min(int(request.query_params.get('limit', 20)), 100)
+        offset = int(request.query_params.get('offset', 0))
+
+        referral_qs = ReferralPoints.objects.select_related('user').annotate(
             total_points=F('builder_points') + F('validator_points')
         ).filter(user__visible=True, total_points__gt=0).order_by('-total_points')
 
-        # Calculate aggregate stats
-        total_supporters = referral_points.count()
-        total_builder_points = sum(rp.builder_points for rp in referral_points)
-        total_validator_points = sum(rp.validator_points for rp in referral_points)
+        # Aggregate totals at DB level
+        totals = referral_qs.aggregate(
+            total_community=Count('id'),
+            total_builder=Sum('builder_points'),
+            total_validator=Sum('validator_points')
+        )
 
-        # Get all supporters
-        top_supporters = []
-        for rp in referral_points:
-            user_data = UserSerializer(rp.user).data
-            top_supporters.append({
+        # Check if user_address is requested for rank lookup
+        user_address = request.query_params.get('user_address')
+        user_rank = None
+        user_total_points = None
+        if user_address:
+            # Find user's points first with a single DB query
+            try:
+                user_rp = ReferralPoints.objects.select_related('user').annotate(
+                    total_points=F('builder_points') + F('validator_points')
+                ).get(user__address__iexact=user_address, user__visible=True)
+                user_tp = user_rp.builder_points + user_rp.validator_points
+                if user_tp > 0:
+                    user_total_points = user_tp
+                    # Count how many users have more points (DB-level rank calculation)
+                    user_rank = referral_qs.filter(total_points__gt=user_tp).count() + 1
+            except ReferralPoints.DoesNotExist:
+                pass
+
+        # Paginated results with light serializer
+        page = referral_qs[offset:offset + limit]
+        results = []
+        for rank, rp in enumerate(page, start=offset + 1):
+            user_data = LightUserSerializer(rp.user).data
+            results.append({
                 **user_data,
-                'builder_points': rp.builder_points,
-                'validator_points': rp.validator_points,
-                'total_points': rp.builder_points + rp.validator_points
+                'referral_builder_points': rp.builder_points,
+                'referral_validator_points': rp.validator_points,
+                'total_referral_points': rp.builder_points + rp.validator_points,
+                'total_points': rp.builder_points + rp.validator_points,
+                'rank': rank,
             })
 
-        return Response({
-            'total_supporters': total_supporters,
-            'total_builder_points': total_builder_points,
-            'total_validator_points': total_validator_points,
-            'top_supporters': top_supporters
-        })
+        response_data = {
+            'total_community': totals['total_community'] or 0,
+            'total_builder_points': totals['total_builder'] or 0,
+            'total_validator_points': totals['total_validator'] or 0,
+            'count': totals['total_community'] or 0,
+            'results': results,
+        }
+
+        if user_address:
+            response_data['user_rank'] = user_rank
+            response_data['user_total_points'] = user_total_points
+
+        return Response(response_data)
+
+    @action(detail=False, methods=['get'])
+    def trending(self, request):
+        """
+        Get users who earned the most points recently.
+        Tries last 30 days first; falls back to all-time if no data.
+        """
+        try:
+            limit = int(request.query_params.get('limit', 10))
+        except (ValueError, TypeError):
+            limit = 10
+        limit = min(max(limit, 1), 100)
+
+        from datetime import timedelta
+        from users.models import User
+
+        cutoff = timezone.now() - timedelta(days=30)
+
+        # Aggregate points per user from last 30 days
+        trending_users = list(
+            Contribution.objects.filter(
+                created_at__gte=cutoff,
+                user__visible=True,
+            )
+            .values('user_id')
+            .annotate(total_points=Sum('frozen_global_points'))
+            .order_by('-total_points')[:limit]
+        )
+
+        # Fall back to all-time if no recent data
+        if not trending_users:
+            trending_users = list(
+                Contribution.objects.filter(user__visible=True)
+                .values('user_id')
+                .annotate(total_points=Sum('frozen_global_points'))
+                .order_by('-total_points')[:limit]
+            )
+
+        user_ids = [entry['user_id'] for entry in trending_users]
+        points_map = {entry['user_id']: entry['total_points'] for entry in trending_users}
+
+        users = User.objects.filter(id__in=user_ids).select_related(
+            'builder', 'validator', 'steward'
+        )
+        users_by_id = {u.id: u for u in users}
+
+        results = []
+        for user_id in user_ids:
+            user = users_by_id.get(user_id)
+            if not user:
+                continue
+            results.append({
+                'user_name': user.name or '',
+                'user_address': user.address or '',
+                'profile_image_url': user.profile_image_url or '',
+                'total_points': points_map[user_id] or 0,
+                'builder': hasattr(user, 'builder'),
+                'validator': hasattr(user, 'validator'),
+                'steward': hasattr(user, 'steward'),
+            })
+
+        return Response(results)
     

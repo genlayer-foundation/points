@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote
+from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert
 from users.serializers import UserSerializer, LightUserSerializer
 from users.models import User
 from .recaptcha_field import ReCaptchaField
@@ -721,3 +721,36 @@ class StartupRequestDetailSerializer(serializers.ModelSerializer):
             'documents', 'is_active', 'order', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class FeaturedContentSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source='user.name', read_only=True)
+    user_address = serializers.CharField(source='user.address', read_only=True)
+    user_profile_image_url = serializers.SerializerMethodField()
+    link = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeaturedContent
+        fields = ['id', 'content_type', 'title', 'description', 'author',
+                  'hero_image_url', 'hero_image_url_tablet', 'hero_image_url_mobile',
+                  'url', 'link',
+                  'user', 'user_name', 'user_address', 'user_profile_image_url',
+                  'contribution', 'is_active', 'order', 'created_at']
+
+    def get_user_profile_image_url(self, obj):
+        """Return the FeaturedContent's user_profile_image_url if set, otherwise fall back to user's profile_image_url."""
+        if obj.user_profile_image_url:
+            return obj.user_profile_image_url
+        if obj.user and obj.user.profile_image_url:
+            return obj.user.profile_image_url
+        return ''
+
+    def get_link(self, obj):
+        return obj.get_link()
+
+
+class AlertSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Alert
+        fields = ['id', 'alert_type', 'icon', 'text', 'order', 'created_at']
+        read_only_fields = ['id', 'created_at']

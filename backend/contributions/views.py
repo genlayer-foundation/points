@@ -7,19 +7,19 @@ from django.utils import timezone
 from django.db.models import Count, Max, F, Q, Exists, OuterRef, Subquery, Sum
 from django.db.models.functions import TruncDate, TruncWeek, TruncMonth
 from django.db.models.functions import Coalesce
-from django.db.models.functions import Coalesce
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.generic import ListView
 from django.utils.decorators import method_decorator
-from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission, StartupRequest
+from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission, StartupRequest, FeaturedContent, Alert
 from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
                          StewardSubmissionSerializer, StewardSubmissionReviewSerializer,
                          SubmissionNoteSerializer, SubmissionProposeSerializer,
-                         MissionSerializer, StartupRequestListSerializer, StartupRequestDetailSerializer)
+                         MissionSerializer, StartupRequestListSerializer, StartupRequestDetailSerializer,
+                         FeaturedContentSerializer, AlertSerializer)
 from .forms import SubmissionReviewForm
 from .permissions import IsSteward, steward_has_permission, steward_permitted_type_ids
 from leaderboard.models import GlobalLeaderboardMultiplier
@@ -803,6 +803,8 @@ class StewardSubmissionFilterSet(FilterSet):
     min_accepted_contributions = NumberFilter(method='filter_min_accepted_contributions')
     has_proposal = BooleanFilter(method='filter_has_proposal')
     search = CharFilter(method='filter_search')
+    category = CharFilter(method='filter_category')
+    exclude_category = CharFilter(method='filter_exclude_category')
 
     def filter_search(self, queryset, name, value):
         """General search across user name/email/address, notes, and evidence URLs."""
@@ -819,6 +821,18 @@ class StewardSubmissionFilterSet(FilterSet):
                 Q(notes__icontains=value) |
                 Exists(has_matching_evidence)
             )
+        return queryset
+
+    def filter_category(self, queryset, name, value):
+        """Filter by contribution type category slug."""
+        if value:
+            return queryset.filter(contribution_type__category__slug=value)
+        return queryset
+
+    def filter_exclude_category(self, queryset, name, value):
+        """Exclude submissions from a specific category."""
+        if value:
+            return queryset.exclude(contribution_type__category__slug=value)
         return queryset
 
     def filter_username(self, queryset, name, value):
@@ -1696,7 +1710,7 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         """
-        Return active highlights by default.
+        Return active missions by default.
         Supports filtering by contribution_type and category.
         """
         from django.utils import timezone
@@ -1744,3 +1758,29 @@ class StartupRequestViewSet(viewsets.ReadOnlyModelViewSet):
         if self.action == 'retrieve':
             return StartupRequestDetailSerializer
         return StartupRequestListSerializer
+
+
+class FeaturedContentViewSet(viewsets.ReadOnlyModelViewSet):
+    """Featured content for the portal home page."""
+    serializer_class = FeaturedContentSerializer
+    permission_classes = [permissions.AllowAny]
+    pagination_class = None
+
+    def get_queryset(self):
+        queryset = FeaturedContent.objects.filter(is_active=True).select_related(
+            'user', 'contribution', 'contribution__contribution_type'
+        ).order_by('order', '-created_at')
+        content_type = self.request.query_params.get('type')
+        if content_type:
+            queryset = queryset.filter(content_type=content_type)
+        return queryset
+
+
+class AlertViewSet(viewsets.ReadOnlyModelViewSet):
+    """Public endpoint for active system alerts."""
+    serializer_class = AlertSerializer
+    permission_classes = [permissions.AllowAny]
+    pagination_class = None
+
+    def get_queryset(self):
+        return Alert.get_active_alerts()

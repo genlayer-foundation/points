@@ -1,409 +1,481 @@
 <script>
-  import { onMount } from 'svelte';
-  import { push } from 'svelte-spa-router';
-  import { format } from 'date-fns';
-  import TopLeaderboard from './TopLeaderboard.svelte';
-  import HighlightedContributions from './HighlightedContributions.svelte';
-  import Avatar from './Avatar.svelte';
-  import { leaderboardAPI, statsAPI, validatorsAPI, buildersAPI } from '../lib/api';
-  import { showError } from '../lib/toastStore';
-  
+  import { onMount } from "svelte";
+  import { push } from "svelte-spa-router";
+  import { format } from "date-fns";
+  import TopLeaderboard from "./TopLeaderboard.svelte";
+  import CategoryIcon from "./portal/CategoryIcon.svelte";
+  import { leaderboardAPI, validatorsAPI } from "../lib/api";
+  import { showError } from "../lib/toastStore";
+
   // State management
-  let validatorStats = $state({ total: 0, contributions: 0, points: 0 });
-  let builderStats = $state({ total: 0, contributions: 0, points: 0 });
-  let validatorLeaderboard = $state([]);  // Store for reuse
-  let builderLeaderboard = $state([]);  // Store for reuse
-  let newestValidators = $state([]);
-  let newestBuilders = $state([]);
-  let statsLoading = $state(true);
-  let newestValidatorsLoading = $state(true);
-  let newestBuildersLoading = $state(true);
-  
-  // Format date helper
-  const formatDate = (dateString) => {
-    try {
-      return format(new Date(dateString), 'MMM d, yyyy');
-    } catch (e) {
-      return dateString;
-    }
-  };
-  
+  let networkStats = $state({ asimov: { total: 0 }, bradbury: { total: 0 } });
+  let networks = $state([]);
+  let asimovLeaderboard = $state([]);
+  let bradburyLeaderboard = $state([]);
+  let waitlistLeaderboard = $state([]);
+  let loading = $state(true);
+
   async function fetchGlobalData() {
-    // Fetch all data in parallel for optimal performance
     try {
-      statsLoading = true;
-      newestValidatorsLoading = true;
-      newestBuildersLoading = true;
+      loading = true;
 
       // Fetch all necessary data in one parallel batch
       const [
-        validatorStatsRes,
-        builderStatsRes,
-        validatorLeaderboardRes,
-        builderLeaderboardRes,
-        validatorsRes,
-        buildersRes
+        asimovLeaderboardRes,
+        bradburyLeaderboardRes,
+        waitlistLeaderboardRes,
+        networksRes,
       ] = await Promise.all([
-        statsAPI.getDashboardStats('validator'),
-        statsAPI.getDashboardStats('builder'),
-        leaderboardAPI.getLeaderboardByType('validator', 'asc', { limit: 5 }),
-        leaderboardAPI.getLeaderboardByType('builder', 'asc', { limit: 5 }),
-        validatorsAPI.getNewestValidators(5),
-        buildersAPI.getNewestBuilders(5)
+        leaderboardAPI.getLeaderboardByType("validator", "asc", {
+          network: "asimov",
+        }),
+        leaderboardAPI.getLeaderboardByType("validator", "asc", {
+          network: "bradbury",
+        }),
+        leaderboardAPI.getWaitlistTop(5),
+        validatorsAPI.getNetworks().catch(() => ({ data: [] })), // Handle if not found
       ]);
 
-      // Process validator stats
-      validatorLeaderboard = Array.isArray(validatorLeaderboardRes.data) ? validatorLeaderboardRes.data : [];
+      // Process leaderboards — full list for count, top 5 for display
+      const asimovFull = Array.isArray(asimovLeaderboardRes.data)
+        ? asimovLeaderboardRes.data
+        : [];
+      const bradburyFull = Array.isArray(bradburyLeaderboardRes.data)
+        ? bradburyLeaderboardRes.data
+        : [];
+      asimovLeaderboard = asimovFull.slice(0, 5);
+      bradburyLeaderboard = bradburyFull.slice(0, 5);
+      waitlistLeaderboard = Array.isArray(waitlistLeaderboardRes.data)
+        ? waitlistLeaderboardRes.data
+        : [];
 
-      validatorStats = {
-        total: validatorStatsRes.data.participant_count || 0,
-        contributions: validatorStatsRes.data.contribution_count || 0,
-        points: validatorStatsRes.data.total_points || 0
+      // Process networks for Explorers
+      let fetchedNetworks = networksRes.data || [];
+      const asimov = fetchedNetworks.find((n) => n.key === "asimov") || {
+        key: "asimov",
+        name: "Asimov",
+      };
+      const bradbury = fetchedNetworks.find((n) => n.key === "bradbury") || {
+        key: "bradbury",
+        name: "Bradbury",
       };
 
-      // Process builder stats
-      builderLeaderboard = Array.isArray(builderLeaderboardRes.data) ? builderLeaderboardRes.data : [];
+      if (!asimov.explorer_url)
+        asimov.explorer_url = "https://explorer-asimov.genlayer.com/";
+      if (!bradbury.explorer_url)
+        bradbury.explorer_url = "https://explorer-bradbury.genlayer.com/";
+      networks = [asimov, bradbury];
 
-      builderStats = {
-        total: builderStatsRes.data.participant_count || 0,
-        contributions: builderStatsRes.data.contribution_count || 0,
-        points: builderStatsRes.data.total_points || 0
+      // Validator count per network from leaderboard entries (active on-chain validators)
+      networkStats = {
+        asimov: { total: asimovFull.length },
+        bradbury: { total: bradburyFull.length },
       };
 
-      // Process newest validators
-      newestValidators = validatorsRes.data || [];
-
-      // Process newest builders from dedicated endpoint
-      newestBuilders = buildersRes.data || [];
-
-      statsLoading = false;
-      newestValidatorsLoading = false;
-      newestBuildersLoading = false;
+      loading = false;
     } catch (error) {
-      showError('Failed to load dashboard data. Please refresh the page.');
-      statsLoading = false;
-      newestValidatorsLoading = false;
-      newestBuildersLoading = false;
+      console.error("Dashboard fetch error:", error);
+      showError("Failed to load dashboard data. Please refresh the page.");
+      loading = false;
     }
   }
-  
+
   onMount(() => {
     fetchGlobalData();
   });
 </script>
 
 <div class="space-y-6 sm:space-y-8">
-  <!-- Title -->
-  <h1 class="text-2xl font-bold text-gray-900">Testnet Asimov</h1>
-  
-  <!-- 2 Column Layout -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-    <!-- VALIDATORS COLUMN CARD -->
-    <div class="bg-sky-50/30 rounded-lg shadow-sm border border-sky-100 overflow-hidden">
-      <!-- Column Header -->
-      <div class="bg-sky-100/50 px-5 py-3 border-b border-sky-200">
-        <button
-          onclick={() => push('/validators')}
-          class="text-lg font-semibold font-heading text-sky-700 uppercase tracking-wider hover:text-sky-800 transition-colors"
-        >
-          Validators
-        </button>
-      </div>
-      
-      <!-- Column Content -->
-      <div class="p-4 space-y-6 sm:space-y-8">
-      
-      <!-- Total Validators Stat -->
-      <div class="flex items-center">
-        <div class="p-3 bg-sky-100 rounded-lg mr-4">
-          <svg class="w-6 h-6 text-sky-600" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2L3.5 7v6c0 5.55 3.84 10.74 8.5 12 4.66-1.26 8.5-6.45 8.5-12V7L12 2zm2 5h-3l-1 5h3l-3 7 5-8h-3l2-4z"/>
-          </svg>
-        </div>
-        <div>
-          <p class="text-sm text-gray-500">Total Validators</p>
-          <p class="text-2xl font-bold text-gray-900">{statsLoading ? '...' : validatorStats.total}</p>
-        </div>
-      </div>
-      
-      <!-- Top Validators -->
-      <div class="space-y-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <div class="p-1.5 bg-purple-100 rounded-lg">
-              <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
-              </svg>
-            </div>
-            <h2 class="text-lg font-semibold text-gray-900">Top Validators</h2>
-          </div>
-          <button
-            onclick={() => push('/validators/leaderboard')}
-            class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
-          >
-            View all
-            <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-            </svg>
-          </button>
-        </div>
-        <TopLeaderboard
-          showHeader={false}
-          category="validator"
-          limit={5}
-          entries={validatorLeaderboard}
-          loading={statsLoading}
-        />
-      </div>
-      
-      <!-- Highlighted Validators Contributions -->
-      <div class="space-y-4 mt-6 sm:mt-10">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <div class="p-1.5 bg-yellow-100 rounded-lg">
-              <svg class="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-              </svg>
-            </div>
-            <h2 class="text-lg font-semibold text-gray-900">Highlighted Validators Contributions</h2>
-          </div>
-          <button
-            onclick={() => push('/validators/contributions/highlights')}
-            class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
-          >
-            View all
-            <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-            </svg>
-          </button>
-        </div>
-        <HighlightedContributions 
-          showHeader={false}
-          showViewAll={false}
-          category="validator"
-          cardStyle="highlight"
-          limit={3}
-        />
-      </div>
-      
-      <!-- Newest Validators -->
-      <div class="space-y-4 mt-6 sm:mt-10">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <div class="p-1.5 bg-blue-100 rounded-lg">
-              <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
-              </svg>
-            </div>
-            <h2 class="text-lg font-semibold text-gray-900">Newest Validators</h2>
-          </div>
-          <button
-            onclick={() => push('/validators/participants')}
-            class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
-          >
-            View all
-            <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-            </svg>
-          </button>
-        </div>
-        
-        {#if newestValidatorsLoading}
-          <div class="flex justify-center items-center p-8">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-          </div>
-        {:else if newestValidators.length === 0}
-          <div class="bg-gray-50 rounded-lg p-6 text-center">
-            <p class="text-gray-500">No new validators yet.</p>
-          </div>
-        {:else}
-          <div class="bg-white rounded-lg divide-y divide-gray-200">
-            {#each newestValidators as validator}
-              <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                <div class="flex items-center gap-3">
-                  <Avatar 
-                    user={validator}
-                    size="sm"
-                    clickable={true}
-                  />
-                  <div class="min-w-0">
-                    <button
-                      class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors truncate"
-                      onclick={() => push(`/participant/${validator.address}`)}
-                    >
-                      {validator.name || `${validator.address.slice(0, 6)}...${validator.address.slice(-4)}`}
-                    </button>
-                    <div class="text-xs text-gray-500">
-                      {formatDate(validator.first_uptime_date || validator.created_at)}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onclick={() => push(`/participant/${validator.address}`)}
-                  class="text-xs text-primary-600 hover:text-primary-700 font-medium flex-shrink-0"
-                >
-                  View →
-                </button>
-              </div>
-            {/each}
-          </div>
-        {/if}
-      </div>
-      </div>
-    </div>
-    
-    <!-- BUILDERS COLUMN CARD -->
-    <div class="bg-orange-50/30 rounded-lg shadow-sm border border-orange-100 overflow-hidden">
-      <!-- Column Header -->
-      <div class="bg-orange-100/50 px-5 py-3 border-b border-orange-200">
-        <button
-          onclick={() => push('/builders')}
-          class="text-lg font-semibold font-heading text-orange-700 uppercase tracking-wider hover:text-orange-800 transition-colors"
-        >
-          Builders
-        </button>
-      </div>
-      
-      <!-- Column Content -->
-      <div class="p-4 space-y-6 sm:space-y-8">
-      
-      <!-- Total Builders Stat -->
-      <div class="flex items-center">
-        <div class="p-3 bg-orange-100 rounded-lg mr-4">
-          <svg class="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
-          </svg>
-        </div>
-        <div>
-          <p class="text-sm text-gray-500">Total Builders</p>
-          <p class="text-2xl font-bold text-gray-900">{statsLoading ? '...' : builderStats.total}</p>
-        </div>
-      </div>
-      
-      <!-- Top Builders -->
-      <div class="space-y-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <div class="p-1.5 bg-purple-100 rounded-lg">
-              <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
-              </svg>
-            </div>
-            <h2 class="text-lg font-semibold text-gray-900">Top Builders</h2>
-          </div>
-          <button
-            onclick={() => push('/builders/leaderboard')}
-            class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
-          >
-            View all
-            <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-            </svg>
-          </button>
-        </div>
-        <TopLeaderboard
-          showHeader={false}
-          category="builder"
-          limit={5}
-          entries={builderLeaderboard}
-          loading={statsLoading}
-        />
-      </div>
-      
-      <!-- Highlighted Builders Contributions -->
-      <div class="space-y-4 mt-6 sm:mt-10">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <div class="p-1.5 bg-yellow-100 rounded-lg">
-              <svg class="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-              </svg>
-            </div>
-            <h2 class="text-lg font-semibold text-gray-900">Highlighted Builders Contributions</h2>
-          </div>
-          <button
-            onclick={() => push('/builders/contributions/highlights')}
-            class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
-          >
-            View all
-            <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-            </svg>
-          </button>
-        </div>
-        <HighlightedContributions
-          showHeader={false}
-          showViewAll={false}
-          category="builder"
-          cardStyle="highlight"
-          limit={3}
-        />
-      </div>
-      
-      <!-- Newest Builders -->
-      <div class="space-y-4 mt-6 sm:mt-10">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <div class="p-1.5 bg-blue-100 rounded-lg">
-              <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
-              </svg>
-            </div>
-            <h2 class="text-lg font-semibold text-gray-900">Newest Builders</h2>
-          </div>
-          <button
-            onclick={() => push('/builders/participants')}
-            class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
-          >
-            View all
-            <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-            </svg>
-          </button>
-        </div>
-        
-        {#if newestBuildersLoading}
-          <div class="flex justify-center items-center p-8">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-          </div>
-        {:else if newestBuilders.length === 0}
-          <div class="bg-gray-50 rounded-lg p-6 text-center">
-            <p class="text-gray-500">No new builders yet.</p>
-          </div>
-        {:else}
-          <div class="bg-white rounded-lg divide-y divide-gray-200">
-            {#each newestBuilders as builder}
-              <div class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                <div class="flex items-center gap-3">
-                  <Avatar 
-                    user={builder}
-                    size="sm"
-                    clickable={true}
-                  />
-                  <div class="min-w-0">
-                    <button
-                      class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors truncate"
-                      onclick={() => push(`/participant/${builder.address}`)}
-                    >
-                      {builder.name || `${builder.address.slice(0, 6)}...${builder.address.slice(-4)}`}
-                    </button>
-                    <div class="text-xs text-gray-500">
-                      {formatDate(builder.created_at)}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onclick={() => push(`/participant/${builder.address}`)}
-                  class="text-xs text-primary-600 hover:text-primary-700 font-medium flex-shrink-0"
-                >
-                  View →
-                </button>
-              </div>
-            {/each}
-          </div>
-        {/if}
-      </div>
-      </div>
-    </div>
+  <!-- Title Section -->
+  <div class="flex flex-col gap-1">
+    <h1
+      class="text-[24px] font-semibold text-gray-900 font-display"
+      style="letter-spacing: -0.5px;"
+    >
+      Testnets
+    </h1>
+    <p class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">
+      Monitor GenLayer's live testnets and validator metrics.
+    </p>
   </div>
+
+  {#if loading}
+    <!-- Skeleton loading state -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {#each [1, 2] as _}
+        <div class="bg-white rounded-[8px] border border-[#f0f0f0] flex flex-col overflow-hidden animate-pulse">
+          <!-- Header skeleton -->
+          <div class="px-6 py-5 border-b border-[#f0f0f0] flex items-center gap-3">
+            <div class="w-8 h-8 rounded bg-gray-200"></div>
+            <div class="flex flex-col gap-1.5">
+              <div class="h-5 w-24 bg-gray-200 rounded"></div>
+              <div class="h-3 w-16 bg-gray-100 rounded"></div>
+            </div>
+          </div>
+
+          <div class="p-6 space-y-8">
+            <!-- Stat box skeleton -->
+            <div class="p-5 rounded-[8px] bg-gray-50 border border-[#f0f0f0] flex flex-col gap-1 w-full">
+              <div class="h-3 w-28 bg-gray-200 rounded"></div>
+              <div class="flex items-baseline gap-2 mt-2">
+                <div class="h-8 w-16 bg-gray-200 rounded"></div>
+                <div class="h-3 w-16 bg-gray-100 rounded"></div>
+              </div>
+            </div>
+
+            <!-- Leaderboard skeleton -->
+            <div>
+              <div class="flex items-center justify-between mb-3">
+                <div class="h-4 w-40 bg-gray-200 rounded"></div>
+                <div class="h-3 w-24 bg-gray-100 rounded"></div>
+              </div>
+              <div class="space-y-2">
+                {#each [1, 2, 3, 4, 5] as _row}
+                  <div class="flex items-center gap-3 rounded-[8px] bg-gray-50 px-3 py-2.5">
+                    <div class="w-5 h-4 bg-gray-200 rounded"></div>
+                    <div class="w-8 h-8 rounded-full bg-gray-200"></div>
+                    <div class="flex-1 h-4 bg-gray-200 rounded"></div>
+                    <div class="h-4 w-12 bg-gray-100 rounded"></div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          </div>
+        </div>
+      {/each}
+    </div>
+
+    <!-- Waitlist section skeleton -->
+    <div class="bg-white rounded-[8px] border border-[#f0f0f0] flex flex-col overflow-hidden animate-pulse">
+      <div class="px-6 py-5 border-b border-[#f0f0f0] flex items-center gap-3">
+        <div class="w-8 h-8 rounded bg-gray-200"></div>
+        <div class="h-5 w-32 bg-gray-200 rounded"></div>
+      </div>
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div class="h-4 w-44 bg-gray-200 rounded"></div>
+        </div>
+        <div class="space-y-2">
+          {#each [1, 2, 3, 4, 5] as _row}
+            <div class="flex items-center gap-3 rounded-[8px] bg-gray-50 px-3 py-2.5">
+              <div class="w-5 h-4 bg-gray-200 rounded"></div>
+              <div class="w-8 h-8 rounded-full bg-gray-200"></div>
+              <div class="flex-1 h-4 bg-gray-200 rounded"></div>
+              <div class="h-4 w-12 bg-gray-100 rounded"></div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    </div>
+  {:else}
+    <!-- TESTNET GRIDS -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- ASIMOV METRICS CARD -->
+      <div
+        class="bg-white rounded-[8px] border border-[#f0f0f0] flex flex-col overflow-hidden"
+      >
+        <!-- Header -->
+        <div
+          class="px-6 py-5 border-b border-[#f0f0f0] flex items-center justify-between"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="w-8 h-8 rounded bg-[#eff6ff] text-[#2563eb] flex items-center justify-center"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                ></path>
+              </svg>
+            </div>
+            <div class="flex flex-col">
+              <span
+                class="text-[18px] font-medium text-gray-900 font-display leading-none"
+                style="letter-spacing: -0.4px;">Asimov</span
+              >
+              <a
+                href={networks.find((n) => n.key === "asimov")?.explorer_url ||
+                  "https://explorer-asimov.genlayer.com/"}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-[12px] text-gray-500 hover:text-[#2563eb] transition-colors mt-1 hover:underline flex items-center gap-1"
+              >
+                Explorer
+                <svg
+                  class="w-3 h-3"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  ><path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  /></svg
+                >
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-6 space-y-8 flex-grow">
+          <!-- Total Validators Stat -->
+          <div
+            class="p-5 rounded-[8px] bg-gray-50 border border-[#f0f0f0] flex flex-col gap-1 w-full"
+          >
+            <span class="text-[12px] text-gray-500 font-medium"
+              >Asimov Network</span
+            >
+            <div class="flex items-baseline gap-2 mt-1">
+              <span
+                class="text-[32px] font-display font-medium leading-[25px] text-[#2563eb]"
+                style="letter-spacing: -0.96px;"
+                >{networkStats.asimov.total}</span
+              >
+              <span class="text-[13px] text-gray-500">Active Validators</span>
+            </div>
+          </div>
+
+          <!-- Top Leaderboard -->
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-[14px] font-medium text-gray-900">
+                Top Asimov Validators
+              </h3>
+              <button
+                onclick={() => push("/validators/leaderboard")}
+                class="text-[12px] text-gray-500 hover:text-[#2563eb] transition-colors"
+                >Leaderboard →</button
+              >
+            </div>
+
+            {#if asimovLeaderboard.length === 0}
+              <div
+                class="bg-gray-50 rounded-[8px] p-8 text-center border border-[#f0f0f0] border-dashed"
+              >
+                <div
+                  class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3"
+                >
+                  <svg
+                    class="w-6 h-6 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                    ></path>
+                  </svg>
+                </div>
+                <h4 class="text-[14px] font-medium text-gray-900 mb-1">
+                  No validators yet
+                </h4>
+                <p class="text-[13px] text-gray-500">
+                  Asimov testnet currently has no active validators.
+                </p>
+              </div>
+            {:else}
+              <TopLeaderboard
+                showHeader={false}
+                category="validator"
+                limit={5}
+                entries={asimovLeaderboard}
+                {loading}
+              />
+            {/if}
+          </div>
+        </div>
+      </div>
+
+      <!-- BRADBURY METRICS CARD -->
+      <div
+        class="bg-white rounded-[8px] border border-[#f0f0f0] flex flex-col overflow-hidden"
+      >
+        <!-- Header -->
+        <div
+          class="px-6 py-5 border-b border-[#f0f0f0] flex items-center justify-between"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="w-8 h-8 rounded bg-[#f0f9ff] text-[#0284c7] flex items-center justify-center"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+                ></path>
+              </svg>
+            </div>
+            <div class="flex flex-col">
+              <span
+                class="text-[18px] font-medium text-gray-900 font-display leading-none"
+                style="letter-spacing: -0.4px;">Bradbury</span
+              >
+              <a
+                href={networks.find((n) => n.key === "bradbury")
+                  ?.explorer_url || "https://explorer-bradbury.genlayer.com/"}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-[12px] text-gray-500 hover:text-[#0284c7] transition-colors mt-1 hover:underline flex items-center gap-1"
+              >
+                Explorer
+                <svg
+                  class="w-3 h-3"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  ><path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  /></svg
+                >
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-6 space-y-8 flex-grow">
+          <!-- Total Validators Stat -->
+          <div
+            class="p-5 rounded-[8px] bg-gray-50 border border-[#f0f0f0] flex flex-col gap-1 w-full"
+          >
+            <span class="text-[12px] text-gray-500 font-medium"
+              >Bradbury Network</span
+            >
+            <div class="flex items-baseline gap-2 mt-1">
+              <span
+                class="text-[32px] font-display font-medium leading-[25px] text-[#0284c7]"
+                style="letter-spacing: -0.96px;"
+                >{networkStats.bradbury.total}</span
+              >
+              <span class="text-[13px] text-gray-500">Validators</span>
+            </div>
+          </div>
+
+          <!-- Top Leaderboard -->
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-[14px] font-medium text-gray-900">
+                Top Bradbury Validators
+              </h3>
+              <button
+                onclick={() => push("/validators/leaderboard")}
+                class="text-[12px] text-gray-500 hover:text-[#0284c7] transition-colors"
+                >Leaderboard →</button
+              >
+            </div>
+
+            {#if bradburyLeaderboard.length === 0}
+              <div
+                class="bg-gray-50 rounded-[8px] p-8 text-center border border-[#f0f0f0] border-dashed"
+              >
+                <div
+                  class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3"
+                >
+                  <svg
+                    class="w-6 h-6 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    ></path>
+                  </svg>
+                </div>
+                <h4 class="text-[14px] font-medium text-gray-900 mb-1">
+                  Coming Soon
+                </h4>
+                <p class="text-[13px] text-gray-500">
+                  Bradbury testnet has no validators actively running yet. Check
+                  back soon for the leaderboard!
+                </p>
+              </div>
+            {:else}
+              <TopLeaderboard
+                showHeader={false}
+                category="validator"
+                limit={5}
+                entries={bradburyLeaderboard}
+                {loading}
+              />
+            {/if}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMMON WAITLIST SECTION -->
+    {#if waitlistLeaderboard.length > 0}
+      <div
+        class="bg-white rounded-[8px] border border-[#f0f0f0] flex flex-col overflow-hidden"
+      >
+        <!-- Header -->
+        <div
+          class="px-6 py-5 border-b border-[#f0f0f0] flex items-center justify-between"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="w-8 h-8 rounded bg-[#eff6ff] text-[#2563eb] flex items-center justify-center"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                ></path>
+              </svg>
+            </div>
+            <span
+              class="text-[18px] font-medium text-gray-900 font-display"
+              style="letter-spacing: -0.4px;">Race To Testnets</span
+            >
+          </div>
+        </div>
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-[14px] font-medium text-gray-900">
+              Top Waitlisted Validators
+            </h3>
+          </div>
+          <TopLeaderboard
+            showHeader={false}
+            category="validator-waitlist"
+            limit={5}
+            entries={waitlistLeaderboard}
+            {loading}
+          />
+        </div>
+      </div>
+    {/if}
+  {/if}
 </div>

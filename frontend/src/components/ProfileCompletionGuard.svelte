@@ -2,6 +2,7 @@
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { updateUserProfile } from '../lib/api.js';
+  import { push } from 'svelte-spa-router';
 
   // Form state
   let email = $state('');
@@ -14,7 +15,7 @@
   let hasExistingEmail = $state(false);
 
   // Determine if profile is incomplete
-  let showGuard = $derived(() => {
+  let showGuard = $derived.by(() => {
     // Don't show while loading
     if ($authState.loading || $userStore.loading) return false;
 
@@ -37,7 +38,7 @@
   // Pre-fill form fields when user data is available
   $effect(() => {
     const user = $userStore.user;
-    if (user && showGuard()) {
+    if (user && showGuard) {
       // Pre-fill name if it exists
       if (user.name && user.name.trim() !== '') {
         name = user.name;
@@ -88,7 +89,8 @@
       // Reload user data to ensure we have the latest
       await userStore.loadUser();
 
-      // Modal will close automatically when user data updates
+      // Redirect first-time users to How it works page
+      push('/how-it-works');
     } catch (err) {
       // Handle field-specific errors from Django REST Framework
       if (err.response?.data) {
@@ -116,7 +118,7 @@
   }
 </script>
 
-{#if showGuard()}
+{#if showGuard}
   <div class="profile-guard-backdrop">
     <div class="profile-guard-modal">
       <div class="profile-guard-header">
@@ -135,7 +137,7 @@
           </div>
 
           <p class="text-gray-700 text-sm mb-2 text-center font-medium">
-            Welcome to GenLayer Points!
+            Welcome to GenLayer Portal!
           </p>
           <p class="text-gray-600 text-sm mb-6 text-center">
             Let's get started with the basics.

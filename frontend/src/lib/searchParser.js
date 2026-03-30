@@ -17,7 +17,7 @@
  * Quoted values: tag:"value with spaces"
  */
 
-const SINGLE_VALUE_TAGS = ['status', 'type', 'from', 'assigned', 'sort'];
+const SINGLE_VALUE_TAGS = ['status', 'type', 'category', 'from', 'assigned', 'sort'];
 const MULTI_VALUE_TAGS = ['exclude', 'include', 'has', 'no'];
 const NUMERIC_TAGS = ['min-contributions'];
 
@@ -107,6 +107,7 @@ export function parseSearch(query) {
   const filters = {
     status: null,
     type: null,
+    category: null,
     from: null,
     assigned: null,
     exclude: [],

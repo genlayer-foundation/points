@@ -7,7 +7,7 @@ export const currentCategory = writable('global');
 export const categories = [
   { 
     id: 'global', 
-    name: 'Testnet Asimov', 
+    name: 'Testnets',
     iconPath: 'M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1 17.93c-4.956-.46-8.93-4.436-9.39-9.39h4.653c.088 1.85.347 3.55.742 4.82 1.068 1.408 2.355 2.365 3.995 2.57zm0-5.116c-.877-.196-1.615-.88-2.254-1.894-.304-.977-.508-2.14-.58-3.42h2.834v5.314zm0-6.814h-2.834c.072-1.28.276-2.443.58-3.42.639-1.014 1.377-1.698 2.254-1.894v5.314zm0-6.816c-1.64.205-2.927 1.162-3.995 2.57-.395 1.27-.654 2.97-.742 4.82H2.61c.46-4.954 4.434-8.93 9.39-9.39zm2 0c4.956.46 8.93 4.436 9.39 9.39h-4.653c-.088-1.85-.347-3.55-.742-4.82-1.068-1.408-2.355-2.365-3.995-2.57zm0 5.116c.877.196 1.615.88 2.254 1.894.304.977.508 2.14.58 3.42H13v-5.314zm0 6.814h2.834c-.072 1.28-.276 2.443-.58 3.42-.639 1.014-1.377 1.698-2.254 1.894v-5.314zm0 6.816c1.64-.205 2.927-1.162 3.995-2.57.395-1.27.654-2.97.742-4.82h4.653c-.46 4.954-4.434 8.93-9.39 9.39z'
   },
   { 
@@ -26,8 +26,8 @@ export const categories = [
     iconPath: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'
   },
   {
-    id: 'supporter',
-    name: 'Supporters',
+    id: 'community',
+    name: 'Community',
     iconPath: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'
   }
 ];
@@ -52,7 +52,7 @@ export const categoryTheme = derived(currentCategory, $category => {
     },
     builder: {
       // Orange/sunset theme
-      bg: 'bg-orange-50',
+      bg: 'bg-white',
       bgSecondary: 'bg-orange-100',
       primary: 'bg-orange-500',
       primaryHover: 'hover:bg-orange-600',
@@ -67,7 +67,7 @@ export const categoryTheme = derived(currentCategory, $category => {
     },
     validator: {
       // Blue/technical theme
-      bg: 'bg-sky-50',
+      bg: 'bg-white',
       bgSecondary: 'bg-sky-100',
       primary: 'bg-sky-500',
       primaryHover: 'hover:bg-sky-600',
@@ -95,7 +95,7 @@ export const categoryTheme = derived(currentCategory, $category => {
       button: 'bg-green-600 hover:bg-green-700 text-white',
       buttonLight: 'bg-green-100 hover:bg-green-200 text-green-700'
     },
-    supporter: {
+    community: {
       // Purple theme
       bg: 'bg-purple-50',
       bgSecondary: 'bg-purple-100',
@@ -131,8 +131,8 @@ export function detectCategoryFromRoute(path) {
     return 'validator';
   } else if (path.startsWith('/stewards')) {
     return 'steward';
-  } else if (path.startsWith('/supporters')) {
-    return 'supporter';
+  } else if (path.startsWith('/community')) {
+    return 'community';
   }
   return 'global';
 }

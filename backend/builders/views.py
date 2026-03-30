@@ -2,10 +2,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.db.models import Min
 from .models import Builder
 from users.serializers import BuilderSerializer
-from contributions.models import Contribution
 
 
 class BuilderViewSet(viewsets.ModelViewSet):
@@ -72,6 +70,7 @@ class BuilderViewSet(viewsets.ModelViewSet):
                 'address': builder.user.address,
                 'name': builder.user.name,
                 'profile_image_url': builder.user.profile_image_url,
+                'builder': True,
                 'created_at': builder.created_at
             })
 

@@ -1,15 +1,23 @@
 <script>
   import { push, location } from 'svelte-spa-router';
   import AuthButton from './AuthButton.svelte';
-  import ReferralSection from './ReferralSection.svelte';
   import SearchBar from './SearchBar.svelte';
-  import Icon from './Icons.svelte';
   import { authState } from '../lib/auth.js';
-  import { categoryTheme, currentCategory } from '../stores/category.js';
+  import { currentCategory } from '../stores/category.js';
   
   let { toggleSidebar, sidebarOpen = false } = $props();
   
   let isMenuOpen = $state(false);
+
+  const submitButtonBaseClass = 'h-10 px-4 text-white rounded-[20px] flex items-center gap-2 font-medium text-sm';
+
+  let submitButtonStyle = $derived(
+    $currentCategory === 'builder'
+      ? 'background: linear-gradient(168deg, #f8b93d 15%, #ee8d24 50%, #db6917 85%);'
+      : $currentCategory === 'validator'
+      ? 'background: linear-gradient(168deg, #6fa3f8 15%, #4f76f6 50%, #3b5dd6 85%);'
+      : 'background: linear-gradient(to right, #be8ff5, #ac6df3);'
+  );
   
   function toggleMenu() {
     isMenuOpen = !isMenuOpen;
@@ -38,55 +46,50 @@
   }
 </script>
 
-<header class="bg-white shadow relative z-50">
-  <div class="flex">
-    <!-- Left section with logo - aligned with sidebar content on desktop, normal padding on mobile -->
-    <div class="md:w-64 flex items-center h-16 px-4 md:px-7">
+<header class="bg-white relative z-50" style="border-bottom: 1.2px solid #e5e5e6;">
+  <div class="flex items-center justify-between p-3">
+    <!-- Left: Logo -->
+    <div class="flex items-center gap-1 px-1">
       <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex items-center">
-        <Icon name="genlayer" size="lg" className="text-black" />
-        <span class="ml-3 text-sm sm:text-xl font-bold font-heading {$currentCategory === 'global' ? 'text-black' : $categoryTheme.text}">
-          GenLayer <span class="text-xs sm:text-xl">Points</span>
-        </span>
+        <img src="/assets/genlayer-portal-logo.svg" alt="GenLayer Portal" class="h-[32px] w-auto">
       </a>
     </div>
-    
-    <!-- Right section with actions -->
-    <div class="flex-1 flex justify-end items-center h-16 px-4">
-      <div class="hidden md:flex items-center gap-4">
-        {#if $authState.isAuthenticated}
-          <SearchBar />
-        {/if}
-        <ReferralSection />
-        <button
-          onclick={handleSubmitContribution}
-          class="px-4 py-2 {$categoryTheme.button} rounded-md font-medium"
-        >
-          Submit Contribution
-        </button>
-        <AuthButton />
-      </div>
-      
-      <div class="flex items-center md:hidden gap-2">
-        <AuthButton />
-        <button 
-          onclick={() => {
-            if (toggleSidebar) {
-              toggleSidebar();
-            }
-          }} 
-          class="p-2 rounded-md text-gray-700 hover:bg-gray-100 relative"
-          aria-label="{sidebarOpen ? 'Close' : 'Open'} menu"
-        >
-          <div class="h-6 w-6 relative flex items-center justify-center">
-            <!-- Top line -->
-            <span class="absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? 'rotate-45' : 'rotate-0 -translate-y-2'}"></span>
-            <!-- Middle line -->
-            <span class="absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? 'opacity-0' : 'opacity-100'}"></span>
-            <!-- Bottom line -->
-            <span class="absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? '-rotate-45' : 'rotate-0 translate-y-2'}"></span>
-          </div>
-        </button>
-      </div>
+
+    <!-- Right: Actions -->
+    <div class="hidden md:flex items-center gap-2">
+      <SearchBar />
+      <button
+        onclick={handleSubmitContribution}
+        class={submitButtonBaseClass}
+        style={submitButtonStyle}
+      >
+        <span>Submit a contribution</span>
+        <img src="/assets/icons/add-line.svg" alt="" class="w-4 h-4">
+      </button>
+      <AuthButton />
+    </div>
+
+    <!-- Mobile: Actions -->
+    <div class="flex items-center md:hidden gap-2">
+      <AuthButton />
+      <button
+        onclick={() => {
+          if (toggleSidebar) {
+            toggleSidebar();
+          }
+        }}
+        class="p-2 rounded-md text-gray-700 hover:bg-gray-100 relative"
+        aria-label="{sidebarOpen ? 'Close' : 'Open'} menu"
+      >
+        <div class="h-6 w-6 relative flex items-center justify-center">
+          <!-- Top line -->
+          <span class="absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? 'rotate-45' : 'rotate-0 -translate-y-2'}"></span>
+          <!-- Middle line -->
+          <span class="absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? 'opacity-0' : 'opacity-100'}"></span>
+          <!-- Bottom line -->
+          <span class="absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? '-rotate-45' : 'rotate-0 translate-y-2'}"></span>
+        </div>
+      </button>
     </div>
   </div>
 </header>

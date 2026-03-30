@@ -195,3 +195,11 @@ amplifyconfiguration*
 # conductor.build
 conductor.json
 conductor-*
+
+# Local dev files
+.cursorrules
+run.sh
+setup.sh
+
+# gstack security reports
+.gstack/

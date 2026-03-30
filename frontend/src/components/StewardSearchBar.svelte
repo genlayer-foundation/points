@@ -15,10 +15,11 @@
   let showHelp = $state(false);
   let suggestions = $state([]);
   let selectedIndex = $state(-1);
-  let debounceTimeout = null;
+  let lastSearchedValue = $state('');
 
   const TAGS = [
     { name: 'type', description: 'Filter by contribution type', values: () => contributionTypes.map(t => t.name.toLowerCase().replace(/\s+/g, '-')) },
+    { name: 'category', description: 'Filter by category', values: () => [...new Set(contributionTypes.map(t => t.category).filter(Boolean))] },
     { name: 'from', description: 'Search by user name/email/address', values: () => [] },
     { name: 'assigned', description: 'Filter by assignment', values: () => ['me', 'unassigned', ...stewardsList.map(s => s.name || s.address?.slice(0, 10))] },
     { name: 'exclude', description: 'Exclude submissions containing text', values: () => ['medium.com'] },
@@ -83,11 +84,6 @@
     value = event.target.value;
     showAutocomplete = true;
     updateSuggestions();
-
-    clearTimeout(debounceTimeout);
-    debounceTimeout = setTimeout(() => {
-      onSearch(value);
-    }, 500);
   }
 
   function selectSuggestion(suggestion) {
@@ -107,18 +103,13 @@
       const newPos = before.length + suggestion.length + (needsSpace ? 1 : 0);
       setTimeout(() => inputRef.setSelectionRange(newPos, newPos), 0);
     }
-
-    clearTimeout(debounceTimeout);
-    debounceTimeout = setTimeout(() => {
-      onSearch(value);
-    }, 500);
   }
 
   function handleKeydown(event) {
     if (!showAutocomplete || suggestions.length === 0) {
       if (event.key === 'Enter') {
         event.preventDefault();
-        onSearch(value);
+        submitSearch();
       }
       return;
     }
@@ -146,9 +137,23 @@
     }
   }
 
+  function submitSearch() {
+    if (value !== lastSearchedValue) {
+      lastSearchedValue = value;
+      onSearch(value);
+    }
+  }
+
   function handleFocus() {
     updateSuggestions();
     showAutocomplete = true;
+  }
+
+  function handleBlur() {
+    // Small delay so clicking a suggestion doesn't trigger search before the click registers
+    setTimeout(() => {
+      submitSearch();
+    }, 200);
   }
 
   function handleClickOutside(event) {
@@ -167,7 +172,6 @@
     document.addEventListener('click', handleClickOutside);
     return () => {
       document.removeEventListener('click', handleClickOutside);
-      if (debounceTimeout) clearTimeout(debounceTimeout);
     };
   });
 </script>
@@ -184,6 +188,7 @@
       oninput={handleInput}
       onkeydown={handleKeydown}
       onfocus={handleFocus}
+      onblur={handleBlur}
       {placeholder}
       class="search-input"
     />
@@ -213,6 +218,7 @@
       <div class="help-content">
         <div class="help-section">
           <div class="help-row"><code>type:blog-post</code><span>Filter by contribution type</span></div>
+          <div class="help-row"><code>category:builder</code><span>Filter by category (builder, validator)</span></div>
           <div class="help-row"><code>from:username</code><span>Search by user name/email/address</span></div>
           <div class="help-row"><code>assigned:me</code><span>Filter by assignment (me, unassigned, name)</span></div>
           <div class="help-row"><code>exclude:medium.com</code><span>Exclude submissions containing text</span></div>

@@ -97,6 +97,7 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             user = users_dict.get(validator['user'])
             if user:
                 user_data = LightUserSerializer(user).data
+                user_data['validator'] = True
                 user_data['first_uptime_date'] = validator['first_uptime_date']
                 result.append(user_data)
             else:
@@ -104,6 +105,7 @@ class ValidatorViewSet(viewsets.ModelViewSet):
                 result.append({
                     'address': validator['user__address'],
                     'name': validator['user__name'],
+                    'validator': True,
                     'first_uptime_date': validator['first_uptime_date']
                 })
 
@@ -202,7 +204,7 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         """
-        Optionally filter by operator address or status.
+        Optionally filter by operator address, status, or network.
         """
         queryset = ValidatorWallet.objects.select_related(
             'operator', 'operator__user'
@@ -218,6 +220,11 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
 
+        # Filter by network
+        network_filter = self.request.query_params.get('network', None)
+        if network_filter:
+            queryset = queryset.filter(network=network_filter)
+
         return queryset
 
     def list(self, request, *args, **kwargs):
@@ -227,11 +234,24 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
 
-        # Get counts
+        # Status counts
         active_count = queryset.filter(status='active').count()
         quarantined_count = queryset.filter(status='quarantined').count()
         banned_count = queryset.filter(status='banned').count()
         inactive_count = queryset.filter(status='inactive').count()
+
+        # Per-network stats
+        network_breakdown = ValidatorWallet.objects.values('network', 'status').annotate(
+            count=Count('id')
+        ).order_by('network', 'status')
+
+        network_stats = {}
+        for entry in network_breakdown:
+            net = entry['network']
+            if net not in network_stats:
+                network_stats[net] = {'total': 0, 'active': 0, 'quarantined': 0, 'banned': 0, 'inactive': 0}
+            network_stats[net][entry['status']] = entry['count']
+            network_stats[net]['total'] += entry['count']
 
         return Response({
             'wallets': serializer.data,
@@ -241,7 +261,8 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
                 'quarantined': quarantined_count,
                 'banned': banned_count,
                 'inactive': inactive_count
-            }
+            },
+            'network_stats': network_stats
         })
 
     @action(detail=False, methods=['get'], url_path='by-operator/(?P<operator_address>[^/.]+)')
@@ -298,24 +319,27 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['post'], permission_classes=[IsCronToken], authentication_classes=[])
     def sync(self, request):
         """
-        Trigger validator sync from GenLayer blockchain.
+        Trigger validator sync from GenLayer blockchain for all networks.
         Protected by X-Cron-Token header authentication.
         """
         try:
-            service = GenLayerValidatorsService()
-
-            # Perform sync (internally fetches active and banned validators)
-            stats = service.sync_all_validators()
+            all_stats = GenLayerValidatorsService.sync_all_networks()
 
             # Get DB state after sync
-            db_stats = ValidatorWallet.objects.values('status').annotate(
+            db_stats = ValidatorWallet.objects.values('network', 'status').annotate(
                 count=Count('status')
-            ).order_by('status')
-            db_state = {stat['status']: stat['count'] for stat in db_stats}
+            ).order_by('network', 'status')
+
+            db_state = {}
+            for stat in db_stats:
+                net = stat['network']
+                if net not in db_state:
+                    db_state[net] = {}
+                db_state[net][stat['status']] = stat['count']
 
             return Response({
                 'success': True,
-                'stats': stats,
+                'stats': all_stats,
                 'db_state': db_state
             })
         except Exception as e:
@@ -323,3 +347,16 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
                 'success': False,
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def networks(self, request):
+        """Return available network names and explorer URLs."""
+        networks = []
+        for key, config in settings.TESTNET_NETWORKS.items():
+            if config.get('staking_contract_address'):
+                networks.append({
+                    'key': key,
+                    'name': config['name'],
+                    'explorer_url': config.get('explorer_url', ''),
+                })
+        return Response(networks)

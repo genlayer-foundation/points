@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 // Contract configuration - frontend-only
 const CONTRACT_INFO = {
   contract_address: import.meta.env.VITE_VALIDATOR_CONTRACT_ADDRESS || '0x10eCB157734c8152f1d84D00040c8AA46052CB27',
-  rpc_url: import.meta.env.VITE_VALIDATOR_RPC_URL || 'https://genlayer-testnet.rpc.caldera.xyz/http',
+  rpc_url: import.meta.env.VITE_VALIDATOR_RPC_URL || 'https://zksync-os-testnet-genlayer.zksync.dev',
   abi: [
     // Essential functions for validator management
     {
@@ -38,21 +38,37 @@ const CONTRACT_INFO = {
   ]
 };
 
-// Asimov network configuration for unbanning
-const ASIMOV_NETWORK = {
-  chainId: '0x107D', // 4221 in hex
-  chainName: 'GenLayer Asimov Testnet',
-  nativeCurrency: {
-    name: 'GEN',
-    symbol: 'GEN',
-    decimals: 18
+// Network configurations
+const NETWORKS = {
+  asimov: {
+    chainId: '0x107D', // 4221 in hex
+    chainName: 'GenLayer Testnet Chain',
+    nativeCurrency: {
+      name: 'GEN',
+      symbol: 'GEN',
+      decimals: 18
+    },
+    rpcUrls: ['https://zksync-os-testnet-genlayer.zksync.dev'],
+    blockExplorerUrls: ['https://zksync-os-testnet-genlayer.explorer.zksync.dev']
   },
-  rpcUrls: ['https://genlayer-testnet.rpc.caldera.xyz/http'],
-  blockExplorerUrls: ['https://genlayer-testnet.explorer.caldera.xyz']
+  bradbury: {
+    chainId: '0x107E', // 4222 in hex (placeholder - update when known)
+    chainName: 'GenLayer Bradbury Testnet',
+    nativeCurrency: {
+      name: 'GEN',
+      symbol: 'GEN',
+      decimals: 18
+    },
+    rpcUrls: ['https://zksync-os-testnet-genlayer.zksync.dev'],
+    blockExplorerUrls: []
+  }
 };
 
+// Backward-compatible alias
+const ASIMOV_NETWORK = NETWORKS.asimov;
+
 /**
- * Ensure the wallet is connected to the Asimov network
+ * Ensure the wallet is connected to the TestNet network
  * @returns {Promise<void>}
  */
 async function ensureAsimovNetwork() {
@@ -64,12 +80,12 @@ async function ensureAsimovNetwork() {
     // Get current chain ID
     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
 
-    // If already on Asimov, return
+    // If already on TestNet, return
     if (chainId === ASIMOV_NETWORK.chainId) {
       return;
     }
 
-    // Try to switch to Asimov network
+    // Try to switch to TestNet network
     await window.ethereum.request({
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: ASIMOV_NETWORK.chainId }],
@@ -186,7 +202,7 @@ export async function unbanValidator(address) {
       throw new Error('MetaMask is not installed');
     }
 
-    // Ensure wallet is on Asimov network
+    // Ensure wallet is on TestNet network
     await ensureAsimovNetwork();
 
     // Get contract info from backend
@@ -256,7 +272,7 @@ export async function unbanAllValidators() {
       throw new Error('MetaMask is not installed');
     }
 
-    // Ensure wallet is on Asimov network
+    // Ensure wallet is on TestNet network
     await ensureAsimovNetwork();
 
     // Get contract info from backend
@@ -315,3 +331,42 @@ export async function unbanAllValidators() {
     };
   }
 }
+
+/**
+ * Ensure the wallet is connected to a specific GenLayer network
+ * @param {string} networkKey - 'asimov' or 'bradbury'
+ * @returns {Promise<void>}
+ */
+export async function ensureNetwork(networkKey = 'asimov') {
+  const network = NETWORKS[networkKey];
+  if (!network) {
+    throw new Error(`Unknown network: ${networkKey}`);
+  }
+
+  if (!window.ethereum) {
+    throw new Error('MetaMask is not installed');
+  }
+
+  try {
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    if (chainId === network.chainId) {
+      return;
+    }
+
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: network.chainId }],
+    });
+  } catch (error) {
+    if (error.code === 4902) {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [network],
+      });
+    } else {
+      throw error;
+    }
+  }
+}
+
+export { NETWORKS, ASIMOV_NETWORK };

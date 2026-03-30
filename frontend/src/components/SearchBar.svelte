@@ -114,22 +114,10 @@
 
 <div class="search-container" bind:this={containerRef}>
   <div class="search-input-wrapper">
-    <svg
-      class="search-icon"
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        stroke-width="2"
-        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-      />
-    </svg>
+    <img src="/assets/icons/search-line.svg" alt="" class="search-icon">
     <input
       type="text"
-      placeholder="Search participants..."
+      placeholder="Search Participants..."
       value={query}
       oninput={handleInput}
       onkeydown={handleKeydown}
@@ -163,54 +151,59 @@
 <style>
   .search-container {
     position: relative;
-    width: 280px;
+    width: 200px;
   }
 
   .search-input-wrapper {
     position: relative;
     display: flex;
     align-items: center;
+    background-color: #f5f5f5;
+    border: 1.2px solid #e6e6e6;
+    border-radius: 20px;
+    height: 40px;
+    padding: 0 16px;
+    gap: 8px;
   }
 
   .search-icon {
-    position: absolute;
-    left: 0.75rem;
     width: 1rem;
     height: 1rem;
-    color: #9ca3af;
+    flex-shrink: 0;
     pointer-events: none;
   }
 
   .search-input {
     width: 100%;
-    padding: 0.5rem 0.75rem 0.5rem 2.25rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.5rem;
+    padding: 0;
+    border: none;
+    border-radius: 0;
     font-size: 0.875rem;
-    background-color: #f9fafb;
-    transition: all 0.2s;
+    font-weight: 500;
+    background-color: transparent;
+    height: 100%;
+    letter-spacing: 0.28px;
   }
 
   .search-input:focus {
     outline: none;
-    border-color: #2563eb;
-    background-color: white;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    background-color: transparent;
+    border-color: transparent;
+    box-shadow: none;
   }
 
   .search-input::placeholder {
-    color: #9ca3af;
+    color: #ababab;
   }
 
   .loading-spinner {
-    position: absolute;
-    right: 0.75rem;
     width: 1rem;
     height: 1rem;
     border: 2px solid #e5e7eb;
     border-radius: 50%;
     border-top-color: #2563eb;
     animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
   }
 
   @keyframes spin {

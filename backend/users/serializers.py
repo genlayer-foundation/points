@@ -33,26 +33,39 @@ class LightUserSerializer(serializers.Serializer):
 class LightValidatorSerializer(serializers.Serializer):
     """
     Minimal validator serializer without expensive stat calculations.
-    Only includes node version and basic matching info.
+    Only includes node version and basic matching info per network.
     """
-    node_version = serializers.CharField(read_only=True)
-    matches_target = serializers.SerializerMethodField()
-    target_version = serializers.SerializerMethodField()
+    node_version_asimov = serializers.CharField(read_only=True)
+    node_version_bradbury = serializers.CharField(read_only=True)
+    matches_target_asimov = serializers.SerializerMethodField()
+    matches_target_bradbury = serializers.SerializerMethodField()
+    target_version_asimov = serializers.SerializerMethodField()
+    target_version_bradbury = serializers.SerializerMethodField()
     active_validators_count = serializers.SerializerMethodField()
     total_validators_count = serializers.SerializerMethodField()
 
-    def get_matches_target(self, obj):
-        """Check if the validator's version matches or is higher than the target."""
+    def get_matches_target_asimov(self, obj):
         from contributions.node_upgrade.models import TargetNodeVersion
-        target = TargetNodeVersion.get_active()
-        if target and obj.node_version:
-            return obj.version_matches_or_higher(target.version)
+        target = TargetNodeVersion.get_active(network='asimov')
+        if target and obj.node_version_asimov:
+            return obj.version_matches_or_higher(target.version, node_version=obj.node_version_asimov)
         return False
 
-    def get_target_version(self, obj):
-        """Get the current target version."""
+    def get_matches_target_bradbury(self, obj):
         from contributions.node_upgrade.models import TargetNodeVersion
-        target = TargetNodeVersion.get_active()
+        target = TargetNodeVersion.get_active(network='bradbury')
+        if target and obj.node_version_bradbury:
+            return obj.version_matches_or_higher(target.version, node_version=obj.node_version_bradbury)
+        return False
+
+    def get_target_version_asimov(self, obj):
+        from contributions.node_upgrade.models import TargetNodeVersion
+        target = TargetNodeVersion.get_active(network='asimov')
+        return target.version if target else None
+
+    def get_target_version_bradbury(self, obj):
+        from contributions.node_upgrade.models import TargetNodeVersion
+        target = TargetNodeVersion.get_active(network='bradbury')
         return target.version if target else None
 
     def get_active_validators_count(self, obj):
@@ -93,10 +106,14 @@ class ValidatorSerializer(serializers.ModelSerializer):
     """
     Serializer for Validator model.
     """
-    matches_target = serializers.SerializerMethodField()
-    target_version = serializers.SerializerMethodField()
-    target_date = serializers.SerializerMethodField()
-    target_created_at = serializers.SerializerMethodField()
+    matches_target_asimov = serializers.SerializerMethodField()
+    matches_target_bradbury = serializers.SerializerMethodField()
+    target_version_asimov = serializers.SerializerMethodField()
+    target_version_bradbury = serializers.SerializerMethodField()
+    target_date_asimov = serializers.SerializerMethodField()
+    target_date_bradbury = serializers.SerializerMethodField()
+    target_created_at_asimov = serializers.SerializerMethodField()
+    target_created_at_bradbury = serializers.SerializerMethodField()
     total_points = serializers.SerializerMethodField()
     rank = serializers.SerializerMethodField()
     total_contributions = serializers.SerializerMethodField()
@@ -106,39 +123,52 @@ class ValidatorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Validator
-        fields = ['node_version', 'matches_target', 'target_version', 'target_date', 'target_created_at',
+        fields = ['node_version_asimov', 'node_version_bradbury',
+                 'matches_target_asimov', 'matches_target_bradbury',
+                 'target_version_asimov', 'target_version_bradbury',
+                 'target_date_asimov', 'target_date_bradbury',
+                 'target_created_at_asimov', 'target_created_at_bradbury',
                  'total_points', 'rank', 'total_contributions', 'contribution_types',
                  'active_validators_count', 'total_validators_count', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
-    
-    def get_matches_target(self, obj):
-        """
-        Check if the validator's version matches or is higher than the target.
-        """
-        target = TargetNodeVersion.get_active()
-        if target and obj.node_version:
-            return obj.version_matches_or_higher(target.version)
+
+    def _get_target(self, network):
+        return TargetNodeVersion.get_active(network=network)
+
+    def get_matches_target_asimov(self, obj):
+        target = self._get_target('asimov')
+        if target and obj.node_version_asimov:
+            return obj.version_matches_or_higher(target.version, node_version=obj.node_version_asimov)
         return False
-    
-    def get_target_version(self, obj):
-        """
-        Get the current target version.
-        """
-        target = TargetNodeVersion.get_active()
+
+    def get_matches_target_bradbury(self, obj):
+        target = self._get_target('bradbury')
+        if target and obj.node_version_bradbury:
+            return obj.version_matches_or_higher(target.version, node_version=obj.node_version_bradbury)
+        return False
+
+    def get_target_version_asimov(self, obj):
+        target = self._get_target('asimov')
         return target.version if target else None
-    
-    def get_target_date(self, obj):
-        """
-        Get the target date.
-        """
-        target = TargetNodeVersion.get_active()
+
+    def get_target_version_bradbury(self, obj):
+        target = self._get_target('bradbury')
+        return target.version if target else None
+
+    def get_target_date_asimov(self, obj):
+        target = self._get_target('asimov')
         return target.target_date if target else None
-    
-    def get_target_created_at(self, obj):
-        """
-        Get when the target was created (for points calculation).
-        """
-        target = TargetNodeVersion.get_active()
+
+    def get_target_date_bradbury(self, obj):
+        target = self._get_target('bradbury')
+        return target.target_date if target else None
+
+    def get_target_created_at_asimov(self, obj):
+        target = self._get_target('asimov')
+        return target.created_at if target else None
+
+    def get_target_created_at_bradbury(self, obj):
+        target = self._get_target('bradbury')
         return target.created_at if target else None
     
     def get_total_points(self, obj):
@@ -223,15 +253,20 @@ class ValidatorSerializer(serializers.ModelSerializer):
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     """
     Serializer for updating user profile.
-    Allows updating name, profile fields, and validator node_version.
+    Allows updating name, profile fields, and validator node versions per network.
     """
-    node_version = serializers.CharField(required=False, allow_blank=True, allow_null=True, source='validator.node_version')
+    node_version_asimov = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, source='validator.node_version_asimov'
+    )
+    node_version_bradbury = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, source='validator.node_version_bradbury'
+    )
     email = serializers.EmailField(required=False, allow_blank=True)
     website = serializers.CharField(required=False, allow_blank=True, max_length=200)
 
     class Meta:
         model = User
-        fields = ['name', 'node_version', 'email', 'description', 'website',
+        fields = ['name', 'node_version_asimov', 'node_version_bradbury', 'email', 'description', 'website',
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
                   'github_username']
     
@@ -356,12 +391,15 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
         
         instance.save()
         
-        # Update or create validator if node_version is provided
-        if 'node_version' in validator_data:
+        # Update or create validator if any node_version field is provided
+        if 'node_version_asimov' in validator_data or 'node_version_bradbury' in validator_data:
             validator, created = Validator.objects.get_or_create(user=instance)
-            validator.node_version = validator_data['node_version']
+            if 'node_version_asimov' in validator_data:
+                validator.node_version_asimov = validator_data['node_version_asimov']
+            if 'node_version_bradbury' in validator_data:
+                validator.node_version_bradbury = validator_data['node_version_bradbury']
             validator.save()
-        
+
         return instance
         
 
@@ -650,86 +688,11 @@ class UserSerializer(serializers.ModelSerializer):
         return User.objects.filter(referred_by=obj).count()
 
     def get_referral_details(self, obj):
-        """
-        Get comprehensive referral information including list of referred users.
-        Queries contribution points directly from Contribution table for accuracy.
-
-        IMPORTANT: This is an expensive operation and should only be included
-        when explicitly requested via include_referral_details=true in context.
-        """
-        # Skip this expensive operation unless explicitly requested
+        """Referral breakdown. Only included when include_referral_details=True."""
         if not self.context.get('include_referral_details', False):
             return None
-
-        from leaderboard.models import ReferralPoints
-        from contributions.models import Contribution
-        from django.db.models import Count, Sum
-
-        # Get referrer's referral points
-        try:
-            rp = obj.referral_points
-            builder_pts = rp.builder_points
-            validator_pts = rp.validator_points
-        except ReferralPoints.DoesNotExist:
-            builder_pts = 0
-            validator_pts = 0
-
-        # Get all users referred by this user
-        referred_users = User.objects.filter(
-            referred_by=obj
-        ).select_related('validator', 'builder').annotate(
-            total_contributions=Count('contributions', distinct=True)
-        )
-
-        # Build the referral list with builder/validator breakdown
-        # Optimize: bulk query all contributions instead of N+1 queries
-        referred_user_ids = [u.id for u in referred_users]
-
-        builder_points_by_user = {
-            item['user_id']: item['total'] or 0
-            for item in Contribution.objects.filter(
-                user_id__in=referred_user_ids,
-                contribution_type__category__slug='builder'
-            ).values('user_id').annotate(total=Sum('frozen_global_points'))
-        }
-
-        validator_points_by_user = {
-            item['user_id']: item['total'] or 0
-            for item in Contribution.objects.filter(
-                user_id__in=referred_user_ids,
-                contribution_type__category__slug='validator'
-            ).values('user_id').annotate(total=Sum('frozen_global_points'))
-        }
-
-        referral_list = []
-        for referred_user in referred_users:
-            builder_contribution_points = builder_points_by_user.get(referred_user.id, 0)
-            validator_contribution_points = validator_points_by_user.get(referred_user.id, 0)
-            total_points = builder_contribution_points + validator_contribution_points
-
-            referral_list.append({
-                'id': referred_user.id,
-                'name': referred_user.name or 'Anonymous',
-                'address': referred_user.address,
-                'profile_image_url': referred_user.profile_image_url,
-                'total_points': total_points,
-                'builder_contribution_points': builder_contribution_points,
-                'validator_contribution_points': validator_contribution_points,
-                'created_at': referred_user.created_at,
-                'total_contributions': referred_user.total_contributions,
-                'is_validator': hasattr(referred_user, 'validator'),
-                'is_builder': hasattr(referred_user, 'builder'),
-            })
-
-        # Sort by total points (highest first)
-        referral_list.sort(key=lambda x: x['total_points'], reverse=True)
-
-        return {
-            'total_referrals': len(referral_list),
-            'builder_points': builder_pts,
-            'validator_points': validator_pts,
-            'referrals': referral_list
-        }
+        from leaderboard.models import get_referral_breakdown
+        return get_referral_breakdown(obj)
 
     def get_working_groups(self, obj):
         """

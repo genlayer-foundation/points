@@ -11,6 +11,12 @@ from tally.middleware.logging_utils import get_app_logger
 
 logger = get_app_logger('leaderboard')
 
+# Onboarding badge slugs excluded from validator referral point calculations.
+# These are signup markers, not actual validator work.
+# Gate 1 (user eligibility) is handled by get_eligible_referred_user_ids().
+# Gate 2 (contribution exclusion) uses this constant.
+VALIDATOR_REFERRAL_EXCLUDED_SLUGS = ['validator-waitlist']
+
 
 # Helper functions for leaderboard configuration
 def has_contribution_badge(user, slug):
@@ -93,6 +99,8 @@ def calculate_waitlist_points(user):
                 user_id__in=eligible_ids,
                 contribution_type__category__slug='validator',
                 contribution_date__lte=grad_contrib.contribution_date
+            ).exclude(
+                contribution_type__slug__in=VALIDATOR_REFERRAL_EXCLUDED_SLUGS
             ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
 
             referral_points = builder_referral + validator_referral
@@ -507,6 +515,87 @@ class ReferralPoints(BaseModel):
         return f"{self.user.email} - B:{self.builder_points} V:{self.validator_points}"
 
 
+def get_referral_breakdown(user):
+    """
+    Build full referral breakdown for a user: per-referred-user builder/validator
+    point split, sorted by total points. Used by both the /users/referrals/ endpoint
+    and the UserSerializer.referral_details field.
+
+    Returns dict with: total_referrals, builder_points, validator_points, referrals list.
+    """
+    from users.models import User
+    from contributions.models import Contribution
+    from django.db.models import Count, Sum
+
+    # Get stored totals from ReferralPoints
+    try:
+        rp = user.referral_points
+        builder_pts = rp.builder_points
+        validator_pts = rp.validator_points
+    except ReferralPoints.DoesNotExist:
+        builder_pts = 0
+        validator_pts = 0
+
+    # Get all referred users with annotated contribution count
+    referred_users = User.objects.filter(
+        referred_by=user
+    ).select_related('validator', 'builder').annotate(
+        total_contributions=Count('contributions', distinct=True)
+    )
+
+    # Materialize once to avoid double queryset evaluation
+    referred_users_list = list(referred_users)
+    referred_user_ids = [u.id for u in referred_users_list]
+
+    # Bulk-query per-user builder/validator points
+    builder_points_by_user = {
+        item['user_id']: item['total'] or 0
+        for item in Contribution.objects.filter(
+            user_id__in=referred_user_ids,
+            contribution_type__category__slug='builder'
+        ).values('user_id').annotate(total=Sum('frozen_global_points'))
+    }
+
+    validator_points_by_user = {
+        item['user_id']: item['total'] or 0
+        for item in Contribution.objects.filter(
+            user_id__in=referred_user_ids,
+            contribution_type__category__slug='validator'
+        ).exclude(
+            contribution_type__slug__in=VALIDATOR_REFERRAL_EXCLUDED_SLUGS
+        ).values('user_id').annotate(total=Sum('frozen_global_points'))
+    }
+
+    referral_list = []
+    for referred_user in referred_users_list:
+        builder_contribution_points = builder_points_by_user.get(referred_user.id, 0)
+        validator_contribution_points = validator_points_by_user.get(referred_user.id, 0)
+        total_points = builder_contribution_points + validator_contribution_points
+
+        referral_list.append({
+            'id': referred_user.id,
+            'name': referred_user.name or 'Anonymous',
+            'address': referred_user.address,
+            'profile_image_url': referred_user.profile_image_url,
+            'total_points': total_points,
+            'builder_contribution_points': builder_contribution_points,
+            'validator_contribution_points': validator_contribution_points,
+            'created_at': referred_user.created_at,
+            'total_contributions': referred_user.total_contributions,
+            'is_validator': hasattr(referred_user, 'validator'),
+            'is_builder': hasattr(referred_user, 'builder'),
+        })
+
+    referral_list.sort(key=lambda x: x['total_points'], reverse=True)
+
+    return {
+        'total_referrals': len(referral_list),
+        'builder_points': builder_pts,
+        'validator_points': validator_pts,
+        'referrals': referral_list
+    }
+
+
 def update_referrer_points(contribution):
     """Update referral points when a referred user makes a contribution."""
     referrer = contribution.user.referred_by
@@ -527,6 +616,8 @@ def update_referrer_points(contribution):
     rp.validator_points = int((Contribution.objects.filter(
         user_id__in=eligible_ids,
         contribution_type__category__slug='validator'
+    ).exclude(
+        contribution_type__slug__in=VALIDATOR_REFERRAL_EXCLUDED_SLUGS
     ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
 
     rp.save(update_fields=['builder_points', 'validator_points'])
@@ -600,6 +691,8 @@ def recalculate_referrer_points(referrer):
         rp.validator_points = int((Contribution.objects.filter(
             user_id__in=eligible_ids,
             contribution_type__category__slug='validator'
+        ).exclude(
+            contribution_type__slug__in=VALIDATOR_REFERRAL_EXCLUDED_SLUGS
         ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
     else:
         rp.builder_points = 0
@@ -755,12 +848,13 @@ def recalculate_all_leaderboards():
                             for referred_contrib in referrer_contributions[user_id]:
                                 referred_user_id = referred_contrib['user_id']
                                 category = referred_contrib['contribution_type__category__slug']
+                                slug = referred_contrib['contribution_type__slug']
                                 contrib_points = referred_contrib['frozen_global_points'] or 0
 
                                 if referred_user_id in users_eligible_for_referrals:
                                     if category == 'builder':
                                         builder_referral += int(contrib_points * 0.1)
-                                    elif category == 'validator':
+                                    elif category == 'validator' and slug not in VALIDATOR_REFERRAL_EXCLUDED_SLUGS:
                                         validator_referral += int(contrib_points * 0.1)
 
                             points += builder_referral + validator_referral
@@ -794,12 +888,13 @@ def recalculate_all_leaderboards():
                                         if referred_contrib['contribution_date'] <= grad_date:
                                             referred_user_id = referred_contrib['user_id']
                                             category = referred_contrib['contribution_type__category__slug']
+                                            slug = referred_contrib['contribution_type__slug']
                                             contrib_points = referred_contrib['frozen_global_points'] or 0
 
                                             if referred_user_id in users_eligible_for_referrals:
                                                 if category == 'builder':
                                                     builder_referral += int(contrib_points * 0.1)
-                                                elif category == 'validator':
+                                                elif category == 'validator' and slug not in VALIDATOR_REFERRAL_EXCLUDED_SLUGS:
                                                     validator_referral += int(contrib_points * 0.1)
 
                                     points += builder_referral + validator_referral
@@ -819,12 +914,13 @@ def recalculate_all_leaderboards():
                 for contrib in referred_contribs:
                     referred_user_id = contrib['user_id']
                     category = contrib['contribution_type__category__slug']
+                    slug = contrib['contribution_type__slug']
                     contrib_points = contrib['frozen_global_points'] or 0
 
                     if referred_user_id in users_eligible_for_referrals:
                         if category == 'builder':
                             builder_points += int(contrib_points * 0.1)
-                        elif category == 'validator':
+                        elif category == 'validator' and slug not in VALIDATOR_REFERRAL_EXCLUDED_SLUGS:
                             validator_points += int(contrib_points * 0.1)
 
                 referral_points_to_create.append(ReferralPoints(

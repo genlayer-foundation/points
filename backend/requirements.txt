@@ -18,6 +18,7 @@ gunicorn>=21.2.0
 dj-database-url>=2.1.0
 django-allow-cidr>=0.7.0
 cloudinary>=1.36.0
+Pillow>=10.0.0
 genlayer-py>=0.1.0
 requests>=2.31.0
 cryptography>=41.0.0

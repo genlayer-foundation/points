@@ -26,6 +26,15 @@ export function searchToParams(parsed, options = {}) {
     }
   }
 
+  // category → category / exclude_category (by slug)
+  if (filters.category) {
+    if (filters.category.negated) {
+      params.exclude_category = filters.category.value.toLowerCase();
+    } else {
+      params.category = filters.category.value.toLowerCase();
+    }
+  }
+
   // type → contribution_type (by name, slug, or ID)
   if (filters.type) {
     const typeValue = filters.type.value.toLowerCase();

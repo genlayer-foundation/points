@@ -194,12 +194,20 @@ The application uses custom variable fonts for better visual hierarchy:
 - Use `font-body` class only in exceptional cases (very rare)
 - Supports all weights and italic variants
 
+**Display/Numbers:** F37 Lineca VF (variable font, all weights)
+- Use `font-display` class for large display text and stat numbers
+- Used in: "Points" in header, hero titles, LiveStats numbers, PointsAwarded titles, CTABanner headline, landing page headings
+- Falls back to Geist if F37 Lineca fails to load
+- Variable font supports all weights (`font-light` through `font-bold`)
+- Figma uses Medium weight — use `font-medium` with `font-display`
+
 **To change fonts globally:**
 Update CSS custom properties in `src/styles.css`:
 ```css
 :root {
   --font-heading: 'Geist', sans-serif;
   --font-body: 'Switzer', sans-serif;
+  --font-display: 'F37 Lineca', 'Geist', sans-serif;
 }
 ```
 
@@ -211,8 +219,8 @@ Update CSS custom properties in `src/styles.css`:
 // ✅ Title in non-heading element - add font-heading
 <div class="text-lg font-semibold font-heading">Card Title</div>
 
-// ✅ Large stat values - add font-heading for emphasis
-<p class="text-2xl font-bold font-heading">{totalPoints}</p>
+// ✅ Large display numbers - use font-display (F37 Lineca)
+<p class="text-[32px] font-medium font-display">{totalPoints}</p>
 
 // ✅ Body text - automatic font-body (no class needed)
 <p class="text-sm text-gray-600">Description text</p>
@@ -251,6 +259,11 @@ rounded-full  // Circular elements
 ```
 frontend/src/
 ├── components/          # Reusable UI components
+│   ├── portal/
+│   │   └── landing-page/  # Landing page sections (WelcomeHero, JourneySection, etc.)
+│   ├── profile/           # Profile page components
+│   ├── shared/            # Cross-page shared components (CTABanner, etc.)
+│   └── ui/                # Generic reusable UI components
 ├── lib/                # Core utilities and API
 │   ├── api.js         # API client and endpoints
 │   ├── auth.js        # Authentication logic
@@ -271,6 +284,7 @@ frontend/src/
   - Contains route definitions
   - Handles tooltip positioning
   - Manages route changes
+  - How it works page (`/how-it-works`) renders full-bleed (no `px-3 py-3` padding on `<main>`)
 - **Navigation**: `src/components/Navbar.svelte`
   - Top navigation bar
   - Auth button integration
@@ -283,26 +297,72 @@ frontend/src/
     - **Builders** - Category-specific dashboard and pages
     - **Validators** - Category-specific dashboard and pages
     - **Stewards** - Steward management pages (only visible to stewards)
+    - **How it works** (bottom pinned area, above Submit Contribution) - Links to `/how-it-works`
     - **Profile** - User profile and submissions
 
 ### Routes/Pages
 All routes are defined in `src/App.svelte`:
 ```javascript
 const routes = {
-  '/': Overview,  // Overview page with program information
-  '/asimov': TestnetAsimov,  // Testnet Asimov dashboard (formerly Dashboard at '/')
+  // Auth
+  '/auth/github/callback': GitHubCallback,
+
+  // Overview & Global
+  '/': Overview,                    // Portal overview with HeroBanner, LiveStats, TrendingContributors, etc.
+  '/how-it-works': HowItWorks,      // How it works page (WelcomeHero, JourneySection, RoleCards, CTABanner)
+  '/asimov': GlobalDashboard,       // Testnet Asimov dashboard
   '/contributions': Contributions,
+  '/all-contributions': AllContributions,
+  '/contributions/highlights': Highlights,
+  '/highlights': Highlights,
   '/leaderboard': Leaderboard,
-  '/validators': Validators,
-  '/validators/waitlist/join': ValidatorWaitlist,  // Validator waitlist join page
-  '/participant/:address': Profile,  // Public profile view
+  '/participants': Validators,
+  '/referrals': Referrals,
+  '/community': Community,
+  '/hackathon': Hackathon,
+  '/referral-program': ReferralProgram,
+
+  // Builders (category-scoped)
+  '/builders': Dashboard,
+  '/builders/contributions': Contributions,
+  '/builders/all-contributions': AllContributions,
+  '/builders/contributions/highlights': Highlights,
+  '/builders/highlights': Highlights,
+  '/builders/leaderboard': Leaderboard,
+  '/builders/startup-requests/:id': StartupRequestDetail,
+
+  // Validators (category-scoped)
+  '/validators': Dashboard,
+  '/validators/contributions': Contributions,
+  '/validators/all-contributions': AllContributions,
+  '/validators/contributions/highlights': Highlights,
+  '/validators/highlights': Highlights,
+  '/validators/leaderboard': Leaderboard,
+  '/validators/participants': Validators,
+  '/validators/waitlist': Waitlist,
+  '/validators/waitlist/participants': WaitlistParticipants,
+  '/validators/waitlist/join': ValidatorWaitlist,
+
+  // Shared
+  '/participant/:address': Profile,
   '/contribution-type/:id': ContributionTypeDetail,
   '/badge/:id': BadgeDetail,
   '/submit-contribution': SubmitContribution,
   '/my-submissions': MySubmissions,
   '/contributions/:id': EditSubmission,
   '/metrics': Metrics,
-  '/profile': EditProfile,  // Edit own profile (authenticated only)
+  '/profile': ProfileEdit,          // Edit own profile (authenticated only)
+  '/loader-showcase': LoaderShowcase,
+
+  // Stewards
+  '/stewards': StewardDashboard,
+  '/stewards/submissions': StewardSubmissions,
+  '/stewards/manage-users': StewardManageUsers,
+
+  // Legal
+  '/terms-of-use': TermsOfUse,
+  '/privacy-policy': PrivacyPolicy,
+
   '*': NotFound
 }
 ```
@@ -352,6 +412,42 @@ const routes = {
 - **Reactive**: Updates reflect immediately in all components using `$userStore`
 
 ### Components
+
+#### Generic UI Components (`src/components/ui/`)
+Reusable, data-driven display components that accept data via props. Used on Dashboard and can be reused on any page.
+
+- **`SectionHeader.svelte`** - Reusable section header with title, subtitle, and "View all" link
+  - Props: `title`, `subtitle`, `linkText="View all"`, `linkPath=""`, `showLink=true`, `showArrow=true`
+- **`StatCardRow.svelte`** - Row of stat cards with hexagon icons, large numbers, and delta indicators
+  - Props: `stats=[]` (array of `{ value, label, delta, category }`), `loading=false`, `columns=4`
+- **`RankedList.svelte`** - Ranked list with rank + avatar + name + value
+  - Props: `entries=[]`, `loading=false`, `accentColor="#3eb359"`, `valueLabel="GP"`, `showDelta=true`, `onRowClick=null`
+- **`UserCardScroller.svelte`** - Horizontal scroll of user cards with avatar, name, points, category icon
+  - Props: `entries=[]`, `loading=false`, `onCardClick=null`
+- **`MemberCardScroller.svelte`** - Horizontal scroll of member cards with avatar, name, join date, category hex
+  - Props: `members=[]`, `loading=false`
+- **`HighlightCards.svelte`** - Highlighted contribution cards in grid or scroll layout
+  - Props: `highlights=[]`, `loading=false`, `layout="grid"|"scroll"`, `category="builder"`
+- **`CTASection.svelte`** - Configurable CTA footer section
+  - Props: `title`, `description`, `primaryButtonText`, `primaryButtonPath`, `primaryButtonColor="dark"`, `secondaryLinkText`, `secondaryLinkPath`, `secondaryLinkExternal=false`
+- **`ChartPlaceholder.svelte`** - Empty placeholder for future chart content
+  - Props: `title`, `subtitle`
+
+#### Shared Components (`src/components/shared/`)
+- **`CTABanner.svelte`** - Unified CTA banner used on both landing page and profile
+  - Props: `variant` (`"dark"` or `"light"`), `participant?`, `referralData?`
+  - Dark variant: profile page — dark bg with gradients, rank pill, referral copy button
+  - Light variant: landing page — transparent bg, adapts between logged-in and anonymous states
+  - Includes real rank computation logic (fetches leaderboard, computes points to next rank)
+
+#### How It Works / Landing Page Components (`src/components/portal/landing-page/`)
+- Used by the `/how-it-works` route (`HowItWorks.svelte`)
+- First-time users are redirected here after completing their profile via `ProfileCompletionGuard`
+- **`WelcomeHero.svelte`** - Hero section with headline and stats
+- **`JourneySection.svelte`** - How-it-works journey steps
+- **`SubmitSection.svelte`** - Submit contribution CTA section
+- **`ClimbRanksSection.svelte`** - Leaderboard preview section
+- **`RoleCards.svelte`** - Builder/Validator/Community role cards with adaptive logged-in/out CTAs
 
 #### Data Display
 - `LeaderboardTable.svelte` - Ranking table
@@ -556,17 +652,15 @@ Components like `RecentContributions`, `HighlightedContributions`, `UserContribu
 The only exception is when you need to group multiple related elements that aren't already in a component.
 
 ### Gradients Policy
-**NO GRADIENTS**: Avoid using gradient backgrounds in the UI. Use solid colors instead for a cleaner, more professional look.
+Gradients are allowed when they match the Figma design. Use Tailwind gradient utilities (`bg-gradient-to-r`, etc.) to implement them.
 
 ```javascript
-// ❌ WRONG - Don't use gradients
+// ✅ CORRECT - Use gradients when they match the Figma design
 <div class="bg-gradient-to-r from-blue-500 to-purple-600">
 
-// ✅ CORRECT - Use solid colors
+// ✅ CORRECT - Solid colors are also fine where appropriate
 <div class="bg-blue-500">
 ```
-
-Gradients can make text harder to read and create visual complexity. Stick to the established color palette with solid colors for consistency.
 
 ## Important Notes
 

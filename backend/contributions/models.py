@@ -643,3 +643,97 @@ class StartupRequest(BaseModel):
         Get all active startup requests ordered by display order.
         """
         return cls.objects.filter(is_active=True).order_by('order', '-created_at')
+
+
+class FeaturedContent(BaseModel):
+    """
+    Featured content for the home page: hero banners, featured builds, community highlights.
+    Managed via admin panel.
+    """
+    CONTENT_TYPE_CHOICES = [
+        ('hero', 'Hero Banner'),
+        ('build', 'Featured Build'),
+        ('community', 'Featured Community'),
+        ('validator_steward', 'Featured Validator/Steward'),
+    ]
+    content_type = models.CharField(max_length=20, choices=CONTENT_TYPE_CHOICES)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    author = models.CharField(max_length=200, blank=True)
+    contribution = models.ForeignKey(
+        'Contribution', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='featured_items'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='featured_items'
+    )
+    hero_image_url = models.URLField(max_length=500, blank=True, help_text='Cloudinary URL for hero image')
+    hero_image_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for hero image')
+    hero_image_url_tablet = models.URLField(max_length=500, blank=True, help_text='Cloudinary URL for tablet hero image (768-1023px). Falls back to hero_image_url if empty.')
+    hero_image_tablet_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for tablet hero image')
+    hero_image_url_mobile = models.URLField(max_length=500, blank=True, help_text='Cloudinary URL for mobile hero image (<768px). Falls back to hero_image_url if empty.')
+    hero_image_mobile_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for mobile hero image')
+    user_profile_image_url = models.URLField(max_length=500, blank=True, help_text='Cloudinary URL for user profile image')
+    user_profile_image_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for user profile image')
+    url = models.URLField(max_length=500, blank=True)
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', '-created_at']
+
+    def __str__(self):
+        return f"{self.get_content_type_display()}: {self.title}"
+
+    def get_link(self):
+        if self.contribution_id:
+            return f"/badge/{self.contribution_id}"
+        return self.url or None
+
+    @classmethod
+    def get_active_by_type(cls, content_type, limit=10):
+        return cls.objects.filter(
+            content_type=content_type, is_active=True
+        ).select_related(
+            'user', 'contribution', 'contribution__contribution_type'
+        ).order_by('order', '-created_at')[:limit]
+
+
+class Alert(BaseModel):
+    """
+    System-wide alert banners displayed on all pages.
+    Managed via Django admin.
+    """
+    ALERT_TYPE_CHOICES = [
+        ('info', 'Info'),
+        ('warning', 'Warning'),
+        ('error', 'Error'),
+        ('success', 'Success'),
+    ]
+    alert_type = models.CharField(max_length=10, choices=ALERT_TYPE_CHOICES, default='info')
+    icon = models.CharField(max_length=50, blank=True, help_text="Optional icon name (frontend defaults by type)")
+    text = models.TextField(help_text="Alert message text")
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0, help_text="Display order (lower numbers appear first)")
+    start_date = models.DateTimeField(null=True, blank=True, help_text="When this alert becomes visible (optional)")
+    end_date = models.DateTimeField(null=True, blank=True, help_text="When this alert expires (optional)")
+
+    class Meta:
+        ordering = ['order', '-created_at']
+        verbose_name = "Alert"
+        verbose_name_plural = "Alerts"
+
+    def __str__(self):
+        return f"[{self.get_alert_type_display()}] {self.text[:50]}"
+
+    @classmethod
+    def get_active_alerts(cls):
+        now = timezone.now()
+        return cls.objects.filter(
+            is_active=True
+        ).filter(
+            models.Q(start_date__isnull=True) | models.Q(start_date__lte=now)
+        ).filter(
+            models.Q(end_date__isnull=True) | models.Q(end_date__gt=now)
+        )

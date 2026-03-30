@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -35,6 +35,8 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]  # Allow read-only access without authentication
     lookup_field = 'address'  # Change default lookup field from 'pk' to 'address'
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['date_joined', 'created_at']
     
     def get_object(self):
         """
@@ -59,6 +61,9 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         context['use_light_serializers'] = self.action == 'list'
         # Include referral_details only for detail/by_address views
         context['include_referral_details'] = self.action in ['retrieve', 'by_address']
+        # Pass visible flag for create action
+        if self.action == 'create' and 'visible' in self.request.data:
+            context['visible'] = self.request.data.get('visible')
         return context
 
     @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)')
@@ -114,12 +119,6 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             return UserCreateSerializer
         return UserSerializer
         
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        if self.action == 'create' and 'visible' in self.request.data:
-            context['visible'] = self.request.data.get('visible')
-        return context
-    
     @action(detail=False, methods=['get', 'patch'], permission_classes=[permissions.IsAuthenticated])
     def me(self, request):
         """
@@ -291,8 +290,8 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         # Connect to the blockchain using environment variables
         w3 = Web3(Web3.HTTPProvider(settings.VALIDATOR_RPC_URL))
         
-        # Contract address from environment variables
-        contract_address = settings.VALIDATOR_CONTRACT_ADDRESS
+        # Contract address from network config (Asimov - this endpoint is Asimov-only)
+        contract_address = settings.TESTNET_NETWORKS['asimov']['staking_contract_address']
         
         # Minimal ABI for the validators functions
         abi = [
@@ -699,83 +698,11 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def referrals(self, request):
-        """
-        Full referral details including referred users list with builder/validator breakdown.
-        Used by Profile and Referrals pages.
-        """
-        from leaderboard.models import ReferralPoints
-        from contributions.models import Contribution
-        from django.db.models import Count, Sum
+        """Full referral details. Used by Referrals page."""
+        from leaderboard.models import get_referral_breakdown
+        return Response(get_referral_breakdown(request.user))
 
-        user = request.user
-
-        # Get referrer's referral points
-        try:
-            rp = user.referral_points
-            builder_pts = rp.builder_points
-            validator_pts = rp.validator_points
-        except ReferralPoints.DoesNotExist:
-            builder_pts = 0
-            validator_pts = 0
-
-        # Get all users referred by the current user
-        referred_users = User.objects.filter(
-            referred_by=user
-        ).select_related('validator', 'builder').annotate(
-            total_contributions=Count('contributions', distinct=True)
-        )
-
-        # Build the referral list with builder/validator breakdown
-        # Optimize: bulk query all contributions instead of N+1 queries
-        referred_user_ids = [u.id for u in referred_users]
-
-        builder_points_by_user = {
-            item['user_id']: item['total'] or 0
-            for item in Contribution.objects.filter(
-                user_id__in=referred_user_ids,
-                contribution_type__category__slug='builder'
-            ).values('user_id').annotate(total=Sum('frozen_global_points'))
-        }
-
-        validator_points_by_user = {
-            item['user_id']: item['total'] or 0
-            for item in Contribution.objects.filter(
-                user_id__in=referred_user_ids,
-                contribution_type__category__slug='validator'
-            ).values('user_id').annotate(total=Sum('frozen_global_points'))
-        }
-
-        referral_list = []
-        for referred_user in referred_users:
-            builder_contribution_points = builder_points_by_user.get(referred_user.id, 0)
-            validator_contribution_points = validator_points_by_user.get(referred_user.id, 0)
-            total_points = builder_contribution_points + validator_contribution_points
-
-            referral_list.append({
-                'id': referred_user.id,
-                'name': referred_user.name or 'Anonymous',
-                'address': referred_user.address,
-                'profile_image_url': referred_user.profile_image_url,
-                'total_points': total_points,
-                'builder_contribution_points': builder_contribution_points,
-                'validator_contribution_points': validator_contribution_points,
-                'created_at': referred_user.created_at,
-                'total_contributions': referred_user.total_contributions,
-                'is_validator': hasattr(referred_user, 'validator'),
-                'is_builder': hasattr(referred_user, 'builder'),
-            })
-
-        # Sort by total points (highest first)
-        referral_list.sort(key=lambda x: x['total_points'], reverse=True)
-
-        return Response({
-            'total_referrals': len(referral_list),
-            'builder_points': builder_pts,
-            'validator_points': validator_pts,
-            'referrals': referral_list
-        })
-
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def search(self, request):
         """Search users by name, address, email, or social handles."""
         query = request.query_params.get('q', '').strip()

@@ -1,5 +1,14 @@
 # Points: GenLayer Testnet Program Tracking System
 
+## ALWAYS Use Teammates (Teams), NEVER Single Tasks
+**CRITICAL**: When delegating work to agents, ALWAYS use TeamCreate + Task with `team_name` to spawn **teammates**. NEVER use the Task tool as a standalone single agent. Every piece of work must go through a team:
+1. Create a team with `TeamCreate`
+2. Spawn teammates with `Task` using `team_name` parameter
+3. Coordinate via `SendMessage` and `TaskList`
+4. Shut down teammates and `TeamDelete` when done
+
+This applies to ALL work — backend, frontend, research, everything. No exceptions.
+
 ## 📚 Quick Reference Documentation
 **Important**: This project has detailed documentation for faster development:
 - **Backend Documentation**: See `backend/CLAUDE.md` for Django structure, API endpoints, models, and patterns
@@ -46,12 +55,8 @@ let { params = {} } = $props();
 - The `main` branch is reserved for production releases
 - Feature branches should be based on and merged into `dev`
 
-### No Attribution in Commits
-When creating git commits, **DO NOT** include Claude attribution lines such as:
-- 🤖 Generated with [Claude Code](https://claude.ai/code)
-- Co-Authored-By: Claude <noreply@anthropic.com>
-
-Keep commit messages clean and focused on the changes made.
+### Commits and PRs
+**Before any commit or PR**, read and follow `.claude/commands/commit.md`. It defines the commit message format, changelog workflow, and git history rules. No exceptions.
 
 ## Important Terminology
 

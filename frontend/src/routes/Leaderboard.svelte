@@ -4,12 +4,17 @@
   import { leaderboardAPI } from '../lib/api';
   import { currentCategory, categoryTheme } from '../stores/category.js';
   
+  const PAGE_SIZE = 50;
+
   // State management
   let leaderboard = $state([]);
   let loading = $state(true);
+  let loadingMore = $state(false);
   let error = $state(null);
   let searchQuery = $state('');
-  
+  let offset = $state(0);
+  let hasMore = $state(true);
+
   // Filter leaderboard based on search
   let filteredLeaderboard = $derived(
     !searchQuery ? leaderboard : leaderboard.filter(entry => {
@@ -19,36 +24,59 @@
       return name.includes(query) || address.includes(query);
     })
   );
-  
+
   // Fetch data based on category
   async function fetchLeaderboard() {
     try {
       loading = true;
       error = null;
-      
+      offset = 0;
+
       let response;
       if ($currentCategory === 'global') {
-        response = await leaderboardAPI.getLeaderboard();
-        leaderboard = response.data || [];
+        response = await leaderboardAPI.getLeaderboard({ limit: PAGE_SIZE, offset: 0 });
       } else {
-        // Fetch type-specific leaderboard
-        response = await leaderboardAPI.getLeaderboardByType($currentCategory);
-        // API now returns array directly, not wrapped in entries
-        leaderboard = response.data || [];
+        response = await leaderboardAPI.getLeaderboardByType($currentCategory, 'asc', { limit: PAGE_SIZE, offset: 0 });
       }
-      
-      loading = false;
+
+      const data = response.data || [];
+      leaderboard = data;
+      offset = data.length;
+      hasMore = data.length >= PAGE_SIZE;
     } catch (err) {
       error = err.message || 'Failed to load leaderboard';
+    } finally {
       loading = false;
     }
   }
-  
+
+  async function loadMore() {
+    try {
+      loadingMore = true;
+
+      let response;
+      if ($currentCategory === 'global') {
+        response = await leaderboardAPI.getLeaderboard({ limit: PAGE_SIZE, offset });
+      } else {
+        response = await leaderboardAPI.getLeaderboardByType($currentCategory, 'asc', { limit: PAGE_SIZE, offset });
+      }
+
+      const data = response.data || [];
+      leaderboard = [...leaderboard, ...data];
+      offset += data.length;
+      hasMore = data.length >= PAGE_SIZE;
+    } catch (err) {
+      console.error('Failed to load more entries:', err);
+    } finally {
+      loadingMore = false;
+    }
+  }
+
   // Fetch on mount and when category changes
   onMount(() => {
     fetchLeaderboard();
   });
-  
+
   // Re-fetch when category changes
   $effect(() => {
     if ($currentCategory) {
@@ -133,6 +161,22 @@
         />
       {/if}
     </div>
+
+    {#if hasMore && !searchQuery}
+      <div class="flex justify-center py-4">
+        <button
+          onclick={loadMore}
+          disabled={loadingMore}
+          class="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+        >
+          {#if loadingMore}
+            Loading...
+          {:else}
+            Load more
+          {/if}
+        </button>
+      </div>
+    {/if}
   {/if}
 </div>
 
