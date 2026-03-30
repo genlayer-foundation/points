@@ -22,7 +22,7 @@ jobs:
           echo "Response: $body"
           echo "HTTP Code: $http_code"
 
-          if [ "$http_code" != "200" ]; then
+          if [ "$http_code" != "200" ] && [ "$http_code" != "202" ]; then
             echo "Sync failed with status $http_code"
             exit 1
           fi
