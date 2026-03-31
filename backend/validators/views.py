@@ -348,6 +348,34 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
             'message': 'Validator sync started in background',
         }, status=status.HTTP_202_ACCEPTED)
 
+    @action(detail=False, methods=['post'], url_path='daily-uptime', permission_classes=[IsCronToken], authentication_classes=[])
+    def daily_uptime(self, request):
+        """
+        Trigger daily uptime point generation for all validators.
+        Protected by X-Cron-Token header authentication.
+        """
+        from django.core.management import call_command
+        from io import StringIO
+        import logging
+
+        logger = logging.getLogger('validators')
+
+        try:
+            out = StringIO()
+            call_command('add_daily_uptime', '--verbose', stdout=out)
+            output = out.getvalue()
+            logger.info(f'Daily uptime completed: {output}')
+            return Response({
+                'success': True,
+                'output': output
+            })
+        except Exception as e:
+            logger.error(f'Daily uptime failed: {str(e)}')
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=False, methods=['get'])
     def networks(self, request):
         """Return available network names and explorer URLs."""
