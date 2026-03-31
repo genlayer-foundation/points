@@ -16,6 +16,7 @@ from users.models import User
 from .permissions import IsAIReviewToken
 from .serializers import (
     AIReviewProposeSerializer,
+    AIReviewReviewedSubmissionSerializer,
     AIReviewSubmissionSerializer,
     AIReviewTemplateSerializer,
     LightAIReviewSubmissionSerializer,
@@ -301,12 +302,70 @@ class AIReviewViewSet(
             user=ai_user,
             message=message,
             is_proposal=True,
+            data={
+                'action': data['proposed_action'],
+                'points': data.get('proposed_points'),
+                'staff_reply': data.get('proposed_staff_reply', ''),
+                'template_id': data.get('template_id'),
+                'confidence': confidence,
+                'reasoning': reasoning,
+            },
         )
 
         return Response(
             AIReviewSubmissionSerializer(submission).data,
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=False, methods=['get'], url_path='reviewed')
+    def reviewed(self, request):
+        """
+        List reviewed submissions that had AI proposals.
+
+        Returns submissions with state in (accepted, rejected, more_info_needed)
+        that have at least one AI-created SubmissionNote with is_proposal=True.
+        Includes evidence, review outcome (state, staff_reply), and all internal notes.
+        """
+        ai_proposal_notes = SubmissionNote.objects.filter(
+            submitted_contribution=OuterRef('pk'),
+            is_proposal=True,
+            user__email=AI_STEWARD_EMAIL,
+        )
+
+        queryset = (
+            SubmittedContribution.objects
+            .filter(
+                state__in=['accepted', 'rejected', 'more_info_needed'],
+            )
+            .filter(Exists(ai_proposal_notes))
+            .select_related(
+                'contribution_type',
+                'contribution_type__category',
+            )
+            .prefetch_related('evidence_items', 'internal_notes')
+            .order_by('-reviewed_at')
+        )
+
+        # Apply filters from query params
+        state = request.query_params.get('state')
+        if state:
+            queryset = queryset.filter(state=state)
+
+        contribution_type = request.query_params.get('contribution_type')
+        if contribution_type:
+            queryset = queryset.filter(contribution_type_id=contribution_type)
+
+        category = request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(contribution_type__category__slug=category)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = AIReviewReviewedSubmissionSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = AIReviewReviewedSubmissionSerializer(queryset, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='templates')
     def templates(self, request):

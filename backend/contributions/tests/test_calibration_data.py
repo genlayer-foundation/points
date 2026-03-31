@@ -291,6 +291,46 @@ class TestAIReviewNotes(APITestCase):
         self.assertIn('Tier 1', note.data['reasoning'])
 
 
+@override_settings(ALLOWED_HOSTS=['*'], AI_REVIEW_API_KEY='test-ai-review-key')
+class TestAIReviewAPI(APITestCase):
+    """Test that the AI review API stores calibration data correctly."""
+
+    def setUp(self):
+        self.fixtures = _create_test_fixtures()
+
+    def test_ai_propose_endpoint_stores_structured_note_data(self):
+        submission = self.fixtures['submission']
+
+        response = self.client.post(
+            f'/api/v1/ai-review/{submission.id}/propose/',
+            data={
+                'proposed_action': 'reject',
+                'proposed_staff_reply': 'Insufficient evidence.',
+                'template_id': self.fixtures['reject_template'].id,
+                'confidence': 'high',
+                'reasoning': 'The evidence provided does not support the claim.',
+            },
+            content_type='application/json',
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        note = SubmissionNote.objects.filter(
+            submitted_contribution=submission,
+            user=self.fixtures['ai_user'],
+            is_proposal=True,
+        ).first()
+
+        self.assertIsNotNone(note)
+        self.assertEqual(note.data['action'], 'reject')
+        self.assertEqual(note.data['points'], None)
+        self.assertEqual(note.data['staff_reply'], 'Insufficient evidence.')
+        self.assertEqual(note.data['template_id'], self.fixtures['reject_template'].id)
+        self.assertEqual(note.data['confidence'], 'high')
+        self.assertEqual(note.data['reasoning'], 'The evidence provided does not support the claim.')
+
+
 @override_settings(ALLOWED_HOSTS=['*'])
 class TestCalibrationComparison(APITestCase):
     """Test that AI vs human notes can be compared for calibration."""
@@ -453,3 +493,92 @@ class TestCalibrationComparison(APITestCase):
         self.assertEqual(calibration_pairs[0]['ai_action'], 'accept')
         self.assertEqual(calibration_pairs[0]['human_action'], 'reject')
         self.assertEqual(calibration_pairs[0]['ai_confidence'], 'medium')
+
+
+@override_settings(ALLOWED_HOSTS=['*'], AI_REVIEW_API_KEY='test-ai-review-key')
+class TestAIReviewedEndpoint(APITestCase):
+    """Test the external AI reviewed-submissions calibration endpoint."""
+
+    def setUp(self):
+        self.fixtures = _create_test_fixtures()
+
+    def _get_reviewed(self, **params):
+        return self.client.get(
+            '/api/v1/ai-review/reviewed/',
+            data=params,
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+
+    def test_reviewed_endpoint_returns_reviewed_submission_with_ai_proposal(self):
+        submission = self.fixtures['submission']
+        ai_user = self.fixtures['ai_user']
+        steward_user = self.fixtures['steward_user']
+
+        submission.state = 'accepted'
+        submission.staff_reply = 'Approved by steward.'
+        submission.reviewed_by = steward_user
+        submission.reviewed_at = timezone.now()
+        submission.save()
+
+        SubmissionNote.objects.create(
+            submitted_contribution=submission,
+            user=ai_user,
+            message='AI proposal: accept',
+            is_proposal=True,
+            data={'action': 'accept', 'points': 5, 'confidence': 'medium'},
+        )
+        SubmissionNote.objects.create(
+            submitted_contribution=submission,
+            user=steward_user,
+            message='Reviewed: accept',
+            is_proposal=False,
+            data={'action': 'accept', 'points': 5},
+        )
+
+        response = self._get_reviewed()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(str(response.data['results'][0]['id']), str(submission.id))
+        self.assertEqual(response.data['results'][0]['state'], 'accepted')
+        self.assertEqual(len(response.data['results'][0]['internal_notes']), 2)
+
+    def test_reviewed_endpoint_excludes_human_only_proposals(self):
+        ai_submission = self.fixtures['submission']
+        ai_user = self.fixtures['ai_user']
+        steward_user = self.fixtures['steward_user']
+
+        ai_submission.state = 'rejected'
+        ai_submission.reviewed_by = steward_user
+        ai_submission.reviewed_at = timezone.now()
+        ai_submission.save()
+        SubmissionNote.objects.create(
+            submitted_contribution=ai_submission,
+            user=ai_user,
+            message='AI proposal: reject',
+            is_proposal=True,
+            data={'action': 'reject', 'points': None, 'confidence': 'high'},
+        )
+
+        human_only_submission = SubmittedContribution.objects.create(
+            user=self.fixtures['submitter'],
+            contribution_type=self.fixtures['ct'],
+            contribution_date=timezone.now(),
+            notes='Second submission',
+            state='more_info_needed',
+            reviewed_by=steward_user,
+            reviewed_at=timezone.now(),
+        )
+        SubmissionNote.objects.create(
+            submitted_contribution=human_only_submission,
+            user=steward_user,
+            message='Human proposal: more info',
+            is_proposal=True,
+            data={'action': 'more_info', 'staff_reply': 'Please add more detail.'},
+        )
+
+        response = self._get_reviewed()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(str(response.data['results'][0]['id']), str(ai_submission.id))
