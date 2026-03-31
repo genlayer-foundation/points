@@ -6,6 +6,7 @@ All notable user-facing changes to this project will be documented in this file.
 
 - Direct Cloudinary image upload from Django admin for featured content (ce4c157)
 - Responsive hero banner images for tablet and mobile (e5c01b5)
+- Testnets page now shows accurate on-chain active validator count as the primary metric, with total participants shown below for context
 
 ## 2026-03-30 — Fix Testnet Metrics
 
