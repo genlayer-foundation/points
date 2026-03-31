@@ -95,3 +95,23 @@ class ValidatorWalletStatusSnapshot(BaseModel):
 
     def __str__(self):
         return f"{self.wallet.address[:10]}... {self.date} ({self.status})"
+
+
+class SyncLock(models.Model):
+    """
+    Database-backed advisory lock for cross-process sync coordination.
+    Stores an ownership token so only the sync that acquired the lock can
+    release it, and tracks heartbeats so long-running syncs are not mistaken
+    for stale work.
+    """
+    name = models.CharField(max_length=100, unique=True)
+    owner_token = models.CharField(max_length=32, null=True, blank=True, db_index=True)
+    acquired_at = models.DateTimeField(null=True, blank=True)
+    heartbeat_at = models.DateTimeField(null=True, blank=True)
+    released_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'validators_sync_lock'
+
+    def __str__(self):
+        return f"SyncLock({self.name}, acquired={self.acquired_at})"

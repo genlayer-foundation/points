@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from contributions.models import Evidence, SubmittedContribution
+from contributions.models import Evidence, SubmissionNote, SubmittedContribution
 from stewards.models import ReviewTemplate
 
 
@@ -109,6 +109,52 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
     def get_proposed_by_name(self, obj):
         if obj.proposed_by:
             return obj.proposed_by.name or str(obj.proposed_by.id)
+        return None
+
+
+class AIReviewNoteSerializer(serializers.ModelSerializer):
+    """Serializer for internal notes on reviewed submissions."""
+
+    class Meta:
+        model = SubmissionNote
+        fields = ['message', 'is_proposal', 'data', 'created_at']
+        read_only_fields = fields
+
+
+class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):
+    """Serializer for reviewed submissions — includes review outcome and notes."""
+
+    contribution_type_name = serializers.CharField(
+        source='contribution_type.name', read_only=True,
+    )
+    contribution_type_slug = serializers.CharField(
+        source='contribution_type.slug', read_only=True,
+    )
+    category_name = serializers.SerializerMethodField()
+    evidence_items = AIReviewEvidenceSerializer(many=True, read_only=True)
+    internal_notes = AIReviewNoteSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = SubmittedContribution
+        fields = [
+            'id',
+            'contribution_type',
+            'contribution_type_name',
+            'contribution_type_slug',
+            'category_name',
+            'notes',
+            'state',
+            'staff_reply',
+            'reviewed_at',
+            'evidence_items',
+            'internal_notes',
+            'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_category_name(self, obj):
+        if obj.contribution_type and obj.contribution_type.category:
+            return obj.contribution_type.category.name
         return None
 
 
