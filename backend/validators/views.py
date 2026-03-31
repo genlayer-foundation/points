@@ -1,13 +1,16 @@
 import logging
 import re
+import uuid
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
 from django.db.models import Min, Q, Count
+from django.db import IntegrityError, transaction
 from django.conf import settings
-from .models import Validator, ValidatorWallet
+from django.utils import timezone
+from .models import SyncLock, Validator, ValidatorWallet
 from .serializers import ValidatorWalletSerializer, LightValidatorWalletSerializer
 from .permissions import IsCronToken
 from .genlayer_validators_service import GenLayerValidatorsService
@@ -204,6 +207,9 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ValidatorWallet.objects.all()
     serializer_class = ValidatorWalletSerializer
     permission_classes = [AllowAny]
+    SYNC_LOCK_NAME = 'validator_sync'
+    SYNC_LOCK_STALE_AFTER_SECONDS = 1800
+    SYNC_LOCK_HEARTBEAT_INTERVAL_SECONDS = 60
 
     def get_queryset(self):
         """
@@ -229,6 +235,73 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(network=network_filter)
 
         return queryset
+
+    @classmethod
+    def _ensure_sync_lock_row(cls):
+        try:
+            SyncLock.objects.get_or_create(name=cls.SYNC_LOCK_NAME)
+        except IntegrityError:
+            # Another request created the singleton row first.
+            pass
+
+    @classmethod
+    def _acquire_sync_lock(cls):
+        cls._ensure_sync_lock_row()
+
+        with transaction.atomic():
+            now = timezone.now()
+            lock_row = (
+                SyncLock.objects
+                .select_for_update()
+                .get(name=cls.SYNC_LOCK_NAME)
+            )
+
+            is_running = (
+                lock_row.owner_token is not None
+                and lock_row.heartbeat_at is not None
+                and (lock_row.released_at is None or lock_row.heartbeat_at > lock_row.released_at)
+            )
+
+            if is_running:
+                secs = (now - lock_row.heartbeat_at).total_seconds()
+                if secs <= cls.SYNC_LOCK_STALE_AFTER_SECONDS:
+                    return None, secs
+
+                logger.warning(
+                    "Stale sync lock detected (%ss since last heartbeat), force-reclaiming",
+                    f"{secs:.0f}",
+                )
+
+            lock_token = uuid.uuid4().hex
+            lock_row.owner_token = lock_token
+            lock_row.acquired_at = now
+            lock_row.heartbeat_at = now
+            lock_row.released_at = None
+            lock_row.save(update_fields=['owner_token', 'acquired_at', 'heartbeat_at', 'released_at'])
+
+        return lock_token, None
+
+    @classmethod
+    def _refresh_sync_lock(cls, lock_token):
+        refreshed = (
+            SyncLock.objects
+            .filter(name=cls.SYNC_LOCK_NAME, owner_token=lock_token)
+            .update(heartbeat_at=timezone.now())
+        )
+        if not refreshed:
+            logger.warning("Skipped sync lock heartbeat because ownership changed")
+        return bool(refreshed)
+
+    @classmethod
+    def _release_sync_lock(cls, lock_token):
+        now = timezone.now()
+        released = (
+            SyncLock.objects
+            .filter(name=cls.SYNC_LOCK_NAME, owner_token=lock_token)
+            .update(owner_token=None, heartbeat_at=now, released_at=now)
+        )
+        if not released:
+            logger.warning("Skipped sync lock release because ownership changed")
 
     def list(self, request, *args, **kwargs):
         """
@@ -327,21 +400,69 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
 
         Runs the sync in a background thread and returns 202 Accepted immediately
         to avoid upstream proxy timeouts (504) on long-running syncs.
+        Uses a database lock (SELECT FOR UPDATE + timestamp check) to prevent
+        concurrent syncs across gunicorn workers.
         """
         import threading
+        import time
+        lock_token, elapsed_seconds = self._acquire_sync_lock()
+        if lock_token is None:
+            lock_row = SyncLock.objects.filter(name=self.SYNC_LOCK_NAME).only('acquired_at').first()
+            elapsed = ''
+            if lock_row and lock_row.acquired_at:
+                runtime_seconds = (timezone.now() - lock_row.acquired_at).total_seconds()
+                elapsed = f' (running for {runtime_seconds:.0f}s)'
+            logger.warning(f"Validator sync skipped: another sync is already in progress{elapsed}")
+            return Response({
+                'success': False,
+                'message': f'Sync already in progress{elapsed}',
+            }, status=status.HTTP_409_CONFLICT)
 
-        def _run_sync():
+        logger.info("Validator sync request accepted, starting background thread")
+        heartbeat_stop = threading.Event()
+
+        def _heartbeat():
             from django.db import connection
+
             try:
-                all_stats = GenLayerValidatorsService.sync_all_networks()
-                logger.info(f"Background validator sync completed: {all_stats}")
-            except Exception as e:
-                logger.error(f"Background validator sync failed: {e}")
+                while not heartbeat_stop.wait(self.SYNC_LOCK_HEARTBEAT_INTERVAL_SECONDS):
+                    try:
+                        if not self._refresh_sync_lock(lock_token):
+                            return
+                    except Exception:
+                        logger.error("Failed to refresh sync lock heartbeat", exc_info=True)
+                        return
             finally:
                 connection.close()
 
+        def _run_sync():
+            from django.db import connection
+            start = time.time()
+            try:
+                all_stats = GenLayerValidatorsService.sync_all_networks()
+                duration = time.time() - start
+                logger.info(f"Background validator sync completed in {duration:.1f}s: {all_stats}")
+            except Exception as e:
+                duration = time.time() - start
+                logger.error(f"Background validator sync failed after {duration:.1f}s: {e}", exc_info=True)
+            finally:
+                heartbeat_stop.set()
+                heartbeat_thread.join(timeout=1)
+                try:
+                    self._release_sync_lock(lock_token)
+                except Exception:
+                    logger.error("Failed to release sync lock", exc_info=True)
+                connection.close()
+
+        heartbeat_thread = threading.Thread(target=_heartbeat, daemon=True)
         thread = threading.Thread(target=_run_sync, daemon=True)
-        thread.start()
+        try:
+            heartbeat_thread.start()
+            thread.start()
+        except Exception:
+            heartbeat_stop.set()
+            self._release_sync_lock(lock_token)
+            raise
 
         return Response({
             'success': True,

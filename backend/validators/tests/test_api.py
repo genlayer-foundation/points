@@ -1,8 +1,12 @@
-from django.test import TestCase
+from datetime import timedelta
+
+from django.test import override_settings
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 from rest_framework import status
-from validators.models import Validator
+from django.utils import timezone
+from validators.models import SyncLock, Validator
+from validators.views import ValidatorWalletViewSet
 from contributions.models import Category
 
 User = get_user_model()
@@ -83,3 +87,49 @@ class ValidatorAPITestCase(APITestCase):
         validator = Validator.objects.get(user=self.user)
         self.assertEqual(validator.node_version_bradbury, '2.0.0')
         self.assertEqual(validator.node_version_asimov, '1.0.0')
+
+
+@override_settings(CRON_SYNC_TOKEN='test-cron-token')
+class ValidatorSyncLockTestCase(APITestCase):
+    def test_sync_returns_409_while_non_stale_lock_is_held(self):
+        SyncLock.objects.create(
+            name=ValidatorWalletViewSet.SYNC_LOCK_NAME,
+            owner_token='active-owner',
+            acquired_at=timezone.now(),
+            heartbeat_at=timezone.now(),
+            released_at=None,
+        )
+
+        response = self.client.post(
+            '/api/v1/validators/wallets/sync/',
+            HTTP_X_CRON_TOKEN='test-cron-token',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn('already in progress', response.data['message'])
+
+    def test_old_owner_cannot_release_reclaimed_stale_lock(self):
+        SyncLock.objects.create(
+            name=ValidatorWalletViewSet.SYNC_LOCK_NAME,
+            owner_token='old-owner',
+            acquired_at=timezone.now() - timedelta(seconds=ValidatorWalletViewSet.SYNC_LOCK_STALE_AFTER_SECONDS + 1),
+            heartbeat_at=timezone.now() - timedelta(seconds=ValidatorWalletViewSet.SYNC_LOCK_STALE_AFTER_SECONDS + 1),
+            released_at=None,
+        )
+
+        new_owner_token, elapsed_seconds = ValidatorWalletViewSet._acquire_sync_lock()
+
+        self.assertIsNotNone(new_owner_token)
+        self.assertIsNone(elapsed_seconds)
+
+        ValidatorWalletViewSet._release_sync_lock('old-owner')
+
+        lock_row = SyncLock.objects.get(name=ValidatorWalletViewSet.SYNC_LOCK_NAME)
+        self.assertEqual(lock_row.owner_token, new_owner_token)
+        self.assertIsNone(lock_row.released_at)
+
+        ValidatorWalletViewSet._release_sync_lock(new_owner_token)
+
+        lock_row.refresh_from_db()
+        self.assertIsNone(lock_row.owner_token)
+        self.assertIsNotNone(lock_row.released_at)

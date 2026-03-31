@@ -70,6 +70,12 @@ backend/
   - Custom DRF serializer field for Google reCAPTCHA v2 validation
   - Validates tokens from frontend reCAPTCHA widget
   - Required for new contribution submissions only (not for edits)
+- **AI Review**: `contributions/ai_review/views.py`
+  - `/api/v1/ai-review/` - List pending submissions for the external AI review agent
+  - `/api/v1/ai-review/{id}/` - Retrieve a pending submission with evidence and user history
+  - `/api/v1/ai-review/{id}/propose/` - Submit an AI proposal for human approval
+  - `/api/v1/ai-review/reviewed/` - List reviewed submissions that had AI proposals for calibration
+  - `/api/v1/ai-review/templates/` - List review templates available to the AI review agent
 
 ### Node Upgrade (Sub-app)
 - **Models**: `contributions/node_upgrade/models.py`
@@ -90,6 +96,17 @@ backend/
   - `/api/v1/leaderboard/` - Get rankings
   - `/api/v1/leaderboard/stats/` - Global statistics
   - `/api/v1/leaderboard/user_stats/by-address/{address}/` - User-specific stats
+
+### Validators
+- **Models**: `validators/models.py`
+  - ValidatorWallet - Synced validator wallet metadata per network
+  - ValidatorWalletStatusSnapshot - Daily wallet status snapshots for uptime lookback
+  - SyncLock - Database-backed sync coordination row with owner token for cross-worker locking
+- **Views**: `validators/views.py`
+  - `/api/v1/validators/` - Validator profile CRUD for authenticated users
+  - `/api/v1/validators/me/` - GET/PATCH current validator profile
+  - `/api/v1/validators/wallets/` - Read-only validator wallet listing
+  - `/api/v1/validators/wallets/sync/` - POST cron-protected background sync trigger with DB-backed lock
 
 ### Database & Migrations
 - **Migrations**: `{app}/migrations/`
@@ -190,6 +207,13 @@ GET    /api/v1/multiplier-periods/
 # Steward Submissions (public metrics)
 GET    /api/v1/steward-submissions/stats/           (public - aggregate stats)
 GET    /api/v1/steward-submissions/daily-metrics/   (public - time-series data)
+
+# AI Review Agent
+GET    /api/v1/ai-review/
+GET    /api/v1/ai-review/{id}/
+POST   /api/v1/ai-review/{id}/propose/
+GET    /api/v1/ai-review/reviewed/
+GET    /api/v1/ai-review/templates/
 ```
 
 ## Environment Variables

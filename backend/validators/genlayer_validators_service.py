@@ -2,6 +2,7 @@
 GenLayer blockchain integration service for validator wallet synchronization.
 Handles RPC calls to Staking, Factory, and ValidatorWallet contracts.
 """
+import time
 from typing import Dict, List, Optional, Any
 from django.conf import settings
 from django.utils import timezone
@@ -203,8 +204,10 @@ class GenLayerValidatorsService:
             List of validator wallet addresses
         """
         try:
+            t0 = time.time()
             with trace_external('web3', 'active_validators'):
                 validators = self.staking_contract.functions.activeValidators().call()
+            elapsed = time.time() - t0
             # Filter out invalid addresses
             valid_validators = [
                 addr for addr in validators
@@ -214,6 +217,7 @@ class GenLayerValidatorsService:
                     '0x0000000000000000000000000000000000000000'
                 ]
             ]
+            logger.info(f"[{self.network_key}] Fetched {len(valid_validators)} active validators in {elapsed:.2f}s")
             return valid_validators
         except Exception as e:
             logger.error(f"Error fetching active validators: {str(e)}")
@@ -231,10 +235,12 @@ class GenLayerValidatorsService:
             List of validator data with address, untilEpochBanned, permanently_banned
         """
         try:
+            t0 = time.time()
             with trace_external('web3', 'banned_validators'):
                 banned_list = self.staking_contract.functions.getAllBannedValidators(
                     start_index, size
                 ).call()
+            elapsed = time.time() - t0
 
             result = []
             for banned in banned_list:
@@ -244,6 +250,7 @@ class GenLayerValidatorsService:
                     'permanently_banned': banned[2]
                 })
 
+            logger.info(f"[{self.network_key}] Fetched {len(result)} banned validators in {elapsed:.2f}s")
             return result
         except Exception as e:
             logger.error(f"Error fetching banned validators: {str(e)}")
@@ -261,10 +268,12 @@ class GenLayerValidatorsService:
             List of validator data with address, untilEpochBanned, permanently_banned
         """
         try:
+            t0 = time.time()
             with trace_external('web3', 'quarantined_validators'):
                 quarantined_list = self.staking_contract.functions.getAllQuarantinedValidators(
                     start_index, size
                 ).call()
+            elapsed = time.time() - t0
 
             result = []
             for item in quarantined_list:
@@ -274,6 +283,7 @@ class GenLayerValidatorsService:
                     'permanently_banned': item[2]
                 })
 
+            logger.info(f"[{self.network_key}] Fetched {len(result)} quarantined validators in {elapsed:.2f}s")
             return result
         except Exception as e:
             logger.error(f"Error fetching quarantined validators: {str(e)}")
@@ -373,16 +383,24 @@ class GenLayerValidatorsService:
         from .models import ValidatorWallet, Validator
         from users.models import User
 
+        sync_start = time.time()
         stats = {
             'active_fetched': 0,
             'banned_fetched': 0,
             'quarantined_fetched': 0,
             'created': 0,
             'updated': 0,
-            'errors': 0
+            'errors': 0,
+            'total_to_process': 0,
+            'rpc_time_operator': 0.0,
+            'rpc_time_identity': 0.0,
+            'rpc_time_view': 0.0,
         }
 
         try:
+            # Phase 1: Fetch lists from blockchain
+            phase_start = time.time()
+
             # Fetch active validators
             active_addresses = self.fetch_active_validators()
             stats['active_fetched'] = len(active_addresses)
@@ -394,6 +412,9 @@ class GenLayerValidatorsService:
             # Fetch quarantined validators
             quarantined_data = self.fetch_quarantined_validators()
             stats['quarantined_fetched'] = len(quarantined_data)
+
+            phase1_elapsed = time.time() - phase_start
+            logger.info(f"[{self.network_key}] Phase 1 (fetch lists) completed in {phase1_elapsed:.2f}s")
 
             # Create lookup for quarantined validators
             quarantined_lookup = {}
@@ -423,13 +444,24 @@ class GenLayerValidatorsService:
             # Also include existing validators from DB to catch "zombie" validators
             # that disappeared from both active and banned lists
             existing_addresses = ValidatorWallet.objects.filter(network=self.network_key).values_list('address', flat=True)
+            db_count = 0
             for addr in existing_addresses:
                 all_addresses.add(addr.lower())
+                db_count += 1
 
             # Create lowercase set of active addresses for comparison
             active_addresses_lower = {addr.lower() for addr in active_addresses}
 
+            stats['total_to_process'] = len(all_addresses)
+            logger.info(
+                f"[{self.network_key}] Phase 2: Processing {len(all_addresses)} unique validators "
+                f"(active={len(active_addresses)}, banned={len(banned_data)}, "
+                f"quarantined={len(quarantined_data)}, existing_in_db={db_count})"
+            )
+
             # Process each validator
+            phase2_start = time.time()
+            processed = 0
             for address in all_addresses:
                 try:
                     self._process_validator(
@@ -439,17 +471,44 @@ class GenLayerValidatorsService:
                         quarantined_info=quarantined_lookup.get(address.lower()),
                         stats=stats
                     )
+                    processed += 1
+                    # Log progress every 50 validators
+                    if processed % 50 == 0:
+                        elapsed = time.time() - phase2_start
+                        avg = elapsed / processed
+                        remaining = (len(all_addresses) - processed) * avg
+                        logger.info(
+                            f"[{self.network_key}] Progress: {processed}/{len(all_addresses)} validators "
+                            f"({elapsed:.1f}s elapsed, ~{remaining:.1f}s remaining, "
+                            f"avg {avg:.2f}s/validator)"
+                        )
                 except Exception as e:
-                    logger.error(f"Error processing validator: {str(e)}")
+                    logger.error(f"Error processing validator {address}: {str(e)}", exc_info=True)
                     stats['errors'] += 1
 
+            phase2_elapsed = time.time() - phase2_start
+            logger.info(
+                f"[{self.network_key}] Phase 2 (process validators) completed in {phase2_elapsed:.2f}s "
+                f"(avg {phase2_elapsed / max(len(all_addresses), 1):.2f}s/validator)"
+            )
+            logger.info(
+                f"[{self.network_key}] RPC time breakdown: "
+                f"operator={stats['rpc_time_operator']:.2f}s, "
+                f"identity={stats['rpc_time_identity']:.2f}s, "
+                f"view={stats['rpc_time_view']:.2f}s"
+            )
+
             # Record status snapshots for today
+            phase3_start = time.time()
             self._record_status_snapshots()
+            logger.info(f"[{self.network_key}] Phase 3 (snapshots) completed in {time.time() - phase3_start:.2f}s")
 
         except Exception as e:
-            logger.error(f"Error during sync: {str(e)}")
+            logger.error(f"Error during sync for {self.network_key}: {str(e)}", exc_info=True)
             stats['errors'] += 1
 
+        total_elapsed = time.time() - sync_start
+        logger.info(f"[{self.network_key}] Total sync completed in {total_elapsed:.2f}s: {stats}")
         return stats
 
     def _process_validator(
@@ -487,7 +546,9 @@ class GenLayerValidatorsService:
         has_changes = is_new
 
         # Always fetch operator address to capture updates (like identity)
+        t0 = time.time()
         operator_address = self.fetch_operator_for_wallet(address)
+        stats['rpc_time_operator'] += time.time() - t0
         if operator_address:
             new_operator_address = operator_address.lower()
             if wallet.operator_address != new_operator_address:
@@ -506,7 +567,9 @@ class GenLayerValidatorsService:
                 pass
 
         # Always fetch identity to capture updates
+        t0 = time.time()
         identity = self.fetch_validator_identity(address)
+        stats['rpc_time_identity'] += time.time() - t0
         if identity:
             new_moniker = identity.get('moniker', '')
             new_logo_uri = identity.get('logo_uri', '')
@@ -521,7 +584,9 @@ class GenLayerValidatorsService:
                 has_changes = True
 
         # Always fetch validator view to get current stake values
+        t0 = time.time()
         validator_view = self.fetch_validator_view(address)
+        stats['rpc_time_view'] += time.time() - t0
         if validator_view:
             new_v_stake = validator_view.get('v_stake', '')
             new_d_stake = validator_view.get('d_stake', '')
@@ -613,20 +678,27 @@ class GenLayerValidatorsService:
         Skips networks without staking contract addresses configured.
         Returns dict of per-network stats.
         """
-        all_stats = {}
-        for network_key, config in settings.TESTNET_NETWORKS.items():
-            if not config.get('staking_contract_address'):
-                logger.info(f"Skipping network '{network_key}' - no staking contract configured")
-                continue
+        overall_start = time.time()
+        networks_to_sync = [
+            (k, c) for k, c in settings.TESTNET_NETWORKS.items()
+            if c.get('staking_contract_address')
+        ]
+        skipped = [k for k, c in settings.TESTNET_NETWORKS.items() if not c.get('staking_contract_address')]
+        if skipped:
+            logger.info(f"Skipping networks without staking contract: {skipped}")
+        logger.info(f"Starting sync for {len(networks_to_sync)} network(s): {[k for k, _ in networks_to_sync]}")
 
+        all_stats = {}
+        for network_key, config in networks_to_sync:
             logger.info(f"Syncing validators for network '{network_key}'...")
             try:
                 service = cls(network_key=network_key)
                 stats = service.sync_all_validators()
                 all_stats[network_key] = stats
-                logger.info(f"Network '{network_key}' sync complete: {stats}")
             except Exception as e:
-                logger.error(f"Error syncing network '{network_key}': {str(e)}")
+                logger.error(f"Error syncing network '{network_key}': {str(e)}", exc_info=True)
                 all_stats[network_key] = {'error': str(e)}
 
+        total_elapsed = time.time() - overall_start
+        logger.info(f"All networks sync completed in {total_elapsed:.2f}s: {all_stats}")
         return all_stats
