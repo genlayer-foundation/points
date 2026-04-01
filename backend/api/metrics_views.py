@@ -154,36 +154,43 @@ class ContributionTypesStatsView(APIView):
 class ParticipantsGrowthView(APIView):
     """
     Get time series data for validators, waitlist users, and builders growth over time.
+    Totals are deduplicated across cohorts so users present in multiple roles
+    are only counted once in the overall participant total.
     """
 
     def get(self, request):
+        from django.db.models import Min
         from django.db.models.functions import TruncDate
         from datetime import date, timedelta
         from collections import defaultdict
         from validators.models import Validator
         from builders.models import Builder
 
-        # Get validators by creation date
-        validators_by_date = defaultdict(int)
-        for v in Validator.objects.all():
-            date_key = v.created_at.date()
-            validators_by_date[date_key] += 1
+        # Track new unique users entering each cohort on a given day.
+        validators_by_date = defaultdict(set)
+        for validator in Validator.objects.values('user_id', 'created_at'):
+            validators_by_date[validator['created_at'].date()].add(validator['user_id'])
 
-        # Get waitlist users by contribution date (users with validator-waitlist contribution)
-        waitlist_by_date = defaultdict(int)
+        # Use first waitlist contribution per user so repeat submissions do not inflate counts.
+        waitlist_by_date = defaultdict(set)
         try:
             waitlist_type = ContributionType.objects.get(slug='validator-waitlist')
-            for c in Contribution.objects.filter(contribution_type=waitlist_type):
-                date_key = c.contribution_date.date()
-                waitlist_by_date[date_key] += 1
+            waitlist_entries = (
+                Contribution.objects
+                .filter(contribution_type=waitlist_type)
+                .values('user_id')
+                .annotate(first_contribution=Min('contribution_date'))
+                .order_by('first_contribution')
+            )
+
+            for entry in waitlist_entries:
+                waitlist_by_date[entry['first_contribution'].date()].add(entry['user_id'])
         except ContributionType.DoesNotExist:
             pass
 
-        # Get builders by creation date
-        builders_by_date = defaultdict(int)
-        for b in Builder.objects.all():
-            date_key = b.created_at.date()
-            builders_by_date[date_key] += 1
+        builders_by_date = defaultdict(set)
+        for builder in Builder.objects.values('user_id', 'created_at'):
+            builders_by_date[builder['created_at'].date()].add(builder['user_id'])
 
         # Find date range across all sources
         all_dates = set(validators_by_date.keys()) | set(waitlist_by_date.keys()) | set(builders_by_date.keys())
@@ -196,22 +203,31 @@ class ParticipantsGrowthView(APIView):
 
         # Build cumulative time series
         data = []
-        cum_validators = 0
-        cum_waitlist = 0
-        cum_builders = 0
+        current_validators = set()
+        current_waitlist = set()
+        current_builders = set()
 
         current_date = start_date
         while current_date <= end_date:
-            cum_validators += validators_by_date.get(current_date, 0)
-            cum_waitlist += waitlist_by_date.get(current_date, 0)
-            cum_builders += builders_by_date.get(current_date, 0)
+            current_validators.update(validators_by_date.get(current_date, set()))
+            current_waitlist.update(waitlist_by_date.get(current_date, set()))
+            current_builders.update(builders_by_date.get(current_date, set()))
+
+            unique_participants = current_validators | current_waitlist | current_builders
+            cohort_total = (
+                len(current_validators) +
+                len(current_waitlist) +
+                len(current_builders)
+            )
 
             data.append({
                 'date': current_date.isoformat(),
-                'validators': cum_validators,
-                'waitlist': cum_waitlist,
-                'builders': cum_builders,
-                'total': cum_validators + cum_waitlist + cum_builders
+                'validators': len(current_validators),
+                'waitlist': len(current_waitlist),
+                'builders': len(current_builders),
+                'total': len(unique_participants),
+                'cohort_total': cohort_total,
+                'overlap_count': cohort_total - len(unique_participants)
             })
 
             current_date += timedelta(days=1)
