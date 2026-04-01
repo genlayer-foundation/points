@@ -74,6 +74,7 @@ backend/
   - `/api/v1/ai-review/` - List pending submissions for the external AI review agent
   - `/api/v1/ai-review/{id}/` - Retrieve a pending submission with evidence and user history
   - `/api/v1/ai-review/{id}/propose/` - Submit an AI proposal for human approval
+  - `/api/v1/ai-review/proposed/` - List pending submissions with AI proposals awaiting steward review
   - `/api/v1/ai-review/reviewed/` - List reviewed submissions that had AI proposals for calibration
   - `/api/v1/ai-review/templates/` - List review templates available to the AI review agent
 
@@ -213,6 +214,7 @@ GET    /api/v1/ai-review/
 GET    /api/v1/ai-review/{id}/
 POST   /api/v1/ai-review/{id}/propose/     (create new proposal)
 PUT    /api/v1/ai-review/{id}/propose/     (update existing proposal)
+GET    /api/v1/ai-review/proposed/     (pending AI proposals awaiting steward review)
 GET    /api/v1/ai-review/reviewed/
 GET    /api/v1/ai-review/templates/
 ```

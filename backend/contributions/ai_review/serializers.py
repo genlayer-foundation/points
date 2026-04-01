@@ -80,7 +80,12 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
             'user_history',
             'has_proposal',
             'proposed_action',
+            'proposed_points',
+            'proposed_staff_reply',
+            'proposed_confidence',
+            'proposed_template',
             'proposed_by_name',
+            'proposed_at',
             'created_at',
         ]
         read_only_fields = fields

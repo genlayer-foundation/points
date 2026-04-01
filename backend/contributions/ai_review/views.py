@@ -203,13 +203,16 @@ class AIReviewViewSet(
         return AIReviewSubmissionSerializer
 
     def get_queryset(self):
+        qs = SubmittedContribution.objects.filter(
+            state='pending',
+            reviewed_by__isnull=True,
+        )
+        # The list endpoint only returns unproposed submissions;
+        # retrieve allows accessing proposed ones too (needed for PUT /propose/).
+        if self.action == 'list':
+            qs = qs.filter(proposed_action__isnull=True)
         return (
-            SubmittedContribution.objects.filter(
-                state='pending',
-                proposed_action__isnull=True,
-                reviewed_by__isnull=True,
-            )
-            .select_related(
+            qs.select_related(
                 'contribution_type',
                 'contribution_type__category',
                 'user',
@@ -345,6 +348,49 @@ class AIReviewViewSet(
         return self._validate_and_apply_proposal(
             submission, serializer.validated_data, ai_user, is_update=is_update,
         )
+
+    @action(detail=False, methods=['get'], url_path='proposed')
+    def proposed(self, request):
+        """
+        List pending submissions that have an AI proposal awaiting steward review.
+
+        Returns submissions where state='pending', proposed_action is set,
+        and reviewed_by is NULL (steward hasn't finalized yet).
+        Use GET /ai-review/{id}/ to retrieve full proposal details for any
+        submission returned here.
+        """
+        queryset = (
+            SubmittedContribution.objects.filter(
+                state='pending',
+                proposed_action__isnull=False,
+                reviewed_by__isnull=True,
+            )
+            .select_related(
+                'contribution_type',
+                'contribution_type__category',
+                'user',
+                'proposed_by',
+            )
+            .prefetch_related('evidence_items')
+            .order_by('-proposed_at')
+        )
+
+        # Apply the same filterset as the main list endpoint
+        filterset = self.filterset_class(
+            data=request.query_params,
+            queryset=queryset,
+            request=request,
+        )
+        if filterset.is_valid():
+            queryset = filterset.qs
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = LightAIReviewSubmissionSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = LightAIReviewSubmissionSerializer(queryset, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='reviewed')
     def reviewed(self, request):
