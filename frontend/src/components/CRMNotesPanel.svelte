@@ -51,6 +51,13 @@
               <span class="text-xs font-medium text-gray-700">{note.user_name}</span>
               {#if note.is_proposal}
                 <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">Proposal</span>
+                {#if note.data?.confidence}
+                  <span class="text-[10px] px-1.5 py-0.5 rounded font-medium {
+                    note.data.confidence === 'high' ? 'bg-green-100 text-green-700' :
+                    note.data.confidence === 'low' ? 'bg-red-100 text-red-700' :
+                    'bg-gray-100 text-gray-600'
+                  }">{note.data.confidence}</span>
+                {/if}
               {/if}
               <span class="text-[10px] text-gray-400 ml-auto">{formatDate(note.created_at)}</span>
             </div>

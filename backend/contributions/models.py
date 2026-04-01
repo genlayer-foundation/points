@@ -363,6 +363,21 @@ class SubmittedContribution(BaseModel):
         blank=True,
         help_text="When the proposal was made"
     )
+    proposed_confidence = models.CharField(
+        max_length=10,
+        choices=[('high', 'High'), ('medium', 'Medium'), ('low', 'Low')],
+        null=True,
+        blank=True,
+        help_text="Confidence level of the proposal"
+    )
+    proposed_template = models.ForeignKey(
+        'stewards.ReviewTemplate',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='proposed_submissions',
+        help_text="Review template used for the proposal"
+    )
 
     # Link to actual contribution when accepted
     converted_contribution = models.ForeignKey(

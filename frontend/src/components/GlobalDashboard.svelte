@@ -33,7 +33,7 @@
           network: "bradbury",
         }),
         leaderboardAPI.getWaitlistTop(5),
-        validatorsAPI.getNetworks().catch(() => ({ data: [] })), // Handle if not found
+        validatorsAPI.getNetworks().catch(() => ({ data: [] })),
       ]);
 
       // Process leaderboards — full list for count, top 5 for display
@@ -43,8 +43,8 @@
       const bradburyFull = Array.isArray(bradburyLeaderboardRes.data)
         ? bradburyLeaderboardRes.data
         : [];
-      asimovLeaderboard = asimovFull.slice(0, 5);
-      bradburyLeaderboard = bradburyFull.slice(0, 5);
+      asimovLeaderboard = asimovFull.slice(0, 5).map((entry, i) => ({ ...entry, rank: i + 1 }));
+      bradburyLeaderboard = bradburyFull.slice(0, 5).map((entry, i) => ({ ...entry, rank: i + 1 }));
       waitlistLeaderboard = Array.isArray(waitlistLeaderboardRes.data)
         ? waitlistLeaderboardRes.data
         : [];
@@ -368,7 +368,7 @@
                 style="letter-spacing: -0.96px;"
                 >{networkStats.bradbury.total}</span
               >
-              <span class="text-[13px] text-gray-500">Validators</span>
+              <span class="text-[13px] text-gray-500">Active Validators</span>
             </div>
           </div>
 
