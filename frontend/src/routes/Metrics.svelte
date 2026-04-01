@@ -33,6 +33,8 @@
     },
     validators: {
       border: 'rgb(37, 99, 235)',
+      fillTop: 'rgba(37, 99, 235, 0.14)',
+      fillBottom: 'rgba(37, 99, 235, 0.02)',
       surface: 'from-blue-50 via-white to-blue-50/40',
       text: 'text-blue-700',
       track: 'bg-blue-100',
@@ -65,6 +67,11 @@
       text: 'text-amber-600',
       surface: 'from-amber-50 via-white to-amber-50/40'
     },
+    pending: {
+      border: 'rgb(59, 130, 246)',
+      text: 'text-blue-500',
+      surface: 'from-blue-50 via-white to-blue-50/40'
+    },
     points: {
       text: 'text-fuchsia-600',
       surface: 'from-fuchsia-50 via-white to-fuchsia-50/40'
@@ -81,7 +88,7 @@
 
   let participantsChart;
   let submissionsChart;
-  let decisionMixChart;
+  let submissionsTrendChart;
 
   let loading = $state(true);
   let submissionsLoading = $state(false);
@@ -139,6 +146,7 @@
     const moreInfoRequested = Number(totals.more_info_requested || 0);
     const pointsAwarded = Number(totals.points_awarded || 0);
     const reviewed = accepted + rejected + moreInfoRequested;
+    const pendingReview = Math.max(0, ingress - reviewed);
 
     return {
       accepted,
@@ -146,6 +154,7 @@
       avgPointsPerAccepted: accepted ? pointsAwarded / accepted : 0,
       ingress,
       moreInfoRequested,
+      pendingReview,
       pointsAwarded,
       rejected,
       reviewed
@@ -163,13 +172,6 @@
 
     return matchedType?.name || 'Custom type';
   });
-
-  let submissionScopeChips = $derived.by(() => [
-    `Range: ${formatDateRange(submissionStartDate, submissionEndDate)}`,
-    `Grouped ${getGroupingLabel(submissionGroupBy).toLowerCase()}`,
-    `Category: ${selectedCategory ? getCategoryLabel(selectedCategory) : 'All categories'}`,
-    `Type: ${selectedContributionTypeLabel}`
-  ]);
 
   onMount(() => {
     fetchMetricsData();
@@ -314,9 +316,9 @@
       submissionsChart = null;
     }
 
-    if (decisionMixChart) {
-      decisionMixChart.destroy();
-      decisionMixChart = null;
+    if (submissionsTrendChart) {
+      submissionsTrendChart.destroy();
+      submissionsTrendChart = null;
     }
   }
 
@@ -326,19 +328,19 @@
       submissionsChart = null;
     }
 
-    if (decisionMixChart) {
-      decisionMixChart.destroy();
-      decisionMixChart = null;
+    if (submissionsTrendChart) {
+      submissionsTrendChart.destroy();
+      submissionsTrendChart = null;
     }
 
     createSubmissionsChart();
-    createDecisionMixChart();
+    createSubmissionsTrendChart();
   }
 
   function createCharts() {
     createParticipantsChart();
     createSubmissionsChart();
-    createDecisionMixChart();
+    createSubmissionsTrendChart();
   }
 
   function createParticipantsChart() {
@@ -370,7 +372,8 @@
             fill: true,
             pointRadius: 0,
             pointHoverRadius: 4,
-            tension: 0.24
+            tension: 0.24,
+            yAxisID: 'y'
           },
           {
             label: 'Validator waitlist',
@@ -386,7 +389,26 @@
             fill: true,
             pointRadius: 0,
             pointHoverRadius: 4,
-            tension: 0.24
+            tension: 0.24,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Validators',
+            data: participantsData.map((point) => point.validators),
+            borderColor: participantPalette.validators.border,
+            backgroundColor: createGradient(
+              ctx,
+              height,
+              participantPalette.validators.fillTop,
+              participantPalette.validators.fillBottom
+            ),
+            borderWidth: 2,
+            borderDash: [6, 3],
+            fill: true,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            tension: 0.24,
+            yAxisID: 'y1'
           }
         ]
       },
@@ -405,6 +427,14 @@
               boxHeight: 10,
               padding: 18,
               usePointStyle: true
+            },
+            onClick: function(event, legendItem, legend) {
+              const index = legendItem.datasetIndex;
+              const chart = legend.chart;
+              const meta = chart.getDatasetMeta(index);
+
+              meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+              chart.update();
             }
           },
           tooltip: {
@@ -434,12 +464,39 @@
             }
           },
           y: {
+            type: 'linear',
+            position: 'left',
             beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Builders / Waitlist',
+              color: '#64748b',
+              font: { size: 11 }
+            },
             grid: {
               color: 'rgba(148, 163, 184, 0.12)'
             },
             ticks: {
               color: '#64748b',
+              callback: (value) => formatNumber(value)
+            }
+          },
+          y1: {
+            type: 'linear',
+            position: 'right',
+            beginAtZero: true,
+            max: Math.round((participantsData[participantsData.length - 1]?.validators || 10) * 1.5 / 10) * 10,
+            title: {
+              display: true,
+              text: 'Validators',
+              color: 'rgb(37, 99, 235)',
+              font: { size: 11 }
+            },
+            grid: {
+              drawOnChartArea: false
+            },
+            ticks: {
+              color: 'rgb(37, 99, 235)',
               callback: (value) => formatNumber(value)
             }
           }
@@ -527,6 +584,7 @@
             borderColor: 'rgba(148, 163, 184, 0.32)',
             borderWidth: 1,
             callbacks: {
+              title: (items) => formatPeriodTooltip(submissionsData.data[items[0]?.dataIndex]?.period, submissionGroupBy),
               footer: (items) => {
                 const point = submissionsData.data[items[0]?.dataIndex];
                 const reviewed =
@@ -568,66 +626,85 @@
     });
   }
 
-  function createDecisionMixChart() {
-    const decisionMixCanvas = document.getElementById('decisionMixChart');
+  function createSubmissionsTrendChart() {
+    const trendCanvas = document.getElementById('submissionsTrendChart');
 
-    if (!decisionMixCanvas || !submissionsData.data?.length) {
+    if (!trendCanvas || !submissionsData.data?.length) {
       return;
     }
 
-    const mixSeries = submissionsData.data.map((point) => {
-      const accepted = Number(point.accepted || 0);
-      const rejected = Number(point.rejected || 0);
-      const moreInfoRequested = Number(point.more_info_requested || 0);
-      const totalReviewed = accepted + rejected + moreInfoRequested;
+    const ctx = trendCanvas.getContext('2d');
+    const height = trendCanvas.parentElement?.clientHeight || 320;
+    const isDaily = submissionGroupBy === 'day';
+    const dotRadius = isDaily ? 0 : 3;
+    const hoverRadius = isDaily ? 3 : 5;
 
-      return {
-        accepted,
-        acceptedPercent: totalReviewed ? (accepted / totalReviewed) * 100 : 0,
-        moreInfoPercent: totalReviewed ? (moreInfoRequested / totalReviewed) * 100 : 0,
-        moreInfoRequested,
-        rejected,
-        rejectedPercent: totalReviewed ? (rejected / totalReviewed) * 100 : 0,
-        totalReviewed
-      };
+    // Build cumulative sums per state
+    let cumIngress = 0;
+    let cumAccepted = 0;
+    let cumRejected = 0;
+    let cumMoreInfo = 0;
+    const cumData = submissionsData.data.map((point) => {
+      cumIngress += Number(point.ingress || 0);
+      cumAccepted += Number(point.accepted || 0);
+      cumRejected += Number(point.rejected || 0);
+      cumMoreInfo += Number(point.more_info_requested || 0);
+      const pending = Math.max(0, cumIngress - cumAccepted - cumRejected - cumMoreInfo);
+      return { pending, accepted: cumAccepted, rejected: cumRejected, moreInfo: cumMoreInfo };
     });
 
-    const ctx = decisionMixCanvas.getContext('2d');
-
-    decisionMixChart = new Chart(ctx, {
-      type: 'bar',
+    submissionsTrendChart = new Chart(ctx, {
+      type: 'line',
       data: {
         labels: submissionsData.data.map((point) => formatPeriodLabel(point.period, submissionGroupBy)),
         datasets: [
           {
+            label: 'Pending review',
+            data: cumData.map((point) => point.pending),
+            borderColor: reviewPalette.pending.border,
+            backgroundColor: 'rgba(59, 130, 246, 0.08)',
+            borderWidth: isDaily ? 1.5 : 2.5,
+            fill: true,
+            pointRadius: dotRadius,
+            pointHoverRadius: hoverRadius,
+            pointBackgroundColor: reviewPalette.pending.border,
+            tension: 0.3
+          },
+          {
             label: 'Accepted',
-            data: mixSeries.map((point) => point.acceptedPercent),
-            rawCounts: mixSeries.map((point) => point.accepted),
-            backgroundColor: reviewPalette.accepted.bg,
+            data: cumData.map((point) => point.accepted),
             borderColor: reviewPalette.accepted.border,
-            borderRadius: 10,
-            borderWidth: 1,
-            stack: 'mix'
+            backgroundColor: 'rgba(5, 150, 105, 0.06)',
+            borderWidth: isDaily ? 1.5 : 2.5,
+            fill: false,
+            pointRadius: dotRadius,
+            pointHoverRadius: hoverRadius,
+            pointBackgroundColor: reviewPalette.accepted.border,
+            tension: 0.3
           },
           {
             label: 'Rejected',
-            data: mixSeries.map((point) => point.rejectedPercent),
-            rawCounts: mixSeries.map((point) => point.rejected),
-            backgroundColor: reviewPalette.rejected.bg,
+            data: cumData.map((point) => point.rejected),
             borderColor: reviewPalette.rejected.border,
-            borderRadius: 10,
-            borderWidth: 1,
-            stack: 'mix'
+            backgroundColor: 'rgba(220, 38, 38, 0.06)',
+            borderWidth: isDaily ? 1.5 : 2,
+            fill: false,
+            pointRadius: dotRadius,
+            pointHoverRadius: hoverRadius,
+            pointBackgroundColor: reviewPalette.rejected.border,
+            tension: 0.3
           },
           {
             label: 'More info requested',
-            data: mixSeries.map((point) => point.moreInfoPercent),
-            rawCounts: mixSeries.map((point) => point.moreInfoRequested),
-            backgroundColor: reviewPalette.moreInfo.bg,
+            data: cumData.map((point) => point.moreInfo),
             borderColor: reviewPalette.moreInfo.border,
-            borderRadius: 10,
-            borderWidth: 1,
-            stack: 'mix'
+            backgroundColor: 'rgba(217, 119, 6, 0.06)',
+            borderWidth: isDaily ? 1.5 : 2,
+            fill: false,
+            pointRadius: dotRadius,
+            pointHoverRadius: hoverRadius,
+            pointBackgroundColor: reviewPalette.moreInfo.border,
+            tension: 0.3
           }
         ]
       },
@@ -646,6 +723,14 @@
               boxHeight: 10,
               padding: 18,
               usePointStyle: true
+            },
+            onClick: function(event, legendItem, legend) {
+              const index = legendItem.datasetIndex;
+              const chart = legend.chart;
+              const meta = chart.getDatasetMeta(index);
+
+              meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+              chart.update();
             }
           },
           tooltip: {
@@ -654,22 +739,14 @@
             borderColor: 'rgba(148, 163, 184, 0.32)',
             borderWidth: 1,
             callbacks: {
-              footer: (items) => {
-                const point = mixSeries[items[0]?.dataIndex];
-                return `Reviewed decisions: ${formatNumber(point?.totalReviewed || 0)}`;
-              },
-              label: (context) => {
-                const rawCount = context.dataset.rawCounts?.[context.dataIndex] || 0;
-                const percent = context.parsed.y || 0;
-                return `${context.dataset.label}: ${formatNumber(rawCount)} (${percent.toFixed(1)}%)`;
-              }
+              title: (items) => formatPeriodTooltip(submissionsData.data[items[0]?.dataIndex]?.period, submissionGroupBy),
+              label: (context) => `${context.dataset.label}: ${formatNumber(context.parsed.y)}`
             },
             titleColor: '#0f172a'
           }
         },
         scales: {
           x: {
-            stacked: true,
             grid: {
               display: false
             },
@@ -680,14 +757,12 @@
           },
           y: {
             beginAtZero: true,
-            max: 100,
-            stacked: true,
             grid: {
               color: 'rgba(148, 163, 184, 0.12)'
             },
             ticks: {
               color: '#64748b',
-              callback: (value) => `${value}%`
+              callback: (value) => formatNumber(value)
             }
           }
         }
@@ -723,6 +798,28 @@
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
+  function formatPeriodTooltip(dateStr, groupBy) {
+    if (!dateStr) {
+      return 'Unknown';
+    }
+
+    const date = new Date(dateStr);
+
+    if (groupBy === 'day') {
+      return date.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    if (groupBy === 'week') {
+      const end = new Date(date);
+      end.setDate(end.getDate() + 6);
+      const startStr = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+      const endStr = end.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+      return `Week of ${startStr} – ${endStr}`;
+    }
+
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }
+
   function getCategoryLabel(slug) {
     return CATEGORY_LABELS[slug] || (slug ? slug[0].toUpperCase() + slug.slice(1) : 'Unknown');
   }
@@ -749,14 +846,6 @@
       month: 'short',
       year: 'numeric'
     });
-  }
-
-  function formatDateRange(startDate, endDate) {
-    if (!startDate && !endDate) {
-      return 'Auto';
-    }
-
-    return `${formatDate(startDate)} to ${formatDate(endDate)}`;
   }
 
   function formatNumber(value) {
@@ -793,10 +882,10 @@
       <div class="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div class="max-w-3xl">
           <p class="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Participants Overview</p>
-          <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Builders and waitlist growth, with validators separated</h2>
+          <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Participant growth</h2>
           <p class="mt-2 text-sm leading-6 text-slate-500">
-            Active validators are a much smaller cohort, so they are kept out of the growth chart to avoid flattening
-            the larger waitlist and builder trends.
+            Builders and waitlist share the left axis; validators use the right axis due to their smaller cohort size.
+            Click a legend label to toggle its visibility.
           </p>
         </div>
         <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -853,25 +942,21 @@
         </div>
       </div>
 
-      <div class="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        Role membership overlaps, so these shares are calculated against the unique participant base and will not sum to 100%.
-      </div>
-
       <div class="rounded-[28px] border border-slate-200 bg-slate-50/70 p-5 sm:p-6">
         <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h3 class="text-lg font-semibold text-slate-900">Growth trajectory</h3>
-            <p class="mt-1 text-sm text-slate-500">All-time cumulative growth for builders and the validator waitlist.</p>
+            <p class="mt-1 text-sm text-slate-500">All-time cumulative growth. Left axis: builders & waitlist. Right axis: validators.</p>
           </div>
           <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Daily points</p>
         </div>
 
         {#if participantsData.length > 0}
-          <div class="h-[320px]">
+          <div class="h-[360px]">
             <canvas id="participantsChart"></canvas>
           </div>
         {:else}
-          <div class="flex h-[320px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm text-slate-500">
+          <div class="flex h-[360px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm text-slate-500">
             No participant growth data available.
           </div>
         {/if}
@@ -882,7 +967,7 @@
       <div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div class="max-w-3xl">
           <p class="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Submission Analytics</p>
-          <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Filtered review flow, decision mix, and points</h2>
+          <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Filtered review flow and trends</h2>
           <p class="mt-2 text-sm leading-6 text-slate-500">
             Category and contribution type filters apply only to this section. The charts below use reviewed outcomes
             and accepted-contribution points from the submissions endpoint.
@@ -978,14 +1063,6 @@
           </div>
         </div>
 
-        <div class="mt-5 flex flex-wrap gap-2">
-          {#each submissionScopeChips as chip}
-            <span class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
-              {chip}
-            </span>
-          {/each}
-        </div>
-
         {#if submissionError}
           <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             <span class="font-semibold">Submission analytics error:</span> {submissionError}
@@ -993,7 +1070,7 @@
         {/if}
       </div>
 
-      <div class="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div class="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.ingress.surface} p-5">
           <p class="text-sm font-medium text-slate-500">New submissions</p>
           <p class="mt-3 text-3xl font-semibold {reviewPalette.ingress.text}">
@@ -1003,35 +1080,27 @@
         </div>
 
         <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50/40 p-5">
-          <p class="text-sm font-medium text-slate-500">Reviewed decisions</p>
+          <p class="text-sm font-medium text-slate-500">Reviewed</p>
           <p class="mt-3 text-3xl font-semibold text-slate-900">{formatNumber(submissionsSummary.reviewed)}</p>
-          <p class="mt-2 text-xs leading-5 text-slate-500">Accepted, rejected, and more-info actions combined.</p>
+          <p class="mt-2 text-xs leading-5 text-slate-500">Accepted, rejected, and more-info combined.</p>
+        </div>
+
+        <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.pending.surface} p-5">
+          <p class="text-sm font-medium text-slate-500">Pending review</p>
+          <p class="mt-3 text-3xl font-semibold {reviewPalette.pending.text}">
+            {formatNumber(submissionsSummary.pendingReview)}
+          </p>
+          <p class="mt-2 text-xs leading-5 text-slate-500">Remaining submissions awaiting a decision.</p>
         </div>
 
         <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.accepted.surface} p-5">
-          <p class="text-sm font-medium text-slate-500">Accepted</p>
+          <p class="text-sm font-medium text-slate-500">Acceptance rate</p>
           <p class="mt-3 text-3xl font-semibold {reviewPalette.accepted.text}">
-            {formatNumber(submissionsSummary.accepted)}
+            {formatPercent(submissionsSummary.acceptanceRate)}
           </p>
           <p class="mt-2 text-xs leading-5 text-slate-500">
-            Acceptance rate: {formatPercent(submissionsSummary.acceptanceRate)}
+            {formatNumber(submissionsSummary.accepted)} accepted of {formatNumber(submissionsSummary.reviewed)} reviewed.
           </p>
-        </div>
-
-        <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.rejected.surface} p-5">
-          <p class="text-sm font-medium text-slate-500">Rejected</p>
-          <p class="mt-3 text-3xl font-semibold {reviewPalette.rejected.text}">
-            {formatNumber(submissionsSummary.rejected)}
-          </p>
-          <p class="mt-2 text-xs leading-5 text-slate-500">Decisions made in the selected range.</p>
-        </div>
-
-        <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.moreInfo.surface} p-5">
-          <p class="text-sm font-medium text-slate-500">More info requested</p>
-          <p class="mt-3 text-3xl font-semibold {reviewPalette.moreInfo.text}">
-            {formatNumber(submissionsSummary.moreInfoRequested)}
-          </p>
-          <p class="mt-2 text-xs leading-5 text-slate-500">Review actions asking submitters for follow-up context.</p>
         </div>
 
         <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.points.surface} p-5">
@@ -1040,7 +1109,7 @@
             {formatNumber(submissionsSummary.pointsAwarded)}
           </p>
           <p class="mt-2 text-xs leading-5 text-slate-500">
-            Avg. {formatNumber(submissionsSummary.avgPointsPerAccepted)} points per accepted submission.
+            Avg. {formatNumber(submissionsSummary.avgPointsPerAccepted)} per accepted.
           </p>
         </div>
       </div>
@@ -1067,15 +1136,15 @@
 
         <div class="rounded-[28px] border border-slate-200 bg-slate-50/70 p-5 sm:p-6">
           <div class="mb-5">
-            <h3 class="text-lg font-semibold text-slate-900">Decision mix among reviewed submissions</h3>
+            <h3 class="text-lg font-semibold text-slate-900">Submission state trends</h3>
             <p class="mt-1 text-sm text-slate-500">
-              This chart ignores intake and shows only how reviewed submissions were classified in each period.
+              Per-state curves over time. Click a legend label to toggle its visibility.
             </p>
           </div>
 
           {#if submissionsData.data?.length > 0}
             <div class="h-[320px]">
-              <canvas id="decisionMixChart"></canvas>
+              <canvas id="submissionsTrendChart"></canvas>
             </div>
           {:else}
             <div class="flex h-[320px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm text-slate-500">
