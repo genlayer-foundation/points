@@ -61,7 +61,9 @@ curl -s -H "X-AI-Review-Key: $KEY" "$BASE_URL/api/v1/ai-review/{uuid}/"
 The detail view returns the full submission including `evidence_items` (URLs, descriptions) and
 `user_history` (accepted_count, rejected_count, pending_count). Use this data to make your evaluation.
 
-### Step 4: Propose a review
+### Step 4: Propose a review (POST = create, PUT = update)
+
+**Create** a new proposal (fails with 409 if one already exists):
 
 ```bash
 curl -s -X POST -H "X-AI-Review-Key: $KEY" -H "Content-Type: application/json" \
@@ -75,6 +77,22 @@ curl -s -X POST -H "X-AI-Review-Key: $KEY" -H "Content-Type: application/json" \
   }'
 ```
 
+**Update** an existing proposal (fails with 404 if no proposal exists):
+
+```bash
+curl -s -X PUT -H "X-AI-Review-Key: $KEY" -H "Content-Type: application/json" \
+  "$BASE_URL/api/v1/ai-review/{uuid}/propose/" \
+  -d '{
+    "proposed_action": "accept",
+    "proposed_points": 3,
+    "proposed_staff_reply": "After re-evaluation, this contribution meets the criteria.",
+    "reasoning": "Revisited evidence — GitHub repo has real code and README.",
+    "confidence": "medium"
+  }'
+```
+
+Use PUT when you want to change your mind on a previous proposal (e.g. after fetching more context or re-evaluating evidence). Both the old and new proposals are preserved as CRM notes for audit.
+
 **Required fields by action:**
 
 | Action | Required |
@@ -85,11 +103,25 @@ curl -s -X POST -H "X-AI-Review-Key: $KEY" -H "Content-Type: application/json" \
 
 Optional: `reasoning` (internal CRM note), `confidence` (high/medium/low), `template_id`.
 
-Errors: 400 = validation, 404 = not found/not pending, 409 = already has proposal.
+`confidence` is stored on the submission and displayed as a color-coded badge to stewards in the CRM notes panel. Set it accurately — stewards use it to prioritize which proposals to review first.
+
+`template_id` is stored on the submission and stewards can filter by it. Always pass it when using a template so the data is traceable.
+
+Errors: 400 = validation, 404 = not found/not pending/no proposal to update, 409 = already has proposal (POST only).
 
 ### Step 5: Continue
 
 Page through remaining submissions with `?page=2&page_size=10`.
+
+### Calibration: Review past decisions
+
+```bash
+curl -s -H "X-AI-Review-Key: $KEY" "$BASE_URL/api/v1/ai-review/reviewed/?page_size=10"
+```
+
+Returns submissions that were reviewed by stewards after having an AI proposal. Includes the final `state`, `staff_reply`, `evidence_items`, and all `internal_notes` (with proposal data). Use this to calibrate future proposals — check whether stewards agreed with your proposals or overrode them.
+
+Filters: `state=accepted|rejected|more_info_needed`, `contribution_type={id}`, `category={slug}`.
 
 ## Evaluation Guidelines
 

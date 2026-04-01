@@ -426,6 +426,8 @@ class Command(BaseCommand):
         submission.proposed_highlight_description = ''
         submission.proposed_by = None
         submission.proposed_at = None
+        submission.proposed_confidence = None
+        submission.proposed_template = None
         submission.save()
 
         SubmissionNote.objects.create(

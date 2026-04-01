@@ -172,7 +172,9 @@ class AIReviewProposeSerializer(serializers.Serializer):
         required=False,
         default='medium',
     )
-    template_id = serializers.IntegerField(required=False, allow_null=True)
+    template_id = serializers.PrimaryKeyRelatedField(
+        queryset=ReviewTemplate.objects.all(), required=False, allow_null=True,
+    )
 
     def validate(self, data):
         action = data['proposed_action']

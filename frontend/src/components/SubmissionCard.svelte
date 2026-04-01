@@ -202,14 +202,15 @@
 
   function handleTemplateSelect(event) {
     const templateId = event.target.value;
-    if (!templateId) return;
+    if (!templateId) {
+      selectedTemplateId = null;
+      return;
+    }
     const template = templates.find(t => String(t.id) === templateId);
     if (template) {
       staffReply = template.text;
       selectedTemplateId = template.id;
     }
-    // Reset the select
-    event.target.value = '';
   }
 
   function handleReview() {
@@ -665,6 +666,7 @@
                       </label>
                       {#if proposeContextTemplates.length > 0}
                         <select
+                          value={selectedTemplateId || ''}
                           onchange={handleTemplateSelect}
                           class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
                         >
@@ -711,6 +713,7 @@
                       </label>
                       {#if rejectTemplates.length > 0}
                         <select
+                          value={selectedTemplateId || ''}
                           onchange={handleTemplateSelect}
                           class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
                         >
@@ -746,6 +749,7 @@
                       </label>
                       {#if moreInfoTemplates.length > 0}
                         <select
+                          value={selectedTemplateId || ''}
                           onchange={handleTemplateSelect}
                           class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
                         >
