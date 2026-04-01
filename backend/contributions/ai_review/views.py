@@ -229,28 +229,8 @@ class AIReviewViewSet(
             queryset = filterset.qs
         return super().filter_queryset(queryset)
 
-    @action(detail=True, methods=['post'], url_path='propose')
-    def propose(self, request, pk=None):
-        """Submit a review proposal for a submission."""
-        submission = get_object_or_404(
-            SubmittedContribution.objects.select_related(
-                'contribution_type', 'contribution_type__category', 'user',
-            ),
-            pk=pk,
-            state='pending',
-        )
-
-        # Check if already proposed
-        if submission.proposed_action is not None:
-            return Response(
-                {'error': 'This submission already has an active proposal.'},
-                status=status.HTTP_409_CONFLICT,
-            )
-
-        serializer = AIReviewProposeSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-
+    def _validate_and_apply_proposal(self, submission, data, ai_user, is_update=False):
+        """Validate proposal data and apply it to the submission."""
         # Validate points within contribution type range for accept
         if data['proposed_action'] == 'accept' and data.get('proposed_points'):
             ct = submission.contribution_type
@@ -264,21 +244,18 @@ class AIReviewViewSet(
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        # Get AI steward user
-        try:
-            ai_user = User.objects.get(email=AI_STEWARD_EMAIL)
-        except User.DoesNotExist:
-            return Response(
-                {'error': 'AI steward user not found. Run migrations.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
         # Set proposal fields
         submission.proposed_action = data['proposed_action']
         submission.proposed_points = data.get('proposed_points')
         submission.proposed_staff_reply = data.get('proposed_staff_reply', '')
         submission.proposed_by = ai_user
         submission.proposed_at = timezone.now()
+        submission.proposed_confidence = data.get('confidence', 'medium')
+
+        # Resolve template FK (PrimaryKeyRelatedField returns instance or None)
+        template = data.get('template_id')
+        submission.proposed_template = template
+
         submission.save()
 
         # Create CRM note
@@ -290,8 +267,9 @@ class AIReviewViewSet(
             if action_str == 'accept'
             else ''
         )
+        prefix = '[AI Review] Updated proposal' if is_update else '[AI Review] Proposed'
         message = (
-            f'[AI Review] Proposed: **{action_str}**{pts_str} '
+            f'{prefix}: **{action_str}**{pts_str} '
             f'(confidence: {confidence})'
         )
         if reasoning:
@@ -306,7 +284,7 @@ class AIReviewViewSet(
                 'action': data['proposed_action'],
                 'points': data.get('proposed_points'),
                 'staff_reply': data.get('proposed_staff_reply', ''),
-                'template_id': data.get('template_id'),
+                'template_id': template.id if template else None,
                 'confidence': confidence,
                 'reasoning': reasoning,
             },
@@ -315,6 +293,57 @@ class AIReviewViewSet(
         return Response(
             AIReviewSubmissionSerializer(submission).data,
             status=status.HTTP_200_OK,
+        )
+
+    def _get_ai_user(self):
+        """Get the AI steward user or return an error response."""
+        try:
+            return User.objects.get(email=AI_STEWARD_EMAIL)
+        except User.DoesNotExist:
+            return None
+
+    @action(detail=True, methods=['post', 'put'], url_path='propose')
+    def propose(self, request, pk=None):
+        """
+        Submit or update a review proposal for a submission.
+
+        POST: Create a new proposal (fails if one already exists).
+        PUT: Update an existing proposal (fails if none exists).
+        """
+        submission = get_object_or_404(
+            SubmittedContribution.objects.select_related(
+                'contribution_type', 'contribution_type__category', 'user',
+            ),
+            pk=pk,
+            state='pending',
+        )
+
+        is_update = request.method == 'PUT'
+
+        if is_update and submission.proposed_action is None:
+            return Response(
+                {'error': 'This submission has no proposal to update.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not is_update and submission.proposed_action is not None:
+            return Response(
+                {'error': 'This submission already has an active proposal.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        serializer = AIReviewProposeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        ai_user = self._get_ai_user()
+        if ai_user is None:
+            return Response(
+                {'error': 'AI steward user not found. Run migrations.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return self._validate_and_apply_proposal(
+            submission, serializer.validated_data, ai_user, is_update=is_update,
         )
 
     @action(detail=False, methods=['get'], url_path='reviewed')

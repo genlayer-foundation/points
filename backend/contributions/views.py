@@ -802,6 +802,9 @@ class StewardSubmissionFilterSet(FilterSet):
     exclude_state = CharFilter(method='filter_exclude_state')
     min_accepted_contributions = NumberFilter(method='filter_min_accepted_contributions')
     has_proposal = BooleanFilter(method='filter_has_proposal')
+    proposed_action = CharFilter(method='filter_proposed_action')
+    proposed_confidence = CharFilter(method='filter_proposed_confidence')
+    proposed_template = NumberFilter(method='filter_proposed_template')
     search = CharFilter(method='filter_search')
     category = CharFilter(method='filter_category')
     exclude_category = CharFilter(method='filter_exclude_category')
@@ -971,6 +974,24 @@ class StewardSubmissionFilterSet(FilterSet):
             return queryset.filter(proposed_action__isnull=True)
         return queryset
 
+    def filter_proposed_action(self, queryset, name, value):
+        """Filter by proposed action type (accept, reject, more_info)."""
+        if value:
+            return queryset.filter(proposed_action=value.lower())
+        return queryset
+
+    def filter_proposed_confidence(self, queryset, name, value):
+        """Filter by proposal confidence level (high, medium, low)."""
+        if value:
+            return queryset.filter(proposed_confidence=value.lower())
+        return queryset
+
+    def filter_proposed_template(self, queryset, name, value):
+        """Filter by proposal template ID."""
+        if value:
+            return queryset.filter(proposed_template_id=value)
+        return queryset
+
     class Meta:
         model = SubmittedContribution
         fields = ['state', 'contribution_type', 'user']
@@ -1023,6 +1044,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'proposed_by',
             'proposed_contribution_type',
             'proposed_user',
+            'proposed_template',
         ).prefetch_related('evidence_items', 'internal_notes')
 
         return queryset
@@ -1137,6 +1159,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         submission.proposed_highlight_description = ''
         submission.proposed_by = None
         submission.proposed_at = None
+        submission.proposed_confidence = None
+        submission.proposed_template = None
 
         submission.save()
 
@@ -1153,7 +1177,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 'action': action_name,
                 'points': serializer.validated_data.get('points'),
                 'staff_reply': serializer.validated_data.get('staff_reply', ''),
-                'template_id': serializer.validated_data.get('template_id'),
+                'template_id': serializer.validated_data['template_id'].id if serializer.validated_data.get('template_id') else None,
             },
         )
 
@@ -1582,6 +1606,12 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         submission.proposed_highlight_description = data.get('proposed_highlight_description', '')
         submission.proposed_by = request.user
         submission.proposed_at = timezone.now()
+        submission.proposed_confidence = data.get('confidence')
+
+        # Resolve template FK (PrimaryKeyRelatedField returns instance or None)
+        template = data.get('template_id')
+        submission.proposed_template = template
+
         submission.save()
 
         # Create CRM note recording the proposal
@@ -1604,7 +1634,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 'action': data['proposed_action'],
                 'points': data.get('proposed_points'),
                 'staff_reply': data.get('proposed_staff_reply', ''),
-                'template_id': data.get('template_id'),
+                'template_id': template.id if template else None,
+                'confidence': data.get('confidence'),
             },
         )
 

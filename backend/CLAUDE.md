@@ -211,7 +211,8 @@ GET    /api/v1/steward-submissions/daily-metrics/   (public - time-series data)
 # AI Review Agent
 GET    /api/v1/ai-review/
 GET    /api/v1/ai-review/{id}/
-POST   /api/v1/ai-review/{id}/propose/
+POST   /api/v1/ai-review/{id}/propose/     (create new proposal)
+PUT    /api/v1/ai-review/{id}/propose/     (update existing proposal)
 GET    /api/v1/ai-review/reviewed/
 GET    /api/v1/ai-review/templates/
 ```

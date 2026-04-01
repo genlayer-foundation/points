@@ -3,6 +3,7 @@ from rest_framework import serializers
 from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert
 from users.serializers import UserSerializer, LightUserSerializer
 from users.models import User
+from stewards.models import ReviewTemplate
 from .recaptcha_field import ReCaptchaField
 import decimal
 
@@ -551,7 +552,9 @@ class StewardSubmissionReviewSerializer(serializers.Serializer):
     staff_reply = serializers.CharField(required=False, allow_blank=True)
 
     # Template tracking for calibration
-    template_id = serializers.IntegerField(required=False, allow_null=True)
+    template_id = serializers.PrimaryKeyRelatedField(
+        queryset=ReviewTemplate.objects.all(), required=False, allow_null=True,
+    )
     
     def validate(self, data):
         """Validate the review action and required fields."""
@@ -622,10 +625,17 @@ class SubmissionProposeSerializer(serializers.Serializer):
     )
     proposed_staff_reply = serializers.CharField(required=False, allow_blank=True, default='')
     # Template tracking for calibration
-    template_id = serializers.IntegerField(required=False, allow_null=True)
+    template_id = serializers.PrimaryKeyRelatedField(
+        queryset=ReviewTemplate.objects.all(), required=False, allow_null=True,
+    )
     proposed_create_highlight = serializers.BooleanField(default=False, required=False)
     proposed_highlight_title = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
     proposed_highlight_description = serializers.CharField(required=False, allow_blank=True, default='')
+    confidence = serializers.ChoiceField(
+        choices=['high', 'medium', 'low'],
+        required=False,
+        allow_null=True,
+    )
 
     def validate(self, data):
         action = data.get('proposed_action')
@@ -673,6 +683,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
     # Proposal fields
     proposed_by_details = serializers.SerializerMethodField()
     has_proposal = serializers.SerializerMethodField()
+    proposed_template_name = serializers.SerializerMethodField()
     notes_count = serializers.SerializerMethodField()
 
     class Meta:
@@ -686,6 +697,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                   'proposed_staff_reply', 'proposed_create_highlight',
                   'proposed_highlight_title', 'proposed_highlight_description',
                   'proposed_by', 'proposed_at', 'proposed_by_details', 'has_proposal',
+                  'proposed_confidence', 'proposed_template', 'proposed_template_name',
                   'notes_count',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution',
                   'mission']
@@ -745,6 +757,11 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
 
     def get_has_proposal(self, obj):
         return obj.proposed_action is not None
+
+    def get_proposed_template_name(self, obj):
+        if obj.proposed_template:
+            return obj.proposed_template.label
+        return None
 
     def get_notes_count(self, obj):
         # Use prefetched data if available

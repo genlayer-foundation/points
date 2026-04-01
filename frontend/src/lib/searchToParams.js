@@ -125,6 +125,40 @@ export function searchToParams(parsed, options = {}) {
     params.min_accepted_contributions = filters.minContributions;
   }
 
+  // proposal → proposed_action (accept, reject, more_info)
+  if (filters.proposal) {
+    const actionMap = {
+      'accept': 'accept',
+      'reject': 'reject',
+      'more_info': 'more_info',
+      'more-info': 'more_info',
+      'info': 'more_info',
+    };
+    const mapped = actionMap[filters.proposal.value.toLowerCase()];
+    if (mapped) {
+      params.proposed_action = mapped;
+    }
+  }
+
+  // confidence → proposed_confidence
+  if (filters.confidence) {
+    params.proposed_confidence = filters.confidence.value.toLowerCase();
+  }
+
+  // template → proposed_template (by name/label → ID lookup)
+  if (filters.template) {
+    const { templates = [] } = options;
+    const templateValue = filters.template.value.toLowerCase();
+    const template = templates.find(t =>
+      t.label?.toLowerCase() === templateValue ||
+      t.label?.toLowerCase().replace(/\s+/g, '-') === templateValue ||
+      String(t.id) === filters.template.value
+    );
+    if (template) {
+      params.proposed_template = template.id;
+    }
+  }
+
   // sort → ordering
   if (filters.sort) {
     const sortMap = {

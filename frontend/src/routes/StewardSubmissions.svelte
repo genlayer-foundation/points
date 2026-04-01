@@ -196,7 +196,8 @@
       const params = searchToParams(parsed, {
         contributionTypes,
         stewardsList,
-        currentUserId
+        currentUserId,
+        templates
       });
 
       // Add status from dropdown (overrides search query if present)
@@ -489,6 +490,7 @@
           bind:value={searchQuery}
           {contributionTypes}
           {stewardsList}
+          {templates}
           onSearch={handleSearchChange}
           placeholder="type:blog-post assigned:me has:proposal..."
         />
