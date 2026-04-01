@@ -8,7 +8,7 @@
   import { showError } from "../lib/toastStore";
 
   // State management
-  let networkStats = $state({ asimov: { total: 0, onChainActive: 0 }, bradbury: { total: 0, onChainActive: 0 } });
+  let networkStats = $state({ asimov: { total: 0 }, bradbury: { total: 0 } });
   let networks = $state([]);
   let asimovLeaderboard = $state([]);
   let bradburyLeaderboard = $state([]);
@@ -25,7 +25,6 @@
         bradburyLeaderboardRes,
         waitlistLeaderboardRes,
         networksRes,
-        walletStatsRes,
       ] = await Promise.all([
         leaderboardAPI.getLeaderboardByType("validator", "asc", {
           network: "asimov",
@@ -35,7 +34,6 @@
         }),
         leaderboardAPI.getWaitlistTop(5),
         validatorsAPI.getNetworks().catch(() => ({ data: [] })),
-        validatorsAPI.getWalletStats().catch(() => ({ data: null })),
       ]);
 
       // Process leaderboards — full list for count, top 5 for display
@@ -45,8 +43,8 @@
       const bradburyFull = Array.isArray(bradburyLeaderboardRes.data)
         ? bradburyLeaderboardRes.data
         : [];
-      asimovLeaderboard = asimovFull.slice(0, 5);
-      bradburyLeaderboard = bradburyFull.slice(0, 5);
+      asimovLeaderboard = asimovFull.slice(0, 5).map((entry, i) => ({ ...entry, rank: i + 1 }));
+      bradburyLeaderboard = bradburyFull.slice(0, 5).map((entry, i) => ({ ...entry, rank: i + 1 }));
       waitlistLeaderboard = Array.isArray(waitlistLeaderboardRes.data)
         ? waitlistLeaderboardRes.data
         : [];
@@ -68,17 +66,10 @@
         bradbury.explorer_url = "https://explorer.testnet-chain.genlayer.com/";
       networks = [asimov, bradbury];
 
-      // Validator counts: on-chain active from wallet stats, total from leaderboard entries
-      const wStats = walletStatsRes.data?.network_stats || {};
+      // Validator count per network from leaderboard entries (active on-chain validators)
       networkStats = {
-        asimov: {
-          total: asimovFull.length,
-          onChainActive: wStats.asimov?.active ?? 0,
-        },
-        bradbury: {
-          total: bradburyFull.length,
-          onChainActive: wStats.bradbury?.active ?? 0,
-        },
+        asimov: { total: asimovFull.length },
+        bradbury: { total: bradburyFull.length },
       };
 
       loading = false;
@@ -247,13 +238,9 @@
               <span
                 class="text-[32px] font-display font-medium leading-[25px] text-[#2563eb]"
                 style="letter-spacing: -0.96px;"
-                >{networkStats.asimov.onChainActive}</span
+                >{networkStats.asimov.total}</span
               >
-              <span class="text-[13px] text-gray-500">Active On-Chain</span>
-            </div>
-            <div class="flex items-baseline gap-1.5 mt-1.5">
-              <span class="text-[14px] font-display font-medium text-gray-400">{networkStats.asimov.total}</span>
-              <span class="text-[12px] text-gray-400">total participants</span>
+              <span class="text-[13px] text-gray-500">Active Validators</span>
             </div>
           </div>
 
@@ -379,13 +366,9 @@
               <span
                 class="text-[32px] font-display font-medium leading-[25px] text-[#0284c7]"
                 style="letter-spacing: -0.96px;"
-                >{networkStats.bradbury.onChainActive}</span
+                >{networkStats.bradbury.total}</span
               >
-              <span class="text-[13px] text-gray-500">Active On-Chain</span>
-            </div>
-            <div class="flex items-baseline gap-1.5 mt-1.5">
-              <span class="text-[14px] font-display font-medium text-gray-400">{networkStats.bradbury.total}</span>
-              <span class="text-[12px] text-gray-400">total participants</span>
+              <span class="text-[13px] text-gray-500">Active Validators</span>
             </div>
           </div>
 

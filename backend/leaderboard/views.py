@@ -103,17 +103,13 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 queryset = queryset.filter(type='validator')
 
             # Handle network filtering for validators
-            # Include validators with wallets on the specified network.
-            # For asimov (default network), also include validators with no wallets.
+            # Only include validators with active wallets on the specified network.
             network = self.request.query_params.get('network')
             if network and leaderboard_type == 'validator':
                 network_q = Q(
                     user__validator__validator_wallets__network=network,
                     user__validator__validator_wallets__status='active'
                 )
-                if network == 'asimov':
-                    # Also include validators with no wallets (new signups not yet synced)
-                    network_q = network_q | ~Q(user__validator__validator_wallets__isnull=False)
                 queryset = queryset.filter(network_q).distinct()
 
         # Handle rank ordering
