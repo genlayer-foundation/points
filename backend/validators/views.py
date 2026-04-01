@@ -470,29 +470,6 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         }, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=False, methods=['get'])
-    def stats(self, request):
-        """
-        Lightweight endpoint returning validator wallet status counts per network.
-        No wallet data is serialized — just aggregated counts.
-        """
-        network_breakdown = ValidatorWallet.objects.values(
-            'network', 'status'
-        ).annotate(count=Count('id')).order_by('network', 'status')
-
-        network_stats = {}
-        for entry in network_breakdown:
-            net = entry['network']
-            if net not in network_stats:
-                network_stats[net] = {
-                    'total': 0, 'active': 0,
-                    'quarantined': 0, 'banned': 0, 'inactive': 0,
-                }
-            network_stats[net][entry['status']] = entry['count']
-            network_stats[net]['total'] += entry['count']
-
-        return Response({'network_stats': network_stats})
-
-    @action(detail=False, methods=['get'])
     def networks(self, request):
         """Return available network names and explorer URLs."""
         networks = []
