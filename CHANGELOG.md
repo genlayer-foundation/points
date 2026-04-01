@@ -7,6 +7,18 @@ All notable user-facing changes to this project will be documented in this file.
 - Direct Cloudinary image upload from Django admin for featured content (ce4c157)
 - Responsive hero banner images for tablet and mobile (e5c01b5)
 
+## 2026-04-01 — Per-Network Validator Leaderboards
+
+### Added
+- Network tabs (Asimov | Bradbury) on `/validators/leaderboard` page with lazy-loading per tab
+- Deep-links from testnets overview cards to the matching leaderboard tab
+- Validator status breakdown on testnets page: active, quarantined, banned, inactive counts per network
+- URL query param support (`?network=asimov`) for direct-linking to a network tab
+
+### Changed
+- Testnets overview now shows total validator count from wallet API `network_stats` instead of leaderboard entry count
+- Leaderboard API calls on testnets overview limited to top 5 (was fetching all entries)
+
 ## 2026-04-01 — Fix Overview Leaderboards
 
 ### Fixed
