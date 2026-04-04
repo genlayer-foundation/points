@@ -53,6 +53,7 @@
   import ReferralProgram from './routes/ReferralProgram.svelte';
   import HowItWorks from './routes/HowItWorks.svelte';
   import StartupRequestDetail from './routes/StartupRequestDetail.svelte';
+  import ContributionPreview from './routes/ContributionPreview.svelte';
   import GlobalDashboard from './components/GlobalDashboard.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
 
@@ -104,6 +105,9 @@
     
     // Shared routes
     '/participant/:address': Profile,
+    '/contribution/:id': ContributionPreview,
+    '/builders/contribution/:id': ContributionPreview,
+    '/validators/contribution/:id': ContributionPreview,
     '/contribution-type/:id': ContributionTypeDetail,
     '/badge/:id': BadgeDetail,
     '/submit-contribution': SubmitContribution,

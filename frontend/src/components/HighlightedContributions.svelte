@@ -191,7 +191,7 @@
       {#each highlights as highlight}
         <ContributionCard
           contribution={{
-            id: highlight.id,
+            id: highlight.contribution,
             contribution_type: highlight.contribution_type,
             contribution_type_name: highlight.contribution_type_name,
             contribution_type_details: {

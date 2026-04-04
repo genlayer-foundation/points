@@ -111,16 +111,9 @@
                     null}
                 {@const count = contrib.count || 1}
                 {@const hasHighlight = !!contrib.highlight}
+                {@const realId = contrib.grouped_contributions?.[0]?.id || contrib.id}
                 <button
-                    onclick={() => {
-                        if (hasHighlight) {
-                            push(`/badge/${contrib.id}`);
-                        } else {
-                            push(
-                                `/contribution-type/${typeof contrib.contribution_type === "object" ? contrib.contribution_type.id : contrib.contribution_type}`,
-                            );
-                        }
-                    }}
+                    onclick={() => push(`/contribution/${realId}`)}
                     class="flex-shrink-0 w-[300px] h-[180px] rounded-[8px] p-4 flex flex-col gap-2 text-left hover:shadow-md transition-shadow cursor-pointer"
                     style="border: 1px solid #f5f5f5;"
                 >
