@@ -345,6 +345,9 @@ const routes = {
 
   // Shared
   '/participant/:address': Profile,
+  '/contribution/:id': ContributionPreview,          // Contribution detail page (highlighted & normal)
+  '/builders/contribution/:id': ContributionPreview,  // Builder-scoped contribution detail
+  '/validators/contribution/:id': ContributionPreview, // Validator-scoped contribution detail
   '/contribution-type/:id': ContributionTypeDetail,
   '/badge/:id': BadgeDetail,
   '/submit-contribution': SubmitContribution,

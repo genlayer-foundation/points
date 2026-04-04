@@ -83,7 +83,7 @@
         {@const category = highlight.contribution_type_category || 'validator'}
         {@const colors = getCategoryColors(category)}
         <button
-          onclick={() => push(`/participant/${highlight.user_address}`)}
+          onclick={() => push(`/contribution/${highlight.contribution}`)}
           class="flex-shrink-0 w-[300px] h-[180px] rounded-[8px] p-4 flex flex-col gap-2 text-left hover:shadow-md transition-shadow cursor-pointer"
           style="border: 1px solid #f5f5f5;"
         >
