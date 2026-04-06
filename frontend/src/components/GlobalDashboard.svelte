@@ -25,6 +25,7 @@
         bradburyLeaderboardRes,
         waitlistLeaderboardRes,
         networksRes,
+        walletsRes,
       ] = await Promise.all([
         leaderboardAPI.getLeaderboardByType("validator", "asc", {
           network: "asimov",
@@ -34,6 +35,7 @@
         }),
         leaderboardAPI.getWaitlistTop(5),
         validatorsAPI.getNetworks().catch(() => ({ data: [] })),
+        validatorsAPI.getAllValidatorWallets().catch(() => ({ data: {} })),
       ]);
 
       // Process leaderboards — full list for count, top 5 for display
@@ -66,10 +68,11 @@
         bradbury.explorer_url = "https://explorer.testnet-chain.genlayer.com/";
       networks = [asimov, bradbury];
 
-      // Validator count per network from leaderboard entries (active on-chain validators)
+      // Validator count per network from actual on-chain wallet data
+      const netStats = walletsRes.data?.network_stats || {};
       networkStats = {
-        asimov: { total: asimovFull.length },
-        bradbury: { total: bradburyFull.length },
+        asimov: { total: netStats.asimov?.active || 0 },
+        bradbury: { total: netStats.bradbury?.active || 0 },
       };
 
       loading = false;
