@@ -1,7 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import { push } from "svelte-spa-router";
-  import { getCurrentUser, updateUserProfile, imageAPI, validatorsAPI, socialAPI } from "../lib/api";
+  import { getCurrentUser, updateUserProfile, imageAPI, validatorsAPI } from "../lib/api";
   import { authState } from "../lib/auth";
   import ImageCropper from "../components/ImageCropper.svelte";
   import { userStore } from "../lib/userStore";
@@ -337,9 +337,6 @@
     user = updatedUser;
   }
 
-  async function handleSocialDisconnected(updatedUser) {
-    user = updatedUser;
-  }
 </script>
 
 <div class="max-w-[1024px] mx-auto px-4 py-8">
@@ -599,12 +596,9 @@
                   <SocialLink
                     platform="github"
                     platformLabel="GitHub"
-
                     connection={user.github_connection}
                     initiateUrl="/api/auth/github/"
-                    disconnectFn={socialAPI.disconnectGitHub}
                     onLinked={handleSocialLinked}
-                    onDisconnected={handleSocialDisconnected}
                   />
                 </div>
 
@@ -613,12 +607,9 @@
                   <SocialLink
                     platform="twitter"
                     platformLabel="X"
-
                     connection={user.twitter_connection}
                     initiateUrl="/api/auth/twitter/"
-                    disconnectFn={socialAPI.disconnectTwitter}
                     onLinked={handleSocialLinked}
-                    onDisconnected={handleSocialDisconnected}
                   />
                 </div>
 
@@ -627,12 +618,9 @@
                   <SocialLink
                     platform="discord"
                     platformLabel="Discord"
-
                     connection={user.discord_connection}
                     initiateUrl="/api/auth/discord/"
-                    disconnectFn={socialAPI.disconnectDiscord}
                     onLinked={handleSocialLinked}
-                    onDisconnected={handleSocialDisconnected}
                   />
                 </div>
               </div>

@@ -173,9 +173,6 @@ export const githubAPI = {
 
 // Social connections API
 export const socialAPI = {
-  disconnectGitHub: () => api.post('/users/github/disconnect/'),
-  disconnectTwitter: () => api.post('/users/twitter/disconnect/'),
-  disconnectDiscord: () => api.post('/users/discord/disconnect/'),
   checkDiscordGuild: () => api.get('/users/discord/check-guild/'),
 };
 

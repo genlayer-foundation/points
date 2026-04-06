@@ -8,14 +8,11 @@
     platformLabel = '',
     connection = null,
     initiateUrl = '',
-    disconnectFn = null,
     onLinked = () => {},
-    onDisconnected = () => {},
     compact = false,
   } = $props();
 
   let isLinking = $state(false);
-  let isDisconnecting = $state(false);
 
   const storageKey = `oauth_result_${platform}`;
   // Global flag per platform to prevent duplicate toasts across multiple SocialLink instances
@@ -108,20 +105,7 @@
     window.open(oauthUrl, '_blank');
   }
 
-  async function disconnectAccount() {
-    if (!disconnectFn) return;
-    isDisconnecting = true;
-    try {
-      await disconnectFn();
-      const currentUser = await getCurrentUser();
-      showSuccess(`${platformLabel} account disconnected`);
-      onDisconnected(currentUser);
-    } catch (err) {
-      showError(`Failed to disconnect ${platformLabel} account`);
-    } finally {
-      isDisconnecting = false;
-    }
-  }
+
 </script>
 
 {#if compact}
@@ -152,31 +136,12 @@
 {:else}
   <!-- Full mode: for ProfileEdit -->
   {#if connection}
-    <div class="flex items-center gap-2">
-      <div
-        class="flex-1 px-4 py-3 rounded-[8px] text-white flex items-center gap-2.5"
-        style="background-color: {config.color};"
-      >
-        <span class="flex-shrink-0 opacity-90">{@html config.icon}</span>
-        <span class="font-medium text-sm">{connection.platform_username}</span>
-      </div>
-      <button
-        onclick={disconnectAccount}
-        disabled={isDisconnecting}
-        class="px-3 py-3 text-gray-400 hover:text-red-500 transition-colors rounded-[8px] border border-gray-200 hover:border-red-200"
-        title="Disconnect {platformLabel}"
-      >
-        {#if isDisconnecting}
-          <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        {:else}
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        {/if}
-      </button>
+    <div
+      class="px-4 py-3 rounded-[8px] text-white flex items-center gap-2.5"
+      style="background-color: {config.color};"
+    >
+      <span class="flex-shrink-0 opacity-90">{@html config.icon}</span>
+      <span class="font-medium text-sm">{connection.platform_username}</span>
     </div>
     {#if connection.linked_at}
       <p class="text-xs text-gray-400 mt-1">

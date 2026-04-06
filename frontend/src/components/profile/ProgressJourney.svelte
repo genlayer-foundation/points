@@ -4,7 +4,6 @@
     import { showWarning, showError } from "../../lib/toastStore";
     import { FAUCET_URL } from "../../lib/config";
     import SocialLink from "../SocialLink.svelte";
-    import { socialAPI } from "../../lib/api";
 
     let {
         testnetBalance = null,
@@ -412,7 +411,6 @@
                         platformLabel="GitHub"
                         connection={null}
                         initiateUrl="/api/auth/github/"
-                        disconnectFn={socialAPI.disconnectGitHub}
                         onLinked={onGitHubLinked}
                     />
                 {/if}

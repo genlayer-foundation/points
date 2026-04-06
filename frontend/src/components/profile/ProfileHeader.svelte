@@ -1,7 +1,6 @@
 <script>
   import { push } from "svelte-spa-router";
   import { showSuccess } from "../../lib/toastStore";
-  import { socialAPI } from "../../lib/api";
   import Avatar from "../Avatar.svelte";
   import CategoryIcon from "../portal/CategoryIcon.svelte";
   import SocialLink from "../SocialLink.svelte";
@@ -188,9 +187,7 @@
             platformLabel="GitHub"
             connection={participant?.github_connection}
             initiateUrl="/api/auth/github/"
-            disconnectFn={socialAPI.disconnectGitHub}
             onLinked={onParticipantUpdated}
-            onDisconnected={onParticipantUpdated}
             compact={true}
           />
           <SocialLink
@@ -198,9 +195,7 @@
             platformLabel="X"
             connection={participant?.twitter_connection}
             initiateUrl="/api/auth/twitter/"
-            disconnectFn={socialAPI.disconnectTwitter}
             onLinked={onParticipantUpdated}
-            onDisconnected={onParticipantUpdated}
             compact={true}
           />
           <SocialLink
@@ -208,9 +203,7 @@
             platformLabel="Discord"
             connection={participant?.discord_connection}
             initiateUrl="/api/auth/discord/"
-            disconnectFn={socialAPI.disconnectDiscord}
             onLinked={onParticipantUpdated}
-            onDisconnected={onParticipantUpdated}
             compact={true}
           />
         {:else}
