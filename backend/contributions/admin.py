@@ -643,9 +643,9 @@ class MissionAdmin(admin.ModelAdmin):
 
     def get_status(self, obj):
         if obj.is_active():
-            return format_html('<span style="color: green;">●</span> Active')
+            return format_html('<span style="color: {};">●</span> {}', 'green', 'Active')
         else:
-            return format_html('<span style="color: red;">●</span> Inactive')
+            return format_html('<span style="color: {};">●</span> {}', 'red', 'Inactive')
     get_status.short_description = 'Status'
 
 
@@ -678,9 +678,9 @@ class StartupRequestAdmin(admin.ModelAdmin):
 
     def get_status(self, obj):
         if obj.is_active:
-            return format_html('<span style="color: green;">●</span> Active')
+            return format_html('<span style="color: {};">●</span> {}', 'green', 'Active')
         else:
-            return format_html('<span style="color: red;">●</span> Inactive')
+            return format_html('<span style="color: {};">●</span> {}', 'red', 'Inactive')
     get_status.short_description = 'Status'
 
 

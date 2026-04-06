@@ -808,6 +808,7 @@ class StewardSubmissionFilterSet(FilterSet):
     search = CharFilter(method='filter_search')
     category = CharFilter(method='filter_category')
     exclude_category = CharFilter(method='filter_exclude_category')
+    mission = CharFilter(method='filter_mission')
 
     def filter_search(self, queryset, name, value):
         """General search across user name/email/address, notes, and evidence URLs."""
@@ -990,6 +991,14 @@ class StewardSubmissionFilterSet(FilterSet):
         """Filter by proposal template ID."""
         if value:
             return queryset.filter(proposed_template_id=value)
+        return queryset
+
+    def filter_mission(self, queryset, name, value):
+        """Filter by mission ID, or 'none' for submissions without a mission."""
+        if value == 'none' or value == 'null':
+            return queryset.filter(mission__isnull=True)
+        elif value:
+            return queryset.filter(mission_id=value)
         return queryset
 
     class Meta:
