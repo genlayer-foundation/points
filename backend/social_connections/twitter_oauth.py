@@ -1,6 +1,6 @@
 """Twitter/X OAuth views — thin wrappers around TwitterOAuthService."""
 
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from django.conf import settings
 from django.shortcuts import redirect
@@ -12,7 +12,7 @@ from rest_framework import status
 
 from tally.middleware.logging_utils import get_app_logger
 
-from .oauth_service import TwitterOAuthService
+from .oauth_service import TwitterOAuthService, validate_redirect_url
 
 logger = get_app_logger('twitter_oauth')
 service = TwitterOAuthService()
@@ -26,7 +26,7 @@ def twitter_oauth_initiate(request):
     code_challenge = service.generate_code_challenge(code_verifier)
 
     # Store the redirect URL so callback can send the user back to the frontend
-    redirect_url = request.GET.get('redirect', settings.FRONTEND_URL)
+    redirect_url = validate_redirect_url(request.GET.get('redirect', settings.FRONTEND_URL))
 
     # Store code_verifier and redirect_url in session to keep the state token small.
     # Twitter has URL length limits and a large state token causes invalid_request errors.
@@ -34,6 +34,9 @@ def twitter_oauth_initiate(request):
     request.session['twitter_oauth_redirect_url'] = redirect_url
 
     state = service.generate_state(request.user.id)
+    if len(state) > 500:
+        logger.error("Twitter OAuth state exceeded X's 500 character limit")
+        return Response({'detail': 'Unable to initiate Twitter OAuth'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     params = {
         'response_type': 'code',
@@ -45,17 +48,18 @@ def twitter_oauth_initiate(request):
         'code_challenge_method': 'S256',
     }
 
-    return redirect(f"{service.authorize_url}?{urlencode(params)}")
+    return redirect(f"{service.authorize_url}?{urlencode(params, quote_via=quote)}")
 
 
 @csrf_exempt
 def twitter_oauth_callback(request):
     """Handle Twitter OAuth callback.
-    Injects code_verifier and redirect_url from session into GET params
-    so the base handle_callback can find them in state_data."""
+    Recovers code_verifier and redirect_url from the session and passes
+    them to the shared callback handler."""
+    session = getattr(request, 'session', None)
     # Recover code_verifier and redirect_url from session (stored during initiate)
-    code_verifier = request.session.pop('twitter_oauth_code_verifier', '')
-    redirect_url = request.session.pop('twitter_oauth_redirect_url', '')
+    code_verifier = session.pop('twitter_oauth_code_verifier', '') if session else ''
+    redirect_url = session.pop('twitter_oauth_redirect_url', '') if session else ''
     return service.handle_callback(request, session_data={
         'code_verifier': code_verifier,
         'redirect_url': redirect_url,
