@@ -267,8 +267,7 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['name', 'node_version_asimov', 'node_version_bradbury', 'email', 'description', 'website',
-                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
-                  'github_username']
+                  'telegram_handle', 'linkedin_handle']
     
     def validate_email(self, value):
         """Validate email with DNS checks and block disposable providers"""
@@ -560,21 +559,33 @@ class UserSerializer(serializers.ModelSerializer):
     # Working groups
     working_groups = serializers.SerializerMethodField()
 
+    # Social connections
+    github_connection = serializers.SerializerMethodField()
+    twitter_connection = serializers.SerializerMethodField()
+    discord_connection = serializers.SerializerMethodField()
+
+    # Backward-compat computed fields for github
+    github_username = serializers.SerializerMethodField()
+    github_linked_at = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward',
                   'creator', 'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at',
                   # Profile fields
                   'description', 'banner_image_url', 'profile_image_url', 'website',
-                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle', 'github_username', 'github_linked_at',
+                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
+                  'github_username', 'github_linked_at',
                   'email', 'is_email_verified',
                   # Ban status
                   'is_banned', 'ban_reason',
+                  # Social connections
+                  'github_connection', 'twitter_connection', 'discord_connection',
                   # Referral fields
                   'referral_code', 'referred_by_info', 'total_referrals', 'referral_details',
                   # Working groups
                   'working_groups']
-        read_only_fields = ['id', 'created_at', 'updated_at', 'referral_code', 'github_linked_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'referral_code']
     
     def get_validator(self, obj):
         """
@@ -713,6 +724,39 @@ class UserSerializer(serializers.ModelSerializer):
             }
             for m in memberships
         ]
+
+    def _get_social_connection(self, obj, related_name, serializer_class):
+        try:
+            connection = getattr(obj, related_name)
+            return serializer_class(connection).data
+        except Exception:
+            return None
+
+    def get_github_connection(self, obj):
+        from social_connections.serializers import GitHubConnectionSerializer
+        return self._get_social_connection(obj, 'githubconnection', GitHubConnectionSerializer)
+
+    def get_twitter_connection(self, obj):
+        from social_connections.serializers import TwitterConnectionSerializer
+        return self._get_social_connection(obj, 'twitterconnection', TwitterConnectionSerializer)
+
+    def get_discord_connection(self, obj):
+        from social_connections.serializers import DiscordConnectionSerializer
+        return self._get_social_connection(obj, 'discordconnection', DiscordConnectionSerializer)
+
+    def get_github_username(self, obj):
+        """Backward compat: read from GitHubConnection if available."""
+        try:
+            return obj.githubconnection.platform_username
+        except Exception:
+            return obj.github_username or ''
+
+    def get_github_linked_at(self, obj):
+        """Backward compat: read from GitHubConnection if available."""
+        try:
+            return obj.githubconnection.linked_at
+        except Exception:
+            return obj.github_linked_at
 
 
 class UserCreateSerializer(serializers.ModelSerializer):

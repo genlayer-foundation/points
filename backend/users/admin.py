@@ -8,6 +8,7 @@ from contributions.models import Contribution
 from validators.admin import ValidatorInline
 from builders.admin import BuilderInline
 from stewards.admin import StewardInline
+from social_connections.admin import GitHubConnectionInline, TwitterConnectionInline, DiscordConnectionInline
 from validators.models import Validator
 from builders.models import Builder
 from stewards.models import Steward
@@ -56,7 +57,6 @@ class UserAdmin(BaseUserAdmin):
         (_('Personal info'), {'fields': ('name', 'address', 'description')}),
         (_('Profile Images'), {'fields': ('profile_image_url', 'banner_image_url', 'profile_image_public_id', 'banner_image_public_id')}),
         (_('Contact & Social'), {'fields': ('website', 'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle')}),
-        (_('GitHub Integration'), {'fields': ('github_username', 'github_user_id', 'github_linked_at')}),
         (_('Referral System'), {'fields': ('referral_code', 'referred_by')}),
         (_('Visibility'), {'fields': ('visible',)}),
         (_('Ban Status'), {'fields': ('is_banned', 'ban_reason', 'banned_at', 'banned_by')}),
@@ -72,7 +72,8 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
     
-    inlines = [ContributionInline, ValidatorInline, BuilderInline, StewardInline]
+    inlines = [ContributionInline, ValidatorInline, BuilderInline, StewardInline,
+                GitHubConnectionInline, TwitterConnectionInline, DiscordConnectionInline]
     actions = ['set_as_builder', 'set_as_validator', 'set_as_steward', 'disconnect_github', 'ban_users', 'unban_users']
     
     def set_as_builder(self, request, queryset):

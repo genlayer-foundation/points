@@ -3,7 +3,8 @@
     import { onMount } from "svelte";
     import { showWarning, showError } from "../../lib/toastStore";
     import { FAUCET_URL } from "../../lib/config";
-    import GitHubLink from "../GitHubLink.svelte";
+    import SocialLink from "../SocialLink.svelte";
+    import { socialAPI } from "../../lib/api";
 
     let {
         testnetBalance = null,
@@ -406,10 +407,13 @@
                         Connected
                     </div>
                 {:else}
-                    <GitHubLink
+                    <SocialLink
+                        platform="github"
+                        platformLabel="GitHub"
+                        connection={null}
+                        initiateUrl="/api/auth/github/"
+                        disconnectFn={socialAPI.disconnectGitHub}
                         onLinked={onGitHubLinked}
-                        buttonClass="flex items-center gap-[6px] px-[12px] py-[6px] bg-[#ee8521] rounded-[6px] text-[14px] font-['Switzer'] font-medium text-white tracking-[0.28px] hover:bg-[#d6771e] transition-colors whitespace-nowrap"
-                        buttonText="Connect GitHub"
                     />
                 {/if}
             </div>
