@@ -1,10 +1,20 @@
 <script>
-  import { onMount } from 'svelte';
   import LeaderboardTable from '../components/LeaderboardTable.svelte';
   import { leaderboardAPI } from '../lib/api';
+  import { replace } from 'svelte-spa-router';
   import { currentCategory, categoryTheme } from '../stores/category.js';
-  
+
   const PAGE_SIZE = 50;
+  const VALID_NETWORKS = ['asimov', 'bradbury'];
+
+  // Eager init from URL hash to avoid $effect race condition on deep-link
+  let selectedNetwork = $state(
+    (() => {
+      const p = new URLSearchParams(window.location.hash.split('?')[1] || '');
+      const n = p.get('network');
+      return VALID_NETWORKS.includes(n) ? n : 'asimov';
+    })()
+  );
 
   // State management
   let leaderboard = $state([]);
@@ -25,7 +35,7 @@
     })
   );
 
-  // Fetch data based on category
+  // Fetch data based on category and network
   async function fetchLeaderboard() {
     try {
       loading = true;
@@ -35,12 +45,19 @@
       let response;
       if ($currentCategory === 'global') {
         response = await leaderboardAPI.getLeaderboard({ limit: PAGE_SIZE, offset: 0 });
+      } else if ($currentCategory === 'validator') {
+        response = await leaderboardAPI.getLeaderboardByType('validator', 'asc', { network: selectedNetwork, limit: PAGE_SIZE, offset: 0 });
       } else {
         response = await leaderboardAPI.getLeaderboardByType($currentCategory, 'asc', { limit: PAGE_SIZE, offset: 0 });
       }
 
       const data = response.data || [];
-      leaderboard = data;
+      // Re-rank client-side for per-network filtering (backend returns global ranks)
+      if ($currentCategory === 'validator') {
+        leaderboard = data.map((entry, i) => ({ ...entry, rank: i + 1 }));
+      } else {
+        leaderboard = data;
+      }
       offset = data.length;
       hasMore = data.length >= PAGE_SIZE;
     } catch (err) {
@@ -57,12 +74,18 @@
       let response;
       if ($currentCategory === 'global') {
         response = await leaderboardAPI.getLeaderboard({ limit: PAGE_SIZE, offset });
+      } else if ($currentCategory === 'validator') {
+        response = await leaderboardAPI.getLeaderboardByType('validator', 'asc', { network: selectedNetwork, limit: PAGE_SIZE, offset });
       } else {
         response = await leaderboardAPI.getLeaderboardByType($currentCategory, 'asc', { limit: PAGE_SIZE, offset });
       }
 
       const data = response.data || [];
       leaderboard = [...leaderboard, ...data];
+      // Re-rank full array for validators (per-network ranks)
+      if ($currentCategory === 'validator') {
+        leaderboard = leaderboard.map((e, i) => ({ ...e, rank: i + 1 }));
+      }
       offset += data.length;
       hasMore = data.length >= PAGE_SIZE;
     } catch (err) {
@@ -72,14 +95,16 @@
     }
   }
 
-  // Fetch on mount and when category changes
-  onMount(() => {
-    fetchLeaderboard();
-  });
+  function selectNetwork(network) {
+    selectedNetwork = network;
+    replace(`/validators/leaderboard?network=${network}`);
+  }
 
-  // Re-fetch when category changes
+  // Single effect: re-fetch when category or network changes
   $effect(() => {
-    if ($currentCategory) {
+    const cat = $currentCategory;
+    const net = selectedNetwork;
+    if (cat) {
       fetchLeaderboard();
     }
   });
@@ -101,6 +126,7 @@
          $currentCategory === 'steward' ? 'stewards' : 'participants'}
       </p>
     </div>
+
     
     {#if !loading && !error && leaderboard.length > 0}
       <div class="w-full sm:w-64">
@@ -122,7 +148,25 @@
       </div>
     {/if}
   </div>
-  
+
+  {#if $currentCategory === 'validator'}
+    <div class="flex gap-2" role="tablist" aria-label="Network filter">
+      {#each VALID_NETWORKS as net}
+        <button
+          role="tab"
+          aria-selected={selectedNetwork === net}
+          class="px-4 py-1.5 rounded-full text-sm font-medium transition-colors
+            {selectedNetwork === net
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}"
+          onclick={() => selectNetwork(net)}
+        >
+          {net.charAt(0).toUpperCase() + net.slice(1)}
+        </button>
+      {/each}
+    </div>
+  {/if}
+
   {#if loading}
     <div class="flex justify-center items-center p-12">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -146,6 +190,10 @@
       {#if searchQuery && filteredLeaderboard.length === 0}
         <div class="p-6 text-center text-gray-500">
           No participants found matching "{searchQuery}"
+        </div>
+      {:else if !searchQuery && leaderboard.length === 0 && $currentCategory === 'validator'}
+        <div class="p-8 text-center text-gray-500">
+          <p class="text-sm">No validators on {selectedNetwork.charAt(0).toUpperCase() + selectedNetwork.slice(1)} yet.</p>
         </div>
       {:else}
         <div class="px-4 py-3 border-b border-gray-200">

@@ -1,14 +1,15 @@
 <script>
   import { onMount } from "svelte";
   import { push } from "svelte-spa-router";
-  import { format } from "date-fns";
   import TopLeaderboard from "./TopLeaderboard.svelte";
-  import CategoryIcon from "./portal/CategoryIcon.svelte";
   import { leaderboardAPI, validatorsAPI } from "../lib/api";
   import { showError } from "../lib/toastStore";
 
   // State management
-  let networkStats = $state({ asimov: { total: 0 }, bradbury: { total: 0 } });
+  let networkStats = $state({
+    asimov: { total: 0, active: 0, quarantined: 0, banned: 0, inactive: 0 },
+    bradbury: { total: 0, active: 0, quarantined: 0, banned: 0, inactive: 0 },
+  });
   let networks = $state([]);
   let asimovLeaderboard = $state([]);
   let bradburyLeaderboard = $state([]);
@@ -25,26 +26,30 @@
         bradburyLeaderboardRes,
         waitlistLeaderboardRes,
         networksRes,
+        walletsRes,
       ] = await Promise.all([
         leaderboardAPI.getLeaderboardByType("validator", "asc", {
           network: "asimov",
+          limit: 5,
         }),
         leaderboardAPI.getLeaderboardByType("validator", "asc", {
           network: "bradbury",
+          limit: 5,
         }),
         leaderboardAPI.getWaitlistTop(5),
         validatorsAPI.getNetworks().catch(() => ({ data: [] })),
+        validatorsAPI.getAllValidatorWallets().catch(() => ({ data: { network_stats: {} } })),
       ]);
 
-      // Process leaderboards — full list for count, top 5 for display
-      const asimovFull = Array.isArray(asimovLeaderboardRes.data)
+      // Process leaderboards — top 5 for display (limit:5 sent to API)
+      const asimovData = Array.isArray(asimovLeaderboardRes.data)
         ? asimovLeaderboardRes.data
         : [];
-      const bradburyFull = Array.isArray(bradburyLeaderboardRes.data)
+      const bradburyData = Array.isArray(bradburyLeaderboardRes.data)
         ? bradburyLeaderboardRes.data
         : [];
-      asimovLeaderboard = asimovFull.slice(0, 5).map((entry, i) => ({ ...entry, rank: i + 1 }));
-      bradburyLeaderboard = bradburyFull.slice(0, 5).map((entry, i) => ({ ...entry, rank: i + 1 }));
+      asimovLeaderboard = asimovData.map((entry, i) => ({ ...entry, rank: i + 1 }));
+      bradburyLeaderboard = bradburyData.map((entry, i) => ({ ...entry, rank: i + 1 }));
       waitlistLeaderboard = Array.isArray(waitlistLeaderboardRes.data)
         ? waitlistLeaderboardRes.data
         : [];
@@ -66,10 +71,11 @@
         bradbury.explorer_url = "https://explorer.testnet-chain.genlayer.com/";
       networks = [asimov, bradbury];
 
-      // Validator count per network from leaderboard entries (active on-chain validators)
+      // Validator counts from wallet API (all on-chain wallets, not just profiled ones)
+      const walletStats = walletsRes.data?.network_stats || {};
       networkStats = {
-        asimov: { total: asimovFull.length },
-        bradbury: { total: bradburyFull.length },
+        asimov: walletStats.asimov || { total: 0, active: 0, quarantined: 0, banned: 0, inactive: 0 },
+        bradbury: walletStats.bradbury || { total: 0, active: 0, quarantined: 0, banned: 0, inactive: 0 },
       };
 
       loading = false;
@@ -240,7 +246,19 @@
                 style="letter-spacing: -0.96px;"
                 >{networkStats.asimov.total}</span
               >
-              <span class="text-[13px] text-gray-500">Active Validators</span>
+              <span class="text-[13px] text-gray-500">Total Validators</span>
+            </div>
+            <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+              <span class="text-[12px] text-green-600 font-medium">{networkStats.asimov.active} active</span>
+              {#if networkStats.asimov.quarantined > 0}
+                <span class="text-[12px] text-yellow-600">{networkStats.asimov.quarantined} quarantined</span>
+              {/if}
+              {#if networkStats.asimov.banned > 0}
+                <span class="text-[12px] text-red-600">{networkStats.asimov.banned} banned</span>
+              {/if}
+              {#if networkStats.asimov.inactive > 0}
+                <span class="text-[12px] text-gray-400">{networkStats.asimov.inactive} inactive</span>
+              {/if}
             </div>
           </div>
 
@@ -251,7 +269,7 @@
                 Top Asimov Validators
               </h3>
               <button
-                onclick={() => push("/validators/leaderboard")}
+                onclick={() => push("/validators/leaderboard?network=asimov")}
                 class="text-[12px] text-gray-500 hover:text-[#2563eb] transition-colors"
                 >Leaderboard →</button
               >
@@ -368,7 +386,19 @@
                 style="letter-spacing: -0.96px;"
                 >{networkStats.bradbury.total}</span
               >
-              <span class="text-[13px] text-gray-500">Active Validators</span>
+              <span class="text-[13px] text-gray-500">Total Validators</span>
+            </div>
+            <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+              <span class="text-[12px] text-green-600 font-medium">{networkStats.bradbury.active} active</span>
+              {#if networkStats.bradbury.quarantined > 0}
+                <span class="text-[12px] text-yellow-600">{networkStats.bradbury.quarantined} quarantined</span>
+              {/if}
+              {#if networkStats.bradbury.banned > 0}
+                <span class="text-[12px] text-red-600">{networkStats.bradbury.banned} banned</span>
+              {/if}
+              {#if networkStats.bradbury.inactive > 0}
+                <span class="text-[12px] text-gray-400">{networkStats.bradbury.inactive} inactive</span>
+              {/if}
             </div>
           </div>
 
@@ -379,7 +409,7 @@
                 Top Bradbury Validators
               </h3>
               <button
-                onclick={() => push("/validators/leaderboard")}
+                onclick={() => push("/validators/leaderboard?network=bradbury")}
                 class="text-[12px] text-gray-500 hover:text-[#0284c7] transition-colors"
                 >Leaderboard →</button
               >
