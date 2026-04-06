@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     'builders',
     'stewards',
     'creators',
+    'social_connections',
 ]
 
 MIDDLEWARE = [
@@ -232,6 +233,20 @@ GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET', '')
 GITHUB_REDIRECT_URI = f"{BACKEND_URL}/api/auth/github/callback/"
 GITHUB_ENCRYPTION_KEY = os.environ.get('GITHUB_ENCRYPTION_KEY', '')
 GITHUB_REPO_TO_STAR = os.environ.get('GITHUB_REPO_TO_STAR', 'genlayerlabs/genlayer-project-boilerplate')
+
+# Twitter/X OAuth settings
+TWITTER_CLIENT_ID = os.environ.get('TWITTER_CLIENT_ID', '')
+TWITTER_CLIENT_SECRET = os.environ.get('TWITTER_CLIENT_SECRET', '')
+TWITTER_REDIRECT_URI = f"{BACKEND_URL}/api/auth/twitter/callback/"
+
+# Discord OAuth settings
+DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', '')
+DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET', '')
+DISCORD_REDIRECT_URI = f"{BACKEND_URL}/api/auth/discord/callback/"
+DISCORD_GUILD_ID = os.environ.get('DISCORD_GUILD_ID', '')
+
+# Shared social connection encryption key (falls back to GitHub key for backward compat)
+SOCIAL_ENCRYPTION_KEY = os.environ.get('SOCIAL_ENCRYPTION_KEY', '') or GITHUB_ENCRYPTION_KEY
 
 # Frontend URL for OAuth redirects
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')

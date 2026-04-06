@@ -6,7 +6,7 @@
   import ImageCropper from "../components/ImageCropper.svelte";
   import { userStore } from "../lib/userStore";
   import { showSuccess, showError } from "../lib/toastStore";
-  import GitHubLink from "../components/GitHubLink.svelte";
+  import SocialLink from "../components/SocialLink.svelte";
 
   // State management
   let user = $state(null);
@@ -24,8 +24,6 @@
   let email = $state("");
   let description = $state("");
   let website = $state("");
-  let twitterHandle = $state("");
-  let discordHandle = $state("");
   let telegramHandle = $state("");
   let linkedinHandle = $state("");
   let profileImageUrl = $state("");
@@ -61,8 +59,6 @@
         email !== (user.email || "") ||
         description !== (user.description || "") ||
         website !== (user.website || "") ||
-        twitterHandle !== (user.twitter_handle || "") ||
-        discordHandle !== (user.discord_handle || "") ||
         telegramHandle !== (user.telegram_handle || "") ||
         linkedinHandle !== (user.linkedin_handle || "")),
   );
@@ -92,8 +88,6 @@
       email = userData.email || "";
       description = userData.description || "";
       website = userData.website || "";
-      twitterHandle = userData.twitter_handle || "";
-      discordHandle = userData.discord_handle || "";
       telegramHandle = userData.telegram_handle || "";
       linkedinHandle = userData.linkedin_handle || "";
       profileImageUrl = userData.profile_image_url || "";
@@ -179,8 +173,6 @@
         name: name.trim(),
         description: description.trim(),
         website: website.trim(),
-        twitter_handle: twitterHandle.trim(),
-        discord_handle: discordHandle.trim(),
         telegram_handle: telegramHandle.trim(),
         linkedin_handle: linkedinHandle.trim(),
       };
@@ -341,10 +333,10 @@
     cropperImage = null;
   }
 
-  async function handleGitHubLinked(updatedUser) {
-    // Update local user state with the updated GitHub info
+  async function handleSocialLinked(updatedUser) {
     user = updatedUser;
   }
+
 </script>
 
 <div class="max-w-[1024px] mx-auto px-4 py-8">
@@ -590,7 +582,53 @@
 
             <hr class="border-[#f0f0f0]" />
 
-            <!-- Links & Socials Section -->
+            <!-- Connected Accounts Section -->
+            <div class="flex flex-col gap-4">
+              <h3
+                class="text-[20px] font-semibold text-black tracking-[-0.36px]"
+              >
+                Connected Accounts
+              </h3>
+
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-600 mb-1.5">GitHub</label>
+                  <SocialLink
+                    platform="github"
+                    platformLabel="GitHub"
+                    connection={user.github_connection}
+                    initiateUrl="/api/auth/github/"
+                    onLinked={handleSocialLinked}
+                  />
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-600 mb-1.5">X (Twitter)</label>
+                  <SocialLink
+                    platform="twitter"
+                    platformLabel="X"
+                    connection={user.twitter_connection}
+                    initiateUrl="/api/auth/twitter/"
+                    onLinked={handleSocialLinked}
+                  />
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-600 mb-1.5">Discord</label>
+                  <SocialLink
+                    platform="discord"
+                    platformLabel="Discord"
+                    connection={user.discord_connection}
+                    initiateUrl="/api/auth/discord/"
+                    onLinked={handleSocialLinked}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <hr class="border-[#f0f0f0]" />
+
+            <!-- Links Section -->
             <div class="flex flex-col gap-4">
               <h3
                 class="text-[20px] font-semibold text-black tracking-[-0.36px]"
@@ -611,44 +649,6 @@
                     bind:value={website}
                     class="w-full px-4 py-3 bg-[#FCFCFC] border border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors"
                     placeholder="yourwebsite.com"
-                    disabled={isSaving}
-                  />
-                </div>
-
-                <div>
-                  <label
-                    for="twitter"
-                    class="block text-sm font-medium text-gray-600 mb-1.5"
-                    >X (Twitter)</label
-                  >
-                  <div class="relative">
-                    <span
-                      class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium"
-                      >@</span
-                    >
-                    <input
-                      id="twitter"
-                      type="text"
-                      bind:value={twitterHandle}
-                      class="w-full pl-9 pr-4 py-3 bg-[#FCFCFC] border border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors"
-                      placeholder="username"
-                      disabled={isSaving}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    for="discord"
-                    class="block text-sm font-medium text-gray-600 mb-1.5"
-                    >Discord</label
-                  >
-                  <input
-                    id="discord"
-                    type="text"
-                    bind:value={discordHandle}
-                    class="w-full px-4 py-3 bg-[#FCFCFC] border border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors"
-                    placeholder="username"
                     disabled={isSaving}
                   />
                 </div>
@@ -689,45 +689,6 @@
                     placeholder="linkedin.com/in/username"
                     disabled={isSaving}
                   />
-                </div>
-
-                <div>
-                  <label
-                    for="github"
-                    class="block text-sm font-medium text-gray-600 mb-1.5"
-                    >GitHub</label
-                  >
-                  {#if user.github_username}
-                    <div class="flex items-center gap-2">
-                      <div
-                        class="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-[8px] text-gray-700 flex items-center gap-2"
-                      >
-                        <svg
-                          class="w-5 h-5 opacity-70"
-                          fill="currentColor"
-                          viewBox="0 0 24 24"
-                          ><path
-                            d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.45-1.15-1.11-1.46-1.11-1.46-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0012 2z"
-                          /></svg
-                        >
-                        <span class="font-medium">{user.github_username}</span>
-                      </div>
-                    </div>
-                    {#if user.github_linked_at}
-                      <p class="text-xs text-gray-400 mt-1">
-                        Linked on {new Date(
-                          user.github_linked_at,
-                        ).toLocaleDateString()}
-                      </p>
-                    {/if}
-                  {:else}
-                    <div
-                      class="h-[50px] w-full border border-gray-200 rounded-[8px] bg-[#FCFCFC] flex items-center px-4 justify-between"
-                    >
-                      <span class="text-sm text-gray-500">Not linked</span>
-                      <GitHubLink onLinked={handleGitHubLinked} />
-                    </div>
-                  {/if}
                 </div>
               </div>
             </div>

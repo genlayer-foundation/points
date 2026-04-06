@@ -717,7 +717,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             Q(twitter_handle__icontains=query) |
             Q(discord_handle__icontains=query) |
             Q(telegram_handle__icontains=query) |
-            Q(github_username__icontains=query)
+            Q(githubconnection__platform_username__icontains=query)
         ).filter(visible=True)[:10]
 
         return Response([

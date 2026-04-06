@@ -171,6 +171,11 @@ export const githubAPI = {
   checkStar: () => api.get('/users/github/check-star/')
 };
 
+// Social connections API
+export const socialAPI = {
+  checkDiscordGuild: () => api.get('/users/discord/check-guild/'),
+};
+
 // Steward API
 export const stewardAPI = {
   // Get all submissions for review

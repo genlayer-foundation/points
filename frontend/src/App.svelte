@@ -11,6 +11,31 @@
   import { location } from 'svelte-spa-router';
   import { resetPageMeta } from './lib/meta.js';
   
+  // Early OAuth result detection — runs before routes mount
+  // Backend redirects here with ?oauth_platform=X&oauth_verified=true/false&oauth_error=...
+  // We detect these params, write to localStorage (same origin), and close the tab
+  {
+    const search = window.location.search;
+    if (search && search.includes('oauth_platform')) {
+      const params = new URLSearchParams(search);
+      const platform = params.get('oauth_platform');
+      if (platform) {
+        const storageKey = `oauth_result_${platform}`;
+        const result = {
+          verified: params.get('oauth_verified') || 'false',
+          error: params.get('oauth_error') || '',
+        };
+        localStorage.setItem(storageKey, JSON.stringify(result));
+        // Small delay before closing to ensure the storage event propagates to the original tab
+        setTimeout(() => {
+          window.close();
+          // Fallback: if close fails, strip params so the page loads clean
+          window.history.replaceState({}, '', window.location.pathname + (window.location.hash || ''));
+        }, 100);
+      }
+    }
+  }
+
   // State for sidebar toggle on mobile and collapse on desktop
   let sidebarOpen = $state(false);
   let sidebarCollapsed = $state(false);
@@ -43,7 +68,6 @@
   import Waitlist from './routes/Waitlist.svelte';
   import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
 
-  import GitHubCallback from './routes/GitHubCallback.svelte';
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
   import Referrals from './routes/Referrals.svelte';
@@ -59,9 +83,6 @@
 
   // Define routes
   const routes = {
-
-    // Auth callback routes
-    '/auth/github/callback': GitHubCallback,
 
     // Global/Testnet Asimov routes
     // Overview and Testnet Asimov routes

@@ -227,7 +227,7 @@
   }
 
   async function checkRepoStar() {
-    if (!participant?.github_username) return;
+    if (!participant?.github_connection?.platform_username) return;
     isCheckingRepoStar = true;
     try {
       const response = await githubAPI.checkStar();
@@ -573,7 +573,7 @@
       {error}
     </div>
   {:else if participant}
-    <ProfileHeader {participant} {isOwnProfile} />
+    <ProfileHeader {participant} {isOwnProfile} onParticipantUpdated={(updatedUser) => { participant = { ...participant, ...updatedUser }; }} />
 
     {#if !isValidatorOnly}
       <div class="mb-10 mt-6 w-full px-0 mx-0">
@@ -787,7 +787,7 @@
                 {testnetBalance}
                 hasBuilderWelcome={participant?.has_builder_welcome || false}
                 {hasDeployedContract}
-                githubUsername={participant?.github_username || ""}
+                githubUsername={participant?.github_connection?.platform_username || ""}
                 {hasStarredRepo}
                 {repoToStar}
                 onClaimBuilderBadge={claimBuilderWelcome}
