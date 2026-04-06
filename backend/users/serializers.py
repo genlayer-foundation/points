@@ -549,6 +549,8 @@ class UserSerializer(serializers.ModelSerializer):
     creator = CreatorSerializer(read_only=True)
     has_validator_waitlist = serializers.SerializerMethodField()
     has_builder_welcome = serializers.SerializerMethodField()
+    has_community_link_x = serializers.SerializerMethodField()
+    has_community_link_discord = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
 
     # Referral system fields
@@ -571,7 +573,8 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward',
-                  'creator', 'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at',
+                  'creator', 'has_validator_waitlist', 'has_builder_welcome',
+                  'has_community_link_x', 'has_community_link_discord', 'created_at', 'updated_at',
                   # Profile fields
                   'description', 'banner_image_url', 'profile_image_url', 'website',
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
@@ -669,6 +672,28 @@ class UserSerializer(serializers.ModelSerializer):
         except ContributionType.DoesNotExist:
             return False
     
+    def get_has_community_link_x(self, obj):
+        """Check if user has earned points for linking X account."""
+        if self.context.get('use_light_serializers', False):
+            return False
+        from contributions.models import Contribution, ContributionType
+        try:
+            link_type = ContributionType.objects.get(slug='community-link-x')
+            return Contribution.objects.filter(user=obj, contribution_type=link_type).exists()
+        except ContributionType.DoesNotExist:
+            return False
+
+    def get_has_community_link_discord(self, obj):
+        """Check if user has earned points for linking Discord account."""
+        if self.context.get('use_light_serializers', False):
+            return False
+        from contributions.models import Contribution, ContributionType
+        try:
+            link_type = ContributionType.objects.get(slug='community-link-discord')
+            return Contribution.objects.filter(user=obj, contribution_type=link_type).exists()
+        except ContributionType.DoesNotExist:
+            return False
+
     def get_email(self, obj):
         """
         Return email only if it's verified, otherwise return empty string.

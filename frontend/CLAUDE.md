@@ -318,7 +318,13 @@ const routes = {
   '/leaderboard': Leaderboard,
   '/participants': Validators,
   '/referrals': Referrals,
-  '/community': Community,
+  '/community': ReferralProgram,
+  '/community/contributions': Contributions,
+  '/community/all-contributions': AllContributions,
+  '/community/contributions/highlights': Highlights,
+  '/community/highlights': Highlights,
+  '/community/leaderboard': Community,
+  '/community/contribution/:id': ContributionPreview,
   '/hackathon': Hackathon,
   '/referral-program': ReferralProgram,
 
@@ -389,6 +395,8 @@ const routes = {
   - `contributionsAPI` - Contribution CRUD
   - `leaderboardAPI` - Rankings and stats
   - `statsAPI` - Dashboard statistics
+  - `journeyAPI` - Onboarding journeys (startBuilderJourney, startValidatorJourney, completeBuilderJourney, linkXAccount, linkDiscordAccount)
+  - `creatorAPI` - Community/creator membership (joinAsCreator)
 
 ### Authentication (`src/lib/auth.js`)
 - **Auth Store**: Svelte store `authState`

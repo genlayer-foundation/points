@@ -683,6 +683,23 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                                 {'error': 'You must complete the Validator Waitlist journey before submitting validator contributions.'},
                                 status=status.HTTP_403_FORBIDDEN
                             )
+                    # Check required social accounts for this contribution type
+                    if contribution_type.required_social_accounts:
+                        connection_map = {
+                            'twitter': ('twitterconnection', 'X (Twitter)'),
+                            'discord': ('discordconnection', 'Discord'),
+                            'github': ('githubconnection', 'GitHub'),
+                        }
+                        missing = []
+                        for account in contribution_type.required_social_accounts:
+                            relation, label = connection_map.get(account, (None, account))
+                            if relation and not hasattr(request.user, relation):
+                                missing.append(label)
+                        if missing:
+                            return Response(
+                                {'error': f'You must link your {", ".join(missing)} account(s) to submit this type of contribution.'},
+                                status=status.HTTP_403_FORBIDDEN
+                            )
             except ContributionType.DoesNotExist:
                 pass
 

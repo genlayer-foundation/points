@@ -237,12 +237,12 @@ GITHUB_REPO_TO_STAR = os.environ.get('GITHUB_REPO_TO_STAR', 'genlayerlabs/genlay
 # Twitter/X OAuth settings
 TWITTER_CLIENT_ID = os.environ.get('TWITTER_CLIENT_ID', '')
 TWITTER_CLIENT_SECRET = os.environ.get('TWITTER_CLIENT_SECRET', '')
-TWITTER_REDIRECT_URI = f"{BACKEND_URL}/api/auth/twitter/callback/"
+TWITTER_REDIRECT_URI = os.environ.get('TWITTER_REDIRECT_URI', f"{BACKEND_URL}/api/auth/twitter/callback/")
 
 # Discord OAuth settings
 DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', '')
 DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET', '')
-DISCORD_REDIRECT_URI = f"{BACKEND_URL}/api/auth/discord/callback/"
+DISCORD_REDIRECT_URI = os.environ.get('DISCORD_REDIRECT_URI', f"{BACKEND_URL}/api/auth/discord/callback/")
 DISCORD_GUILD_ID = os.environ.get('DISCORD_GUILD_ID', '')
 
 # Shared social connection encryption key (falls back to GitHub key for backward compat)

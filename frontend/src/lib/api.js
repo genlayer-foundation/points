@@ -158,7 +158,9 @@ export const buildersAPI = {
 export const journeyAPI = {
   startValidatorJourney: () => api.post('/users/start_validator_journey/'),
   startBuilderJourney: () => api.post('/users/start_builder_journey/'),
-  completeBuilderJourney: () => api.post('/users/complete_builder_journey/')
+  completeBuilderJourney: () => api.post('/users/complete_builder_journey/'),
+  linkXAccount: () => api.post('/users/link_x_account/'),
+  linkDiscordAccount: () => api.post('/users/link_discord_account/')
 };
 
 // Community API (backend uses 'creator' terminology)
