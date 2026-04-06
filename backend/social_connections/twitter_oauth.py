@@ -28,10 +28,12 @@ def twitter_oauth_initiate(request):
     # Store the redirect URL so callback can send the user back to the frontend
     redirect_url = request.GET.get('redirect', settings.FRONTEND_URL)
 
-    state = service.generate_state(request.user.id, extra_data={
-        'code_verifier': code_verifier,
-        'redirect_url': redirect_url,
-    })
+    # Store code_verifier and redirect_url in session to keep the state token small.
+    # Twitter has URL length limits and a large state token causes invalid_request errors.
+    request.session['twitter_oauth_code_verifier'] = code_verifier
+    request.session['twitter_oauth_redirect_url'] = redirect_url
+
+    state = service.generate_state(request.user.id)
 
     params = {
         'response_type': 'code',
@@ -48,8 +50,16 @@ def twitter_oauth_initiate(request):
 
 @csrf_exempt
 def twitter_oauth_callback(request):
-    """Handle Twitter OAuth callback."""
-    return service.handle_callback(request)
+    """Handle Twitter OAuth callback.
+    Injects code_verifier and redirect_url from session into GET params
+    so the base handle_callback can find them in state_data."""
+    # Recover code_verifier and redirect_url from session (stored during initiate)
+    code_verifier = request.session.pop('twitter_oauth_code_verifier', '')
+    redirect_url = request.session.pop('twitter_oauth_redirect_url', '')
+    return service.handle_callback(request, session_data={
+        'code_verifier': code_verifier,
+        'redirect_url': redirect_url,
+    })
 
 
 @api_view(['POST'])

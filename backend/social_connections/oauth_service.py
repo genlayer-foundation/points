@@ -164,8 +164,10 @@ class OAuthService:
 
     # --- Shared callback flow ---
 
-    def handle_callback(self, request):
-        """Full OAuth callback flow. Called by each platform's callback view."""
+    def handle_callback(self, request, session_data=None):
+        """Full OAuth callback flow. Called by each platform's callback view.
+        session_data: optional dict with data stored in session during initiate
+        (e.g. code_verifier, redirect_url) to keep the state token small."""
         code = request.GET.get('code')
         state = request.GET.get('state')
         error = request.GET.get('error')
@@ -198,6 +200,13 @@ class OAuthService:
         except signing.BadSignature:
             logger.error(f"{log_prefix}: invalid state signature")
             return respond(False, error='invalid_state')
+
+        # Merge session data into state_data (for platforms that store
+        # large values like code_verifier in the session instead of the state token)
+        if session_data:
+            state_data.update(session_data)
+            if not redirect_url:
+                redirect_url = session_data.get('redirect_url')
 
         # Prevent code replay
         if not code:
