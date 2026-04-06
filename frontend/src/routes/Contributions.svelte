@@ -9,6 +9,7 @@
   let title = $derived($currentCategory === 'global' ? 'Recent Contributions' :
                      $currentCategory === 'validator' ? 'Recent Validator Contributions' :
                      $currentCategory === 'builder' ? 'Recent Builder Contributions' :
+                     $currentCategory === 'community' ? 'Recent Community Contributions' :
                      'Recent Contributions');
   let viewAllUrl = $derived($currentCategory === 'global' ? '/all-contributions' :
                            `/all-contributions?category=${$currentCategory}`);

@@ -183,6 +183,8 @@ PATCH  /api/v1/users/me/           (requires auth, only name)
 GET    /api/v1/users/{address}/
 GET    /api/v1/users/by-address/{address}/
 GET    /api/v1/users/validators/
+POST   /api/v1/users/link_x_account/       (requires auth, awards 20 pts for linking X)
+POST   /api/v1/users/link_discord_account/  (requires auth, awards 20 pts for linking Discord)
 
 # Contributions
 GET    /api/v1/contributions/

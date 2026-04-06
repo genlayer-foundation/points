@@ -88,6 +88,11 @@ class ContributionType(BaseModel):
         blank=True,
         help_text="Example entries for this contribution type (array of short strings)"
     )
+    required_social_accounts = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of required social accounts for submission: 'twitter', 'discord', 'github'"
+    )
 
     class Meta:
         ordering = ['category__name', 'name']

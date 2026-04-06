@@ -306,6 +306,15 @@
         {#if !collapsed && getActiveSection() === 'community'}
           <div class="pl-5">
             <a
+              href="/community/contributions"
+              onclick={(e) => { e.preventDefault(); navigate('/community/contributions'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/community/contributions') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Contributions
+            </a>
+            <a
               href="/community/leaderboard"
               onclick={(e) => { e.preventDefault(); navigate('/community/leaderboard'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
@@ -639,6 +648,15 @@
 
       {#if getActiveSection() === 'community'}
         <div class="pl-5">
+          <a
+            href="/community/contributions"
+            onclick={(e) => { e.preventDefault(); navigate('/community/contributions'); }}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              isActive('/community/contributions') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+            }"
+          >
+            Contributions
+          </a>
           <a
             href="/community/leaderboard"
             onclick={(e) => { e.preventDefault(); navigate('/community/leaderboard'); }}

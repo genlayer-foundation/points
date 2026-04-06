@@ -47,10 +47,7 @@
       loadingTypes = true;
       const allTypes = await getContributionTypes({ is_submittable: "true" });
 
-      // Filter out 'community' as requested
-      types = allTypes.filter(
-        /** @param {any} t */ (t) => t.category !== "community",
-      );
+      types = allTypes;
 
       // Load missions
       try {
@@ -124,6 +121,29 @@
         } catch (e) {}
       }
     };
+  });
+
+  // Check if selected type requires social accounts the user hasn't linked
+  const socialAccountLabels = {
+    twitter: "X (Twitter)",
+    discord: "Discord",
+    github: "GitHub",
+  };
+  const socialConnectionFields = {
+    twitter: "twitter_connection",
+    discord: "discord_connection",
+    github: "github_connection",
+  };
+  let missingSocialAccounts = $derived.by(() => {
+    if (!selectedType?.required_social_accounts?.length) return [];
+    const user = $userStore.user;
+    if (!user) return selectedType.required_social_accounts.map((a) => socialAccountLabels[a] || a);
+    return selectedType.required_social_accounts
+      .filter((account) => {
+        const field = socialConnectionFields[account];
+        return field && !user[field];
+      })
+      .map((a) => socialAccountLabels[a] || a);
   });
 
   // Build filtered items list (types + missions) based on category and search
@@ -449,6 +469,19 @@
           <span
             class="font-['Switzer'] font-medium leading-[21px] text-[14px] tracking-[0.28px]"
             >Validator</span
+          >
+        </button>
+        <button
+          type="button"
+          onclick={() => selectCategory("community")}
+          class="flex flex-[1_0_0] h-[40px] items-center justify-center p-[12px] rounded-[24px] transition-colors {selectedCategory ===
+          'community'
+            ? 'bg-[#9333ea] text-white'
+            : 'bg-[#f5f5f5] text-[#1a1c1d] hover:bg-gray-200'}"
+        >
+          <span
+            class="font-['Switzer'] font-medium leading-[21px] text-[14px] tracking-[0.28px]"
+            >Community</span
           >
         </button>
       </div>
@@ -828,11 +861,19 @@
       </div>
     {/if}
 
+    {#if missingSocialAccounts.length > 0}
+      <div class="w-full bg-amber-50 border-l-4 border-amber-500 p-4 rounded-md">
+        <p class="text-amber-700 text-sm font-['Switzer']">
+          This contribution type requires a linked {missingSocialAccounts.join(" and ")} account. Please link your account in your profile before submitting.
+        </p>
+      </div>
+    {/if}
+
     <!-- Actions -->
     <div class="flex gap-[8px] items-center mt-2 pb-[60px]">
       <button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || missingSocialAccounts.length > 0}
         class="bg-[#9e4bf6] flex gap-[8px] h-[40px] items-center justify-center px-[20px] rounded-[20px] hover:bg-[#8b3ced] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         <span
