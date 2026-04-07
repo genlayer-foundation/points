@@ -60,6 +60,16 @@ def twitter_oauth_callback(request):
     # Recover code_verifier and redirect_url from session (stored during initiate)
     code_verifier = session.pop('twitter_oauth_code_verifier', '') if session else ''
     redirect_url = session.pop('twitter_oauth_redirect_url', '') if session else ''
+    logger.info(
+        "Twitter OAuth callback session data: has_session=%s has_code_verifier=%s has_redirect_url=%s code_present=%s error_present=%s",
+        bool(session),
+        bool(code_verifier),
+        bool(redirect_url),
+        bool(request.GET.get('code')),
+        bool(request.GET.get('error')),
+    )
+    if request.GET.get('code') and not request.GET.get('error') and not code_verifier:
+        logger.warning("Twitter OAuth callback missing session-backed code_verifier during token exchange")
     return service.handle_callback(request, session_data={
         'code_verifier': code_verifier,
         'redirect_url': redirect_url,
