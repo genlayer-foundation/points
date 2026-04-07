@@ -95,17 +95,30 @@
   async function reconcileAfterPopupClose() {
     if (!isLinking || handledOAuthResult) return;
 
-    try {
-      const currentUser = await getCurrentUser();
-      if (currentUser?.[`${platform}_connection`]?.platform_username) {
-        handleOAuthReturn(true, '', currentUser);
-        return;
+    // Poll a few times — the backend may still be processing the OAuth exchange
+    // or the storage event from App.svelte may arrive between retries.
+    const maxAttempts = 3;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (handledOAuthResult) return; // storage event arrived between retries
+      try {
+        const currentUser = await getCurrentUser();
+        if (currentUser?.[`${platform}_connection`]?.platform_username) {
+          handleOAuthReturn(true, '', currentUser);
+          return;
+        }
+      } catch {
+        // Network/auth error — keep retrying.
       }
-    } catch {
-      // Fall back to the generic failure path below.
+      if (attempt < maxAttempts - 1) {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
     }
 
-    handleOAuthReturn(false, 'authorization_failed');
+    // All retries exhausted and no storage event arrived — silently reset.
+    // The user can try again; we avoid false-positive error toasts.
+    if (!handledOAuthResult) {
+      isLinking = false;
+    }
   }
 
   // Platform brand config
@@ -153,9 +166,12 @@
     popupMonitor = setInterval(() => {
       if (!oauthWindow || oauthWindow.closed) {
         clearPopupMonitor();
+        // Wait 1.5 s — the popup's App.svelte needs time to load, write to
+        // localStorage, and for the storage event to propagate.  The original
+        // 300 ms was too aggressive in production.
         setTimeout(() => {
           reconcileAfterPopupClose();
-        }, 300);
+        }, 1500);
       }
     }, 500);
   }
