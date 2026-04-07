@@ -13,10 +13,30 @@
   } = $props();
 
   let isLinking = $state(false);
+  let oauthWindow = $state(null);
+  let popupMonitor = $state(null);
+  let handledOAuthResult = $state(false);
 
   const storageKey = `oauth_result_${platform}`;
   // Global flag per platform to prevent duplicate toasts across multiple SocialLink instances
   const handledFlag = `oauth_handled_${platform}`;
+
+  function clearPopupMonitor() {
+    if (popupMonitor) {
+      clearInterval(popupMonitor);
+      popupMonitor = null;
+    }
+    oauthWindow = null;
+  }
+
+  function reserveToastSlot() {
+    const shouldToast = !sessionStorage.getItem(handledFlag);
+    if (shouldToast) {
+      sessionStorage.setItem(handledFlag, '1');
+      setTimeout(() => sessionStorage.removeItem(handledFlag), 3000);
+    }
+    return shouldToast;
+  }
 
   // Listen for localStorage changes from the OAuth return tab (same origin)
   // App.svelte detects the OAuth redirect params and writes to localStorage before routes mount
@@ -29,25 +49,28 @@
 
   $effect(() => {
     window.addEventListener('storage', onStorageEvent);
-    return () => window.removeEventListener('storage', onStorageEvent);
+    return () => {
+      window.removeEventListener('storage', onStorageEvent);
+      clearPopupMonitor();
+    };
   });
 
-  function handleOAuthReturn(success, oauthError) {
+  function handleOAuthReturn(success, oauthError, currentUser = null) {
+    handledOAuthResult = true;
+    clearPopupMonitor();
+
     // Deduplicate toasts — only the first instance for this platform shows them
-    const shouldToast = !sessionStorage.getItem(handledFlag);
-    if (shouldToast) {
-      sessionStorage.setItem(handledFlag, '1');
-      setTimeout(() => sessionStorage.removeItem(handledFlag), 3000);
-    }
+    const shouldToast = reserveToastSlot();
 
     if (success) {
-      getCurrentUser().then((currentUser) => {
+      const userPromise = currentUser ? Promise.resolve(currentUser) : getCurrentUser();
+      userPromise.then((resolvedUser) => {
         if (shouldToast) {
-          const connData = currentUser?.[`${platform}_connection`];
+          const connData = resolvedUser?.[`${platform}_connection`];
           const username = connData?.platform_username || '';
           showSuccess(`${platformLabel} account linked successfully!${username ? ` (@${username})` : ''}`);
         }
-        onLinked(currentUser);
+        onLinked(resolvedUser);
         isLinking = false;
       }).catch(() => {
         if (shouldToast) {
@@ -67,6 +90,22 @@
       }
       isLinking = false;
     }
+  }
+
+  async function reconcileAfterPopupClose() {
+    if (!isLinking || handledOAuthResult) return;
+
+    try {
+      const currentUser = await getCurrentUser();
+      if (currentUser?.[`${platform}_connection`]?.platform_username) {
+        handleOAuthReturn(true, '', currentUser);
+        return;
+      }
+    } catch {
+      // Fall back to the generic failure path below.
+    }
+
+    handleOAuthReturn(false, 'authorization_failed');
   }
 
   // Platform brand config
@@ -96,13 +135,29 @@
       return;
     }
 
+    handledOAuthResult = false;
     isLinking = true;
 
     const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     const redirectUrl = encodeURIComponent(window.location.href);
     const oauthUrl = `${backendUrl}${initiateUrl}?redirect=${redirectUrl}`;
 
-    window.open(oauthUrl, '_blank');
+    clearPopupMonitor();
+    oauthWindow = window.open(oauthUrl, '_blank');
+    if (!oauthWindow) {
+      isLinking = false;
+      showError(`Failed to open ${platformLabel} authorization window. Please allow pop-ups and try again.`);
+      return;
+    }
+
+    popupMonitor = setInterval(() => {
+      if (!oauthWindow || oauthWindow.closed) {
+        clearPopupMonitor();
+        setTimeout(() => {
+          reconcileAfterPopupClose();
+        }, 300);
+      }
+    }, 500);
   }
 
 
