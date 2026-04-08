@@ -1,4 +1,5 @@
 <script>
+  import { onMount, onDestroy } from 'svelte';
   import { authState } from '../lib/auth';
   import { getCurrentUser } from '../lib/api';
   import { showSuccess, showError } from '../lib/toastStore';
@@ -13,12 +14,14 @@
   } = $props();
 
   let isLinking = $state(false);
-  let oauthWindow = $state(null);
-  let popupMonitor = $state(null);
   let handledOAuthResult = $state(false);
 
+  // Imperative bookkeeping — plain let, NOT $state, to avoid Svelte 5
+  // reactivity issues (effect re-runs clearing the monitor prematurely).
+  let oauthWindow = null;
+  let popupMonitor = null;
+
   const storageKey = `oauth_result_${platform}`;
-  // Global flag per platform to prevent duplicate toasts across multiple SocialLink instances
   const handledFlag = `oauth_handled_${platform}`;
 
   function clearPopupMonitor() {
@@ -38,8 +41,17 @@
     return shouldToast;
   }
 
-  // Listen for localStorage changes from the OAuth return tab (same origin)
-  // App.svelte detects the OAuth redirect params and writes to localStorage before routes mount
+  // --- Event handlers ---
+
+  // Primary: postMessage from the OAuth popup (standard pattern)
+  function onMessageEvent(e) {
+    if (e.origin !== window.location.origin) return;
+    if (e.data?.type !== 'oauth_result') return;
+    if (e.data?.platform !== platform) return;
+    handleOAuthReturn(e.data.verified === 'true', e.data.error || '');
+  }
+
+  // Fallback: localStorage storage event (Safari may clear window.opener)
   function onStorageEvent(e) {
     if (e.key !== storageKey || !e.newValue) return;
     const result = JSON.parse(e.newValue);
@@ -47,19 +59,24 @@
     handleOAuthReturn(result.verified === 'true', result.error || '');
   }
 
-  $effect(() => {
+  // Lifecycle — use onMount/onDestroy (not $effect) to avoid reactive
+  // dependency tracking on the cleanup's reads of popupMonitor/oauthWindow.
+  onMount(() => {
+    window.addEventListener('message', onMessageEvent);
     window.addEventListener('storage', onStorageEvent);
-    return () => {
-      window.removeEventListener('storage', onStorageEvent);
-      clearPopupMonitor();
-    };
+  });
+
+  onDestroy(() => {
+    window.removeEventListener('message', onMessageEvent);
+    window.removeEventListener('storage', onStorageEvent);
+    clearPopupMonitor();
   });
 
   function handleOAuthReturn(success, oauthError, currentUser = null) {
+    if (handledOAuthResult) return; // prevent double-processing from multiple channels
     handledOAuthResult = true;
     clearPopupMonitor();
 
-    // Deduplicate toasts — only the first instance for this platform shows them
     const shouldToast = reserveToastSlot();
 
     if (success) {
@@ -95,11 +112,9 @@
   async function reconcileAfterPopupClose() {
     if (!isLinking || handledOAuthResult) return;
 
-    // Poll a few times — the backend may still be processing the OAuth exchange
-    // or the storage event from App.svelte may arrive between retries.
     const maxAttempts = 3;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      if (handledOAuthResult) return; // storage event arrived between retries
+      if (handledOAuthResult) return;
       try {
         const currentUser = await getCurrentUser();
         if (currentUser?.[`${platform}_connection`]?.platform_username) {
@@ -114,8 +129,6 @@
       }
     }
 
-    // All retries exhausted and no storage event arrived — silently reset.
-    // The user can try again; we avoid false-positive error toasts.
     if (!handledOAuthResult) {
       isLinking = false;
     }
@@ -156,7 +169,7 @@
     const oauthUrl = `${backendUrl}${initiateUrl}?redirect=${redirectUrl}`;
 
     clearPopupMonitor();
-    oauthWindow = window.open(oauthUrl, '_blank');
+    oauthWindow = window.open(oauthUrl, 'oauth_popup');
     if (!oauthWindow) {
       isLinking = false;
       showError(`Failed to open ${platformLabel} authorization window. Please allow pop-ups and try again.`);
@@ -166,17 +179,12 @@
     popupMonitor = setInterval(() => {
       if (!oauthWindow || oauthWindow.closed) {
         clearPopupMonitor();
-        // Wait 1.5 s — the popup's App.svelte needs time to load, write to
-        // localStorage, and for the storage event to propagate.  The original
-        // 300 ms was too aggressive in production.
         setTimeout(() => {
           reconcileAfterPopupClose();
         }, 1500);
       }
     }, 500);
   }
-
-
 </script>
 
 {#if compact}

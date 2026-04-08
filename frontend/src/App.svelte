@@ -11,22 +11,34 @@
   import { location } from 'svelte-spa-router';
   import { resetPageMeta } from './lib/meta.js';
   
-  // Early OAuth result detection — runs before routes mount
+  // Early OAuth result detection — runs before routes mount.
   // Backend redirects here with ?oauth_platform=X&oauth_verified=true/false&oauth_error=...
-  // We detect these params, write to localStorage (same origin), and close the tab
+  // We relay the result to the opener tab via postMessage (primary) and localStorage (fallback).
   {
     const search = window.location.search;
     if (search && search.includes('oauth_platform')) {
       const params = new URLSearchParams(search);
       const platform = params.get('oauth_platform');
       if (platform) {
-        const storageKey = `oauth_result_${platform}`;
         const result = {
+          type: 'oauth_result',
+          platform,
           verified: params.get('oauth_verified') || 'false',
           error: params.get('oauth_error') || '',
         };
-        localStorage.setItem(storageKey, JSON.stringify(result));
-        // Small delay before closing to ensure the storage event propagates to the original tab
+
+        // Primary: postMessage to opener (standard OAuth popup pattern)
+        if (window.opener) {
+          window.opener.postMessage(result, window.location.origin);
+        }
+
+        // Fallback: localStorage for when window.opener is null (Safari)
+        const storageKey = `oauth_result_${platform}`;
+        localStorage.setItem(storageKey, JSON.stringify({
+          verified: result.verified,
+          error: result.error,
+        }));
+
         setTimeout(() => {
           window.close();
           // Fallback: if close fails, strip params so the page loads clean
