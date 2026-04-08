@@ -28,6 +28,7 @@
   import RankingsWidget from "../components/profile/RankingsWidget.svelte";
   import JourneyActions from "../components/profile/JourneyActions.svelte";
   import ProgressJourney from "../components/profile/ProgressJourney.svelte";
+  import CommunityProgressJourney from "../components/profile/CommunityProgressJourney.svelte";
   import RoleView from "../components/profile/RoleView.svelte";
   import StewardView from "../components/profile/StewardView.svelte";
   import CommunityView from "../components/profile/CommunityView.svelte";
@@ -57,6 +58,12 @@
     averagePoints: 0,
     contributionTypes: [],
   });
+  let communityStats: any = $state({
+    totalContributions: 0,
+    totalPoints: 0,
+    averagePoints: 0,
+    contributionTypes: [],
+  });
   let isValidatorOnly = $state(false);
 
   let loading = $state(true);
@@ -78,9 +85,12 @@
   let validatorWallets = $state([]);
   let loadingValidatorWallets = $state(false);
   let referralPoints = $state({ builder_points: 0, validator_points: 0 });
+  let isClaimingX = $state(false);
+  let isClaimingDiscord = $state(false);
   let contributionStatsLoaded = $state(false);
   let builderStatsLoaded = $state(false);
   let validatorStatsLoaded = $state(false);
+  let communityStatsLoaded = $state(false);
 
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
@@ -290,6 +300,46 @@
     }
   }
 
+  async function refreshCommunityStats() {
+    if (!participant?.address) return;
+    try {
+      const res = await statsAPI.getUserStats(participant.address, "community");
+      if (res.data) communityStats = res.data;
+    } catch (_) {}
+  }
+
+  async function handleClaimX() {
+    if (!$authState.isAuthenticated || isClaimingX) return;
+    isClaimingX = true;
+    try {
+      await journeyAPI.linkXAccount();
+      participant = await getCurrentUser();
+      refreshCommunityStats();
+    } catch (err) {
+      showError(err.response?.data?.error || 'Failed to claim X linking reward');
+    } finally {
+      isClaimingX = false;
+    }
+  }
+
+  async function handleClaimDiscord() {
+    if (!$authState.isAuthenticated || isClaimingDiscord) return;
+    isClaimingDiscord = true;
+    try {
+      await journeyAPI.linkDiscordAccount();
+      participant = await getCurrentUser();
+      refreshCommunityStats();
+    } catch (err) {
+      showError(err.response?.data?.error || 'Failed to claim Discord linking reward');
+    } finally {
+      isClaimingDiscord = false;
+    }
+  }
+
+  async function handleCommunityLinked(updatedUser) {
+    participant = updatedUser;
+  }
+
   async function fetchParticipantData(participantAddress) {
     try {
       loading = true;
@@ -297,6 +347,7 @@
       contributionStatsLoaded = false;
       builderStatsLoaded = false;
       validatorStatsLoaded = false;
+      communityStatsLoaded = false;
 
       const res = await usersAPI.getUserByAddress(participantAddress);
       participant = res.data;
@@ -380,6 +431,20 @@
           });
       } else {
         builderStatsLoaded = true;
+      }
+
+      if (participant.creator) {
+        statsAPI
+          .getUserStats(participantAddress, "community")
+          .then((res) => {
+            if (res.data) communityStats = res.data;
+            communityStatsLoaded = true;
+          })
+          .catch(() => {
+            communityStatsLoaded = true;
+          });
+      } else {
+        communityStatsLoaded = true;
       }
 
       // Fetch referral points (authenticated endpoint for own profile)
@@ -840,7 +905,45 @@
             {referralPoints}
             loading={loadingReferrals}
             {isOwnProfile}
+            communityStats={communityStats}
+            communityStatsLoading={!communityStatsLoaded}
           />
+        </div>
+      {/if}
+
+      <!-- Community Journey (ongoing - has creator but not completed social links) -->
+      {#if participant?.creator && !(participant?.has_community_link_x && participant?.has_community_link_discord) && isOwnProfile}
+        <div
+          id="community-journey-section"
+          class="w-full mb-16 pt-10 border-t border-gray-100 mt-10"
+        >
+          <div class="w-full flex flex-col items-start mt-8">
+            <div class="flex items-center gap-[10px] mb-4">
+              <div
+                class="relative flex-shrink-0"
+                style="width: 32px; height: 32px;"
+              >
+                <CategoryIcon category="community" mode="hexagon" size={32} />
+              </div>
+              <h2
+                class="text-[20px] font-semibold text-black"
+                style="letter-spacing: 0.4px;"
+              >
+                Community Journey
+              </h2>
+            </div>
+
+            <div class="w-full">
+              <CommunityProgressJourney
+                {participant}
+                onSocialLinked={handleCommunityLinked}
+                onClaimX={handleClaimX}
+                onClaimDiscord={handleClaimDiscord}
+                {isClaimingX}
+                {isClaimingDiscord}
+              />
+            </div>
+          </div>
         </div>
       {/if}
 
