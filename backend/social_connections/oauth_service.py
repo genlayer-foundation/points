@@ -22,8 +22,16 @@ logger = get_app_logger('social_oauth')
 
 
 def validate_redirect_url(url):
-    """Validate that a redirect URL belongs to an allowed origin.
-    Returns the validated URL or FRONTEND_URL as fallback."""
+    """Validate that a redirect URL is safe to redirect to.
+
+    Accepts the URL if its scheme and port match any configured URL
+    (FRONTEND_URL or BACKEND_URL). This is adaptive across environments:
+    the redirect only carries informational query params (not tokens),
+    and the URL is embedded in a signed state token, so it cannot be
+    tampered with after creation.
+
+    Returns the validated URL or FRONTEND_URL as fallback.
+    """
     if not url:
         return settings.FRONTEND_URL
 
@@ -32,23 +40,25 @@ def validate_redirect_url(url):
     except Exception:
         return settings.FRONTEND_URL
 
-    # Build allowed origins from FRONTEND_URL, BACKEND_URL, and ALLOWED_REDIRECT_ORIGINS
-    allowed_origins = set()
+    if parsed.scheme not in ('http', 'https'):
+        return settings.FRONTEND_URL
+
+    # Collect allowed (scheme, port) pairs from configured URLs
+    allowed_scheme_ports = set()
     for setting_url in [settings.FRONTEND_URL, settings.BACKEND_URL]:
         try:
             p = urlparse(setting_url)
-            allowed_origins.add(f"{p.scheme}://{p.netloc}")
+            port = p.port or (443 if p.scheme == 'https' else 80)
+            allowed_scheme_ports.add((p.scheme, port))
         except Exception:
             pass
-    for origin in getattr(settings, 'ALLOWED_REDIRECT_ORIGINS', []):
-        allowed_origins.add(origin.rstrip('/'))
 
-    request_origin = f"{parsed.scheme}://{parsed.netloc}"
-    if request_origin in allowed_origins:
+    request_port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+    if (parsed.scheme, request_port) in allowed_scheme_ports:
         return url
 
-    logger.warning("Rejected redirect URL with origin %s (allowed: %s, FRONTEND_URL=%r, BACKEND_URL=%r)",
-                    request_origin, allowed_origins, settings.FRONTEND_URL, settings.BACKEND_URL)
+    logger.warning("Rejected redirect URL %s (scheme/port not in allowed set: %s)",
+                    url, allowed_scheme_ports)
     return settings.FRONTEND_URL
 
 

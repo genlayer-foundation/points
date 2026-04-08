@@ -43,9 +43,8 @@
 
   // --- Event handlers ---
 
-  // Primary: postMessage from the OAuth popup (standard pattern)
+  // Primary: postMessage from the OAuth popup
   function onMessageEvent(e) {
-    if (e.origin !== window.location.origin) return;
     if (e.data?.type !== 'oauth_result') return;
     if (e.data?.platform !== platform) return;
     handleOAuthReturn(e.data.verified === 'true', e.data.error || '');

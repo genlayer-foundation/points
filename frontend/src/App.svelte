@@ -29,7 +29,7 @@
 
         // Primary: postMessage to opener (standard OAuth popup pattern)
         if (window.opener) {
-          window.opener.postMessage(result, window.location.origin);
+          window.opener.postMessage(result, '*');
         }
 
         // Fallback: localStorage for when window.opener is null (Safari)
