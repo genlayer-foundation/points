@@ -256,6 +256,11 @@
             <span class="font-display font-medium text-[32px] block" style="color: {colors.text}; letter-spacing: -1.28px;">
               {typeName}
             </span>
+            {#if contribution.title}
+              <h1 class="font-display font-medium text-[48px] text-black leading-[56px] mt-[8px]" style="letter-spacing: -0.96px;">
+                {contribution.title}
+              </h1>
+            {/if}
           </div>
         {/if}
 
@@ -339,7 +344,7 @@
                   <!-- Middle: title + description -->
                   <div class="flex flex-col gap-[4px] overflow-hidden">
                     <span class="text-[14px] font-medium text-black truncate" style="letter-spacing: 0.28px;">
-                      {uc.contribution_type_details?.name || uc.contribution_type_name || 'Contribution'}
+                      {uc.title || uc.contribution_type_details?.name || uc.contribution_type_name || 'Contribution'}
                     </span>
                     {#if uc.notes}
                       <span class="text-[12px] leading-[20px] line-clamp-2" style="color: #6b6b6b; letter-spacing: 0.24px;">

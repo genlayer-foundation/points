@@ -27,6 +27,7 @@
   let formData = $state({
     contribution_type: '',
     contribution_date: '',
+    title: '',
     notes: '',
     mission: null
   });
@@ -43,6 +44,7 @@
       formData = {
         contribution_type: submission.contribution_type,
         contribution_date: submission.contribution_date ? submission.contribution_date.split('T')[0] : '',
+        title: submission.title || '',
         notes: submission.notes || '',
         mission: submission.mission || null
       };
@@ -232,6 +234,7 @@
       const updateData = {
         contribution_type: parseInt(formData.contribution_type),
         contribution_date: formData.contribution_date + 'T00:00:00Z',
+        title: formData.title || '',
         notes: formData.notes || '',
         mission: formData.mission || null,
         evidence_items: evidence_items  // Send all evidence in one request
@@ -357,6 +360,20 @@
           />
         </div>
         
+        <div class="mb-6">
+          <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
+            Title <span class="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <input
+            type="text"
+            id="title"
+            bind:value={formData.title}
+            maxlength="200"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            placeholder="Give your contribution a title..."
+          />
+        </div>
+
         <div class="mb-6">
           <label for="notes" class="block text-sm font-medium text-gray-700 mb-2">
             Notes / Description

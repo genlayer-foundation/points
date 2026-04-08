@@ -35,6 +35,7 @@
   let formData = $state({
     contribution_type: "",
     contribution_date: new Date().toISOString().split("T")[0],
+    title: "",
     notes: "",
   });
 
@@ -358,6 +359,7 @@
       const submissionData = {
         contribution_type: formData.contribution_type,
         contribution_date: formData.contribution_date + "T00:00:00Z",
+        title: formData.title,
         notes: formData.notes,
         recaptcha: recaptchaToken,
       };
@@ -688,6 +690,28 @@
             max={new Date().toISOString().split("T")[0]}
             class="w-full bg-transparent font-['Switzer'] font-medium text-[14px] text-black tracking-[0.28px] focus:outline-none focus:ring-0 outline-none"
             required
+          />
+        </div>
+      </div>
+
+      <!-- Title (optional) -->
+      <div class="w-full flex flex-col gap-[12px] mt-2">
+        <label
+          for="title"
+          class="font-['Switzer'] font-semibold leading-[25px] text-[20px] text-black tracking-[0.4px]"
+        >
+          Title <span class="text-[14px] font-normal text-[#ababab]">(optional)</span>
+        </label>
+        <div
+          class="border border-[#f5f5f5] flex h-[44px] items-center px-[12px] rounded-[8px] w-full bg-white hover:border-gray-300 focus-within:border-black transition-colors"
+        >
+          <input
+            type="text"
+            id="title"
+            bind:value={formData.title}
+            maxlength="200"
+            class="w-full bg-transparent font-['Switzer'] font-medium text-[14px] text-black tracking-[0.28px] placeholder-[#6b6b6b] focus:outline-none focus:ring-0 outline-none"
+            placeholder="Give your contribution a title..."
           />
         </div>
       </div>
