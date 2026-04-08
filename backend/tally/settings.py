@@ -251,6 +251,10 @@ SOCIAL_ENCRYPTION_KEY = os.environ.get('SOCIAL_ENCRYPTION_KEY', '') or GITHUB_EN
 # Frontend URL for OAuth redirects
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 
+# Additional origins allowed for OAuth redirect URLs (comma-separated)
+_allowed_redirect_origins = os.environ.get('ALLOWED_REDIRECT_ORIGINS', '')
+ALLOWED_REDIRECT_ORIGINS = [o.strip() for o in _allowed_redirect_origins.split(',') if o.strip()]
+
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = get_required_env('CSRF_TRUSTED_ORIGINS').split(',')
 
