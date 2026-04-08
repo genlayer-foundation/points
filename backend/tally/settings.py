@@ -224,7 +224,7 @@ CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '')
 CLOUDINARY_UPLOAD_PRESET = os.environ.get('CLOUDINARY_UPLOAD_PRESET', 'tally_unsigned')  # For browser uploads
 
 # Backend URL (for constructing OAuth redirect URIs)
-BACKEND_URL = os.environ.get('BACKEND_URL', 'http://localhost:8000')
+BACKEND_URL = os.environ.get('BACKEND_URL', 'http://localhost:8000').strip().rstrip('/')
 
 # GitHub OAuth settings
 GITHUB_CLIENT_ID = os.environ.get('GITHUB_CLIENT_ID', '')
@@ -249,7 +249,7 @@ DISCORD_GUILD_ID = os.environ.get('DISCORD_GUILD_ID', '')
 SOCIAL_ENCRYPTION_KEY = os.environ.get('SOCIAL_ENCRYPTION_KEY', '') or GITHUB_ENCRYPTION_KEY
 
 # Frontend URL for OAuth redirects
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173').strip().rstrip('/')
 
 # Additional origins allowed for OAuth redirect URLs (comma-separated)
 _allowed_redirect_origins = os.environ.get('ALLOWED_REDIRECT_ORIGINS', '')

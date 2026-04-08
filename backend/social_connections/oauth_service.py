@@ -47,7 +47,8 @@ def validate_redirect_url(url):
     if request_origin in allowed_origins:
         return url
 
-    logger.warning(f"Rejected redirect URL with origin {request_origin}")
+    logger.warning("Rejected redirect URL with origin %s (allowed: %s, FRONTEND_URL=%r, BACKEND_URL=%r)",
+                    request_origin, allowed_origins, settings.FRONTEND_URL, settings.BACKEND_URL)
     return settings.FRONTEND_URL
 
 
