@@ -3,6 +3,7 @@
     import CategoryIcon from "../portal/CategoryIcon.svelte";
     import ProfileHighlights from "./ProfileHighlights.svelte";
     import ProfileRecentContributions from "./ProfileRecentContributions.svelte";
+    import CommunityProgressJourney from "./CommunityProgressJourney.svelte";
     import { showSuccess } from "../../lib/toastStore";
 
     let {
@@ -13,6 +14,11 @@
         isOwnProfile = false,
         communityStats = { totalContributions: 0, totalPoints: 0 },
         communityStatsLoading = false,
+        onSocialLinked = () => {},
+        onClaimX = () => {},
+        onClaimDiscord = () => {},
+        isClaimingX = false,
+        isClaimingDiscord = false,
     } = $props();
 
     let totalReferrals = $derived(
@@ -23,6 +29,13 @@
     let builderReferralPoints = $derived(referralPoints?.builder_points || 0);
     let validatorReferralPoints = $derived(
         referralPoints?.validator_points || 0,
+    );
+    let totalReferralPoints = $derived(builderReferralPoints + validatorReferralPoints);
+
+    let showJourney = $derived(
+        isOwnProfile &&
+        participant?.creator &&
+        !(participant?.has_community_link_x && participant?.has_community_link_discord)
     );
 
     function copyReferralLink() {
@@ -65,6 +78,20 @@
             Community Member
         </span>
     </div>
+
+    <!-- Social Link Journey (conditional) -->
+    {#if showJourney}
+        <div class="w-full mb-4">
+            <CommunityProgressJourney
+                {participant}
+                onSocialLinked={onSocialLinked}
+                {onClaimX}
+                {onClaimDiscord}
+                {isClaimingX}
+                {isClaimingDiscord}
+            />
+        </div>
+    {/if}
 
     <!-- Referral Program Banner -->
     <div
@@ -118,154 +145,8 @@
         </div>
     </div>
 
-    <!-- Metrics Row -->
+    <!-- Metrics Row: 3 cards -->
     <div class="flex flex-col md:flex-row gap-4 w-full">
-        <!-- Total Referrals Card -->
-        <div
-            class="bg-white border border-[#f0f0f0] rounded-[16px] flex items-center p-[24px] h-[92px] w-full relative overflow-hidden"
-        >
-            {#if loading}
-                <div class="flex h-full items-center animate-pulse">
-                    <div
-                        class="w-[48px] h-[48px] rounded-full bg-gray-200 mr-4 shrink-0"
-                    ></div>
-                    <div class="flex flex-col gap-2">
-                        <div class="h-7 w-16 bg-gray-200 rounded"></div>
-                        <div class="h-3 w-24 bg-gray-100 rounded"></div>
-                    </div>
-                </div>
-            {:else}
-                <div class="flex h-full items-center">
-                    <div
-                        class="w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
-                    >
-                        <CategoryIcon
-                            category="community"
-                            mode="hexagon"
-                            size={48}
-                        />
-                    </div>
-                    <div
-                        class="flex flex-col h-full items-start justify-center whitespace-nowrap z-10"
-                    >
-                        <p
-                            class="font-semibold text-[32px] leading-[32px] tracking-[-0.96px] text-black"
-                        >
-                            {totalReferrals}
-                        </p>
-                        <p
-                            class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
-                        >
-                            Total Referrals
-                        </p>
-                    </div>
-                </div>
-            {/if}
-        </div>
-
-        <!-- Builder Referral Points Card -->
-        <div
-            class="bg-white border border-[#f0f0f0] rounded-[16px] flex items-center p-[24px] h-[92px] w-full relative overflow-hidden"
-        >
-            {#if loading}
-                <div class="flex h-full items-center animate-pulse">
-                    <div
-                        class="w-[48px] h-[48px] rounded-full bg-gray-200 mr-4 shrink-0"
-                    ></div>
-                    <div class="flex flex-col gap-2">
-                        <div class="h-7 w-16 bg-gray-200 rounded"></div>
-                        <div class="h-3 w-28 bg-gray-100 rounded"></div>
-                    </div>
-                </div>
-            {:else}
-                <div class="flex h-full items-center">
-                    <div
-                        class="w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
-                    >
-                        <CategoryIcon
-                            category="builder"
-                            mode="hexagon"
-                            size={48}
-                        />
-                        <div class="absolute -bottom-[2px] -right-[2px]">
-                            <CategoryIcon
-                                category="community"
-                                mode="hexagon"
-                                size={20}
-                            />
-                        </div>
-                    </div>
-                    <div
-                        class="flex flex-col h-full items-start justify-center whitespace-nowrap z-10"
-                    >
-                        <p
-                            class="font-semibold text-[32px] leading-[32px] tracking-[-0.96px] text-black"
-                        >
-                            {builderReferralPoints}
-                        </p>
-                        <p
-                            class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
-                        >
-                            Builder Referral Points
-                        </p>
-                    </div>
-                </div>
-            {/if}
-        </div>
-
-        <!-- Validator Referral Points Card -->
-        <div
-            class="bg-white border border-[#f0f0f0] rounded-[16px] flex items-center p-[24px] h-[92px] w-full relative overflow-hidden"
-        >
-            {#if loading}
-                <div class="flex h-full items-center animate-pulse">
-                    <div
-                        class="w-[48px] h-[48px] rounded-full bg-gray-200 mr-4 shrink-0"
-                    ></div>
-                    <div class="flex flex-col gap-2">
-                        <div class="h-7 w-16 bg-gray-200 rounded"></div>
-                        <div class="h-3 w-28 bg-gray-100 rounded"></div>
-                    </div>
-                </div>
-            {:else}
-                <div class="flex h-full items-center">
-                    <div
-                        class="w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
-                    >
-                        <CategoryIcon
-                            category="validator"
-                            mode="hexagon"
-                            size={48}
-                        />
-                        <div class="absolute -bottom-[2px] -right-[2px]">
-                            <CategoryIcon
-                                category="community"
-                                mode="hexagon"
-                                size={20}
-                            />
-                        </div>
-                    </div>
-                    <div
-                        class="flex flex-col h-full items-start justify-center whitespace-nowrap z-10"
-                    >
-                        <p
-                            class="font-semibold text-[32px] leading-[32px] tracking-[-0.96px] text-black"
-                        >
-                            {validatorReferralPoints}
-                        </p>
-                        <p
-                            class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
-                        >
-                            Validator Referral Points
-                        </p>
-                    </div>
-                </div>
-            {/if}
-        </div>
-    </div>
-
-    <!-- Community Contributions Stats -->
-    <div class="flex flex-col md:flex-row gap-4 w-full mt-4">
         <!-- Community Points Card -->
         <div
             class="bg-white border border-[#f0f0f0] rounded-[16px] flex items-center p-[24px] h-[92px] w-full relative overflow-hidden"
@@ -308,14 +189,14 @@
                         <p
                             class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                         >
-                            Total community points
+                            Community Points
                         </p>
                     </div>
                 </div>
             {/if}
         </div>
 
-        <!-- Community Contributions Count Card -->
+        <!-- Community Contributions Card -->
         <div
             class="bg-white border border-[#f0f0f0] rounded-[16px] flex items-center p-[24px] h-[92px] w-full relative overflow-hidden"
         >
@@ -334,20 +215,11 @@
                     <div
                         class="w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
                     >
-                        <img
-                            src="/assets/icons/hexagon-community.svg"
-                            alt=""
-                            class="w-full h-full"
+                        <CategoryIcon
+                            category="community"
+                            mode="hexagon"
+                            size={48}
                         />
-                        <svg
-                            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 text-white"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                        >
-                            <path
-                                d="M3 2.992C3 2.444 3.445 2 3.993 2h16.014A1 1 0 0 1 21 2.992v18.016a1 1 0 0 1-.993.992H3.993A.993.993 0 0 1 3 21.008V2.992zM5 4v16h14V4H5zm4.293 7.293l-2 2a1 1 0 0 0 0 1.414l2 2 1.414-1.414L9.414 14l1.293-1.293-1.414-1.414zm5.414 0l-1.414 1.414L14.586 14l-1.293 1.293 1.414 1.414 2-2a1 1 0 0 0 0-1.414l-2-2z"
-                            />
-                        </svg>
                     </div>
                     <div
                         class="flex flex-col h-full items-start justify-center whitespace-nowrap z-10"
@@ -360,8 +232,63 @@
                         <p
                             class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                         >
-                            Total Contributions
+                            Community Contributions
                         </p>
+                    </div>
+                </div>
+            {/if}
+        </div>
+
+        <!-- Total Referrals Card (with builder/validator referral points breakdown) -->
+        <div
+            class="bg-white border border-[#f0f0f0] rounded-[16px] flex items-center p-[24px] h-[92px] w-full relative overflow-hidden"
+        >
+            {#if loading}
+                <div class="flex h-full items-center animate-pulse">
+                    <div
+                        class="w-[48px] h-[48px] rounded-full bg-gray-200 mr-4 shrink-0"
+                    ></div>
+                    <div class="flex flex-col gap-2">
+                        <div class="h-7 w-16 bg-gray-200 rounded"></div>
+                        <div class="h-3 w-24 bg-gray-100 rounded"></div>
+                    </div>
+                </div>
+            {:else}
+                <div class="flex h-full items-center">
+                    <div
+                        class="w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
+                    >
+                        <CategoryIcon
+                            category="community"
+                            mode="hexagon"
+                            size={48}
+                        />
+                    </div>
+                    <div
+                        class="flex flex-col h-full items-start justify-center z-10"
+                    >
+                        <p
+                            class="font-semibold text-[32px] leading-[32px] tracking-[-0.96px] text-black"
+                        >
+                            {totalReferrals}
+                        </p>
+                        <div class="flex items-center gap-3 mt-1">
+                            <span class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b]">
+                                Total Referrals
+                            </span>
+                            {#if builderReferralPoints > 0 || validatorReferralPoints > 0}
+                                <div class="flex items-center gap-2">
+                                    <div class="flex items-center gap-[3px]">
+                                        <CategoryIcon category="builder" mode="hexagon" size={14} />
+                                        <span class="text-[11px] font-medium text-[#999] leading-[14px]">{builderReferralPoints} pts</span>
+                                    </div>
+                                    <div class="flex items-center gap-[3px]">
+                                        <CategoryIcon category="validator" mode="hexagon" size={14} />
+                                        <span class="text-[11px] font-medium text-[#999] leading-[14px]">{validatorReferralPoints} pts</span>
+                                    </div>
+                                </div>
+                            {/if}
+                        </div>
                     </div>
                 </div>
             {/if}

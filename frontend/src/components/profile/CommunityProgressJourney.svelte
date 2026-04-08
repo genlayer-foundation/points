@@ -125,9 +125,9 @@
                         platform="twitter"
                         platformLabel="X"
                         connection={participant?.twitter_connection}
-                        initiateUrl="/social-auth/twitter/authorize/"
+                        initiateUrl="/api/auth/twitter/"
                         onLinked={onSocialLinked}
-                        compact={true}
+                        compact={false}
                     />
                 {/if}
             </div>
@@ -211,9 +211,9 @@
                         platform="discord"
                         platformLabel="Discord"
                         connection={participant?.discord_connection}
-                        initiateUrl="/social-auth/discord/authorize/"
+                        initiateUrl="/api/auth/discord/"
                         onLinked={onSocialLinked}
-                        compact={true}
+                        compact={false}
                     />
                 {/if}
             </div>
