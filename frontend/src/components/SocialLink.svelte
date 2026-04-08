@@ -20,6 +20,7 @@
   // reactivity issues (effect re-runs clearing the monitor prematurely).
   let oauthWindow = null;
   let popupMonitor = null;
+  let broadcastChannel = null;
 
   const storageKey = `oauth_result_${platform}`;
   const handledFlag = `oauth_handled_${platform}`;
@@ -43,15 +44,24 @@
 
   // --- Event handlers ---
 
-  // Primary: postMessage from the OAuth popup (standard pattern)
-  function onMessageEvent(e) {
-    if (e.origin !== window.location.origin) return;
-    if (e.data?.type !== 'oauth_result') return;
-    if (e.data?.platform !== platform) return;
-    handleOAuthReturn(e.data.verified === 'true', e.data.error || '');
+  function handleOAuthMessage(data) {
+    if (data?.type !== 'oauth_result') return;
+    if (data?.platform !== platform) return;
+    handleOAuthReturn(data.verified === 'true', data.error || '');
   }
 
-  // Fallback: localStorage storage event (Safari may clear window.opener)
+  // Channel 1: BroadcastChannel (most reliable same-origin cross-tab messaging)
+  function onBroadcastMessage(e) {
+    handleOAuthMessage(e.data);
+  }
+
+  // Channel 2: postMessage from the OAuth popup
+  function onMessageEvent(e) {
+    if (e.origin !== window.location.origin) return;
+    handleOAuthMessage(e.data);
+  }
+
+  // Channel 3: localStorage storage event
   function onStorageEvent(e) {
     if (e.key !== storageKey || !e.newValue) return;
     const result = JSON.parse(e.newValue);
@@ -62,11 +72,22 @@
   // Lifecycle — use onMount/onDestroy (not $effect) to avoid reactive
   // dependency tracking on the cleanup's reads of popupMonitor/oauthWindow.
   onMount(() => {
+    try {
+      broadcastChannel = new BroadcastChannel('oauth_result');
+      broadcastChannel.addEventListener('message', onBroadcastMessage);
+    } catch {
+      // BroadcastChannel not supported
+    }
     window.addEventListener('message', onMessageEvent);
     window.addEventListener('storage', onStorageEvent);
   });
 
   onDestroy(() => {
+    if (broadcastChannel) {
+      broadcastChannel.removeEventListener('message', onBroadcastMessage);
+      broadcastChannel.close();
+      broadcastChannel = null;
+    }
     window.removeEventListener('message', onMessageEvent);
     window.removeEventListener('storage', onStorageEvent);
     clearPopupMonitor();
@@ -109,23 +130,29 @@
     }
   }
 
-  async function reconcileAfterPopupClose() {
-    if (!isLinking || handledOAuthResult) return;
-
-    // Check localStorage first — the popup writes here, and the storage event
-    // may have been missed (same-tab writes don't fire storage events; the
-    // popup IS a different window, but race conditions can cause misses).
+  function checkLocalStorageResult() {
     const stored = localStorage.getItem(storageKey);
     if (stored) {
       localStorage.removeItem(storageKey);
       const result = JSON.parse(stored);
       handleOAuthReturn(result.verified === 'true', result.error || '');
-      return;
+      return true;
     }
+    return false;
+  }
+
+  async function reconcileAfterPopupClose() {
+    if (!isLinking || handledOAuthResult) return;
 
     const maxAttempts = 3;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       if (handledOAuthResult) return;
+
+      // Check localStorage on every attempt — the popup writes the result here
+      // and it may arrive after reconciliation starts (page load time in popup).
+      if (checkLocalStorageResult()) return;
+
+      // Also check API for success (connection created)
       try {
         const currentUser = await getCurrentUser();
         if (currentUser?.[`${platform}_connection`]?.platform_username) {

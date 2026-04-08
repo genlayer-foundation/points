@@ -13,7 +13,10 @@
   
   // Early OAuth result detection — runs before routes mount.
   // Backend redirects here with ?oauth_platform=X&oauth_verified=true/false&oauth_error=...
-  // We relay the result to the opener tab via postMessage (primary) and localStorage (fallback).
+  // We relay the result to the opener tab via three channels (in order of reliability):
+  //   1. BroadcastChannel — most reliable same-origin cross-tab messaging
+  //   2. postMessage to window.opener — standard pattern, but opener is often null after cross-origin redirects
+  //   3. localStorage — read by reconciliation as last resort
   {
     const search = window.location.search;
     if (search && search.includes('oauth_platform')) {
@@ -27,12 +30,21 @@
           error: params.get('oauth_error') || '',
         };
 
-        // Primary: postMessage to opener (standard OAuth popup pattern)
+        // Channel 1: BroadcastChannel (reliable same-origin, no window ref needed)
+        try {
+          const bc = new BroadcastChannel('oauth_result');
+          bc.postMessage(result);
+          bc.close();
+        } catch {
+          // BroadcastChannel not supported — fall through to other channels
+        }
+
+        // Channel 2: postMessage to opener (often null after cross-origin redirects)
         if (window.opener) {
           window.opener.postMessage(result, window.location.origin);
         }
 
-        // Fallback: localStorage for when window.opener is null (Safari)
+        // Channel 3: localStorage (read by reconciliation if events are missed)
         const storageKey = `oauth_result_${platform}`;
         localStorage.setItem(storageKey, JSON.stringify({
           verified: result.verified,
