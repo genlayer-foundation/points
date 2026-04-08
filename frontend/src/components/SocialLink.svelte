@@ -141,7 +141,7 @@
     }
 
     if (!handledOAuthResult) {
-      isLinking = false;
+      handleOAuthReturn(false, 'authorization_failed');
     }
   }
 
