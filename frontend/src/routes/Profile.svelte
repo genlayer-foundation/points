@@ -28,7 +28,6 @@
   import RankingsWidget from "../components/profile/RankingsWidget.svelte";
   import JourneyActions from "../components/profile/JourneyActions.svelte";
   import ProgressJourney from "../components/profile/ProgressJourney.svelte";
-  import CommunityProgressJourney from "../components/profile/CommunityProgressJourney.svelte";
   import RoleView from "../components/profile/RoleView.svelte";
   import StewardView from "../components/profile/StewardView.svelte";
   import CommunityView from "../components/profile/CommunityView.svelte";
@@ -898,7 +897,7 @@
 
       <!-- Community Section -->
       {#if participant?.creator}
-        <div class="w-full mb-16 pt-10 border-t border-gray-100 mt-10">
+        <div id="community-journey-section" class="w-full mb-16 pt-10 border-t border-gray-100 mt-10">
           <CommunityView
             {participant}
             {referralData}
@@ -907,43 +906,12 @@
             {isOwnProfile}
             communityStats={communityStats}
             communityStatsLoading={!communityStatsLoaded}
+            onSocialLinked={handleCommunityLinked}
+            onClaimX={handleClaimX}
+            onClaimDiscord={handleClaimDiscord}
+            {isClaimingX}
+            {isClaimingDiscord}
           />
-        </div>
-      {/if}
-
-      <!-- Community Journey (ongoing - has creator but not completed social links) -->
-      {#if participant?.creator && !(participant?.has_community_link_x && participant?.has_community_link_discord) && isOwnProfile}
-        <div
-          id="community-journey-section"
-          class="w-full mb-16 pt-10 border-t border-gray-100 mt-10"
-        >
-          <div class="w-full flex flex-col items-start mt-8">
-            <div class="flex items-center gap-[10px] mb-4">
-              <div
-                class="relative flex-shrink-0"
-                style="width: 32px; height: 32px;"
-              >
-                <CategoryIcon category="community" mode="hexagon" size={32} />
-              </div>
-              <h2
-                class="text-[20px] font-semibold text-black"
-                style="letter-spacing: 0.4px;"
-              >
-                Community Journey
-              </h2>
-            </div>
-
-            <div class="w-full">
-              <CommunityProgressJourney
-                {participant}
-                onSocialLinked={handleCommunityLinked}
-                onClaimX={handleClaimX}
-                onClaimDiscord={handleClaimDiscord}
-                {isClaimingX}
-                {isClaimingDiscord}
-              />
-            </div>
-          </div>
         </div>
       {/if}
 
