@@ -112,6 +112,17 @@
   async function reconcileAfterPopupClose() {
     if (!isLinking || handledOAuthResult) return;
 
+    // Check localStorage first — the popup writes here, and the storage event
+    // may have been missed (same-tab writes don't fire storage events; the
+    // popup IS a different window, but race conditions can cause misses).
+    const stored = localStorage.getItem(storageKey);
+    if (stored) {
+      localStorage.removeItem(storageKey);
+      const result = JSON.parse(stored);
+      handleOAuthReturn(result.verified === 'true', result.error || '');
+      return;
+    }
+
     const maxAttempts = 3;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       if (handledOAuthResult) return;

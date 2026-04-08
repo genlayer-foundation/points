@@ -32,7 +32,7 @@ def validate_redirect_url(url):
     except Exception:
         return settings.FRONTEND_URL
 
-    # Build allowed origins from FRONTEND_URL and BACKEND_URL
+    # Build allowed origins from FRONTEND_URL, BACKEND_URL, and ALLOWED_REDIRECT_ORIGINS
     allowed_origins = set()
     for setting_url in [settings.FRONTEND_URL, settings.BACKEND_URL]:
         try:
@@ -40,12 +40,15 @@ def validate_redirect_url(url):
             allowed_origins.add(f"{p.scheme}://{p.netloc}")
         except Exception:
             pass
+    for origin in getattr(settings, 'ALLOWED_REDIRECT_ORIGINS', []):
+        allowed_origins.add(origin.rstrip('/'))
 
     request_origin = f"{parsed.scheme}://{parsed.netloc}"
     if request_origin in allowed_origins:
         return url
 
-    logger.warning(f"Rejected redirect URL with origin {request_origin}")
+    logger.warning("Rejected redirect URL with origin %s (allowed: %s, FRONTEND_URL=%r, BACKEND_URL=%r)",
+                    request_origin, allowed_origins, settings.FRONTEND_URL, settings.BACKEND_URL)
     return settings.FRONTEND_URL
 
 
@@ -297,7 +300,7 @@ class OAuthService:
     @staticmethod
     def generate_code_verifier():
         """Generate a PKCE code verifier."""
-        return secrets.token_urlsafe(64)[:128]
+        return secrets.token_urlsafe(32)[:43]
 
     @staticmethod
     def generate_code_challenge(verifier):
