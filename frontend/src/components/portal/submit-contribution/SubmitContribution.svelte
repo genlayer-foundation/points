@@ -559,6 +559,7 @@
               {#each filteredItems as item}
                 <button
                   type="button"
+                  onmousedown={(e) => { e.preventDefault(); selectItem(item); }}
                   onclick={() => selectItem(item)}
                   class="w-full text-left flex items-start flex-col p-[12px] hover:bg-gray-50 border-b border-[#f5f5f5] last:border-0 {(item.itemType === 'type' && selectedType?.id === item.data.id && !selectedMission) || (item.itemType === 'mission' && selectedMission === item.data.id)
                     ? 'bg-[#f0f0ff]'

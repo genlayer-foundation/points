@@ -232,7 +232,7 @@
     width: 420px;
     max-width: 90vw;
     max-height: 85vh;
-    overflow: hidden;
+    overflow-y: auto;
     animation: slideUp 0.2s ease-out;
   }
 
