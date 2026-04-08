@@ -85,7 +85,16 @@
 
         <!-- Middle: title + description -->
         <div class="flex-1 min-h-0 overflow-hidden">
-          <h3 class="text-[14px] font-semibold text-black line-clamp-1">{highlight.title}</h3>
+          <div class="flex items-center gap-[6px]">
+            <div class="relative w-[20px] h-[20px] flex-shrink-0">
+              <img src="/assets/icons/hexagon-highlight.svg" alt="" class="w-full h-full" />
+              <div
+                class="absolute inset-0 m-auto w-[10px] h-[10px]"
+                style="background-color: #FFFFFF; -webkit-mask-image: url(/assets/icons/star-line.svg); mask-image: url(/assets/icons/star-line.svg); mask-size: contain; mask-repeat: no-repeat; mask-position: center;"
+              ></div>
+            </div>
+            <h3 class="text-[14px] font-semibold text-black line-clamp-1">{highlight.title}</h3>
+          </div>
           <p class="text-[12px] mt-1 text-[#6b6b6b] line-clamp-2">
             {highlight.description}
           </p>

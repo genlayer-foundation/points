@@ -330,6 +330,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     },
                     'contribution_type_details': contribution_type_details,  # Full type details including category
                     'contribution_type_name': contrib.contribution_type.name,
+                    'title': serialized.get('title', ''),
                     'grouped_contributions': [serialized],
                     'frozen_global_points': serialized.get('frozen_global_points') or 0,
                     'contribution_date': serialized['contribution_date'],  # First date
@@ -1131,6 +1132,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 points=serializer.validated_data['points'],
                 contribution_date=submission.contribution_date,
                 notes=submission.notes,
+                title=submission.title,
                 mission=submission.mission
             )
 

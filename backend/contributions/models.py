@@ -146,6 +146,7 @@ class Contribution(BaseModel):
     )
     contribution_date = models.DateTimeField(null=True, blank=True, help_text="Date when the contribution was made. Defaults to creation time if not specified.")
     notes = models.TextField(blank=True)
+    title = models.CharField(max_length=200, blank=True, default='', help_text="Optional title for the contribution")
 
     def __str__(self):
         return f"{self.user} - {self.contribution_type} - {self.points} points"
@@ -269,7 +270,8 @@ class SubmittedContribution(BaseModel):
         help_text="Date when the contribution was made"
     )
     notes = models.TextField(blank=True)
-    
+    title = models.CharField(max_length=200, blank=True, default='', help_text="Optional title for the submission")
+
     # State management
     STATE_CHOICES = [
         ('pending', 'Pending Review'),
