@@ -836,7 +836,7 @@ class FeaturedContentSerializer(serializers.ModelSerializer):
                   'hero_image_url', 'hero_image_url_tablet', 'hero_image_url_mobile',
                   'url', 'link',
                   'user', 'user_name', 'user_address', 'user_profile_image_url',
-                  'contribution', 'is_active', 'order', 'created_at']
+                  'contribution', 'status', 'order', 'created_at']
 
     def get_user_profile_image_url(self, obj):
         """Return the FeaturedContent's user_profile_image_url if set, otherwise fall back to user's profile_image_url."""
