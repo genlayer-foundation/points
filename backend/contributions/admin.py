@@ -705,10 +705,10 @@ class FeaturedContentAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
         },
     }
 
-    list_display = ('title', 'content_type', 'user', 'is_active', 'order', 'created_at')
-    list_filter = ('content_type', 'is_active', 'created_at')
+    list_display = ('title', 'content_type', 'user', 'status', 'order', 'created_at')
+    list_filter = ('content_type', 'status', 'created_at')
     search_fields = ('title', 'description', 'user__name', 'user__address')
-    list_editable = ('order', 'is_active')
+    list_editable = ('order', 'status')
     raw_id_fields = ('user', 'contribution')
     readonly_fields = ('created_at', 'updated_at', 'hero_image_public_id',
                        'hero_image_tablet_public_id', 'hero_image_mobile_public_id',
@@ -717,7 +717,7 @@ class FeaturedContentAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            'fields': ('content_type', 'title', 'author', 'description', 'is_active', 'order')
+            'fields': ('content_type', 'title', 'author', 'description', 'status', 'order')
         }),
         ('Relations', {
             'fields': ('user', 'contribution')
