@@ -57,7 +57,7 @@ class Command(BaseCommand):
                 'author': 'cognocracy',
                 'user': users['cognocracy'],
                 'url': '',
-                'is_active': True,
+                'status': 'active',
                 'order': 0,
             },
         )
@@ -97,7 +97,7 @@ class Command(BaseCommand):
                 defaults={
                     'user': build['user'],
                     'url': build['url'],
-                    'is_active': True,
+                    'status': 'active',
                     'order': build['order'],
                     'description': '',
                     'author': '',

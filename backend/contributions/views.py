@@ -1826,7 +1826,7 @@ class FeaturedContentViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
-        queryset = FeaturedContent.objects.filter(is_active=True).select_related(
+        queryset = FeaturedContent.objects.filter(status='active').select_related(
             'user', 'contribution', 'contribution__contribution_type'
         ).order_by('order', '-created_at')
         content_type = self.request.query_params.get('type')

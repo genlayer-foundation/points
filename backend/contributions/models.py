@@ -718,6 +718,10 @@ class FeaturedContent(BaseModel):
         ('community', 'Featured Community'),
         ('validator_steward', 'Featured Validator/Steward'),
     ]
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('idle', 'Idle'),
+    ]
     content_type = models.CharField(max_length=20, choices=CONTENT_TYPE_CHOICES)
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -739,7 +743,7 @@ class FeaturedContent(BaseModel):
     user_profile_image_url = models.URLField(max_length=500, blank=True, help_text='Cloudinary URL for user profile image')
     user_profile_image_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for user profile image')
     url = models.URLField(max_length=500, blank=True)
-    is_active = models.BooleanField(default=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -756,7 +760,7 @@ class FeaturedContent(BaseModel):
     @classmethod
     def get_active_by_type(cls, content_type, limit=10):
         return cls.objects.filter(
-            content_type=content_type, is_active=True
+            content_type=content_type, status='active'
         ).select_related(
             'user', 'contribution', 'contribution__contribution_type'
         ).order_by('order', '-created_at')[:limit]
