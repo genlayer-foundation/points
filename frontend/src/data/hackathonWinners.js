@@ -27,8 +27,8 @@ export const grandWinner = {
   descriptionIntro: 'BuildersClaw connects companies that need real code with builders ready to ship it. Companies post coding challenges with prize money, and builders compete by submitting working solutions through AI agents.',
   descriptionBullets: [
     'A GenLayer intelligent contract evaluates every submission automatically, scoring code against challenge requirements through multi-validator consensus.',
-    'Smart contracts handle escrow and payouts — funds are locked when a challenge is created and released to the winner once judging is complete.',
-    'All judging happens on-chain and is fully verifiable. No human panel, no subjective opinions — the best code wins on merit.',
+    'Smart contracts handle escrow and payouts. Funds are locked when a challenge is created and released to the winner once judging is complete.',
+    'All judging happens on-chain and is fully verifiable. No human panel, no subjective opinions. The best code wins on merit.',
   ],
   links: {
     project: 'https://dorahacks.io/buidl/41425',
