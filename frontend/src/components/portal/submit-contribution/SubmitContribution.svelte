@@ -192,7 +192,6 @@
     selectedType = t;
     selectedMission = null;
     selectedMissionData = null;
-    formData.contribution_type = t.id;
     showTypeDropdown = false;
     searchQuery = t.name;
     if (error === "Please select a contribution type") error = "";
@@ -205,7 +204,6 @@
       selectedType = item.parentType;
       selectedMission = item.data.id;
       selectedMissionData = item.data;
-      formData.contribution_type = item.parentType.id;
       showTypeDropdown = false;
       searchQuery = item.data.name;
       if (error === "Please select a contribution type") error = "";
@@ -288,101 +286,102 @@
 
   // Submission
   async function handleSubmit(e) {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!formData.contribution_type) {
-      error = "Please select a contribution type";
+  // ✅ FIX: gunakan selectedType sebagai source of truth
+  if (!selectedType) {
+    error = "Please select a contribution type";
+    return;
+  }
+
+  if (formData.notes.length > 1000) {
+    error = "Notes cannot exceed 1000 characters";
+    return;
+  }
+
+  for (let i = 0; i < evidenceSlots.length; i++) {
+    const slot = evidenceSlots[i];
+    const hasDescription =
+      slot.description && slot.description.trim().length > 0;
+    const hasUrl = slot.url && slot.url.trim().length > 0;
+
+    if (hasDescription && !hasUrl) {
+      error = `Evidence ${i + 1}: A URL is required for each evidence item`;
       return;
     }
-
-    if (formData.notes.length > 1000) {
-      error = "Notes cannot exceed 1000 characters";
+    if (hasUrl && !hasDescription) {
+      error = `Evidence ${i + 1}: Please provide a description along with the URL`;
       return;
-    }
-
-    for (let i = 0; i < evidenceSlots.length; i++) {
-      const slot = evidenceSlots[i];
-      const hasDescription =
-        slot.description && slot.description.trim().length > 0;
-      const hasUrl = slot.url && slot.url.trim().length > 0;
-
-      if (hasDescription && !hasUrl) {
-        error = `Evidence ${i + 1}: A URL is required for each evidence item`;
-        return;
-      }
-      if (hasUrl && !hasDescription) {
-        error = `Evidence ${i + 1}: Please provide a description along with the URL`;
-        return;
-      }
-    }
-
-    const filledSlots = evidenceSlots.filter(
-      (s) => s.description?.trim() && s.url?.trim(),
-    );
-
-    if (filledSlots.length === 0) {
-      error =
-        "Please add at least one evidence item with a URL to support your contribution";
-      return;
-    }
-
-    if (!recaptchaToken) {
-      error = "Please complete the reCAPTCHA verification";
-      return;
-    }
-
-    submitting = true;
-    error = "";
-
-    try {
-      const submissionData = {
-        contribution_type: formData.contribution_type,
-        contribution_date: formData.contribution_date + "T00:00:00Z",
-        notes: formData.notes,
-        recaptcha: recaptchaToken,
-      };
-
-      // Include mission if selected (from URL param or dropdown selection)
-      const missionToSubmit = selectedMission || missionId;
-      if (missionToSubmit) {
-        submissionData.mission = missionToSubmit;
-      }
-
-      // Send evidence inline with the submission (atomic creation)
-      submissionData.evidence_items = filledSlots.map((slot) => ({
-        description: slot.description,
-        url: normalizeUrl(slot.url),
-      }));
-
-      await api.post("/submissions/", submissionData);
-
-      sessionStorage.setItem(
-        "submissionUpdateSuccess",
-        "Your contribution has been submitted successfully and is pending review.",
-      );
-      push("/my-submissions");
-    } catch (err) {
-      if (err.response?.data?.recaptcha) {
-        error = Array.isArray(err.response.data.recaptcha)
-          ? err.response.data.recaptcha[0]
-          : err.response.data.recaptcha;
-      } else {
-        error =
-          err.response?.data?.error ||
-          err.response?.data?.detail ||
-          "Failed to submit contribution";
-      }
-
-      if (recaptchaWidgetId !== null && window.grecaptcha) {
-        try {
-          window.grecaptcha.reset(recaptchaWidgetId);
-          recaptchaToken = "";
-        } catch (e) {}
-      }
-    } finally {
-      submitting = false;
     }
   }
+
+  const filledSlots = evidenceSlots.filter(
+    (s) => s.description?.trim() && s.url?.trim(),
+  );
+
+  if (filledSlots.length === 0) {
+    error =
+      "Please add at least one evidence item with a URL to support your contribution";
+    return;
+  }
+
+  if (!recaptchaToken) {
+    error = "Please complete the reCAPTCHA verification";
+    return;
+  }
+
+  submitting = true;
+  error = "";
+
+  try {
+    const submissionData = {
+      // ✅ FIX: ambil dari selectedType
+      contribution_type: selectedType?.id,
+      contribution_date: formData.contribution_date + "T00:00:00Z",
+      notes: formData.notes,
+      recaptcha: recaptchaToken,
+    };
+
+    const missionToSubmit = selectedMission || missionId;
+    if (missionToSubmit) {
+      submissionData.mission = missionToSubmit;
+    }
+
+    submissionData.evidence_items = filledSlots.map((slot) => ({
+      description: slot.description,
+      url: normalizeUrl(slot.url),
+    }));
+
+    await api.post("/submissions/", submissionData);
+
+    sessionStorage.setItem(
+      "submissionUpdateSuccess",
+      "Your contribution has been submitted successfully and is pending review.",
+    );
+
+    push("/my-submissions");
+  } catch (err) {
+    if (err.response?.data?.recaptcha) {
+      error = Array.isArray(err.response.data.recaptcha)
+        ? err.response.data.recaptcha[0]
+        : err.response.data.recaptcha;
+    } else {
+      error =
+        err.response?.data?.error ||
+        err.response?.data?.detail ||
+        "Failed to submit contribution";
+    }
+
+    if (recaptchaWidgetId !== null && window.grecaptcha) {
+      try {
+        window.grecaptcha.reset(recaptchaWidgetId);
+        recaptchaToken = "";
+      } catch (e) {}
+    }
+  } finally {
+    submitting = false;
+  }
+}
 
   // Click outside listener for dropdown
   let dropdownRef;
