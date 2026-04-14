@@ -314,13 +314,16 @@
       <!-- Right: Description + Action buttons -->
       <div class="flex-1 flex flex-col justify-between gap-4">
         <div class="text-[#6b6b6b] text-[15px] md:text-[17px] leading-[24px] md:leading-[28px] tracking-[0.34px]">
-          <p>
-            <strong class="text-black">{grandWinner.name}</strong> {grandWinner.description}
-          </p>
-          {#if grandWinner.descriptionBold}
-            <p class="mt-4">
-              <strong class="text-black">In short:</strong> {grandWinner.descriptionBold.replace('In short: ', '')}
-            </p>
+          <p>{grandWinner.descriptionIntro}</p>
+          {#if grandWinner.descriptionBullets}
+            <ul class="mt-3 space-y-2">
+              {#each grandWinner.descriptionBullets as bullet}
+                <li class="flex gap-2">
+                  <span class="text-[#9e4bf6] mt-[2px] shrink-0">•</span>
+                  <span>{bullet}</span>
+                </li>
+              {/each}
+            </ul>
           {/if}
         </div>
         <div class="flex gap-2 items-start w-full">
