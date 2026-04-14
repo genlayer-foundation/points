@@ -49,6 +49,7 @@
   import Referrals from './routes/Referrals.svelte';
   import Community from './routes/Community.svelte';
   import Hackathon from './routes/Hackathon.svelte';
+  import HackathonWinners from './routes/HackathonWinners.svelte';
   import Resources from './routes/Resources.svelte';
   import ReferralProgram from './routes/ReferralProgram.svelte';
   import HowItWorks from './routes/HowItWorks.svelte';
@@ -78,6 +79,7 @@
     '/community/leaderboard': Community,
     '/community': ReferralProgram,
     '/hackathon': Hackathon,
+    '/hackathon-winners': HackathonWinners,
     '/referral-program': ReferralProgram,
 
     // Builders routes
