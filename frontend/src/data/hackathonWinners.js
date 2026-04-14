@@ -3,19 +3,19 @@
 // Update this file with real winner data and Cloudinary URLs.
 
 export const hackathonStats = [
-  { value: '92', label: 'BUIDLs' },
+  { value: '135', label: 'BUIDLs' },
   { value: '280', label: 'Hackers' },
   { value: '2 Weeks', label: 'Duration' },
 ];
 
 export const trackSubmissions = [
-  { name: 'Subjective Consensus (Bradbury Special)', count: 17 },
-  { name: 'Prediction Markets & P2P Betting', count: 16 },
-  { name: 'Onchain Justice', count: 14 },
-  { name: 'Agentic Economy Infrastructure', count: 13 },
-  { name: 'AI Governance', count: 12 },
-  { name: 'AI Gaming', count: 10 },
-  { name: 'Future of Work', count: 10 },
+  { name: 'Agentic Economy Infrastructure', count: 26 },
+  { name: 'Subjective Consensus (Bradbury Special)', count: 24 },
+  { name: 'Prediction Markets & P2P Betting', count: 21 },
+  { name: 'Onchain Justice', count: 19 },
+  { name: 'AI Gaming', count: 16 },
+  { name: 'Future of Work', count: 15 },
+  { name: 'AI Governance', count: 14 },
 ];
 
 export const grandWinner = {
