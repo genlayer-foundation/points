@@ -69,7 +69,7 @@
   let hasBg = $derived(screenshot && !isLogoOnly);
 </script>
 
-<div class="flex flex-col gap-3 w-full">
+<div class="flex flex-col gap-3 w-full h-full">
   <!-- Card Image Area -->
   <a
     href={cardHref}
@@ -140,7 +140,9 @@
 
   <!-- Description (not shown for large/grand winner variant — handled in page layout) -->
   {#if variant !== 'large' && description}
-    <p class="text-[17px] leading-[28px] text-[#6b6b6b] tracking-[0.34px]">{description}</p>
+    <p class="text-[17px] leading-[28px] text-[#6b6b6b] tracking-[0.34px] flex-1">{description}</p>
+  {:else if variant !== 'large'}
+    <div class="flex-1"></div>
   {/if}
 
   <!-- Action buttons (not shown for large/grand winner variant) -->
