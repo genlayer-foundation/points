@@ -26,20 +26,24 @@
     };
 
     function getCategoryColors(cat) {
-        if (cat === "builder") {
-            return {
-                pillBg: "rgba(238,141,36,0.1)",
-                pillText: "#ee8d24",
-                tagBorder: "#ee8d24",
-                tagText: "#ee8d24",
-            };
-        }
-        return {
-            pillBg: "rgba(79,118,246,0.1)",
-            pillText: "#4f76f6",
-            tagBorder: "#4f76f6",
-            tagText: "#4f76f6",
+        const map = {
+            builder: {
+                pillBg: "rgba(238,133,33,0.1)", pillText: "#ee8521",
+                tagBorder: "#ee8521", tagText: "#ee8521",
+                tintedBg: "#FEF3E2",
+            },
+            validator: {
+                pillBg: "rgba(56,125,232,0.1)", pillText: "#387DE8",
+                tagBorder: "#387DE8", tagText: "#387DE8",
+                tintedBg: "#EBF3FE",
+            },
+            community: {
+                pillBg: "rgba(127,82,225,0.1)", pillText: "#7F52E1",
+                tagBorder: "#7F52E1", tagText: "#7F52E1",
+                tintedBg: "#F4ECFD",
+            },
         };
+        return map[cat] || map.validator;
     }
 
     async function fetchContributions() {
@@ -111,20 +115,13 @@
                     null}
                 {@const count = contrib.count || 1}
                 {@const hasHighlight = !!contrib.highlight}
+                {@const realId = contrib.grouped_contributions?.[0]?.id || contrib.id}
                 <button
-                    onclick={() => {
-                        if (hasHighlight) {
-                            push(`/badge/${contrib.id}`);
-                        } else {
-                            push(
-                                `/contribution-type/${typeof contrib.contribution_type === "object" ? contrib.contribution_type.id : contrib.contribution_type}`,
-                            );
-                        }
-                    }}
+                    onclick={() => push(`/contribution/${realId}`)}
                     class="flex-shrink-0 w-[300px] h-[180px] rounded-[8px] p-4 flex flex-col gap-2 text-left hover:shadow-md transition-shadow cursor-pointer"
-                    style="border: 1px solid #f5f5f5;"
+                    style="background: {hasHighlight ? colors.tintedBg : '#FFFFFF'}; {hasHighlight ? '' : 'border: 1px solid #f5f5f5;'}"
                 >
-                    <!-- Top row: avatar + username | points pill -->
+                    <!-- Top row: avatar + username | points pill + highlight star -->
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
                             {#if user?.profile_image_url}
@@ -148,19 +145,32 @@
                                     `${user?.address?.slice(0, 6)}...`}
                             </span>
                         </div>
-                        <span
-                            class="text-xs font-medium px-2 py-0.5 rounded-full"
-                            style="background: {colors.pillBg}; color: {colors.pillText};"
-                        >
-                            {points} pts
-                        </span>
+                        <div class="flex items-center gap-2">
+                            <span
+                                class="text-xs font-medium px-2 py-0.5 rounded-full"
+                                style="background: {colors.pillBg}; color: {colors.pillText};"
+                            >
+                                {points} pts
+                            </span>
+                            {#if hasHighlight}
+                                <div class="relative w-[32px] h-[32px] flex-shrink-0">
+                                    <img src="/assets/icons/hexagon-highlight.svg" alt="" class="w-full h-full" />
+                                    <div
+                                        class="absolute inset-0 m-auto w-[16px] h-[16px]"
+                                        style="background-color: #FFFFFF; -webkit-mask-image: url(/assets/icons/star-line.svg); mask-image: url(/assets/icons/star-line.svg); mask-size: contain; mask-repeat: no-repeat; mask-position: center;"
+                                    ></div>
+                                </div>
+                            {/if}
+                        </div>
                     </div>
 
                     <!-- Middle: title + description -->
                     <div class="flex-1 min-h-0 overflow-hidden">
                         <h3 class="text-sm font-medium text-black truncate">
                             {#if hasHighlight}
-                                {contrib.highlight.title}
+                                {contrib.highlight.title || typeName}
+                            {:else if contrib.title}
+                                {contrib.title}
                             {:else}
                                 {typeName}{#if count > 1}
                                     <span

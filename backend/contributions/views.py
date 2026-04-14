@@ -330,6 +330,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     },
                     'contribution_type_details': contribution_type_details,  # Full type details including category
                     'contribution_type_name': contrib.contribution_type.name,
+                    'title': serialized.get('title', ''),
                     'grouped_contributions': [serialized],
                     'frozen_global_points': serialized.get('frozen_global_points') or 0,
                     'contribution_date': serialized['contribution_date'],  # First date
@@ -683,6 +684,23 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                                 {'error': 'You must complete the Validator Waitlist journey before submitting validator contributions.'},
                                 status=status.HTTP_403_FORBIDDEN
                             )
+                    # Check required social accounts for this contribution type
+                    if contribution_type.required_social_accounts:
+                        connection_map = {
+                            'twitter': ('twitterconnection', 'X (Twitter)'),
+                            'discord': ('discordconnection', 'Discord'),
+                            'github': ('githubconnection', 'GitHub'),
+                        }
+                        missing = []
+                        for account in contribution_type.required_social_accounts:
+                            relation, label = connection_map.get(account, (None, account))
+                            if relation and not hasattr(request.user, relation):
+                                missing.append(label)
+                        if missing:
+                            return Response(
+                                {'error': f'You must link your {", ".join(missing)} account(s) to submit this type of contribution.'},
+                                status=status.HTTP_403_FORBIDDEN
+                            )
             except ContributionType.DoesNotExist:
                 pass
 
@@ -808,6 +826,7 @@ class StewardSubmissionFilterSet(FilterSet):
     search = CharFilter(method='filter_search')
     category = CharFilter(method='filter_category')
     exclude_category = CharFilter(method='filter_exclude_category')
+    mission = CharFilter(method='filter_mission')
 
     def filter_search(self, queryset, name, value):
         """General search across user name/email/address, notes, and evidence URLs."""
@@ -992,6 +1011,14 @@ class StewardSubmissionFilterSet(FilterSet):
             return queryset.filter(proposed_template_id=value)
         return queryset
 
+    def filter_mission(self, queryset, name, value):
+        """Filter by mission ID, or 'none' for submissions without a mission."""
+        if value == 'none' or value == 'null':
+            return queryset.filter(mission__isnull=True)
+        elif value:
+            return queryset.filter(mission_id=value)
+        return queryset
+
     class Meta:
         model = SubmittedContribution
         fields = ['state', 'contribution_type', 'user']
@@ -1105,6 +1132,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 points=serializer.validated_data['points'],
                 contribution_date=submission.contribution_date,
                 notes=submission.notes,
+                title=submission.title,
                 mission=submission.mission
             )
 
@@ -1798,7 +1826,7 @@ class FeaturedContentViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
-        queryset = FeaturedContent.objects.filter(is_active=True).select_related(
+        queryset = FeaturedContent.objects.filter(status='active').select_related(
             'user', 'contribution', 'contribution__contribution_type'
         ).order_by('order', '-created_at')
         content_type = self.request.query_params.get('type')

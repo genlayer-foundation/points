@@ -66,8 +66,10 @@
     {#each highlights as highlight}
       {@const cat = highlight.contribution_type_category || category}
       {@const colors = getColors(cat)}
-      <div class="{cardWidthClass} h-[160px] rounded-[8px] p-4 flex flex-col gap-2 border border-[#f0f0f0] bg-white">
-        <!-- Top: avatar + username | points pill -->
+      <div class="{cardWidthClass} h-[160px] rounded-[8px] p-4 flex flex-col gap-2"
+        style="background: {colors.bg};"
+      >
+        <!-- Top: avatar + username | points pill + highlight star -->
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <Avatar user={getUserObj(highlight)} size="xs" clickable={false} />
@@ -75,19 +77,30 @@
               {highlight.user_name || `${highlight.user_address?.slice(0, 6)}...`}
             </span>
           </div>
-          <span
-            class="text-xs font-medium px-2 py-0.5 rounded-full"
-            style="background: {colors.bg}; color: {colors.text};"
-          >
-            {formatPoints(highlight.contribution_points)} pts
-          </span>
+          <div class="flex items-center gap-2">
+            <span
+              class="text-xs font-medium px-2 py-0.5 rounded-full"
+              style="background: rgba(255,255,255,0.6); color: {colors.text};"
+            >
+              {formatPoints(highlight.contribution_points)} pts
+            </span>
+            <div class="relative w-[32px] h-[32px] flex-shrink-0">
+              <img src="/assets/icons/hexagon-highlight.svg" alt="" class="w-full h-full" />
+              <div
+                class="absolute inset-0 m-auto w-[16px] h-[16px]"
+                style="background-color: #FFFFFF; -webkit-mask-image: url(/assets/icons/star-line.svg); mask-image: url(/assets/icons/star-line.svg); mask-size: contain; mask-repeat: no-repeat; mask-position: center;"
+              ></div>
+            </div>
+          </div>
         </div>
 
         <!-- Middle: title + description -->
         <div class="flex-1 min-h-0 overflow-hidden">
-          <h3 class="text-[14px] font-semibold text-black line-clamp-1">{highlight.title}</h3>
+          <h3 class="text-[14px] font-semibold text-black line-clamp-1">
+            {highlight.title || highlight.contribution_type_name || 'Contribution'}
+          </h3>
           <p class="text-[12px] mt-1 text-[#6b6b6b] line-clamp-2">
-            {highlight.description}
+            {highlight.description || ''}
           </p>
         </div>
 
@@ -95,7 +108,7 @@
         <div class="flex items-center justify-between">
           <span
             class="text-xs px-2 py-0.5 rounded-full"
-            style="background: {colors.bg}; color: {colors.text};"
+            style="border: 1px solid {colors.text}; color: {colors.text};"
           >
             {highlight.contribution_type_name || cat}
           </span>

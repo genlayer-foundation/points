@@ -22,8 +22,10 @@
   let totalCount = $state(0);
   let pageSize = $state(10);
 
-  // Filters - Status dropdown + search bar
+  // Filters - Status dropdown + mission dropdown + search bar
   let stateFilter = $state('pending');
+  let missionFilter = $state('');
+  let missions = $state([]);
   let searchQuery = $state('');
   let stewardsList = $state([]);
   let assigningSubmissions = $state(new Set());  // Track which submissions are being assigned
@@ -57,6 +59,7 @@
     // Sync filters from URL
     const params = new URLSearchParams($querystring);
     if (params.has('status')) stateFilter = params.get('status');
+    if (params.has('mission')) missionFilter = params.get('mission');
     if (params.has('q')) searchQuery = params.get('q');
 
     // Prefetch missions for both categories to warm the cache
@@ -73,7 +76,8 @@
       loadTemplates(),
       loadContributionTypes(),
       loadUsers(),
-      loadStewards()
+      loadStewards(),
+      loadMissions()
     ]);
     await loadSubmissions();
   });
@@ -115,6 +119,15 @@
       stewardsList = response.data;
     } catch (err) {
       // Error loading stewards silently handled
+    }
+  }
+
+  async function loadMissions() {
+    try {
+      const response = await contributionsAPI.getMissions({ page_size: 100 });
+      missions = response.data.results || response.data || [];
+    } catch (err) {
+      // Error loading missions silently handled
     }
   }
 
@@ -176,6 +189,7 @@
   function updateURL() {
     const urlParams = new URLSearchParams();
     if (stateFilter) urlParams.set('status', stateFilter);
+    if (missionFilter) urlParams.set('mission', missionFilter);
     if (searchQuery) urlParams.set('q', searchQuery);
     const newUrl = urlParams.toString() ? `?${urlParams.toString()}` : '';
     window.history.replaceState({}, '', `#/stewards/submissions${newUrl}`);
@@ -197,12 +211,18 @@
         contributionTypes,
         stewardsList,
         currentUserId,
-        templates
+        templates,
+        missions
       });
 
       // Add status from dropdown (overrides search query if present)
       if (stateFilter) {
         params.state = stateFilter;
+      }
+
+      // Add mission filter
+      if (missionFilter) {
+        params.mission = missionFilter;
       }
 
       params.page = currentPage;
@@ -481,6 +501,25 @@
         </select>
       </div>
 
+      <!-- Mission Filter -->
+      <div class="w-full md:w-56 flex-shrink-0">
+        <label for="mission-filter" class="block text-sm font-medium text-gray-700 mb-1">
+          Mission
+        </label>
+        <select
+          id="mission-filter"
+          bind:value={missionFilter}
+          onchange={handleFilterChange}
+          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          <option value="">All</option>
+          <option value="none">No Mission</option>
+          {#each missions as mission}
+            <option value={mission.id}>{mission.name}</option>
+          {/each}
+        </select>
+      </div>
+
       <!-- Search Bar -->
       <div class="flex-1">
         <label for="search-bar" class="block text-sm font-medium text-gray-700 mb-1">
@@ -491,8 +530,9 @@
           {contributionTypes}
           {stewardsList}
           {templates}
+          {missions}
           onSearch={handleSearchChange}
-          placeholder="type:blog-post assigned:me has:proposal..."
+          placeholder="type:blog-post assigned:me mission:name..."
         />
       </div>
     </div>

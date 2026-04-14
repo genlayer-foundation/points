@@ -572,6 +572,144 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def link_x_account(self, request):
+        """
+        Award points for linking an X (Twitter) account.
+        Requires that the user has a verified TwitterConnection via OAuth.
+        """
+        from contributions.models import Contribution, ContributionType
+        from django.utils import timezone
+        from django.db import transaction
+
+        user = request.user
+
+        try:
+            link_type = ContributionType.objects.get(slug='community-link-x')
+        except ContributionType.DoesNotExist:
+            return Response(
+                {'error': 'Community link X contribution type not configured'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        if not hasattr(user, 'twitterconnection'):
+            return Response(
+                {'error': 'You must link your X (Twitter) account first'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            with transaction.atomic():
+                # Lock the user row to serialize concurrent requests
+                from django.contrib.auth import get_user_model
+                get_user_model().objects.select_for_update().get(pk=user.pk)
+
+                if Contribution.objects.filter(user=user, contribution_type=link_type).exists():
+                    return Response(
+                        {'message': 'You already earned points for linking your X account'},
+                        status=status.HTTP_200_OK
+                    )
+
+                from leaderboard.models import GlobalLeaderboardMultiplier
+                if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=link_type).exists():
+                    GlobalLeaderboardMultiplier.objects.create(
+                        contribution_type=link_type,
+                        multiplier_value=1.0,
+                        valid_from=timezone.now() - timezone.timedelta(days=30),
+                        description='Default multiplier for Community Link X contributions',
+                        notes='Applied when users link their X account'
+                    )
+
+                Contribution.objects.create(
+                    user=user,
+                    contribution_type=link_type,
+                    points=20,
+                    contribution_date=timezone.now(),
+                    notes='Linked X (Twitter) account to GenLayer profile'
+                )
+
+            serializer = self.get_serializer(user)
+            return Response({
+                'message': 'X account linked successfully! 20 points awarded.',
+                'user': serializer.data
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"Failed to award X link points: {str(e)}")
+            return Response(
+                {'error': 'Failed to award points. Please try again later.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def link_discord_account(self, request):
+        """
+        Award points for linking a Discord account.
+        Requires that the user has a verified DiscordConnection via OAuth.
+        """
+        from contributions.models import Contribution, ContributionType
+        from django.utils import timezone
+        from django.db import transaction
+
+        user = request.user
+
+        try:
+            link_type = ContributionType.objects.get(slug='community-link-discord')
+        except ContributionType.DoesNotExist:
+            return Response(
+                {'error': 'Community link Discord contribution type not configured'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        if not hasattr(user, 'discordconnection'):
+            return Response(
+                {'error': 'You must link your Discord account first'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            with transaction.atomic():
+                # Lock the user row to serialize concurrent requests
+                from django.contrib.auth import get_user_model
+                get_user_model().objects.select_for_update().get(pk=user.pk)
+
+                if Contribution.objects.filter(user=user, contribution_type=link_type).exists():
+                    return Response(
+                        {'message': 'You already earned points for linking your Discord account'},
+                        status=status.HTTP_200_OK
+                    )
+
+                from leaderboard.models import GlobalLeaderboardMultiplier
+                if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=link_type).exists():
+                    GlobalLeaderboardMultiplier.objects.create(
+                        contribution_type=link_type,
+                        multiplier_value=1.0,
+                        valid_from=timezone.now() - timezone.timedelta(days=30),
+                        description='Default multiplier for Community Link Discord contributions',
+                        notes='Applied when users link their Discord account'
+                    )
+
+                Contribution.objects.create(
+                    user=user,
+                    contribution_type=link_type,
+                    points=20,
+                    contribution_date=timezone.now(),
+                    notes='Linked Discord account to GenLayer profile'
+                )
+
+            serializer = self.get_serializer(user)
+            return Response({
+                'message': 'Discord account linked successfully! 20 points awarded.',
+                'user': serializer.data
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"Failed to award Discord link points: {str(e)}")
+            return Response(
+                {'error': 'Failed to award points. Please try again later.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=False, methods=['get'])
     def validators(self, request):
         """
@@ -717,7 +855,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             Q(twitter_handle__icontains=query) |
             Q(discord_handle__icontains=query) |
             Q(telegram_handle__icontains=query) |
-            Q(github_username__icontains=query)
+            Q(githubconnection__platform_username__icontains=query)
         ).filter(visible=True)[:10]
 
         return Response([

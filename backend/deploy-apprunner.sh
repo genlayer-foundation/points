@@ -220,7 +220,13 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "RECAPTCHA_PUBLIC_KEY": "$SSM_PREFIX/prod/recaptcha_public_key",
           "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/prod/recaptcha_private_key",
           "CRON_SYNC_TOKEN": "$SSM_PREFIX/prod/cron_sync_validators",
-          "AI_REVIEW_API_KEY": "$SSM_PREFIX/prod/ai_review_api_key"
+          "AI_REVIEW_API_KEY": "$SSM_PREFIX/prod/ai_review_api_key",
+          "SOCIAL_ENCRYPTION_KEY": "$SSM_PREFIX/prod/social_encryption_key",
+          "TWITTER_CLIENT_ID": "$SSM_PREFIX/prod/twitter_client_id",
+          "TWITTER_CLIENT_SECRET": "$SSM_PREFIX/prod/twitter_client_secret",
+          "DISCORD_CLIENT_ID": "$SSM_PREFIX/prod/discord_client_id",
+          "DISCORD_CLIENT_SECRET": "$SSM_PREFIX/prod/discord_client_secret",
+          "DISCORD_GUILD_ID": "$SSM_PREFIX/prod/discord_guild_id"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
@@ -309,7 +315,13 @@ else
           "RECAPTCHA_PUBLIC_KEY": "$SSM_PREFIX/prod/recaptcha_public_key",
           "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/prod/recaptcha_private_key",
           "CRON_SYNC_TOKEN": "$SSM_PREFIX/prod/cron_sync_validators",
-          "AI_REVIEW_API_KEY": "$SSM_PREFIX/prod/ai_review_api_key"
+          "AI_REVIEW_API_KEY": "$SSM_PREFIX/prod/ai_review_api_key",
+          "SOCIAL_ENCRYPTION_KEY": "$SSM_PREFIX/prod/social_encryption_key",
+          "TWITTER_CLIENT_ID": "$SSM_PREFIX/prod/twitter_client_id",
+          "TWITTER_CLIENT_SECRET": "$SSM_PREFIX/prod/twitter_client_secret",
+          "DISCORD_CLIENT_ID": "$SSM_PREFIX/prod/discord_client_id",
+          "DISCORD_CLIENT_SECRET": "$SSM_PREFIX/prod/discord_client_secret",
+          "DISCORD_GUILD_ID": "$SSM_PREFIX/prod/discord_guild_id"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },

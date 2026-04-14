@@ -6,7 +6,8 @@
     contributionTypes = [],
     stewardsList = [],
     templates = [],
-    placeholder = 'type:blog-post assigned:me exclude:medium.com...',
+    missions = [],
+    placeholder = 'type:blog-post assigned:me mission:name...',
     onSearch = () => {}
   } = $props();
 
@@ -30,6 +31,7 @@
     { name: 'proposal', description: 'Filter by proposed action', values: () => ['accept', 'reject', 'more-info'] },
     { name: 'confidence', description: 'Filter by proposal confidence', values: () => ['high', 'medium', 'low'] },
     { name: 'template', description: 'Filter by review template', values: () => templates.map(t => t.label.toLowerCase().replace(/\s+/g, '-')) },
+    { name: 'mission', description: 'Filter by mission', values: () => ['none', ...missions.map(m => m.name.toLowerCase().replace(/\s+/g, '-'))] },
     { name: 'min-contributions', description: 'Min accepted contributions', values: () => ['1', '2', '3', '4', '5'] },
     { name: 'sort', description: 'Sort order', values: () => ['created', '-created', 'date', '-date'] }
   ];
@@ -232,6 +234,7 @@
           <div class="help-row"><code>no:url</code><span>Only submissions without URLs</span></div>
           <div class="help-row"><code>proposal:reject</code><span>Filter by proposed action (accept, reject, more-info)</span></div>
           <div class="help-row"><code>confidence:high</code><span>Filter by proposal confidence (high, medium, low)</span></div>
+          <div class="help-row"><code>mission:name</code><span>Filter by mission (or "none")</span></div>
           <div class="help-row"><code>template:spam</code><span>Filter by review template used</span></div>
           <div class="help-row"><code>min-contributions:3</code><span>Users with N+ accepted contributions</span></div>
           <div class="help-row"><code>sort:-created</code><span>Sort order (created, -created, date, -date)</span></div>

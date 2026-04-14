@@ -11,6 +11,43 @@
   import { location } from 'svelte-spa-router';
   import { resetPageMeta } from './lib/meta.js';
   
+  // Early OAuth result detection — runs before routes mount.
+  // Backend redirects here with ?oauth_platform=X&oauth_verified=true/false&oauth_error=...
+  // We relay the result to the opener tab via postMessage (primary) and localStorage (fallback).
+  {
+    const search = window.location.search;
+    if (search && search.includes('oauth_platform')) {
+      const params = new URLSearchParams(search);
+      const platform = params.get('oauth_platform');
+      if (platform) {
+        const result = {
+          type: 'oauth_result',
+          platform,
+          verified: params.get('oauth_verified') || 'false',
+          error: params.get('oauth_error') || '',
+        };
+
+        // Primary: postMessage to opener (standard OAuth popup pattern)
+        if (window.opener) {
+          window.opener.postMessage(result, '*');
+        }
+
+        // Fallback: localStorage for when window.opener is null (Safari)
+        const storageKey = `oauth_result_${platform}`;
+        localStorage.setItem(storageKey, JSON.stringify({
+          verified: result.verified,
+          error: result.error,
+        }));
+
+        setTimeout(() => {
+          window.close();
+          // Fallback: if close fails, strip params so the page loads clean
+          window.history.replaceState({}, '', window.location.pathname + (window.location.hash || ''));
+        }, 100);
+      }
+    }
+  }
+
   // State for sidebar toggle on mobile and collapse on desktop
   let sidebarOpen = $state(false);
   let sidebarCollapsed = $state(false);
@@ -43,24 +80,22 @@
   import Waitlist from './routes/Waitlist.svelte';
   import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
 
-  import GitHubCallback from './routes/GitHubCallback.svelte';
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
   import Referrals from './routes/Referrals.svelte';
   import Community from './routes/Community.svelte';
   import Hackathon from './routes/Hackathon.svelte';
+  import HackathonWinners from './routes/HackathonWinners.svelte';
   import Resources from './routes/Resources.svelte';
   import ReferralProgram from './routes/ReferralProgram.svelte';
   import HowItWorks from './routes/HowItWorks.svelte';
   import StartupRequestDetail from './routes/StartupRequestDetail.svelte';
+  import ContributionPreview from './routes/ContributionPreview.svelte';
   import GlobalDashboard from './components/GlobalDashboard.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
 
   // Define routes
   const routes = {
-
-    // Auth callback routes
-    '/auth/github/callback': GitHubCallback,
 
     // Global/Testnet Asimov routes
     // Overview and Testnet Asimov routes
@@ -74,9 +109,15 @@
     '/leaderboard': Leaderboard,
     '/participants': Validators,
     '/referrals': Referrals,
-    '/community/leaderboard': Community,
     '/community': ReferralProgram,
+    '/community/contributions': Contributions,
+    '/community/all-contributions': AllContributions,
+    '/community/contributions/highlights': Highlights,
+    '/community/highlights': Highlights,
+    '/community/leaderboard': Community,
+    '/community/contribution/:id': ContributionPreview,
     '/hackathon': Hackathon,
+    '/hackathon-winners': HackathonWinners,
     '/referral-program': ReferralProgram,
 
     // Builders routes
@@ -104,6 +145,9 @@
     
     // Shared routes
     '/participant/:address': Profile,
+    '/contribution/:id': ContributionPreview,
+    '/builders/contribution/:id': ContributionPreview,
+    '/validators/contribution/:id': ContributionPreview,
     '/contribution-type/:id': ContributionTypeDetail,
     '/badge/:id': BadgeDetail,
     '/submit-contribution': SubmitContribution,

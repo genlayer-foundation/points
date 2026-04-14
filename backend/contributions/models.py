@@ -88,6 +88,11 @@ class ContributionType(BaseModel):
         blank=True,
         help_text="Example entries for this contribution type (array of short strings)"
     )
+    required_social_accounts = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of required social accounts for submission: 'twitter', 'discord', 'github'"
+    )
 
     class Meta:
         ordering = ['category__name', 'name']
@@ -141,6 +146,7 @@ class Contribution(BaseModel):
     )
     contribution_date = models.DateTimeField(null=True, blank=True, help_text="Date when the contribution was made. Defaults to creation time if not specified.")
     notes = models.TextField(blank=True)
+    title = models.CharField(max_length=200, blank=True, default='', help_text="Optional title for the contribution")
 
     def __str__(self):
         return f"{self.user} - {self.contribution_type} - {self.points} points"
@@ -264,7 +270,8 @@ class SubmittedContribution(BaseModel):
         help_text="Date when the contribution was made"
     )
     notes = models.TextField(blank=True)
-    
+    title = models.CharField(max_length=200, blank=True, default='', help_text="Optional title for the submission")
+
     # State management
     STATE_CHOICES = [
         ('pending', 'Pending Review'),
@@ -711,6 +718,10 @@ class FeaturedContent(BaseModel):
         ('community', 'Featured Community'),
         ('validator_steward', 'Featured Validator/Steward'),
     ]
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('idle', 'Idle'),
+    ]
     content_type = models.CharField(max_length=20, choices=CONTENT_TYPE_CHOICES)
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -732,7 +743,7 @@ class FeaturedContent(BaseModel):
     user_profile_image_url = models.URLField(max_length=500, blank=True, help_text='Cloudinary URL for user profile image')
     user_profile_image_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for user profile image')
     url = models.URLField(max_length=500, blank=True)
-    is_active = models.BooleanField(default=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -749,7 +760,7 @@ class FeaturedContent(BaseModel):
     @classmethod
     def get_active_by_type(cls, content_type, limit=10):
         return cls.objects.filter(
-            content_type=content_type, is_active=True
+            content_type=content_type, status='active'
         ).select_related(
             'user', 'contribution', 'contribution__contribution_type'
         ).order_by('order', '-created_at')[:limit]

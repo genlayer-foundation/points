@@ -159,6 +159,24 @@ export function searchToParams(parsed, options = {}) {
     }
   }
 
+  // mission → mission (by name → ID lookup, or 'none' for no mission)
+  if (filters.mission) {
+    const missionValue = filters.mission.value.toLowerCase();
+    if (missionValue === 'none' || missionValue === 'null') {
+      params.mission = 'none';
+    } else {
+      const { missions = [] } = options;
+      const mission = missions.find(m =>
+        m.name?.toLowerCase() === missionValue ||
+        m.name?.toLowerCase().replace(/\s+/g, '-') === missionValue ||
+        String(m.id) === filters.mission.value
+      );
+      if (mission) {
+        params.mission = mission.id;
+      }
+    }
+  }
+
   // sort → ordering
   if (filters.sort) {
     const sortMap = {

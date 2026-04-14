@@ -80,7 +80,15 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "GITHUB_REPO_TO_STAR": "$SSM_PREFIX/$SSM_ENV/github_repo_to_star",
           "RECAPTCHA_PUBLIC_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_public_key",
           "RECAPTCHA_PRIVATE_KEY": "$SSM_PREFIX/$SSM_ENV/recaptcha_private_key",
-          "AI_REVIEW_API_KEY": "$SSM_PREFIX/$SSM_ENV/ai_review_api_key"
+          "AI_REVIEW_API_KEY": "$SSM_PREFIX/$SSM_ENV/ai_review_api_key",
+          "SOCIAL_ENCRYPTION_KEY": "$SSM_PREFIX/$SSM_ENV/social_encryption_key",
+          "TWITTER_CLIENT_ID": "$SSM_PREFIX/$SSM_ENV/twitter_client_id",
+          "TWITTER_CLIENT_SECRET": "$SSM_PREFIX/$SSM_ENV/twitter_client_secret",
+          "DISCORD_CLIENT_ID": "$SSM_PREFIX/$SSM_ENV/discord_client_id",
+          "DISCORD_CLIENT_SECRET": "$SSM_PREFIX/$SSM_ENV/discord_client_secret",
+          "DISCORD_GUILD_ID": "$SSM_PREFIX/$SSM_ENV/discord_guild_id",
+          "TWITTER_REDIRECT_URI": "$SSM_PREFIX/$SSM_ENV/twitter_redirect_uri",
+          "DISCORD_REDIRECT_URI": "$SSM_PREFIX/$SSM_ENV/discord_redirect_uri"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },

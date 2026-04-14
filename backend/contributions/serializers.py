@@ -65,6 +65,7 @@ class LightContributionSerializer(serializers.Serializer):
     multiplier_at_creation = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
     contribution_date = serializers.DateTimeField(read_only=True)
     notes = serializers.CharField(read_only=True)
+    title = serializers.CharField(read_only=True, allow_blank=True)
     evidence_items = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(read_only=True)
 
@@ -88,7 +89,7 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
         model = ContributionType
         fields = [
             'id', 'name', 'slug', 'description', 'category', 'min_points', 'max_points',
-            'current_multiplier', 'is_submittable', 'examples',
+            'current_multiplier', 'is_submittable', 'examples', 'required_social_accounts',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -116,7 +117,7 @@ class ContributionSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name',
                   'contribution_type_min_points', 'contribution_type_max_points', 'contribution_type_details',
                   'points', 'frozen_global_points', 'multiplier_at_creation', 'contribution_date',
-                  'evidence_items', 'notes', 'highlight', 'mission', 'created_at', 'updated_at']
+                  'evidence_items', 'notes', 'title', 'highlight', 'mission', 'created_at', 'updated_at']
         read_only_fields = ['id', 'frozen_global_points', 'created_at', 'updated_at']
 
     def get_user_details(self, obj):
@@ -223,7 +224,7 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubmittedContribution
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name',
-                  'contribution_type_details', 'contribution_date', 'notes', 'state', 'state_display',
+                  'contribution_type_details', 'contribution_date', 'notes', 'title', 'state', 'state_display',
                   'staff_reply', 'reviewed_by', 'reviewed_at', 'evidence_items', 'can_edit',
                   'proposed_points', 'converted_contribution', 'contribution', 'mission',
                   'created_at', 'updated_at', 'last_edited_at', 'recaptcha']
@@ -461,6 +462,7 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
     contribution_type_slug = serializers.SlugField(source='contribution.contribution_type.slug', read_only=True)
     contribution_type_category = serializers.CharField(source='contribution.contribution_type.category.slug', read_only=True)
     contribution_points = serializers.IntegerField(source='contribution.frozen_global_points', read_only=True)
+    contribution_title = serializers.CharField(source='contribution.title', read_only=True)
     contribution_date = serializers.DateTimeField(source='contribution.contribution_date', read_only=True)
     # Mission fields for indicating when highlight is from a mission
     mission_name = serializers.CharField(source='contribution.mission.name', read_only=True)
@@ -474,7 +476,7 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
                   'user_has_validator_waitlist', 'user_has_builder_welcome',
                   'contribution_type_name', 'contribution_type_id', 'contribution_type_slug',
                   'contribution_type_category', 'contribution_points', 'contribution_date',
-                  'mission_name', 'mission_id', 'created_at']
+                  'contribution_title', 'mission_name', 'mission_id', 'created_at']
         read_only_fields = ['id', 'created_at']
 
     def get_contribution_details(self, obj):
@@ -689,7 +691,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubmittedContribution
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_details',
-                  'contribution_date', 'notes', 'state', 'state_display', 'staff_reply',
+                  'contribution_date', 'notes', 'title', 'state', 'state_display', 'staff_reply',
                   'reviewed_by', 'reviewed_at', 'assigned_to',
                   'evidence_items', 'proposed_points',
                   # Proposal fields
@@ -834,7 +836,7 @@ class FeaturedContentSerializer(serializers.ModelSerializer):
                   'hero_image_url', 'hero_image_url_tablet', 'hero_image_url_mobile',
                   'url', 'link',
                   'user', 'user_name', 'user_address', 'user_profile_image_url',
-                  'contribution', 'is_active', 'order', 'created_at']
+                  'contribution', 'status', 'order', 'created_at']
 
     def get_user_profile_image_url(self, obj):
         """Return the FeaturedContent's user_profile_image_url if set, otherwise fall back to user's profile_image_url."""

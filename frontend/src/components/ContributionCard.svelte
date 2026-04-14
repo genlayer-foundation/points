@@ -48,9 +48,30 @@
      (contribution?.grouped_items?.some(item => item.notes || item.evidence_items?.length > 0))) &&
     showExpand
   );
+
+  // Get the contribution ID for linking to detail page
+  // For grouped contributions, the id may be "group_123" — extract the real id from grouped data
+  let rawId = $derived(contribution?.id);
+  let contributionId = $derived(
+    (rawId && typeof rawId === 'string' && rawId.startsWith('group_'))
+      ? (contribution?.grouped_contributions?.[0]?.id || contribution?.grouped_items?.[0]?.id)
+      : (rawId || contribution?.grouped_contributions?.[0]?.id || contribution?.grouped_items?.[0]?.id)
+  );
+
+  function handleCardClick(event) {
+    // Don't navigate if clicking on a button, link, or expand toggle
+    if (event.target.closest('button') || event.target.closest('a')) return;
+    if (contributionId) {
+      push(`/contribution/${contributionId}`);
+    }
+  }
 </script>
 
-<div class="{categoryColors.cardBg} shadow rounded-lg hover:shadow-lg transition-shadow border-2 {categoryColors.border} overflow-hidden {className}">
+<div
+  class="{categoryColors.cardBg} shadow rounded-lg hover:shadow-lg transition-shadow border-2 {categoryColors.border} overflow-hidden {className} {contributionId ? 'cursor-pointer' : ''}"
+  onclick={handleCardClick}
+  role={contributionId ? 'link' : undefined}
+>
   <div class="{variant === 'compact' ? 'p-3' : 'p-4'}">
     <div class="flex items-start justify-between gap-4">
       <div class="min-w-0 flex-1">
