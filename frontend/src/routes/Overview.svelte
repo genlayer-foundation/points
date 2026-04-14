@@ -3,6 +3,7 @@
   import HeroBanner from '../components/portal/HeroBanner.svelte';
   import LiveStats from '../components/portal/LiveStats.svelte';
   import TrendingContributors from '../components/portal/TrendingContributors.svelte';
+  import HackathonWinnersSlider from '../components/portal/HackathonWinnersSlider.svelte';
   import FeaturedBuilds from '../components/portal/FeaturedBuilds.svelte';
   import PortalHighlights from '../components/portal/PortalHighlights.svelte';
   import NewestMembers from '../components/portal/NewestMembers.svelte';
@@ -13,6 +14,7 @@
   <HeroBanner />
   <LiveStats />
   <TrendingContributors />
+  <HackathonWinnersSlider />
   <FeaturedBuilds />
   <PortalHighlights />
   <NewestMembers />

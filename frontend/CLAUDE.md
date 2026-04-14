@@ -326,6 +326,7 @@ const routes = {
   '/community/leaderboard': Community,
   '/community/contribution/:id': ContributionPreview,
   '/hackathon': Hackathon,
+  '/hackathon-winners': HackathonWinners, // Hackathon winners showcase page
   '/referral-program': ReferralProgram,
 
   // Builders (category-scoped)
@@ -450,6 +451,16 @@ Reusable, data-driven display components that accept data via props. Used on Das
   - Dark variant: profile page — dark bg with gradients, rank pill, referral copy button
   - Light variant: landing page — transparent bg, adapts between logged-in and anonymous states
   - Includes real rank computation logic (fetches leaderboard, computes points to next rank)
+
+#### Hackathon Components (`src/components/hackathon/`)
+- **`ProjectCard.svelte`** - Reusable hackathon project card with 3 variants (large/medium/small)
+  - Props: `name`, `builder`, `avatar`, `screenshot`, `category`, `description`, `awardLabel`, `links`, `variant`
+  - Adaptive rendering: logo-only mode when avatar === screenshot, background cover when distinct
+
+#### Portal Hackathon Components (`src/components/portal/`)
+- **`HackathonWinnersSlider.svelte`** - Horizontal scroll slider for hackathon winners on the home page
+  - Displays grand winner, track winners, and honorable mentions with award labels
+  - Uses same scroll pattern as FeaturedBuilds
 
 #### How It Works / Landing Page Components (`src/components/portal/landing-page/`)
 - Used by the `/how-it-works` route (`HowItWorks.svelte`)
