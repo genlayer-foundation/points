@@ -64,7 +64,7 @@
   $effect(() => {
     setPageMeta({
       title: 'Hackathon Winners - Testnet Bradbury',
-      description: 'Meet the winners of GenLayer\'s Testnet Bradbury Hackathon. 92 BUIDLs, 280 hackers, built in 2 weeks.',
+      description: 'Meet the winners of GenLayer\'s Testnet Bradbury Hackathon. 135 BUIDLs, 280 hackers, built in 2 weeks.',
       image: 'https://portal.genlayer.foundation/assets/hackathon_og_image.png',
       url: 'https://portal.genlayer.foundation/#/hackathon-winners',
     });
@@ -202,7 +202,7 @@
     <div class="flex-1 flex flex-col gap-4">
       <h2 class="text-[24px] md:text-[40px] font-display font-medium leading-[32px] md:leading-[48px] tracking-[-0.48px] md:tracking-[-0.8px] text-black">What happens when builders get access to AI consensus</h2>
       <p class="text-[#6b6b6b] text-[15px] md:text-[17px] leading-[24px] md:leading-[28px] tracking-[0.34px]">
-        92 teams took GenLayer's Intelligent Contracts and built products that make subjective decisions on-chain, from courtrooms to prediction markets to autonomous agent economies.
+        135 teams took GenLayer's Intelligent Contracts and built products that make subjective decisions on-chain, from courtrooms to prediction markets to autonomous agent economies.
       </p>
       <div class="space-y-2">
         <div class="flex items-center gap-3">
@@ -222,7 +222,7 @@
         Every submission pushed the boundaries of what's possible on-chain. Here are the winners.
       </p>
       <a href="https://dorahacks.io/hackathon/genlayer-bradbury/buidl" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-[#4083ea] text-[14px] font-medium tracking-[0.28px] hover:underline">
-        Explore all 92 projects →
+        Explore all 135 projects →
       </a>
 
       <!-- BUIDLs by Tracks -->
@@ -314,13 +314,16 @@
       <!-- Right: Description + Action buttons -->
       <div class="flex-1 flex flex-col justify-between gap-4">
         <div class="text-[#6b6b6b] text-[15px] md:text-[17px] leading-[24px] md:leading-[28px] tracking-[0.34px]">
-          <p>
-            <strong class="text-black">{grandWinner.name}</strong> {grandWinner.description}
-          </p>
-          {#if grandWinner.descriptionBold}
-            <p class="mt-4">
-              <strong class="text-black">In short:</strong> {grandWinner.descriptionBold.replace('In short: ', '')}
-            </p>
+          <p>{grandWinner.descriptionIntro}</p>
+          {#if grandWinner.descriptionBullets}
+            <ul class="mt-3 space-y-2">
+              {#each grandWinner.descriptionBullets as bullet}
+                <li class="flex gap-2">
+                  <span class="text-[#9e4bf6] mt-[2px] shrink-0">•</span>
+                  <span>{bullet}</span>
+                </li>
+              {/each}
+            </ul>
           {/if}
         </div>
         <div class="flex gap-2 items-start w-full">

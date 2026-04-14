@@ -3,19 +3,19 @@
 // Update this file with real winner data and Cloudinary URLs.
 
 export const hackathonStats = [
-  { value: '92', label: 'BUIDLs' },
+  { value: '135', label: 'BUIDLs' },
   { value: '280', label: 'Hackers' },
   { value: '2 Weeks', label: 'Duration' },
 ];
 
 export const trackSubmissions = [
-  { name: 'Subjective Consensus (Bradbury Special)', count: 17 },
-  { name: 'Prediction Markets & P2P Betting', count: 16 },
-  { name: 'Onchain Justice', count: 14 },
-  { name: 'Agentic Economy Infrastructure', count: 13 },
-  { name: 'AI Governance', count: 12 },
-  { name: 'AI Gaming', count: 10 },
-  { name: 'Future of Work', count: 10 },
+  { name: 'Agentic Economy Infrastructure', count: 26 },
+  { name: 'Subjective Consensus (Bradbury Special)', count: 24 },
+  { name: 'Prediction Markets & P2P Betting', count: 21 },
+  { name: 'Onchain Justice', count: 19 },
+  { name: 'AI Gaming', count: 16 },
+  { name: 'Future of Work', count: 15 },
+  { name: 'AI Governance', count: 14 },
 ];
 
 export const grandWinner = {
@@ -24,8 +24,12 @@ export const grandWinner = {
   avatar: 'https://res.cloudinary.com/dfqmoeawa/image/upload/v1776103540/buildersclaw-logo_fhlv2d.jpg',
   screenshot: 'https://res.cloudinary.com/dfqmoeawa/image/upload/v1776103539/buildersclaw-bg_dpt9ig.png',
   category: 'Agentic Economy Infrastructure',
-  description: 'Companies post coding challenges with real prize money, and builders compete by shipping working code through AI agents. A GenLayer intelligent contract evaluates every submission automatically, scoring codebases against challenge requirements through multi-validator consensus. The judging is fully on-chain and verifiable, with a two-stage evaluation pipeline and partial field matching to ensure fair, nuanced scoring. Smart contracts handle escrow and payouts, so the best code wins on merit, not opinions.',
-  descriptionBold: 'Companies source real solutions, builders earn by shipping, and AI consensus replaces the judging panel.',
+  descriptionIntro: 'BuildersClaw connects companies that need real code with builders ready to ship it. Companies post coding challenges with prize money, and builders compete by submitting working solutions through AI agents.',
+  descriptionBullets: [
+    'A GenLayer intelligent contract evaluates every submission automatically, scoring code against challenge requirements through multi-validator consensus.',
+    'Smart contracts handle escrow and payouts. Funds are locked when a challenge is created and released to the winner once judging is complete.',
+    'All judging happens on-chain and is fully verifiable. No human panel, no subjective opinions. The best code wins on merit.',
+  ],
   links: {
     project: 'https://dorahacks.io/buidl/41425',
     youtube: 'https://www.youtube.com/watch?v=p3NGRS7TzF8',
