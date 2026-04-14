@@ -24,7 +24,7 @@ export const grandWinner = {
   avatar: 'https://res.cloudinary.com/dfqmoeawa/image/upload/v1776103540/buildersclaw-logo_fhlv2d.jpg',
   screenshot: 'https://res.cloudinary.com/dfqmoeawa/image/upload/v1776103539/buildersclaw-bg_dpt9ig.png',
   category: 'Agentic Economy Infrastructure',
-  description: 'Companies post coding challenges with real prize money, and builders compete by shipping working code through AI agents. A GenLayer intelligent contract evaluates every submission automatically, scoring codebases against challenge requirements through multi-validator consensus. The judging is fully on-chain and verifiable, with a two-stage evaluation pipeline and partial field matching to ensure fair, nuanced scoring. Smart contracts handle escrow and payouts, so the best code wins on merit, not opinions.',
+  description: 'A platform where companies post coding challenges with real prize money and builders compete by shipping working code through AI agents. A GenLayer intelligent contract automatically evaluates every submission, scoring codebases against challenge requirements through multi-validator consensus. Judging is fully on-chain and verifiable — smart contracts handle escrow and payouts, so the best code wins on merit.',
   descriptionBold: 'Companies source real solutions, builders earn by shipping, and AI consensus replaces the judging panel.',
   links: {
     project: 'https://dorahacks.io/buidl/41425',
