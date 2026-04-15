@@ -78,20 +78,10 @@ class DetectUrlTypeTests(TestCase):
         self.assertIsNotNone(result)
         self.assertTrue(result.is_generic)
 
-    def test_youtube_watch_detected(self):
+    def test_youtube_falls_through_to_generic(self):
         result = detect_url_type('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
         self.assertIsNotNone(result)
-        self.assertEqual(result.slug, 'youtube-video')
-
-    def test_youtube_short_detected(self):
-        result = detect_url_type('https://youtu.be/dQw4w9WgXcQ')
-        self.assertIsNotNone(result)
-        self.assertEqual(result.slug, 'youtube-video')
-
-    def test_youtube_shorts_detected(self):
-        result = detect_url_type('https://www.youtube.com/shorts/abc123')
-        self.assertIsNotNone(result)
-        self.assertEqual(result.slug, 'youtube-video')
+        self.assertTrue(result.is_generic)
 
     def test_github_repo_detected(self):
         result = detect_url_type('https://github.com/genlayer/studio')
@@ -172,9 +162,9 @@ class ValidateHandleOwnershipTests(TestCase):
         )
 
     def test_no_social_account_configured_passes(self):
-        url_type = EvidenceURLType.objects.get(slug='youtube-video')
+        url_type = EvidenceURLType.objects.get(slug='github-pr')
         result = validate_handle_ownership(
-            'https://youtube.com/watch?v=abc', url_type, self.user,
+            'https://github.com/genlayer/studio/pull/42', url_type, self.user,
         )
         self.assertIsNone(result)
 
