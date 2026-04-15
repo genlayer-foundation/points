@@ -5,6 +5,9 @@
   import api from '../lib/api.js';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
+  import SocialLink from '../components/SocialLink.svelte';
+  import { userStore } from '../lib/userStore';
+  import { getContributionTypes } from '../lib/api/contributions.js';
   import { parseMarkdown } from '../lib/markdownLoader.js';
 
   let { params = {} } = $props();
@@ -37,6 +40,9 @@
 
   // Flag to track if form has been initialized
   let formInitialized = $state(false);
+
+  // All evidence URL types collected from contribution types
+  let allEvidenceUrlTypes = $state([]);
 
   // Update form data when submission changes (only on initial load)
   $effect(() => {
@@ -73,6 +79,68 @@
     // Selection changed
   }
 
+  // --- Evidence URL type detection & validation ---
+
+  function detectUrlType(url) {
+    if (!url || !allEvidenceUrlTypes.length) return null;
+    for (const urlType of allEvidenceUrlTypes) {
+      if (urlType.is_generic) continue;
+      for (const pattern of urlType.url_patterns || []) {
+        try {
+          if (new RegExp(pattern, 'i').test(url)) return urlType;
+        } catch (e) { continue; }
+      }
+    }
+    return allEvidenceUrlTypes.find(t => t.is_generic) || null;
+  }
+
+  let hasExplicitAcceptedTypes = $derived(
+    selectedContributionType?.has_explicit_accepted_types ?? false
+  );
+
+  let acceptedEvidenceTypes = $derived(
+    selectedContributionType?.accepted_evidence_url_types?.length
+      ? selectedContributionType.accepted_evidence_url_types
+      : []
+  );
+
+  function isUrlTypeAccepted(detectedType) {
+    if (!hasExplicitAcceptedTypes) return true;
+    if (!detectedType || !acceptedEvidenceTypes.length) return true;
+    if (detectedType.is_generic) return true;
+    return acceptedEvidenceTypes.some(t => t.slug === detectedType.slug);
+  }
+
+  // Social account linking for evidence ownership
+  const ownershipPlatformMap = {
+    twitter: { platform: 'twitter', label: 'X', field: 'twitter_connection', initiateUrl: '/api/auth/twitter/' },
+    github: { platform: 'github', label: 'GitHub', field: 'github_connection', initiateUrl: '/api/auth/github/' },
+  };
+
+  let evidenceRequiredAccounts = $derived.by(() => {
+    const user = $userStore.user;
+    if (!user) return [];
+    const needed = new Set();
+    for (const slot of evidenceSlots) {
+      if (!slot.detectedType || slot.detectedType.is_generic) continue;
+      const slugToAccount = {
+        'x-post': 'twitter',
+        'github-repo': 'github',
+        'github-file': 'github',
+      };
+      const account = slugToAccount[slot.detectedType.slug];
+      if (account) {
+        const info = ownershipPlatformMap[account];
+        if (info && !user[info.field]) needed.add(account);
+      }
+    }
+    return Array.from(needed);
+  });
+
+  function handleEvidenceSocialLinked(updatedUser) {
+    userStore.setUser(updatedUser);
+  }
+
   function addEvidenceSlot() {
     // New evidence doesn't have an id - backend will create it
     evidenceSlots = [...evidenceSlots, { description: '', url: '' }];
@@ -99,6 +167,7 @@
   function handleUrlBlur(index) {
     if (evidenceSlots[index]) {
       evidenceSlots[index].url = normalizeUrl(evidenceSlots[index].url);
+      evidenceSlots[index].detectedType = detectUrlType(evidenceSlots[index].url);
     }
   }
 
@@ -124,6 +193,22 @@
       // Set the default contribution type and mission for the selector
       defaultContributionTypeId = submission.contribution_type;
 
+      // Load contribution types to collect evidence URL types
+      try {
+        const allTypes = await getContributionTypes();
+        const urlTypeMap = new Map();
+        for (const ct of allTypes) {
+          for (const ut of ct.accepted_evidence_url_types || []) {
+            if (!urlTypeMap.has(ut.slug)) urlTypeMap.set(ut.slug, ut);
+          }
+        }
+        allEvidenceUrlTypes = Array.from(urlTypeMap.values()).sort(
+          (a, b) => (a.order || 0) - (b.order || 0)
+        );
+      } catch (e) {
+        allEvidenceUrlTypes = [];
+      }
+
       // Form data will be populated by the $effect
 
       // Load existing evidence into editable slots (with id for existing items)
@@ -131,7 +216,8 @@
         evidenceSlots = submission.evidence_items.map(item => ({
           id: item.id,  // Include id for existing evidence
           description: item.description || '',
-          url: item.url || ''
+          url: item.url || '',
+          detectedType: item.url ? detectUrlType(item.url) : null,
         }));
       }
 
@@ -213,6 +299,19 @@
       return;
     }
 
+    // Client-side URL type validation (only when types are explicitly configured)
+    if (hasExplicitAcceptedTypes && acceptedEvidenceTypes.length > 0) {
+      for (let i = 0; i < filledSlots.length; i++) {
+        const slot = filledSlots[i];
+        const detected = detectUrlType(slot.url);
+        if (detected && !detected.is_generic && !isUrlTypeAccepted(detected)) {
+          const acceptedNames = acceptedEvidenceTypes.map(t => t.name).join(', ');
+          error = `Evidence ${i + 1}: This contribution type does not accept ${detected.name} URLs. Expected: ${acceptedNames}.`;
+          return;
+        }
+      }
+    }
+
     submitting = true;
     error = '';
 
@@ -249,7 +348,19 @@
       push('/my-submissions');
 
     } catch (err) {
-      error = err.response?.data?.error || err.response?.data?.detail || 'Failed to update submission';
+      if (err.response?.data?.evidence_items) {
+        const evidenceErrors = err.response.data.evidence_items;
+        if (Array.isArray(evidenceErrors) && evidenceErrors.length > 0) {
+          const first = evidenceErrors[0];
+          error = first.message || JSON.stringify(first);
+        } else {
+          error = typeof evidenceErrors === 'string'
+            ? evidenceErrors
+            : JSON.stringify(evidenceErrors);
+        }
+      } else {
+        error = err.response?.data?.error || err.response?.data?.detail || 'Failed to update submission';
+      }
     } finally {
       submitting = false;
     }
@@ -433,6 +544,16 @@
                         placeholder="https://example.com"
                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
                       />
+                      {#if slot.detectedType}
+                        <div class="flex items-center gap-1 mt-1">
+                          <span class="text-[11px] px-2 py-0.5 rounded-full font-medium {isUrlTypeAccepted(slot.detectedType) ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                            {slot.detectedType.name}
+                          </span>
+                          {#if !isUrlTypeAccepted(slot.detectedType) && !slot.detectedType.is_generic}
+                            <span class="text-[11px] text-red-600">Not accepted for this type</span>
+                          {/if}
+                        </div>
+                      {/if}
                     </div>
                   </div>
 
@@ -453,12 +574,35 @@
           <p class="text-xs text-gray-500 mt-2">
             Add additional URLs and descriptions to support your contribution claim. Provide links to GitHub, Twitter, blog posts, or other evidence.
           </p>
+
+          {#if evidenceRequiredAccounts.length > 0}
+            <div class="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-4 flex flex-col gap-3">
+              <p class="text-sm text-amber-800">
+                Your evidence requires a linked account to verify ownership. Please link below to continue.
+              </p>
+              <div class="flex flex-wrap gap-3">
+                {#each evidenceRequiredAccounts as account}
+                  {@const info = ownershipPlatformMap[account]}
+                  {#if info}
+                    <SocialLink
+                      platform={info.platform}
+                      platformLabel={info.label}
+                      connection={$userStore.user?.[info.field]}
+                      initiateUrl={info.initiateUrl}
+                      onLinked={handleEvidenceSocialLinked}
+                      compact={true}
+                    />
+                  {/if}
+                {/each}
+              </div>
+            </div>
+          {/if}
         </div>
         
         <div class="flex gap-4">
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || evidenceRequiredAccounts.length > 0}
             class="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? 'Saving...' : 'Save'}

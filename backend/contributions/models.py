@@ -93,6 +93,12 @@ class ContributionType(BaseModel):
         blank=True,
         help_text="List of required social accounts for submission: 'twitter', 'discord', 'github'"
     )
+    accepted_evidence_url_types = models.ManyToManyField(
+        'EvidenceURLType',
+        blank=True,
+        related_name='contribution_types',
+        help_text="Accepted evidence URL types. Empty means all types are accepted."
+    )
 
     class Meta:
         ordering = ['category__name', 'name']
@@ -465,8 +471,28 @@ class Evidence(BaseModel):
     
     description = models.TextField(blank=True, help_text="Description of the evidence")
     url = models.URLField(blank=True, help_text="Link to external evidence")
+    url_type = models.ForeignKey(
+        'EvidenceURLType',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='evidence_items',
+        help_text="Auto-detected URL type for this evidence"
+    )
+    normalized_url = models.CharField(
+        max_length=2000, blank=True, db_index=True,
+        help_text="Normalized URL for fast duplicate detection"
+    )
     file = models.FileField(upload_to=evidence_file_path, blank=True, null=True, help_text="DEPRECATED: File uploads are not currently supported. Use URL instead.")
-    
+
+    def save(self, *args, **kwargs):
+        if self.url:
+            from .url_utils import normalize_url
+            self.normalized_url = normalize_url(self.url)
+        else:
+            self.normalized_url = ''
+        super().save(*args, **kwargs)
+
     def __str__(self):
         if self.contribution:
             return f"Evidence for {self.contribution}"
@@ -491,6 +517,43 @@ class Evidence(BaseModel):
     class Meta:
         verbose_name = "Evidence"
         verbose_name_plural = "Evidence Items"
+
+
+class EvidenceURLType(BaseModel):
+    """
+    Defines a category of evidence URL with pattern-matching rules.
+    Examples: X Post, GitHub PR, YouTube Video, Medium Article, etc.
+    """
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    url_patterns = models.JSONField(
+        default=list,
+        help_text="List of regex patterns to match URLs of this type"
+    )
+    is_generic = models.BooleanField(
+        default=False,
+        help_text="If True, this is the fallback type for unrecognized URLs"
+    )
+    order = models.PositiveIntegerField(default=0)
+    handle_extract_pattern = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Regex with named group 'handle' to extract owner/handle from URL"
+    )
+    ownership_social_account = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Social account type for ownership checks: 'twitter' or 'github'"
+    )
+
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = "Evidence URL Type"
+        verbose_name_plural = "Evidence URL Types"
+
+    def __str__(self):
+        return self.name
 
 
 class BlocklistedURL(BaseModel):

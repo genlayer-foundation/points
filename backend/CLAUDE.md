@@ -63,9 +63,16 @@ backend/
 ### Contributions
 - **Models**: `contributions/models.py`
   - Contribution - Individual contribution records
-  - ContributionType - Categories with slug field (Node Running, Blog Posts, etc.)
+  - ContributionType - Categories with slug field, has M2M `accepted_evidence_url_types`
   - ContributionTypeMultiplier - Dynamic point multipliers
-  - Evidence - Evidence items for contributions (text descriptions and URLs only - file uploads are disabled)
+  - Evidence - Evidence items with `url_type` FK for auto-detected URL type, `normalized_url` indexed field for fast duplicate detection (text descriptions and URLs only - file uploads are disabled)
+  - EvidenceURLType - Defines URL type categories (X Post, GitHub PR, etc.) with regex patterns for auto-detection and handle ownership validation
+- **URL Utilities**: `contributions/url_utils.py`
+  - `normalize_url()` - Enhanced URL normalization (strips tracking params, preserves essential params)
+  - `detect_url_type()` - Auto-detects URL type from regex patterns
+  - `extract_handle()` - Extracts handle/owner from URL for ownership checks
+  - `validate_handle_ownership()` - Validates URL handle matches user's linked social account
+  - `check_duplicate_url()` - Checks for duplicate URLs across submissions
 - **reCAPTCHA**: `contributions/recaptcha_field.py`
   - Custom DRF serializer field for Google reCAPTCHA v2 validation
   - Validates tokens from frontend reCAPTCHA widget
@@ -283,6 +290,10 @@ The project uses **context-aware serialization** to optimize API performance:
 - Performance impact: 99%+ query reduction (30s+ → <1s for list views)
 
 **Examples**: See `users/serializers.py` for `LightUserSerializer` and `contributions/serializers.py` for `LightContributionSerializer`
+
+**Evidence URL Type Serializers** (`contributions/serializers.py`):
+- `LightEvidenceURLTypeSerializer` - Minimal (id, name, slug, is_generic) for nested use in Evidence responses
+- `EvidenceURLTypeSerializer` - Full serializer with url_patterns for client-side detection, used in ContributionType responses
 
 ## Testing
 - **Test Organization Best Practice**: Use `{app}/tests/` folder structure for better organization

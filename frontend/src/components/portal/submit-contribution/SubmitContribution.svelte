@@ -7,6 +7,7 @@
   import { getMissions } from "../../../lib/missionsStore.js";
   import { authState } from "../../../lib/auth.js";
   import { userStore } from "../../../lib/userStore";
+  import SocialLink from "../../SocialLink.svelte";
 
   // Props for routing/initialization state
   let { missionId = null, initialTypeId = null } = $props();
@@ -41,6 +42,8 @@
 
   // Evidence Slots
   let evidenceSlots = $state([]);
+  // All evidence URL types loaded from any contribution type's accepted list
+  let allEvidenceUrlTypes = $state([]);
 
   // Load types and missions
   onMount(async () => {
@@ -49,6 +52,17 @@
       const allTypes = await getContributionTypes({ is_submittable: "true" });
 
       types = allTypes;
+
+      // Collect all unique evidence URL types from contribution types
+      const urlTypeMap = new Map();
+      for (const ct of allTypes) {
+        for (const ut of ct.accepted_evidence_url_types || []) {
+          if (!urlTypeMap.has(ut.slug)) urlTypeMap.set(ut.slug, ut);
+        }
+      }
+      allEvidenceUrlTypes = Array.from(urlTypeMap.values()).sort(
+        (a, b) => (a.order || 0) - (b.order || 0),
+      );
 
       // Load missions
       try {
@@ -123,6 +137,39 @@
       }
     };
   });
+
+  // Map from ownership_social_account to the social platform info
+  const ownershipPlatformMap = {
+    twitter: { platform: "twitter", label: "X", field: "twitter_connection", initiateUrl: "/api/auth/twitter/" },
+    github: { platform: "github", label: "GitHub", field: "github_connection", initiateUrl: "/api/auth/github/" },
+  };
+
+  // Detect which social accounts are required by evidence URLs but not linked
+  let evidenceRequiredAccounts = $derived.by(() => {
+    const user = $userStore.user;
+    if (!user) return [];
+    const needed = new Set();
+    for (const slot of evidenceSlots) {
+      if (!slot.detectedType || slot.detectedType.is_generic) continue;
+      const slugToAccount = {
+        "x-post": "twitter",
+        "github-repo": "github",
+        "github-file": "github",
+      };
+      const account = slugToAccount[slot.detectedType.slug];
+      if (account) {
+        const info = ownershipPlatformMap[account];
+        if (info && !user[info.field]) {
+          needed.add(account);
+        }
+      }
+    }
+    return Array.from(needed);
+  });
+
+  function handleEvidenceSocialLinked(updatedUser) {
+    userStore.setUser(updatedUser);
+  }
 
   // Check if selected type requires social accounts the user hasn't linked
   const socialAccountLabels = {
@@ -279,9 +326,51 @@
     return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) ? url : "https://" + url;
   }
 
+  // Detect URL type from patterns
+  function detectUrlType(url) {
+    if (!url || !allEvidenceUrlTypes.length) return null;
+    for (const urlType of allEvidenceUrlTypes) {
+      if (urlType.is_generic) continue;
+      for (const pattern of urlType.url_patterns || []) {
+        try {
+          if (new RegExp(pattern, "i").test(url)) {
+            return urlType;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+    // Return the generic "Other" type
+    return allEvidenceUrlTypes.find((t) => t.is_generic) || null;
+  }
+
+  // Whether the selected type has explicitly configured accepted URL types
+  let hasExplicitAcceptedTypes = $derived(
+    selectedType?.has_explicit_accepted_types ?? false,
+  );
+
+  // Accepted evidence types for the selected contribution type
+  let acceptedEvidenceTypes = $derived(
+    selectedType?.accepted_evidence_url_types?.length
+      ? selectedType.accepted_evidence_url_types
+      : [],
+  );
+
+  // Check if a detected URL type is accepted
+  function isUrlTypeAccepted(detectedType) {
+    if (!hasExplicitAcceptedTypes) return true;
+    if (!detectedType || !acceptedEvidenceTypes.length) return true;
+    if (detectedType.is_generic) return true;
+    return acceptedEvidenceTypes.some((t) => t.slug === detectedType.slug);
+  }
+
   function handleUrlBlur(index) {
     if (evidenceSlots[index]) {
       evidenceSlots[index].url = normalizeUrl(evidenceSlots[index].url);
+      // Auto-detect URL type
+      const detected = detectUrlType(evidenceSlots[index].url);
+      evidenceSlots[index].detectedType = detected;
     }
   }
 
@@ -347,6 +436,19 @@
       return;
     }
 
+    // Client-side URL type validation (only when types are explicitly configured)
+    if (hasExplicitAcceptedTypes && acceptedEvidenceTypes.length > 0) {
+      for (let i = 0; i < filledSlots.length; i++) {
+        const slot = filledSlots[i];
+        const detected = detectUrlType(slot.url);
+        if (detected && !detected.is_generic && !isUrlTypeAccepted(detected)) {
+          const acceptedNames = acceptedEvidenceTypes.map((t) => t.name).join(", ");
+          error = `Evidence ${i + 1}: This contribution type does not accept ${detected.name} URLs. Expected: ${acceptedNames}.`;
+          return;
+        }
+      }
+    }
+
     if (!recaptchaToken) {
       error = "Please complete the reCAPTCHA verification";
       return;
@@ -388,6 +490,17 @@
         error = Array.isArray(err.response.data.recaptcha)
           ? err.response.data.recaptcha[0]
           : err.response.data.recaptcha;
+      } else if (err.response?.data?.evidence_items) {
+        // Parse evidence validation errors from backend
+        const evidenceErrors = err.response.data.evidence_items;
+        if (Array.isArray(evidenceErrors) && evidenceErrors.length > 0) {
+          const first = evidenceErrors[0];
+          error = first.message || JSON.stringify(first);
+        } else {
+          error = typeof evidenceErrors === "string"
+            ? evidenceErrors
+            : JSON.stringify(evidenceErrors);
+        }
       } else {
         error =
           err.response?.data?.error ||
@@ -666,6 +779,16 @@
           {/if}
         </div>
       {/if}
+
+      <!-- Accepted evidence types hint -->
+      {#if hasExplicitAcceptedTypes && acceptedEvidenceTypes.length > 0 && selectedType && !showTypeDropdown}
+        <div class="bg-blue-50 border border-blue-100 rounded-[8px] px-[12px] py-[8px] w-full">
+          <p class="font-['Switzer'] text-[12px] text-blue-700">
+            <span class="font-semibold">Expected evidence:</span>
+            {acceptedEvidenceTypes.map((t) => t.name).join(", ")}
+          </p>
+        </div>
+      {/if}
     </div>
 
     <!-- 2. Contribution Details Panel -->
@@ -840,6 +963,22 @@
                     placeholder="https://..."
                     class="w-full px-3 py-2 border border-gray-200 rounded-[8px] text-[14px] focus:outline-none focus:border-gray-400 focus:bg-white bg-transparent font-mono transition-colors"
                   />
+                  {#if slot.detectedType}
+                    <div class="flex items-center gap-1 mt-1">
+                      <span
+                        class="text-[11px] px-2 py-0.5 rounded-full font-medium {isUrlTypeAccepted(slot.detectedType)
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-red-100 text-red-700'}"
+                      >
+                        {slot.detectedType.name}
+                      </span>
+                      {#if !isUrlTypeAccepted(slot.detectedType) && !slot.detectedType.is_generic}
+                        <span class="text-[11px] text-red-600 font-['Switzer']">
+                          Not accepted for this type
+                        </span>
+                      {/if}
+                    </div>
+                  {/if}
                 </div>
               </div>
 
@@ -868,6 +1007,30 @@
           {/each}
         {/if}
       </div>
+
+      <!-- Social account linking banner for evidence URL types -->
+      {#if evidenceRequiredAccounts.length > 0}
+        <div class="w-full bg-amber-50 border border-amber-200 rounded-[12px] p-[16px] flex flex-col gap-[12px] mt-2">
+          <p class="font-['Switzer'] text-[14px] text-amber-800 leading-[21px]">
+            Your evidence requires a linked account to verify ownership. Please link below to continue.
+          </p>
+          <div class="flex flex-wrap gap-3">
+            {#each evidenceRequiredAccounts as account}
+              {@const info = ownershipPlatformMap[account]}
+              {#if info}
+                <SocialLink
+                  platform={info.platform}
+                  platformLabel={info.label}
+                  connection={$userStore.user?.[info.field]}
+                  initiateUrl={info.initiateUrl}
+                  onLinked={handleEvidenceSocialLinked}
+                  compact={true}
+                />
+              {/if}
+            {/each}
+          </div>
+        </div>
+      {/if}
     </div>
 
     <!-- recaptcha -->
@@ -897,7 +1060,7 @@
     <div class="flex gap-[8px] items-center mt-2 pb-[60px]">
       <button
         type="submit"
-        disabled={submitting || missingSocialAccounts.length > 0}
+        disabled={submitting || missingSocialAccounts.length > 0 || evidenceRequiredAccounts.length > 0}
         class="bg-[#9e4bf6] flex gap-[8px] h-[40px] items-center justify-center px-[20px] rounded-[20px] hover:bg-[#8b3ced] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         <span

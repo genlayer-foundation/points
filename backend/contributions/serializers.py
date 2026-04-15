@@ -1,11 +1,33 @@
 from django.db import transaction
 from rest_framework import serializers
-from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert
+from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert, EvidenceURLType
 from users.serializers import UserSerializer, LightUserSerializer
 from users.models import User
 from stewards.models import ReviewTemplate
 from .recaptcha_field import ReCaptchaField
 import decimal
+
+
+# ============================================================================
+# Evidence URL Type Serializers
+# ============================================================================
+
+
+class LightEvidenceURLTypeSerializer(serializers.Serializer):
+    """Minimal evidence URL type for nested use in contribution types."""
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    slug = serializers.SlugField(read_only=True)
+    is_generic = serializers.BooleanField(read_only=True)
+
+
+class EvidenceURLTypeSerializer(serializers.ModelSerializer):
+    """Full evidence URL type serializer with patterns for client-side detection."""
+    class Meta:
+        model = EvidenceURLType
+        fields = ['id', 'name', 'slug', 'description', 'url_patterns',
+                  'is_generic', 'order']
+        read_only_fields = fields
 
 
 # ============================================================================
@@ -46,10 +68,12 @@ class LightMissionSerializer(serializers.Serializer):
 
 class EvidenceSerializer(serializers.ModelSerializer):
     """Serializer for evidence items."""
+    url_type = LightEvidenceURLTypeSerializer(read_only=True)
+
     class Meta:
         model = Evidence
-        fields = ['id', 'description', 'url', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'description', 'url', 'url_type', 'created_at']
+        read_only_fields = ['id', 'url_type', 'created_at']
 
 
 class LightContributionSerializer(serializers.Serializer):
@@ -84,16 +108,19 @@ class LightContributionSerializer(serializers.Serializer):
 class ContributionTypeSerializer(serializers.ModelSerializer):
     current_multiplier = serializers.SerializerMethodField()
     category = serializers.CharField(source='category.slug', read_only=True)
-    
+    accepted_evidence_url_types = serializers.SerializerMethodField()
+    has_explicit_accepted_types = serializers.SerializerMethodField()
+
     class Meta:
         model = ContributionType
         fields = [
             'id', 'name', 'slug', 'description', 'category', 'min_points', 'max_points',
             'current_multiplier', 'is_submittable', 'examples', 'required_social_accounts',
+            'accepted_evidence_url_types', 'has_explicit_accepted_types',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
-    
+
     def get_current_multiplier(self, obj):
         """Get the current multiplier value for this contribution type."""
         from leaderboard.models import GlobalLeaderboardMultiplier
@@ -101,6 +128,27 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
             return float(GlobalLeaderboardMultiplier.get_current_multiplier_value(obj))
         except Exception:
             return 1.0
+
+    def get_accepted_evidence_url_types(self, obj):
+        """Return accepted evidence URL types with patterns for client-side detection.
+
+        If the M2M is empty (meaning all types are accepted), returns all
+        evidence URL types so the frontend always has pattern data for
+        client-side detection, badges, and ownership prompts.
+        """
+        url_types = obj.accepted_evidence_url_types.all()
+        if not url_types.exists():
+            url_types = EvidenceURLType.objects.all().order_by('order')
+        return EvidenceURLTypeSerializer(url_types, many=True).data
+
+    def get_has_explicit_accepted_types(self, obj):
+        """Whether the contribution type has explicitly configured accepted URL types.
+
+        False means all types are accepted (empty M2M). The frontend uses this
+        to decide whether to show the 'expected evidence' hint and enforce
+        type restrictions.
+        """
+        return obj.accepted_evidence_url_types.exists()
 
 
 class ContributionSerializer(serializers.ModelSerializer):
@@ -196,11 +244,12 @@ class SubmittedEvidenceSerializer(serializers.ModelSerializer):
             'required': 'An evidence URL is required.',
         },
     )
+    url_type = LightEvidenceURLTypeSerializer(read_only=True)
 
     class Meta:
         model = Evidence
-        fields = ['id', 'description', 'url', 'created_at']
-        read_only_fields = ['created_at']
+        fields = ['id', 'description', 'url', 'url_type', 'created_at']
+        read_only_fields = ['url_type', 'created_at']
 
 
 class SubmittedContributionSerializer(serializers.ModelSerializer):
@@ -293,8 +342,20 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
         return data
 
     def _validate_evidence_items(self, evidence_items_data,
-                                 require_at_least_one):
-        """Validate inline evidence payloads for create/update flows."""
+                                 require_at_least_one,
+                                 contribution_type=None,
+                                 user=None,
+                                 exclude_submission_id=None):
+        """Validate inline evidence payloads for create/update flows.
+
+        Performs URL type detection, type mismatch checking, duplicate URL
+        checking, and handle ownership validation.
+        """
+        from .url_utils import (
+            detect_url_type, normalize_url, check_duplicate_url,
+            validate_handle_ownership,
+        )
+
         if evidence_items_data is None:
             if require_at_least_one:
                 raise serializers.ValidationError(
@@ -331,6 +392,68 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
                 }
             )
 
+        # --- Evidence URL type validation ---
+        accepted_types = None
+        if contribution_type:
+            accepted_qs = contribution_type.accepted_evidence_url_types.all()
+            if accepted_qs.exists():
+                accepted_types = set(accepted_qs.values_list('id', flat=True))
+
+        errors = []
+        for i, item in enumerate(evidence_validated):
+            url = item.get('url', '')
+            if not url:
+                continue
+
+            # 1. Auto-detect URL type
+            url_type = detect_url_type(url)
+            item['_detected_url_type'] = url_type
+
+            # 2. URL type mismatch check
+            if (accepted_types is not None
+                    and url_type
+                    and not url_type.is_generic
+                    and url_type.id not in accepted_types):
+                accepted_names = list(
+                    contribution_type.accepted_evidence_url_types
+                    .values_list('name', flat=True)
+                )
+                errors.append({
+                    'index': i,
+                    'field': 'url',
+                    'message': (
+                        f"This contribution type does not accept "
+                        f"{url_type.name} URLs. Expected: "
+                        f"{', '.join(accepted_names)}."
+                    ),
+                })
+                continue  # Skip further checks for this URL
+
+            # 3. Duplicate URL check
+            dup_msg = check_duplicate_url(url, exclude_submission_id=exclude_submission_id)
+            if dup_msg:
+                errors.append({
+                    'index': i,
+                    'field': 'url',
+                    'message': dup_msg,
+                })
+                continue
+
+            # 4. Handle ownership check
+            if url_type and user:
+                ownership_error = validate_handle_ownership(url, url_type, user)
+                if ownership_error:
+                    errors.append({
+                        'index': i,
+                        'field': 'url',
+                        'message': ownership_error,
+                    })
+
+        if errors:
+            raise serializers.ValidationError(
+                {'evidence_items': errors}
+            )
+
         return evidence_validated
 
     def create(self, validated_data):
@@ -340,20 +463,29 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
         its evidence are created inside a DB transaction so a mid-loop
         failure cannot leave a partial record behind.
         """
-        validated_data['user'] = self.context['request'].user
+        user = self.context['request'].user
+        validated_data['user'] = user
         evidence_items_data = self.initial_data.get('evidence_items', None)
+
+        # Resolve contribution_type for evidence validation
+        contribution_type = validated_data.get('contribution_type')
+
         evidence_validated = self._validate_evidence_items(
             evidence_items_data,
             require_at_least_one=True,
+            contribution_type=contribution_type,
+            user=user,
         )
 
         with transaction.atomic():
             instance = super().create(validated_data)
             for evidence_data in evidence_validated:
+                detected_type = evidence_data.pop('_detected_url_type', None)
                 Evidence.objects.create(
                     submitted_contribution=instance,
                     description=evidence_data.get('description', ''),
                     url=evidence_data.get('url', ''),
+                    url_type=detected_type,
                 )
 
         return instance
@@ -369,9 +501,17 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
         evidence_items_data = self.initial_data.get('evidence_items', None)
         evidence_items_validated = None
         if evidence_items_data is not None:
+            user = self.context['request'].user
+            contribution_type = (
+                validated_data.get('contribution_type')
+                or instance.contribution_type
+            )
             evidence_items_validated = self._validate_evidence_items(
                 evidence_items_data,
                 require_at_least_one=True,
+                contribution_type=contribution_type,
+                user=user,
+                exclude_submission_id=instance.id,
             )
 
         # Handle evidence updates if provided (formset pattern)
@@ -390,6 +530,7 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
 
                 for evidence_data in evidence_items_validated:
                     evidence_id = evidence_data.get('id')
+                    detected_type = evidence_data.pop('_detected_url_type', None)
 
                     if evidence_id:
                         # Update existing evidence
@@ -405,6 +546,7 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
                             evidence.url = evidence_data.get(
                                 'url', evidence.url,
                             )
+                            evidence.url_type = detected_type
                             evidence.save()
                             processed_evidence_ids.add(evidence_id)
                         except Evidence.DoesNotExist:
@@ -422,6 +564,7 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
                             submitted_contribution=instance,
                             description=evidence_data.get('description', ''),
                             url=evidence_data.get('url', ''),
+                            url_type=detected_type,
                         )
 
                 # Delete evidence items that weren't in the submitted list
