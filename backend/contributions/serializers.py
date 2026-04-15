@@ -109,14 +109,13 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
     current_multiplier = serializers.SerializerMethodField()
     category = serializers.CharField(source='category.slug', read_only=True)
     accepted_evidence_url_types = serializers.SerializerMethodField()
-    has_explicit_accepted_types = serializers.SerializerMethodField()
 
     class Meta:
         model = ContributionType
         fields = [
             'id', 'name', 'slug', 'description', 'category', 'min_points', 'max_points',
             'current_multiplier', 'is_submittable', 'examples', 'required_social_accounts',
-            'accepted_evidence_url_types', 'has_explicit_accepted_types',
+            'accepted_evidence_url_types',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -141,14 +140,6 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
             url_types = EvidenceURLType.objects.all().order_by('order')
         return EvidenceURLTypeSerializer(url_types, many=True).data
 
-    def get_has_explicit_accepted_types(self, obj):
-        """Whether the contribution type has explicitly configured accepted URL types.
-
-        False means all types are accepted (empty M2M). The frontend uses this
-        to decide whether to show the 'expected evidence' hint and enforce
-        type restrictions.
-        """
-        return obj.accepted_evidence_url_types.exists()
 
 
 class ContributionSerializer(serializers.ModelSerializer):

@@ -150,13 +150,14 @@
     if (!user) return [];
     const needed = new Set();
     for (const slot of evidenceSlots) {
-      if (!slot.detectedType || slot.detectedType.is_generic) continue;
+      const type = slot.selectedType;
+      if (!type || type.is_generic) continue;
       const slugToAccount = {
         "x-post": "twitter",
         "github-repo": "github",
         "github-file": "github",
       };
-      const account = slugToAccount[slot.detectedType.slug];
+      const account = slugToAccount[type.slug];
       if (account) {
         const info = ownershipPlatformMap[account];
         if (info && !user[info.field]) {
@@ -313,7 +314,7 @@
   function addEvidenceSlot() {
     evidenceSlots = [
       ...evidenceSlots,
-      { id: Date.now(), description: "", url: "" },
+      { id: Date.now(), description: "", url: "", selectedType: null },
     ];
   }
 
@@ -345,11 +346,6 @@
     return allEvidenceUrlTypes.find((t) => t.is_generic) || null;
   }
 
-  // Whether the selected type has explicitly configured accepted URL types
-  let hasExplicitAcceptedTypes = $derived(
-    selectedType?.has_explicit_accepted_types ?? false,
-  );
-
   // Accepted evidence types for the selected contribution type
   let acceptedEvidenceTypes = $derived(
     selectedType?.accepted_evidence_url_types?.length
@@ -357,21 +353,21 @@
       : [],
   );
 
-  // Check if a detected URL type is accepted
-  function isUrlTypeAccepted(detectedType) {
-    if (!hasExplicitAcceptedTypes) return true;
-    if (!detectedType || !acceptedEvidenceTypes.length) return true;
-    if (detectedType.is_generic) return true;
-    return acceptedEvidenceTypes.some((t) => t.slug === detectedType.slug);
-  }
-
   function handleUrlBlur(index) {
     if (evidenceSlots[index]) {
       evidenceSlots[index].url = normalizeUrl(evidenceSlots[index].url);
-      // Auto-detect URL type
+      // Auto-detect and pre-select URL type if not already chosen
       const detected = detectUrlType(evidenceSlots[index].url);
       evidenceSlots[index].detectedType = detected;
+      if (detected && !evidenceSlots[index].selectedType) {
+        evidenceSlots[index].selectedType = detected;
+      }
     }
+  }
+
+  function handleEvidenceTypeChange(index, slug) {
+    const urlType = acceptedEvidenceTypes.find(t => t.slug === slug) || null;
+    evidenceSlots[index].selectedType = urlType;
   }
 
   // reCAPTCHA
@@ -436,14 +432,13 @@
       return;
     }
 
-    // Client-side URL type validation (only when types are explicitly configured)
-    if (hasExplicitAcceptedTypes && acceptedEvidenceTypes.length > 0) {
-      for (let i = 0; i < filledSlots.length; i++) {
-        const slot = filledSlots[i];
+    // Client-side: validate that selected evidence type matches the URL
+    for (let i = 0; i < filledSlots.length; i++) {
+      const slot = filledSlots[i];
+      if (slot.selectedType && !slot.selectedType.is_generic) {
         const detected = detectUrlType(slot.url);
-        if (detected && !detected.is_generic && !isUrlTypeAccepted(detected)) {
-          const acceptedNames = acceptedEvidenceTypes.map((t) => t.name).join(", ");
-          error = `Evidence ${i + 1}: This contribution type does not accept ${detected.name} URLs. Expected: ${acceptedNames}.`;
+        if (detected && !detected.is_generic && detected.slug !== slot.selectedType.slug) {
+          error = `Evidence ${i + 1}: The URL doesn't look like a ${slot.selectedType.name}. It was detected as ${detected.name}.`;
           return;
         }
       }
@@ -780,15 +775,6 @@
         </div>
       {/if}
 
-      <!-- Accepted evidence types hint -->
-      {#if hasExplicitAcceptedTypes && acceptedEvidenceTypes.length > 0 && selectedType && !showTypeDropdown}
-        <div class="bg-blue-50 border border-blue-100 rounded-[8px] px-[12px] py-[8px] w-full">
-          <p class="font-['Switzer'] text-[12px] text-blue-700">
-            <span class="font-semibold">Expected evidence:</span>
-            {acceptedEvidenceTypes.map((t) => t.name).join(", ")}
-          </p>
-        </div>
-      {/if}
     </div>
 
     <!-- 2. Contribution Details Panel -->
@@ -937,7 +923,31 @@
             <div
               class="border border-[#e0e0e0] rounded-[12px] p-[16px] bg-[#fcfcfc] flex flex-col gap-[12px] relative transition-all group"
             >
-              <!-- Grid forces them to be responsive side by side -->
+              <!-- Evidence Type Selector -->
+              {#if acceptedEvidenceTypes.length > 0}
+                <div class="flex flex-col gap-1 pr-[30px]">
+                  <label
+                    class="font-['Switzer'] text-[12px] font-semibold text-gray-500 uppercase tracking-widest pl-1"
+                    >Evidence Type</label
+                  >
+                  <select
+                    value={slot.selectedType?.slug || ''}
+                    onchange={(e) => handleEvidenceTypeChange(index, e.target.value)}
+                    class="w-full px-3 py-2 border border-gray-200 rounded-[8px] text-[14px] focus:outline-none focus:border-gray-400 focus:bg-white bg-transparent transition-colors appearance-none"
+                  >
+                    <option value="">Select type...</option>
+                    {#each acceptedEvidenceTypes.filter(t => !t.is_generic) as urlType}
+                      <option value={urlType.slug}>{urlType.name}</option>
+                    {/each}
+                    {@const genericType = acceptedEvidenceTypes.find(t => t.is_generic)}
+                    {#if genericType}
+                      <option value={genericType.slug}>Other</option>
+                    {/if}
+                  </select>
+                </div>
+              {/if}
+
+              <!-- Description + URL side by side -->
               <div class="grid grid-cols-1 md:grid-cols-2 gap-[16px] pr-[30px]">
                 <div class="flex flex-col gap-1">
                   <label
@@ -947,7 +957,7 @@
                   <input
                     type="text"
                     bind:value={slot.description}
-                    placeholder="e.g. GitHub Pull Request"
+                    placeholder="e.g. My GenLayer intelligent contract"
                     class="w-full px-3 py-2 border border-gray-200 rounded-[8px] text-[14px] focus:outline-none focus:border-gray-400 focus:bg-white bg-transparent transition-colors"
                   />
                 </div>
@@ -963,21 +973,10 @@
                     placeholder="https://..."
                     class="w-full px-3 py-2 border border-gray-200 rounded-[8px] text-[14px] focus:outline-none focus:border-gray-400 focus:bg-white bg-transparent font-mono transition-colors"
                   />
-                  {#if slot.detectedType}
-                    <div class="flex items-center gap-1 mt-1">
-                      <span
-                        class="text-[11px] px-2 py-0.5 rounded-full font-medium {isUrlTypeAccepted(slot.detectedType)
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-700'}"
-                      >
-                        {slot.detectedType.name}
-                      </span>
-                      {#if !isUrlTypeAccepted(slot.detectedType) && !slot.detectedType.is_generic}
-                        <span class="text-[11px] text-red-600 font-['Switzer']">
-                          Not accepted for this type
-                        </span>
-                      {/if}
-                    </div>
+                  {#if slot.detectedType && slot.selectedType && !slot.selectedType.is_generic && slot.detectedType.slug !== slot.selectedType.slug && !slot.detectedType.is_generic}
+                    <p class="text-[11px] text-amber-600 font-['Switzer'] mt-1">
+                      This URL looks like a {slot.detectedType.name}, not a {slot.selectedType.name}
+                    </p>
                   {/if}
                 </div>
               </div>
