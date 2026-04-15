@@ -936,13 +936,13 @@
                     class="w-full px-3 py-2 border border-gray-200 rounded-[8px] text-[14px] focus:outline-none focus:border-gray-400 focus:bg-white bg-transparent transition-colors appearance-none"
                   >
                     <option value="">Select type...</option>
-                    {#each acceptedEvidenceTypes.filter(t => !t.is_generic) as urlType}
-                      <option value={urlType.slug}>{urlType.name}</option>
+                    {#each acceptedEvidenceTypes as urlType}
+                      {#if urlType.is_generic}
+                        <option value={urlType.slug}>Other</option>
+                      {:else}
+                        <option value={urlType.slug}>{urlType.name}</option>
+                      {/if}
                     {/each}
-                    {@const genericType = acceptedEvidenceTypes.find(t => t.is_generic)}
-                    {#if genericType}
-                      <option value={genericType.slug}>Other</option>
-                    {/if}
                   </select>
                 </div>
               {/if}
