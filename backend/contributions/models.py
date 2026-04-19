@@ -99,6 +99,15 @@ class ContributionType(BaseModel):
         related_name='contribution_types',
         help_text="Accepted evidence URL types. Empty means all types are accepted."
     )
+    required_evidence_url_types = models.ManyToManyField(
+        'EvidenceURLType',
+        blank=True,
+        related_name='required_by_contribution_types',
+        help_text=(
+            "If set, at least one submitted evidence URL must match one of "
+            "these types. Required types are implicitly accepted."
+        ),
+    )
 
     class Meta:
         ordering = ['category__name', 'name']

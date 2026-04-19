@@ -43,7 +43,7 @@ class ContributionTypeAdmin(admin.ModelAdmin):
     list_filter = ('category', 'is_default', 'is_submittable')
     # Auto-fill slug from name on the edit page
     prepopulated_fields = { 'slug': ('name',) }
-    filter_horizontal = ('accepted_evidence_url_types',)
+    filter_horizontal = ('accepted_evidence_url_types', 'required_evidence_url_types')
     inlines = [GlobalLeaderboardMultiplierInline]
     
     def get_current_multiplier(self, obj):

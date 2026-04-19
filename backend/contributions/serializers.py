@@ -109,13 +109,14 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
     current_multiplier = serializers.SerializerMethodField()
     category = serializers.CharField(source='category.slug', read_only=True)
     accepted_evidence_url_types = serializers.SerializerMethodField()
+    required_evidence_url_types = serializers.SerializerMethodField()
 
     class Meta:
         model = ContributionType
         fields = [
             'id', 'name', 'slug', 'description', 'category', 'min_points', 'max_points',
             'current_multiplier', 'is_submittable', 'examples', 'required_social_accounts',
-            'accepted_evidence_url_types',
+            'accepted_evidence_url_types', 'required_evidence_url_types',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -131,13 +132,27 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
     def get_accepted_evidence_url_types(self, obj):
         """Return accepted evidence URL types with patterns for client-side detection.
 
-        If the M2M is empty (meaning all types are accepted), returns all
-        evidence URL types so the frontend always has pattern data for
-        client-side detection, badges, and ownership prompts.
+        An empty ``accepted_evidence_url_types`` means all types are accepted,
+        so we return all evidence URL types in that case (even when
+        ``required_evidence_url_types`` is set, since requiring a type does
+        not restrict which other types are allowed as extras).
+        Required types are merged in when an explicit accepted list is set,
+        so they are always part of the returned list.
         """
-        url_types = obj.accepted_evidence_url_types.all()
-        if not url_types.exists():
+        accepted = obj.accepted_evidence_url_types.all()
+        if not accepted.exists():
             url_types = EvidenceURLType.objects.all().order_by('order')
+        else:
+            required = obj.required_evidence_url_types.all()
+            merged = {t.id: t for t in accepted}
+            for t in required:
+                merged.setdefault(t.id, t)
+            url_types = sorted(merged.values(), key=lambda t: (t.order, t.name))
+        return EvidenceURLTypeSerializer(url_types, many=True).data
+
+    def get_required_evidence_url_types(self, obj):
+        """Return required evidence URL types (at least one must match)."""
+        url_types = obj.required_evidence_url_types.all().order_by('order')
         return EvidenceURLTypeSerializer(url_types, many=True).data
 
 
@@ -384,13 +399,25 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
             )
 
         # --- Evidence URL type validation ---
+        # accepted_types = None means "all types accepted" (existing behavior
+        # when accepted_evidence_url_types is empty). required types are
+        # orthogonal: they add an at-least-one-match rule without restricting
+        # which other types are allowed as extras.
         accepted_types = None
+        required_type_ids = set()
+        required_type_names = []
         if contribution_type:
             accepted_qs = contribution_type.accepted_evidence_url_types.all()
+            required_qs = contribution_type.required_evidence_url_types.all()
+            required_type_ids = set(required_qs.values_list('id', flat=True))
+            required_type_names = list(required_qs.values_list('name', flat=True))
             if accepted_qs.exists():
-                accepted_types = set(accepted_qs.values_list('id', flat=True))
+                accepted_types = set(
+                    accepted_qs.values_list('id', flat=True)
+                ) | required_type_ids
 
         errors = []
+        has_required_match = not required_type_ids  # satisfied if none required
         for i, item in enumerate(evidence_validated):
             url = item.get('url', '')
             if not url:
@@ -400,15 +427,27 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
             url_type = detect_url_type(url)
             item['_detected_url_type'] = url_type
 
+            # Track whether any URL satisfies the required-type rule
+            if url_type and url_type.id in required_type_ids:
+                has_required_match = True
+
             # 2. URL type mismatch check
+            # Generic-typed URLs ('Other') must not bypass an explicit
+            # whitelist. An admin restricting accepted types intends to
+            # reject unrecognized URLs too; if generic URLs should be
+            # allowed, the admin can add the 'Other' type to
+            # accepted_evidence_url_types.
             if (accepted_types is not None
                     and url_type
-                    and not url_type.is_generic
                     and url_type.id not in accepted_types):
                 accepted_names = list(
                     contribution_type.accepted_evidence_url_types
                     .values_list('name', flat=True)
                 )
+                # Include required types in the accepted list shown to users
+                for n in required_type_names:
+                    if n not in accepted_names:
+                        accepted_names.append(n)
                 errors.append({
                     'index': i,
                     'field': 'url',
@@ -443,6 +482,16 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
         if errors:
             raise serializers.ValidationError(
                 {'evidence_items': errors}
+            )
+
+        if not has_required_match:
+            raise serializers.ValidationError(
+                {
+                    'evidence_items': (
+                        f"At least one evidence URL must be one of: "
+                        f"{', '.join(required_type_names)}."
+                    ),
+                }
             )
 
         return evidence_validated

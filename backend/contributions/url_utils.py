@@ -9,11 +9,48 @@ TRACKING_PARAMS = {'utm_source', 'utm_medium', 'utm_campaign', 'utm_term',
 # Query params to preserve during normalization (essential for identity)
 ESSENTIAL_PARAMS = {'v', 'import-contract'}
 
+# Query params whose values are case-insensitive by spec (e.g. EVM
+# addresses: EIP-55 casing only encodes a checksum, the underlying
+# address is the same regardless of case). Lowercasing these values
+# keeps duplicate detection consistent. Case-sensitive IDs like
+# YouTube's v= must NOT be added here.
+CASE_INSENSITIVE_PARAMS = {'import-contract'}
+
+
+def _normalize_path_case(host, path):
+    """Lowercase only the case-insensitive handle/owner/repo segments in
+    the path, leaving case-sensitive downstream segments (blob SHAs,
+    branch names, etc.) untouched.
+
+    A blanket ``path.lower()`` would collapse distinct GitHub blob SHAs
+    and similar IDs, so we key per known host.
+    """
+    if not path:
+        return path
+    bare_host = host[4:] if host.startswith('www.') else host
+    parts = path.split('/')  # leading '' for absolute paths
+
+    if bare_host in ('x.com', 'twitter.com'):
+        # First segment is the X/Twitter handle (case-insensitive).
+        if len(parts) > 1 and parts[1]:
+            parts[1] = parts[1].lower()
+    elif bare_host == 'github.com':
+        # First two segments are owner/repo (case-insensitive on GitHub).
+        # Everything after (branch, blob SHA, file path) stays as-is.
+        for i in (1, 2):
+            if len(parts) > i and parts[i]:
+                parts[i] = parts[i].lower()
+
+    return '/'.join(parts)
+
 
 def normalize_url(url):
     """Normalize a URL for duplicate comparison.
 
     - Lowercase the scheme and host
+    - Lowercase handle/owner/repo path segments for known hosts so the
+      same X post or GitHub repo submitted with different casing collapses
+      to one entry (see ``_normalize_path_case``)
     - Strip trailing slashes
     - Strip fragment (#...)
     - Remove tracking params (utm_*, t=, s=, ref=, etc.)
@@ -24,7 +61,7 @@ def normalize_url(url):
     parsed = urlparse(url)
     scheme = (parsed.scheme or 'https').lower()
     host = (parsed.netloc or '').lower()
-    path = parsed.path.rstrip('/')
+    path = _normalize_path_case(host, parsed.path.rstrip('/'))
 
     # Filter query params
     query_params = parse_qs(parsed.query, keep_blank_values=True)
@@ -34,6 +71,8 @@ def normalize_url(url):
             filtered[key] = values
         elif key not in TRACKING_PARAMS:
             filtered[key] = values
+        if key in CASE_INSENSITIVE_PARAMS and key in filtered:
+            filtered[key] = [v.lower() for v in filtered[key]]
 
     query_string = ''
     if filtered:
@@ -175,11 +214,13 @@ def check_duplicate_url(url, exclude_submission_id=None):
     if submission_qs.exists():
         return "This URL has already been submitted."
 
-    # Check evidence on accepted contributions
+    # Check evidence on accepted contributions. A Contribution row only
+    # exists once the submission has been accepted, so contribution__isnull=False
+    # is sufficient. Filtering on frozen_global_points would incorrectly
+    # skip legitimate zero-point accepted contributions.
     if Evidence.objects.filter(
         normalized_url=normalized,
         contribution__isnull=False,
-        contribution__frozen_global_points__gt=0,
     ).exists():
         return "This URL has already been submitted in an accepted contribution."
 

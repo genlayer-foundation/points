@@ -54,7 +54,10 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         if is_submittable is not None:
             queryset = queryset.filter(is_submittable=is_submittable.lower() == 'true')
 
-        return queryset.prefetch_related('accepted_evidence_url_types')
+        return queryset.prefetch_related(
+            'accepted_evidence_url_types',
+            'required_evidence_url_types',
+        )
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def statistics(self, request):

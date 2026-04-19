@@ -41,6 +41,19 @@ class NormalizeUrlTests(TestCase):
         result = normalize_url(url)
         self.assertIn('import-contract=0x1234', result)
 
+    def test_lowercases_import_contract_hex(self):
+        """EVM addresses are case-insensitive (EIP-55 is just a checksum),
+        so differently-cased contract addresses must collapse to the same
+        normalized URL."""
+        a = normalize_url(
+            'https://studio.genlayer.com/contracts?import-contract=0xAbC123dEf456'
+        )
+        b = normalize_url(
+            'https://studio.genlayer.com/contracts?import-contract=0xabc123def456'
+        )
+        self.assertEqual(a, b)
+        self.assertIn('import-contract=0xabc123def456', a)
+
     def test_lowercases_host(self):
         result = normalize_url('https://GitHub.COM/User/Repo')
         self.assertTrue(result.startswith('https://github.com/'))
@@ -53,6 +66,41 @@ class NormalizeUrlTests(TestCase):
             normalize_url('https://example.com/post?ref=homepage'),
             'https://example.com/post',
         )
+
+    def test_lowercases_x_handle(self):
+        """X/Twitter handles are case-insensitive; normalization should
+        collapse differently-cased variants of the same post."""
+        self.assertEqual(
+            normalize_url('https://x.com/GenLayer/status/123'),
+            normalize_url('https://x.com/genlayer/status/123'),
+        )
+        self.assertEqual(
+            normalize_url('https://twitter.com/GenLayer/status/456'),
+            'https://twitter.com/genlayer/status/456',
+        )
+
+    def test_lowercases_github_owner_repo(self):
+        """GitHub owner/repo are case-insensitive; different casings of
+        the same repo must collapse. Branch/path segments after the
+        repo stay untouched."""
+        self.assertEqual(
+            normalize_url('https://github.com/GenLayer/Studio'),
+            'https://github.com/genlayer/studio',
+        )
+        # Case-sensitive downstream segments (branches, blob SHAs, file
+        # paths) must be preserved.
+        self.assertEqual(
+            normalize_url(
+                'https://github.com/GenLayer/Studio/blob/AbC123/README.md'
+            ),
+            'https://github.com/genlayer/studio/blob/AbC123/README.md',
+        )
+
+    def test_preserves_youtube_v_param_case(self):
+        """YouTube v= values are case-sensitive IDs; path-case
+        normalization must not touch them."""
+        result = normalize_url('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+        self.assertIn('v=dQw4w9WgXcQ', result)
 
 
 class DetectUrlTypeTests(TestCase):
