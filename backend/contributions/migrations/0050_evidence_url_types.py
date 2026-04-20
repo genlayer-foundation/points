@@ -164,21 +164,6 @@ class Migration(migrations.Migration):
             name='accepted_evidence_url_types',
             field=models.ManyToManyField(blank=True, help_text='Accepted evidence URL types. Empty means all types are accepted.', related_name='contribution_types', to='contributions.evidenceurltype'),
         ),
-        # 2b. Add "required" M2M on ContributionType: at least one submitted
-        #     URL must match one of these; required types are implicitly accepted.
-        migrations.AddField(
-            model_name='contributiontype',
-            name='required_evidence_url_types',
-            field=models.ManyToManyField(
-                blank=True,
-                help_text=(
-                    'If set, at least one submitted evidence URL must match one of '
-                    'these types. Required types are implicitly accepted.'
-                ),
-                related_name='required_by_contribution_types',
-                to='contributions.evidenceurltype',
-            ),
-        ),
         # 3. Add FK on Evidence
         migrations.AddField(
             model_name='evidence',
