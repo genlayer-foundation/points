@@ -47,10 +47,15 @@ class LeaderboardRecalculationTest(TestCase):
                 'name': 'Validator Waitlist',
                 'description': 'Join the validator waitlist',
                 'category': self.validator_category,
-                'min_points': 1,
-                'max_points': 1
+                'min_points': 0,
+                'max_points': 0
             }
         )
+        # Waitlist contributions are 0-point flags; force bounds in case
+        # a previous migration left them at non-zero values.
+        self.waitlist_type.min_points = 0
+        self.waitlist_type.max_points = 0
+        self.waitlist_type.save()
         
         self.validator_type, _ = ContributionType.objects.get_or_create(
             slug='validator',
@@ -153,15 +158,15 @@ class LeaderboardRecalculationTest(TestCase):
     
     def test_recalculate_all_leaderboards_with_waitlist(self):
         """Test recalculation with waitlist users."""
-        # Create waitlist contributions
+        # Create waitlist contribution (0-point flag)
         Contribution.objects.create(
             user=self.user1,
             contribution_type=self.waitlist_type,
-            points=1,
-            frozen_global_points=1,
+            points=0,
+            frozen_global_points=0,
             contribution_date=timezone.now() - timezone.timedelta(days=10)
         )
-        
+
         Contribution.objects.create(
             user=self.user1,
             contribution_type=self.node_running_type,
@@ -169,34 +174,34 @@ class LeaderboardRecalculationTest(TestCase):
             frozen_global_points=100,  # 50 * 2.0 multiplier
             contribution_date=timezone.now() - timezone.timedelta(days=5)
         )
-        
+
         # Recalculate
         result = recalculate_all_leaderboards()
-        
+
         # Check result
         self.assertIn('1 users', result)
         self.assertIn('4 leaderboards', result)
-        
+
         # Check user is on waitlist leaderboard
         waitlist_entry = LeaderboardEntry.objects.filter(
             user=self.user1,
             type='validator-waitlist'
         ).first()
         self.assertIsNotNone(waitlist_entry)
-        self.assertEqual(waitlist_entry.total_points, 101)  # 1 + 100
+        self.assertEqual(waitlist_entry.total_points, 100)  # 0 + 100
         self.assertEqual(waitlist_entry.rank, 1)
     
     def test_recalculate_with_graduation(self):
         """Test recalculation when user graduates from waitlist to validator."""
-        # User starts on waitlist
+        # User starts on waitlist (0-point flag)
         Contribution.objects.create(
             user=self.user1,
             contribution_type=self.waitlist_type,
-            points=1,
-            frozen_global_points=1,
+            points=0,
+            frozen_global_points=0,
             contribution_date=timezone.now() - timezone.timedelta(days=10)
         )
-        
+
         # Add some validator category contributions
         Contribution.objects.create(
             user=self.user1,
@@ -261,21 +266,21 @@ class LeaderboardRecalculationTest(TestCase):
     
     def test_recalculate_with_multiple_users(self):
         """Test recalculation with multiple users in different states."""
-        # User 1: On waitlist
+        # User 1: On waitlist (0-point flag)
         Contribution.objects.create(
             user=self.user1,
             contribution_type=self.waitlist_type,
-            points=1,
-            frozen_global_points=1,
+            points=0,
+            frozen_global_points=0,
             contribution_date=timezone.now() - timezone.timedelta(days=10)
         )
-        
+
         # User 2: Graduated validator
         Contribution.objects.create(
             user=self.user2,
             contribution_type=self.waitlist_type,
-            points=1,
-            frozen_global_points=1,
+            points=0,
+            frozen_global_points=0,
             contribution_date=timezone.now() - timezone.timedelta(days=20)
         )
         Contribution.objects.create(
@@ -297,8 +302,8 @@ class LeaderboardRecalculationTest(TestCase):
         Contribution.objects.create(
             user=self.user3,
             contribution_type=self.waitlist_type,
-            points=1,
-            frozen_global_points=1,
+            points=0,
+            frozen_global_points=0,
             contribution_date=timezone.now() - timezone.timedelta(days=10)
         )
         
@@ -419,12 +424,12 @@ class LeaderboardRecalculationTest(TestCase):
     
     def test_frozen_graduation_points(self):
         """Test that graduation points are properly frozen."""
-        # User on waitlist with some points
+        # User on waitlist (0-point flag)
         Contribution.objects.create(
             user=self.user1,
             contribution_type=self.waitlist_type,
-            points=1,
-            frozen_global_points=1,
+            points=0,
+            frozen_global_points=0,
             contribution_date=timezone.now() - timezone.timedelta(days=10)
         )
         Contribution.objects.create(
