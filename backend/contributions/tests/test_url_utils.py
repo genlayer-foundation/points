@@ -184,8 +184,12 @@ class ExtractHandleTests(TestCase):
         self.assertEqual(handle, 'myuser')  # lowercased
 
     def test_no_pattern_returns_none(self):
-        url_type = EvidenceURLType.objects.get(slug='youtube-video')
-        handle = extract_handle('https://youtube.com/watch?v=abc', url_type)
+        # github-pr is seeded without a handle_extract_pattern, so
+        # extract_handle must short-circuit to None.
+        url_type = EvidenceURLType.objects.get(slug='github-pr')
+        handle = extract_handle(
+            'https://github.com/user/repo/pull/42', url_type,
+        )
         self.assertIsNone(handle)
 
     def test_github_file_handle(self):
