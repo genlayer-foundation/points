@@ -16,6 +16,9 @@
   let submitting = $state(false);
   let error = $state("");
 
+  let isValidator = $derived(!!$userStore.user?.validator);
+  let isBuilder = $derived(!!$userStore.user?.builder);
+
   // reCAPTCHA state
   let recaptchaToken = $state("");
   let recaptchaWidgetId = $state(null);
@@ -26,6 +29,48 @@
   let missions = $state([]);
   let loadingTypes = $state(true);
   let selectedCategory = $state("builder"); // Default to builder
+  let canSubmitCurrentCategory = $derived.by(() => {
+    if (selectedCategory === "validator") return isValidator;
+    if (selectedCategory === "builder") return isBuilder;
+    return true;
+  });
+
+  let journeysHref = $derived(
+    $userStore.user?.address
+      ? `#/participant/${$userStore.user.address}`
+      : "#/",
+  );
+
+  let gatingTheme = $derived.by(() => {
+    if (selectedCategory === "validator") {
+      return {
+        bg: "bg-blue-50",
+        border: "border-blue-200",
+        icon: "text-blue-500",
+        title: "text-blue-900",
+        body: "text-blue-800",
+        link: "text-blue-700 hover:text-blue-900",
+      };
+    }
+    if (selectedCategory === "builder") {
+      return {
+        bg: "bg-orange-50",
+        border: "border-orange-200",
+        icon: "text-orange-500",
+        title: "text-orange-900",
+        body: "text-orange-800",
+        link: "text-orange-700 hover:text-orange-900",
+      };
+    }
+    return {
+      bg: "bg-purple-50",
+      border: "border-purple-200",
+      icon: "text-purple-500",
+      title: "text-purple-900",
+      body: "text-purple-800",
+      link: "text-purple-700 hover:text-purple-900",
+    };
+  });
   let selectedType = $state(null);
   let selectedMission = $state(null);
   let selectedMissionData = $state(null);
@@ -791,7 +836,58 @@
         </button>
       </div>
 
+      {#if !canSubmitCurrentCategory}
+        <div
+          class="flex items-start gap-3 rounded-[8px] border {gatingTheme.border} {gatingTheme.bg} p-4"
+        >
+          <svg
+            class="h-5 w-5 flex-shrink-0 {gatingTheme.icon} mt-0.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z"
+            />
+          </svg>
+          <div class="flex flex-col gap-1">
+            {#if selectedCategory === "validator"}
+              <p class="text-sm font-semibold {gatingTheme.title}">
+                Validators only
+              </p>
+              <p class="text-sm {gatingTheme.body}">
+                This category is reserved for selected validators. Start your
+                validator journey from your profile to be considered.
+              </p>
+              <a
+                href={journeysHref}
+                class="text-sm font-medium underline {gatingTheme.link} mt-1"
+                >Go to your journeys</a
+              >
+            {:else if selectedCategory === "builder"}
+              <p class="text-sm font-semibold {gatingTheme.title}">
+                Builders only
+              </p>
+              <p class="text-sm {gatingTheme.body}">
+                Complete your Builder journey from your profile to unlock
+                builder submissions.
+              </p>
+              <a
+                href={journeysHref}
+                class="text-sm font-medium underline {gatingTheme.link} mt-1"
+                >Go to your journeys</a
+              >
+            {/if}
+          </div>
+        </div>
+      {/if}
+
       <!-- Type Search/Dropdown Selection -->
+      {#if canSubmitCurrentCategory}
       <div class="relative w-full" bind:this={dropdownRef}>
         <div
           class="border {error && !formData.contribution_type
@@ -917,6 +1013,7 @@
           </div>
         {/if}
       </div>
+      {/if}
 
       <!-- Selection Info (shows details of selected type or mission) -->
       {#if selectedType && !showTypeDropdown}
@@ -1345,7 +1442,7 @@
     <div class="flex gap-[8px] items-center mt-2 pb-[60px]">
       <button
         type="submit"
-        disabled={submitting || evidenceRequiredAccounts.length > 0 || hasEvidencePatternMismatch}
+        disabled={submitting || !canSubmitCurrentCategory || evidenceRequiredAccounts.length > 0 || hasEvidencePatternMismatch}
         class="bg-[#9e4bf6] flex gap-[8px] h-[40px] items-center justify-center px-[20px] rounded-[20px] hover:bg-[#8b3ced] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         <span
