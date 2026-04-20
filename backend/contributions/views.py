@@ -54,8 +54,11 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         if is_submittable is not None:
             queryset = queryset.filter(is_submittable=is_submittable.lower() == 'true')
 
-        return queryset
-        
+        return queryset.prefetch_related(
+            'accepted_evidence_url_types',
+            'required_evidence_url_types',
+        )
+
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def statistics(self, request):
         """
@@ -610,7 +613,8 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             'user',  # Optimize user access
             'mission'  # Avoid N+1 queries when accessing mission details
         ).prefetch_related(
-            'evidence_items'
+            'evidence_items',
+            'evidence_items__url_type',
         ).order_by('-created_at')
 
     def get_serializer_context(self):

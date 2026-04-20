@@ -7,6 +7,7 @@
   import { getMissions } from "../../../lib/missionsStore.js";
   import { authState } from "../../../lib/auth.js";
   import { userStore } from "../../../lib/userStore";
+  import SocialLink from "../../SocialLink.svelte";
 
   // Props for routing/initialization state
   let { missionId = null, initialTypeId = null } = $props();
@@ -41,6 +42,12 @@
 
   // Evidence Slots
   let evidenceSlots = $state([]);
+  // Dedicated required-evidence slot (shown when the selected contribution
+  // type declares required_evidence_url_types). Tracked separately so its
+  // position and styling are distinct from optional extras.
+  let requiredEvidenceSlot = $state({ description: "", url: "", selectedType: null });
+  // All evidence URL types loaded from any contribution type's accepted list
+  let allEvidenceUrlTypes = $state([]);
 
   // Load types and missions
   onMount(async () => {
@@ -49,6 +56,17 @@
       const allTypes = await getContributionTypes({ is_submittable: "true" });
 
       types = allTypes;
+
+      // Collect all unique evidence URL types from contribution types
+      const urlTypeMap = new Map();
+      for (const ct of allTypes) {
+        for (const ut of ct.accepted_evidence_url_types || []) {
+          if (!urlTypeMap.has(ut.slug)) urlTypeMap.set(ut.slug, ut);
+        }
+      }
+      allEvidenceUrlTypes = Array.from(urlTypeMap.values()).sort(
+        (a, b) => (a.order || 0) - (b.order || 0),
+      );
 
       // Load missions
       try {
@@ -124,6 +142,40 @@
     };
   });
 
+  // Map from ownership_social_account to the social platform info
+  const ownershipPlatformMap = {
+    twitter: { platform: "twitter", label: "X", field: "twitter_connection", initiateUrl: "/api/auth/twitter/" },
+    github: { platform: "github", label: "GitHub", field: "github_connection", initiateUrl: "/api/auth/github/" },
+  };
+
+  // Detect which social accounts are required by evidence URLs but not linked
+  let evidenceRequiredAccounts = $derived.by(() => {
+    const user = $userStore.user;
+    if (!user) return [];
+    const needed = new Set();
+    for (const slot of evidenceSlots) {
+      const type = slot.selectedType;
+      if (!type || type.is_generic) continue;
+      const slugToAccount = {
+        "x-post": "twitter",
+        "github-repo": "github",
+        "github-file": "github",
+      };
+      const account = slugToAccount[type.slug];
+      if (account) {
+        const info = ownershipPlatformMap[account];
+        if (info && !user[info.field]) {
+          needed.add(account);
+        }
+      }
+    }
+    return Array.from(needed);
+  });
+
+  function handleEvidenceSocialLinked(updatedUser) {
+    userStore.setUser(updatedUser);
+  }
+
   // Check if selected type requires social accounts the user hasn't linked
   const socialAccountLabels = {
     twitter: "X (Twitter)",
@@ -145,6 +197,88 @@
         return field && !user[field];
       })
       .map((a) => socialAccountLabels[a] || a);
+  });
+
+  // True when ALL non-generic accepted evidence types require an unlinked social account
+  let allEvidenceTypesBlocked = $derived.by(() => {
+    if (!selectedType || acceptedEvidenceTypes.length === 0) return false;
+    const user = $userStore.user;
+    if (!user) return false;
+    const slugToAccount = {
+      "x-post": "twitter",
+      "github-repo": "github",
+      "github-file": "github",
+    };
+    const nonGenericTypes = acceptedEvidenceTypes.filter(t => !t.is_generic);
+    if (nonGenericTypes.length === 0) return false;
+    return nonGenericTypes.every(t => {
+      const account = slugToAccount[t.slug];
+      if (!account) return false;
+      const info = ownershipPlatformMap[account];
+      return info && !user[info.field];
+    });
+  });
+
+  // Collect the raw account keys that are blocking (for the social link banner)
+  let blockingSocialAccounts = $derived.by(() => {
+    const accounts = new Set();
+    // Type-level required_social_accounts
+    if (selectedType?.required_social_accounts?.length) {
+      const user = $userStore.user;
+      for (const account of selectedType.required_social_accounts) {
+        const field = socialConnectionFields[account];
+        if (field && (!user || !user[field])) {
+          accounts.add(account);
+        }
+      }
+    }
+    // Evidence-level: when all evidence types are blocked
+    if (allEvidenceTypesBlocked) {
+      const slugToAccount = {
+        "x-post": "twitter",
+        "github-repo": "github",
+        "github-file": "github",
+      };
+      const nonGenericTypes = acceptedEvidenceTypes.filter(t => !t.is_generic);
+      const user = $userStore.user;
+      for (const t of nonGenericTypes) {
+        const account = slugToAccount[t.slug];
+        if (account) {
+          const info = ownershipPlatformMap[account];
+          if (info && user && !user[info.field]) {
+            accounts.add(account);
+          }
+        }
+      }
+    }
+    return Array.from(accounts);
+  });
+
+  // Master gate: should the form details (date/title/notes/evidence/submit) be shown?
+  let canShowFormDetails = $derived(
+    selectedType &&
+    missingSocialAccounts.length === 0 &&
+    !allEvidenceTypesBlocked
+  );
+
+  // True if any evidence slot has a URL that doesn't match its selected type
+  let hasEvidencePatternMismatch = $derived.by(() => {
+    return evidenceSlots.some(slot =>
+      slot.url && slot.selectedType && !slot.selectedType.is_generic && !urlMatchesType(slot.url, slot.selectedType)
+    );
+  });
+
+  // Auto-add first evidence slot when form details become visible.
+  // Skip this when the type declares required URL types; the required slot
+  // is shown separately and users don't need an extra empty slot by default.
+  $effect(() => {
+    if (
+      canShowFormDetails &&
+      evidenceSlots.length === 0 &&
+      !(selectedType?.required_evidence_url_types?.length)
+    ) {
+      addEvidenceSlot();
+    }
   });
 
   // Build filtered items list (types + missions) based on category and search
@@ -266,7 +400,7 @@
   function addEvidenceSlot() {
     evidenceSlots = [
       ...evidenceSlots,
-      { id: Date.now(), description: "", url: "" },
+      { id: Date.now(), description: "", url: "", selectedType: null },
     ];
   }
 
@@ -279,10 +413,128 @@
     return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) ? url : "https://" + url;
   }
 
+  // Detect URL type from patterns
+  function detectUrlType(url) {
+    if (!url || !allEvidenceUrlTypes.length) return null;
+    for (const urlType of allEvidenceUrlTypes) {
+      if (urlType.is_generic) continue;
+      for (const pattern of urlType.url_patterns || []) {
+        try {
+          if (new RegExp(pattern, "i").test(url)) {
+            return urlType;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+    // Return the generic "Other" type
+    return allEvidenceUrlTypes.find((t) => t.is_generic) || null;
+  }
+
+  // Accepted evidence types for the selected contribution type
+  let acceptedEvidenceTypes = $derived(
+    selectedType?.accepted_evidence_url_types?.length
+      ? selectedType.accepted_evidence_url_types
+      : [],
+  );
+
+  // Required evidence types: at least one submitted URL must match one of these
+  let requiredEvidenceTypes = $derived(
+    selectedType?.required_evidence_url_types?.length
+      ? selectedType.required_evidence_url_types
+      : [],
+  );
+
+  // Reset the required slot whenever the selected type changes so stale
+  // detection doesn't leak between contribution types
+  $effect(() => {
+    selectedType;
+    requiredEvidenceSlot = { description: "", url: "", selectedType: null };
+  });
+
+  // Human-readable list of required type names for labels/messages
+  let requiredEvidenceLabel = $derived.by(() => {
+    if (!requiredEvidenceTypes.length) return "";
+    const names = requiredEvidenceTypes.map((t) => t.name);
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return `${names[0]} or ${names[1]}`;
+    return `${names.slice(0, -1).join(", ")}, or ${names[names.length - 1]}`;
+  });
+
+  // True when the required slot's detected type is in the required set
+  let requiredSlotSatisfied = $derived.by(() => {
+    if (!requiredEvidenceTypes.length) return true;
+    const t = requiredEvidenceSlot.selectedType;
+    if (!t) return false;
+    return requiredEvidenceTypes.some((rt) => rt.id === t.id);
+  });
+
+  function handleRequiredUrlBlur() {
+    if (!requiredEvidenceSlot.url) return;
+    requiredEvidenceSlot.url = normalizeUrl(requiredEvidenceSlot.url);
+    const detected = detectUrlType(requiredEvidenceSlot.url);
+    requiredEvidenceSlot.selectedType = detected;
+    if (detected && !detected.is_generic) {
+      requiredEvidenceSlot.description = detected.name;
+    } else if (!requiredEvidenceSlot.description) {
+      requiredEvidenceSlot.description = detected?.is_generic ? "Other" : "";
+    }
+  }
+
+  function getRequiredUrlPlaceholder() {
+    if (!requiredEvidenceTypes.length) return "https://...";
+    return urlPlaceholders[requiredEvidenceTypes[0].slug] || "https://...";
+  }
+
   function handleUrlBlur(index) {
     if (evidenceSlots[index]) {
       evidenceSlots[index].url = normalizeUrl(evidenceSlots[index].url);
+      const detected = detectUrlType(evidenceSlots[index].url);
+      evidenceSlots[index].detectedType = detected;
+      // Auto-correct: if URL matches a specific type, always upgrade to it
+      // But if detected is generic ("Other"), don't override a specific manual selection
+      if (detected && !detected.is_generic) {
+        evidenceSlots[index].selectedType = detected;
+        evidenceSlots[index].description = detected.name;
+      } else if (!evidenceSlots[index].selectedType) {
+        evidenceSlots[index].selectedType = detected;
+        evidenceSlots[index].description = detected?.is_generic ? "Other" : (detected?.name || "");
+      }
     }
+  }
+
+  // URL placeholder hints per evidence type slug
+  const urlPlaceholders = {
+    "x-post": "https://x.com/username/status/123...",
+    "github-repo": "https://github.com/username/repository",
+    "github-file": "https://github.com/username/repo/blob/main/file.py",
+    "github-pr": "https://github.com/org/repo/pull/123",
+    "github-issue": "https://github.com/org/repo/issues/123",
+    "studio-contract": "https://studio.genlayer.com/...",
+  };
+
+  function getUrlPlaceholder(slot) {
+    return urlPlaceholders[slot.selectedType?.slug] || "https://...";
+  }
+
+  function handleEvidenceTypeChange(index, slug) {
+    const urlType = acceptedEvidenceTypes.find(t => t.slug === slug) || null;
+    evidenceSlots[index].selectedType = urlType;
+    if (urlType) {
+      evidenceSlots[index].description = urlType.is_generic ? "Other" : urlType.name;
+    }
+  }
+
+  // Check if a URL matches a specific evidence type's patterns
+  function urlMatchesType(url, urlType) {
+    if (!url || !urlType || urlType.is_generic) return true;
+    for (const pattern of urlType.url_patterns || []) {
+      try {
+        if (new RegExp(pattern, "i").test(url)) return true;
+      } catch (e) { continue; }
+    }
+    return false;
   }
 
   // reCAPTCHA
@@ -321,6 +573,19 @@
       return;
     }
 
+    // Validate required evidence slot if the type declares required URL types
+    if (requiredEvidenceTypes.length > 0) {
+      const reqUrl = requiredEvidenceSlot.url?.trim();
+      if (!reqUrl) {
+        error = `Please provide the required evidence URL (${requiredEvidenceLabel}).`;
+        return;
+      }
+      if (!requiredSlotSatisfied) {
+        error = `The required evidence URL must be one of: ${requiredEvidenceLabel}.`;
+        return;
+      }
+    }
+
     for (let i = 0; i < evidenceSlots.length; i++) {
       const slot = evidenceSlots[i];
       const hasDescription =
@@ -341,10 +606,40 @@
       (s) => s.description?.trim() && s.url?.trim(),
     );
 
-    if (filledSlots.length === 0) {
+    // Build the combined evidence list: required slot first (if present),
+    // then optional extras
+    const allEvidence = [];
+    if (requiredEvidenceTypes.length > 0) {
+      allEvidence.push({
+        description:
+          requiredEvidenceSlot.description?.trim() ||
+          requiredEvidenceSlot.selectedType?.name ||
+          "Required evidence",
+        url: normalizeUrl(requiredEvidenceSlot.url),
+      });
+    }
+    for (const slot of filledSlots) {
+      allEvidence.push({
+        description: slot.description,
+        url: normalizeUrl(slot.url),
+      });
+    }
+
+    if (allEvidence.length === 0) {
       error =
         "Please add at least one evidence item with a URL to support your contribution";
       return;
+    }
+
+    // Client-side: validate that URL matches the selected evidence type's patterns
+    for (let i = 0; i < filledSlots.length; i++) {
+      const slot = filledSlots[i];
+      if (slot.selectedType && !slot.selectedType.is_generic) {
+        if (!urlMatchesType(slot.url, slot.selectedType)) {
+          error = `Evidence ${i + 1}: The URL provided doesn't match the expected format for ${slot.selectedType.name}.`;
+          return;
+        }
+      }
     }
 
     if (!recaptchaToken) {
@@ -371,10 +666,7 @@
       }
 
       // Send evidence inline with the submission (atomic creation)
-      submissionData.evidence_items = filledSlots.map((slot) => ({
-        description: slot.description,
-        url: normalizeUrl(slot.url),
-      }));
+      submissionData.evidence_items = allEvidence;
 
       await api.post("/submissions/", submissionData);
 
@@ -388,6 +680,17 @@
         error = Array.isArray(err.response.data.recaptcha)
           ? err.response.data.recaptcha[0]
           : err.response.data.recaptcha;
+      } else if (err.response?.data?.evidence_items) {
+        // Parse evidence validation errors from backend
+        const evidenceErrors = err.response.data.evidence_items;
+        if (Array.isArray(evidenceErrors) && evidenceErrors.length > 0) {
+          const first = evidenceErrors[0];
+          error = first.message || JSON.stringify(first);
+        } else {
+          error = typeof evidenceErrors === "string"
+            ? evidenceErrors
+            : JSON.stringify(evidenceErrors);
+        }
       } else {
         error =
           err.response?.data?.error ||
@@ -666,8 +969,46 @@
           {/if}
         </div>
       {/if}
+
     </div>
 
+    <!-- Social account linking gate: shown when type is selected but form can't be shown -->
+    {#if selectedType && !canShowFormDetails}
+      <div
+        class="flex flex-col gap-[16px] items-center p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full"
+      >
+        <div class="flex flex-col gap-[8px] items-center text-center">
+          <div class="w-[48px] h-[48px] rounded-full bg-[#f5f5f5] flex items-center justify-center mb-1">
+            <svg class="w-6 h-6 text-[#6b6b6b]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+          </div>
+          <h2 class="font-['Switzer'] font-semibold text-[16px] text-black">
+            Connect Your Account
+          </h2>
+          <p class="font-['Switzer'] text-[14px] text-[#6b6b6b] leading-[21px]">
+            This contribution type requires account verification. Please connect your account to continue.
+          </p>
+        </div>
+        <div class="flex flex-col gap-3 w-full max-w-[280px]">
+          {#each blockingSocialAccounts as account}
+            {@const info = ownershipPlatformMap[account]}
+            {#if info}
+              <SocialLink
+                platform={info.platform}
+                platformLabel={info.label}
+                connection={$userStore.user?.[info.field]}
+                initiateUrl={info.initiateUrl}
+                onLinked={handleEvidenceSocialLinked}
+                compact={false}
+              />
+            {/if}
+          {/each}
+        </div>
+      </div>
+    {/if}
+
+    {#if canShowFormDetails}
     <!-- 2. Contribution Details Panel -->
     <div
       class="flex flex-col gap-[16px] items-start p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full"
@@ -797,6 +1138,71 @@
         </button>
       </div>
 
+      <!-- Required Evidence Slot (shown only when the contribution type requires specific URL types) -->
+      {#if requiredEvidenceTypes.length > 0}
+        <div
+          class="w-full border border-[#e99322] bg-[#fff8ee] rounded-[12px] p-[16px] flex flex-col gap-[10px] mt-2"
+        >
+          <div class="flex items-center gap-2">
+            <span
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#e99322] text-white text-[11px] font-['Switzer'] font-semibold uppercase tracking-wider"
+              >Required</span
+            >
+            <span
+              class="font-['Switzer'] text-[13px] text-[#1a1c1d] font-medium"
+              >One of: {requiredEvidenceLabel}</span
+            >
+          </div>
+          <div class="flex flex-col gap-1">
+            <label
+              class="font-['Switzer'] text-[12px] font-semibold text-gray-500 uppercase tracking-widest pl-1"
+              >URL Link</label
+            >
+            <input
+              type="url"
+              bind:value={requiredEvidenceSlot.url}
+              onblur={handleRequiredUrlBlur}
+              placeholder={getRequiredUrlPlaceholder()}
+              class="w-full px-3 py-2 border border-gray-200 rounded-[8px] text-[14px] focus:outline-none focus:border-gray-400 focus:bg-white bg-white font-mono transition-colors"
+            />
+          </div>
+          <div class="flex items-center gap-2">
+            {#if requiredEvidenceSlot.selectedType}
+              {#if requiredSlotSatisfied}
+                <span
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-['Switzer'] font-medium bg-green-100 text-green-800"
+                >
+                  <svg
+                    class="w-3 h-3"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  {requiredEvidenceSlot.selectedType.name}
+                </span>
+              {:else if requiredEvidenceSlot.url}
+                <span
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-['Switzer'] font-medium bg-red-100 text-red-800"
+                >
+                  This URL isn't one of the required types
+                </span>
+              {/if}
+            {:else}
+              <span
+                class="inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-['Switzer'] font-medium bg-gray-100 text-[#ababab]"
+              >
+                Paste a URL to auto-detect type
+              </span>
+            {/if}
+          </div>
+        </div>
+      {/if}
+
       <!-- Evidence Slots List -->
       <div class="w-full flex flex-col gap-4 mt-2">
         {#if evidenceSlots.length === 0}
@@ -814,34 +1220,60 @@
             <div
               class="border border-[#e0e0e0] rounded-[12px] p-[16px] bg-[#fcfcfc] flex flex-col gap-[12px] relative transition-all group"
             >
-              <!-- Grid forces them to be responsive side by side -->
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-[16px] pr-[30px]">
-                <div class="flex flex-col gap-1">
-                  <label
-                    class="font-['Switzer'] text-[12px] font-semibold text-gray-500 uppercase tracking-widest pl-1"
-                    >Description</label
-                  >
-                  <input
-                    type="text"
-                    bind:value={slot.description}
-                    placeholder="e.g. GitHub Pull Request"
-                    class="w-full px-3 py-2 border border-gray-200 rounded-[8px] text-[14px] focus:outline-none focus:border-gray-400 focus:bg-white bg-transparent transition-colors"
-                  />
-                </div>
-                <div class="flex flex-col gap-1">
-                  <label
-                    class="font-['Switzer'] text-[12px] font-semibold text-gray-500 uppercase tracking-widest pl-1"
-                    >URL Link</label
-                  >
-                  <input
-                    type="url"
-                    bind:value={slot.url}
-                    onblur={() => handleUrlBlur(index)}
-                    placeholder="https://..."
-                    class="w-full px-3 py-2 border border-gray-200 rounded-[8px] text-[14px] focus:outline-none focus:border-gray-400 focus:bg-white bg-transparent font-mono transition-colors"
-                  />
-                </div>
+              <!-- URL field (primary input) -->
+              <div class="flex flex-col gap-1 pr-[30px]">
+                <label
+                  class="font-['Switzer'] text-[12px] font-semibold text-gray-500 uppercase tracking-widest pl-1"
+                  >URL Link</label
+                >
+                <input
+                  type="url"
+                  bind:value={slot.url}
+                  onblur={() => handleUrlBlur(index)}
+                  placeholder={getUrlPlaceholder(slot)}
+                  class="w-full px-3 py-2 border border-gray-200 rounded-[8px] text-[14px] focus:outline-none focus:border-gray-400 focus:bg-white bg-transparent font-mono transition-colors"
+                />
               </div>
+
+              <!-- Detected type indicator + override dropdown -->
+              {#if acceptedEvidenceTypes.length > 0}
+                <div class="flex items-center gap-2 pr-[30px]">
+                  {#if slot.selectedType}
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-['Switzer'] font-medium bg-[#f0f0f0] text-[#1a1c1d]">
+                      <svg class="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                      </svg>
+                      {slot.selectedType.is_generic ? "Other" : slot.selectedType.name}
+                    </span>
+                  {:else}
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-['Switzer'] font-medium bg-gray-100 text-[#ababab]">
+                      Paste a URL to auto-detect type
+                    </span>
+                  {/if}
+                  {#if acceptedEvidenceTypes.length > 1}
+                    <select
+                      value={slot.selectedType?.slug || ''}
+                      onchange={(e) => handleEvidenceTypeChange(index, e.target.value)}
+                      class="text-[12px] font-['Switzer'] text-[#6b6b6b] bg-transparent border-none underline decoration-dotted underline-offset-2 cursor-pointer focus:outline-none appearance-none pr-0"
+                    >
+                      <option value="" disabled>Change type</option>
+                      {#each acceptedEvidenceTypes as urlType}
+                        {#if urlType.is_generic}
+                          <option value={urlType.slug}>Other</option>
+                        {:else}
+                          <option value={urlType.slug}>{urlType.name}</option>
+                        {/if}
+                      {/each}
+                    </select>
+                  {/if}
+                </div>
+                <!-- Validation error if URL doesn't match selected type -->
+                {#if slot.url && slot.selectedType && !slot.selectedType.is_generic && !urlMatchesType(slot.url, slot.selectedType)}
+                  <p class="text-[12px] text-red-500 font-['Switzer'] pl-1 -mt-1">
+                    This URL doesn't match the expected format for {slot.selectedType.name}.
+                  </p>
+                {/if}
+              {/if}
 
               <!-- Delete Button -->
               <button
@@ -868,6 +1300,30 @@
           {/each}
         {/if}
       </div>
+
+      <!-- Social account linking banner for evidence URL types -->
+      {#if evidenceRequiredAccounts.length > 0}
+        <div class="w-full bg-[#fafafa] border border-[#e0e0e0] rounded-[12px] p-[16px] flex flex-col gap-[12px] mt-2">
+          <p class="font-['Switzer'] text-[14px] text-[#6b6b6b] leading-[21px]">
+            Your selected evidence type requires account verification to confirm ownership.
+          </p>
+          <div class="flex flex-wrap gap-3">
+            {#each evidenceRequiredAccounts as account}
+              {@const info = ownershipPlatformMap[account]}
+              {#if info}
+                <SocialLink
+                  platform={info.platform}
+                  platformLabel={info.label}
+                  connection={$userStore.user?.[info.field]}
+                  initiateUrl={info.initiateUrl}
+                  onLinked={handleEvidenceSocialLinked}
+                  compact={false}
+                />
+              {/if}
+            {/each}
+          </div>
+        </div>
+      {/if}
     </div>
 
     <!-- recaptcha -->
@@ -885,19 +1341,11 @@
       </div>
     {/if}
 
-    {#if missingSocialAccounts.length > 0}
-      <div class="w-full bg-amber-50 border-l-4 border-amber-500 p-4 rounded-md">
-        <p class="text-amber-700 text-sm font-['Switzer']">
-          This contribution type requires a linked {missingSocialAccounts.join(" and ")} account. Please link your account in your profile before submitting.
-        </p>
-      </div>
-    {/if}
-
     <!-- Actions -->
     <div class="flex gap-[8px] items-center mt-2 pb-[60px]">
       <button
         type="submit"
-        disabled={submitting || missingSocialAccounts.length > 0}
+        disabled={submitting || evidenceRequiredAccounts.length > 0 || hasEvidencePatternMismatch}
         class="bg-[#9e4bf6] flex gap-[8px] h-[40px] items-center justify-center px-[20px] rounded-[20px] hover:bg-[#8b3ced] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         <span
@@ -935,5 +1383,6 @@
         </span>
       </button>
     </div>
+    {/if}
   </form>
 </div>

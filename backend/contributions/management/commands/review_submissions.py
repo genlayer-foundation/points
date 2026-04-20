@@ -45,10 +45,32 @@ AI_STEWARD_NAME = 'GenLayer Steward'
 
 # ─── URL Helpers ─────────────────────────────────────────────────────────────
 
+from contributions.url_utils import normalize_url as _normalize_url_full
+
+
 def _normalize_url(url):
-    """Normalize a URL for comparison by stripping query params, fragments,
-    and trailing slashes."""
-    return url.split('?')[0].split('#')[0].rstrip('/')
+    """Normalize a URL for comparison.
+
+    Uses the shared normalize_url utility but falls back to basic stripping
+    for backward compatibility with how this command builds its lookup dicts.
+    """
+    return _normalize_url_full(url)
+
+
+def _normalize_url_for_blocklist(url):
+    """Normalize a URL for blocklist comparison -- strips ALL query params.
+
+    The blocklist compares URL prefixes, so query params must be removed
+    entirely to prevent bypass via ?foo=1.
+    """
+    from urllib.parse import urlparse
+    if not url:
+        return ''
+    parsed = urlparse(url)
+    scheme = (parsed.scheme or 'https').lower()
+    host = (parsed.netloc or '').lower()
+    path = parsed.path.rstrip('/')
+    return f"{scheme}://{host}{path}"
 
 
 def _load_blocklist():
@@ -60,7 +82,7 @@ def _load_blocklist():
 
 def _is_blocklisted_url(url, blocklist):
     """Check if URL matches a blocklisted platform prefix."""
-    normalized = _normalize_url(url)
+    normalized = _normalize_url_for_blocklist(url)
     for prefix in blocklist:
         if normalized == prefix or normalized.startswith(prefix + '/'):
             return True
