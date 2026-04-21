@@ -250,6 +250,25 @@
     !allEvidenceTypesBlocked
   );
 
+  // Combined list of social account labels the user must link before the form
+  // can be shown: both type-level required_social_accounts AND the accounts
+  // implied by accepted evidence types when ALL of them are blocked.
+  let gateRequiredSocialAccounts = $derived.by(() => {
+    const user = $userStore.user;
+    const labels = new Set(missingSocialAccounts);
+    if (allEvidenceTypesBlocked) {
+      for (const t of acceptedEvidenceTypes) {
+        if (t.is_generic) continue;
+        const account = evidenceSlugToAccount[t.slug];
+        const field = account && socialConnectionFields[account];
+        if (field && (!user || !user[field])) {
+          labels.add(socialAccountLabels[account] || account);
+        }
+      }
+    }
+    return Array.from(labels);
+  });
+
   // True if any evidence slot has a URL that doesn't match its selected type
   let hasEvidencePatternMismatch = $derived.by(() => {
     return evidenceSlots.some(slot =>
@@ -1083,7 +1102,7 @@
         class="flex flex-col gap-[8px] p-[20px] rounded-[12px] bg-[#fafafa] border border-[#e0e0e0] w-full"
       >
         <p class="font-['Switzer'] font-medium text-[14px] text-black tracking-[0.28px]">
-          Link your {missingSocialAccounts.join(", ")} account{missingSocialAccounts.length > 1 ? "s" : ""} from your profile to submit this contribution.
+          Link your {gateRequiredSocialAccounts.join(", ")} account{gateRequiredSocialAccounts.length > 1 ? "s" : ""} from your profile to submit this contribution.
         </p>
         <a
           href="#/profile"

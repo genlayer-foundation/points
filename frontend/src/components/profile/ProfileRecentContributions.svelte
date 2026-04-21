@@ -104,7 +104,10 @@
                     contrib.contribution_type_name ||
                     contrib.contribution_type_details?.name ||
                     "Contribution"}
-                {@const displayTitle = contrib.mission?.name || typeName}
+                {@const missionName =
+                    contrib.mission?.name ||
+                    contrib.grouped_contributions?.[0]?.mission?.name}
+                {@const displayTitle = missionName || typeName}
                 {@const points =
                     contrib.frozen_global_points ||
                     contrib.frozen_points ||
