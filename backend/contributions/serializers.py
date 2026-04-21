@@ -115,8 +115,8 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
         model = ContributionType
         fields = [
             'id', 'name', 'slug', 'description', 'category', 'min_points', 'max_points',
-            'current_multiplier', 'is_submittable', 'examples', 'required_social_accounts',
-            'accepted_evidence_url_types', 'required_evidence_url_types',
+            'current_multiplier', 'is_submittable', 'show_in_contributions', 'examples',
+            'required_social_accounts', 'accepted_evidence_url_types', 'required_evidence_url_types',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']

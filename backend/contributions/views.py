@@ -88,7 +88,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             participants_count=Count('contributions__user', distinct=True),
             last_earned=Coalesce(Max('contributions__contribution_date'), timezone.now()),
             total_points_given=Coalesce(Sum('contributions__frozen_global_points'), 0)
-        ).values('id', 'name', 'description', 'min_points', 'max_points', 'count', 'participants_count', 'last_earned', 'total_points_given', 'is_submittable')
+        ).values('id', 'name', 'description', 'min_points', 'max_points', 'count', 'participants_count', 'last_earned', 'total_points_given', 'is_submittable', 'show_in_contributions')
         
         # Add current multiplier for each type
         result = []
@@ -671,6 +671,12 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         if contribution_type_id:
             try:
                 contribution_type = ContributionType.objects.select_related('category').get(id=contribution_type_id)
+                # Non-submittable types can only be submitted through an active mission
+                if not contribution_type.is_submittable and not mission_id:
+                    return Response(
+                        {'error': 'This contribution type cannot be submitted directly. Submit through one of its active missions.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
                 if contribution_type.category:
                     if contribution_type.category.slug == 'builder' and not hasattr(request.user, 'builder'):
                         return Response(

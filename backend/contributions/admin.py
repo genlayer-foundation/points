@@ -35,12 +35,12 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
 
 @admin.register(ContributionType)
 class ContributionTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'is_default', 'is_submittable', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
+    list_display = ('name', 'category', 'is_default', 'is_submittable', 'show_in_contributions', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
     list_display_links = ('get_current_multiplier',)
-    list_editable = ('name', 'is_default', 'is_submittable', 'description')
+    list_editable = ('name', 'is_default', 'is_submittable', 'show_in_contributions', 'description')
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at')
-    list_filter = ('category', 'is_default', 'is_submittable')
+    list_filter = ('category', 'is_default', 'is_submittable', 'show_in_contributions')
     # Auto-fill slug from name on the edit page
     prepopulated_fields = { 'slug': ('name',) }
     filter_horizontal = ('accepted_evidence_url_types', 'required_evidence_url_types')

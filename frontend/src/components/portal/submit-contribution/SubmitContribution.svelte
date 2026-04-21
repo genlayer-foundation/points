@@ -7,12 +7,10 @@
   import { getMissions } from "../../../lib/missionsStore.js";
   import { authState } from "../../../lib/auth.js";
   import { userStore } from "../../../lib/userStore";
-  import SocialLink from "../../SocialLink.svelte";
 
   // Props for routing/initialization state
   let { missionId = null, initialTypeId = null } = $props();
 
-  let loading = $state(false);
   let submitting = $state(false);
   let error = $state("");
 
@@ -90,7 +88,7 @@
   // Dedicated required-evidence slot (shown when the selected contribution
   // type declares required_evidence_url_types). Tracked separately so its
   // position and styling are distinct from optional extras.
-  let requiredEvidenceSlot = $state({ description: "", url: "", selectedType: null });
+  let requiredEvidenceSlot = $state({ description: "", url: "", selectedType: null, error: "" });
   // All evidence URL types loaded from any contribution type's accepted list
   let allEvidenceUrlTypes = $state([]);
 
@@ -98,7 +96,7 @@
   onMount(async () => {
     try {
       loadingTypes = true;
-      const allTypes = await getContributionTypes({ is_submittable: "true" });
+      const allTypes = await getContributionTypes();
 
       types = allTypes;
 
@@ -187,41 +185,6 @@
     };
   });
 
-  // Map from ownership_social_account to the social platform info
-  const ownershipPlatformMap = {
-    twitter: { platform: "twitter", label: "X", field: "twitter_connection", initiateUrl: "/api/auth/twitter/" },
-    github: { platform: "github", label: "GitHub", field: "github_connection", initiateUrl: "/api/auth/github/" },
-  };
-
-  // Detect which social accounts are required by evidence URLs but not linked
-  let evidenceRequiredAccounts = $derived.by(() => {
-    const user = $userStore.user;
-    if (!user) return [];
-    const needed = new Set();
-    for (const slot of evidenceSlots) {
-      const type = slot.selectedType;
-      if (!type || type.is_generic) continue;
-      const slugToAccount = {
-        "x-post": "twitter",
-        "github-repo": "github",
-        "github-file": "github",
-      };
-      const account = slugToAccount[type.slug];
-      if (account) {
-        const info = ownershipPlatformMap[account];
-        if (info && !user[info.field]) {
-          needed.add(account);
-        }
-      }
-    }
-    return Array.from(needed);
-  });
-
-  function handleEvidenceSocialLinked(updatedUser) {
-    userStore.setUser(updatedUser);
-  }
-
-  // Check if selected type requires social accounts the user hasn't linked
   const socialAccountLabels = {
     twitter: "X (Twitter)",
     discord: "Discord",
@@ -232,6 +195,28 @@
     discord: "discord_connection",
     github: "github_connection",
   };
+  const evidenceSlugToAccount = {
+    "x-post": "twitter",
+    "github-repo": "github",
+    "github-file": "github",
+  };
+
+  // Detect which social accounts are required by evidence URLs but not linked
+  let evidenceRequiredAccounts = $derived.by(() => {
+    const user = $userStore.user;
+    if (!user) return [];
+    const needed = new Set();
+    for (const slot of evidenceSlots) {
+      const type = slot.selectedType;
+      if (!type || type.is_generic) continue;
+      const account = evidenceSlugToAccount[type.slug];
+      const field = account && socialConnectionFields[account];
+      if (field && !user[field]) {
+        needed.add(account);
+      }
+    }
+    return Array.from(needed);
+  });
   let missingSocialAccounts = $derived.by(() => {
     if (!selectedType?.required_social_accounts?.length) return [];
     const user = $userStore.user;
@@ -249,54 +234,13 @@
     if (!selectedType || acceptedEvidenceTypes.length === 0) return false;
     const user = $userStore.user;
     if (!user) return false;
-    const slugToAccount = {
-      "x-post": "twitter",
-      "github-repo": "github",
-      "github-file": "github",
-    };
     const nonGenericTypes = acceptedEvidenceTypes.filter(t => !t.is_generic);
     if (nonGenericTypes.length === 0) return false;
     return nonGenericTypes.every(t => {
-      const account = slugToAccount[t.slug];
-      if (!account) return false;
-      const info = ownershipPlatformMap[account];
-      return info && !user[info.field];
+      const account = evidenceSlugToAccount[t.slug];
+      const field = account && socialConnectionFields[account];
+      return field && !user[field];
     });
-  });
-
-  // Collect the raw account keys that are blocking (for the social link banner)
-  let blockingSocialAccounts = $derived.by(() => {
-    const accounts = new Set();
-    // Type-level required_social_accounts
-    if (selectedType?.required_social_accounts?.length) {
-      const user = $userStore.user;
-      for (const account of selectedType.required_social_accounts) {
-        const field = socialConnectionFields[account];
-        if (field && (!user || !user[field])) {
-          accounts.add(account);
-        }
-      }
-    }
-    // Evidence-level: when all evidence types are blocked
-    if (allEvidenceTypesBlocked) {
-      const slugToAccount = {
-        "x-post": "twitter",
-        "github-repo": "github",
-        "github-file": "github",
-      };
-      const nonGenericTypes = acceptedEvidenceTypes.filter(t => !t.is_generic);
-      const user = $userStore.user;
-      for (const t of nonGenericTypes) {
-        const account = slugToAccount[t.slug];
-        if (account) {
-          const info = ownershipPlatformMap[account];
-          if (info && user && !user[info.field]) {
-            accounts.add(account);
-          }
-        }
-      }
-    }
-    return Array.from(accounts);
   });
 
   // Master gate: should the form details (date/title/notes/evidence/submit) be shown?
@@ -305,6 +249,25 @@
     missingSocialAccounts.length === 0 &&
     !allEvidenceTypesBlocked
   );
+
+  // Combined list of social account labels the user must link before the form
+  // can be shown: both type-level required_social_accounts AND the accounts
+  // implied by accepted evidence types when ALL of them are blocked.
+  let gateRequiredSocialAccounts = $derived.by(() => {
+    const user = $userStore.user;
+    const labels = new Set(missingSocialAccounts);
+    if (allEvidenceTypesBlocked) {
+      for (const t of acceptedEvidenceTypes) {
+        if (t.is_generic) continue;
+        const account = evidenceSlugToAccount[t.slug];
+        const field = account && socialConnectionFields[account];
+        if (field && (!user || !user[field])) {
+          labels.add(socialAccountLabels[account] || account);
+        }
+      }
+    }
+    return Array.from(labels);
+  });
 
   // True if any evidence slot has a URL that doesn't match its selected type
   let hasEvidencePatternMismatch = $derived.by(() => {
@@ -328,7 +291,9 @@
 
   // Build filtered items list (types + missions) based on category and search
   let filteredItems = $derived.by(() => {
-    const categoryTypes = types.filter((t) => t.category === selectedCategory);
+    const categoryTypes = types.filter(
+      (t) => t.category === selectedCategory && t.is_submittable,
+    );
     const categoryMissions = missions.filter((m) => {
       const mType = types.find((t) => t.id === m.contribution_type);
       return mType && mType.category === selectedCategory;
@@ -445,7 +410,7 @@
   function addEvidenceSlot() {
     evidenceSlots = [
       ...evidenceSlots,
-      { id: Date.now(), description: "", url: "", selectedType: null },
+      { id: Date.now(), description: "", url: "", selectedType: null, typeManuallySet: false, error: "" },
     ];
   }
 
@@ -454,8 +419,23 @@
   }
 
   function normalizeUrl(url) {
-    if (!url || url.trim() === "") return url;
-    return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) ? url : "https://" + url;
+    if (!url) return url;
+    const trimmed = url.trim();
+    if (!trimmed) return trimmed;
+    return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed) ? trimmed : "https://" + trimmed;
+  }
+
+  function isValidUrl(url) {
+    if (!url) return false;
+    if (/\s/.test(url)) return false;
+    try {
+      const u = new URL(url);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+      if (!u.hostname || !u.hostname.includes(".")) return false;
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   // Detect URL type from patterns
@@ -495,7 +475,7 @@
   // detection doesn't leak between contribution types
   $effect(() => {
     selectedType;
-    requiredEvidenceSlot = { description: "", url: "", selectedType: null };
+    requiredEvidenceSlot = { description: "", url: "", selectedType: null, error: "" };
   });
 
   // Human-readable list of required type names for labels/messages
@@ -516,8 +496,18 @@
   });
 
   function handleRequiredUrlBlur() {
-    if (!requiredEvidenceSlot.url) return;
     requiredEvidenceSlot.url = normalizeUrl(requiredEvidenceSlot.url);
+    if (!requiredEvidenceSlot.url) {
+      requiredEvidenceSlot.error = "";
+      requiredEvidenceSlot.selectedType = null;
+      return;
+    }
+    if (!isValidUrl(requiredEvidenceSlot.url)) {
+      requiredEvidenceSlot.error = "Please enter a valid URL.";
+      requiredEvidenceSlot.selectedType = null;
+      return;
+    }
+    requiredEvidenceSlot.error = "";
     const detected = detectUrlType(requiredEvidenceSlot.url);
     requiredEvidenceSlot.selectedType = detected;
     if (detected && !detected.is_generic) {
@@ -527,26 +517,61 @@
     }
   }
 
+  function handleRequiredUrlInput() {
+    requiredEvidenceSlot.error = "";
+    if (!requiredEvidenceSlot.url) {
+      requiredEvidenceSlot.selectedType = null;
+      return;
+    }
+    requiredEvidenceSlot.selectedType = detectUrlType(requiredEvidenceSlot.url);
+  }
+
   function getRequiredUrlPlaceholder() {
     if (!requiredEvidenceTypes.length) return "https://...";
     return urlPlaceholders[requiredEvidenceTypes[0].slug] || "https://...";
   }
 
   function handleUrlBlur(index) {
-    if (evidenceSlots[index]) {
-      evidenceSlots[index].url = normalizeUrl(evidenceSlots[index].url);
-      const detected = detectUrlType(evidenceSlots[index].url);
-      evidenceSlots[index].detectedType = detected;
-      // Auto-correct: if URL matches a specific type, always upgrade to it
-      // But if detected is generic ("Other"), don't override a specific manual selection
-      if (detected && !detected.is_generic) {
-        evidenceSlots[index].selectedType = detected;
-        evidenceSlots[index].description = detected.name;
-      } else if (!evidenceSlots[index].selectedType) {
-        evidenceSlots[index].selectedType = detected;
-        evidenceSlots[index].description = detected?.is_generic ? "Other" : (detected?.name || "");
-      }
+    const slot = evidenceSlots[index];
+    if (!slot) return;
+    slot.url = normalizeUrl(slot.url);
+    if (!slot.url) {
+      slot.error = "";
+      return;
     }
+    if (!isValidUrl(slot.url)) {
+      slot.error = "Please enter a valid URL.";
+      slot.selectedType = null;
+      return;
+    }
+    slot.error = "";
+    const detected = detectUrlType(slot.url);
+    // Auto-correct: if URL matches a specific type, always upgrade to it.
+    // If detected is generic ("Other"), don't override a specific manual selection.
+    if (detected && !detected.is_generic) {
+      slot.selectedType = detected;
+      slot.description = detected.name;
+      slot.typeManuallySet = false;
+    } else if (!slot.selectedType) {
+      slot.selectedType = detected;
+      slot.description = detected?.is_generic ? "Other" : (detected?.name || "");
+    }
+  }
+
+  // Re-run detection as the user edits the URL so the detected type stays in
+  // sync with what's typed. Skip when the user explicitly picked a type from
+  // the override dropdown — their choice should stick until they reset it.
+  function handleUrlInput(index) {
+    const slot = evidenceSlots[index];
+    if (!slot) return;
+    slot.error = "";
+    if (!slot.url) {
+      slot.selectedType = null;
+      slot.typeManuallySet = false;
+      return;
+    }
+    if (slot.typeManuallySet) return;
+    slot.selectedType = detectUrlType(slot.url);
   }
 
   // URL placeholder hints per evidence type slug
@@ -566,6 +591,7 @@
   function handleEvidenceTypeChange(index, slug) {
     const urlType = acceptedEvidenceTypes.find(t => t.slug === slug) || null;
     evidenceSlots[index].selectedType = urlType;
+    evidenceSlots[index].typeManuallySet = !!urlType;
     if (urlType) {
       evidenceSlots[index].description = urlType.is_generic ? "Other" : urlType.name;
     }
@@ -618,15 +644,23 @@
       return;
     }
 
+    // Clear any previous inline URL errors
+    requiredEvidenceSlot.error = "";
+    for (const s of evidenceSlots) s.error = "";
+
     // Validate required evidence slot if the type declares required URL types
     if (requiredEvidenceTypes.length > 0) {
       const reqUrl = requiredEvidenceSlot.url?.trim();
       if (!reqUrl) {
-        error = `Please provide the required evidence URL (${requiredEvidenceLabel}).`;
+        requiredEvidenceSlot.error = `Please provide a ${requiredEvidenceLabel} URL.`;
+        return;
+      }
+      if (!isValidUrl(normalizeUrl(reqUrl))) {
+        requiredEvidenceSlot.error = "Please enter a valid URL.";
         return;
       }
       if (!requiredSlotSatisfied) {
-        error = `The required evidence URL must be one of: ${requiredEvidenceLabel}.`;
+        requiredEvidenceSlot.error = `URL must be one of: ${requiredEvidenceLabel}.`;
         return;
       }
     }
@@ -638,11 +672,15 @@
       const hasUrl = slot.url && slot.url.trim().length > 0;
 
       if (hasDescription && !hasUrl) {
-        error = `Evidence ${i + 1}: A URL is required for each evidence item`;
+        evidenceSlots[i].error = "A URL is required.";
         return;
       }
       if (hasUrl && !hasDescription) {
-        error = `Evidence ${i + 1}: Please provide a description along with the URL`;
+        evidenceSlots[i].error = "Please add a description.";
+        return;
+      }
+      if (hasUrl && !isValidUrl(normalizeUrl(slot.url))) {
+        evidenceSlots[i].error = "Please enter a valid URL.";
         return;
       }
     }
@@ -674,17 +712,6 @@
       error =
         "Please add at least one evidence item with a URL to support your contribution";
       return;
-    }
-
-    // Client-side: validate that URL matches the selected evidence type's patterns
-    for (let i = 0; i < filledSlots.length; i++) {
-      const slot = filledSlots[i];
-      if (slot.selectedType && !slot.selectedType.is_generic) {
-        if (!urlMatchesType(slot.url, slot.selectedType)) {
-          error = `Evidence ${i + 1}: The URL provided doesn't match the expected format for ${slot.selectedType.name}.`;
-          return;
-        }
-      }
     }
 
     if (!recaptchaToken) {
@@ -1072,36 +1099,17 @@
     <!-- Social account linking gate: shown when type is selected but form can't be shown -->
     {#if selectedType && !canShowFormDetails}
       <div
-        class="flex flex-col gap-[16px] items-center p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full"
+        class="flex flex-col gap-[8px] p-[20px] rounded-[12px] bg-[#fafafa] border border-[#e0e0e0] w-full"
       >
-        <div class="flex flex-col gap-[8px] items-center text-center">
-          <div class="w-[48px] h-[48px] rounded-full bg-[#f5f5f5] flex items-center justify-center mb-1">
-            <svg class="w-6 h-6 text-[#6b6b6b]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
-          </div>
-          <h2 class="font-['Switzer'] font-semibold text-[16px] text-black">
-            Connect Your Account
-          </h2>
-          <p class="font-['Switzer'] text-[14px] text-[#6b6b6b] leading-[21px]">
-            This contribution type requires account verification. Please connect your account to continue.
-          </p>
-        </div>
-        <div class="flex flex-col gap-3 w-full max-w-[280px]">
-          {#each blockingSocialAccounts as account}
-            {@const info = ownershipPlatformMap[account]}
-            {#if info}
-              <SocialLink
-                platform={info.platform}
-                platformLabel={info.label}
-                connection={$userStore.user?.[info.field]}
-                initiateUrl={info.initiateUrl}
-                onLinked={handleEvidenceSocialLinked}
-                compact={false}
-              />
-            {/if}
-          {/each}
-        </div>
+        <p class="font-['Switzer'] font-medium text-[14px] text-black tracking-[0.28px]">
+          Link your {gateRequiredSocialAccounts.join(", ")} account{gateRequiredSocialAccounts.length > 1 ? "s" : ""} from your profile to submit this contribution.
+        </p>
+        <a
+          href="#/profile"
+          class="font-['Switzer'] text-[13px] text-[#6b6b6b] hover:text-black transition-colors tracking-[0.26px]"
+        >
+          Go to profile →
+        </a>
       </div>
     {/if}
 
@@ -1258,6 +1266,7 @@
             <input
               type="url"
               bind:value={requiredEvidenceSlot.url}
+              oninput={handleRequiredUrlInput}
               onblur={handleRequiredUrlBlur}
               placeholder={getRequiredUrlPlaceholder()}
               class="w-full px-3 py-2 border border-gray-200 rounded-[8px] text-[14px] focus:outline-none focus:border-gray-400 focus:bg-white bg-white font-mono transition-colors"
@@ -1297,6 +1306,11 @@
               </span>
             {/if}
           </div>
+          {#if requiredEvidenceSlot.error}
+            <p class="text-[12px] text-red-500 font-['Switzer'] pl-1">
+              {requiredEvidenceSlot.error}
+            </p>
+          {/if}
         </div>
       {/if}
 
@@ -1326,6 +1340,7 @@
                 <input
                   type="url"
                   bind:value={slot.url}
+                  oninput={() => handleUrlInput(index)}
                   onblur={() => handleUrlBlur(index)}
                   placeholder={getUrlPlaceholder(slot)}
                   class="w-full px-3 py-2 border border-gray-200 rounded-[8px] text-[14px] focus:outline-none focus:border-gray-400 focus:bg-white bg-transparent font-mono transition-colors"
@@ -1372,6 +1387,12 @@
                 {/if}
               {/if}
 
+              {#if slot.error}
+                <p class="text-[12px] text-red-500 font-['Switzer'] pl-1 -mt-1">
+                  {slot.error}
+                </p>
+              {/if}
+
               <!-- Delete Button -->
               <button
                 type="button"
@@ -1400,25 +1421,16 @@
 
       <!-- Social account linking banner for evidence URL types -->
       {#if evidenceRequiredAccounts.length > 0}
-        <div class="w-full bg-[#fafafa] border border-[#e0e0e0] rounded-[12px] p-[16px] flex flex-col gap-[12px] mt-2">
-          <p class="font-['Switzer'] text-[14px] text-[#6b6b6b] leading-[21px]">
-            Your selected evidence type requires account verification to confirm ownership.
+        <div class="w-full bg-[#fafafa] border border-[#e0e0e0] rounded-[12px] p-[16px] flex flex-col gap-[6px] mt-2">
+          <p class="font-['Switzer'] font-medium text-[14px] text-black tracking-[0.28px]">
+            Link your {evidenceRequiredAccounts.map((a) => socialAccountLabels[a] || a).join(", ")} account{evidenceRequiredAccounts.length > 1 ? "s" : ""} from your profile to verify evidence ownership.
           </p>
-          <div class="flex flex-wrap gap-3">
-            {#each evidenceRequiredAccounts as account}
-              {@const info = ownershipPlatformMap[account]}
-              {#if info}
-                <SocialLink
-                  platform={info.platform}
-                  platformLabel={info.label}
-                  connection={$userStore.user?.[info.field]}
-                  initiateUrl={info.initiateUrl}
-                  onLinked={handleEvidenceSocialLinked}
-                  compact={false}
-                />
-              {/if}
-            {/each}
-          </div>
+          <a
+            href="#/profile"
+            class="font-['Switzer'] text-[13px] text-[#6b6b6b] hover:text-black transition-colors tracking-[0.26px]"
+          >
+            Go to profile →
+          </a>
         </div>
       {/if}
     </div>
