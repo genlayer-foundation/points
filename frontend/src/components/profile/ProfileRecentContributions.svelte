@@ -104,6 +104,7 @@
                     contrib.contribution_type_name ||
                     contrib.contribution_type_details?.name ||
                     "Contribution"}
+                {@const displayTitle = contrib.mission?.name || typeName}
                 {@const points =
                     contrib.frozen_global_points ||
                     contrib.frozen_points ||
@@ -168,11 +169,11 @@
                     <div class="flex-1 min-h-0 overflow-hidden">
                         <h3 class="text-sm font-medium text-black truncate">
                             {#if hasHighlight}
-                                {contrib.highlight.title || typeName}
+                                {contrib.highlight.title || displayTitle}
                             {:else if contrib.title}
                                 {contrib.title}
                             {:else}
-                                {typeName}{#if count > 1}
+                                {displayTitle}{#if count > 1}
                                     <span
                                         class="text-xs font-normal"
                                         style="color: #999;"

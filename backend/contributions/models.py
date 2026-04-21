@@ -83,6 +83,13 @@ class ContributionType(BaseModel):
     max_points = models.PositiveIntegerField(default=100, help_text="Maximum points allowed for this contribution type")
     is_default = models.BooleanField(default=False, help_text="Include this contribution type by default when creating validators")
     is_submittable = models.BooleanField(default=True, help_text="Whether this contribution type can be submitted by users")
+    show_in_contributions = models.BooleanField(
+        default=False,
+        help_text=(
+            "Show this contribution type in the public Contributions list even when it is not directly submittable. "
+            "Intended for informational / mission-host types whose missions carry the actual submissions."
+        ),
+    )
     examples = models.JSONField(
         default=list,
         blank=True,

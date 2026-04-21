@@ -12,10 +12,11 @@
   let loading = $state(true);
   let error = $state(null);
 
-  // Derived state to filter only submittable types and sort by points (highest first)
+  // Derived state: include submittable types plus non-submittable types explicitly marked
+  // to show in contributions (e.g. informational / mission-host types). Sort by points desc.
   let submittableTypes = $derived(
     typeStats
-      .filter(stats => stats.is_submittable)
+      .filter(stats => stats.is_submittable || stats.show_in_contributions)
       .sort((a, b) => {
         // Sort by max_points descending
         const aMaxPoints = (a.max_points || 0) * (a.current_multiplier || 1);
@@ -135,13 +136,15 @@
                 </span>
               {/if}
 
-              <!-- Submit button -->
-              <button
-                onclick={() => push(`/submit-contribution?type=${stats.id}`)}
-                class="ml-auto flex-shrink-0 text-sm font-normal {colors.titleText} {colors.titleTextHover} transition-colors"
-              >
-                Submit →
-              </button>
+              <!-- Submit button (hidden for non-submittable types; those are accessed via their missions) -->
+              {#if stats.is_submittable}
+                <button
+                  onclick={() => push(`/submit-contribution?type=${stats.id}`)}
+                  class="ml-auto flex-shrink-0 text-sm font-normal {colors.titleText} {colors.titleTextHover} transition-colors"
+                >
+                  Submit →
+                </button>
+              {/if}
             </div>
 
             <!-- Description -->
