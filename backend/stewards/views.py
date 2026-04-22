@@ -31,27 +31,43 @@ class StewardViewSet(viewsets.ModelViewSet):
         List all stewards with user details, role, and permitted categories.
         Allow public access to view steward list.
         """
+        from contributions.models import Category, ContributionType
+
         stewards = self.get_queryset().select_related('user').prefetch_related(
-            'permissions__contribution_type'
+            'assignments__scope_category',
+            'assignments__scope_type__category',
         )
+
+        all_category_ids = list(Category.objects.values_list('id', flat=True))
+        # Map category id -> contribution type ids (for reverse lookups if ever needed).
+        # Not currently needed here since we only surface categories.
+
         data = []
         for steward in stewards:
-            # Compute role based on permissions
-            actions = set(steward.permissions.values_list('action', flat=True))
-            if 'accept' in actions:
+            assignments = list(steward.assignments.all())
+
+            roles = {a.role for a in assignments}
+            has_global = any(
+                a.scope_category_id is None and a.scope_type_id is None
+                for a in assignments
+            )
+
+            if 'full_review' in roles:
                 role = 'Steward'
-            elif actions:
+            elif 'propose' in roles:
                 role = 'Reviewer'
             else:
-                role = 'Steward'  # Default for stewards with no explicit permissions yet
+                role = 'Steward'  # No explicit assignments yet
 
-            # Compute permitted categories
-            categories = set(
-                steward.permissions.values_list(
-                    'contribution_type__category', flat=True
-                )
-            )
-            categories.discard(None)
+            if has_global:
+                categories = set(all_category_ids)
+            else:
+                categories = set()
+                for a in assignments:
+                    if a.scope_category_id is not None:
+                        categories.add(a.scope_category_id)
+                    elif a.scope_type_id is not None and a.scope_type and a.scope_type.category_id is not None:
+                        categories.add(a.scope_type.category_id)
 
             steward_data = {
                 'id': steward.id,
