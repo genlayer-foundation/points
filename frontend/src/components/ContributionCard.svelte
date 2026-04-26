@@ -27,6 +27,14 @@
   );
   
   let categoryColors = $derived(getCategoryColors(actualCategory));
+
+  // Mission-aware titling: when a contribution is tied to a mission, show the
+  // mission name so past submissions keep their mission identity after the
+  // mission ends (the mission FK is preserved on the Contribution record).
+  let typeName = $derived(
+    contribution?.contribution_type_details?.name || contribution?.contribution_type_name || 'Contribution'
+  );
+  let missionName = $derived(contribution?.mission?.name);
   
   function formatDate(dateString) {
     if (!dateString) return 'N/A';
@@ -81,13 +89,18 @@
             size="sm"
             className={actualCategory === 'builder' ? 'text-orange-500' : actualCategory === 'validator' ? 'text-sky-500' : 'text-gray-500'}
           />
-          <h3 class="text-base font-semibold text-gray-900 flex items-center gap-2">
+          <h3 class="text-base font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
             <button
               class="{categoryColors.hoverText} transition-colors"
               onclick={() => push(`/contribution-type/${contribution.typeId || contribution.contribution_type || contribution.contribution_type_details?.id}`)}
             >
-              {contribution.contribution_type_details?.name || contribution.contribution_type_name || 'Contribution'}
+              {missionName || typeName}
             </button>
+            {#if missionName}
+              <span class="text-xs font-normal text-gray-500">
+                · {typeName}
+              </span>
+            {/if}
             {#if contribution.count > 1}
               <span class="text-sm font-normal text-gray-500">
                 × {contribution.count}

@@ -11,7 +11,7 @@ from django.db.models import Count
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from datetime import datetime
-from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert, BlocklistedURL
+from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert, BlocklistedURL, EvidenceURLType
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
 from utils.admin_mixins import CloudinaryUploadMixin
@@ -35,14 +35,15 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
 
 @admin.register(ContributionType)
 class ContributionTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'is_default', 'is_submittable', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
+    list_display = ('name', 'category', 'is_default', 'is_submittable', 'show_in_contributions', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
     list_display_links = ('get_current_multiplier',)
-    list_editable = ('name', 'is_default', 'is_submittable', 'description')
+    list_editable = ('name', 'is_default', 'is_submittable', 'show_in_contributions', 'description')
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at')
-    list_filter = ('category', 'is_default', 'is_submittable')
+    list_filter = ('category', 'is_default', 'is_submittable', 'show_in_contributions')
     # Auto-fill slug from name on the edit page
     prepopulated_fields = { 'slug': ('name',) }
+    filter_horizontal = ('accepted_evidence_url_types', 'required_evidence_url_types')
     inlines = [GlobalLeaderboardMultiplierInline]
     
     def get_current_multiplier(self, obj):
@@ -77,8 +78,8 @@ class ContributionHighlightInline(admin.TabularInline):
 class EvidenceInline(admin.TabularInline):
     model = Evidence
     extra = 1
-    fields = ('description', 'url', 'file', 'file_preview')
-    readonly_fields = ('file_preview',)
+    fields = ('description', 'url', 'url_type', 'file', 'file_preview')
+    readonly_fields = ('url_type', 'file_preview',)
     verbose_name = "Evidence Item"
     verbose_name_plural = "Evidence Items"
     
@@ -460,10 +461,20 @@ class SubmittedContributionAdmin(admin.ModelAdmin):
         js = ('admin/js/contribution_type_dynamic.js',)
 
 
+@admin.register(EvidenceURLType)
+class EvidenceURLTypeAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'is_generic', 'order', 'ownership_social_account', 'created_at')
+    list_filter = ('is_generic',)
+    search_fields = ('name', 'slug', 'description')
+    readonly_fields = ('created_at', 'updated_at')
+    prepopulated_fields = {'slug': ('name',)}
+    ordering = ('order', 'name')
+
+
 @admin.register(Evidence)
 class EvidenceAdmin(admin.ModelAdmin):
-    list_display = ('id', 'evidence_type', 'parent_object', 'has_description', 
-                   'has_url', 'has_file', 'created_at')
+    list_display = ('id', 'evidence_type', 'parent_object', 'url_type',
+                   'has_description', 'has_url', 'has_file', 'created_at')
     list_filter = ('created_at',)
     search_fields = ('description', 'url')
     readonly_fields = ('created_at', 'updated_at')
@@ -502,8 +513,9 @@ class EvidenceAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         """Optimize queryset with select_related."""
         qs = super().get_queryset(request)
-        return qs.select_related('contribution__user', 'submitted_contribution__user', 
-                               'contribution__contribution_type', 'submitted_contribution__contribution_type')
+        return qs.select_related('contribution__user', 'submitted_contribution__user',
+                               'contribution__contribution_type', 'submitted_contribution__contribution_type',
+                               'url_type')
 
 
 @admin.register(BlocklistedURL)

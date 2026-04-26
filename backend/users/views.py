@@ -421,7 +421,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             contribution = Contribution.objects.create(
                 user=user,
                 contribution_type=waitlist_type,
-                points=20,
+                points=0,
                 contribution_date=timezone.now(),
                 notes='Joined the validator waitlist'
             )

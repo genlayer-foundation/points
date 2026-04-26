@@ -9,10 +9,10 @@
 
   // State management
   let networkStats = $state({ asimov: { total: 0 }, bradbury: { total: 0 } });
-  let networks = $state([]);
-  let asimovLeaderboard = $state([]);
-  let bradburyLeaderboard = $state([]);
-  let waitlistLeaderboard = $state([]);
+  let networks = $state(/** @type {any[]} */ ([]));
+  let asimovLeaderboard = $state(/** @type {any[]} */ ([]));
+  let bradburyLeaderboard = $state(/** @type {any[]} */ ([]));
+  let waitlistLeaderboard = $state(/** @type {any[]} */ ([]));
   let loading = $state(true);
 
   async function fetchGlobalData() {
@@ -45,19 +45,27 @@
       const bradburyFull = Array.isArray(bradburyLeaderboardRes.data)
         ? bradburyLeaderboardRes.data
         : [];
-      asimovLeaderboard = asimovFull.slice(0, 5).map((entry, i) => ({ ...entry, rank: i + 1 }));
-      bradburyLeaderboard = bradburyFull.slice(0, 5).map((entry, i) => ({ ...entry, rank: i + 1 }));
+      asimovLeaderboard = asimovFull
+        .slice(0, 5)
+        .map((entry, i) => ({ ...entry, rank: i + 1 }));
+      bradburyLeaderboard = bradburyFull
+        .slice(0, 5)
+        .map((entry, i) => ({ ...entry, rank: i + 1 }));
       waitlistLeaderboard = Array.isArray(waitlistLeaderboardRes.data)
         ? waitlistLeaderboardRes.data
         : [];
 
       // Process networks for Explorers
       let fetchedNetworks = networksRes.data || [];
-      const asimov = fetchedNetworks.find((n) => n.key === "asimov") || {
+      const asimov = fetchedNetworks.find(
+        (/** @type {any} */ n) => n.key === "asimov",
+      ) || {
         key: "asimov",
         name: "Asimov",
       };
-      const bradbury = fetchedNetworks.find((n) => n.key === "bradbury") || {
+      const bradbury = fetchedNetworks.find(
+        (/** @type {any} */ n) => n.key === "bradbury",
+      ) || {
         key: "bradbury",
         name: "Bradbury",
       };
@@ -106,9 +114,13 @@
     <!-- Skeleton loading state -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {#each [1, 2] as _}
-        <div class="bg-white rounded-[8px] border border-[#f0f0f0] flex flex-col overflow-hidden animate-pulse">
+        <div
+          class="bg-white rounded-[8px] border border-[#f0f0f0] flex flex-col overflow-hidden animate-pulse"
+        >
           <!-- Header skeleton -->
-          <div class="px-6 py-5 border-b border-[#f0f0f0] flex items-center gap-3">
+          <div
+            class="px-6 py-5 border-b border-[#f0f0f0] flex items-center gap-3"
+          >
             <div class="w-8 h-8 rounded bg-gray-200"></div>
             <div class="flex flex-col gap-1.5">
               <div class="h-5 w-24 bg-gray-200 rounded"></div>
@@ -118,7 +130,9 @@
 
           <div class="p-6 space-y-8">
             <!-- Stat box skeleton -->
-            <div class="p-5 rounded-[8px] bg-gray-50 border border-[#f0f0f0] flex flex-col gap-1 w-full">
+            <div
+              class="p-5 rounded-[8px] bg-gray-50 border border-[#f0f0f0] flex flex-col gap-1 w-full"
+            >
               <div class="h-3 w-28 bg-gray-200 rounded"></div>
               <div class="flex items-baseline gap-2 mt-2">
                 <div class="h-8 w-16 bg-gray-200 rounded"></div>
@@ -134,7 +148,9 @@
               </div>
               <div class="space-y-2">
                 {#each [1, 2, 3, 4, 5] as _row}
-                  <div class="flex items-center gap-3 rounded-[8px] bg-gray-50 px-3 py-2.5">
+                  <div
+                    class="flex items-center gap-3 rounded-[8px] bg-gray-50 px-3 py-2.5"
+                  >
                     <div class="w-5 h-4 bg-gray-200 rounded"></div>
                     <div class="w-8 h-8 rounded-full bg-gray-200"></div>
                     <div class="flex-1 h-4 bg-gray-200 rounded"></div>
@@ -149,7 +165,9 @@
     </div>
 
     <!-- Waitlist section skeleton -->
-    <div class="bg-white rounded-[8px] border border-[#f0f0f0] flex flex-col overflow-hidden animate-pulse">
+    <div
+      class="bg-white rounded-[8px] border border-[#f0f0f0] flex flex-col overflow-hidden animate-pulse"
+    >
       <div class="px-6 py-5 border-b border-[#f0f0f0] flex items-center gap-3">
         <div class="w-8 h-8 rounded bg-gray-200"></div>
         <div class="h-5 w-32 bg-gray-200 rounded"></div>
@@ -160,7 +178,9 @@
         </div>
         <div class="space-y-2">
           {#each [1, 2, 3, 4, 5] as _row}
-            <div class="flex items-center gap-3 rounded-[8px] bg-gray-50 px-3 py-2.5">
+            <div
+              class="flex items-center gap-3 rounded-[8px] bg-gray-50 px-3 py-2.5"
+            >
               <div class="w-5 h-4 bg-gray-200 rounded"></div>
               <div class="w-8 h-8 rounded-full bg-gray-200"></div>
               <div class="flex-1 h-4 bg-gray-200 rounded"></div>
@@ -334,7 +354,8 @@
               >
               <a
                 href={networks.find((n) => n.key === "bradbury")
-                  ?.explorer_url || "https://explorer.testnet-chain.genlayer.com/"}
+                  ?.explorer_url ||
+                  "https://explorer.testnet-chain.genlayer.com/"}
                 target="_blank"
                 rel="noopener noreferrer"
                 class="text-[12px] text-gray-500 hover:text-[#0284c7] transition-colors mt-1 hover:underline flex items-center gap-1"
