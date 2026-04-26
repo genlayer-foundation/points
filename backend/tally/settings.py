@@ -119,15 +119,16 @@ WSGI_APPLICATION = 'tally.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 # Database configuration
+# DATABASE_URL is set in .env — local dev uses PostgreSQL via tally-postgres container.
+# Falls back to SQLite only if DATABASE_URL is not set.
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
-    # Production database (RDS)
     import dj_database_url
     DATABASES = {
         'default': dj_database_url.parse(DATABASE_URL)
     }
 else:
-    # Development database (SQLite)
+    # Fallback: SQLite (not recommended — use PostgreSQL for production parity)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',

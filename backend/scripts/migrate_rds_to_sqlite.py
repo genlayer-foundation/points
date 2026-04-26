@@ -1,5 +1,16 @@
 #!/usr/bin/env python
 """
+DEPRECATED: This script converts production PostgreSQL to local SQLite.
+
+The recommended workflow now uses native PostgreSQL for local development:
+    cd backend/scripts
+    ./migrate-prod-to-dev.sh --download   # Download prod dump
+    ./migrate-prod-to-dev.sh --upload     # Restore to local PostgreSQL container
+
+See backend/scripts/README.md for the full PostgreSQL-based workflow.
+
+---
+
 Migrate data from RDS PostgreSQL to local SQLite database.
 
 Requirements (.env file):
@@ -8,7 +19,7 @@ Requirements (.env file):
     RDS_DATABASE_URL_PARAM: SSM parameter name containing database URL (e.g., /tally/prod/database_url)
     or
     RDS_SECRET_NAME: Secrets Manager secret name containing database URL
-    
+
     RESET_PASSWORD: New password for all users (optional, defaults to 'pass')
 
 Usage:
@@ -17,6 +28,15 @@ Usage:
 
 import os
 import sys
+import warnings
+
+warnings.warn(
+    "migrate_rds_to_sqlite.py is deprecated. "
+    "Use migrate-prod-to-dev.sh with the local PostgreSQL container instead. "
+    "See backend/scripts/README.md for details.",
+    DeprecationWarning,
+    stacklevel=1,
+)
 import subprocess
 import json
 from datetime import datetime

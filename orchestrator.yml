@@ -1,0 +1,57 @@
+project: tally
+base_branch: dev
+
+worktree:
+  enabled: true
+
+setup:
+  copy:
+    - backend/.env
+    - frontend/.env
+    - .claude/settings.local.json
+  env_substitutions:
+    "backend/.env":
+      DATABASE_URL: "postgresql://tally_user:tally_password@host.docker.internal:5432/tally_${session}"
+      BACKEND_URL: "http://localhost:${backend_port}"
+      FRONTEND_URL: "http://localhost:${frontend_port}"
+    "frontend/.env":
+      VITE_API_URL: "http://localhost:${backend_port}"
+
+docker:
+  python_requirements: backend/requirements.txt
+  node_install: [frontend]
+  volumes:
+    node_modules: /workspace/frontend/node_modules
+
+ports:
+  backend: { start: 8000 }
+  frontend: { start: 5000 }
+
+windows:
+  - name: "backend:${backend_port}"
+    directory: backend
+    command: "python manage.py runserver 0.0.0.0:${backend_port}"
+
+  - name: "frontend:${frontend_port}"
+    directory: frontend
+    command: "npm run dev -- --port ${frontend_port} --host 0.0.0.0"
+
+  - name: django-shell
+    directory: backend
+    command: "python manage.py shell"
+
+  - name: claude
+    directory: .
+    command: "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 claude --dangerously-skip-permissions"
+    resume_command: "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 claude --dangerously-skip-permissions --resume"
+
+  - name: shell
+    directory: .
+    command: ""
+
+  - name: cli
+    directory: .
+    command: ""
+
+env:
+  - ANTHROPIC_API_KEY
