@@ -178,7 +178,7 @@
     isLinking = true;
 
     const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    const redirectUrl = encodeURIComponent(window.location.href);
+    const redirectUrl = encodeURIComponent(`${window.location.origin}/`);
     const oauthUrl = `${backendUrl}${initiateUrl}?redirect=${redirectUrl}`;
 
     clearPopupMonitor();
