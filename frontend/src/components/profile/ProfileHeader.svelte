@@ -45,13 +45,13 @@
 >
   <!-- Banner Image -->
   <div
-    class="h-32 md:h-48 relative overflow-hidden bg-gradient-to-r from-purple-600 via-indigo-500 to-sky-400"
+    class="h-32 md:h-48 relative overflow-hidden {participant?.banner_image_url ? '' : 'bg-gradient-to-r from-purple-600 via-indigo-500 to-sky-400'}"
   >
     {#if participant?.banner_image_url}
       <img
         src={participant.banner_image_url}
         alt="Profile banner"
-        class="w-full h-full object-cover mix-blend-overlay opacity-80"
+        class="w-full h-full object-cover"
       />
     {/if}
   </div>

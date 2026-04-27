@@ -11,7 +11,7 @@ from leaderboard.models import (
     get_eligible_referred_user_ids,
     get_referral_breakdown,
     GlobalLeaderboardMultiplier,
-    VALIDATOR_REFERRAL_EXCLUDED_SLUGS,
+    REFERRAL_EXCLUDED_SLUGS,
 )
 from contributions.models import Contribution, ContributionType, Category
 
@@ -186,7 +186,7 @@ class ReferralPointsExclusionTest(TestCase):
 
     def test_constant_contains_validator_waitlist(self):
         """Verify the exclusion constant contains validator-waitlist."""
-        self.assertIn('validator-waitlist', VALIDATOR_REFERRAL_EXCLUDED_SLUGS)
+        self.assertIn('validator-waitlist', REFERRAL_EXCLUDED_SLUGS)
 
 
 class ReferralBreakdownHelperTest(TestCase):

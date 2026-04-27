@@ -651,7 +651,7 @@
                     </button>
                 {/if}
 
-                <!-- Community XP Stat -->
+                <!-- Community Points Stat -->
                 {#if isCreator}
                     <div
                         class="flex items-center justify-between bg-[#fcfcfc] rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
@@ -686,7 +686,7 @@
                                         >{userCommunityPoints}</span
                                     >
                                     <span class="text-[12px] text-[#6b6b6b]"
-                                        >Community XP</span
+                                        >Community Points</span
                                     >
                                 </div>
                             </div>
@@ -713,7 +713,7 @@
                                     >Join the community</span
                                 >
                                 <span class="text-[12px] text-[#6b6b6b]"
-                                    >Become a referrer to earn community XP</span
+                                    >Become a referrer to earn community points</span
                                 >
                             </div>
                         </div>
