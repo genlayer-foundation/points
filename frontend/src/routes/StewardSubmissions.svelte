@@ -24,7 +24,6 @@
 
   // Filters - Status dropdown + mission dropdown + search bar
   let stateFilter = $state('pending');
-  let missionFilter = $state('');
   let missions = $state([]);
   let searchQuery = $state('');
   let stewardsList = $state([]);

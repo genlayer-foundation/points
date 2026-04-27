@@ -11,7 +11,7 @@ from leaderboard.models import (
     get_eligible_referred_user_ids,
     get_referral_breakdown,
     GlobalLeaderboardMultiplier,
-    VALIDATOR_REFERRAL_EXCLUDED_SLUGS,
+    REFERRAL_EXCLUDED_SLUGS,
 )
 from contributions.models import Contribution, ContributionType, Category
 
@@ -36,8 +36,8 @@ class ReferralPointsExclusionTest(TestCase):
             slug='validator-waitlist',
             description='Joined the validator waitlist',
             category=self.validator_category,
-            min_points=20,
-            max_points=20,
+            min_points=0,
+            max_points=0,
         )
         self.node_running_type = ContributionType.objects.create(
             name='Node Running',
@@ -102,7 +102,7 @@ class ReferralPointsExclusionTest(TestCase):
     def test_validator_waitlist_excluded_from_referral_sum(self):
         """Referred user with only validator-waitlist should give referrer 0 validator referral points."""
         # Give referred user the waitlist badge + a builder contribution (so they pass eligibility gate)
-        self._create_contribution(self.referred_user, self.waitlist_type, 20)
+        self._create_contribution(self.referred_user, self.waitlist_type, 0)
         self._create_contribution(self.referred_user, self.blog_type, 50)
 
         # Trigger referral update
@@ -131,7 +131,7 @@ class ReferralPointsExclusionTest(TestCase):
 
     def test_mixed_contributions_excludes_badge(self):
         """Referred user with waitlist (20) + node-running (100) should give referrer 10, not 12."""
-        self._create_contribution(self.referred_user, self.waitlist_type, 20)
+        self._create_contribution(self.referred_user, self.waitlist_type, 0)
         self._create_contribution(self.referred_user, self.node_running_type, 100)
 
         contribution = Contribution.objects.filter(
@@ -145,14 +145,14 @@ class ReferralPointsExclusionTest(TestCase):
 
     def test_eligible_user_filter_unchanged(self):
         """Eligibility gate still works: user with ONLY onboarding badges is not eligible."""
-        self._create_contribution(self.referred_user, self.waitlist_type, 20)
+        self._create_contribution(self.referred_user, self.waitlist_type, 0)
 
         eligible_ids = get_eligible_referred_user_ids(self.referrer)
         self.assertEqual(len(eligible_ids), 0)
 
     def test_eligible_user_with_real_contribution(self):
         """User with real contribution passes eligibility gate."""
-        self._create_contribution(self.referred_user, self.waitlist_type, 20)
+        self._create_contribution(self.referred_user, self.waitlist_type, 0)
         self._create_contribution(self.referred_user, self.node_running_type, 100)
 
         eligible_ids = get_eligible_referred_user_ids(self.referrer)
@@ -160,7 +160,7 @@ class ReferralPointsExclusionTest(TestCase):
 
     def test_recalculate_matches_update(self):
         """recalculate_referrer_points gives same result as update_referrer_points."""
-        self._create_contribution(self.referred_user, self.waitlist_type, 20)
+        self._create_contribution(self.referred_user, self.waitlist_type, 0)
         self._create_contribution(self.referred_user, self.node_running_type, 100)
         self._create_contribution(self.referred_user, self.blog_type, 50)
 
@@ -186,7 +186,7 @@ class ReferralPointsExclusionTest(TestCase):
 
     def test_constant_contains_validator_waitlist(self):
         """Verify the exclusion constant contains validator-waitlist."""
-        self.assertIn('validator-waitlist', VALIDATOR_REFERRAL_EXCLUDED_SLUGS)
+        self.assertIn('validator-waitlist', REFERRAL_EXCLUDED_SLUGS)
 
 
 class ReferralBreakdownHelperTest(TestCase):
@@ -207,8 +207,8 @@ class ReferralBreakdownHelperTest(TestCase):
             slug='validator-waitlist',
             description='Joined the validator waitlist',
             category=self.validator_category,
-            min_points=20,
-            max_points=20,
+            min_points=0,
+            max_points=0,
         )
         self.node_running_type = ContributionType.objects.create(
             name='Node Running',
@@ -301,7 +301,7 @@ class ReferralBreakdownHelperTest(TestCase):
 
     def test_excludes_validator_waitlist_from_per_user_breakdown(self):
         """Per-user validator points exclude validator-waitlist contributions."""
-        self._create_contribution(self.referred_user_a, self.waitlist_type, 20)
+        self._create_contribution(self.referred_user_a, self.waitlist_type, 0)
         self._create_contribution(self.referred_user_a, self.node_running_type, 100)
 
         # Trigger stored referral point calculation

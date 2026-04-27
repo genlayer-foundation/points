@@ -436,7 +436,7 @@
                   </td>
                   <td class="px-4 py-4 text-right">
                     <button
-                      onclick={() => push(`/submit-contribution?type=${params.id}`)}
+                      onclick={() => push(`/submit-contribution?mission=${mission.id}`)}
                       class="inline-flex items-center text-sm font-medium {missionColors.titleText} hover:opacity-80"
                     >
                       Submit

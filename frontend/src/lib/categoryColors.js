@@ -71,7 +71,41 @@ export const getCategoryColors = (category) => {
         expandBg: 'bg-sky-50',
         accentColor: 'text-sky-600'
       };
-      
+
+    case 'community':
+      return {
+        // Primary colors
+        primary: 'purple',
+        primaryShade: 'purple-600',
+
+        // Backgrounds
+        pageBg: 'bg-purple-50',
+        cardBg: 'bg-white',
+        headerBg: 'bg-white',
+        statBg: 'bg-purple-100',
+
+        // Borders
+        border: 'border-purple-300',
+        borderLight: 'border-purple-200',
+        expandBorder: 'border-purple-200',
+
+        // Text colors
+        text: 'text-purple-600',
+        textDark: 'text-purple-900',
+        textMedium: 'text-purple-700',
+        hoverText: 'hover:text-purple-700',
+
+        // Icon colors
+        icon: 'text-purple-600',
+
+        // Solid backgrounds
+        bg: 'bg-purple-500',
+
+        // Other
+        expandBg: 'bg-purple-50',
+        accentColor: 'text-purple-600'
+      };
+
     case 'global':
     default:
       return {
@@ -131,6 +165,15 @@ export const getPioneerColors = (category) => {
       text: 'text-sky-900',
       accent: 'text-sky-700',
       icon: 'text-sky-600'
+    };
+  } else if (category === 'community') {
+    return {
+      bg: 'bg-white',
+      border: 'border-purple-300',
+      headerBg: 'bg-purple-100',
+      text: 'text-purple-900',
+      accent: 'text-purple-700',
+      icon: 'text-purple-600'
     };
   } else {
     // Default blue theme for pioneer states
@@ -216,6 +259,39 @@ export const getPioneerContributionsColors = (category) => {
         badgeText: 'text-sky-800'
       };
 
+    case 'community':
+      return {
+        // Container colors
+        containerBg: 'bg-purple-50',
+        containerBorder: 'border-purple-200',
+        containerBorderLeft: 'border-l-purple-500',
+
+        // Header colors
+        headerBg: 'bg-purple-100',
+        headerBorder: 'border-purple-200',
+        headerText: 'text-purple-900',
+        headerIcon: 'text-purple-600',
+        descriptionText: 'text-purple-700',
+
+        // Table colors
+        tableHeaderBg: 'bg-purple-50',
+        tableHeaderText: 'text-purple-700',
+        tableRowBg: 'bg-purple-50',
+        tableRowHover: 'hover:bg-purple-100',
+        tableBorder: 'divide-purple-100',
+
+        // Text colors
+        titleText: 'text-purple-600',
+        titleTextHover: 'text-purple-700',
+        contentText: 'text-purple-800',
+        pointsText: 'text-purple-900',
+
+        // Badge colors
+        badgeColor: 'purple',
+        badgeBg: 'bg-purple-100',
+        badgeText: 'text-purple-800'
+      };
+
     case 'steward':
       return {
         // Container colors
@@ -294,6 +370,8 @@ export const getCategoryIconColor = (category) => {
       return 'text-orange-600';
     case 'validator':
       return 'text-sky-600';
+    case 'community':
+      return 'text-purple-600';
     case 'global':
       return 'text-black';
     default:

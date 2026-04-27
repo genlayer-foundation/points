@@ -11,11 +11,11 @@ from tally.middleware.logging_utils import get_app_logger
 
 logger = get_app_logger('leaderboard')
 
-# Onboarding badge slugs excluded from validator referral point calculations.
-# These are signup markers, not actual validator work.
+# Onboarding/journey contribution slugs excluded from referral point calculations.
+# These are signup markers and journey milestones, not actual contribution work.
 # Gate 1 (user eligibility) is handled by get_eligible_referred_user_ids().
 # Gate 2 (contribution exclusion) uses this constant.
-VALIDATOR_REFERRAL_EXCLUDED_SLUGS = ['validator-waitlist']
+REFERRAL_EXCLUDED_SLUGS = ['builder', 'builder-welcome', 'validator-waitlist']
 
 
 # Helper functions for leaderboard configuration
@@ -65,7 +65,7 @@ def get_eligible_referred_user_ids(referrer):
     return set(Contribution.objects.filter(
         user_id__in=referred_user_ids
     ).exclude(
-        contribution_type__slug__in=['builder-welcome', 'validator-waitlist']
+        contribution_type__slug__in=REFERRAL_EXCLUDED_SLUGS
     ).values_list('user_id', flat=True).distinct())
 
 
@@ -100,7 +100,7 @@ def calculate_waitlist_points(user):
                 contribution_type__category__slug='validator',
                 contribution_date__lte=grad_contrib.contribution_date
             ).exclude(
-                contribution_type__slug__in=VALIDATOR_REFERRAL_EXCLUDED_SLUGS
+                contribution_type__slug__in=REFERRAL_EXCLUDED_SLUGS
             ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
 
             referral_points = builder_referral + validator_referral
@@ -553,6 +553,8 @@ def get_referral_breakdown(user):
         for item in Contribution.objects.filter(
             user_id__in=referred_user_ids,
             contribution_type__category__slug='builder'
+        ).exclude(
+            contribution_type__slug__in=REFERRAL_EXCLUDED_SLUGS
         ).values('user_id').annotate(total=Sum('frozen_global_points'))
     }
 
@@ -562,7 +564,7 @@ def get_referral_breakdown(user):
             user_id__in=referred_user_ids,
             contribution_type__category__slug='validator'
         ).exclude(
-            contribution_type__slug__in=VALIDATOR_REFERRAL_EXCLUDED_SLUGS
+            contribution_type__slug__in=REFERRAL_EXCLUDED_SLUGS
         ).values('user_id').annotate(total=Sum('frozen_global_points'))
     }
 
@@ -611,13 +613,15 @@ def update_referrer_points(contribution):
     rp.builder_points = int((Contribution.objects.filter(
         user_id__in=eligible_ids,
         contribution_type__category__slug='builder'
+    ).exclude(
+        contribution_type__slug__in=REFERRAL_EXCLUDED_SLUGS
     ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
 
     rp.validator_points = int((Contribution.objects.filter(
         user_id__in=eligible_ids,
         contribution_type__category__slug='validator'
     ).exclude(
-        contribution_type__slug__in=VALIDATOR_REFERRAL_EXCLUDED_SLUGS
+        contribution_type__slug__in=REFERRAL_EXCLUDED_SLUGS
     ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
 
     rp.save(update_fields=['builder_points', 'validator_points'])
@@ -686,13 +690,15 @@ def recalculate_referrer_points(referrer):
         rp.builder_points = int((Contribution.objects.filter(
             user_id__in=eligible_ids,
             contribution_type__category__slug='builder'
+        ).exclude(
+            contribution_type__slug__in=REFERRAL_EXCLUDED_SLUGS
         ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
 
         rp.validator_points = int((Contribution.objects.filter(
             user_id__in=eligible_ids,
             contribution_type__category__slug='validator'
         ).exclude(
-            contribution_type__slug__in=VALIDATOR_REFERRAL_EXCLUDED_SLUGS
+            contribution_type__slug__in=REFERRAL_EXCLUDED_SLUGS
         ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
     else:
         rp.builder_points = 0
@@ -800,7 +806,7 @@ def recalculate_all_leaderboards():
 
             users_eligible_for_referrals = set()
             for contrib in contributions:
-                if contrib['contribution_type__slug'] not in ['builder-welcome', 'validator-waitlist']:
+                if contrib['contribution_type__slug'] not in REFERRAL_EXCLUDED_SLUGS:
                     users_eligible_for_referrals.add(contrib['user_id'])
 
             entries_to_create = []
@@ -852,9 +858,9 @@ def recalculate_all_leaderboards():
                                 contrib_points = referred_contrib['frozen_global_points'] or 0
 
                                 if referred_user_id in users_eligible_for_referrals:
-                                    if category == 'builder':
+                                    if category == 'builder' and slug not in REFERRAL_EXCLUDED_SLUGS:
                                         builder_referral += int(contrib_points * 0.1)
-                                    elif category == 'validator' and slug not in VALIDATOR_REFERRAL_EXCLUDED_SLUGS:
+                                    elif category == 'validator' and slug not in REFERRAL_EXCLUDED_SLUGS:
                                         validator_referral += int(contrib_points * 0.1)
 
                             points += builder_referral + validator_referral
@@ -892,9 +898,9 @@ def recalculate_all_leaderboards():
                                             contrib_points = referred_contrib['frozen_global_points'] or 0
 
                                             if referred_user_id in users_eligible_for_referrals:
-                                                if category == 'builder':
+                                                if category == 'builder' and slug not in REFERRAL_EXCLUDED_SLUGS:
                                                     builder_referral += int(contrib_points * 0.1)
-                                                elif category == 'validator' and slug not in VALIDATOR_REFERRAL_EXCLUDED_SLUGS:
+                                                elif category == 'validator' and slug not in REFERRAL_EXCLUDED_SLUGS:
                                                     validator_referral += int(contrib_points * 0.1)
 
                                     points += builder_referral + validator_referral
@@ -918,9 +924,9 @@ def recalculate_all_leaderboards():
                     contrib_points = contrib['frozen_global_points'] or 0
 
                     if referred_user_id in users_eligible_for_referrals:
-                        if category == 'builder':
+                        if category == 'builder' and slug not in REFERRAL_EXCLUDED_SLUGS:
                             builder_points += int(contrib_points * 0.1)
-                        elif category == 'validator' and slug not in VALIDATOR_REFERRAL_EXCLUDED_SLUGS:
+                        elif category == 'validator' and slug not in REFERRAL_EXCLUDED_SLUGS:
                             validator_points += int(contrib_points * 0.1)
 
                 referral_points_to_create.append(ReferralPoints(

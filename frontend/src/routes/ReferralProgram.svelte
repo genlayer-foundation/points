@@ -191,6 +191,7 @@
       if (authButton) authButton.click();
     }
   }
+
 </script>
 
 <div class="flex flex-col">

@@ -35,7 +35,11 @@
 
   // Community States
   let communityState = $derived(
-    participant?.creator ? "completed" : "not_started",
+    participant?.creator && participant?.has_community_link_x && participant?.has_community_link_discord
+      ? "completed"
+      : participant?.creator
+        ? "ongoing"
+        : "not_started",
   );
 
   function scrollToBuilderJourney() {
@@ -44,6 +48,13 @@
       el.scrollIntoView({ behavior: "smooth", block: "start" });
     } else {
       window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  function scrollToCommunityJourney() {
+    const el = document.getElementById("community-journey-section");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
 </script>
@@ -190,6 +201,17 @@
           >
             <svg class="inline w-4 h-4 mr-1 -mt-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.5-1.5z"/></svg>
             Joined
+          </button>
+        {:else if communityState === "ongoing"}
+          <button
+            onclick={scrollToCommunityJourney}
+            class="w-full bg-[#7f52e1] text-white py-2 rounded-[24px] text-[14px] font-medium hover:bg-[#6b3fd4] transition-colors"
+          >
+            Finish the journey <img
+              src="/assets/icons/arrow-right-line.svg"
+              class="inline w-4 h-4 ml-1 brightness-0 invert"
+              alt=""
+            />
           </button>
         {:else}
           <button

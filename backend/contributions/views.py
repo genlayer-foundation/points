@@ -54,8 +54,11 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         if is_submittable is not None:
             queryset = queryset.filter(is_submittable=is_submittable.lower() == 'true')
 
-        return queryset
-        
+        return queryset.prefetch_related(
+            'accepted_evidence_url_types',
+            'required_evidence_url_types',
+        )
+
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def statistics(self, request):
         """
@@ -85,7 +88,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             participants_count=Count('contributions__user', distinct=True),
             last_earned=Coalesce(Max('contributions__contribution_date'), timezone.now()),
             total_points_given=Coalesce(Sum('contributions__frozen_global_points'), 0)
-        ).values('id', 'name', 'description', 'min_points', 'max_points', 'count', 'participants_count', 'last_earned', 'total_points_given', 'is_submittable')
+        ).values('id', 'name', 'description', 'min_points', 'max_points', 'count', 'participants_count', 'last_earned', 'total_points_given', 'is_submittable', 'show_in_contributions')
         
         # Add current multiplier for each type
         result = []
@@ -330,6 +333,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     },
                     'contribution_type_details': contribution_type_details,  # Full type details including category
                     'contribution_type_name': contrib.contribution_type.name,
+                    'title': serialized.get('title', ''),
                     'grouped_contributions': [serialized],
                     'frozen_global_points': serialized.get('frozen_global_points') or 0,
                     'contribution_date': serialized['contribution_date'],  # First date
@@ -609,7 +613,8 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             'user',  # Optimize user access
             'mission'  # Avoid N+1 queries when accessing mission details
         ).prefetch_related(
-            'evidence_items'
+            'evidence_items',
+            'evidence_items__url_type',
         ).order_by('-created_at')
 
     def get_serializer_context(self):
@@ -666,6 +671,12 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         if contribution_type_id:
             try:
                 contribution_type = ContributionType.objects.select_related('category').get(id=contribution_type_id)
+                # Non-submittable types can only be submitted through an active mission
+                if not contribution_type.is_submittable and not mission_id:
+                    return Response(
+                        {'error': 'This contribution type cannot be submitted directly. Submit through one of its active missions.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
                 if contribution_type.category:
                     if contribution_type.category.slug == 'builder' and not hasattr(request.user, 'builder'):
                         return Response(
@@ -673,14 +684,25 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_403_FORBIDDEN
                         )
                     if contribution_type.category.slug == 'validator' and not hasattr(request.user, 'validator'):
-                        # Allow users on the validator waitlist to submit validator contributions
-                        has_waitlist = Contribution.objects.filter(
-                            user=request.user,
-                            contribution_type__slug='validator-waitlist'
-                        ).exists()
-                        if not has_waitlist:
+                        return Response(
+                            {'error': 'Only validators can submit validator contributions. Join the Validator Waitlist to be considered for selection.'},
+                            status=status.HTTP_403_FORBIDDEN
+                        )
+                    # Check required social accounts for this contribution type
+                    if contribution_type.required_social_accounts:
+                        connection_map = {
+                            'twitter': ('twitterconnection', 'X (Twitter)'),
+                            'discord': ('discordconnection', 'Discord'),
+                            'github': ('githubconnection', 'GitHub'),
+                        }
+                        missing = []
+                        for account in contribution_type.required_social_accounts:
+                            relation, label = connection_map.get(account, (None, account))
+                            if relation and not hasattr(request.user, relation):
+                                missing.append(label)
+                        if missing:
                             return Response(
-                                {'error': 'You must complete the Validator Waitlist journey before submitting validator contributions.'},
+                                {'error': f'You must link your {", ".join(missing)} account(s) to submit this type of contribution.'},
                                 status=status.HTTP_403_FORBIDDEN
                             )
             except ContributionType.DoesNotExist:
@@ -1114,6 +1136,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 points=serializer.validated_data['points'],
                 contribution_date=submission.contribution_date,
                 notes=submission.notes,
+                title=submission.title,
                 mission=submission.mission
             )
 

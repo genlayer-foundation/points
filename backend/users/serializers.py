@@ -267,8 +267,7 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['name', 'node_version_asimov', 'node_version_bradbury', 'email', 'description', 'website',
-                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
-                  'github_username']
+                  'telegram_handle', 'linkedin_handle']
     
     def validate_email(self, value):
         """Validate email with DNS checks and block disposable providers"""
@@ -550,6 +549,8 @@ class UserSerializer(serializers.ModelSerializer):
     creator = CreatorSerializer(read_only=True)
     has_validator_waitlist = serializers.SerializerMethodField()
     has_builder_welcome = serializers.SerializerMethodField()
+    has_community_link_x = serializers.SerializerMethodField()
+    has_community_link_discord = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
 
     # Referral system fields
@@ -560,21 +561,34 @@ class UserSerializer(serializers.ModelSerializer):
     # Working groups
     working_groups = serializers.SerializerMethodField()
 
+    # Social connections
+    github_connection = serializers.SerializerMethodField()
+    twitter_connection = serializers.SerializerMethodField()
+    discord_connection = serializers.SerializerMethodField()
+
+    # Backward-compat computed fields for github
+    github_username = serializers.SerializerMethodField()
+    github_linked_at = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward',
-                  'creator', 'has_validator_waitlist', 'has_builder_welcome', 'created_at', 'updated_at',
+                  'creator', 'has_validator_waitlist', 'has_builder_welcome',
+                  'has_community_link_x', 'has_community_link_discord', 'created_at', 'updated_at',
                   # Profile fields
                   'description', 'banner_image_url', 'profile_image_url', 'website',
-                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle', 'github_username', 'github_linked_at',
+                  'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
+                  'github_username', 'github_linked_at',
                   'email', 'is_email_verified',
                   # Ban status
                   'is_banned', 'ban_reason',
+                  # Social connections
+                  'github_connection', 'twitter_connection', 'discord_connection',
                   # Referral fields
                   'referral_code', 'referred_by_info', 'total_referrals', 'referral_details',
                   # Working groups
                   'working_groups']
-        read_only_fields = ['id', 'created_at', 'updated_at', 'referral_code', 'github_linked_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'referral_code']
     
     def get_validator(self, obj):
         """
@@ -658,6 +672,28 @@ class UserSerializer(serializers.ModelSerializer):
         except ContributionType.DoesNotExist:
             return False
     
+    def get_has_community_link_x(self, obj):
+        """Check if user has earned points for linking X account."""
+        if self.context.get('use_light_serializers', False):
+            return False
+        from contributions.models import Contribution, ContributionType
+        try:
+            link_type = ContributionType.objects.get(slug='community-link-x')
+            return Contribution.objects.filter(user=obj, contribution_type=link_type).exists()
+        except ContributionType.DoesNotExist:
+            return False
+
+    def get_has_community_link_discord(self, obj):
+        """Check if user has earned points for linking Discord account."""
+        if self.context.get('use_light_serializers', False):
+            return False
+        from contributions.models import Contribution, ContributionType
+        try:
+            link_type = ContributionType.objects.get(slug='community-link-discord')
+            return Contribution.objects.filter(user=obj, contribution_type=link_type).exists()
+        except ContributionType.DoesNotExist:
+            return False
+
     def get_email(self, obj):
         """
         Return email only if it's verified, otherwise return empty string.
@@ -713,6 +749,39 @@ class UserSerializer(serializers.ModelSerializer):
             }
             for m in memberships
         ]
+
+    def _get_social_connection(self, obj, related_name, serializer_class):
+        try:
+            connection = getattr(obj, related_name)
+            return serializer_class(connection).data
+        except Exception:
+            return None
+
+    def get_github_connection(self, obj):
+        from social_connections.serializers import GitHubConnectionSerializer
+        return self._get_social_connection(obj, 'githubconnection', GitHubConnectionSerializer)
+
+    def get_twitter_connection(self, obj):
+        from social_connections.serializers import TwitterConnectionSerializer
+        return self._get_social_connection(obj, 'twitterconnection', TwitterConnectionSerializer)
+
+    def get_discord_connection(self, obj):
+        from social_connections.serializers import DiscordConnectionSerializer
+        return self._get_social_connection(obj, 'discordconnection', DiscordConnectionSerializer)
+
+    def get_github_username(self, obj):
+        """Backward compat: read from GitHubConnection if available."""
+        try:
+            return obj.githubconnection.platform_username
+        except Exception:
+            return obj.github_username or ''
+
+    def get_github_linked_at(self, obj):
+        """Backward compat: read from GitHubConnection if available."""
+        try:
+            return obj.githubconnection.linked_at
+        except Exception:
+            return obj.github_linked_at
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
