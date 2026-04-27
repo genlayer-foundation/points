@@ -134,10 +134,10 @@
             <img src="/assets/icons/verified-badge-fill.svg" alt="Verified" class="w-4 h-4 flex-shrink-0">
           </div>
         {/if}
-        <h2 class="font-display text-[32px] font-medium text-white leading-[38px] line-clamp-2 h-[76px] overflow-hidden" style="letter-spacing: -1.28px;">
+        <h2 class="font-display text-[32px] font-medium text-white leading-[38px] line-clamp-1 h-[38px] overflow-hidden" style="letter-spacing: -1.28px;">
           {hero.title}
         </h2>
-        <p class="text-white/80 text-sm max-w-[280px] line-clamp-3 h-[60px] overflow-hidden" style="letter-spacing: 0.28px;">
+        <p class="text-white/80 text-sm max-w-[280px] line-clamp-2 h-[40px] overflow-hidden" style="letter-spacing: 0.28px;">
           {hero.description}
         </p>
       </div>
