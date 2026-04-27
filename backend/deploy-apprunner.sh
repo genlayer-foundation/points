@@ -224,9 +224,11 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "SOCIAL_ENCRYPTION_KEY": "$SSM_PREFIX/prod/social_encryption_key",
           "TWITTER_CLIENT_ID": "$SSM_PREFIX/prod/twitter_client_id",
           "TWITTER_CLIENT_SECRET": "$SSM_PREFIX/prod/twitter_client_secret",
+          "TWITTER_REDIRECT_URI": "$SSM_PREFIX/prod/twitter_redirect_uri",
           "DISCORD_CLIENT_ID": "$SSM_PREFIX/prod/discord_client_id",
           "DISCORD_CLIENT_SECRET": "$SSM_PREFIX/prod/discord_client_secret",
-          "DISCORD_GUILD_ID": "$SSM_PREFIX/prod/discord_guild_id"
+          "DISCORD_GUILD_ID": "$SSM_PREFIX/prod/discord_guild_id",
+          "DISCORD_REDIRECT_URI": "$SSM_PREFIX/prod/discord_redirect_uri"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
@@ -319,9 +321,11 @@ else
           "SOCIAL_ENCRYPTION_KEY": "$SSM_PREFIX/prod/social_encryption_key",
           "TWITTER_CLIENT_ID": "$SSM_PREFIX/prod/twitter_client_id",
           "TWITTER_CLIENT_SECRET": "$SSM_PREFIX/prod/twitter_client_secret",
+          "TWITTER_REDIRECT_URI": "$SSM_PREFIX/prod/twitter_redirect_uri",
           "DISCORD_CLIENT_ID": "$SSM_PREFIX/prod/discord_client_id",
           "DISCORD_CLIENT_SECRET": "$SSM_PREFIX/prod/discord_client_secret",
-          "DISCORD_GUILD_ID": "$SSM_PREFIX/prod/discord_guild_id"
+          "DISCORD_GUILD_ID": "$SSM_PREFIX/prod/discord_guild_id",
+          "DISCORD_REDIRECT_URI": "$SSM_PREFIX/prod/discord_redirect_uri"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
       },
