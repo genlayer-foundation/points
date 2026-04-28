@@ -9,6 +9,7 @@
         isOwnProfile = false,
         builderStats = null,
         validatorStats = null,
+        communityStats = null,
         overallPoints = 0,
         referralPoints = { builder_points: 0, validator_points: 0 },
     } = $props();
@@ -30,7 +31,6 @@
         const tabs = [];
         if (isBuilder) tabs.push("Builders");
         if (isValidator) tabs.push("Validators");
-        if (isCreator) tabs.push("Community");
         return tabs;
     });
 
@@ -56,11 +56,6 @@
         activeList = [];
 
         try {
-            if (tab === "Community") {
-                await loadCommunityTab();
-                return;
-            }
-
             let apiType;
             if (tab === "Builders") apiType = "builder";
             else if (tab === "Validators") {
@@ -145,75 +140,6 @@
         }
     }
 
-    async function loadCommunityTab() {
-        try {
-            const topRes = await (leaderboardAPI as any).getCommunity({
-                limit: 4,
-                user_address: participant?.address,
-            });
-
-            const results = topRes.data?.results || [];
-            const userRankFromApi = topRes.data?.user_rank;
-
-            if (userRankFromApi) {
-                communityRank = userRankFromApi;
-            }
-
-            const top4 = results.map((u: any) => ({
-                user_address: u.address,
-                user_name: u.name,
-                name: u.name,
-                address: u.address,
-                profile_image_url: u.profile_image_url,
-                total_points: u.total_points || u.total_referral_points || 0,
-                points: u.total_points || u.total_referral_points || 0,
-                _displayRank: u.rank,
-            }));
-
-            const userInTop4 = top4.some(
-                (u: any) =>
-                    u.address?.toLowerCase() ===
-                    participant?.address?.toLowerCase(),
-            );
-
-            if (userInTop4 || !participant || !userRankFromApi) {
-                activeList = top4;
-            } else {
-                const offset = Math.max(0, userRankFromApi - 2);
-                const contextRes = await (leaderboardAPI as any).getCommunity({
-                    limit: 3,
-                    offset: offset,
-                });
-                const contextUsers = (contextRes.data?.results || []).map(
-                    (u: any) => ({
-                        user_address: u.address,
-                        user_name: u.name,
-                        name: u.name,
-                        address: u.address,
-                        profile_image_url: u.profile_image_url,
-                        total_points:
-                            u.total_points || u.total_referral_points || 0,
-                        points: u.total_points || u.total_referral_points || 0,
-                        _displayRank: u.rank,
-                    }),
-                );
-
-                let constructedList = [];
-                if (top4.length > 0) {
-                    constructedList.push(top4[0]);
-                }
-                constructedList.push({ isEllipsis: true });
-                constructedList.push(...contextUsers);
-                activeList = constructedList;
-            }
-        } catch (err) {
-            console.error(err);
-            error = "Failed to load community leaderboard";
-        } finally {
-            loading = false;
-        }
-    }
-
     let initializedForAddress = $state(null);
 
     $effect(() => {
@@ -288,10 +214,7 @@
         );
     }
 
-    let userCommunityPoints = $derived(
-        (referralPoints?.builder_points || 0) +
-            (referralPoints?.validator_points || 0),
-    );
+    let userCommunityPoints = $derived(communityStats?.totalPoints || 0);
 
     let rightPanelStats = $derived({
         builder: participant?.leaderboard_entries?.find(
@@ -337,6 +260,7 @@
 
         <!-- Main Content Layout -->
         <div class="flex flex-col lg:flex-row gap-6">
+            {#if availableTabs.length > 0}
             <!-- Left: Leaderboard (50%) -->
             <div class="w-full lg:w-1/2 flex flex-col pt-2 min-h-[300px]">
                 <!-- Tabs Header -->
@@ -384,23 +308,6 @@
                     {:else if error}
                         <div class="text-sm text-gray-500 py-4 text-center">
                             {error}
-                        </div>
-                    {:else if activeTab === "Community" && userCommunityPoints === 0}
-                        <div
-                            class="flex flex-col items-center justify-center py-8 px-4 text-center"
-                        >
-                            <CategoryIcon
-                                category="community"
-                                mode="hexagon"
-                                size={40}
-                            />
-                            <p class="text-[14px] font-medium text-black mt-3">
-                                No ranking yet
-                            </p>
-                            <p class="text-[13px] text-[#6b6b6b] mt-1">
-                                Refer at least one user to appear in the
-                                community ranking
-                            </p>
                         </div>
                     {:else if activeList.length === 0}
                         <div class="text-sm text-gray-500 py-4 text-center">
@@ -496,9 +403,14 @@
                     {/if}
                 </div>
             </div>
+            {/if}
 
-            <!-- Right: Context Stats (50%) -->
-            <div class="w-full lg:w-1/2 flex flex-col gap-3 pt-[36px]">
+            <!-- Right: Context Stats (50% when leaderboard is shown, otherwise full width) -->
+            <div
+                class="w-full {availableTabs.length > 0
+                    ? 'lg:w-1/2'
+                    : ''} flex flex-col gap-3 pt-[36px]"
+            >
                 <!-- Builder Stat -->
                 {#if isBuilder}
                     <div
