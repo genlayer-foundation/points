@@ -781,6 +781,7 @@
           {isOwnProfile}
           {builderStats}
           {validatorStats}
+          {communityStats}
           {overallPoints}
           {referralPoints}
         />
