@@ -19,7 +19,7 @@ from contributions.models import (
     SubmittedContribution,
 )
 from leaderboard.models import GlobalLeaderboardMultiplier
-from stewards.models import ReviewTemplate, Steward, StewardPermission
+from stewards.models import ReviewTemplate, Steward, StewardAssignment
 from users.models import User
 
 
@@ -56,10 +56,12 @@ def _create_test_fixtures():
     steward_user.is_staff = True
     steward_user.save()
     steward, _ = Steward.objects.get_or_create(user=steward_user)
-    for action in ['accept', 'reject', 'request_more_info', 'propose']:
-        StewardPermission.objects.get_or_create(
-            steward=steward, contribution_type=ct, action=action,
-        )
+    StewardAssignment.objects.get_or_create(
+        steward=steward,
+        role=StewardAssignment.ROLE_FULL_REVIEW,
+        scope_category=None,
+        scope_type=None,
+    )
     ai_user, created = User.objects.get_or_create(
         email='genlayer-steward@genlayer.foundation',
         defaults={

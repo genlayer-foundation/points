@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from django.conf import settings
 from utils.models import BaseModel
 
@@ -18,35 +19,69 @@ class Steward(BaseModel):
         return f"{self.user.email} - Steward"
 
 
-class StewardPermission(BaseModel):
+class StewardAssignment(BaseModel):
     """
-    Per-action, per-contribution-type permission for stewards.
-    Controls what actions a steward can perform on submissions of each type.
+    Role + scope assignment for a steward.
+
+    Role:
+      - 'full_review' grants accept/reject/request_more_info/propose
+      - 'propose' grants propose only
+    Scope is one of:
+      - scope_category: all contribution types in a category
+      - scope_type: a single contribution type
+      - both null: global (all contribution types)
+
+    Multiple assignments per steward are additive.
     """
-    ACTION_CHOICES = [
-        ('propose', 'Propose'),
-        ('accept', 'Accept'),
-        ('reject', 'Reject'),
-        ('request_more_info', 'Request More Info'),
+    ROLE_FULL_REVIEW = 'full_review'
+    ROLE_PROPOSE = 'propose'
+    ROLE_CHOICES = [
+        (ROLE_FULL_REVIEW, 'Full Review'),
+        (ROLE_PROPOSE, 'Propose Only'),
     ]
+
     steward = models.ForeignKey(
         Steward,
         on_delete=models.CASCADE,
-        related_name='permissions'
+        related_name='assignments',
     )
-    contribution_type = models.ForeignKey(
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    scope_category = models.ForeignKey(
+        'contributions.Category',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='steward_assignments',
+    )
+    scope_type = models.ForeignKey(
         'contributions.ContributionType',
         on_delete=models.CASCADE,
-        related_name='steward_permissions'
+        null=True,
+        blank=True,
+        related_name='steward_assignments',
     )
-    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
 
     class Meta:
-        unique_together = ['steward', 'contribution_type', 'action']
-        ordering = ['steward', 'contribution_type', 'action']
+        ordering = ['steward', 'role']
+        constraints = [
+            models.CheckConstraint(
+                condition=~(Q(scope_category__isnull=False) & Q(scope_type__isnull=False)),
+                name='steward_assignment_scope_mutually_exclusive',
+            ),
+            models.UniqueConstraint(
+                fields=['steward', 'role', 'scope_category', 'scope_type'],
+                name='steward_assignment_unique',
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.steward.user} - {self.contribution_type} - {self.action}"
+        if self.scope_type_id:
+            scope = f"type:{self.scope_type}"
+        elif self.scope_category_id:
+            scope = f"category:{self.scope_category}"
+        else:
+            scope = "global"
+        return f"{self.steward.user} - {self.get_role_display()} - {scope}"
 
 
 class ReviewTemplate(BaseModel):

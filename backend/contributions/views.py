@@ -1586,17 +1586,88 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='my-permissions')
     def my_permissions(self, request):
         """Get current steward's permissions map: { contribution_type_id: [actions] }."""
-        from stewards.models import StewardPermission
+        from stewards.models import StewardAssignment
+        from contributions.models import ContributionType
+
         if not hasattr(request.user, 'steward'):
             return Response({})
 
-        perms = StewardPermission.objects.filter(
-            steward=request.user.steward
-        ).values_list('contribution_type_id', 'action')
+        assignments = list(
+            StewardAssignment.objects.filter(steward=request.user.steward)
+            .values('role', 'scope_category_id', 'scope_type_id')
+        )
+        if not assignments:
+            return Response({})
+
+        full_review_actions = ['accept', 'reject', 'request_more_info', 'propose']
+        full_roles = {a['role'] for a in assignments if a['role'] == 'full_review'}
+        propose_roles = {a['role'] for a in assignments if a['role'] == 'propose'}
+
+        # Short-circuit: any global full_review grants everything on every type.
+        has_global_full = any(
+            a['role'] == 'full_review'
+            and a['scope_category_id'] is None
+            and a['scope_type_id'] is None
+            for a in assignments
+        )
+
+        type_rows = list(
+            ContributionType.objects.values('id', 'category_id')
+        )
+
+        if has_global_full:
+            return Response(
+                {str(row['id']): list(full_review_actions) for row in type_rows}
+            )
+
+        # Build per-role coverage (categories + explicit type ids).
+        full_cat_ids = {
+            a['scope_category_id']
+            for a in assignments
+            if a['role'] == 'full_review' and a['scope_category_id'] is not None
+        }
+        full_type_ids = {
+            a['scope_type_id']
+            for a in assignments
+            if a['role'] == 'full_review' and a['scope_type_id'] is not None
+        }
+        propose_global = any(
+            a['role'] == 'propose'
+            and a['scope_category_id'] is None
+            and a['scope_type_id'] is None
+            for a in assignments
+        )
+        propose_cat_ids = {
+            a['scope_category_id']
+            for a in assignments
+            if a['role'] == 'propose' and a['scope_category_id'] is not None
+        }
+        propose_type_ids = {
+            a['scope_type_id']
+            for a in assignments
+            if a['role'] == 'propose' and a['scope_type_id'] is not None
+        }
 
         result = {}
-        for ct_id, action_name in perms:
-            result.setdefault(str(ct_id), []).append(action_name)
+        for row in type_rows:
+            ct_id = row['id']
+            cat_id = row['category_id']
+
+            has_full = (
+                ct_id in full_type_ids
+                or (cat_id is not None and cat_id in full_cat_ids)
+            )
+            has_propose = (
+                has_full
+                or propose_global
+                or ct_id in propose_type_ids
+                or (cat_id is not None and cat_id in propose_cat_ids)
+            )
+
+            if has_full:
+                result[str(ct_id)] = list(full_review_actions)
+            elif has_propose:
+                result[str(ct_id)] = ['propose']
 
         return Response(result)
 

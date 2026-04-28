@@ -34,7 +34,7 @@ from contributions.models import (
     SubmissionNote,
     SubmittedContribution,
 )
-from stewards.models import ReviewTemplate, Steward, StewardPermission
+from stewards.models import ReviewTemplate, Steward, StewardAssignment
 from users.models import User
 
 logger = logging.getLogger(__name__)
@@ -490,14 +490,12 @@ class Command(BaseCommand):
                 f'Created steward profile for {user.email}'
             ))
 
-        actions = ['propose', 'accept', 'reject', 'request_more_info']
-        for ct in ContributionType.objects.all():
-            for action in actions:
-                StewardPermission.objects.get_or_create(
-                    steward=steward,
-                    contribution_type=ct,
-                    action=action,
-                )
+        StewardAssignment.objects.get_or_create(
+            steward=steward,
+            role=StewardAssignment.ROLE_FULL_REVIEW,
+            scope_category=None,
+            scope_type=None,
+        )
 
         return user
 

@@ -1,5 +1,14 @@
+from django import forms
 from django.contrib import admin
-from .models import Steward, StewardPermission, ReviewTemplate, WorkingGroup, WorkingGroupParticipant
+from django.core.exceptions import ValidationError
+
+from .models import (
+    ReviewTemplate,
+    Steward,
+    StewardAssignment,
+    WorkingGroup,
+    WorkingGroupParticipant,
+)
 
 
 class StewardInline(admin.StackedInline):
@@ -13,21 +22,37 @@ class StewardInline(admin.StackedInline):
     can_delete = True  # Allow deletion through inline
 
 
-class StewardPermissionInline(admin.TabularInline):
-    """Inline for managing steward permissions from the steward detail page."""
-    model = StewardPermission
+class StewardAssignmentForm(forms.ModelForm):
+    class Meta:
+        model = StewardAssignment
+        fields = ('role', 'scope_category', 'scope_type')
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get('scope_category') and cleaned.get('scope_type'):
+            raise ValidationError(
+                "An assignment may target a category OR a contribution type, not both. "
+                "Leave both blank for a global assignment."
+            )
+        return cleaned
+
+
+class StewardAssignmentInline(admin.TabularInline):
+    """Inline for managing steward assignments from the steward detail page."""
+    model = StewardAssignment
+    form = StewardAssignmentForm
     extra = 1
-    autocomplete_fields = ['contribution_type']
-    fields = ('contribution_type', 'action')
+    autocomplete_fields = ('scope_category', 'scope_type')
+    fields = ('role', 'scope_category', 'scope_type')
 
 
 @admin.register(Steward)
 class StewardAdmin(admin.ModelAdmin):
-    list_display = ('user', 'permission_count', 'created_at', 'updated_at')
+    list_display = ('user', 'assignment_count', 'created_at', 'updated_at')
     search_fields = ('user__email', 'user__name')
     list_filter = ('created_at', 'updated_at')
     ordering = ('-created_at',)
-    inlines = [StewardPermissionInline]
+    inlines = [StewardAssignmentInline]
 
     fieldsets = (
         (None, {
@@ -40,18 +65,24 @@ class StewardAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('created_at', 'updated_at')
 
-    def permission_count(self, obj):
-        return obj.permissions.count()
-    permission_count.short_description = 'Permissions'
+    def assignment_count(self, obj):
+        return obj.assignments.count()
+    assignment_count.short_description = 'Assignments'
 
 
-@admin.register(StewardPermission)
-class StewardPermissionAdmin(admin.ModelAdmin):
-    list_display = ('steward', 'contribution_type', 'action', 'created_at')
-    list_filter = ('action', 'contribution_type__category', 'contribution_type')
-    search_fields = ('steward__user__name', 'steward__user__email', 'contribution_type__name')
-    autocomplete_fields = ['steward', 'contribution_type']
-    ordering = ('steward', 'contribution_type', 'action')
+@admin.register(StewardAssignment)
+class StewardAssignmentAdmin(admin.ModelAdmin):
+    form = StewardAssignmentForm
+    list_display = ('steward', 'role', 'scope_category', 'scope_type', 'created_at')
+    list_filter = ('role', 'scope_category', 'scope_type__category')
+    search_fields = (
+        'steward__user__name',
+        'steward__user__email',
+        'scope_category__name',
+        'scope_type__name',
+    )
+    autocomplete_fields = ('steward', 'scope_category', 'scope_type')
+    ordering = ('steward', 'role')
 
 
 @admin.register(ReviewTemplate)
