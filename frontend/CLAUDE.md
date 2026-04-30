@@ -512,7 +512,9 @@ let doubled = $derived(count * 2);
 
 // Effects
 $effect(() => {
-  console.log('Count changed:', count);
+  if (selectedType) {
+  formData.contribution_type = selectedType.id;
+  }
 });
 ```
 

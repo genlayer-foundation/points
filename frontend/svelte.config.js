@@ -4,8 +4,8 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 export default defineConfig({
   plugins: [
     svelte({
-      // Ini kuncinya: Biarkan library lama tetap jalan
       compilerOptions: {
+        // Jangan paksa runes mode jika masih banyak library lama
         runes: false,
       },
     }),

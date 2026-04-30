@@ -31,7 +31,10 @@
   async function handleJoinWaitlist() {
     if (!$authState.isAuthenticated) {
       // Show connect wallet prompt
-      document.querySelector('.auth-button')?.click();
+      const btn = document.querySelector('.auth-button');
+    if (btn instanceof HTMLElement) {
+      btn.click();
+    }
       return;
     }
     
@@ -48,7 +51,7 @@
       sessionStorage.setItem('journeySuccess', 'Successfully joined Validator Waitlist!');
       push(`/participant/${$authState.address}`);
     } catch (err) {
-      error = err.response?.data?.error || 'Failed to join waitlist';
+      error = 'Failed to join waitlist';
       isJoiningWaitlist = false;
     }
   }
@@ -59,7 +62,12 @@
   <div>
     <h1 class="text-2xl font-bold text-gray-900">Validator Waitlist</h1>
     <p class="mt-1 text-sm text-gray-500">
-      Join the waitlist to become a validator on GenLayer Testnets
+     Join the waitlist to become a validator on GenLayer Testnets
+    </p>
+
+    <p class="text-sm text-gray-500 mt-2">
+      Joining the validator waitlist does not guarantee immediate activation.
+       Validator slots are limited and approvals are processed gradually.
     </p>
   </div>
 
