@@ -207,9 +207,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
             participant_count = leaderboard_entries.count()
-            total_points = leaderboard_entries.aggregate(
-                total=Sum('total_points')
-            )['total'] or 0
 
             # Get contribution count for this category
             category_map = {
@@ -223,12 +220,17 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 category_contributions = Contribution.objects.filter(
                     contribution_type__category__slug=category
                 ).exclude(
-                    contribution_type__slug__in=['builder-welcome', 'validator-waitlist']
+                    contribution_type__slug__in=['builder-welcome', 'builder', 'validator-waitlist', 'validator']
                 )
                 contribution_count = category_contributions.count()
                 new_contributions_count = category_contributions.filter(
                     created_at__gte=last_month
                 ).count()
+                # Total points and new points exclude welcome/waitlist auto-awards
+                # so the dashboard reflects real contribution activity, not journey starts.
+                total_points = category_contributions.aggregate(
+                    total=Sum('frozen_global_points')
+                )['total'] or 0
                 new_points_count = category_contributions.filter(
                     created_at__gte=last_month
                 ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
@@ -236,6 +238,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 contribution_count = 0
                 new_contributions_count = 0
                 new_points_count = 0
+                total_points = leaderboard_entries.aggregate(
+                    total=Sum('total_points')
+                )['total'] or 0
 
             # New participants in the last 30 days for the specific leaderboard type
             if leaderboard_type == 'builder':
@@ -259,18 +264,19 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             ).distinct().count()
 
             all_contributions = Contribution.objects.exclude(
-                contribution_type__slug__in=['builder-welcome', 'validator-waitlist']
+                contribution_type__slug__in=['builder-welcome', 'builder', 'validator-waitlist', 'validator']
             )
             contribution_count = all_contributions.count()
             new_contributions_count = all_contributions.filter(
                 created_at__gte=last_month
             ).count()
 
-            total_points = Contribution.objects.aggregate(
+            # Total / new points also exclude welcome/waitlist auto-awards.
+            total_points = all_contributions.aggregate(
                 total=Sum('frozen_global_points')
             )['total'] or 0
 
-            new_points_count = Contribution.objects.filter(
+            new_points_count = all_contributions.filter(
                 created_at__gte=last_month
             ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
 
@@ -282,9 +288,21 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             ).count()
 
         # Category-specific counts (always included)
-        builder_count = LeaderboardEntry.objects.filter(
-            type='builder', user__visible=True
-        ).count()
+        # Builders count only users who have a Builder profile AND at least one
+        # accepted contribution that is not a welcome/waitlist auto-award, so the
+        # number reflects active builder participation rather than journey starts.
+        from builders.models import Builder
+        builder_user_ids = Builder.objects.filter(
+            user__visible=True
+        ).values_list('user_id', flat=True)
+        builder_count = (
+            Contribution.objects
+            .filter(user_id__in=builder_user_ids)
+            .exclude(contribution_type__slug__in=['builder-welcome', 'builder'])
+            .values('user_id')
+            .distinct()
+            .count()
+        )
         validator_count = LeaderboardEntry.objects.filter(
             type='validator', user__visible=True
         ).count()

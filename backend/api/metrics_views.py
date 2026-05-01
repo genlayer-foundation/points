@@ -1,11 +1,18 @@
+import logging
+import os
+
+import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.core.cache import cache
 from django.db.models import Count, Q, Min
 from django.utils import timezone
 from datetime import timedelta
 from contributions.models import Contribution, ContributionType
 from users.models import User
+
+logger = logging.getLogger(__name__)
 
 
 class ActiveValidatorsView(APIView):
@@ -156,11 +163,16 @@ class ParticipantsGrowthView(APIView):
     Get time series data for validators, waitlist users, and builders growth over time.
     Totals are deduplicated across cohorts so users present in multiple roles
     are only counted once in the overall participant total.
+
+    A "builder" is counted from the date of their first non-welcome accepted
+    contribution. Users with a Builder profile but no real contribution yet
+    are excluded so the metric reflects active builder participation.
     """
+
+    EXCLUDED_BUILDER_SLUGS = ('builder-welcome', 'builder')
 
     def get(self, request):
         from django.db.models import Min
-        from django.db.models.functions import TruncDate
         from datetime import date, timedelta
         from collections import defaultdict
         from validators.models import Validator
@@ -188,9 +200,22 @@ class ParticipantsGrowthView(APIView):
         except ContributionType.DoesNotExist:
             pass
 
+        # Builders are users with a Builder profile AND at least one accepted
+        # contribution that is not a welcome/waitlist auto-award. We use the
+        # first qualifying contribution date so historical points reflect when
+        # the user actually became an active builder.
         builders_by_date = defaultdict(set)
-        for builder in Builder.objects.values('user_id', 'created_at'):
-            builders_by_date[builder['created_at'].date()].add(builder['user_id'])
+        builder_user_ids = set(Builder.objects.values_list('user_id', flat=True))
+        if builder_user_ids:
+            qualifying_contributions = (
+                Contribution.objects
+                .filter(user_id__in=builder_user_ids)
+                .exclude(contribution_type__slug__in=self.EXCLUDED_BUILDER_SLUGS)
+                .values('user_id')
+                .annotate(first_contribution=Min('contribution_date'))
+            )
+            for entry in qualifying_contributions:
+                builders_by_date[entry['first_contribution'].date()].add(entry['user_id'])
 
         # Find date range across all sources
         all_dates = set(validators_by_date.keys()) | set(waitlist_by_date.keys()) | set(builders_by_date.keys())
@@ -233,3 +258,115 @@ class ParticipantsGrowthView(APIView):
             current_date += timedelta(days=1)
 
         return Response({'data': data})
+
+
+class TestnetMetricsView(APIView):
+    """
+    Server-side proxy for the public testnet explorer API.
+
+    Each testnet exposes a Nuxt-fronted explorer that proxies GenScan's
+    /api/v1/* endpoints. Browsers can't fetch those directly because the
+    explorer hosts don't serve CORS headers, so we proxy from Django and
+    cache the aggregate KPIs for a short window.
+    """
+
+    EXPLORER_BASE_URLS = {
+        'asimov': os.environ.get('ASIMOV_EXPLORER_API_URL', 'https://explorer-asimov.genlayer.com'),
+        'bradbury': os.environ.get('BRADBURY_EXPLORER_API_URL', 'https://explorer-bradbury.genlayer.com'),
+    }
+    GEN_DECIMALS = 18
+    CACHE_TTL_SECONDS = 60
+    HTTP_TIMEOUT_SECONDS = 10
+
+    def get(self, request):
+        network = request.query_params.get('network', '').lower()
+        base_url = self.EXPLORER_BASE_URLS.get(network)
+        if not base_url:
+            return Response(
+                {'error': f"Unknown network '{network}'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cache_key = f'testnet_metrics:{network}'
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
+        now = int(timezone.now().timestamp())
+        seven_days_ago = now - 7 * 86400
+        one_day_ago = now - 86400
+
+        try:
+            general = requests.get(
+                f'{base_url}/api/v1/analytics/general-kpis',
+                timeout=self.HTTP_TIMEOUT_SECONDS,
+            )
+            history = requests.get(
+                f'{base_url}/api/v1/analytics/kpi-histories',
+                params={
+                    'metric': 'total_finalized_transactions',
+                    'interval': 'D1',
+                    'from_timestamp': seven_days_ago,
+                    'to_timestamp': now,
+                },
+                timeout=self.HTTP_TIMEOUT_SECONDS,
+            )
+            tps = requests.get(
+                f'{base_url}/api/v1/analytics/relative-kpis',
+                params={'from_timestamp': one_day_ago, 'to_timestamp': now},
+                timeout=self.HTTP_TIMEOUT_SECONDS,
+            )
+        except requests.RequestException as exc:
+            logger.warning('Testnet metrics fetch failed for %s: %s', network, exc)
+            return Response(
+                {'error': f'Upstream request failed: {exc}'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        for label, response in (('general-kpis', general), ('kpi-histories', history), ('relative-kpis', tps)):
+            if not response.ok:
+                logger.warning('Testnet %s upstream %s returned %s', network, label, response.status_code)
+                return Response(
+                    {'error': f'Upstream {label} returned {response.status_code}'},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+
+        general_data = general.json() or {}
+        history_data = history.json()
+        tps_data = tps.json() or {}
+
+        if isinstance(history_data, list):
+            buckets = history_data
+        elif isinstance(history_data, dict):
+            buckets = history_data.get('histories') or history_data.get('data') or history_data.get('buckets') or []
+        else:
+            buckets = []
+
+        decisions_7d = 0
+        for point in buckets:
+            if not isinstance(point, dict):
+                continue
+            raw_value = point.get('value') if point.get('value') is not None else point.get('count', 0)
+            try:
+                decisions_7d += int(float(raw_value or 0))
+            except (TypeError, ValueError):
+                continue
+
+        try:
+            staked_raw = int(general_data.get('total_gen_staked') or 0)
+        except (TypeError, ValueError):
+            staked_raw = 0
+        gen_staked = staked_raw // (10 ** self.GEN_DECIMALS) if staked_raw else 0
+
+        result = {
+            'decisions7d': decisions_7d,
+            'decisionsAllTime': int(general_data.get('total_finalized_transactions') or 0),
+            'chainTxAllTime': int(general_data.get('total_rollup_transactions') or 0),
+            'contractsAllTime': int(general_data.get('total_contracts') or 0),
+            'validators': int(general_data.get('total_validators') or 0),
+            'genStaked': gen_staked,
+            'avgTps': float(tps_data.get('avg_tps') or 0),
+        }
+
+        cache.set(cache_key, result, self.CACHE_TTL_SECONDS)
+        return Response(result)
