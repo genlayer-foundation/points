@@ -1,5 +1,4 @@
 import logging
-import os
 
 import requests
 from rest_framework.views import APIView
@@ -170,6 +169,7 @@ class ParticipantsGrowthView(APIView):
     """
 
     EXCLUDED_BUILDER_SLUGS = ('builder-welcome', 'builder')
+    EXCLUDED_VALIDATOR_SLUGS = ('validator-waitlist', 'validator')
 
     def get(self, request):
         from django.db.models import Min
@@ -178,10 +178,22 @@ class ParticipantsGrowthView(APIView):
         from validators.models import Validator
         from builders.models import Builder
 
-        # Track new unique users entering each cohort on a given day.
+        # Validators are users with a Validator profile AND at least one accepted
+        # contribution that is not a journey/waitlist auto-award. Mirrors the
+        # builder rule so the validator line counts active validators rather
+        # than waitlist participants who got promoted later.
         validators_by_date = defaultdict(set)
-        for validator in Validator.objects.values('user_id', 'created_at'):
-            validators_by_date[validator['created_at'].date()].add(validator['user_id'])
+        validator_user_ids = set(Validator.objects.values_list('user_id', flat=True))
+        if validator_user_ids:
+            qualifying_validator_contributions = (
+                Contribution.objects
+                .filter(user_id__in=validator_user_ids)
+                .exclude(contribution_type__slug__in=self.EXCLUDED_VALIDATOR_SLUGS)
+                .values('user_id')
+                .annotate(first_contribution=Min('contribution_date'))
+            )
+            for entry in qualifying_validator_contributions:
+                validators_by_date[entry['first_contribution'].date()].add(entry['user_id'])
 
         # Use first waitlist contribution per user so repeat submissions do not inflate counts.
         waitlist_by_date = defaultdict(set)
@@ -271,8 +283,8 @@ class TestnetMetricsView(APIView):
     """
 
     EXPLORER_BASE_URLS = {
-        'asimov': os.environ.get('ASIMOV_EXPLORER_API_URL', 'https://explorer-asimov.genlayer.com'),
-        'bradbury': os.environ.get('BRADBURY_EXPLORER_API_URL', 'https://explorer-bradbury.genlayer.com'),
+        'asimov': 'https://explorer-asimov.genlayer.com',
+        'bradbury': 'https://explorer-bradbury.genlayer.com',
     }
     GEN_DECIMALS = 18
     CACHE_TTL_SECONDS = 60

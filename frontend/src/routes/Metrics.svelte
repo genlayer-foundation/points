@@ -117,7 +117,7 @@
     { label: 'Avg TPS',            range: 'Last 24 hours', primaryKey: 'avgTps',                                            compact: false }
   ];
 
-  const STUDIO_PULSE_URL = (import.meta.env.VITE_STUDIO_PULSE_URL || 'https://studio-metrics-dashboard.vercel.app').replace(/\/$/, '');
+  const STUDIO_PULSE_URL = 'https://studio-metrics-dashboard.vercel.app';
   const BOILERPLATE_REPO = 'genlayerlabs/genlayer-project-boilerplate';
 
   // Testnet explorers don't return CORS headers, so the browser can't fetch

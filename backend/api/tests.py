@@ -36,6 +36,11 @@ class ParticipantsGrowthViewTests(TestCase):
             slug='builder-submission',
             category=self.builder_category
         )
+        self.validator_real_type = ContributionType.objects.create(
+            name='Uptime',
+            slug='uptime',
+            category=self.validator_category
+        )
 
     def _create_user(self, email, address):
         return User.objects.create_user(
@@ -96,6 +101,23 @@ class ParticipantsGrowthViewTests(TestCase):
                 points=0,
                 frozen_global_points=0,
                 contribution_date=base + timedelta(days=1)
+            ),
+            # Both Validator-profile users need a real (non-waitlist, non-`validator`)
+            # validator-category contribution to qualify under the active-validator
+            # rule applied by ParticipantsGrowthView.
+            Contribution(
+                user=shared_user,
+                contribution_type=self.validator_real_type,
+                points=5,
+                frozen_global_points=5,
+                contribution_date=base + timedelta(days=2)
+            ),
+            Contribution(
+                user=validator_only,
+                contribution_type=self.validator_real_type,
+                points=5,
+                frozen_global_points=5,
+                contribution_date=base + timedelta(days=2)
             ),
         ])
 
