@@ -31,6 +31,7 @@
   import RoleView from "../components/profile/RoleView.svelte";
   import StewardView from "../components/profile/StewardView.svelte";
   import CommunityView from "../components/profile/CommunityView.svelte";
+  import ReferralsView from "../components/profile/ReferralsView.svelte";
   import CTABanner from "../components/shared/CTABanner.svelte";
   import CategoryIcon from "../components/portal/CategoryIcon.svelte";
 
@@ -126,9 +127,18 @@
   let overallPoints = $derived(
     (builderStats?.totalPoints || 0) +
       (validatorStats?.totalPoints || 0) +
+      (communityStats?.totalPoints || 0) +
       (referralPoints?.builder_points || 0) +
       (referralPoints?.validator_points || 0),
   );
+
+  let hasReferralData = $derived(
+    (referralData?.referrals?.length ?? 0) > 0 ||
+      (referralPoints?.builder_points ?? 0) > 0 ||
+      (referralPoints?.validator_points ?? 0) > 0,
+  );
+
+  let showReferralsSection = $derived(isOwnProfile || hasReferralData);
 
   $effect(() => {
     const currentParams = $params;
@@ -901,9 +911,6 @@
         <div id="community-journey-section" class="w-full mb-16 pt-10 border-t border-gray-100 mt-10">
           <CommunityView
             {participant}
-            {referralData}
-            {referralPoints}
-            loading={loadingReferrals}
             {isOwnProfile}
             communityStats={communityStats}
             communityStatsLoading={!communityStatsLoaded}
@@ -912,6 +919,19 @@
             onClaimDiscord={handleClaimDiscord}
             {isClaimingX}
             {isClaimingDiscord}
+          />
+        </div>
+      {/if}
+
+      <!-- Referrals Section -->
+      {#if showReferralsSection}
+        <div id="referrals-section" class="w-full mb-16 pt-10 border-t border-gray-100 mt-10">
+          <ReferralsView
+            {participant}
+            {referralData}
+            {referralPoints}
+            loading={isOwnProfile ? loadingReferrals : loading}
+            {isOwnProfile}
           />
         </div>
       {/if}
