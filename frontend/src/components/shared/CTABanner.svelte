@@ -92,6 +92,7 @@
             }
 
             const userRank = targetEntry.rank;
+            const userPoints = targetEntry.total_points || 0;
             rankLabel = roleLabelMap[eligibleEntryType] || "Overall";
 
             if (userRank <= 1) {
@@ -100,19 +101,32 @@
                 return;
             }
 
-            // Fetch the user one rank above in the same leaderboard
+            // Fetch all users above the current user (capped at 100) so we can
+            // skip anyone tied with the user and find the closest rank with
+            // strictly more points.
+            const fetchLimit = Math.min(userRank - 1, 100);
             const res = await leaderboardAPI.getLeaderboard({
                 type: eligibleEntryType,
-                offset: userRank - 2,
-                limit: 1,
+                offset: Math.max(0, userRank - 1 - fetchLimit),
+                limit: fetchLimit,
             });
             const results = res.data?.results || res.data || [];
-            if (results.length > 0) {
-                const userAbove = results[0];
-                const abovePoints = userAbove.total_points || 0;
-                const userPoints = targetEntry.total_points || 0;
-                pointsToNextRank = Math.max(0, abovePoints - userPoints);
-                nextRank = userRank - 1;
+            // Walk from the rank closest to the user upward until we find a
+            // user with strictly more points.
+            let targetUser = null;
+            for (let i = results.length - 1; i >= 0; i--) {
+                const r = results[i];
+                if ((r.total_points || 0) > userPoints) {
+                    targetUser = r;
+                    break;
+                }
+            }
+            if (targetUser) {
+                pointsToNextRank = Math.max(
+                    0,
+                    (targetUser.total_points || 0) - userPoints,
+                );
+                nextRank = targetUser.rank;
             }
         } catch (err) {
             // Silently fail - banner will show without rank info
@@ -169,7 +183,7 @@
                             class="text-[#dcdcdc] text-[13px] font-medium tracking-[0.2px]"
                         >
                             {#if isTopRank}
-                                You're #1!
+                                You lead the {rankLabel} ranks!
                             {:else if pointsToNextRank !== null}
                                 {pointsToNextRank} Points to {rankLabel} Rank #{nextRank}
                             {:else}
@@ -300,7 +314,7 @@
                                 style="letter-spacing: 0.24px;"
                             >
                                 {#if isTopRank}
-                                    You're #1!
+                                    You lead the {rankLabel} ranks!
                                 {:else if pointsToNextRank !== null}
                                     {pointsToNextRank} Points to {rankLabel} Rank #{nextRank}
                                 {:else}

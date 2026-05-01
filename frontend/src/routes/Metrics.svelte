@@ -22,15 +22,6 @@
       track: 'bg-orange-100',
       bar: 'bg-orange-500'
     },
-    waitlist: {
-      border: 'rgb(14, 165, 233)',
-      fillTop: 'rgba(14, 165, 233, 0.20)',
-      fillBottom: 'rgba(14, 165, 233, 0.03)',
-      surface: 'from-sky-50 via-white to-sky-50/40',
-      text: 'text-sky-600',
-      track: 'bg-sky-100',
-      bar: 'bg-sky-500'
-    },
     validators: {
       border: 'rgb(37, 99, 235)',
       fillTop: 'rgba(37, 99, 235, 0.14)',
@@ -41,6 +32,98 @@
       bar: 'bg-blue-600'
     }
   };
+
+  const ecosystemPalette = {
+    studio: {
+      label: 'Studio',
+      source: 'via Studio Pulse',
+      surface: 'from-violet-50 via-white to-violet-50/40',
+      text: 'text-violet-700',
+      chip: 'bg-violet-100 text-violet-700',
+      dot: 'bg-violet-500'
+    },
+    asimov: {
+      label: 'Asimov',
+      source: 'via GenScan',
+      surface: 'from-sky-50 via-white to-sky-50/40',
+      text: 'text-sky-700',
+      chip: 'bg-sky-100 text-sky-700',
+      dot: 'bg-sky-500'
+    },
+    bradbury: {
+      label: 'Bradbury',
+      source: 'via GenScan',
+      surface: 'from-emerald-50 via-white to-emerald-50/40',
+      text: 'text-emerald-700',
+      chip: 'bg-emerald-100 text-emerald-700',
+      dot: 'bg-emerald-500'
+    },
+    repository: {
+      label: 'Repositories',
+      source: 'via star-history.com',
+      dot: 'bg-amber-500'
+    },
+    discord: {
+      label: 'Discord',
+      source: 'via Discord',
+      surface: 'from-indigo-50 via-white to-indigo-50/40',
+      text: 'text-indigo-700',
+      dot: 'bg-indigo-500'
+    },
+    x: {
+      label: 'X',
+      source: 'via X',
+      surface: 'from-slate-50 via-white to-slate-50/40',
+      text: 'text-slate-900',
+      dot: 'bg-slate-900'
+    }
+  };
+
+  // Static social channel KPIs — refreshed manually until a live source is wired.
+  const DISCORD_KPIS = [
+    { label: 'Members', value: '86,319' },
+    { label: 'MAU',     value: '44%'    },
+    { label: 'DAU',     value: '30%'    }
+  ];
+
+  const X_KPIS = [
+    { label: 'Followers',   value: '75.1K' },
+    { label: 'Impressions', value: '432.4K', range: 'April' }
+  ];
+
+  const DISCORD_URL = 'https://discord.gg/A6jpkqrb';
+  const DISCORD_HANDLE = 'discord.gg/A6jpkqrb';
+  const X_URL = 'https://x.com/GenLayer';
+  const X_HANDLE = '@GenLayer';
+
+  const ONCHAIN_KPI_DEFS = [
+    { label: 'Decisions',           range: 'Last 7 days', primaryKey: 'decisions7d',         secondaryKey: 'decisionsAllTime',         compact: true  },
+    { label: 'Chain transactions',  range: 'Last 7 days', primaryKey: 'chainTx7d',           secondaryKey: 'chainTxAllTime',           compact: true  },
+    { label: 'Deployed contracts',  range: 'Last 7 days', primaryKey: 'deployedContracts7d', secondaryKey: 'deployedContractsAllTime', compact: false },
+    { label: 'Active contracts',                          primaryKey: 'activeContracts',                                               compact: false },
+    { label: 'Monthly active users',                      primaryKey: 'mau',                                                           compact: false },
+    { label: 'Daily active users',                        primaryKey: 'dau',                                                           compact: false }
+  ];
+
+  // GenScan exposes 7d for finalizations only — chain tx and contract counts
+  // are all-time. The remaining cards (validators, stake, TPS) are testnet-
+  // specific signals that don't have Studio equivalents.
+  const TESTNET_KPI_DEFS = [
+    { label: 'Decisions',          range: 'Last 7 days',  primaryKey: 'decisions7d',     secondaryKey: 'decisionsAllTime', compact: true  },
+    { label: 'Chain transactions',                        primaryKey: 'chainTxAllTime',                                    compact: true  },
+    { label: 'Contracts',                                 primaryKey: 'contractsAllTime',                                  compact: false },
+    { label: 'Validators',                                primaryKey: 'validators',                                        compact: false },
+    { label: 'GEN staked',                                primaryKey: 'genStaked',                                         compact: true  },
+    { label: 'Avg TPS',            range: 'Last 24 hours', primaryKey: 'avgTps',                                            compact: false }
+  ];
+
+  const STUDIO_PULSE_URL = 'https://studio-metrics-dashboard.vercel.app';
+  const BOILERPLATE_REPO = 'genlayerlabs/genlayer-project-boilerplate';
+
+  // Testnet explorers don't return CORS headers, so the browser can't fetch
+  // them directly. Django proxies and caches the aggregated KPIs at
+  // /api/v1/metrics/testnet-kpis/?network=<asimov|bradbury>.
+  const TESTNET_NETWORKS = ['asimov', 'bradbury'];
 
   const reviewPalette = {
     ingress: {
@@ -82,8 +165,7 @@
     date: '',
     builders: 0,
     total: 0,
-    validators: 0,
-    waitlist: 0
+    validators: 0
   };
 
   let participantsChart;
@@ -110,6 +192,30 @@
   let submissionEndDate = $state('');
   let selectedCategory = $state('');
   let selectedContributionType = $state('');
+
+  let studioMetrics = $state(null);
+  let studioLoading = $state(true);
+  let studioError = $state(null);
+
+  let asimovMetrics = $state(null);
+  let asimovLoading = $state(true);
+  let asimovError = $state(null);
+
+  let bradburyMetrics = $state(null);
+  let bradburyLoading = $state(true);
+  let bradburyError = $state(null);
+
+  let repoMetrics = $state(null);
+  let repoLoading = $state(true);
+  let repoError = $state(null);
+
+  let activeTab = $state('portal');
+
+  const TABS = [
+    { id: 'portal',    label: 'Portal',    dot: 'bg-orange-500' },
+    { id: 'networks',  label: 'Networks',  dot: 'bg-blue-500'   },
+    { id: 'community', label: 'Community', dot: 'bg-purple-500' }
+  ];
 
   let availableCategories = $derived.by(() =>
     Array.from(
@@ -175,6 +281,10 @@
 
   onMount(() => {
     fetchMetricsData();
+    fetchStudioMetrics();
+    fetchRepoMetrics();
+    fetchTestnetMetrics('asimov');
+    fetchTestnetMetrics('bradbury');
 
     return () => {
       destroyCharts();
@@ -209,6 +319,102 @@
     } catch (err) {
       pageError = err.message || 'Failed to load metrics data';
       loading = false;
+    }
+  }
+
+  async function fetchStudioMetrics() {
+    try {
+      studioLoading = true;
+      studioError = null;
+
+      const response = await fetch(`${STUDIO_PULSE_URL}/api/metrics/executive?range=week`, {
+        headers: { Accept: 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Studio Pulse responded with ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const byId = Object.fromEntries((payload?.metrics || []).map((entry) => [entry.id, entry]));
+
+      studioMetrics = {
+        decisions7d: Number(byId['total-decisions']?.value ?? 0),
+        decisionsAllTime: Number(byId['total-decisions']?.allTimeValue ?? 0),
+        chainTx7d: Number(byId['chain-transactions']?.value ?? 0),
+        chainTxAllTime: Number(byId['chain-transactions']?.allTimeValue ?? 0),
+        deployedContracts7d: Number(byId['deployed-contracts']?.value ?? 0),
+        deployedContractsAllTime: Number(byId['deployed-contracts']?.allTimeValue ?? 0),
+        activeContracts: Number(byId['active-contracts']?.value ?? 0),
+        mau: Number(byId['mau']?.value ?? 0),
+        dau: Number(byId['dau']?.value ?? 0)
+      };
+    } catch (err) {
+      studioError = err.message || 'Failed to load Studio metrics';
+    } finally {
+      studioLoading = false;
+    }
+  }
+
+  function setTestnetState(network, key, value) {
+    if (network === 'asimov') {
+      if (key === 'metrics') asimovMetrics = value;
+      else if (key === 'loading') asimovLoading = value;
+      else if (key === 'error') asimovError = value;
+    } else if (network === 'bradbury') {
+      if (key === 'metrics') bradburyMetrics = value;
+      else if (key === 'loading') bradburyLoading = value;
+      else if (key === 'error') bradburyError = value;
+    }
+  }
+
+  async function fetchTestnetMetrics(network) {
+    if (!TESTNET_NETWORKS.includes(network)) {
+      return;
+    }
+
+    try {
+      setTestnetState(network, 'loading', true);
+      setTestnetState(network, 'error', null);
+
+      const response = await api.get('/metrics/testnet-kpis/', { params: { network } });
+      setTestnetState(network, 'metrics', response.data);
+    } catch (err) {
+      const detail = err.response?.data?.error || err.message || `Failed to load ${network} metrics`;
+      setTestnetState(network, 'error', detail);
+    } finally {
+      setTestnetState(network, 'loading', false);
+    }
+  }
+
+  async function fetchRepoMetrics() {
+    try {
+      repoLoading = true;
+      repoError = null;
+
+      const response = await fetch(`https://api.github.com/repos/${BOILERPLATE_REPO}`, {
+        headers: { Accept: 'application/vnd.github+json' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`GitHub responded with ${response.status}`);
+      }
+
+      const payload = await response.json();
+
+      repoMetrics = {
+        boilerplate: {
+          name: payload.name,
+          fullName: payload.full_name,
+          stars: Number(payload.stargazers_count ?? 0),
+          forks: Number(payload.forks_count ?? 0),
+          url: payload.html_url
+        }
+      };
+    } catch (err) {
+      repoError = err.message || 'Failed to load repository metrics';
+    } finally {
+      repoLoading = false;
     }
   }
 
@@ -373,24 +579,7 @@
             pointRadius: 0,
             pointHoverRadius: 4,
             tension: 0.24,
-            yAxisID: 'y'
-          },
-          {
-            label: 'Validator waitlist',
-            data: participantsData.map((point) => point.waitlist),
-            borderColor: participantPalette.waitlist.border,
-            backgroundColor: createGradient(
-              ctx,
-              height,
-              participantPalette.waitlist.fillTop,
-              participantPalette.waitlist.fillBottom
-            ),
-            borderWidth: 2.5,
-            fill: true,
-            pointRadius: 0,
-            pointHoverRadius: 4,
-            tension: 0.24,
-            yAxisID: 'y'
+            yAxisID: 'yBuilders'
           },
           {
             label: 'Validators',
@@ -402,13 +591,12 @@
               participantPalette.validators.fillTop,
               participantPalette.validators.fillBottom
             ),
-            borderWidth: 2,
-            borderDash: [6, 3],
+            borderWidth: 2.5,
             fill: true,
             pointRadius: 0,
             pointHoverRadius: 4,
             tension: 0.24,
-            yAxisID: 'y1'
+            yAxisID: 'yValidators'
           }
         ]
       },
@@ -463,40 +651,39 @@
               maxTicksLimit: 8
             }
           },
-          y: {
+          yBuilders: {
             type: 'linear',
             position: 'left',
             beginAtZero: true,
             title: {
               display: true,
-              text: 'Builders / Waitlist',
-              color: '#64748b',
+              text: 'Builders',
+              color: participantPalette.builders.border,
               font: { size: 11 }
             },
             grid: {
               color: 'rgba(148, 163, 184, 0.12)'
             },
             ticks: {
-              color: '#64748b',
+              color: participantPalette.builders.border,
               callback: (value) => formatNumber(value)
             }
           },
-          y1: {
+          yValidators: {
             type: 'linear',
             position: 'right',
             beginAtZero: true,
-            max: Math.round((participantsData[participantsData.length - 1]?.validators || 10) * 1.5 / 10) * 10,
             title: {
               display: true,
               text: 'Validators',
-              color: 'rgb(37, 99, 235)',
+              color: participantPalette.validators.border,
               font: { size: 11 }
             },
             grid: {
               drawOnChartArea: false
             },
             ticks: {
-              color: 'rgb(37, 99, 235)',
+              color: participantPalette.validators.border,
               callback: (value) => formatNumber(value)
             }
           }
@@ -852,106 +1039,297 @@
     return Number(value || 0).toLocaleString('en-US');
   }
 
+  function formatCompact(value) {
+    const number = Number(value || 0);
+    if (Math.abs(number) < 10000) {
+      return formatNumber(number);
+    }
+    return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(number);
+  }
+
   function formatPercent(value) {
     return `${Number(value || 0).toFixed(1)}%`;
   }
 </script>
 
 <div class="mx-auto max-w-[1480px] px-4 py-8 lg:px-6">
-  <div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+  <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <p class="mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Portal Metrics</p>
       <h1 class="text-3xl font-semibold tracking-tight text-slate-900">Metrics Dashboard</h1>
-      <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-        Participant counts are shown as all-time footprint. Submission filters are isolated below so the scope of
-        each graph is explicit.
-      </p>
     </div>
+    <nav>
+      <ul class="flex flex-wrap gap-2">
+        {#each TABS as tab (tab.id)}
+          <li>
+            <button
+              type="button"
+              onclick={() => (activeTab = tab.id)}
+              class="flex items-center gap-3 whitespace-nowrap rounded-full px-5 py-3 text-sm font-medium transition {activeTab === tab.id
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}"
+            >
+              <span class="h-2 w-2 rounded-full {tab.dot}"></span>
+              {tab.label}
+            </button>
+          </li>
+        {/each}
+      </ul>
+    </nav>
   </div>
 
-  {#if loading}
-    <div class="flex h-72 items-center justify-center rounded-[28px] border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-      <div class="h-12 w-12 animate-spin rounded-full border-b-2 border-sky-500"></div>
-    </div>
-  {:else if pageError}
-    <div class="rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-rose-700 shadow-sm">
+  {#if pageError}
+    <div class="mb-6 rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-rose-700 shadow-sm">
       <span class="font-semibold">Error:</span> {pageError}
     </div>
-  {:else}
-    <section class="mb-10 rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] lg:p-8">
-      <div class="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div class="max-w-3xl">
-          <p class="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Participants Overview</p>
-          <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Participant growth</h2>
-          <p class="mt-2 text-sm leading-6 text-slate-500">
-            Builders and waitlist share the left axis; validators use the right axis due to their smaller cohort size.
-            Click a legend label to toggle its visibility.
-          </p>
+  {/if}
+
+  {#snippet kpiStrip(palette, defs, metrics, isLoading, isError)}
+      <div class="rounded-[24px] border border-slate-200 bg-slate-50/60 p-5 sm:p-6">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <span class="h-2.5 w-2.5 rounded-full {palette.dot}"></span>
+            <h3 class="text-base font-semibold text-slate-900">{palette.label}</h3>
+            {#if !metrics && !isLoading && !isError}
+              <span class="rounded-full {palette.chip} px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]">Coming soon</span>
+            {/if}
+          </div>
+          <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{palette.source}</p>
         </div>
-        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          Snapshot date: <span class="font-semibold text-slate-900">{formatDate(latestParticipantsSnapshot.date)}</span>
+
+        {#if isLoading}
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+            {#each defs as _, i (i)}
+              <div class="h-[112px] animate-pulse rounded-2xl border border-slate-200 bg-white"></div>
+            {/each}
+          </div>
+        {:else if isError}
+          <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <span class="font-semibold">Unavailable:</span> {isError}
+          </div>
+        {:else}
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+            {#each defs as def (def.primaryKey)}
+              <div class="flex flex-col rounded-2xl border border-slate-200 bg-gradient-to-br {palette.surface} p-4">
+                <p class="text-xs font-medium text-slate-600">{def.label}</p>
+                {#if def.range}
+                  <p class="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{def.range}</p>
+                {/if}
+                <p class="mt-2 text-2xl font-semibold {metrics ? palette.text : 'text-slate-300'}">
+                  {#if metrics}
+                    {def.compact ? formatCompact(metrics[def.primaryKey]) : formatNumber(metrics[def.primaryKey])}
+                  {:else}
+                    —
+                  {/if}
+                </p>
+                {#if def.secondaryKey}
+                  <p class="mt-1 text-[11px] text-slate-400">
+                    {#if metrics}
+                      {def.compact ? formatCompact(metrics[def.secondaryKey]) : formatNumber(metrics[def.secondaryKey])} all time
+                    {:else}
+                      — all time
+                    {/if}
+                  </p>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/snippet}
+
+    <div>
+      <div class="min-w-0">
+
+    <section class:hidden={activeTab !== 'community'} class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] lg:p-8">
+      <div class="mb-6">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Community</p>
+        <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Open source and channels</h2>
+      </div>
+
+      <div class="space-y-4">
+        <div class="rounded-[24px] border border-slate-200 bg-slate-50/60 p-5 sm:p-6">
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="h-2.5 w-2.5 rounded-full {ecosystemPalette.repository.dot}"></span>
+              <h3 class="text-base font-semibold text-slate-900">{ecosystemPalette.repository.label}</h3>
+              {#if repoMetrics?.boilerplate}
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700">
+                  <span aria-hidden="true">★</span>
+                  {formatNumber(repoMetrics.boilerplate.stars)}
+                </span>
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700">
+                  <svg viewBox="0 0 16 16" aria-hidden="true" class="h-3.5 w-3.5" fill="currentColor">
+                    <path d="M5 3.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm0 2.122a2.25 2.25 0 1 0-1.5 0v.878A2.25 2.25 0 0 0 5.75 8.5h1.5v2.128a2.251 2.251 0 1 0 1.5 0V8.5h1.5a2.25 2.25 0 0 0 2.25-2.25v-.878a2.25 2.25 0 1 0-1.5 0v.878a.75.75 0 0 1-.75.75h-4.5A.75.75 0 0 1 5 6.25v-.878Zm3.75 7.378a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm3-8.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"/>
+                  </svg>
+                  {formatNumber(repoMetrics.boilerplate.forks)}
+                </span>
+                <a
+                  href={repoMetrics.boilerplate.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-sm font-medium text-slate-600 underline-offset-4 hover:text-amber-700 hover:underline"
+                >
+                  {repoMetrics.boilerplate.fullName} ↗
+                </a>
+              {/if}
+            </div>
+            <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{ecosystemPalette.repository.source}</p>
+          </div>
+
+          {#if repoLoading}
+            <div class="h-[320px] animate-pulse rounded-[20px] border border-slate-200 bg-white"></div>
+          {:else if repoError}
+            <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <span class="font-semibold">Unavailable:</span> {repoError}
+            </div>
+          {:else if repoMetrics?.boilerplate}
+            <div class="flex items-center justify-center rounded-[20px] border border-slate-200 bg-white p-3">
+              <img
+                src={`https://api.star-history.com/svg?repos=${BOILERPLATE_REPO}&type=Date`}
+                alt={`Star history for ${BOILERPLATE_REPO}`}
+                loading="lazy"
+                class="block h-auto max-h-[320px] w-auto max-w-full"
+              />
+            </div>
+          {/if}
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-5">
+          <div class="rounded-[24px] border border-slate-200 bg-slate-50/60 p-5 sm:p-6 lg:col-span-3">
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="h-2.5 w-2.5 rounded-full {ecosystemPalette.discord.dot}"></span>
+                <h3 class="text-base font-semibold text-slate-900">
+                  <a
+                    href={DISCORD_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="underline-offset-4 hover:text-indigo-700 hover:underline"
+                  >
+                    GenLayer Discord ↗
+                  </a>
+                </h3>
+              </div>
+              <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{ecosystemPalette.discord.source}</p>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              {#each DISCORD_KPIS as kpi (kpi.label)}
+                <div class="flex flex-col rounded-2xl border border-slate-200 bg-gradient-to-br {ecosystemPalette.discord.surface} p-4">
+                  <p class="text-xs font-medium text-slate-600">{kpi.label}</p>
+                  <p class="mt-2 text-2xl font-semibold {ecosystemPalette.discord.text}">{kpi.value}</p>
+                </div>
+              {/each}
+            </div>
+          </div>
+
+          <div class="rounded-[24px] border border-slate-200 bg-slate-50/60 p-5 sm:p-6 lg:col-span-2">
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="h-2.5 w-2.5 rounded-full {ecosystemPalette.x.dot}"></span>
+                <h3 class="text-base font-semibold text-slate-900">
+                  <a
+                    href={X_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="underline-offset-4 hover:text-slate-700 hover:underline"
+                  >
+                    GenLayer X ↗
+                  </a>
+                </h3>
+              </div>
+              <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{ecosystemPalette.x.source}</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              {#each X_KPIS as kpi (kpi.label)}
+                <div class="flex flex-col rounded-2xl border border-slate-200 bg-gradient-to-br {ecosystemPalette.x.surface} p-4">
+                  <p class="text-xs font-medium text-slate-600">{kpi.label}</p>
+                  {#if kpi.range}
+                    <p class="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{kpi.range}</p>
+                  {/if}
+                  <p class="mt-2 text-2xl font-semibold {ecosystemPalette.x.text}">{kpi.value}</p>
+                </div>
+              {/each}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class:hidden={activeTab !== 'networks'} class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] lg:p-8">
+      <div class="mb-6 flex items-end justify-between gap-3">
+        <div>
+          <p class="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Networks</p>
+          <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Studio and testnets</h2>
         </div>
       </div>
 
-      <div class="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {participantPalette.validators.surface} p-5">
-          <p class="text-sm font-medium text-slate-500">Active validators</p>
-          <div class="mt-3 flex items-end justify-between gap-4">
-            <p class="text-3xl font-semibold {participantPalette.validators.text}">
-              {formatNumber(latestParticipantsSnapshot.validators)}
-            </p>
-            <p class="text-xs font-medium text-slate-500">
-              {formatPercent((latestParticipantsSnapshot.validators / (latestParticipantsSnapshot.total || 1)) * 100)}
-              of unique participants
-            </p>
-          </div>
-        </div>
+      <div class="space-y-4">
+        {@render kpiStrip(ecosystemPalette.studio, ONCHAIN_KPI_DEFS, studioMetrics, studioLoading, studioError)}
+        {@render kpiStrip(ecosystemPalette.asimov, TESTNET_KPI_DEFS, asimovMetrics, asimovLoading, asimovError)}
+        {@render kpiStrip(ecosystemPalette.bradbury, TESTNET_KPI_DEFS, bradburyMetrics, bradburyLoading, bradburyError)}
+      </div>
+    </section>
 
-        <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {participantPalette.waitlist.surface} p-5">
-          <p class="text-sm font-medium text-slate-500">Validator waitlist</p>
-          <div class="mt-3 flex items-end justify-between gap-4">
-            <p class="text-3xl font-semibold {participantPalette.waitlist.text}">
-              {formatNumber(latestParticipantsSnapshot.waitlist)}
-            </p>
-            <p class="text-xs font-medium text-slate-500">
-              {formatPercent((latestParticipantsSnapshot.waitlist / (latestParticipantsSnapshot.total || 1)) * 100)}
-              of unique participants
-            </p>
-          </div>
-        </div>
+    <section class:hidden={activeTab !== 'portal'} class="mb-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] lg:p-8">
+      <div class="mb-6">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Portal Participation</p>
+        <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Validators and active builders</h2>
+      </div>
 
-        <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {participantPalette.builders.surface} p-5">
-          <p class="text-sm font-medium text-slate-500">Builders</p>
-          <div class="mt-3 flex items-end justify-between gap-4">
-            <p class="text-3xl font-semibold {participantPalette.builders.text}">
-              {formatNumber(latestParticipantsSnapshot.builders)}
-            </p>
-            <p class="text-xs font-medium text-slate-500">
-              {formatPercent((latestParticipantsSnapshot.builders / (latestParticipantsSnapshot.total || 1)) * 100)}
-              of unique participants
-            </p>
+      <div class="mb-6 grid gap-4 md:grid-cols-3">
+        {#if loading}
+          {#each [0, 1, 2] as _, i (i)}
+            <div class="h-[110px] animate-pulse rounded-[24px] border border-slate-200 bg-slate-50"></div>
+          {/each}
+        {:else}
+          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {participantPalette.validators.surface} p-5">
+            <p class="text-sm font-medium text-slate-500">Validators</p>
+            <div class="mt-3 flex items-end justify-between gap-4">
+              <p class="text-3xl font-semibold {participantPalette.validators.text}">
+                {formatNumber(latestParticipantsSnapshot.validators)}
+              </p>
+              <p class="text-xs font-medium text-slate-500">
+                {formatPercent((latestParticipantsSnapshot.validators / (latestParticipantsSnapshot.total || 1)) * 100)}
+                of unique participants
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50/40 p-5">
-          <p class="text-sm font-medium text-slate-500">Unique participants</p>
-          <div class="mt-3 flex items-end justify-between gap-4">
-            <p class="text-3xl font-semibold text-slate-900">{formatNumber(latestParticipantsSnapshot.total)}</p>
-            <p class="text-xs font-medium text-slate-500">Deduplicated across roles</p>
+          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {participantPalette.builders.surface} p-5">
+            <p class="text-sm font-medium text-slate-500">Builders</p>
+            <div class="mt-3 flex items-end justify-between gap-4">
+              <p class="text-3xl font-semibold {participantPalette.builders.text}">
+                {formatNumber(latestParticipantsSnapshot.builders)}
+              </p>
+              <p class="text-xs font-medium text-slate-500">
+                Contributors
+              </p>
+            </div>
           </div>
-        </div>
+
+          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50/40 p-5">
+            <p class="text-sm font-medium text-slate-500">Unique participants</p>
+            <div class="mt-3 flex items-end justify-between gap-4">
+              <p class="text-3xl font-semibold text-slate-900">{formatNumber(latestParticipantsSnapshot.total)}</p>
+              <p class="text-xs font-medium text-slate-500">Deduplicated across roles</p>
+            </div>
+          </div>
+        {/if}
       </div>
 
       <div class="rounded-[28px] border border-slate-200 bg-slate-50/70 p-5 sm:p-6">
         <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h3 class="text-lg font-semibold text-slate-900">Growth trajectory</h3>
-            <p class="mt-1 text-sm text-slate-500">All-time cumulative growth. Left axis: builders & waitlist. Right axis: validators.</p>
+            <p class="mt-1 text-sm text-slate-500">Builders on the left axis, validators on the right.</p>
           </div>
           <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Daily points</p>
         </div>
 
-        {#if participantsData.length > 0}
+        {#if loading}
+          <div class="h-[360px] animate-pulse rounded-2xl border border-slate-200 bg-white"></div>
+        {:else if participantsData.length > 0}
           <div class="h-[360px]">
             <canvas id="participantsChart"></canvas>
           </div>
@@ -963,15 +1341,11 @@
       </div>
     </section>
 
-    <section class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] lg:p-8">
+    <section class:hidden={activeTab !== 'portal'} class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] lg:p-8">
       <div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div class="max-w-3xl">
+        <div>
           <p class="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Submission Analytics</p>
-          <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Filtered review flow and trends</h2>
-          <p class="mt-2 text-sm leading-6 text-slate-500">
-            Category and contribution type filters apply only to this section. The charts below use reviewed outcomes
-            and accepted-contribution points from the submissions endpoint.
-          </p>
+          <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Review flow and trends</h2>
         </div>
 
         {#if submissionsLoading}
@@ -1071,47 +1445,53 @@
       </div>
 
       <div class="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-        <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.ingress.surface} p-5">
-          <p class="text-sm font-medium text-slate-500">New submissions</p>
-          <p class="mt-3 text-3xl font-semibold {reviewPalette.ingress.text}">
-            {formatNumber(submissionsSummary.ingress)}
-          </p>
-          <p class="mt-2 text-xs leading-5 text-slate-500">Submissions created in the selected range.</p>
-        </div>
+        {#if loading}
+          {#each [0, 1, 2, 3, 4] as _, i (i)}
+            <div class="h-[124px] animate-pulse rounded-[24px] border border-slate-200 bg-slate-50"></div>
+          {/each}
+        {:else}
+          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.ingress.surface} p-5">
+            <p class="text-sm font-medium text-slate-500">New submissions</p>
+            <p class="mt-3 text-3xl font-semibold {reviewPalette.ingress.text}">
+              {formatNumber(submissionsSummary.ingress)}
+            </p>
+            <p class="mt-2 text-xs leading-5 text-slate-500">Submissions created in the selected range.</p>
+          </div>
 
-        <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50/40 p-5">
-          <p class="text-sm font-medium text-slate-500">Reviewed</p>
-          <p class="mt-3 text-3xl font-semibold text-slate-900">{formatNumber(submissionsSummary.reviewed)}</p>
-          <p class="mt-2 text-xs leading-5 text-slate-500">Accepted, rejected, and more-info combined.</p>
-        </div>
+          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50/40 p-5">
+            <p class="text-sm font-medium text-slate-500">Reviewed</p>
+            <p class="mt-3 text-3xl font-semibold text-slate-900">{formatNumber(submissionsSummary.reviewed)}</p>
+            <p class="mt-2 text-xs leading-5 text-slate-500">Accepted, rejected, and more-info combined.</p>
+          </div>
 
-        <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.pending.surface} p-5">
-          <p class="text-sm font-medium text-slate-500">Pending review</p>
-          <p class="mt-3 text-3xl font-semibold {reviewPalette.pending.text}">
-            {formatNumber(submissionsSummary.pendingReview)}
-          </p>
-          <p class="mt-2 text-xs leading-5 text-slate-500">Remaining submissions awaiting a decision.</p>
-        </div>
+          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.pending.surface} p-5">
+            <p class="text-sm font-medium text-slate-500">Pending review</p>
+            <p class="mt-3 text-3xl font-semibold {reviewPalette.pending.text}">
+              {formatNumber(submissionsSummary.pendingReview)}
+            </p>
+            <p class="mt-2 text-xs leading-5 text-slate-500">Remaining submissions awaiting a decision.</p>
+          </div>
 
-        <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.accepted.surface} p-5">
-          <p class="text-sm font-medium text-slate-500">Acceptance rate</p>
-          <p class="mt-3 text-3xl font-semibold {reviewPalette.accepted.text}">
-            {formatPercent(submissionsSummary.acceptanceRate)}
-          </p>
-          <p class="mt-2 text-xs leading-5 text-slate-500">
-            {formatNumber(submissionsSummary.accepted)} accepted of {formatNumber(submissionsSummary.reviewed)} reviewed.
-          </p>
-        </div>
+          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.accepted.surface} p-5">
+            <p class="text-sm font-medium text-slate-500">Acceptance rate</p>
+            <p class="mt-3 text-3xl font-semibold {reviewPalette.accepted.text}">
+              {formatPercent(submissionsSummary.acceptanceRate)}
+            </p>
+            <p class="mt-2 text-xs leading-5 text-slate-500">
+              {formatNumber(submissionsSummary.accepted)} accepted of {formatNumber(submissionsSummary.reviewed)} reviewed.
+            </p>
+          </div>
 
-        <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.points.surface} p-5">
-          <p class="text-sm font-medium text-slate-500">Points awarded</p>
-          <p class="mt-3 text-3xl font-semibold {reviewPalette.points.text}">
-            {formatNumber(submissionsSummary.pointsAwarded)}
-          </p>
-          <p class="mt-2 text-xs leading-5 text-slate-500">
-            Avg. {formatNumber(submissionsSummary.avgPointsPerAccepted)} per accepted.
-          </p>
-        </div>
+          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.points.surface} p-5">
+            <p class="text-sm font-medium text-slate-500">Points awarded</p>
+            <p class="mt-3 text-3xl font-semibold {reviewPalette.points.text}">
+              {formatNumber(submissionsSummary.pointsAwarded)}
+            </p>
+            <p class="mt-2 text-xs leading-5 text-slate-500">
+              Avg. {formatNumber(submissionsSummary.avgPointsPerAccepted)} per accepted.
+            </p>
+          </div>
+        {/if}
       </div>
 
       <div class="grid gap-6 xl:grid-cols-2">
@@ -1123,7 +1503,9 @@
             </p>
           </div>
 
-          {#if submissionsData.data?.length > 0}
+          {#if loading}
+            <div class="h-[320px] animate-pulse rounded-2xl border border-slate-200 bg-white"></div>
+          {:else if submissionsData.data?.length > 0}
             <div class="h-[320px]">
               <canvas id="submissionsChart"></canvas>
             </div>
@@ -1142,7 +1524,9 @@
             </p>
           </div>
 
-          {#if submissionsData.data?.length > 0}
+          {#if loading}
+            <div class="h-[320px] animate-pulse rounded-2xl border border-slate-200 bg-white"></div>
+          {:else if submissionsData.data?.length > 0}
             <div class="h-[320px]">
               <canvas id="submissionsTrendChart"></canvas>
             </div>
@@ -1154,5 +1538,7 @@
         </div>
       </div>
     </section>
-  {/if}
+
+      </div>
+    </div>
 </div>

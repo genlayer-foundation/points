@@ -4,7 +4,7 @@ from users.views import UserViewSet
 from contributions.views import ContributionTypeViewSet, ContributionViewSet, EvidenceViewSet, SubmittedContributionViewSet, StewardSubmissionViewSet, MissionViewSet, StartupRequestViewSet, FeaturedContentViewSet, AlertViewSet
 from leaderboard.views import GlobalLeaderboardMultiplierViewSet, LeaderboardViewSet
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
-from .metrics_views import ActiveValidatorsView, ContributionTypesStatsView, ParticipantsGrowthView
+from .metrics_views import ActiveValidatorsView, ContributionTypesStatsView, ParticipantsGrowthView, TestnetMetricsView
 
 # Create a router and register our viewsets with it
 router = DefaultRouter()
@@ -40,6 +40,7 @@ urlpatterns = [
     path('metrics/active-validators/', ActiveValidatorsView.as_view(), name='active-validators'),
     path('metrics/contribution-types/', ContributionTypesStatsView.as_view(), name='contribution-types-stats'),
     path('metrics/participants-growth/', ParticipantsGrowthView.as_view(), name='participants-growth'),
+    path('metrics/testnet-kpis/', TestnetMetricsView.as_view(), name='testnet-kpis'),
 
     # AI review agent endpoints
     path('ai-review/', include('contributions.ai_review.urls')),

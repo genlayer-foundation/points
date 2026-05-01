@@ -352,13 +352,15 @@
     >
       <!-- Banner Image -->
       <div
-        class="h-[200px] relative overflow-hidden bg-gradient-to-r from-purple-600 via-indigo-500 to-sky-400 group flex items-center justify-center"
+        class="h-[200px] relative overflow-hidden group flex items-center justify-center {bannerImageUrl
+          ? ''
+          : 'bg-gradient-to-r from-purple-600 via-indigo-500 to-sky-400'}"
       >
         {#if bannerImageUrl}
           <img
             src={bannerImageUrl}
             alt="Banner"
-            class="w-full h-full object-cover mix-blend-overlay opacity-80"
+            class="w-full h-full object-cover"
           />
         {/if}
         <label
