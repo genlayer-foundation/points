@@ -1277,9 +1277,9 @@
         <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Validators and active builders</h2>
       </div>
 
-      <div class="mb-6 grid gap-4 md:grid-cols-3">
+      <div class="mb-6 grid gap-4 md:grid-cols-2">
         {#if loading}
-          {#each [0, 1, 2] as _, i (i)}
+          {#each [0, 1] as _, i (i)}
             <div class="h-[110px] animate-pulse rounded-[24px] border border-slate-200 bg-slate-50"></div>
           {/each}
         {:else}
@@ -1289,10 +1289,7 @@
               <p class="text-3xl font-semibold {participantPalette.validators.text}">
                 {formatNumber(latestParticipantsSnapshot.validators)}
               </p>
-              <p class="text-xs font-medium text-slate-500">
-                {formatPercent((latestParticipantsSnapshot.validators / (latestParticipantsSnapshot.total || 1)) * 100)}
-                of unique participants
-              </p>
+              <p class="text-xs font-medium text-slate-500">Network operators</p>
             </div>
           </div>
 
@@ -1302,17 +1299,7 @@
               <p class="text-3xl font-semibold {participantPalette.builders.text}">
                 {formatNumber(latestParticipantsSnapshot.builders)}
               </p>
-              <p class="text-xs font-medium text-slate-500">
-                Contributors
-              </p>
-            </div>
-          </div>
-
-          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50/40 p-5">
-            <p class="text-sm font-medium text-slate-500">Unique participants</p>
-            <div class="mt-3 flex items-end justify-between gap-4">
-              <p class="text-3xl font-semibold text-slate-900">{formatNumber(latestParticipantsSnapshot.total)}</p>
-              <p class="text-xs font-medium text-slate-500">Deduplicated across roles</p>
+              <p class="text-xs font-medium text-slate-500">Contributors</p>
             </div>
           </div>
         {/if}

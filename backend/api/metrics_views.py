@@ -163,9 +163,12 @@ class ParticipantsGrowthView(APIView):
     Totals are deduplicated across cohorts so users present in multiple roles
     are only counted once in the overall participant total.
 
-    A "builder" is counted from the date of their first non-welcome accepted
-    contribution. Users with a Builder profile but no real contribution yet
-    are excluded so the metric reflects active builder participation.
+    A "builder" is counted from the date of their first accepted contribution
+    in the `builder` category (excluding the welcome auto-award). The
+    "validator" rule is the parallel: first accepted contribution in the
+    `validator` category, excluding the waitlist auto-award. Both cohorts
+    require `user.visible=True`, matching the Dashboard `/leaderboard/stats/`
+    definitions so the time series and the live counts agree.
     """
 
     EXCLUDED_BUILDER_SLUGS = ('builder-welcome', 'builder')
@@ -178,16 +181,18 @@ class ParticipantsGrowthView(APIView):
         from validators.models import Validator
         from builders.models import Builder
 
-        # Validators are users with a Validator profile AND at least one accepted
-        # contribution that is not a journey/waitlist auto-award. Mirrors the
-        # builder rule so the validator line counts active validators rather
-        # than waitlist participants who got promoted later.
+        # Validators are users with a visible Validator profile AND at least
+        # one accepted contribution in the `validator` category (excluding the
+        # waitlist/auto-award). Mirrors the Dashboard `?type=validator` rule.
         validators_by_date = defaultdict(set)
-        validator_user_ids = set(Validator.objects.values_list('user_id', flat=True))
+        validator_user_ids = set(
+            Validator.objects.filter(user__visible=True).values_list('user_id', flat=True)
+        )
         if validator_user_ids:
             qualifying_validator_contributions = (
                 Contribution.objects
                 .filter(user_id__in=validator_user_ids)
+                .filter(contribution_type__category__slug='validator')
                 .exclude(contribution_type__slug__in=self.EXCLUDED_VALIDATOR_SLUGS)
                 .values('user_id')
                 .annotate(first_contribution=Min('contribution_date'))
@@ -212,16 +217,19 @@ class ParticipantsGrowthView(APIView):
         except ContributionType.DoesNotExist:
             pass
 
-        # Builders are users with a Builder profile AND at least one accepted
-        # contribution that is not a welcome/waitlist auto-award. We use the
-        # first qualifying contribution date so historical points reflect when
-        # the user actually became an active builder.
+        # Builders are users with a visible Builder profile AND at least one
+        # accepted contribution in the `builder` category (excluding the
+        # welcome/auto-award). Mirrors the Dashboard `?type=builder` rule so
+        # this time series matches the live builder count.
         builders_by_date = defaultdict(set)
-        builder_user_ids = set(Builder.objects.values_list('user_id', flat=True))
+        builder_user_ids = set(
+            Builder.objects.filter(user__visible=True).values_list('user_id', flat=True)
+        )
         if builder_user_ids:
             qualifying_contributions = (
                 Contribution.objects
                 .filter(user_id__in=builder_user_ids)
+                .filter(contribution_type__category__slug='builder')
                 .exclude(contribution_type__slug__in=self.EXCLUDED_BUILDER_SLUGS)
                 .values('user_id')
                 .annotate(first_contribution=Min('contribution_date'))
