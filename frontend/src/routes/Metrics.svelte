@@ -252,7 +252,11 @@
     const moreInfoRequested = Number(totals.more_info_requested || 0);
     const pointsAwarded = Number(totals.points_awarded || 0);
     const reviewed = accepted + rejected + moreInfoRequested;
-    const pendingReview = Math.max(0, ingress - reviewed);
+    // Pending review comes from the backend: submissions created in the
+    // selected range that are still in pending state. We can't derive it from
+    // ingress - reviewed because ingress is bucketed by created_at and reviews
+    // by reviewed_at, so they measure disjoint cohorts under any filter.
+    const pendingReview = Number(totals.pending_review || 0);
 
     return {
       accepted,
@@ -1456,7 +1460,7 @@
             <p class="mt-3 text-3xl font-semibold {reviewPalette.pending.text}">
               {formatNumber(submissionsSummary.pendingReview)}
             </p>
-            <p class="mt-2 text-xs leading-5 text-slate-500">Remaining submissions awaiting a decision.</p>
+            <p class="mt-2 text-xs leading-5 text-slate-500">Submissions in this range still awaiting a decision.</p>
           </div>
 
           <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.accepted.surface} p-5">
