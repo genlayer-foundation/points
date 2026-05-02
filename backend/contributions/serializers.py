@@ -883,10 +883,10 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                   'proposed_highlight_title', 'proposed_highlight_description',
                   'proposed_by', 'proposed_at', 'proposed_by_details', 'has_proposal',
                   'proposed_confidence', 'proposed_template', 'proposed_template_name',
-                  'notes_count',
+                  'notes_count', 'is_interesting',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution',
                   'mission']
-        read_only_fields = ['id', 'created_at', 'updated_at', 'proposed_points']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'proposed_points', 'is_interesting']
 
     def get_user_details(self, obj):
         use_light = self.context.get('use_light_serializers', False)

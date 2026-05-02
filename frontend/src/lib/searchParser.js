@@ -18,7 +18,7 @@
  */
 
 const SINGLE_VALUE_TAGS = ['status', 'type', 'category', 'from', 'assigned', 'sort', 'confidence', 'template', 'proposal', 'mission'];
-const MULTI_VALUE_TAGS = ['exclude', 'include', 'has', 'no'];
+const MULTI_VALUE_TAGS = ['exclude', 'include', 'has', 'no', 'is', 'not'];
 const NUMERIC_TAGS = ['min-contributions'];
 
 /**
@@ -114,6 +114,8 @@ export function parseSearch(query) {
     include: [],
     has: [],
     no: [],
+    is: [],
+    not: [],
     minContributions: null,
     sort: null,
     freeText: []

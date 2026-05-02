@@ -26,8 +26,27 @@
     templates = [],
     notes = [],
     notesLoading = false,
-    onAddNote = null
+    onAddNote = null,
+    onToggleInteresting = null
   } = $props();
+
+  let togglingInteresting = $state(false);
+
+  async function handleToggleInteresting(event) {
+    if (!onToggleInteresting) return;
+    const checkbox = event.target;
+    const next = checkbox.checked;
+    togglingInteresting = true;
+    try {
+      await onToggleInteresting(submission.id, next);
+    } catch {
+      // Parent failed to persist; the prop hasn't changed, so resync the DOM
+      // back to the underlying value to undo the browser's optimistic flip.
+      checkbox.checked = submission.is_interesting;
+    } finally {
+      togglingInteresting = false;
+    }
+  }
 
   // Determine which actions this steward can take on this submission
   let canAccept = $derived(
@@ -295,6 +314,21 @@
         </p>
       </div>
       <div class="flex items-center gap-2">
+        {#if !isOwnSubmission && onToggleInteresting}
+          <label
+            class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer select-none transition-colors {submission.is_interesting ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}"
+            title="Mark this submission as internally interesting"
+          >
+            <input
+              type="checkbox"
+              checked={submission.is_interesting}
+              disabled={togglingInteresting}
+              onchange={handleToggleInteresting}
+              class="w-3.5 h-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+            />
+            <span>{submission.is_interesting ? 'Interesting' : 'Mark interesting'}</span>
+          </label>
+        {/if}
         {#if submission.has_proposal}
           <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
             Proposal
