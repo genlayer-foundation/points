@@ -1296,6 +1296,10 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         - rejected: Submissions rejected
         - more_info_requested: Submissions requesting more info
         - points_awarded: Total points from accepted contributions
+
+        The `totals` block also includes `pending_review`: submissions created
+        in the date range that are still in the pending state, respecting the
+        category and contribution_type filters.
         """
         from datetime import datetime, timedelta
         from django.db.models import Min, Max
@@ -1465,13 +1469,25 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 else:
                     current_date = current_date.replace(month=current_date.month + 1)
 
+        # Pending review counts submissions created in the range that are still
+        # in pending state. We can't derive it from `ingress - reviewed` because
+        # ingress is bucketed by created_at while review outcomes are bucketed
+        # by reviewed_at, so the two measure disjoint cohorts and the
+        # subtraction produces nonsense (often clamped to 0) under filters.
+        pending_review = base_qs.filter(
+            state='pending',
+            created_at__date__gte=start_date,
+            created_at__date__lte=end_date
+        ).count()
+
         # Calculate totals for the period
         totals = {
             'ingress': sum(d['ingress'] for d in data),
             'accepted': sum(d['accepted'] for d in data),
             'rejected': sum(d['rejected'] for d in data),
             'more_info_requested': sum(d['more_info_requested'] for d in data),
-            'points_awarded': sum(d['points_awarded'] for d in data)
+            'points_awarded': sum(d['points_awarded'] for d in data),
+            'pending_review': pending_review
         }
 
         return Response({
