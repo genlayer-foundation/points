@@ -416,7 +416,15 @@ class SubmittedContribution(BaseModel):
         on_delete=models.SET_NULL,
         related_name='source_submission'
     )
-    
+
+    # Internal flag for stewards to mark submissions worth revisiting.
+    # Not exposed to submitters; used only for steward filtering.
+    is_interesting = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Internal-only flag stewards can toggle to mark a submission as interesting."
+    )
+
     # Edit tracking
     last_edited_at = models.DateTimeField(null=True, blank=True)
     

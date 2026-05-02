@@ -120,6 +120,13 @@ export function searchToParams(parsed, options = {}) {
     params.has_proposal = false;
   }
 
+  // is:interesting / not:interesting → is_interesting filter
+  if (filters.is && filters.is.includes('interesting')) {
+    params.is_interesting = true;
+  } else if (filters.not && filters.not.includes('interesting')) {
+    params.is_interesting = false;
+  }
+
   // min-contributions
   if (filters.minContributions !== null && filters.minContributions > 0) {
     params.min_accepted_contributions = filters.minContributions;
