@@ -288,6 +288,20 @@
     }
   }
 
+  async function handleToggleInteresting(submissionId, isInteresting) {
+    try {
+      const response = await stewardAPI.toggleInteresting(submissionId, isInteresting);
+      const idx = submissions.findIndex(s => s.id === submissionId);
+      if (idx !== -1) {
+        submissions[idx] = response.data;
+        submissions = [...submissions];
+      }
+    } catch (err) {
+      showError('Failed to update flag: ' + (err.response?.data?.detail || err.message));
+      throw err;
+    }
+  }
+
   async function handleAddNote(submissionId, message) {
     try {
       await stewardAPI.addNote(submissionId, message);
@@ -679,6 +693,7 @@
               notes={submissionNotes[submission.id] || []}
               notesLoading={notesLoading[submission.id] || false}
               onAddNote={handleAddNote}
+              onToggleInteresting={handleToggleInteresting}
             />
           </div>
         </div>

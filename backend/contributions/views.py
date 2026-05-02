@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, filters, status
+from rest_framework import viewsets, permissions, filters, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -827,6 +827,7 @@ class StewardSubmissionFilterSet(FilterSet):
     proposed_action = CharFilter(method='filter_proposed_action')
     proposed_confidence = CharFilter(method='filter_proposed_confidence')
     proposed_template = NumberFilter(method='filter_proposed_template')
+    is_interesting = BooleanFilter(field_name='is_interesting')
     search = CharFilter(method='filter_search')
     category = CharFilter(method='filter_category')
     exclude_category = CharFilter(method='filter_exclude_category')
@@ -1200,15 +1201,17 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         from .models import SubmissionNote
         reviewer_name = request.user.name or request.user.address[:10] + '...'
         pts_str = f" with **{serializer.validated_data.get('points', '')} points**" if action_name == 'accept' else ''
+        reply_text = serializer.validated_data.get('staff_reply', '') or ''
+        reply_str = f"\n\n> {reply_text}" if reply_text and action_name in ('reject', 'more_info') else ''
         SubmissionNote.objects.create(
             submitted_contribution=submission,
             user=request.user,
-            message=f"Reviewed: **{action_name}**{pts_str} by {reviewer_name}",
+            message=f"Reviewed: **{action_name}**{pts_str} by {reviewer_name}{reply_str}",
             is_proposal=False,
             data={
                 'action': action_name,
                 'points': serializer.validated_data.get('points'),
-                'staff_reply': serializer.validated_data.get('staff_reply', ''),
+                'staff_reply': reply_text,
                 'template_id': serializer.validated_data['template_id'].id if serializer.validated_data.get('template_id') else None,
             },
         )
@@ -1529,6 +1532,28 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
 
         submission.assigned_to = steward_user
         submission.save()
+
+        serializer = self.get_serializer(submission)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='toggle-interesting', permission_classes=[IsSteward])
+    def toggle_interesting(self, request, pk=None):
+        """Toggle (or set) the internal `is_interesting` flag on a submission."""
+        submission = self.get_object()
+
+        if 'is_interesting' in request.data:
+            field = serializers.BooleanField()
+            try:
+                submission.is_interesting = field.run_validation(request.data.get('is_interesting'))
+            except serializers.ValidationError as exc:
+                return Response(
+                    {'is_interesting': exc.detail},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            submission.is_interesting = not submission.is_interesting
+
+        submission.save(update_fields=['is_interesting', 'updated_at'])
 
         serializer = self.get_serializer(submission)
         return Response(serializer.data)

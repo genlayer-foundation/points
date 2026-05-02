@@ -201,6 +201,10 @@ export const stewardAPI = {
   // Assign submission to a steward
   assignSubmission: (id, data) => api.post(`/steward-submissions/${id}/assign/`, data),
 
+  // Toggle the internal "interesting" flag on a submission
+  toggleInteresting: (id, isInteresting) =>
+    api.post(`/steward-submissions/${id}/toggle-interesting/`, { is_interesting: isInteresting }),
+
   // Bulk reject multiple submissions
   bulkRejectSubmissions: (submissionIds, staffReply) =>
     api.post('/steward-submissions/bulk-reject/', { submission_ids: submissionIds, staff_reply: staffReply }),

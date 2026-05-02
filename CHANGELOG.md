@@ -4,6 +4,7 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Stewards can now mark submissions as internally interesting from a header checkbox on the submission card and filter the steward queue by that flag with `is:interesting` / `not:interesting` in the search bar; the flag is never exposed to submitters. Requesting more information on a submission also records the staff reply as a quoted block in the submission's internal CRM note next to the action summary (6dfeb10)
 - Metrics dashboard now reports the same Builder and Validator counts as the role dashboards (visible users with a category-matched contribution) and drops the "Unique participants" tile from the Portal Participation strip (b46195c)
 - Profile Ranking widget hides the Community tab and shows community points that match the Community section, the bottom CTA banner skips users tied with the viewer when computing the next rank and greets rank-1 users with a category-aware message, and the Profile Edit banner drops the purple gradient overlay once a banner image is uploaded (d74f7fd)
 - Overview hero banner card now clamps the project title to one line and the description to two lines, with ellipsis on overflow (4368281)
