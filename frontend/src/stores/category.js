@@ -133,6 +133,8 @@ export function detectCategoryFromRoute(path) {
     return 'steward';
   } else if (path.startsWith('/community')) {
     return 'community';
+  } else if (path.startsWith('/ecosystem-partners')) {
+    return 'global';
   }
   return 'global';
 }

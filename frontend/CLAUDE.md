@@ -373,6 +373,9 @@ const routes = {
   '/terms-of-use': TermsOfUse,
   '/privacy-policy': PrivacyPolicy,
 
+  // Discover
+  '/ecosystem-partners': EcosystemPartners,  // Public directory of partners + validators + projects
+
   '*': NotFound
 }
 ```
@@ -398,6 +401,7 @@ const routes = {
   - `statsAPI` - Dashboard statistics
   - `journeyAPI` - Onboarding journeys (startBuilderJourney, startValidatorJourney, completeBuilderJourney, linkXAccount, linkDiscordAccount)
   - `creatorAPI` - Community/creator membership (joinAsCreator)
+  - `partnersAPI` - Ecosystem partners directory (`list`, `get(slug)`)
 
 ### Authentication (`src/lib/auth.js`)
 - **Auth Store**: Svelte store `authState`
@@ -459,6 +463,12 @@ Reusable, data-driven display components that accept data via props. Used on Das
 - **`HackathonWinnersSlider.svelte`** - Horizontal scroll slider for hackathon winners on the home page
   - Displays grand winner, track winners, and honorable mentions with award labels
   - Uses same scroll pattern as FeaturedBuilds
+
+#### Ecosystem Partners Components (`src/components/portal/partners/`)
+- **`PartnerCard.svelte`** - Square card for a partner / validator / project with rounded logo, hover frosted name strip, and category-tinted badge
+  - Props: `item` (normalized `{ id, slug, name, logo_url, href, isExternal, category }`), `showBadge=false`
+  - Partner cards put the logo on a black circle; validator/project cards use a soft-gradient initials fallback when no image is available
+  - Click opens `item.href` (external opens in a new tab; validator profile links navigate in-app)
 
 #### How It Works / Landing Page Components (`src/components/portal/landing-page/`)
 - Used by the `/how-it-works` route (`HowItWorks.svelte`)
