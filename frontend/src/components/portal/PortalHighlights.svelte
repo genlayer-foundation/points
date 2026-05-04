@@ -9,6 +9,12 @@
   let highlights = $state([]);
   let loading = $state(true);
 
+  function getHighlightsPath() {
+    const params = new URLSearchParams({ view: 'highlights' });
+    if (category) params.set('category', category);
+    return `/all-contributions?${params.toString()}`;
+  }
+
   onMount(async () => {
     try {
       const params = {};
@@ -33,7 +39,7 @@
         <p class="text-sm text-[#999]">Outstanding community contributions</p>
       </div>
       <button
-        onclick={() => push('/contributions/highlights')}
+        onclick={() => push(getHighlightsPath())}
         class="text-sm text-[#999] hover:text-black transition-colors"
       >Explore all →</button>
     </div>

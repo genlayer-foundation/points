@@ -214,7 +214,7 @@
       title="Highlighted Contributions"
       subtitle="Latest standout contributions"
       linkText="Explore all"
-      linkPath={isBuilder ? '/builders/contributions/highlights' : '/validators/contributions/highlights'}
+      linkPath={isBuilder ? '/builders/all-contributions?view=highlights' : '/validators/all-contributions?view=highlights'}
     />
     <PortalHighlights
       category={category}

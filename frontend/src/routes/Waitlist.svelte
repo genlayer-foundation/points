@@ -387,7 +387,7 @@
           <h2 class="text-lg font-semibold text-gray-900">Highlighted Contributions</h2>
         </div>
         <button
-          onclick={() => push('/validators/contributions/highlights')}
+          onclick={() => push('/validators/all-contributions?view=highlights')}
           class="text-sm text-gray-500 hover:text-primary-600 transition-colors"
         >
           View all

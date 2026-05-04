@@ -17,7 +17,7 @@
     contributionTypeId = null,
     category = null, // Can be passed in or will use currentCategory
     showViewAll = true,
-    viewAllPath = '/highlights',
+    viewAllPath = '/all-contributions?view=highlights',
     viewAllText = 'View All →',
     showHeader = true,
     cardStyle = 'default', // 'default', 'compact', 'highlight'
