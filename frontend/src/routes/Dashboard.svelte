@@ -212,13 +212,13 @@
   <div>
     <SectionHeader
       title="Highlighted Contributions"
-      subtitle="This month curated builds"
+      subtitle="Latest standout contributions"
       linkText="Explore all"
       linkPath={isBuilder ? '/builders/contributions/highlights' : '/validators/contributions/highlights'}
     />
     <PortalHighlights
       category={category}
-      limit={3}
+      limit={10}
       showHeader={false}
     />
   </div>

@@ -98,7 +98,6 @@
           contributionsAPI.getContributions({
             user_address: contribution.user_details.address,
             page_size: 7,
-            group_consecutive: false,
           }).then(r => {
             const results = r.data?.results || r.data || [];
             userContributions = results.filter(c => c.id !== contribution.id).slice(0, 6);

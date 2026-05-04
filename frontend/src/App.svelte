@@ -70,7 +70,6 @@
   import EditSubmission from './routes/EditSubmission.svelte';
   import Metrics from './routes/Metrics.svelte';
   import ProfileEdit from './routes/ProfileEdit.svelte';
-  import Highlights from './routes/Highlights.svelte';
   import NotFound from './routes/NotFound.svelte';
   import LoaderShowcase from './routes/LoaderShowcase.svelte';
   import StewardDashboard from './routes/StewardDashboard.svelte';
@@ -104,16 +103,16 @@
     '/how-it-works': HowItWorks,
     '/contributions': Contributions,
     '/all-contributions': AllContributions,
-    '/contributions/highlights': Highlights,
-    '/highlights': Highlights,
+    '/contributions/highlights': AllContributions,
+    '/highlights': AllContributions,
     '/leaderboard': Leaderboard,
     '/participants': Validators,
     '/referrals': Referrals,
     '/community': ReferralProgram,
     '/community/contributions': Contributions,
     '/community/all-contributions': AllContributions,
-    '/community/contributions/highlights': Highlights,
-    '/community/highlights': Highlights,
+    '/community/contributions/highlights': AllContributions,
+    '/community/highlights': AllContributions,
     '/community/leaderboard': Community,
     '/community/contribution/:id': ContributionPreview,
     '/hackathon': Hackathon,
@@ -124,8 +123,8 @@
     '/builders': Dashboard,
     '/builders/contributions': Contributions,
     '/builders/all-contributions': AllContributions,
-    '/builders/contributions/highlights': Highlights,
-    '/builders/highlights': Highlights,
+    '/builders/contributions/highlights': AllContributions,
+    '/builders/highlights': AllContributions,
     '/builders/leaderboard': Leaderboard,
 
     '/builders/resources': Resources,
@@ -135,8 +134,8 @@
     '/validators': Dashboard,
     '/validators/contributions': Contributions,
     '/validators/all-contributions': AllContributions,
-    '/validators/contributions/highlights': Highlights,
-    '/validators/highlights': Highlights,
+    '/validators/contributions/highlights': AllContributions,
+    '/validators/highlights': AllContributions,
     '/validators/leaderboard': Leaderboard,
     '/validators/participants': Validators,
     '/validators/waitlist': Waitlist,

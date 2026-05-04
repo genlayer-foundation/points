@@ -49,22 +49,11 @@
     }
   }
   
-  // Check if we have details to show
-  // For grouped contributions, check grouped_items
   let hasDetails = $derived(
-    ((submission?.notes || submission?.evidence_items?.length > 0) ||
-     (contribution?.grouped_items?.some(item => item.notes || item.evidence_items?.length > 0))) &&
-    showExpand
+    (submission?.notes || submission?.evidence_items?.length > 0) && showExpand
   );
 
-  // Get the contribution ID for linking to detail page
-  // For grouped contributions, the id may be "group_123" — extract the real id from grouped data
-  let rawId = $derived(contribution?.id);
-  let contributionId = $derived(
-    (rawId && typeof rawId === 'string' && rawId.startsWith('group_'))
-      ? (contribution?.grouped_contributions?.[0]?.id || contribution?.grouped_items?.[0]?.id)
-      : (rawId || contribution?.grouped_contributions?.[0]?.id || contribution?.grouped_items?.[0]?.id)
-  );
+  let contributionId = $derived(contribution?.id);
 
   function handleCardClick(event) {
     // Don't navigate if clicking on a button, link, or expand toggle
@@ -99,11 +88,6 @@
             {#if missionName}
               <span class="text-xs font-normal text-gray-500">
                 · {typeName}
-              </span>
-            {/if}
-            {#if contribution.count > 1}
-              <span class="text-sm font-normal text-gray-500">
-                × {contribution.count}
               </span>
             {/if}
           </h3>
@@ -177,13 +161,7 @@
             </button>
             <span class="text-gray-400">•</span>
           {/if}
-          <span class="text-gray-500">
-            {#if contribution.count > 1 && contribution.end_date && contribution.end_date !== contribution.contribution_date}
-              {formatDate(contribution.contribution_date)} - {formatDate(contribution.end_date)}
-            {:else}
-              {formatDate(contribution.contribution_date)}
-            {/if}
-          </span>
+          <span class="text-gray-500">{formatDate(contribution.contribution_date)}</span>
         </div>
       </div>
       
@@ -228,59 +206,6 @@
           </div>
         {/if}
 
-        {#if contribution?.grouped_items && contribution.grouped_items.length > 0}
-          {#each contribution.grouped_items as item, index}
-            {#if item.notes || item.evidence_items?.length > 0}
-              <div class="{index > 0 ? 'border-t' : ''} {categoryColors.expandBorder} pt-3 pb-2">
-                {#if contribution.count > 1}
-                  <div class="flex items-center gap-2 mb-2">
-                    <Avatar
-                      user={item.user_details}
-                      size="xs"
-                      clickable={true}
-                    />
-                    <span class="text-xs font-medium text-gray-700">
-                      {item.user_details?.name || item.user_details?.address?.slice(0, 8) || 'Unknown'}
-                    </span>
-                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                      {item.frozen_global_points || 0} pts
-                    </span>
-                  </div>
-                {/if}
-                {#if item.notes}
-                  <div class="mb-2">
-                    <h5 class="text-xs font-medium text-gray-700 mb-1">Notes</h5>
-                    <div class="markdown-content text-xs text-gray-600">{@html parseMarkdown(item.notes)}</div>
-                  </div>
-                {/if}
-                {#if item.evidence_items?.length > 0}
-                  <div>
-                    <h5 class="text-xs font-medium text-gray-700 mb-1">Evidence</h5>
-                    <ul class="space-y-1">
-                      {#each item.evidence_items as evidence}
-                        <li class="text-xs text-gray-600">
-                          {#if evidence.description}
-                            • {evidence.description}
-                          {/if}
-                          {#if evidence.url}
-                            <a href={evidence.url} target="_blank" class="{categoryColors.text} underline ml-1">
-                              View URL
-                            </a>
-                          {/if}
-                          {#if evidence.file_url}
-                            <a href={evidence.file_url} target="_blank" class="{categoryColors.text} underline ml-1">
-                              View File
-                            </a>
-                          {/if}
-                        </li>
-                      {/each}
-                    </ul>
-                  </div>
-                {/if}
-              </div>
-            {/if}
-          {/each}
-        {/if}
       </div>
     {/if}
   </div>

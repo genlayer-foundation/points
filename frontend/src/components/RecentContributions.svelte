@@ -30,12 +30,9 @@
     try {
       loading = true;
 
-      // Build query parameters
       const params = {
         limit,
         ordering: '-created_at',
-        // Don't group if filtering by specific contribution type
-        group_consecutive: !contributionTypeId
       };
 
       if (contributionTypeId) {
@@ -102,6 +99,5 @@
     {error}
     showUser={!userId}
     category={effectiveCategory}
-    disableGrouping={!!contributionTypeId}
   />
 </div>
