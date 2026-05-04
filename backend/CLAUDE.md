@@ -28,6 +28,7 @@ backend/
 ├── contributions/          # Contribution tracking
 ├── leaderboard/           # Leaderboard and rankings
 ├── users/                 # User management and auth
+├── partners/              # Ecosystem partners directory
 ├── utils/                 # Shared utilities
 └── backend/               # Django project settings
 ```
@@ -115,6 +116,18 @@ backend/
   - `/api/v1/validators/me/` - GET/PATCH current validator profile
   - `/api/v1/validators/wallets/` - Read-only validator wallet listing
   - `/api/v1/validators/wallets/sync/` - POST cron-protected background sync trigger with DB-backed lock
+
+### Partners (Ecosystem Partners)
+- **Models**: `partners/models.py`
+  - Partner - Ecosystem partner directory entry with `name`, `slug`, `description`, `logo_url`, `website_url`, optional `url` (deep link), `display_order`, `is_active`. Ordered by `display_order, name`.
+- **Serializers**: `partners/serializers.py`
+  - LightPartnerSerializer - Minimal fields (id, name, slug, logo_url, website_url) for list views
+  - PartnerSerializer - Full fields for detail
+- **Views**: `partners/views.py`
+  - `/api/v1/partners/` - Public read-only list of active partners (search + ordering)
+  - `/api/v1/partners/{slug}/` - Public read-only detail by slug
+- **Migrations**: `partners/migrations/0001_initial.py` creates the model and seeds the 22 founding partners from a `RunPython` step.
+- **Admin**: `partners/admin.py` - list_editable on `display_order`, `is_active`; slug prepopulated from name.
 
 ### Database & Migrations
 - **Migrations**: `{app}/migrations/`
@@ -226,6 +239,10 @@ PUT    /api/v1/ai-review/{id}/propose/     (update existing proposal)
 GET    /api/v1/ai-review/proposed/     (pending AI proposals awaiting steward review)
 GET    /api/v1/ai-review/reviewed/
 GET    /api/v1/ai-review/templates/
+
+# Partners (Ecosystem Partners)
+GET    /api/v1/partners/                   (public, list active partners)
+GET    /api/v1/partners/{slug}/            (public, partner detail)
 ```
 
 ## Environment Variables

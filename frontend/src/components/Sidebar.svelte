@@ -69,6 +69,7 @@
     if (path.startsWith('/validators')) return 'validator';
     if (path.startsWith('/community')) return 'community';
     if (path.startsWith('/stewards')) return 'steward';
+    if (path.startsWith('/ecosystem-partners')) return 'partners';
     return null;
   }
 
@@ -370,6 +371,37 @@
             </a>
           </div>
         {/if}
+      </div>
+
+      <!-- Discover section header -->
+      {#if !collapsed}
+        <div class="pt-2 pb-1 px-3">
+          <span class="text-[12px] font-normal text-[#6b6b6b] tracking-[0.24px]">Discover</span>
+        </div>
+      {:else}
+        <div class="border-t border-gray-100 my-2"></div>
+      {/if}
+
+      <!-- Ecosystem Partners -->
+      <div>
+        <button
+          onclick={() => changeCategory('partners', '/ecosystem-partners')}
+          class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px] {getActiveSection() === 'partners' ? '' : 'hover:bg-[#eeedfb]'}"
+          style={getActiveSection() === 'partners' ? 'background: #eeedfb;' : ''}
+          title={collapsed ? 'Ecosystem Partners' : ''}
+        >
+          <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={getActiveSection() === 'partners' ? '#6D5DD3' : '#1a1a1a'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6" cy="6" r="2.5" />
+            <circle cx="18" cy="6" r="2.5" />
+            <circle cx="12" cy="18" r="2.5" />
+            <line x1="8.2" y1="7" x2="15.8" y2="7" />
+            <line x1="7.4" y1="8.2" x2="11" y2="15.6" />
+            <line x1="16.6" y1="8.2" x2="13" y2="15.6" />
+          </svg>
+          {#if !collapsed}
+            <span>Ecosystem Partners</span>
+          {/if}
+        </button>
       </div>
 
     </nav>
@@ -705,6 +737,28 @@
           </a>
         </div>
       {/if}
+
+      <!-- Discover header (mobile) -->
+      <div class="pt-2 pb-1 px-3">
+        <span class="text-[12px] font-normal text-[#6b6b6b] tracking-[0.24px]">Discover</span>
+      </div>
+
+      <!-- Ecosystem Partners (mobile) -->
+      <button
+        onclick={() => changeCategory('partners', '/ecosystem-partners')}
+        class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px]"
+        style={getActiveSection() === 'partners' ? 'background: #eeedfb;' : ''}
+      >
+        <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={getActiveSection() === 'partners' ? '#6D5DD3' : '#1a1a1a'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="6" cy="6" r="2.5" />
+          <circle cx="18" cy="6" r="2.5" />
+          <circle cx="12" cy="18" r="2.5" />
+          <line x1="8.2" y1="7" x2="15.8" y2="7" />
+          <line x1="7.4" y1="8.2" x2="11" y2="15.6" />
+          <line x1="16.6" y1="8.2" x2="13" y2="15.6" />
+        </svg>
+        <span>Ecosystem Partners</span>
+      </button>
 
     </nav>
   </div>

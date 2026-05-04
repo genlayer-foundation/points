@@ -243,6 +243,13 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                 contribution_type__slug__in=['builder-welcome', 'validator-waitlist']
             )
 
+        # Optionally restrict to contributions whose type is submittable.
+        # Used by the public contributions explorer to hide system-generated
+        # contributions (badges, journey rewards) from non-submittable types.
+        submittable_only = self.request.query_params.get('submittable_only')
+        if submittable_only and submittable_only.lower() == 'true':
+            queryset = queryset.filter(contribution_type__is_submittable=True)
+
         return queryset
 
     def get_serializer_context(self):
@@ -255,132 +262,6 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         # Use full serializers for detail views (action='retrieve')
         context['use_light_serializers'] = self.action == 'list'
         return context
-    
-    def list(self, request, *args, **kwargs):
-        """
-        Override list to optionally group consecutive contributions of the same type.
-        """
-        # Check if grouping is requested
-        group_consecutive = request.query_params.get('group_consecutive', 'false').lower() == 'true'
-
-        if not group_consecutive:
-            # Default behavior - no grouping
-            return super().list(request, *args, **kwargs)
-        
-        # Get the queryset and apply pagination before grouping
-        queryset = self.filter_queryset(self.get_queryset())
-        
-        # Get the total count of actual contributions (not groups)
-        total_contributions_count = queryset.count()
-        
-        # Get pagination parameters
-        page_size = int(request.query_params.get('page_size') or request.query_params.get('limit', 10))
-        page_number = int(request.query_params.get('page', 1))
-
-        # For grouped pagination, we use limit/offset on the RAW contributions
-        # then group them, then slice the result
-        # This is simpler but less efficient - acceptable for reasonable dataset sizes
-        limit_for_fetch = min(page_size * page_number * 5, 500)  # Fetch enough to cover requested page
-
-        all_contributions = list(queryset[:limit_for_fetch])
-        
-        # Group consecutive contributions
-        grouped = []
-        current_group = None
-        total_grouped_count = 0
-        
-        for contrib in all_contributions:
-            serialized = ContributionSerializer(contrib).data
-            type_id = contrib.contribution_type.id
-            has_evidence = bool(serialized.get('evidence_url'))
-
-            # Check if we should add to current group or start new one
-            # Only group if same type and NO evidence
-            if (current_group and
-                current_group['contribution_type']['id'] == type_id and
-                not has_evidence and
-                not current_group.get('has_evidence')):
-                # Add to existing group
-                current_group['grouped_contributions'].append(serialized)
-                current_group['frozen_global_points'] += (serialized.get('frozen_global_points') or 0)
-                current_group['end_date'] = serialized['contribution_date']
-
-                # Add unique user to the set
-                user_details = serialized.get('user_details')
-                if user_details:
-                    user_key = f"{user_details.get('address', '')}|{user_details.get('name', '')}"
-                    if user_key not in current_group['unique_users']:
-                        current_group['unique_users'][user_key] = user_details
-            else:
-                # Start new group
-                if current_group:
-                    # Save previous group
-                    current_group['count'] = len(current_group['grouped_contributions'])
-                    current_group['users'] = list(current_group['unique_users'].values())
-                    del current_group['unique_users']  # Remove the temporary set
-                    current_group.pop('has_evidence', None)  # Remove internal tracking field
-                    grouped.append(current_group)
-                    total_grouped_count += 1
-
-                # Create new group
-                contribution_type_details = ContributionTypeSerializer(contrib.contribution_type).data
-                current_group = {
-                    'id': f"group_{contrib.id}",  # Use first contribution's ID as group ID
-                    'contribution_type': {
-                        'id': type_id,
-                        'name': contrib.contribution_type.name,
-                        'slug': contrib.contribution_type.slug,
-                    },
-                    'contribution_type_details': contribution_type_details,  # Full type details including category
-                    'contribution_type_name': contrib.contribution_type.name,
-                    'title': serialized.get('title', ''),
-                    'grouped_contributions': [serialized],
-                    'frozen_global_points': serialized.get('frozen_global_points') or 0,
-                    'contribution_date': serialized['contribution_date'],  # First date
-                    'end_date': serialized['contribution_date'],  # Will be updated
-                    'unique_users': {},
-                    'user_details': serialized.get('user_details'),  # Primary user (for single-user groups)
-                    'has_evidence': has_evidence,  # Track if this group has evidence
-                }
-                
-                # Add first user
-                user_details = serialized.get('user_details')
-                if user_details:
-                    user_key = f"{user_details.get('address', '')}|{user_details.get('name', '')}"
-                    current_group['unique_users'][user_key] = user_details
-        
-        # Add the last group if exists
-        if current_group:
-            current_group['count'] = len(current_group['grouped_contributions'])
-            # Check if unique_users exists before accessing it
-            if 'unique_users' in current_group:
-                current_group['users'] = list(current_group['unique_users'].values())
-                del current_group['unique_users']
-            else:
-                # Fallback: extract users from grouped contributions
-                current_group['users'] = []
-            # Remove internal tracking field
-            current_group.pop('has_evidence', None)
-            grouped.append(current_group)
-        
-        # Paginate the grouped results
-        start_idx = (page_number - 1) * page_size
-        end_idx = start_idx + page_size
-        paginated_groups = grouped[start_idx:end_idx]
-
-        # Calculate if there's more data
-        # We don't know the total grouped count without fetching everything,
-        # so we check if we got a full page (suggests there might be more)
-        has_next = len(grouped) > end_idx or len(all_contributions) >= limit_for_fetch
-        has_previous = page_number > 1
-
-        # Return paginated response
-        return Response({
-            'count': total_contributions_count,  # Total raw contribution count
-            'next': f"?page={page_number + 1}&limit={page_size}&group_consecutive=true" if has_next else None,
-            'previous': f"?page={page_number - 1}&limit={page_size}&group_consecutive=true" if has_previous else None,
-            'results': paginated_groups
-        })
     
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def highlights(self, request):
@@ -1150,13 +1031,16 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 fresh_user = type(contribution_user).objects.get(pk=contribution_user.pk)
                 update_user_leaderboard_entries(fresh_user)
 
-            # Copy evidence items using bulk_create for better performance
+            # Copy evidence items using bulk_create for better performance.
+            # Preserve url_type so the allow_duplicate exemption applies to
+            # the copied accepted-contribution evidence as well.
             Evidence.objects.bulk_create([
                 Evidence(
                     contribution=contribution,
                     description=evidence.description,
                     url=evidence.url,
-                    file=evidence.file
+                    file=evidence.file,
+                    url_type=evidence.url_type,
                 )
                 for evidence in submission.evidence_items.all()
             ])
@@ -1296,6 +1180,10 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         - rejected: Submissions rejected
         - more_info_requested: Submissions requesting more info
         - points_awarded: Total points from accepted contributions
+
+        The `totals` block also includes `pending_review`: submissions created
+        in the date range that are still in the pending state, respecting the
+        category and contribution_type filters.
         """
         from datetime import datetime, timedelta
         from django.db.models import Min, Max
@@ -1465,13 +1353,25 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 else:
                     current_date = current_date.replace(month=current_date.month + 1)
 
+        # Pending review counts submissions created in the range that are still
+        # in pending state. We can't derive it from `ingress - reviewed` because
+        # ingress is bucketed by created_at while review outcomes are bucketed
+        # by reviewed_at, so the two measure disjoint cohorts and the
+        # subtraction produces nonsense (often clamped to 0) under filters.
+        pending_review = base_qs.filter(
+            state='pending',
+            created_at__date__gte=start_date,
+            created_at__date__lte=end_date
+        ).count()
+
         # Calculate totals for the period
         totals = {
             'ingress': sum(d['ingress'] for d in data),
             'accepted': sum(d['accepted'] for d in data),
             'rejected': sum(d['rejected'] for d in data),
             'more_info_requested': sum(d['more_info_requested'] for d in data),
-            'points_awarded': sum(d['points_awarded'] for d in data)
+            'points_awarded': sum(d['points_awarded'] for d in data),
+            'pending_review': pending_review
         }
 
         return Response({

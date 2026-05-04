@@ -70,7 +70,6 @@
   import EditSubmission from './routes/EditSubmission.svelte';
   import Metrics from './routes/Metrics.svelte';
   import ProfileEdit from './routes/ProfileEdit.svelte';
-  import Highlights from './routes/Highlights.svelte';
   import NotFound from './routes/NotFound.svelte';
   import LoaderShowcase from './routes/LoaderShowcase.svelte';
   import StewardDashboard from './routes/StewardDashboard.svelte';
@@ -82,6 +81,7 @@
 
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
+  import EcosystemPartners from './routes/EcosystemPartners.svelte';
   import Referrals from './routes/Referrals.svelte';
   import Community from './routes/Community.svelte';
   import Hackathon from './routes/Hackathon.svelte';
@@ -104,16 +104,12 @@
     '/how-it-works': HowItWorks,
     '/contributions': Contributions,
     '/all-contributions': AllContributions,
-    '/contributions/highlights': Highlights,
-    '/highlights': Highlights,
     '/leaderboard': Leaderboard,
     '/participants': Validators,
     '/referrals': Referrals,
     '/community': ReferralProgram,
     '/community/contributions': Contributions,
     '/community/all-contributions': AllContributions,
-    '/community/contributions/highlights': Highlights,
-    '/community/highlights': Highlights,
     '/community/leaderboard': Community,
     '/community/contribution/:id': ContributionPreview,
     '/hackathon': Hackathon,
@@ -124,8 +120,6 @@
     '/builders': Dashboard,
     '/builders/contributions': Contributions,
     '/builders/all-contributions': AllContributions,
-    '/builders/contributions/highlights': Highlights,
-    '/builders/highlights': Highlights,
     '/builders/leaderboard': Leaderboard,
 
     '/builders/resources': Resources,
@@ -135,8 +129,6 @@
     '/validators': Dashboard,
     '/validators/contributions': Contributions,
     '/validators/all-contributions': AllContributions,
-    '/validators/contributions/highlights': Highlights,
-    '/validators/highlights': Highlights,
     '/validators/leaderboard': Leaderboard,
     '/validators/participants': Validators,
     '/validators/waitlist': Waitlist,
@@ -165,6 +157,9 @@
     // Legal routes
     '/terms-of-use': TermsOfUse,
     '/privacy-policy': PrivacyPolicy,
+
+    // Ecosystem
+    '/ecosystem-partners': EcosystemPartners,
 
     '*': NotFound
   };

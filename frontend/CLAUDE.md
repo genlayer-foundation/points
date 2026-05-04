@@ -312,17 +312,17 @@ const routes = {
   '/how-it-works': HowItWorks,      // How it works page (WelcomeHero, JourneySection, RoleCards, CTABanner)
   '/asimov': GlobalDashboard,       // Testnet Asimov dashboard
   '/contributions': Contributions,
-  '/all-contributions': AllContributions,
-  '/contributions/highlights': Highlights,
-  '/highlights': Highlights,
+  '/all-contributions': AllContributions,                // Unified contributions explorer
+  '/contributions/highlights': AllContributions,         // → AllContributions with view=highlights
+  '/highlights': AllContributions,                       // → AllContributions with view=highlights
   '/leaderboard': Leaderboard,
   '/participants': Validators,
   '/referrals': Referrals,
   '/community': ReferralProgram,
   '/community/contributions': Contributions,
   '/community/all-contributions': AllContributions,
-  '/community/contributions/highlights': Highlights,
-  '/community/highlights': Highlights,
+  '/community/contributions/highlights': AllContributions,
+  '/community/highlights': AllContributions,
   '/community/leaderboard': Community,
   '/community/contribution/:id': ContributionPreview,
   '/hackathon': Hackathon,
@@ -332,9 +332,9 @@ const routes = {
   // Builders (category-scoped)
   '/builders': Dashboard,
   '/builders/contributions': Contributions,
-  '/builders/all-contributions': AllContributions,
-  '/builders/contributions/highlights': Highlights,
-  '/builders/highlights': Highlights,
+  '/builders/all-contributions': AllContributions,       // Defaults category=builder
+  '/builders/contributions/highlights': AllContributions, // → view=highlights, category=builder
+  '/builders/highlights': AllContributions,
   '/builders/leaderboard': Leaderboard,
   '/builders/startup-requests/:id': StartupRequestDetail,
 
@@ -342,8 +342,8 @@ const routes = {
   '/validators': Dashboard,
   '/validators/contributions': Contributions,
   '/validators/all-contributions': AllContributions,
-  '/validators/contributions/highlights': Highlights,
-  '/validators/highlights': Highlights,
+  '/validators/contributions/highlights': AllContributions,
+  '/validators/highlights': AllContributions,
   '/validators/leaderboard': Leaderboard,
   '/validators/participants': Validators,
   '/validators/waitlist': Waitlist,
@@ -373,6 +373,9 @@ const routes = {
   '/terms-of-use': TermsOfUse,
   '/privacy-policy': PrivacyPolicy,
 
+  // Discover
+  '/ecosystem-partners': EcosystemPartners,  // Public directory of partners + validators + projects
+
   '*': NotFound
 }
 ```
@@ -398,6 +401,7 @@ const routes = {
   - `statsAPI` - Dashboard statistics
   - `journeyAPI` - Onboarding journeys (startBuilderJourney, startValidatorJourney, completeBuilderJourney, linkXAccount, linkDiscordAccount)
   - `creatorAPI` - Community/creator membership (joinAsCreator)
+  - `partnersAPI` - Ecosystem partners directory (`list`, `get(slug)`)
 
 ### Authentication (`src/lib/auth.js`)
 - **Auth Store**: Svelte store `authState`
@@ -438,8 +442,6 @@ Reusable, data-driven display components that accept data via props. Used on Das
   - Props: `entries=[]`, `loading=false`, `onCardClick=null`
 - **`MemberCardScroller.svelte`** - Horizontal scroll of member cards with avatar, name, join date, category hex
   - Props: `members=[]`, `loading=false`
-- **`HighlightCards.svelte`** - Highlighted contribution cards in grid or scroll layout
-  - Props: `highlights=[]`, `loading=false`, `layout="grid"|"scroll"`, `category="builder"`
 - **`CTASection.svelte`** - Configurable CTA footer section
   - Props: `title`, `description`, `primaryButtonText`, `primaryButtonPath`, `primaryButtonColor="dark"`, `secondaryLinkText`, `secondaryLinkPath`, `secondaryLinkExternal=false`
 - **`ChartPlaceholder.svelte`** - Empty placeholder for future chart content
@@ -462,6 +464,12 @@ Reusable, data-driven display components that accept data via props. Used on Das
   - Displays grand winner, track winners, and honorable mentions with award labels
   - Uses same scroll pattern as FeaturedBuilds
 
+#### Ecosystem Partners Components (`src/components/portal/partners/`)
+- **`PartnerCard.svelte`** - Square card for a partner / validator / project with rounded logo, hover frosted name strip, and category-tinted badge
+  - Props: `item` (normalized `{ id, slug, name, logo_url, href, isExternal, category }`), `showBadge=false`
+  - Partner cards put the logo on a black circle; validator/project cards use a soft-gradient initials fallback when no image is available
+  - Click opens `item.href` (external opens in a new tab; validator profile links navigate in-app)
+
 #### How It Works / Landing Page Components (`src/components/portal/landing-page/`)
 - Used by the `/how-it-works` route (`HowItWorks.svelte`)
 - First-time users are redirected here after completing their profile via `ProfileCompletionGuard`
@@ -473,11 +481,24 @@ Reusable, data-driven display components that accept data via props. Used on Das
 
 #### Data Display
 - `LeaderboardTable.svelte` - Ranking table
-- `ContributionsList.svelte` - List of contributions
+- `ContributionsList.svelte` - List of contributions (used on profile/dashboard/type-detail; supports consecutive-grouping)
+- `ContributionCard.svelte` - Pre-rebrand card with thick category-coloured border (used by `ContributionsList` for legacy lists)
+- `portal/PortalContributionCard.svelte` - Rebranded contribution card (white bg / category-tinted when highlighted, points pill, type tag, avatar + name) — used by `ProfileRecentContributions` and the `/all-contributions` grid
+- `portal/HighlightCard.svelte` - Single highlight card (category-tinted bg) used by `HighlightsSlider` and the `/all-contributions` highlights grid
+- `portal/HighlightsSlider.svelte` - Horizontal scroller of highlight cards with arrow buttons (used by PortalHighlights and AllContributions)
+- `portal/SearchBar.svelte` - Search input with clear, info icon, and click-outside-aware help tooltip (snippet body)
 - `StatCard.svelte` - Statistics card
 - `Badge.svelte` & `BadgeList.svelte` - Badge display
 - `ValidatorStatus.svelte` - Validator info
 - `Pagination.svelte` - Page navigation
+
+#### Unified Contributions Explorer (`AllContributions.svelte`)
+- Single view backing `/all-contributions`, `/highlights`, `/contributions/highlights`, and all `/builders|validators|community` variants of those.
+- URL params drive filter state: `?category=builder|validator|community|all`, `?type=ID`, `?mission=ID`, `?user=name|0x...`, `?sort=...`, `?view=both|highlights|all`, `?page=N`, `?hpage=N`.
+- Type dropdown only lists `is_submittable: true` contribution types. Non-submittable type IDs in the URL still apply (chip with × shown to clear).
+- Highlights endpoint only honors `category` server-side; type/mission/user filters are applied client-side.
+- Renders two sections: Highlights (capped at `HIGHLIGHTS_PREVIEW_COUNT = 15` in `view=both`, paginated in `view=highlights` at `PAGE_SIZE = 20`) and Contributions (always paginated at `PAGE_SIZE = 20`).
+- Contributions are always individual — no consecutive-grouping. Sends `?submittable_only=true` to `/contributions/` to hide non-submittable types (badges, journey rewards) from the explorer; non-submittable types are also filtered out of `/highlights/` client-side.
 
 #### User Interaction
 - `AuthButton.svelte` - Login/logout dropdown

@@ -1,10 +1,8 @@
 <script>
-  import { push } from 'svelte-spa-router';
-  import { format } from 'date-fns';
   import Pagination from './Pagination.svelte';
   import ContributionCard from './ContributionCard.svelte';
   import { contributionsAPI } from '../lib/api';
-  
+
   const {
     contributions = [],
     loading: externalLoading = false,
@@ -14,266 +12,55 @@
     category = null,
     compact = false,
     limit: maxLimit = null,
-    disableGrouping = false  // New prop to disable client-side grouping
   } = $props();
-  
-  
-  // Local state
+
   let page = $state(1);
   let limit = $state(maxLimit || (compact ? 5 : 10));
   let totalCount = $state(0);
   let localContributions = $state(contributions || []);
   let localLoading = $state(externalLoading);
   let localError = $state(externalError);
-  
-  // Process contributions - handle both grouped and ungrouped formats
-  function processContributions(contribs) {
-    if (!contribs || contribs.length === 0) return [];
 
-    // If grouping is disabled, return contributions as-is with minimal processing
-    if (disableGrouping) {
-      return contribs.map(contrib => ({
-        ...contrib,
-        count: 1,
-        users: contrib.user_details ? [contrib.user_details] : [],
-        // Normalize typeId: contribution_type can be int (single) or object (grouped)
-        typeId: typeof contrib.contribution_type === 'object'
-          ? contrib.contribution_type.id
-          : contrib.contribution_type,
-        category: category || contrib.contribution_type_details?.category
-      }));
-    }
-
-    // Check if data is already grouped (from backend)
-    if (contribs[0] && contribs[0].grouped_contributions) {
-      // Data is already grouped, but we need to handle highlights properly
-      const result = [];
-
-      for (const group of contribs) {
-        // Process each group - split at highlights but keep non-highlighted consecutive items grouped
-        const groupLength = group.grouped_contributions.length;
-        let currentSubgroup = null;
-        
-        for (const contrib of group.grouped_contributions) {
-          if (contrib.highlight) {
-            // If we have a current subgroup, push it before the highlight
-            if (currentSubgroup) {
-              result.push(currentSubgroup);
-              currentSubgroup = null;
-            }
-            
-            // Push the highlighted contribution separately
-            result.push({
-              id: contrib.id,
-              contribution_type: contrib.contribution_type,
-              contribution_type_name: contrib.contribution_type_name,
-              contribution_type_details: contrib.contribution_type_details,
-              contribution_date: contrib.contribution_date,
-              frozen_global_points: contrib.frozen_global_points,
-              points: contrib.frozen_global_points || contrib.points,
-              user_details: contrib.user_details,
-              category: category || contrib.contribution_type_details?.category,
-              highlight: contrib.highlight,
-              // contribution_type is int here (from ContributionSerializer)
-              typeId: contrib.contribution_type,
-              count: 1,
-              end_date: contrib.contribution_date,
-              users: contrib.user_details ? [contrib.user_details] : [],
-              evidence_items: contrib.evidence_items,
-              notes: contrib.notes
-            });
-          } else {
-            // Non-highlighted contribution - add to current subgroup
-            if (!currentSubgroup) {
-              // Start a new subgroup - store reference to grouped_contributions
-              currentSubgroup = {
-                id: contrib.id,
-                contribution_type: contrib.contribution_type,
-                contribution_type_name: contrib.contribution_type_name,
-                contribution_type_details: contrib.contribution_type_details,
-                contribution_date: contrib.contribution_date,
-                frozen_global_points: contrib.frozen_global_points || contrib.points,
-                points: contrib.frozen_global_points || contrib.points,
-                user_details: contrib.user_details,
-                category: category || contrib.contribution_type_details?.category,
-                highlight: null,
-                // contribution_type is int here (from ContributionSerializer)
-                typeId: contrib.contribution_type,
-                count: 1,
-                end_date: contrib.contribution_date,
-                users: contrib.user_details ? [contrib.user_details] : [],
-                grouped_items: [contrib]  // Store all contributions for later access
-              };
-            } else {
-              // Add to existing subgroup
-              currentSubgroup.count++;
-              currentSubgroup.frozen_global_points += (contrib.frozen_global_points || contrib.points || 0);
-              currentSubgroup.points = currentSubgroup.frozen_global_points;
-              currentSubgroup.end_date = contrib.contribution_date;
-
-              // Add unique user if different
-              if (contrib.user_details) {
-                const userExists = currentSubgroup.users.some(u =>
-                  u.address === contrib.user_details.address
-                );
-                if (!userExists) {
-                  currentSubgroup.users.push(contrib.user_details);
-                }
-              }
-
-              // Store contribution reference
-              currentSubgroup.grouped_items.push(contrib);
-            }
-          }
-        }
-        
-        // Push any remaining subgroup
-        if (currentSubgroup) {
-          result.push(currentSubgroup);
-        }
-      }
-      
-      return result;
-    }
-    
-    // Data is not grouped - group consecutive contributions of the same type
-    // but don't group if there's a highlighted contribution
-    const grouped = [];
-    let currentGroup = null;
-    
-    for (const contrib of contribs) {
-      // Normalize typeId: contribution_type can be int (single) or object (grouped)
-      const typeId = typeof contrib.contribution_type === 'object'
+  // Normalize each contribution into the shape ContributionCard expects.
+  // No grouping — every contribution is its own card.
+  let processedContributions = $derived(
+    (localContributions || []).map(contrib => ({
+      ...contrib,
+      typeId: typeof contrib.contribution_type === 'object'
         ? contrib.contribution_type.id
-        : contrib.contribution_type;
-      const typeName = contrib.contribution_type_name || contrib.contribution_type?.name || 'Unknown Type';
-      const hasHighlight = contrib.highlight ? true : false;
+        : contrib.contribution_type,
+      users: contrib.user_details ? [contrib.user_details] : [],
+      category: category || contrib.contribution_type_details?.category,
+    }))
+  );
 
-      // Start a new group if: different type, has highlight, or current group has highlight
-      if (!currentGroup || currentGroup.typeId !== typeId || hasHighlight || currentGroup.highlight) {
-        // Start a new group
-        currentGroup = {
-          id: contrib.id,
-          contribution_type: typeId,
-          contribution_type_name: typeName,
-          contribution_type_details: contrib.contribution_type_details,
-          contribution_date: contrib.contribution_date,
-          frozen_global_points: contrib.frozen_global_points || 0,
-          points: contrib.frozen_global_points || 0,
-          user_details: contrib.user_details,
-          category: category || contrib.contribution_type_details?.category,
-          highlight: contrib.highlight,
-          // Grouping info
-          typeId: typeId,
-          count: 1,
-          end_date: contrib.contribution_date,
-          users: [],
-          grouped_items: [contrib]  // Store all contributions for later access
-        };
+  $effect(() => { localContributions = contributions || []; });
+  $effect(() => { localLoading = externalLoading; });
+  $effect(() => { localError = externalError; });
 
-        if (contrib.user_details) {
-          currentGroup.users = [{
-            address: contrib.user_details.address,
-            name: contrib.user_details.name,
-            profile_image_url: contrib.user_details.profile_image_url
-          }];
-        }
-
-        grouped.push(currentGroup);
-      } else {
-        // Add to existing group
-        currentGroup.count++;
-        currentGroup.frozen_global_points += (contrib.frozen_global_points || 0);
-        currentGroup.points = currentGroup.frozen_global_points;
-        currentGroup.end_date = contrib.contribution_date;
-
-        // Add unique user
-        if (contrib.user_details) {
-          const userExists = currentGroup.users.some(u =>
-            u.address === contrib.user_details.address
-          );
-          if (!userExists) {
-            currentGroup.users.push({
-              address: contrib.user_details.address,
-              name: contrib.user_details.name,
-              profile_image_url: contrib.user_details.profile_image_url
-            });
-          }
-        }
-
-        // Store contribution reference
-        currentGroup.grouped_items.push(contrib);
-      }
-    }
-    
-    return grouped;
-  }
-  
-  // Process contributions for display
-  let processedContributions = $derived(processContributions(localContributions));
-  
-  // Watch for external prop changes
   $effect(() => {
-    localContributions = contributions || [];
+    if (userAddress) fetchContributions();
   });
-  
-  $effect(() => {
-    localLoading = externalLoading;
-  });
-  
-  $effect(() => {
-    localError = externalError;
-  });
-  
-  // Fetch data when userAddress is provided
-  $effect(() => {
-    if (userAddress) {
-      fetchContributions();
-    }
-  });
-  
+
   async function fetchContributions() {
     if (!userAddress) return;
-    
     try {
       localLoading = true;
       localError = null;
-      
-      const params = {
-        page,
-        limit,
-        user_address: userAddress
-      };
-      
-      // Add category filter if specified
-      if (category) {
-        params.category = category;
-      }
-      
+      const params = { page, limit, user_address: userAddress };
+      if (category) params.category = category;
       const res = await contributionsAPI.getContributions(params);
       totalCount = res.data.count || 0;
       localContributions = res.data.results || [];
-      localLoading = false;
     } catch (err) {
       localError = err.message || 'Failed to load contributions';
+    } finally {
       localLoading = false;
     }
   }
-  
+
   function handlePageChange(event) {
     page = event.detail;
-  }
-  
-  function formatDate(dateString) {
-    try {
-      // Take just the date part (YYYY-MM-DD) and ignore time/timezone
-      const datePart = dateString.split('T')[0];
-      const [year, month, day] = datePart.split('-');
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return `${months[parseInt(month) - 1]} ${parseInt(day)}, ${year}`;
-    } catch (e) {
-      return dateString;
-    }
   }
 </script>
 
@@ -292,7 +79,7 @@
     </div>
   {:else}
     <div class="space-y-3">
-      {#each processedContributions as contribution}
+      {#each processedContributions as contribution (contribution.id)}
         <ContributionCard
           {contribution}
           {showUser}
@@ -300,19 +87,18 @@
             notes: contribution.notes,
             evidence_items: contribution.evidence_items
           }}
-          showExpand={contribution.evidence_items?.length > 0 || contribution.notes || contribution.grouped_items?.some(item => item.notes || item.evidence_items?.length > 0)}
+          showExpand={contribution.evidence_items?.length > 0 || !!contribution.notes}
         />
       {/each}
     </div>
-    
+
     {#if userAddress}
-      <!-- Pagination -->
       <div class="mt-4">
-        <Pagination 
-          page={page} 
-          limit={limit} 
-          totalCount={totalCount} 
-          on:pageChange={handlePageChange} 
+        <Pagination
+          page={page}
+          limit={limit}
+          totalCount={totalCount}
+          on:pageChange={handlePageChange}
         />
       </div>
     {/if}

@@ -570,6 +570,12 @@ class EvidenceURLType(BaseModel):
         blank=True,
         help_text="Social account type for ownership checks: 'twitter' or 'github'"
     )
+    allow_duplicate = models.BooleanField(
+        default=False,
+        help_text="If True, URLs of this type are exempt from duplicate "
+                  "checking against other submissions and contributions. "
+                  "Useful for shared resources like GitHub repositories."
+    )
 
     class Meta:
         ordering = ['order', 'name']

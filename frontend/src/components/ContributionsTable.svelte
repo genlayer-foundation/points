@@ -53,7 +53,6 @@
         page: 1,
         page_size: limit,
         ordering: '-contribution_date',
-        group_consecutive: false // Disable grouping to show individual contributions with evidence
       };
 
       // Add optional filters

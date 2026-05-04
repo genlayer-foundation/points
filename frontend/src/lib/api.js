@@ -66,16 +66,9 @@ export const usersAPI = {
 
 // API endpoints for contributions
 export const contributionsAPI = {
-  getContributions: (params) => {
-    // Add group_consecutive parameter by default for better UX
-    const enhancedParams = {
-      group_consecutive: true,
-      ...params
-    };
-    return api.get('/contributions/', { params: enhancedParams });
-  },
+  getContributions: (params) => api.get('/contributions/', { params }),
   getContribution: (id) => api.get(`/contributions/${id}/`),
-  getContributionsByUser: (address) => api.get(`/contributions/?user_address=${address}&group_consecutive=true`),
+  getContributionsByUser: (address) => api.get(`/contributions/?user_address=${address}`),
   getContributionTypes: (params) => {
     // Set a high page_size to get all contribution types in one request
     const enhancedParams = {
@@ -270,6 +263,12 @@ export const featuredAPI = {
 // Alerts API
 export const alertsAPI = {
   getAlerts: () => api.get('/alerts/'),
+};
+
+// Ecosystem Partners API
+export const partnersAPI = {
+  list: (params) => api.get('/partners/', { params }),
+  get: (slug) => api.get(`/partners/${slug}/`),
 };
 
 export default api;

@@ -8,6 +8,7 @@
   import Avatar from './Avatar.svelte';
   import Badge from './Badge.svelte';
   import { parseMarkdown } from '../lib/markdownLoader.js';
+  import { showSuccess, showError } from '../lib/toastStore';
 
   let {
     submission,
@@ -27,10 +28,159 @@
     notes = [],
     notesLoading = false,
     onAddNote = null,
-    onToggleInteresting = null
+    onToggleInteresting = null,
+    onRequestNotes = null
   } = $props();
 
   let togglingInteresting = $state(false);
+  let copyingReviewContext = $state(false);
+
+  let canCopyReviewContext = $derived(
+    showReviewForm && !isOwnSubmission && submission.state === 'pending'
+  );
+
+  function formatContextDate(dateString) {
+    if (!dateString) return 'N/A';
+    try {
+      return format(new Date(dateString), 'yyyy-MM-dd HH:mm');
+    } catch {
+      return dateString;
+    }
+  }
+
+  function textOrNone(value) {
+    if (value === null || value === undefined || value === '') return 'None';
+    return String(value);
+  }
+
+  function formatUserForContext(user) {
+    if (!user) return 'N/A';
+    const parts = [
+      user.name || user.display_name,
+      user.email,
+      user.address,
+    ].filter(Boolean);
+    return parts.length ? parts.join(' | ') : 'N/A';
+  }
+
+  function formatEvidenceForContext() {
+    if (!submission.evidence_items?.length) return 'None provided';
+    return submission.evidence_items
+      .map((evidence, index) => {
+        const parts = [
+          evidence.description ? `description: ${evidence.description}` : null,
+          evidence.url ? `url: ${evidence.url}` : null,
+        ].filter(Boolean);
+        return `${index + 1}. ${parts.length ? parts.join(' | ') : 'Evidence item with no description or URL'}`;
+      })
+      .join('\n');
+  }
+
+  function formatInternalNotesForContext(contextNotes = notes) {
+    if (!contextNotes?.length) return 'None';
+    return contextNotes
+      .map((note, index) => {
+        const tags = [
+          note.is_proposal ? 'proposal' : null,
+          note.data?.confidence ? `confidence: ${note.data.confidence}` : null,
+        ].filter(Boolean);
+        const tagText = tags.length ? ` [${tags.join(', ')}]` : '';
+        const author = note.user_name || note.author_details?.name || note.author_details?.address || note.author_name || 'Unknown steward';
+        const message = note.message || note.text || '';
+        return `${index + 1}. ${author}${tagText} (${formatContextDate(note.created_at)}): ${message}`;
+      })
+      .join('\n');
+  }
+
+  function buildReviewContext(contextNotes = notes) {
+    const type = submission.contribution_type_details || {};
+    const user = submission.user_details || {};
+    const proposalLines = submission.has_proposal
+      ? [
+          `- Proposed action: ${textOrNone(submission.proposed_action)}`,
+          `- Proposed by: ${textOrNone(submission.proposed_by_details?.name || submission.proposed_by_details?.address)}`,
+          `- Proposed at: ${formatContextDate(submission.proposed_at)}`,
+          `- Proposed staff reply: ${textOrNone(submission.proposed_staff_reply)}`,
+        ].join('\n')
+      : 'None';
+
+    return [
+      '# Steward Submission Review Context',
+      '',
+      '## Submission',
+      `- ID: ${submission.id}`,
+      `- State: ${submission.state_display || submission.state}`,
+      `- Marked interesting: ${submission.is_interesting ? 'Yes' : 'No'}`,
+      `- Submitted at: ${formatContextDate(submission.created_at)}`,
+      `- Contribution date: ${formatContextDate(submission.contribution_date)}`,
+      '',
+      '## Contributor',
+      `- User: ${formatUserForContext(user)}`,
+      '',
+      '## Contribution',
+      `- Type: ${textOrNone(type.name || submission.contribution_type_name || getTypeName(submission.contribution_type))}`,
+      `- Category: ${textOrNone(type.category)}`,
+      `- Point range: ${type.min_points ?? 'N/A'}-${type.max_points ?? 'N/A'}`,
+      `- Proposed points: ${textOrNone(submission.proposed_points)}`,
+      `- Mission: ${textOrNone(submission.mission?.name)}`,
+      '',
+      '## Submitter Notes',
+      textOrNone(submission.notes),
+      '',
+      '## Evidence',
+      formatEvidenceForContext(),
+      '',
+      '## Internal CRM Notes',
+      formatInternalNotesForContext(contextNotes),
+      '',
+      '## Proposal',
+      proposalLines,
+      '',
+      '## Review Task',
+      'Review whether the submission evidence supports the claimed contribution type, whether the proposed point value is appropriate, and whether more information is needed.',
+    ].join('\n');
+  }
+
+  async function writeClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+  }
+
+  async function handleCopyReviewContext() {
+    if (copyingReviewContext) return;
+    copyingReviewContext = true;
+    try {
+      let contextNotes = notes;
+      if (onRequestNotes) {
+        try {
+          const fetched = await onRequestNotes(submission.id);
+          if (Array.isArray(fetched)) contextNotes = fetched;
+        } catch {
+          showError('Could not load steward notes; copy aborted to avoid incomplete context.');
+          return;
+        }
+      }
+
+      await writeClipboard(buildReviewContext(contextNotes));
+      showSuccess('Submission review context copied to clipboard');
+    } catch (err) {
+      showError('Failed to copy review context: ' + (err?.message || 'unknown error'));
+    } finally {
+      copyingReviewContext = false;
+    }
+  }
 
   async function handleToggleInteresting(event) {
     if (!onToggleInteresting) return;
@@ -275,8 +425,8 @@
 <div class="bg-white shadow-lg rounded-lg border-l-4 {getStateBorderClass(submission.state)}">
   <!-- Header -->
   <div class="px-6 py-4 border-b {getStateBackgroundClass(submission.state)}">
-    <div class="flex justify-between items-start">
-      <div>
+    <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
+      <div class="min-w-0">
         <h3 class="text-lg font-semibold flex items-center gap-2 flex-wrap">
           {#if isOwnSubmission}
             {#if submission.mission}
@@ -313,7 +463,21 @@
           Submitted {formatDate(submission.created_at)}
         </p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+        {#if canCopyReviewContext}
+          <button
+            type="button"
+            onclick={handleCopyReviewContext}
+            disabled={copyingReviewContext}
+            class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
+            title="Copy review metadata, evidence, and internal notes for external LLM review"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16h8M8 12h8m-7 8h6a2 2 0 002-2V7.8a2 2 0 00-.59-1.41l-2.8-2.8A2 2 0 0012.2 3H9a2 2 0 00-2 2v13a2 2 0 002 2z" />
+            </svg>
+            <span>{copyingReviewContext ? 'Copying...' : 'Copy review context'}</span>
+          </button>
+        {/if}
         {#if !isOwnSubmission && onToggleInteresting}
           <label
             class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer select-none transition-colors {submission.is_interesting ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}"
