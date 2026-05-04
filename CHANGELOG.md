@@ -4,6 +4,7 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Highlights and All Contributions are now a single filterable Contributions explorer at `/all-contributions` with a category pill toggle, type and mission dropdowns, a debounced search bar that supports `sort:` syntax, a Both / Highlights only / Contributions only view switch, and shareable URL state. Highlights show as a horizontal slider with arrows in the default Both view; non-submittable contribution types (badges, journey rewards) are hidden from the public list, consecutive contributions of the same type are no longer stacked, and the Dashboard highlights strip now shows the latest 10 sorted by date (c9f7b88)
 - Metrics dashboard Pending review tile no longer collapses to zero when filters are applied; it now shows submissions created in the selected range that are still awaiting a decision (97dc404)
 - Stewards can now mark submissions as internally interesting from a header checkbox on the submission card and filter the steward queue by that flag with `is:interesting` / `not:interesting` in the search bar; the flag is never exposed to submitters. Requesting more information on a submission also records the staff reply as a quoted block in the submission's internal CRM note next to the action summary (6dfeb10)
 - Metrics dashboard now reports the same Builder and Validator counts as the role dashboards (visible users with a category-matched contribution) and drops the "Unique participants" tile from the Portal Participation strip (b46195c)
