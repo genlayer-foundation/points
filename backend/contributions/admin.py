@@ -463,8 +463,9 @@ class SubmittedContributionAdmin(admin.ModelAdmin):
 
 @admin.register(EvidenceURLType)
 class EvidenceURLTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'is_generic', 'order', 'ownership_social_account', 'created_at')
-    list_filter = ('is_generic',)
+    list_display = ('name', 'slug', 'is_generic', 'allow_duplicate', 'order', 'ownership_social_account', 'created_at')
+    list_filter = ('is_generic', 'allow_duplicate')
+    list_editable = ('allow_duplicate',)
     search_fields = ('name', 'slug', 'description')
     readonly_fields = ('created_at', 'updated_at')
     prepopulated_fields = {'slug': ('name',)}

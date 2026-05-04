@@ -8,6 +8,7 @@
   import Avatar from './Avatar.svelte';
   import Badge from './Badge.svelte';
   import { parseMarkdown } from '../lib/markdownLoader.js';
+  import { showSuccess, showError } from '../lib/toastStore';
 
   let {
     submission,
@@ -27,11 +28,12 @@
     notes = [],
     notesLoading = false,
     onAddNote = null,
-    onToggleInteresting = null
+    onToggleInteresting = null,
+    onRequestNotes = null
   } = $props();
 
   let togglingInteresting = $state(false);
-  let copiedReviewContext = $state(false);
+  let copyingReviewContext = $state(false);
 
   let canCopyReviewContext = $derived(
     showReviewForm && !isOwnSubmission && submission.state === 'pending'
@@ -74,21 +76,23 @@
       .join('\n');
   }
 
-  function formatInternalNotesForContext() {
-    if (!notes?.length) return 'None';
-    return notes
+  function formatInternalNotesForContext(contextNotes = notes) {
+    if (!contextNotes?.length) return 'None';
+    return contextNotes
       .map((note, index) => {
         const tags = [
           note.is_proposal ? 'proposal' : null,
           note.data?.confidence ? `confidence: ${note.data.confidence}` : null,
         ].filter(Boolean);
         const tagText = tags.length ? ` [${tags.join(', ')}]` : '';
-        return `${index + 1}. ${note.user_name || 'Unknown steward'}${tagText} (${formatContextDate(note.created_at)}): ${note.message}`;
+        const author = note.user_name || note.author_details?.name || note.author_details?.address || note.author_name || 'Unknown steward';
+        const message = note.message || note.text || '';
+        return `${index + 1}. ${author}${tagText} (${formatContextDate(note.created_at)}): ${message}`;
       })
       .join('\n');
   }
 
-  function buildReviewContext() {
+  function buildReviewContext(contextNotes = notes) {
     const type = submission.contribution_type_details || {};
     const user = submission.user_details || {};
     const proposalLines = submission.has_proposal
@@ -127,7 +131,7 @@
       formatEvidenceForContext(),
       '',
       '## Internal CRM Notes',
-      formatInternalNotesForContext(),
+      formatInternalNotesForContext(contextNotes),
       '',
       '## Proposal',
       proposalLines,
@@ -155,14 +159,26 @@
   }
 
   async function handleCopyReviewContext() {
+    if (copyingReviewContext) return;
+    copyingReviewContext = true;
     try {
-      await writeClipboard(buildReviewContext());
-      copiedReviewContext = true;
-      setTimeout(() => {
-        copiedReviewContext = false;
-      }, 1600);
-    } catch {
-      copiedReviewContext = false;
+      let contextNotes = notes;
+      if (onRequestNotes) {
+        try {
+          const fetched = await onRequestNotes(submission.id);
+          if (Array.isArray(fetched)) contextNotes = fetched;
+        } catch {
+          showError('Could not load steward notes; copy aborted to avoid incomplete context.');
+          return;
+        }
+      }
+
+      await writeClipboard(buildReviewContext(contextNotes));
+      showSuccess('Submission review context copied to clipboard');
+    } catch (err) {
+      showError('Failed to copy review context: ' + (err?.message || 'unknown error'));
+    } finally {
+      copyingReviewContext = false;
     }
   }
 
@@ -452,13 +468,14 @@
           <button
             type="button"
             onclick={handleCopyReviewContext}
+            disabled={copyingReviewContext}
             class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
             title="Copy review metadata, evidence, and internal notes for external LLM review"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16h8M8 12h8m-7 8h6a2 2 0 002-2V7.8a2 2 0 00-.59-1.41l-2.8-2.8A2 2 0 0012.2 3H9a2 2 0 00-2 2v13a2 2 0 002 2z" />
             </svg>
-            <span>{copiedReviewContext ? 'Copied' : 'Copy review context'}</span>
+            <span>{copyingReviewContext ? 'Copying...' : 'Copy review context'}</span>
           </button>
         {/if}
         {#if !isOwnSubmission && onToggleInteresting}
