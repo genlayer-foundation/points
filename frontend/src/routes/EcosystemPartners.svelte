@@ -11,6 +11,7 @@
       icon: '/assets/icons/group-white.svg',
       iconClass: 'bg-black',
       countClass: 'border-blue-200 bg-blue-50 text-blue-700',
+      skeletonCount: 18,
     },
     {
       id: 'validator',
@@ -19,26 +20,21 @@
       icon: '/assets/icons/shield-white.svg',
       iconClass: 'bg-gradient-to-br from-[#8f7bff] to-[#6f8cff]',
       countClass: 'border-[#d9d2ff] bg-[#f4f1ff] text-[#6f5ddb]',
+      skeletonCount: 6,
     },
     {
       id: 'project',
       title: 'Projects',
-      description: 'Builders shipping products, experiments, and applications on GenLayer.',
+      description: "High-signal products built on GenLayer, from applications to infrastructure that can grow with intelligent contracts.",
       icon: '/assets/icons/terminal-fill-white.svg',
       iconClass: 'bg-orange-500',
       countClass: 'border-orange-200 bg-orange-50 text-orange-600',
+      skeletonCount: 6,
     },
   ];
 
   let items = $state([]);
   let loading = $state(true);
-
-  let counts = $derived({
-    all: items.length,
-    partner: items.filter((i) => i.category === 'partner').length,
-    validator: items.filter((i) => i.category === 'validator').length,
-    project: items.filter((i) => i.category === 'project').length,
-  });
 
   let grouped = $derived({
     partner: items.filter((i) => i.category === 'partner'),
@@ -150,7 +146,7 @@
       {#if loading}
         <div class="space-y-8 md:space-y-10">
           {#each SECTIONS as section, index}
-            <section class="{index > 0 ? 'border-t border-[#e9ecf3] pt-6 md:pt-8' : ''}">
+            <section class={index > 0 ? 'border-t border-[#e9ecf3] pt-6 md:pt-8' : ''}>
               <div class="flex items-start gap-3">
                 <div class="w-10 h-10 rounded-[12px] {section.iconClass} flex flex-shrink-0 items-center justify-center shadow-[0_8px_18px_rgba(90,96,125,0.18)]">
                   <img src={section.icon} alt="" class="w-5 h-5" />
@@ -167,7 +163,7 @@
               </div>
 
               <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-4">
-                {#each Array(index === 0 ? 18 : 6) as _}
+                {#each Array(section.skeletonCount) as _}
                   <div class="h-[92px] rounded-[8px] border border-[#e8ebf2] bg-white shadow-[0_8px_18px_rgba(31,42,68,0.07)] animate-pulse"></div>
                 {/each}
               </div>
@@ -184,7 +180,7 @@
           {#each SECTIONS as section, index}
             {@const sectionItems = grouped[section.id] ?? []}
             {#if sectionItems.length > 0}
-              <section class="{index > 0 ? 'border-t border-[#e9ecf3] pt-6 md:pt-8' : ''}">
+              <section class={index > 0 ? 'border-t border-[#e9ecf3] pt-6 md:pt-8' : ''}>
                 <div class="flex items-start gap-3">
                   <div class="w-10 h-10 rounded-[12px] {section.iconClass} flex flex-shrink-0 items-center justify-center shadow-[0_8px_18px_rgba(90,96,125,0.18)]">
                     <img src={section.icon} alt="" class="w-5 h-5" />

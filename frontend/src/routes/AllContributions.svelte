@@ -75,7 +75,6 @@
   let participantDetails = $state(null);
 
   let baseRoutePath = $derived(buildBasePath($location));
-  let routeIsHighlightsView = $derived($location.endsWith('/highlights'));
   let routeCategory = $derived(detectRouteCategory($location));
 
   let typesForCategory = $derived(
@@ -138,7 +137,7 @@
     const urlView = params.get('view');
     view = ['highlights', 'all', 'both'].includes(urlView)
       ? urlView
-      : (routeIsHighlightsView ? 'highlights' : 'both');
+      : 'both';
 
     highlightsPage = Math.max(1, Number(params.get('hpage')) || 1);
     allPage = Math.max(1, Number(params.get('page')) || 1);
@@ -155,8 +154,7 @@
     if (missionId) params.set('mission', String(missionId));
     if (participantQuery) params.set('user', participantQuery);
     if (sortBy !== '-contribution_date') params.set('sort', sortBy);
-    const naturalView = routeIsHighlightsView ? 'highlights' : 'both';
-    if (view !== naturalView) params.set('view', view);
+    if (view !== 'both') params.set('view', view);
     if (highlightsPage > 1) params.set('hpage', String(highlightsPage));
     if (allPage > 1) params.set('page', String(allPage));
 
@@ -477,7 +475,7 @@
     if (missionId) params.set('mission', String(missionId));
     if (participantQuery) params.set('user', participantQuery);
     if (sortBy !== '-contribution_date') params.set('sort', sortBy);
-    if (!routeIsHighlightsView) params.set('view', 'highlights');
+    params.set('view', 'highlights');
     const qs = params.toString();
     return baseRoutePath + (qs ? `?${qs}` : '');
   });

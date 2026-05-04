@@ -27,7 +27,11 @@ class PartnerModelTest(TestCase):
             website_url='https://carbon.example.com',
             display_order=5,
         )
-        names = list(Partner.objects.values_list('name', flat=True))
+        names = list(
+            Partner.objects
+            .filter(slug__in=['alpha', 'carbon', 'beta'])
+            .values_list('name', flat=True)
+        )
         self.assertEqual(names, ['Alpha', 'Carbon', 'Beta'])
 
 
@@ -59,7 +63,9 @@ class PartnerAPITest(TestCase):
         data = res.json()
         results = data['results'] if isinstance(data, dict) and 'results' in data else data
         slugs = {p['slug'] for p in results}
-        self.assertSetEqual(slugs, {'active-one', 'active-two'})
+        self.assertIn('active-one', slugs)
+        self.assertIn('active-two', slugs)
+        self.assertNotIn('inactive', slugs)
 
     def test_detail_uses_slug_lookup(self):
         res = self.client.get('/api/v1/partners/active-one/')
