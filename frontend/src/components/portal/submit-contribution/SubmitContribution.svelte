@@ -201,12 +201,17 @@
     "github-file": "github",
   };
 
-  // Detect which social accounts are required by evidence URLs but not linked
+  // Detect which social accounts are required by evidence URLs but not linked.
+  // Walks both the optional evidenceSlots AND the dedicated requiredEvidenceSlot
+  // so a required github-pr / x-post URL also gates submission on the matching
+  // social account being linked.
   let evidenceRequiredAccounts = $derived.by(() => {
     const user = $userStore.user;
     if (!user) return [];
     const needed = new Set();
-    for (const slot of evidenceSlots) {
+    const slotsToCheck = [...evidenceSlots];
+    if (requiredEvidenceTypes.length > 0) slotsToCheck.push(requiredEvidenceSlot);
+    for (const slot of slotsToCheck) {
       const type = slot.selectedType;
       if (!type || type.is_generic) continue;
       const account = evidenceSlugToAccount[type.slug];
@@ -500,6 +505,7 @@
     if (!requiredEvidenceSlot.url) {
       requiredEvidenceSlot.error = "";
       requiredEvidenceSlot.selectedType = null;
+      requiredEvidenceSlot.description = "";
       return;
     }
     if (!isValidUrl(requiredEvidenceSlot.url)) {
@@ -510,20 +516,26 @@
     requiredEvidenceSlot.error = "";
     const detected = detectUrlType(requiredEvidenceSlot.url);
     requiredEvidenceSlot.selectedType = detected;
-    if (detected && !detected.is_generic) {
-      requiredEvidenceSlot.description = detected.name;
-    } else if (!requiredEvidenceSlot.description) {
-      requiredEvidenceSlot.description = detected?.is_generic ? "Other" : "";
-    }
+    requiredEvidenceSlot.description = detected
+      ? (detected.is_generic ? "Other" : detected.name)
+      : "";
   }
 
   function handleRequiredUrlInput() {
     requiredEvidenceSlot.error = "";
     if (!requiredEvidenceSlot.url) {
       requiredEvidenceSlot.selectedType = null;
+      requiredEvidenceSlot.description = "";
       return;
     }
-    requiredEvidenceSlot.selectedType = detectUrlType(requiredEvidenceSlot.url);
+    // Detect against the normalized form so users typing without an explicit
+    // protocol (e.g. "github.com/org/repo") still match scheme-anchored
+    // patterns. Critical when the form submits without a prior blur.
+    const detected = detectUrlType(normalizeUrl(requiredEvidenceSlot.url));
+    requiredEvidenceSlot.selectedType = detected;
+    requiredEvidenceSlot.description = detected
+      ? (detected.is_generic ? "Other" : detected.name)
+      : "";
   }
 
   function getRequiredUrlPlaceholder() {
@@ -537,6 +549,9 @@
     slot.url = normalizeUrl(slot.url);
     if (!slot.url) {
       slot.error = "";
+      slot.selectedType = null;
+      slot.typeManuallySet = false;
+      slot.description = "";
       return;
     }
     if (!isValidUrl(slot.url)) {
@@ -555,6 +570,10 @@
     } else if (!slot.selectedType) {
       slot.selectedType = detected;
       slot.description = detected?.is_generic ? "Other" : (detected?.name || "");
+    } else if (!slot.typeManuallySet && !slot.description) {
+      // Selected type was set by input handler but description never landed
+      // (e.g. earlier code path) — backfill it from the current type.
+      slot.description = slot.selectedType.is_generic ? "Other" : slot.selectedType.name;
     }
   }
 
@@ -568,10 +587,20 @@
     if (!slot.url) {
       slot.selectedType = null;
       slot.typeManuallySet = false;
+      slot.description = "";
       return;
     }
     if (slot.typeManuallySet) return;
-    slot.selectedType = detectUrlType(slot.url);
+    // Detect against the normalized form so users typing without an explicit
+    // protocol still match scheme-anchored patterns even if the form is
+    // submitted before blur normalizes the visible value.
+    const detected = detectUrlType(normalizeUrl(slot.url));
+    slot.selectedType = detected;
+    // Keep description aligned with the auto-detected type so it never lags
+    // behind the URL the user is editing.
+    slot.description = detected
+      ? (detected.is_generic ? "Other" : detected.name)
+      : "";
   }
 
   // URL placeholder hints per evidence type slug
@@ -655,9 +684,20 @@
         requiredEvidenceSlot.error = `Please provide a ${requiredEvidenceLabel} URL.`;
         return;
       }
-      if (!isValidUrl(normalizeUrl(reqUrl))) {
+      const normalizedReqUrl = normalizeUrl(reqUrl);
+      if (!isValidUrl(normalizedReqUrl)) {
         requiredEvidenceSlot.error = "Please enter a valid URL.";
         return;
+      }
+      // Re-detect against the normalized URL at submit time so a form that
+      // bypassed blur (Enter key, autofill) still matches scheme-anchored
+      // patterns. Sync selectedType so requiredSlotSatisfied reflects reality.
+      const reqDetected = detectUrlType(normalizedReqUrl);
+      if (reqDetected) {
+        requiredEvidenceSlot.selectedType = reqDetected;
+        if (!requiredEvidenceSlot.description) {
+          requiredEvidenceSlot.description = reqDetected.is_generic ? "Other" : reqDetected.name;
+        }
       }
       if (!requiredSlotSatisfied) {
         requiredEvidenceSlot.error = `URL must be one of: ${requiredEvidenceLabel}.`;
@@ -667,27 +707,17 @@
 
     for (let i = 0; i < evidenceSlots.length; i++) {
       const slot = evidenceSlots[i];
-      const hasDescription =
-        slot.description && slot.description.trim().length > 0;
       const hasUrl = slot.url && slot.url.trim().length > 0;
-
-      if (hasDescription && !hasUrl) {
-        evidenceSlots[i].error = "A URL is required.";
-        return;
-      }
-      if (hasUrl && !hasDescription) {
-        evidenceSlots[i].error = "Please add a description.";
-        return;
-      }
-      if (hasUrl && !isValidUrl(normalizeUrl(slot.url))) {
+      // Slot description is auto-managed from URL detection — never user-typed —
+      // so we only validate the URL here. Empty slots are silently skipped.
+      if (!hasUrl) continue;
+      if (!isValidUrl(normalizeUrl(slot.url))) {
         evidenceSlots[i].error = "Please enter a valid URL.";
         return;
       }
     }
 
-    const filledSlots = evidenceSlots.filter(
-      (s) => s.description?.trim() && s.url?.trim(),
-    );
+    const filledSlots = evidenceSlots.filter((s) => s.url?.trim());
 
     // Build the combined evidence list: required slot first (if present),
     // then optional extras
@@ -703,7 +733,10 @@
     }
     for (const slot of filledSlots) {
       allEvidence.push({
-        description: slot.description,
+        description:
+          slot.description?.trim() ||
+          slot.selectedType?.name ||
+          "Evidence",
         url: normalizeUrl(slot.url),
       });
     }
