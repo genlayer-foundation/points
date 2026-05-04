@@ -189,6 +189,9 @@ def check_duplicate_url(url, exclude_submission_id=None):
     Checks against submissions with state: pending, accepted, more_info_needed.
     Also checks against accepted contributions (Evidence linked to Contribution).
 
+    URL types flagged with ``allow_duplicate=True`` are exempt — both the
+    incoming URL and any stored evidence of such a type are skipped.
+
     Uses the indexed normalized_url field for fast lookups.
 
     Returns a description string if duplicate found, or None.
@@ -199,12 +202,18 @@ def check_duplicate_url(url, exclude_submission_id=None):
     if not normalized:
         return None
 
-    # Check evidence on submitted contributions (pending/accepted/more_info_needed)
+    # If the incoming URL itself maps to a permissive type, skip the check.
+    incoming_type = detect_url_type(url)
+    if incoming_type and incoming_type.allow_duplicate:
+        return None
+
+    # Check evidence on submitted contributions (pending/accepted/more_info_needed).
+    # Exclude evidence whose stored url_type allows duplicates.
     submission_qs = Evidence.objects.filter(
         normalized_url=normalized,
         submitted_contribution__isnull=False,
         submitted_contribution__state__in=['pending', 'accepted', 'more_info_needed'],
-    )
+    ).exclude(url_type__allow_duplicate=True)
 
     if exclude_submission_id:
         submission_qs = submission_qs.exclude(
@@ -221,7 +230,7 @@ def check_duplicate_url(url, exclude_submission_id=None):
     if Evidence.objects.filter(
         normalized_url=normalized,
         contribution__isnull=False,
-    ).exists():
+    ).exclude(url_type__allow_duplicate=True).exists():
         return "This URL has already been submitted in an accepted contribution."
 
     return None
