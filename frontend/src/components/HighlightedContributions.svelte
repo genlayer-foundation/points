@@ -102,16 +102,21 @@
     }
   }
 
-  // Compute the correct view all path based on category
+  // Compute the correct view all path based on category, preserving user/type filters
   function getViewAllPath() {
     const cat = category || $currentCategory;
-    if (cat === 'builder') {
-      return '/builders/contributions/highlights';
-    } else if (cat === 'validator') {
-      return '/validators/contributions/highlights';
-    } else {
-      return '/contributions/highlights';
-    }
+    let basePath;
+    if (cat === 'builder') basePath = '/builders/all-contributions';
+    else if (cat === 'validator') basePath = '/validators/all-contributions';
+    else if (cat === 'community') basePath = '/community/all-contributions';
+    else basePath = '/all-contributions';
+
+    const params = new URLSearchParams();
+    params.set('view', 'highlights');
+    if (userId) params.set('user', userId);
+    if (contributionTypeId) params.set('type', String(contributionTypeId));
+
+    return `${basePath}?${params.toString()}`;
   }
 
   // Fetch highlights when category changes (including initial mount)

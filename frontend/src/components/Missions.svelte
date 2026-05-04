@@ -259,7 +259,7 @@
         <!-- Title row with badges and submit button -->
         <div class="flex items-center gap-3 mb-2 flex-wrap">
           <button
-            onclick={() => push(`/all-contributions?mission=${mission.id}&category=${$currentCategory !== 'global' ? $currentCategory : 'validator'}`)}
+            onclick={() => push(`/all-contributions?mission=${mission.id}${$currentCategory && $currentCategory !== 'global' ? `&category=${$currentCategory}` : ''}`)}
             class="text-base font-bold font-heading text-gray-900 {colors.titleTextHover} transition-colors text-left"
           >
             {mission.name}
