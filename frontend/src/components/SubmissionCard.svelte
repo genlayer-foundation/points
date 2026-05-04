@@ -8,6 +8,7 @@
   import Avatar from './Avatar.svelte';
   import Badge from './Badge.svelte';
   import { parseMarkdown } from '../lib/markdownLoader.js';
+  import { showSuccess, showError } from '../lib/toastStore';
 
   let {
     submission,
@@ -27,10 +28,98 @@
     notes = [],
     notesLoading = false,
     onAddNote = null,
-    onToggleInteresting = null
+    onToggleInteresting = null,
+    onRequestNotes = null
   } = $props();
 
   let togglingInteresting = $state(false);
+  let copyingContext = $state(false);
+
+  async function copyContext() {
+    if (copyingContext) return;
+    copyingContext = true;
+    try {
+      // Always fetch fresh notes before copying so AI context never silently
+      // omits steward CRM history (notes load asynchronously on the parent
+      // and may not be present yet when the user clicks copy). Abort the
+      // copy on failure rather than producing a payload with missing notes.
+      let liveNotes = notes;
+      if (onRequestNotes) {
+        try {
+          const fetched = await onRequestNotes(submission.id);
+          if (Array.isArray(fetched)) liveNotes = fetched;
+        } catch (err) {
+          showError('Could not load steward notes; copy aborted to avoid incomplete context.');
+          return;
+        }
+      }
+
+      const lines = [];
+      const u = submission.user_details;
+      const ct = submission.contribution_type_details;
+
+      lines.push(`User: ${u?.name || u?.address || submission.user}`);
+      if (ct) {
+        const range = ct.min_points != null ? ` (${ct.min_points}-${ct.max_points} pts)` : '';
+        lines.push(`Contribution: ${ct.name}${range}`);
+      }
+      if (submission.mission) lines.push(`Mission: ${submission.mission.name}`);
+      lines.push(`State: ${submission.state_display || submission.state}`);
+
+      if (submission.notes) {
+        lines.push('', 'Submitter notes:', submission.notes);
+      }
+
+      if (submission.evidence_items?.length > 0) {
+        lines.push('', 'Evidence:');
+        submission.evidence_items.forEach(e => {
+          const desc = e.description || '';
+          const url = e.url ? ` ${e.url}` : '';
+          lines.push(`- ${desc}${url}`.trim());
+        });
+      }
+
+      if (submission.staff_reply) {
+        lines.push('', 'Staff reply:', submission.staff_reply);
+      }
+
+      if (submission.has_proposal) {
+        const parts = [`action=${submission.proposed_action}`];
+        if (submission.proposed_points != null) parts.push(`points=${submission.proposed_points}`);
+        lines.push('', `Proposal: ${parts.join(', ')}`);
+        if (submission.proposed_staff_reply) lines.push(submission.proposed_staff_reply);
+      }
+
+      if (liveNotes && liveNotes.length > 0) {
+        lines.push('', 'Steward notes:');
+        liveNotes.forEach(n => {
+          const author = n.author_details?.name || n.author_details?.address || n.author_name || 'Unknown';
+          lines.push(`- ${author}: ${n.message || n.text || ''}`);
+        });
+      }
+
+      const text = lines.join('\n').trim();
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      showSuccess('Submission context copied to clipboard');
+    } catch (err) {
+      showError('Failed to copy context: ' + (err?.message || 'unknown error'));
+    } finally {
+      copyingContext = false;
+    }
+  }
 
   async function handleToggleInteresting(event) {
     if (!onToggleInteresting) return;
@@ -307,6 +396,20 @@
               />
               <span>{submission.user_details?.name || submission.user_details?.address?.slice(0, 8) + '...'}</span>
             </div>
+          {/if}
+          {#if showReviewForm && !isOwnSubmission}
+          <button
+            type="button"
+            onclick={copyContext}
+            disabled={copyingContext}
+            class="p-1 text-gray-400 hover:text-gray-700 transition-colors rounded disabled:opacity-50"
+            title="Copy submission context for AI agent"
+            aria-label="Copy submission context"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+          </button>
           {/if}
         </h3>
         <p class="text-sm text-gray-600">

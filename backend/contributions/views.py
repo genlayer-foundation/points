@@ -1031,13 +1031,16 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 fresh_user = type(contribution_user).objects.get(pk=contribution_user.pk)
                 update_user_leaderboard_entries(fresh_user)
 
-            # Copy evidence items using bulk_create for better performance
+            # Copy evidence items using bulk_create for better performance.
+            # Preserve url_type so the allow_duplicate exemption applies to
+            # the copied accepted-contribution evidence as well.
             Evidence.objects.bulk_create([
                 Evidence(
                     contribution=contribution,
                     description=evidence.description,
                     url=evidence.url,
-                    file=evidence.file
+                    file=evidence.file,
+                    url_type=evidence.url_type,
                 )
                 for evidence in submission.evidence_items.all()
             ])

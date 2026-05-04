@@ -277,11 +277,32 @@
     notesLoading = { ...notesLoading };
     try {
       const response = await stewardAPI.getNotes(submissionId);
-      submissionNotes[submissionId] = response.data || [];
+      const list = response.data || [];
+      submissionNotes[submissionId] = list;
       submissionNotes = { ...submissionNotes };
+      return list;
     } catch (err) {
       submissionNotes[submissionId] = [];
       submissionNotes = { ...submissionNotes };
+      return [];
+    } finally {
+      notesLoading[submissionId] = false;
+      notesLoading = { ...notesLoading };
+    }
+  }
+
+  // Throwing variant used by SubmissionCard's copy-context action. Failures
+  // must propagate so the copy can be aborted instead of silently producing
+  // a clipboard payload missing internal notes.
+  async function fetchNotesForCopy(submissionId) {
+    notesLoading[submissionId] = true;
+    notesLoading = { ...notesLoading };
+    try {
+      const response = await stewardAPI.getNotes(submissionId);
+      const list = response.data || [];
+      submissionNotes[submissionId] = list;
+      submissionNotes = { ...submissionNotes };
+      return list;
     } finally {
       notesLoading[submissionId] = false;
       notesLoading = { ...notesLoading };
@@ -694,6 +715,7 @@
               notesLoading={notesLoading[submission.id] || false}
               onAddNote={handleAddNote}
               onToggleInteresting={handleToggleInteresting}
+              onRequestNotes={fetchNotesForCopy}
             />
           </div>
         </div>

@@ -349,3 +349,167 @@ class CheckDuplicateUrlTests(TestCase):
             exclude_submission_id=self.sub.id,
         )
         self.assertIsNone(result)
+
+
+class CheckDuplicateUrlAllowDuplicateTests(TestCase):
+    """Tests for the ``allow_duplicate`` exemption in ``check_duplicate_url``.
+
+    The flag is admin-configurable (no data migration ships it on by default).
+    Each test opts the relevant URL type into the exemption explicitly so
+    the suite documents the behavior independently of admin state.
+    """
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from contributions.models import (
+            Category, ContributionType, SubmittedContribution, Evidence,
+        )
+        from leaderboard.models import GlobalLeaderboardMultiplier
+        from django.utils import timezone
+
+        User = get_user_model()
+        self.category = Category.objects.create(
+            name='Test', slug='test', description='Test',
+        )
+        self.ctype = ContributionType.objects.create(
+            name='Test', slug='test-type',
+            category=self.category, min_points=1, max_points=100,
+        )
+        GlobalLeaderboardMultiplier.objects.create(
+            contribution_type=self.ctype,
+            multiplier_value=1,
+            valid_from=timezone.now(),
+        )
+        self.user = User.objects.create_user(
+            email='allow-dup@test.com',
+            address='0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            password='testpass',
+        )
+        self.repo_url = 'https://github.com/genlayer/studio'
+        # Opt the github-repo URL type into the duplicate-allowed flag.
+        EvidenceURLType.objects.filter(slug='github-repo').update(
+            allow_duplicate=True,
+        )
+        # Stored evidence on a pending submission for the same github repo.
+        self.sub = SubmittedContribution.objects.create(
+            user=self.user,
+            contribution_type=self.ctype,
+            contribution_date=timezone.now(),
+            notes='test',
+        )
+        # Evidence.save() auto-detects url_type → github-repo.
+        Evidence.objects.create(
+            submitted_contribution=self.sub,
+            url=self.repo_url,
+            description='first repo submission',
+        )
+
+    def test_permissive_type_allows_duplicate_submission(self):
+        """When the URL type is flagged permissive, a second submission of
+        the same URL must NOT be flagged as duplicate."""
+        result = check_duplicate_url(self.repo_url)
+        self.assertIsNone(result)
+
+    def test_non_permissive_type_still_strict(self):
+        """github-pr is left strict in this test — the same PR URL twice
+        must still reject, proving the exemption is per-type."""
+        from contributions.models import Evidence
+        pr_url = 'https://github.com/genlayer/studio/pull/42'
+        Evidence.objects.create(
+            submitted_contribution=self.sub,
+            url=pr_url,
+            description='pr evidence',
+        )
+        result = check_duplicate_url(pr_url)
+        self.assertIsNotNone(result)
+
+    def test_disabling_flag_re_enables_check(self):
+        """Flipping ``allow_duplicate`` off restores strict duplicate
+        detection — both for the incoming URL and stored evidence."""
+        EvidenceURLType.objects.filter(slug='github-repo').update(
+            allow_duplicate=False,
+        )
+        result = check_duplicate_url(self.repo_url)
+        self.assertIsNotNone(result)
+        self.assertIn('already been submitted', result)
+
+    def test_stored_permissive_evidence_does_not_block_other_url(self):
+        """Sanity check: a different repo URL still passes when a permissive
+        URL is already stored (no spurious cross-URL blocking)."""
+        result = check_duplicate_url('https://github.com/other/different')
+        self.assertIsNone(result)
+
+    def test_accepted_contribution_with_permissive_url_does_not_block(self):
+        """An accepted contribution holding a permissive-type URL must not
+        trigger duplicate rejection on a fresh submission of the same URL."""
+        from contributions.models import Contribution, Evidence
+        contribution = Contribution.objects.create(
+            user=self.user,
+            contribution_type=self.ctype,
+            points=10,
+            multiplier_at_creation=1,
+            frozen_global_points=10,
+        )
+        Evidence.objects.create(
+            contribution=contribution,
+            url=self.repo_url,
+            description='accepted repo evidence',
+        )
+        result = check_duplicate_url(self.repo_url)
+        self.assertIsNone(result)
+
+
+class CheckDuplicateUrlNullUrlTypeTests(TestCase):
+    """Legacy/null ``url_type`` rows must be handled correctly.
+
+    Some historical evidence rows have ``url_type=None`` (e.g. before the
+    type FK existed, or via paths that bypassed Evidence.save()). The
+    duplicate check must still recognise their URL via ``detect_url_type``.
+    """
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from contributions.models import (
+            Category, ContributionType, SubmittedContribution, Evidence,
+        )
+        from leaderboard.models import GlobalLeaderboardMultiplier
+        from django.utils import timezone
+
+        User = get_user_model()
+        self.category = Category.objects.create(
+            name='T', slug='t-null', description='',
+        )
+        self.ctype = ContributionType.objects.create(
+            name='T', slug='t-null-type',
+            category=self.category, min_points=1, max_points=100,
+        )
+        GlobalLeaderboardMultiplier.objects.create(
+            contribution_type=self.ctype,
+            multiplier_value=1,
+            valid_from=timezone.now(),
+        )
+        self.user = User.objects.create_user(
+            email='null-type@test.com',
+            address='0xcccccccccccccccccccccccccccccccccccccccc',
+            password='testpass',
+        )
+        self.sub = SubmittedContribution.objects.create(
+            user=self.user,
+            contribution_type=self.ctype,
+            contribution_date=timezone.now(),
+            notes='legacy',
+        )
+        # Legacy-style evidence: url_type forcibly null after save().
+        ev = Evidence.objects.create(
+            submitted_contribution=self.sub,
+            url='https://x.com/legacy/status/111',
+            description='legacy evidence',
+        )
+        Evidence.objects.filter(pk=ev.pk).update(url_type=None)
+
+    def test_null_typed_non_permissive_evidence_still_blocks_duplicate(self):
+        """An X post URL stored with url_type=None must still trigger a
+        duplicate rejection on the new submission side (the exclude filter
+        keeps null-typed rows in the comparison set)."""
+        result = check_duplicate_url('https://x.com/legacy/status/111')
+        self.assertIsNotNone(result)
