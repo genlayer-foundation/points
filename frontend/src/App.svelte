@@ -81,6 +81,7 @@
 
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
+  import EcosystemPartners from './routes/EcosystemPartners.svelte';
   import Referrals from './routes/Referrals.svelte';
   import Community from './routes/Community.svelte';
   import Hackathon from './routes/Hackathon.svelte';
@@ -164,6 +165,9 @@
     // Legal routes
     '/terms-of-use': TermsOfUse,
     '/privacy-policy': PrivacyPolicy,
+
+    // Ecosystem
+    '/ecosystem-partners': EcosystemPartners,
 
     '*': NotFound
   };

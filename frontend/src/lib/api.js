@@ -265,4 +265,10 @@ export const alertsAPI = {
   getAlerts: () => api.get('/alerts/'),
 };
 
+// Ecosystem Partners API
+export const partnersAPI = {
+  list: (params) => api.get('/partners/', { params }),
+  get: (slug) => api.get(`/partners/${slug}/`),
+};
+
 export default api;

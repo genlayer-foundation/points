@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from users.views import UserViewSet
 from contributions.views import ContributionTypeViewSet, ContributionViewSet, EvidenceViewSet, SubmittedContributionViewSet, StewardSubmissionViewSet, MissionViewSet, StartupRequestViewSet, FeaturedContentViewSet, AlertViewSet
 from leaderboard.views import GlobalLeaderboardMultiplierViewSet, LeaderboardViewSet
+from partners.views import PartnerViewSet
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 from .metrics_views import ActiveValidatorsView, ContributionTypesStatsView, ParticipantsGrowthView, TestnetMetricsView
 
@@ -20,6 +21,7 @@ router.register(r'missions', MissionViewSet, basename='mission')
 router.register(r'startup-requests', StartupRequestViewSet, basename='startup-request')
 router.register(r'featured', FeaturedContentViewSet, basename='featured')
 router.register(r'alerts', AlertViewSet, basename='alert')
+router.register(r'partners', PartnerViewSet, basename='partner')
 
 # The API URLs are now determined automatically by the router
 urlpatterns = [
