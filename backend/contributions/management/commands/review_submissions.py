@@ -273,8 +273,11 @@ class Command(BaseCommand):
 
         # Skip submissions already reviewed by AI steward or carrying an
         # active proposal, since Tier 1 should not overwrite proposal state.
+        # Also skip appealed submissions — those are reserved for human
+        # steward reconsideration.
         qs = qs.exclude(reviewed_by=ai_user).filter(
             proposed_action__isnull=True,
+            has_appeal=False,
         )
 
         # Process newest first so that when duplicates share a URL,

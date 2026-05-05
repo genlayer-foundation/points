@@ -206,6 +206,10 @@ class AIReviewViewSet(
         qs = SubmittedContribution.objects.filter(
             state='pending',
             reviewed_by__isnull=True,
+            # Appealed submissions are reserved for human stewards — the AI
+            # already evaluated them once, so re-review without context would
+            # likely re-propose the same outcome the user is appealing.
+            has_appeal=False,
         )
         # The list endpoint only returns unproposed submissions;
         # retrieve allows accessing proposed ones too (needed for PUT /propose/).

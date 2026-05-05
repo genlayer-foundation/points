@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import axios from 'axios';
 import { writable } from 'svelte/store';
 import { userStore } from './userStore';
+import { API_BASE_URL } from './config.js';
 
 // Create a Svelte store for authentication state
 const createAuthStore = () => {
@@ -99,7 +100,6 @@ const authAxios = axios.create({
 });
 
 // Authentication API endpoints (relative to base URL, not api/v1)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_ENDPOINTS = {
   NONCE: `${API_BASE_URL}/api/auth/nonce/`,
   LOGIN: `${API_BASE_URL}/api/auth/login/`,

@@ -66,6 +66,10 @@ class Validator(NodeVersionMixin, BaseModel):
         related_name='validator'
     )
     # node_version_asimov and node_version_bradbury fields are inherited from NodeVersionMixin
+    display_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Lower numbers appear first on the Ecosystem page. Ties fall back to newest-first.",
+    )
 
     def __str__(self):
         asimov = self.node_version_asimov or 'Not set'

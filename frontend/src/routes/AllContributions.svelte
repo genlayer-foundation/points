@@ -37,10 +37,17 @@
     return 'all';
   }
   function buildBasePath(path) {
-    if (path.startsWith('/builders')) return '/builders/all-contributions';
-    if (path.startsWith('/validators')) return '/validators/all-contributions';
-    if (path.startsWith('/community')) return '/community/all-contributions';
-    return '/all-contributions';
+    const isHighlightsPath = path.endsWith('/highlights');
+    if (path.startsWith('/builders')) {
+      return isHighlightsPath ? '/builders/contributions/highlights' : '/builders/all-contributions';
+    }
+    if (path.startsWith('/validators')) {
+      return isHighlightsPath ? '/validators/contributions/highlights' : '/validators/all-contributions';
+    }
+    if (path.startsWith('/community')) {
+      return isHighlightsPath ? '/community/contributions/highlights' : '/community/all-contributions';
+    }
+    return isHighlightsPath ? '/highlights' : '/all-contributions';
   }
 
   // === State ===

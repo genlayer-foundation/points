@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { authState } from '../lib/auth';
+  import { API_BASE_URL } from '../lib/config.js';
   import { getCurrentUser } from '../lib/api';
   import { showSuccess, showError } from '../lib/toastStore';
 
@@ -177,9 +178,8 @@
     handledOAuthResult = false;
     isLinking = true;
 
-    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     const redirectUrl = encodeURIComponent(`${window.location.origin}/`);
-    const oauthUrl = `${backendUrl}${initiateUrl}?redirect=${redirectUrl}`;
+    const oauthUrl = `${API_BASE_URL}${initiateUrl}?redirect=${redirectUrl}`;
 
     clearPopupMonitor();
     oauthWindow = window.open(oauthUrl, 'oauth_popup');
