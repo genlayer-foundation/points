@@ -272,7 +272,21 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         from contributions.models import Category, ContributionType
         from django.db.models import Q
         
-        limit = int(request.query_params.get('limit', 10))
+        limit_param = request.query_params.get('limit')
+        limit = 10
+        if limit_param is not None:
+            try:
+                limit = int(limit_param)
+            except (TypeError, ValueError):
+                return Response(
+                    {'detail': 'limit must be an integer.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if limit < 0:
+                return Response(
+                    {'detail': 'limit must be greater than or equal to 0.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         category_slug = request.query_params.get('category')
         waitlist_only = request.query_params.get('waitlist_only', 'false').lower() == 'true'
         
@@ -336,7 +350,8 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                 # No validator type, just filter by waitlist users
                 queryset = queryset.filter(contribution__user_id__in=waitlist_users)
         
-        # Order by contribution date descending and apply limit
+        # Order by contribution date descending. `limit=0` is used by the
+        # all-contributions explorer so local filters can search every highlight.
         highlights = queryset.select_related(
             'contribution__user',
             'contribution__user__validator',
@@ -346,7 +361,10 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             'contribution__contribution_type__category'
         ).prefetch_related(
             'contribution__evidence_items'
-        ).order_by('-contribution__contribution_date')[:limit]
+        ).order_by('-contribution__contribution_date')
+
+        if limit > 0:
+            highlights = highlights[:limit]
         
         serializer = ContributionHighlightSerializer(highlights, many=True)
         return Response(serializer.data)
