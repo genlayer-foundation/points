@@ -10,10 +10,9 @@
   let loading = $state(true);
 
   function getHighlightsPath() {
-    if (category === 'builder') return '/builders/contributions/highlights';
-    if (category === 'validator') return '/validators/contributions/highlights';
-    if (category === 'community') return '/community/contributions/highlights';
-    return '/contributions/highlights';
+    const params = new URLSearchParams({ view: 'highlights' });
+    if (category) params.set('category', category);
+    return `/all-contributions?${params.toString()}`;
   }
 
   onMount(async () => {
