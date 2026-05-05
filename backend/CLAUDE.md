@@ -213,6 +213,11 @@ GET    /api/v1/contributions/{id}/
 PATCH  /api/v1/contributions/{id}/ (requires auth)
 DELETE /api/v1/contributions/{id}/ (requires auth)
 
+# Submissions (submitter-side)
+GET    /api/v1/submissions/my/                  (requires auth, paginated user submissions)
+POST   /api/v1/submissions/{id}/appeal/         (requires auth, owner-only, one per submission)
+POST   /api/v1/submissions/{id}/add-evidence/   (requires auth, owner-only)
+
 # Contribution Types
 GET    /api/v1/contribution-types/
 GET    /api/v1/contribution-types/{id}/
