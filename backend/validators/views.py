@@ -78,16 +78,17 @@ class ValidatorViewSet(viewsets.ModelViewSet):
         except ContributionType.DoesNotExist:
             return Response([], status=status.HTTP_200_OK)
 
-        # Get all validators with their first uptime contribution
-        # Similar to ActiveValidatorsView query
+        # Get all validators with their first uptime contribution.
+        # Order by Validator.display_order (admin-controlled), then newest-first
+        # as a tiebreaker. Mirrors the Partners ordering pattern.
         validators_with_first_uptime = (
             Contribution.objects
             .filter(contribution_type=uptime_type)
-            .values('user', 'user__address', 'user__name')
+            .values('user', 'user__address', 'user__name', 'user__validator__display_order')
             .annotate(
                 first_uptime_date=Min('contribution_date')
             )
-            .order_by('-first_uptime_date')[:limit]
+            .order_by('user__validator__display_order', '-first_uptime_date')[:limit]
         )
 
         # Get user IDs and fetch users with optimization

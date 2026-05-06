@@ -1,8 +1,9 @@
 import axios from 'axios';
+import { API_BASE_URL } from './config.js';
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1`,
+  baseURL: `${API_BASE_URL}/api/v1`,
   timeout: 30000, // Increased timeout to 30 seconds for slow endpoints
   headers: {
     'Content-Type': 'application/json'
@@ -91,6 +92,11 @@ export const contributionsAPI = {
   getMission: (id) => api.get(`/missions/${id}/`),
   getStartupRequests: () => api.get('/startup-requests/'),
   getStartupRequest: (id) => api.get(`/startup-requests/${id}/`)
+};
+
+// API endpoints for the submitter-side submission flows
+export const submissionsAPI = {
+  appeal: (id, reason) => api.post(`/submissions/${id}/appeal/`, { reason })
 };
 
 

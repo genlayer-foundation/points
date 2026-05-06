@@ -37,10 +37,17 @@
     return 'all';
   }
   function buildBasePath(path) {
-    if (path.startsWith('/builders')) return '/builders/all-contributions';
-    if (path.startsWith('/validators')) return '/validators/all-contributions';
-    if (path.startsWith('/community')) return '/community/all-contributions';
-    return '/all-contributions';
+    const isHighlightsPath = path.endsWith('/highlights');
+    if (path.startsWith('/builders')) {
+      return isHighlightsPath ? '/builders/contributions/highlights' : '/builders/all-contributions';
+    }
+    if (path.startsWith('/validators')) {
+      return isHighlightsPath ? '/validators/contributions/highlights' : '/validators/all-contributions';
+    }
+    if (path.startsWith('/community')) {
+      return isHighlightsPath ? '/community/contributions/highlights' : '/community/all-contributions';
+    }
+    return isHighlightsPath ? '/highlights' : '/all-contributions';
   }
 
   // === State ===
@@ -326,7 +333,9 @@
     highlightsError = null;
     try {
       // Backend /highlights/ only honors `category` server-side; rest is client-side.
-      const params = category !== 'all' ? { category } : {};
+      // Request every highlight so user/type/mission filters are not limited to
+      // only the latest dashboard-sized batch.
+      const params = category !== 'all' ? { category, limit: 0 } : { limit: 0 };
       const response = await contributionsAPI.getAllHighlights(params);
       const all = Array.isArray(response.data) ? response.data : (response.data?.results || []);
       const sorted = sortHighlights(filterHighlightsClientSide(all));

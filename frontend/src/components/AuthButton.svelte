@@ -1,7 +1,7 @@
 <!-- AuthButton.svelte -->
 <script>
   import { onMount } from 'svelte';
-  import { push } from 'svelte-spa-router';
+  import { push, location } from 'svelte-spa-router';
   import { authState, signInWithEthereum, logout } from '../lib/auth';
   import { userStore } from '../lib/userStore';
   import { showError, showWarning } from '../lib/toastStore';
@@ -17,6 +17,15 @@
   let loading = false;
   let showDropdown = false;
   let showWalletSelector = false;
+
+  function preserveCurrentRouteForLogin() {
+    if (sessionStorage.getItem('redirectAfterLogin')) return;
+
+    const currentRoute = $location || window.location.hash.replace(/^#/, '') || '/';
+    if (currentRoute === '/my-submissions') {
+      sessionStorage.setItem('redirectAfterLogin', currentRoute);
+    }
+  }
 
   // Show toast for auth store errors with appropriate severity
   $: if (storeError) {
@@ -46,6 +55,8 @@
     loading = true;
 
     try {
+      preserveCurrentRouteForLogin();
+
       // Sign in with Ethereum
       await signInWithEthereum(provider, walletName);
 

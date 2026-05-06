@@ -29,11 +29,14 @@
     notesLoading = false,
     onAddNote = null,
     onToggleInteresting = null,
-    onRequestNotes = null
+    onRequestNotes = null,
+    onAppeal = null
   } = $props();
 
   let togglingInteresting = $state(false);
   let copyingReviewContext = $state(false);
+  let appealReason = $state('');
+  let submittingAppeal = $state(false);
 
   let canCopyReviewContext = $derived(
     showReviewForm && !isOwnSubmission && submission.state === 'pending'
@@ -103,6 +106,12 @@
           `- Proposed staff reply: ${textOrNone(submission.proposed_staff_reply)}`,
         ].join('\n')
       : 'None';
+    const appealLines = submission.has_appeal
+      ? [
+          '- Appealed: Yes',
+          `- Appeal reason: ${textOrNone(submission.appeal_reason)}`,
+        ].join('\n')
+      : 'None';
 
     return [
       '# Steward Submission Review Context',
@@ -129,6 +138,9 @@
       '',
       '## Evidence',
       formatEvidenceForContext(),
+      '',
+      '## Appeal',
+      appealLines,
       '',
       '## Internal CRM Notes',
       formatInternalNotesForContext(contextNotes),
@@ -399,6 +411,19 @@
     }
   }
 
+  async function handleAppeal() {
+    if (!onAppeal) return;
+    const reason = appealReason.trim();
+    if (!reason) return;
+    submittingAppeal = true;
+    try {
+      await onAppeal(submission.id, reason);
+      appealReason = '';
+    } finally {
+      submittingAppeal = false;
+    }
+  }
+
   function handlePropose() {
     if (onPropose) {
       const data = {
@@ -498,6 +523,11 @@
             Proposal
           </span>
         {/if}
+        {#if !isOwnSubmission && submission.has_appeal}
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800" title="Submitter has appealed this submission">
+            Appealed
+          </span>
+        {/if}
         {#if submission.notes_count > 0}
           <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
             {submission.notes_count} note{submission.notes_count !== 1 ? 's' : ''}
@@ -578,6 +608,13 @@
           <div>
             <h4 class="text-sm font-medium text-gray-700">Notes</h4>
             <div class="markdown-content mt-1 text-sm text-gray-900">{@html parseMarkdown(submission.notes)}</div>
+          </div>
+        {/if}
+
+        {#if !isOwnSubmission && submission.has_appeal && submission.appeal_reason}
+          <div class="border border-orange-200 rounded-lg p-3 bg-orange-50">
+            <h4 class="text-sm font-medium text-orange-900 mb-1">Appeal reason</h4>
+            <p class="text-sm text-orange-800 whitespace-pre-wrap">{submission.appeal_reason}</p>
           </div>
         {/if}
 
@@ -984,10 +1021,49 @@
             submission={submission}
             showExpand={true}
           />
-        {:else if submission.state === 'rejected' && submission.staff_reply}
-          <div class="border border-red-200 rounded-lg p-4 bg-red-50">
-            <h4 class="text-sm font-medium text-red-900 mb-2">Rejection Reason</h4>
-            <div class="markdown-content text-sm text-red-700">{@html parseMarkdown(submission.staff_reply)}</div>
+        {:else if submission.state === 'rejected'}
+          {#if submission.staff_reply}
+            <div class="border border-red-200 rounded-lg p-4 bg-red-50">
+              <h4 class="text-sm font-medium text-red-900 mb-2">Rejection Reason</h4>
+              <div class="markdown-content text-sm text-red-700">{@html parseMarkdown(submission.staff_reply)}</div>
+            </div>
+          {/if}
+          {#if isOwnSubmission}
+            {#if submission.has_appeal}
+              <div class="border border-orange-200 rounded-lg p-3 bg-orange-50">
+                <p class="text-sm text-orange-800">
+                  You have already appealed this submission. Each submission can only be appealed once.
+                </p>
+              </div>
+            {:else if onAppeal}
+              <div class="border border-orange-200 rounded-lg p-3 bg-orange-50 space-y-2">
+                <h4 class="text-sm font-medium text-orange-900">Appeal this rejection</h4>
+                <p class="text-xs text-orange-700">
+                  You can appeal this rejection once. Explain why you believe it should be reconsidered.
+                </p>
+                <textarea
+                  bind:value={appealReason}
+                  placeholder="Explain why you are appealing..."
+                  rows="3"
+                  maxlength="5000"
+                  class="w-full px-3 py-2 border border-orange-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                ></textarea>
+                <div class="flex justify-end">
+                  <button
+                    onclick={handleAppeal}
+                    disabled={submittingAppeal || !appealReason.trim()}
+                    class="px-4 py-1.5 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                  >
+                    {submittingAppeal ? 'Submitting...' : 'Submit Appeal'}
+                  </button>
+                </div>
+              </div>
+            {/if}
+          {/if}
+        {:else if isOwnSubmission && submission.state === 'pending' && submission.has_appeal}
+          <div class="border border-orange-200 rounded-lg p-3 bg-orange-50">
+            <h4 class="text-sm font-medium text-orange-900 mb-1">Your appeal is under review</h4>
+            <p class="text-xs text-orange-700">A steward will re-review your submission.</p>
           </div>
         {:else if isOwnSubmission && (submission.state === 'pending' || submission.state === 'more_info_needed')}
           <!-- Edit button for pending and more_info_needed submissions -->

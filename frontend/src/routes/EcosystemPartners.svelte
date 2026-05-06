@@ -70,7 +70,7 @@
     return {
       id: `project-${b.id || b.title}`,
       name: b.title || b.name || 'Project',
-      logo_url: b.hero_image_url || b.user_profile_image_url || '',
+      logo_url: b.featured_profile_image_url || '',
       href: link || '#',
       isExternal: link.startsWith('http'),
       category: 'project',
