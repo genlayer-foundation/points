@@ -661,7 +661,7 @@
     {/if}
 
     <div class="space-y-4">
-      {#each submissions as submission}
+      {#each submissions as submission (submission.id)}
         <div>
           {#if submission.state === 'pending' || submission.state === 'more_info_needed'}
             <div class="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2 shadow-sm">
