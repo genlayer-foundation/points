@@ -5,6 +5,8 @@ from django.test import TestCase
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from datetime import timedelta
+from django.core.exceptions import ValidationError
+from django.forms import modelform_factory
 from validators.models import Validator
 from validators.node_version import calculate_early_upgrade_bonus
 from contributions.models import ContributionType, SubmittedContribution, Category
@@ -225,3 +227,32 @@ class NodeVersionTrackingTestCase(TestCase):
         self.assertFalse(NodeVersionMixin._compare_versions('1.0.0', '2.0.0'))
         self.assertFalse(NodeVersionMixin._compare_versions(None, '2.0.0'))
         self.assertFalse(NodeVersionMixin._compare_versions('2.0.0', None))
+
+    def test_full_clean_rejects_invalid_node_version(self):
+        """Test that full model validation still rejects invalid node versions."""
+        self.validator.node_version_asimov = 'version v0.5.5'
+
+        with self.assertRaises(ValidationError) as context:
+            self.validator.full_clean()
+
+        self.assertIn('node_version_asimov', context.exception.error_dict)
+
+    def test_display_order_form_ignores_excluded_invalid_node_version(self):
+        """Test list-editable display_order forms can save when stored versions are invalid."""
+        Validator.objects.filter(pk=self.validator.pk).update(
+            node_version_asimov='version v0.5.5'
+        )
+        self.validator.refresh_from_db()
+
+        DisplayOrderForm = modelform_factory(Validator, fields=('display_order',))
+        form = DisplayOrderForm(
+            data={'display_order': '7'},
+            instance=self.validator,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors.as_data())
+        form.save()
+
+        self.validator.refresh_from_db()
+        self.assertEqual(self.validator.display_order, 7)
+        self.assertEqual(self.validator.node_version_asimov, 'version v0.5.5')
