@@ -1800,17 +1800,25 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
         Return active missions by default.
         Supports filtering by contribution_type and category.
         """
-        from django.utils import timezone
-        from django.db import models
+        queryset = Mission.objects.all().select_related(
+            'contribution_type',
+            'contribution_type__category',
+        )
 
-        now = timezone.now()
+        include_inactive = (
+            self.request.query_params.get('include_inactive', '').lower()
+            in ['1', 'true', 'yes']
+        )
+        is_active = self.request.query_params.get('is_active')
 
-        # Get base queryset of active highlights (without slicing)
-        queryset = Mission.objects.filter(
-            models.Q(start_date__isnull=True) | models.Q(start_date__lte=now)
-        ).filter(
-            models.Q(end_date__isnull=True) | models.Q(end_date__gt=now)
-        ).select_related('contribution_type', 'contribution_type__category')
+        # Detail lookups must be able to resolve expired missions so historical
+        # submissions/contributions can keep their mission identity.
+        if self.action != 'retrieve' and not include_inactive:
+            active_q = self._active_mission_q()
+            if is_active is None or is_active.lower() in ['1', 'true', 'yes']:
+                queryset = queryset.filter(active_q)
+            elif is_active.lower() in ['0', 'false', 'no']:
+                queryset = queryset.exclude(active_q)
 
         # Filter by contribution type if specified
         contribution_type = self.request.query_params.get('contribution_type', None)
@@ -1823,6 +1831,17 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(contribution_type__category__slug=category)
 
         return queryset
+
+    @staticmethod
+    def _active_mission_q():
+        from django.utils import timezone
+        from django.db import models
+
+        now = timezone.now()
+        return (
+            (models.Q(start_date__isnull=True) | models.Q(start_date__lte=now))
+            & (models.Q(end_date__isnull=True) | models.Q(end_date__gt=now))
+        )
 
 
 class StartupRequestViewSet(viewsets.ReadOnlyModelViewSet):
