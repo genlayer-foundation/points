@@ -812,6 +812,9 @@ class StewardSubmissionFilterSet(FilterSet):
     category = CharFilter(method='filter_category')
     exclude_category = CharFilter(method='filter_exclude_category')
     mission = CharFilter(method='filter_mission')
+    exclude_mission = CharFilter(method='filter_exclude_mission')
+    has_appeal = BooleanFilter(field_name='has_appeal')
+    resubmitted_more_info = BooleanFilter(method='filter_resubmitted_more_info')
 
     def filter_search(self, queryset, name, value):
         """General search across user name/email/address, notes, and evidence URLs."""
@@ -1002,6 +1005,28 @@ class StewardSubmissionFilterSet(FilterSet):
             return queryset.filter(mission__isnull=True)
         elif value:
             return queryset.filter(mission_id=value)
+        return queryset
+
+    def filter_exclude_mission(self, queryset, name, value):
+        """Exclude submissions from a mission ID, or exclude missionless submissions."""
+        if value == 'none' or value == 'null':
+            return queryset.exclude(mission__isnull=True)
+        elif value:
+            return queryset.exclude(mission_id=value)
+        return queryset
+
+    def filter_resubmitted_more_info(self, queryset, name, value):
+        """Filter submissions resubmitted after a steward requested more information."""
+        condition = Q(
+            state='pending',
+            reviewed_at__isnull=False,
+            last_edited_at__isnull=False,
+            last_edited_at__gt=F('reviewed_at'),
+        )
+        if value is True:
+            return queryset.filter(condition)
+        elif value is False:
+            return queryset.exclude(condition)
         return queryset
 
     class Meta:
