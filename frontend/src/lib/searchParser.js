@@ -8,8 +8,10 @@
  * - assigned:me|unassigned|steward-name
  * - exclude:text (multiple allowed)
  * - include:text (multiple allowed)
- * - has:url|evidence
- * - no:url|evidence
+ * - has:url|evidence|proposal|appeal
+ * - no:url|evidence|proposal|appeal
+ * - is:interesting|appealed|resubmitted
+ * - not:interesting|appealed|resubmitted
  * - min-contributions:number
  * - sort:created|-created|date|-date
  *

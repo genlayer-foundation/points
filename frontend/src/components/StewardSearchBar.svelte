@@ -26,10 +26,10 @@
     { name: 'assigned', description: 'Filter by assignment', values: () => ['me', 'unassigned', ...stewardsList.map(s => s.name || s.address?.slice(0, 10))] },
     { name: 'exclude', description: 'Exclude submissions containing text', values: () => ['medium.com'] },
     { name: 'include', description: 'Only show submissions containing text', values: () => [] },
-    { name: 'has', description: 'Filter by presence', values: () => ['url', 'evidence', 'proposal'] },
-    { name: 'no', description: 'Filter by absence', values: () => ['url', 'evidence', 'proposal'] },
-    { name: 'is', description: 'Filter by internal flag', values: () => ['interesting'] },
-    { name: 'not', description: 'Exclude by internal flag', values: () => ['interesting'] },
+    { name: 'has', description: 'Filter by presence', values: () => ['url', 'evidence', 'proposal', 'appeal'] },
+    { name: 'no', description: 'Filter by absence', values: () => ['url', 'evidence', 'proposal', 'appeal'] },
+    { name: 'is', description: 'Filter by internal flag', values: () => ['interesting', 'appealed', 'resubmitted'] },
+    { name: 'not', description: 'Exclude by internal flag', values: () => ['interesting', 'appealed', 'resubmitted'] },
     { name: 'proposal', description: 'Filter by proposed action', values: () => ['accept', 'reject', 'more-info'] },
     { name: 'confidence', description: 'Filter by proposal confidence', values: () => ['high', 'medium', 'low'] },
     { name: 'template', description: 'Filter by review template', values: () => templates.map(t => t.label.toLowerCase().replace(/\s+/g, '-')) },
@@ -233,8 +233,10 @@
           <div class="help-row"><code>include:genlayer</code><span>Only show submissions containing text</span></div>
           <div class="help-row"><code>has:url</code><span>Only submissions with URLs</span></div>
           <div class="help-row"><code>has:proposal</code><span>Only submissions with a proposal</span></div>
+          <div class="help-row"><code>has:appeal</code><span>Only submissions appealed by submitters</span></div>
           <div class="help-row"><code>no:url</code><span>Only submissions without URLs</span></div>
           <div class="help-row"><code>is:interesting</code><span>Only submissions flagged as interesting</span></div>
+          <div class="help-row"><code>is:resubmitted</code><span>More-info requests resubmitted for review</span></div>
           <div class="help-row"><code>not:interesting</code><span>Exclude submissions flagged as interesting</span></div>
           <div class="help-row"><code>proposal:reject</code><span>Filter by proposed action (accept, reject, more-info)</span></div>
           <div class="help-row"><code>confidence:high</code><span>Filter by proposal confidence (high, medium, low)</span></div>
@@ -246,11 +248,13 @@
         <div class="help-section">
           <div class="help-subtitle">Negation</div>
           <div class="help-row"><code>-type:blog-post</code><span>Exclude contribution type</span></div>
+          <div class="help-row"><code>-mission:name</code><span>Exclude a mission while keeping other matches</span></div>
         </div>
         <div class="help-section">
           <div class="help-subtitle">Examples</div>
           <div class="help-example">assigned:me exclude:medium.com has:url</div>
           <div class="help-example">from:alice -type:referral min-contributions:2</div>
+          <div class="help-example">type:bug-report -mission:wallet-login is:resubmitted</div>
         </div>
         <div class="help-note">All terms must use tags. Unrecognized text is ignored.</div>
       </div>
