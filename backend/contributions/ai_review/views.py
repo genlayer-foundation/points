@@ -49,6 +49,7 @@ class AIReviewFilterSet(FilterSet):
     min_accepted_contributions = NumberFilter(method='filter_min_accepted_contributions')
     has_proposal = BooleanFilter(method='filter_has_proposal')
     exclude_state = CharFilter(method='filter_exclude_state')
+    mission = CharFilter(method='filter_mission')
 
     class Meta:
         model = SubmittedContribution
@@ -173,6 +174,13 @@ class AIReviewFilterSet(FilterSet):
             return queryset.exclude(state=value)
         return queryset
 
+    def filter_mission(self, queryset, name, value):
+        if value in ('none', 'null'):
+            return queryset.filter(mission__isnull=True)
+        if value:
+            return queryset.filter(mission_id=value)
+        return queryset
+
 
 # ─── ViewSet ──────────────────────────────────────────────────────────────────
 
@@ -220,6 +228,7 @@ class AIReviewViewSet(
                 'contribution_type',
                 'contribution_type__category',
                 'user',
+                'mission',
                 'proposed_by',
             )
             .prefetch_related('evidence_items')
@@ -373,6 +382,7 @@ class AIReviewViewSet(
                 'contribution_type',
                 'contribution_type__category',
                 'user',
+                'mission',
                 'proposed_by',
             )
             .prefetch_related('evidence_items')
@@ -420,6 +430,7 @@ class AIReviewViewSet(
             .select_related(
                 'contribution_type',
                 'contribution_type__category',
+                'mission',
             )
             .prefetch_related('evidence_items', 'internal_notes')
             .order_by('-reviewed_at')
@@ -437,6 +448,12 @@ class AIReviewViewSet(
         category = request.query_params.get('category')
         if category:
             queryset = queryset.filter(contribution_type__category__slug=category)
+
+        mission = request.query_params.get('mission')
+        if mission in ('none', 'null'):
+            queryset = queryset.filter(mission__isnull=True)
+        elif mission:
+            queryset = queryset.filter(mission_id=mission)
 
         page = self.paginate_queryset(queryset)
         if page is not None:

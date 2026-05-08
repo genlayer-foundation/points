@@ -128,11 +128,10 @@
 	async function loadMissions() {
 		try {
 			// Use the missions store which caches and deduplicates requests
-			missions = await getMissions({
-				is_active: true,
-				// If we have a defaultMission, load all missions to find it regardless of category
-				category: defaultMission ? undefined : selectedCategory
-			});
+			const params = defaultMission
+				? { include_inactive: true }
+				: { is_active: true, category: selectedCategory };
+			missions = await getMissions(params);
 		} catch (error) {
 			missions = [];
 		}

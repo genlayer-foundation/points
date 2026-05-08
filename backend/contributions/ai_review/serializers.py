@@ -11,6 +11,20 @@ class AIReviewEvidenceSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class AIReviewMissionSerializer(serializers.Serializer):
+    """Minimal mission context for AI review payloads."""
+
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    start_date = serializers.DateTimeField(read_only=True)
+    end_date = serializers.DateTimeField(read_only=True)
+    contribution_type = serializers.PrimaryKeyRelatedField(read_only=True)
+    is_active = serializers.SerializerMethodField()
+
+    def get_is_active(self, obj):
+        return obj.is_active()
+
+
 class LightAIReviewSubmissionSerializer(serializers.ModelSerializer):
     """Light serializer for list views — no nested queries."""
 
@@ -19,6 +33,7 @@ class LightAIReviewSubmissionSerializer(serializers.ModelSerializer):
     )
     category_name = serializers.SerializerMethodField()
     has_proposal = serializers.SerializerMethodField()
+    mission = AIReviewMissionSerializer(read_only=True)
 
     class Meta:
         model = SubmittedContribution
@@ -30,6 +45,9 @@ class LightAIReviewSubmissionSerializer(serializers.ModelSerializer):
             'title',
             'notes',
             'state',
+            'mission',
+            'has_appeal',
+            'appeal_reason',
             'has_proposal',
             'created_at',
         ]
@@ -61,6 +79,7 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
         source='contribution_type.max_points', read_only=True,
     )
     evidence_items = AIReviewEvidenceSerializer(many=True, read_only=True)
+    mission = AIReviewMissionSerializer(read_only=True)
     user_history = serializers.SerializerMethodField()
     has_proposal = serializers.SerializerMethodField()
     proposed_by_name = serializers.SerializerMethodField()
@@ -78,6 +97,10 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
             'title',
             'notes',
             'state',
+            'staff_reply',
+            'mission',
+            'has_appeal',
+            'appeal_reason',
             'evidence_items',
             'user_history',
             'has_proposal',
@@ -140,6 +163,7 @@ class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):
     category_name = serializers.SerializerMethodField()
     evidence_items = AIReviewEvidenceSerializer(many=True, read_only=True)
     internal_notes = AIReviewNoteSerializer(many=True, read_only=True)
+    mission = AIReviewMissionSerializer(read_only=True)
 
     class Meta:
         model = SubmittedContribution
@@ -152,6 +176,9 @@ class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):
             'notes',
             'state',
             'staff_reply',
+            'mission',
+            'has_appeal',
+            'appeal_reason',
             'reviewed_at',
             'evidence_items',
             'internal_notes',

@@ -45,10 +45,10 @@ Use template text as the basis for `proposed_staff_reply` to keep responses cons
 curl -s -H "X-AI-Review-Key: $KEY" "$BASE_URL/api/v1/ai-review/?page_size=10"
 ```
 
-The list view returns lightweight data (no evidence or user history — just id, type, category, notes, state, created_at).
+The list view returns lightweight data (no evidence or user history — just id, type, category, mission, appeal fields, notes, state, created_at).
 Use it to identify which submissions to evaluate in detail.
 
-Common filters: `category=builder`, `exclude_empty_evidence=true`, `include_content=github`, `ordering=-created_at`.
+Common filters: `category=builder`, `mission={id}`, `mission=none`, `exclude_empty_evidence=true`, `include_content=github`, `ordering=-created_at`.
 
 ### Step 3: Get submission detail
 
@@ -58,8 +58,9 @@ For each submission to evaluate:
 curl -s -H "X-AI-Review-Key: $KEY" "$BASE_URL/api/v1/ai-review/{uuid}/"
 ```
 
-The detail view returns the full submission including `evidence_items` (URLs, descriptions) and
-`user_history` (accepted_count, rejected_count, pending_count). Use this data to make your evaluation.
+The detail view returns the full submission including `mission`, `has_appeal`, `appeal_reason`,
+`evidence_items` (URLs, descriptions), and `user_history` (accepted_count, rejected_count, pending_count).
+Use this data to make your evaluation.
 
 ### Step 4: Propose a review (POST = create, PUT = update)
 
@@ -119,9 +120,9 @@ Page through remaining submissions with `?page=2&page_size=10`.
 curl -s -H "X-AI-Review-Key: $KEY" "$BASE_URL/api/v1/ai-review/reviewed/?page_size=10"
 ```
 
-Returns submissions that were reviewed by stewards after having an AI proposal. Includes the final `state`, `staff_reply`, `evidence_items`, and all `internal_notes` (with proposal data). Use this to calibrate future proposals — check whether stewards agreed with your proposals or overrode them.
+Returns submissions that were reviewed by stewards after having an AI proposal. Includes the final `state`, `staff_reply`, `mission`, appeal fields, `evidence_items`, and all `internal_notes` (with proposal and final review data). Use this to calibrate future proposals — check whether stewards agreed with your proposals or overrode them.
 
-Filters: `state=accepted|rejected|more_info_needed`, `contribution_type={id}`, `category={slug}`.
+Filters: `state=accepted|rejected|more_info_needed`, `contribution_type={id}`, `category={slug}`, `mission={id}`, `mission=none`.
 
 ## Evaluation Guidelines
 
