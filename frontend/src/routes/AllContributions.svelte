@@ -426,9 +426,13 @@
     }
     try {
       const res = await contributionsAPI.getMission(missionId);
-      activeMissionName = res.data?.name || '';
-      if (!typeId && res.data?.contribution_type) {
-        typeId = String(res.data.contribution_type);
+      const mission = res.data;
+      activeMissionName = mission?.name || '';
+      if (mission && !allMissions.some(m => String(m.id) === String(mission.id))) {
+        allMissions = [mission, ...allMissions];
+      }
+      if (!typeId && mission?.contribution_type) {
+        typeId = String(mission.contribution_type);
         resolveTypeName();
       }
     } catch {
@@ -441,7 +445,7 @@
     try {
       const [types, missions] = await Promise.all([
         getContributionTypes({ is_submittable: 'true' }),
-        getMissions({ is_active: true }),
+        getMissions(missionId ? { include_inactive: true } : { is_active: true }),
       ]);
       allTypes = Array.isArray(types) ? [...types].sort((a, b) => a.name.localeCompare(b.name)) : [];
       allMissions = Array.isArray(missions) ? missions : [];

@@ -65,7 +65,7 @@
     prefetchMissions([
       { is_active: true, category: 'validator' },
       { is_active: true, category: 'builder' },
-      { is_active: true }  // Also prefetch all missions (for defaultMission lookups)
+      { include_inactive: true }  // Also prefetch all missions for defaultMission lookups
     ]);
 
     // Load permissions and templates in parallel with other data
@@ -122,7 +122,7 @@
 
   async function loadMissions() {
     try {
-      const response = await contributionsAPI.getMissions({ page_size: 100 });
+      const response = await contributionsAPI.getMissions({ include_inactive: true, page_size: 100 });
       missions = response.data.results || response.data || [];
     } catch (err) {
       // Error loading missions silently handled
