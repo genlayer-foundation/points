@@ -540,7 +540,7 @@
           {templates}
           {missions}
           onSearch={handleSearchChange}
-          placeholder="type:blog-post assigned:me mission:name..."
+          placeholder="type:blog-post -mission:name has:appeal is:resubmitted..."
         />
       </div>
     </div>

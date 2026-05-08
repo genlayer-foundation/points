@@ -9,6 +9,8 @@
  * @param {Array} options.contributionTypes - List of contribution types for name/slug lookup
  * @param {Array} options.stewardsList - List of stewards for name lookup
  * @param {string} options.currentUserId - Current user's ID for "me" resolution
+ * @param {Array} options.templates - List of review templates for label lookup
+ * @param {Array} options.missions - List of missions for name/ID lookup
  * @returns {Object} API query parameters
  */
 export function searchToParams(parsed, options = {}) {
@@ -16,6 +18,9 @@ export function searchToParams(parsed, options = {}) {
   const params = {};
 
   const { filters } = parsed;
+  const hasValue = (values, candidates) => (
+    values || []
+  ).some(value => candidates.includes(String(value).toLowerCase()));
 
   // status → state (handle negation as exclude_state)
   if (filters.status) {
@@ -107,24 +112,45 @@ export function searchToParams(parsed, options = {}) {
   }
 
   // has:url / no:url → evidence filters
-  if (filters.no && (filters.no.includes('url') || filters.no.includes('evidence'))) {
+  if (hasValue(filters.no, ['url', 'evidence'])) {
     params.only_empty_evidence = true;
-  } else if (filters.has && (filters.has.includes('url') || filters.has.includes('evidence'))) {
+  } else if (hasValue(filters.has, ['url', 'evidence'])) {
     params.exclude_empty_evidence = true;
   }
 
   // has:proposal / no:proposal → proposal filter
-  if (filters.has && filters.has.includes('proposal')) {
+  if (hasValue(filters.has, ['proposal'])) {
     params.has_proposal = true;
-  } else if (filters.no && filters.no.includes('proposal')) {
+  } else if (hasValue(filters.no, ['proposal'])) {
     params.has_proposal = false;
   }
 
+  // has:appeal / no:appeal and is:appealed / not:appealed → appeal filter
+  if (
+    hasValue(filters.has, ['appeal']) ||
+    hasValue(filters.is, ['appealed'])
+  ) {
+    params.has_appeal = true;
+  } else if (
+    hasValue(filters.no, ['appeal']) ||
+    hasValue(filters.not, ['appealed'])
+  ) {
+    params.has_appeal = false;
+  }
+
   // is:interesting / not:interesting → is_interesting filter
-  if (filters.is && filters.is.includes('interesting')) {
+  if (hasValue(filters.is, ['interesting'])) {
     params.is_interesting = true;
-  } else if (filters.not && filters.not.includes('interesting')) {
+  } else if (hasValue(filters.not, ['interesting'])) {
     params.is_interesting = false;
+  }
+
+  const resubmittedAliases = ['resubmitted', 'more-info-resubmitted', 'more_info_resubmitted'];
+  // is:resubmitted / not:resubmitted → pending submissions edited after more-info was requested
+  if (hasValue(filters.is, resubmittedAliases)) {
+    params.resubmitted_more_info = true;
+  } else if (hasValue(filters.not, resubmittedAliases)) {
+    params.resubmitted_more_info = false;
   }
 
   // min-contributions
@@ -170,7 +196,11 @@ export function searchToParams(parsed, options = {}) {
   if (filters.mission) {
     const missionValue = filters.mission.value.toLowerCase();
     if (missionValue === 'none' || missionValue === 'null') {
-      params.mission = 'none';
+      if (filters.mission.negated) {
+        params.exclude_mission = 'none';
+      } else {
+        params.mission = 'none';
+      }
     } else {
       const { missions = [] } = options;
       const mission = missions.find(m =>
@@ -179,7 +209,11 @@ export function searchToParams(parsed, options = {}) {
         String(m.id) === filters.mission.value
       );
       if (mission) {
-        params.mission = mission.id;
+        if (filters.mission.negated) {
+          params.exclude_mission = mission.id;
+        } else {
+          params.mission = mission.id;
+        }
       }
     }
   }
