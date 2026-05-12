@@ -14,8 +14,8 @@
   <HeroBanner />
   <LiveStats />
   <TrendingContributors />
-  <HackathonWinnersSlider />
   <FeaturedBuilds />
+  <HackathonWinnersSlider />
   <PortalHighlights />
   <NewestMembers />
   <MiniLeaderboard />
