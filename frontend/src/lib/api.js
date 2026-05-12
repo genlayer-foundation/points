@@ -112,6 +112,8 @@ export const leaderboardAPI = {
   getStats: () => api.get('/leaderboard/stats/'),
   getWaitlistStats: () => api.get('/leaderboard/validator-waitlist-stats/'),
   getWaitlistTop: (limit = 10) => api.get('/leaderboard/validator-waitlist/top/', { params: { limit } }),
+  getMonthlyLeaderboardByType: (type, limit = 10) =>
+    api.get('/leaderboard/monthly/', { params: { type, limit } }),
   getCommunity: (params = {}) => api.get('/leaderboard/community/', { params }),
   getTrending: (limit = 10) => api.get('/leaderboard/trending/', { params: { limit } }),
   getTypes: () => api.get('/leaderboard/types/'),
@@ -133,6 +135,7 @@ export const statsAPI = {
 // Validators API
 export const validatorsAPI = {
   getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } }),
+  getAllValidators: () => api.get('/validators/all/'),
   // Validator Wallets
   getAllValidatorWallets: (params = {}) => api.get('/validators/wallets/', { params }),
   getValidatorWalletsByOperator: (operatorAddress, network = null) => {

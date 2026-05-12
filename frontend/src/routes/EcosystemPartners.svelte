@@ -56,7 +56,7 @@
 
   function normalizeValidator(user) {
     return {
-      id: `validator-${user.address}`,
+      id: `validator-${user.address || user.id || user.name}`,
       name: user.name || 'Validator',
       logo_url: user.profile_image_url || '',
       href: user.address ? `#/participant/${user.address}` : '#',
@@ -86,9 +86,7 @@
   onMount(async () => {
     const [partnersRes, validatorsRes, buildsRes] = await Promise.allSettled([
       partnersAPI.list({ page_size: 200 }),
-      // `getNewestValidators` returns graduated validators only (users with the
-      // uptime contribution badge). Pull a wide page so we get the full list.
-      validatorsAPI.getNewestValidators(200),
+      validatorsAPI.getAllValidators(),
       featuredAPI.getBuilds(),
     ]);
 
@@ -100,7 +98,6 @@
     const validators =
       validatorsRes.status === 'fulfilled'
         ? asArray(validatorsRes.value?.data)
-            .filter((u) => u.address)
             .map(normalizeValidator)
         : [];
 
