@@ -425,6 +425,16 @@ class SubmittedContribution(BaseModel):
         help_text="Internal-only flag stewards can toggle to mark a submission as interesting."
     )
 
+    # Appeal fields - submitter can appeal a rejected submission once
+    has_appeal = models.BooleanField(
+        default=False,
+        help_text="True once the submitter has appealed a rejection. Each submission can only be appealed once."
+    )
+    appeal_reason = models.TextField(
+        blank=True,
+        help_text="Reason provided by the submitter when appealing a rejection."
+    )
+
     # Edit tracking
     last_edited_at = models.DateTimeField(null=True, blank=True)
     
@@ -569,6 +579,12 @@ class EvidenceURLType(BaseModel):
         max_length=20,
         blank=True,
         help_text="Social account type for ownership checks: 'twitter' or 'github'"
+    )
+    allow_duplicate = models.BooleanField(
+        default=False,
+        help_text="If True, URLs of this type are exempt from duplicate "
+                  "checking against other submissions and contributions. "
+                  "Useful for shared resources like GitHub repositories."
     )
 
     class Meta:

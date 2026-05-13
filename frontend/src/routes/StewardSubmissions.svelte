@@ -65,7 +65,7 @@
     prefetchMissions([
       { is_active: true, category: 'validator' },
       { is_active: true, category: 'builder' },
-      { is_active: true }  // Also prefetch all missions (for defaultMission lookups)
+      { include_inactive: true }  // Also prefetch all missions for defaultMission lookups
     ]);
 
     // Load permissions and templates in parallel with other data
@@ -122,7 +122,7 @@
 
   async function loadMissions() {
     try {
-      const response = await contributionsAPI.getMissions({ page_size: 100 });
+      const response = await contributionsAPI.getMissions({ include_inactive: true, page_size: 100 });
       missions = response.data.results || response.data || [];
     } catch (err) {
       // Error loading missions silently handled
@@ -277,11 +277,32 @@
     notesLoading = { ...notesLoading };
     try {
       const response = await stewardAPI.getNotes(submissionId);
-      submissionNotes[submissionId] = response.data || [];
+      const list = response.data || [];
+      submissionNotes[submissionId] = list;
       submissionNotes = { ...submissionNotes };
+      return list;
     } catch (err) {
       submissionNotes[submissionId] = [];
       submissionNotes = { ...submissionNotes };
+      return [];
+    } finally {
+      notesLoading[submissionId] = false;
+      notesLoading = { ...notesLoading };
+    }
+  }
+
+  // Throwing variant used by SubmissionCard's copy-context action. Failures
+  // must propagate so the copy can be aborted instead of silently producing
+  // a clipboard payload missing internal notes.
+  async function fetchNotesForCopy(submissionId) {
+    notesLoading[submissionId] = true;
+    notesLoading = { ...notesLoading };
+    try {
+      const response = await stewardAPI.getNotes(submissionId);
+      const list = response.data || [];
+      submissionNotes[submissionId] = list;
+      submissionNotes = { ...submissionNotes };
+      return list;
     } finally {
       notesLoading[submissionId] = false;
       notesLoading = { ...notesLoading };
@@ -519,7 +540,7 @@
           {templates}
           {missions}
           onSearch={handleSearchChange}
-          placeholder="type:blog-post assigned:me mission:name..."
+          placeholder="type:blog-post -mission:name has:appeal is:resubmitted..."
         />
       </div>
     </div>
@@ -640,62 +661,60 @@
     {/if}
 
     <div class="space-y-4">
-      {#each submissions as submission}
-        <div class="relative">
-          <!-- Checkbox for bulk selection - Only for pending/more_info_needed -->
+      {#each submissions as submission (submission.id)}
+        <div>
           {#if submission.state === 'pending' || submission.state === 'more_info_needed'}
-            <div class="absolute top-4 left-4 z-10">
-              <input
-                type="checkbox"
-                checked={selectedSubmissions.has(submission.id)}
-                onchange={() => toggleSubmissionSelection(submission.id)}
-                class="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
-              />
+            <div class="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2 shadow-sm">
+              <label class="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={selectedSubmissions.has(submission.id)}
+                  onchange={() => toggleSubmissionSelection(submission.id)}
+                  class="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                />
+                <span>Select for bulk action</span>
+              </label>
+
+              <label class="flex items-center gap-2 text-sm text-gray-700">
+                <span class="font-medium">Assigned to</span>
+                <select
+                  value={submission.assigned_to || 'unassigned'}
+                  onchange={(e) => handleAssignment(submission.id, e.target.value)}
+                  disabled={assigningSubmissions.has(submission.id)}
+                  class="max-w-[220px] px-3 py-1 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
+                  title="Assign to steward"
+                >
+                  <option value="unassigned">Unassigned</option>
+                  {#each stewardsList as steward}
+                    <option value={steward.user_id}>
+                      {steward.name || steward.address?.slice(0, 10) + '...'}
+                    </option>
+                  {/each}
+                </select>
+              </label>
             </div>
           {/if}
 
-          <!-- Assignment Dropdown - Only for pending/more_info_needed -->
-          {#if submission.state === 'pending' || submission.state === 'more_info_needed'}
-            <div class="absolute top-4 right-4 z-10">
-              <select
-                value={submission.assigned_to || 'unassigned'}
-                onchange={(e) => handleAssignment(submission.id, e.target.value)}
-                disabled={assigningSubmissions.has(submission.id)}
-                class="px-3 py-1 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
-                title="Assign to steward"
-              >
-                <option value="unassigned">Unassigned</option>
-                {#each stewardsList as steward}
-                  <option value={steward.user_id}>
-                    {steward.name || steward.address?.slice(0, 10) + '...'}
-                  </option>
-                {/each}
-              </select>
-            </div>
-          {/if}
-
-          <!-- Submission Card with left padding for checkbox -->
-          <div class={submission.state === 'pending' || submission.state === 'more_info_needed' ? 'pl-10' : ''}>
-            <SubmissionCard
-              {submission}
-              showReviewForm={true}
-              onReview={handleReview}
-              onPropose={handlePropose}
-              reviewData={reviewData[submission.id]}
-              isProcessing={processingSubmissions.has(submission.id)}
-              successMessage={''}
-              {contributionTypes}
-              {users}
-              {multipliers}
-              isOwnSubmission={false}
-              permissions={permissionsMap}
-              {templates}
-              notes={submissionNotes[submission.id] || []}
-              notesLoading={notesLoading[submission.id] || false}
-              onAddNote={handleAddNote}
-              onToggleInteresting={handleToggleInteresting}
-            />
-          </div>
+          <SubmissionCard
+            {submission}
+            showReviewForm={true}
+            onReview={handleReview}
+            onPropose={handlePropose}
+            reviewData={reviewData[submission.id]}
+            isProcessing={processingSubmissions.has(submission.id)}
+            successMessage={''}
+            {contributionTypes}
+            {users}
+            {multipliers}
+            isOwnSubmission={false}
+            permissions={permissionsMap}
+            {templates}
+            notes={submissionNotes[submission.id] || []}
+            notesLoading={notesLoading[submission.id] || false}
+            onAddNote={handleAddNote}
+            onToggleInteresting={handleToggleInteresting}
+            onRequestNotes={fetchNotesForCopy}
+          />
         </div>
       {/each}
     </div>

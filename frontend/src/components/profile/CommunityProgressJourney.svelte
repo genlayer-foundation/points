@@ -18,7 +18,7 @@
 </script>
 
 <div
-    class="bg-white rounded-[12px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] p-6 w-full"
+    class="community-journey-card bg-white rounded-[12px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] p-6 w-full"
 >
     <!-- Title and Subtitle -->
     <div class="flex flex-col gap-2 mb-4">
@@ -48,8 +48,8 @@
 
     <div class="space-y-2">
         <!-- Step 1: Link X (Twitter) -->
-        <div class="flex items-center justify-between py-1">
-            <div class="flex items-center gap-3 w-full md:w-auto">
+        <div class="community-step flex items-center justify-between py-1 gap-4">
+            <div class="community-step-copy flex items-center gap-3 w-full md:w-auto min-w-0">
                 <div
                     class="flex-shrink-0 w-5 h-5 flex items-center justify-center"
                 >
@@ -94,7 +94,7 @@
                         </svg>
                     {/if}
                 </div>
-                <div class="flex flex-col">
+                <div class="flex flex-col min-w-0">
                     <span
                         class="font-['Switzer'] font-medium text-[14px] text-black tracking-[0.28px]"
                         >Link X (Twitter)</span
@@ -105,7 +105,7 @@
                     >
                 </div>
             </div>
-            <div>
+            <div class="community-step-action">
                 {#if hasLinkedX}
                     <div
                         class="px-[12px] py-[6px] bg-[#f2f2f2] rounded-[6px] text-[14px] font-['Switzer'] font-medium text-[#ababab] tracking-[0.28px]"
@@ -116,7 +116,7 @@
                     <button
                         onclick={() => onClaimX()}
                         disabled={isClaimingX}
-                        class="px-[12px] py-[6px] bg-[#7f52e1] rounded-[6px] text-[14px] font-['Switzer'] font-medium text-white tracking-[0.28px] hover:bg-[#6b3fd4] transition-colors whitespace-nowrap disabled:opacity-50"
+                        class="community-claim-button px-[12px] py-[6px] bg-[#7f52e1] rounded-[6px] text-[14px] font-['Switzer'] font-medium text-white tracking-[0.28px] hover:bg-[#6b3fd4] transition-colors whitespace-nowrap disabled:opacity-50"
                     >
                         {isClaimingX ? 'Claiming...' : 'Claim 20 pts'}
                     </button>
@@ -134,8 +134,8 @@
         </div>
 
         <!-- Step 2: Link Discord -->
-        <div class="flex items-center justify-between py-1">
-            <div class="flex items-center gap-3 w-full md:w-auto">
+        <div class="community-step flex items-center justify-between py-1 gap-4">
+            <div class="community-step-copy flex items-center gap-3 w-full md:w-auto min-w-0">
                 <div
                     class="flex-shrink-0 w-5 h-5 flex items-center justify-center"
                 >
@@ -180,7 +180,7 @@
                         </svg>
                     {/if}
                 </div>
-                <div class="flex flex-col">
+                <div class="flex flex-col min-w-0">
                     <span
                         class="font-['Switzer'] font-medium text-[14px] text-black tracking-[0.28px]"
                         >Link Discord</span
@@ -191,7 +191,7 @@
                     >
                 </div>
             </div>
-            <div>
+            <div class="community-step-action">
                 {#if hasLinkedDiscord}
                     <div
                         class="px-[12px] py-[6px] bg-[#f2f2f2] rounded-[6px] text-[14px] font-['Switzer'] font-medium text-[#ababab] tracking-[0.28px]"
@@ -202,7 +202,7 @@
                     <button
                         onclick={() => onClaimDiscord()}
                         disabled={isClaimingDiscord}
-                        class="px-[12px] py-[6px] bg-[#7f52e1] rounded-[6px] text-[14px] font-['Switzer'] font-medium text-white tracking-[0.28px] hover:bg-[#6b3fd4] transition-colors whitespace-nowrap disabled:opacity-50"
+                        class="community-claim-button px-[12px] py-[6px] bg-[#7f52e1] rounded-[6px] text-[14px] font-['Switzer'] font-medium text-white tracking-[0.28px] hover:bg-[#6b3fd4] transition-colors whitespace-nowrap disabled:opacity-50"
                     >
                         {isClaimingDiscord ? 'Claiming...' : 'Claim 20 pts'}
                     </button>
@@ -220,3 +220,46 @@
         </div>
     </div>
 </div>
+
+<style>
+    @media (max-width: 767px) {
+        .community-journey-card {
+            padding: 16px;
+        }
+
+        .community-step {
+            align-items: stretch;
+            flex-direction: column;
+            gap: 10px;
+            padding: 10px 0;
+        }
+
+        .community-step-copy span {
+            overflow-wrap: anywhere;
+        }
+
+        .community-step-action,
+        .community-step-action :global(button),
+        .community-step-action :global(.social-connect-btn) {
+            width: 100%;
+        }
+
+        .community-step-action :global(.social-connect-btn) {
+            min-height: 40px;
+            padding-left: 10px;
+            padding-right: 10px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .community-step-action :global(.social-connect-btn span) {
+            white-space: nowrap;
+        }
+
+        .community-claim-button {
+            min-height: 40px;
+            width: 100%;
+            white-space: nowrap;
+        }
+    }
+</style>

@@ -164,6 +164,16 @@ def _check_single_url_duplicate(submission, evidence, normalized,
 
     Returns (template_label, crm_reason) if duplicate, or None if unique.
     """
+    # URL types flagged as duplicate-allowed are exempt. Fall back to
+    # pattern detection when url_type is missing (legacy rows or evidence
+    # copied via bulk_create paths that didn't populate the FK).
+    if evidence.url_type_id and evidence.url_type and evidence.url_type.allow_duplicate:
+        return None
+    if not evidence.url_type_id and evidence.url:
+        from contributions.url_utils import detect_url_type
+        detected = detect_url_type(evidence.url)
+        if detected and detected.allow_duplicate:
+            return None
     # Check converted/accepted contributions (always deterministic)
     if normalized in accepted_urls:
         return (
@@ -263,8 +273,11 @@ class Command(BaseCommand):
 
         # Skip submissions already reviewed by AI steward or carrying an
         # active proposal, since Tier 1 should not overwrite proposal state.
+        # Also skip appealed submissions — those are reserved for human
+        # steward reconsideration.
         qs = qs.exclude(reviewed_by=ai_user).filter(
             proposed_action__isnull=True,
+            has_appeal=False,
         )
 
         # Process newest first so that when duplicates share a URL,
@@ -351,7 +364,9 @@ class Command(BaseCommand):
             accepted_urls: set of normalized URLs from accepted contributions
             submitted_created_at: dict mapping submission ID → created_at
         """
-        # URLs from pending/accepted submitted contributions
+        # URLs from pending/accepted submitted contributions.
+        # Evidence whose url_type allows duplicates is excluded so those
+        # URLs never participate in duplicate detection.
         submitted = (
             Evidence.objects
             .filter(
@@ -360,6 +375,7 @@ class Command(BaseCommand):
                 ],
                 url__gt='',
             )
+            .exclude(url_type__allow_duplicate=True)
             .values_list(
                 'url',
                 'submitted_contribution_id',
@@ -377,6 +393,7 @@ class Command(BaseCommand):
             _normalize_url(url) for url in
             Evidence.objects
             .filter(contribution__isnull=False, url__gt='')
+            .exclude(url_type__allow_duplicate=True)
             .values_list('url', flat=True)
         )
 

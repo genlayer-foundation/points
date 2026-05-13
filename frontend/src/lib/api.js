@@ -1,8 +1,9 @@
 import axios from 'axios';
+import { API_BASE_URL } from './config.js';
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1`,
+  baseURL: `${API_BASE_URL}/api/v1`,
   timeout: 30000, // Increased timeout to 30 seconds for slow endpoints
   headers: {
     'Content-Type': 'application/json'
@@ -89,8 +90,15 @@ export const contributionsAPI = {
   })),
   getMissions: (params) => api.get('/missions/', { params }),
   getMission: (id) => api.get(`/missions/${id}/`),
+  /** @param {string | number} id */
+  getMissionStats: (id) => api.get(`/missions/${id}/stats/`),
   getStartupRequests: () => api.get('/startup-requests/'),
   getStartupRequest: (id) => api.get(`/startup-requests/${id}/`)
+};
+
+// API endpoints for the submitter-side submission flows
+export const submissionsAPI = {
+  appeal: (id, reason) => api.post(`/submissions/${id}/appeal/`, { reason })
 };
 
 
@@ -106,7 +114,10 @@ export const leaderboardAPI = {
   getStats: () => api.get('/leaderboard/stats/'),
   getWaitlistStats: () => api.get('/leaderboard/validator-waitlist-stats/'),
   getWaitlistTop: (limit = 10) => api.get('/leaderboard/validator-waitlist/top/', { params: { limit } }),
+  getMonthlyLeaderboardByType: (type, limit = 10) =>
+    api.get('/leaderboard/monthly/', { params: { type, limit } }),
   getCommunity: (params = {}) => api.get('/leaderboard/community/', { params }),
+  getCommunityContributors: (params = {}) => api.get('/leaderboard/community-contributors/', { params }),
   getTrending: (limit = 10) => api.get('/leaderboard/trending/', { params: { limit } }),
   getTypes: () => api.get('/leaderboard/types/'),
   recalculateAll: () => api.post('/leaderboard/recalculate/')
@@ -127,6 +138,7 @@ export const statsAPI = {
 // Validators API
 export const validatorsAPI = {
   getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } }),
+  getAllValidators: () => api.get('/validators/all/'),
   // Validator Wallets
   getAllValidatorWallets: (params = {}) => api.get('/validators/wallets/', { params }),
   getValidatorWalletsByOperator: (operatorAddress, network = null) => {
@@ -168,6 +180,7 @@ export const githubAPI = {
 
 // Social connections API
 export const socialAPI = {
+  refreshGitHubUsername: () => api.post('/users/github/refresh/'),
   checkDiscordGuild: () => api.get('/users/discord/check-guild/'),
 };
 

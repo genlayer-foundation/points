@@ -1,542 +1,475 @@
 <script>
+  // @ts-nocheck
   import { onMount } from 'svelte';
   import { format } from 'date-fns';
-  import { marked } from 'marked';
-  import RecentContributions from '../components/RecentContributions.svelte';
-  import HighlightedContributions from '../components/HighlightedContributions.svelte';
-  import LeaderboardTable from '../components/LeaderboardTable.svelte';
-  import StatCard from '../components/StatCard.svelte';
-  import Icons from '../components/Icons.svelte';
-  import Badge from '../components/Badge.svelte';
-  import { contributionsAPI } from '../lib/api';
   import { push } from 'svelte-spa-router';
-  import { getCategoryColors, getPioneerColors, getPioneerContributionsColors } from '../lib/categoryColors';
+  import { contributionsAPI } from '../lib/api';
+  import HighlightsSlider from '../components/portal/HighlightsSlider.svelte';
+  import PortalContributionCard from '../components/portal/PortalContributionCard.svelte';
+  import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
+  import { parseMarkdown } from '../lib/markdownLoader.js';
 
-  // This will be set by the router
   let { params = {} } = $props();
 
+  const categoryConfig = {
+    global: {
+      icon: '/assets/icons/group-white.svg',
+      iconClass: 'bg-black',
+      accent: '#7f52e1',
+      label: 'Global',
+    },
+    builder: {
+      icon: '/assets/icons/terminal-fill-white.svg',
+      iconClass: 'bg-orange-500',
+      accent: '#ee8521',
+      label: 'Builder',
+    },
+    validator: {
+      icon: '/assets/icons/shield-white.svg',
+      iconClass: 'bg-gradient-to-br from-[#8f7bff] to-[#6f8cff]',
+      accent: '#387de8',
+      label: 'Validator',
+    },
+    community: {
+      icon: '/assets/icons/group-white.svg',
+      iconClass: 'bg-[#7f52e1]',
+      accent: '#7f52e1',
+      label: 'Community',
+    },
+    steward: {
+      icon: '/assets/icons/group-white.svg',
+      iconClass: 'bg-emerald-500',
+      accent: '#3eb359',
+      label: 'Steward',
+    },
+  };
+
   let contributionType = $state(null);
-  let contributions = $state([]);
   let statistics = $state({});
-  let topContributors = $state([]);
   let missions = $state([]);
+  let highlights = $state([]);
+  let contributions = $state([]);
   let loading = $state(true);
-  let error = $state(null);
-  let expandedMissions = $state(new Set());
+  let error = $state(/** @type {string | null} */ (null));
+  let recentSlider = $state(/** @type {HTMLElement | null} */ (null));
+  let descriptionExpanded = $state(false);
+  let descriptionOverflows = $state(false);
+  let descriptionEl = $state(/** @type {HTMLElement | null} */ (null));
 
-  // Configure marked options for security and links
-  const renderer = new marked.Renderer();
-  // In marked v5+, the renderer receives a token object
-  renderer.link = function({ href, title, text }) {
-    // Handle undefined/null href values
-    const safeHref = href || '#';
-    return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer"${title ? ` title="${title}"` : ''}>${text}</a>`;
-  };
+  let category = $derived(contributionType?.category || 'global');
+  let config = $derived(categoryConfig[category] || categoryConfig.global);
+  let pointsRange = $derived(formatPoints(statistics));
+  let gradientStyle = $derived(getCategoryGradientStyle(category, config.accent));
+  let submitButtonStyle = $derived(getCategoryButtonStyle(config.accent));
+  let explorerCategory = $derived(category === 'global' ? 'all' : category);
+  let allContributionsPath = $derived(
+    `/all-contributions?category=${explorerCategory}&type=${params.id}`
+  );
 
-  marked.setOptions({
-    breaks: true,
-    gfm: true,
-    headerIds: false,
-    mangle: false,
-    renderer: renderer
-  });
-
-  // Determine category colors based on contribution type
-  let categoryColors = $derived(contributionType ? getCategoryColors(contributionType.category) : getCategoryColors('global'));
-  let pioneerColors = $derived(contributionType ? getPioneerColors(contributionType.category) : getPioneerColors('global'));
-
-  // Get contribution type details
-  const fetchContributionType = async () => {
-    try {
-      const response = await contributionsAPI.getContributionType(params.id);
-      return response.data;
-    } catch (err) {
-      error = err.message;
-      return null;
-    }
-  };
-
-  // Get contribution type statistics
-  const fetchStatistics = async () => {
-    try {
-      const response = await contributionsAPI.getContributionTypeStatistics();
-      // Statistics endpoint returns array directly, not paginated
-      const allStats = response.data || [];
-      return allStats.find(stat => stat.id.toString() === params.id);
-    } catch (err) {
-      error = err.message;
-      return {};
-    }
-  };
-
-  // Get contributions for this type
-  const fetchContributions = async () => {
-    try {
-      const response = await contributionsAPI.getContributions({ 
-        contribution_type: params.id,
-        ordering: '-contribution_date'  // Order by contribution date descending
-      });
-      return response.data;
-    } catch (err) {
-      error = err.message;
-      return { results: [] };
-    }
-  };
-
-  // Get top contributors for this type
-  const fetchTopContributors = async () => {
-    try {
-      const response = await contributionsAPI.getContributionTypeTopContributors(params.id);
-      return response.data || [];
-    } catch (err) {
-      return [];
-    }
-  };
-
-  // Get missions for this contribution type
-  const fetchMissions = async () => {
-    try {
-      const response = await contributionsAPI.getMissions({
-        contribution_type: params.id
-      });
-
-      if (response.data?.results !== undefined) {
-        return response.data.results || [];
-      } else {
-        return response.data || [];
-      }
-    } catch (err) {
-      return [];
-    }
-  };
-
-
-  // Format date for display
-  const formatDate = (dateString) => {
+  function formatDate(dateString) {
+    if (!dateString) return 'Never';
     try {
       return format(new Date(dateString), 'MMM d, yyyy');
-    } catch (e) {
+    } catch {
       return dateString;
     }
-  };
-
-  // Toggle expanded state for missions
-  function toggleMissionExpanded(missionId) {
-    const newExpanded = new Set(expandedMissions);
-    if (newExpanded.has(missionId)) {
-      newExpanded.delete(missionId);
-    } else {
-      newExpanded.add(missionId);
-    }
-    expandedMissions = newExpanded;
   }
 
-  // Render markdown content
-  function renderMarkdown(text) {
-    if (!text) return '';
-    try {
-      return marked.parse(text);
-    } catch (error) {
-      return text;
-    }
+  function formatNumber(value) {
+    return Number(value || 0).toLocaleString();
   }
 
-  onMount(async () => {
-    loading = true;
-    error = null;
+  function formatPoints(stats) {
+    if (stats?.min_points == null || stats?.max_points == null || stats?.current_multiplier == null) {
+      return '0 pts';
+    }
 
+    const min = Math.round(stats.min_points * stats.current_multiplier);
+    const max = Math.round(stats.max_points * stats.current_multiplier);
+    return min === max ? `${min} pts` : `${min}-${max} pts`;
+  }
+
+  function scrollRecent(direction) {
+    recentSlider?.scrollBy({
+      left: direction * 320,
+      behavior: 'smooth',
+    });
+  }
+
+  async function loadContributionTypeDetail() {
     try {
-      // Fetch all data in parallel
-      const [typeData, statsData, contributionsData, topContributorsData, missionsData] = await Promise.all([
-        fetchContributionType(),
-        fetchStatistics(),
-        fetchContributions(),
-        fetchTopContributors(),
-        fetchMissions()
+      loading = true;
+      error = null;
+
+      const [typeRes, statsRes, missionsRes, highlightsRes, contributionsRes] = await Promise.all([
+        contributionsAPI.getContributionType(params.id),
+        contributionsAPI.getContributionTypeStatistics(),
+        contributionsAPI.getMissions({ contribution_type: params.id }),
+        contributionsAPI.getContributionTypeHighlights(params.id),
+        contributionsAPI.getContributions({
+          contribution_type: params.id,
+          ordering: '-contribution_date',
+          page_size: 10,
+        }),
       ]);
 
-      contributionType = typeData;
-      statistics = statsData || {};
-      contributions = contributionsData.results || [];
-      topContributors = topContributorsData;
-      missions = missionsData;
+      contributionType = typeRes.data;
+      const allStats = statsRes.data || [];
+      statistics = allStats.find((stat) => String(stat.id) === String(params.id)) || {};
+      missions = missionsRes.data?.results || missionsRes.data || [];
+      highlights = highlightsRes.data || [];
+      contributions = contributionsRes.data?.results || [];
     } catch (err) {
-      error = err.message;
+      error = err instanceof Error ? err.message : 'Failed to load contribution type';
     } finally {
       loading = false;
     }
+  }
+
+  onMount(loadContributionTypeDetail);
+
+  $effect(() => {
+    // Track these so the effect re-runs when description loads.
+    void contributionType?.description;
+    if (!descriptionEl) return;
+    if (descriptionExpanded) return; // Only measure while clamped.
+    descriptionOverflows = descriptionEl.scrollHeight > descriptionEl.clientHeight + 1;
   });
 </script>
 
-<style>
-  .line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
+{#snippet contributionSkeleton()}
+  <div class="h-[180px] w-[300px] flex-shrink-0 rounded-[8px] border border-[#f0f0f0] bg-white p-4">
+    <div class="mb-5 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="h-6 w-6 rounded-full bg-[#f1f1f1] sk-shimmer"></div>
+        <div class="h-3 w-20 rounded bg-[#f1f1f1] sk-shimmer"></div>
+      </div>
+      <div class="h-4 w-12 rounded-full bg-[#f1f1f1] sk-shimmer"></div>
+    </div>
+    <div class="space-y-2">
+      <div class="h-3 w-2/3 rounded bg-[#f1f1f1] sk-shimmer"></div>
+      <div class="h-3 w-full rounded bg-[#f1f1f1] sk-shimmer"></div>
+      <div class="h-3 w-5/6 rounded bg-[#f1f1f1] sk-shimmer"></div>
+    </div>
+    <div class="mt-8 flex items-center justify-between">
+      <div class="h-5 w-20 rounded-full bg-[#f1f1f1] sk-shimmer"></div>
+      <div class="h-3 w-16 rounded bg-[#f1f1f1] sk-shimmer"></div>
+    </div>
+  </div>
+{/snippet}
 
-  .smooth-expand {
-    transition: max-height 0.3s ease-out;
-    overflow: hidden;
-  }
+<div class="relative -mx-3 -my-3 overflow-hidden px-3 py-8 sm:px-5 sm:py-10 md:px-8 md:py-12">
+  <div
+    class="absolute inset-x-0 top-0 h-[320px] pointer-events-none overflow-hidden"
+    style="-webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%); mask-image: linear-gradient(to bottom, black 0%, transparent 100%);"
+  >
+    {#if category === 'global'}
+      <img
+        src="/assets/illustrations/welcome-gradient.png"
+        alt=""
+        class="absolute inset-0 h-full w-full object-cover opacity-70"
+      />
+    {:else}
+      <div class="absolute inset-0" style={gradientStyle}></div>
+    {/if}
+    <div class="absolute inset-0 bg-white/25"></div>
+  </div>
 
-  .prose :global(p) {
-    margin-top: 0;
-    margin-bottom: 0.5rem;
-  }
-  
-  .prose :global(p:last-child) {
-    margin-bottom: 0;
-  }
+  <div class="relative z-10 space-y-6">
+    <button
+      type="button"
+      onclick={() => window.history.length > 1 ? window.history.back() : push('/contributions')}
+      class="inline-flex min-h-11 items-center gap-2 text-[13px] font-semibold text-[#667085] transition hover:text-black"
+    >
+      <img src="/assets/icons/arrow-left-s-line.svg" alt="" class="h-4 w-4" />
+      Back
+    </button>
 
-  .prose :global(strong) {
-    font-weight: 600;
-  }
-
-  .prose :global(em) {
-    font-style: italic;
-  }
-
-  .prose :global(h1),
-  .prose :global(h2),
-  .prose :global(h3),
-  .prose :global(h4),
-  .prose :global(h5),
-  .prose :global(h6) {
-    font-weight: 600;
-    margin-top: 0.5rem;
-    margin-bottom: 0.25rem;
-  }
-
-  .prose :global(ul),
-  .prose :global(ol) {
-    margin-top: 0.25rem;
-    margin-bottom: 0.25rem;
-    padding-left: 1.5rem;
-  }
-
-  .prose :global(li) {
-    margin-top: 0.125rem;
-    margin-bottom: 0.125rem;
-  }
-
-  .prose :global(code) {
-    background-color: rgba(0, 0, 0, 0.05);
-    padding: 0.125rem 0.25rem;
-    border-radius: 0.25rem;
-    font-size: 0.875em;
-  }
-
-  .prose :global(blockquote) {
-    border-left: 3px solid rgba(0, 0, 0, 0.1);
-    padding-left: 1rem;
-    margin-left: 0;
-    margin-right: 0;
-    font-style: italic;
-  }
-</style>
-
-<div class="{categoryColors.pageBg} rounded-lg p-6 sm:p-8">
-  <div class="space-y-6 sm:space-y-8">
     {#if loading}
-    <div class="flex justify-center items-center p-8">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-    </div>
-  {:else if error}
-    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-      <p class="font-bold">Error</p>
-      <p>{error}</p>
-    </div>
-  {:else if contributionType}
-    <div class="{categoryColors.headerBg} shadow rounded-lg p-4 sm:p-6 border-2 {categoryColors.borderLight}">
-      <h1 class="text-xl sm:text-2xl font-bold {categoryColors.textDark} mb-2">{contributionType.name}</h1>
-      {#if contributionType.description}
-        <p class="text-sm sm:text-base text-gray-600 mb-4">{contributionType.description}</p>
-      {/if}
-      
-      <!-- Ideas Section -->
-      {#if Array.isArray(contributionType.examples) && contributionType.examples.length}
-        <div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <div class="flex items-center gap-2 mb-3">
-            <Icons name="lightbulb" size="sm" className="text-yellow-600" />
-            <h3 class="text-sm font-semibold text-yellow-800">Ideas</h3>
+      <div class="rounded-[10px] border border-white/70 bg-white/78 p-5 shadow-[0_18px_55px_rgba(38,48,75,0.15)] backdrop-blur-md sm:p-7 md:p-8">
+        <div class="h-10 w-64 rounded bg-[#f1f1f1] sk-shimmer"></div>
+        <div class="mt-4 h-4 w-full max-w-2xl rounded bg-[#f1f1f1] sk-shimmer"></div>
+        <div class="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {#each Array(4) as _}
+            <div class="h-[110px] rounded-[8px] border border-[#e8ebf2] bg-white sk-shimmer"></div>
+          {/each}
+        </div>
+      </div>
+    {:else if error}
+      <div class="rounded-[8px] border border-red-100 bg-red-50 p-5">
+        <h3 class="text-[14px] font-semibold text-red-800">Error loading contribution type</h3>
+        <p class="mt-1 text-[13px] text-red-700">{error}</p>
+      </div>
+    {:else if contributionType}
+      <section class="rounded-[10px] border border-white/70 bg-white/78 p-5 shadow-[0_18px_55px_rgba(38,48,75,0.15)] backdrop-blur-md sm:p-7 md:p-8">
+        <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-3">
+              <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] {config.iconClass} shadow-[0_8px_18px_rgba(90,96,125,0.18)]">
+                <img src={config.icon} alt="" class="h-5 w-5" />
+              </div>
+              <div class="min-w-0">
+                <span
+                  class="inline-flex h-[24px] items-center rounded-full px-3 text-[12px] font-semibold"
+                  style="background: {config.accent}14; color: {config.accent};"
+                >
+                  {config.label}
+                </span>
+              </div>
+            </div>
+
+            <h1
+              class="mt-4 break-words text-[34px] sm:text-[40px] md:text-[46px] font-semibold font-display text-black leading-none"
+              style="letter-spacing: -1px;"
+            >
+              {contributionType.name}
+            </h1>
+
+            {#if contributionType.description}
+              <div class="mt-3 max-w-3xl">
+                <div
+                  bind:this={descriptionEl}
+                  class="markdown-content text-[14px] sm:text-[15px] text-[#3f4b5f] leading-relaxed {descriptionExpanded ? '' : 'line-clamp-6'}"
+                  style="letter-spacing: 0.2px;"
+                >
+                  {@html parseMarkdown(contributionType.description)}
+                </div>
+                {#if descriptionOverflows}
+                  <button
+                    type="button"
+                    class="mt-2 text-[13px] font-medium text-primary-600 hover:text-primary-700 hover:underline"
+                    onclick={() => (descriptionExpanded = !descriptionExpanded)}
+                  >
+                    {descriptionExpanded ? 'Show less' : 'Show more'}
+                  </button>
+                {/if}
+              </div>
+            {/if}
           </div>
-          <div class="flex flex-wrap gap-2">
-            {#each contributionType.examples as example}
-              <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-300">
-                {example}
-              </span>
+
+          {#if contributionType.is_submittable}
+            <button
+              type="button"
+              onclick={() => push(`/submit-contribution?type=${params.id}`)}
+              class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black bg-black px-4 text-[13px] font-semibold text-white shadow-[0_8px_22px_rgba(31,42,68,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.16)] sm:w-auto"
+              style={submitButtonStyle}
+            >
+              Submit contribution
+              <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="h-4 w-4" />
+            </button>
+          {/if}
+        </div>
+
+        <div class="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div class="rounded-[8px] border border-[#e8ebf2] bg-white p-4 shadow-[0_8px_18px_rgba(31,42,68,0.07)]">
+            <p class="text-[12px] font-semibold uppercase text-[#7b8798]">Points</p>
+            <p class="mt-2 font-display text-[28px] font-semibold leading-none text-black">{pointsRange}</p>
+          </div>
+          <div class="rounded-[8px] border border-[#e8ebf2] bg-white p-4 shadow-[0_8px_18px_rgba(31,42,68,0.07)]">
+            <p class="text-[12px] font-semibold uppercase text-[#7b8798]">Contributions</p>
+            <p class="mt-2 font-display text-[28px] font-semibold leading-none text-black">{formatNumber(statistics.count)}</p>
+          </div>
+          <div class="rounded-[8px] border border-[#e8ebf2] bg-white p-4 shadow-[0_8px_18px_rgba(31,42,68,0.07)]">
+            <p class="text-[12px] font-semibold uppercase text-[#7b8798]">Contributors</p>
+            <p class="mt-2 font-display text-[28px] font-semibold leading-none text-black">{formatNumber(statistics.participants_count)}</p>
+          </div>
+          <div class="rounded-[8px] border border-[#e8ebf2] bg-white p-4 shadow-[0_8px_18px_rgba(31,42,68,0.07)]">
+            <p class="text-[12px] font-semibold uppercase text-[#7b8798]">Points Given</p>
+            <p class="mt-2 font-display text-[28px] font-semibold leading-none text-black">{formatNumber(statistics.total_points_given)}</p>
+          </div>
+          <div class="rounded-[8px] border border-[#e8ebf2] bg-white p-4 shadow-[0_8px_18px_rgba(31,42,68,0.07)]">
+            <p class="text-[12px] font-semibold uppercase text-[#7b8798]">Last Contribution</p>
+            <p class="mt-2 text-[16px] font-semibold text-black">{statistics.count ? formatDate(statistics.last_earned) : 'Never'}</p>
+          </div>
+        </div>
+
+        {#if Array.isArray(contributionType.examples) && contributionType.examples.length}
+          <div class="mt-7 border-t border-[#e9ecf3] pt-6">
+            <h2 class="text-[18px] font-semibold text-black">Ideas</h2>
+            <div class="mt-3 flex flex-wrap gap-2">
+              {#each contributionType.examples as example}
+                <span class="inline-flex min-h-8 items-center rounded-full border border-[#e8ebf2] bg-[#fafafa] px-3 text-[13px] font-medium text-[#506078]">
+                  {example}
+                </span>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      </section>
+
+      {#if missions.length > 0}
+        <section class="rounded-[10px] border border-white/70 bg-white/78 p-5 shadow-[0_18px_55px_rgba(38,48,75,0.15)] backdrop-blur-md sm:p-7 md:p-8">
+          <div class="mb-5 flex items-start gap-3">
+            <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] {config.iconClass} shadow-[0_8px_18px_rgba(90,96,125,0.18)]">
+              <img src={config.icon} alt="" class="h-5 w-5" />
+            </div>
+            <div>
+              <h2 class="text-[22px] sm:text-[25px] font-semibold font-display text-black leading-none">
+                Missions
+              </h2>
+              <p class="mt-2 text-[13px] sm:text-[14px] text-[#506078]">
+                Time-limited missions for this contribution type.
+              </p>
+            </div>
+          </div>
+
+          <div class="overflow-hidden rounded-[8px] border border-[#e8ebf2] bg-white">
+            {#each missions as mission (mission.id)}
+              <button
+                type="button"
+                onclick={() => push(`/mission/${mission.id}`)}
+                class="flex w-full items-center justify-between gap-4 border-b border-[#e8ebf2] px-4 py-4 text-left transition last:border-b-0 hover:bg-[#fafafa]"
+              >
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-[15px] font-semibold text-black">{mission.name}</span>
+                  <span class="mt-1 block text-[12px] text-[#7b8798]">
+                    {mission.end_date ? `Ends ${formatDate(mission.end_date)}` : 'Ongoing'}
+                  </span>
+                </span>
+                <img src="/assets/icons/arrow-right-line.svg" alt="" class="h-4 w-4 flex-shrink-0" />
+              </button>
             {/each}
           </div>
-        </div>
+        </section>
       {/if}
-      
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 border-t pt-4">
-        <p class="text-sm text-gray-500">Added on {formatDate(contributionType.created_at)}</p>
-        <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-          <span class="text-sm text-gray-500">Points per contribution:</span>
-          <span class="text-xl sm:text-lg font-bold text-purple-600">
-            {statistics.min_points != null && statistics.max_points != null && statistics.current_multiplier != null
-              ? (statistics.min_points === statistics.max_points 
-                  ? `${Math.round(statistics.min_points * statistics.current_multiplier)}` 
-                  : `${Math.round(statistics.min_points * statistics.current_multiplier)}-${Math.round(statistics.max_points * statistics.current_multiplier)}`)
-              : "0"}
-          </span>
-        </div>
-      </div>
-    </div>
 
-    <!-- Statistics Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="{categoryColors.cardBg} shadow rounded-lg p-4 border {categoryColors.borderLight}">
-        <div class="flex items-center">
-          <div class="flex-shrink-0 p-3 {categoryColors.statBg} rounded-lg mr-4">
-            <svg class="w-6 h-6 {categoryColors.icon}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-          </div>
+      <section class="rounded-[10px] border border-white/70 bg-white/78 p-5 shadow-[0_18px_55px_rgba(38,48,75,0.15)] backdrop-blur-md sm:p-7 md:p-8">
+        <div class="mb-5 flex items-start justify-between gap-4">
           <div>
-            <p class="text-sm text-gray-500">Total Contributions</p>
-            <p class="text-2xl font-bold text-gray-900">{statistics.count || 0}</p>
-          </div>
-        </div>
-      </div>
-      
-      <div class="{categoryColors.cardBg} shadow rounded-lg p-4 border {categoryColors.borderLight}">
-        <div class="flex items-center">
-          <div class="flex-shrink-0 p-3 {categoryColors.statBg} rounded-lg mr-4">
-            <svg class="w-6 h-6 {categoryColors.icon}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-            </svg>
-          </div>
-          <div>
-            <p class="text-sm text-gray-500">Unique Contributors</p>
-            <p class="text-2xl font-bold text-gray-900">{statistics.participants_count || 0}</p>
-          </div>
-        </div>
-      </div>
-      
-      <div class="{categoryColors.cardBg} shadow rounded-lg p-4 border {categoryColors.borderLight}">
-        <div class="flex items-center">
-          <div class="flex-shrink-0 p-3 {categoryColors.statBg} rounded-lg mr-4">
-            <svg class="w-6 h-6 {categoryColors.icon}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-            </svg>
-          </div>
-          <div>
-            <p class="text-sm text-gray-500">Total Points Given</p>
-            <p class="text-2xl font-bold text-gray-900">{statistics.total_points_given || 0}</p>
-          </div>
-        </div>
-      </div>
-      
-      <div class="{categoryColors.cardBg} shadow rounded-lg p-4 border {categoryColors.borderLight}">
-        <div class="flex items-center">
-          <div class="flex-shrink-0 p-3 {categoryColors.statBg} rounded-lg mr-4">
-            <svg class="w-6 h-6 {categoryColors.icon}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-          </div>
-          <div>
-            <p class="text-sm text-gray-500">Last Contribution</p>
-            <p class="text-lg font-bold text-gray-900">{statistics.last_earned ? formatDate(statistics.last_earned) : 'Never'}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Missions for this Contribution Type -->
-    {#if missions && missions.length > 0}
-      {@const missionColors = getPioneerContributionsColors(contributionType?.category || 'global')}
-
-      <div class="{missionColors.containerBg} border {missionColors.containerBorder} shadow overflow-hidden rounded-lg">
-        <div class="px-4 py-5 sm:px-6 {missionColors.headerBg} border-b {missionColors.headerBorder}">
-          <div class="flex items-center">
-            <Icons name="sparkle" size="md" className="{missionColors.headerIcon} mr-2" />
-            <h3 class="text-lg leading-6 font-medium {missionColors.headerText}">
-              Missions
-            </h3>
-          </div>
-          <p class="mt-1 max-w-2xl text-sm {missionColors.descriptionText}">
-            Special missions for {contributionType?.name || 'this contribution type'}.
-          </p>
-        </div>
-
-        <div class="bg-white">
-          <table class="w-full">
-            <thead class="{missionColors.tableHeaderBg}">
-              <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium {missionColors.tableHeaderText} uppercase tracking-wider w-1/5">
-                  Mission
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium {missionColors.tableHeaderText} uppercase tracking-wider w-3/5">
-                  Description
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium {missionColors.tableHeaderText} uppercase tracking-wider w-1/5">
-                  End Date
-                </th>
-                <th class="px-4 py-3 text-right text-xs font-medium {missionColors.tableHeaderText} uppercase tracking-wider">
-                  Action
-                </th>
-              </tr>
-            </thead>
-            <tbody class="divide-y {missionColors.tableBorder}">
-              {#each missions as mission}
-                {@const isExpanded = expandedMissions.has(mission.id)}
-                {@const hasLongText = mission.description && mission.description.length > 150}
-                <tr class="hover:bg-gray-50">
-                  <td class="px-6 py-4">
-                    <Badge
-                      badge={{
-                        id: mission.id,
-                        name: mission.name,
-                        description: '',
-                        points: 0,
-                        actionId: mission.id,
-                        actionName: mission.name,
-                        evidenceUrl: ''
-                      }}
-                      color={missionColors.badgeColor}
-                      clickable={false}
-                    />
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="flex items-start">
-                      <div class="flex-1 text-sm {missionColors.contentText} prose prose-sm max-w-none">
-                        <div class="{!isExpanded && hasLongText ? 'line-clamp-2' : ''}">
-                          {@html renderMarkdown(mission.description || '')}
-                        </div>
-                      </div>
-                      {#if hasLongText}
-                        <button
-                          onclick={() => toggleMissionExpanded(mission.id)}
-                          class="ml-2 flex-shrink-0 text-gray-400 hover:text-gray-600"
-                          aria-label="Toggle description"
-                        >
-                          <svg
-                            class="h-4 w-4 transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                      {/if}
-                    </div>
-                  </td>
-                  <td class="px-6 py-4 text-sm {missionColors.contentText}">
-                    {#if mission.end_date}
-                      {formatDate(mission.end_date)}
-                    {:else}
-                      Ongoing
-                    {/if}
-                  </td>
-                  <td class="px-4 py-4 text-right">
-                    <button
-                      onclick={() => push(`/submit-contribution?mission=${mission.id}`)}
-                      class="inline-flex items-center text-sm font-medium {missionColors.titleText} hover:opacity-80"
-                    >
-                      Submit
-                      <svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    {/if}
-
-    <!-- Highlighted User Contributions -->
-    <HighlightedContributions
-      contributionTypeId={params.id}
-      title="Highlighted Contributions"
-      cardStyle="compact"
-      showViewAll={false}
-      className="mb-6"
-    />
-
-    <!-- Pioneer Opportunity Alert if no contributions -->
-    {#if statistics.count === 0 || contributions.length === 0}
-      <div class="{pioneerColors.bg} border {pioneerColors.border} shadow overflow-hidden rounded-lg">
-        <div class="px-4 py-5 sm:px-6 {pioneerColors.headerBg} border-b {pioneerColors.border}">
-          <div class="flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 {pioneerColors.icon} mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            <h3 class="text-lg leading-6 font-medium {pioneerColors.text}">
-              Pioneer Opportunity!
-            </h3>
-          </div>
-          <p class="mt-1 max-w-2xl text-sm {pioneerColors.accent}">
-            Be the first to make this contribution and earn extra points!
-          </p>
-        </div>
-        <div class="px-4 py-5 sm:p-6">
-          <p class="text-sm {pioneerColors.text}">
-            No one has earned this contribution type yet. This is a great opportunity to be a pioneer and potentially earn bonus points for being among the first contributors!
-          </p>
-          <div class="mt-4">
-            <p class="text-sm font-semibold {pioneerColors.text}">Points:</p>
-            <p class="text-2xl font-bold {pioneerColors.text}">
-              {#if contributionType.min_points != null && contributionType.max_points != null && contributionType.current_multiplier != null}
-                {#if contributionType.min_points === contributionType.max_points}
-                  {Math.round(contributionType.min_points * contributionType.current_multiplier)}
-                {:else}
-                  {Math.round(contributionType.min_points * contributionType.current_multiplier)} - {Math.round(contributionType.max_points * contributionType.current_multiplier)}
-                {/if}
-              {:else}
-                TBD
-              {/if}
+            <h2 class="text-[22px] sm:text-[25px] font-semibold font-display text-black leading-none">
+              Highlighted Contributions
+            </h2>
+            <p class="mt-2 text-[13px] sm:text-[14px] text-[#506078]">
+              Curated work for this contribution type.
             </p>
           </div>
         </div>
-      </div>
-    {:else}
-      <!-- Top Contributors and Recent Contributions -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <!-- Top Contributors -->
-        <div class="space-y-4">
-          <h2 class="text-lg font-semibold text-gray-900">Top Contributors</h2>
-          <LeaderboardTable
-            entries={topContributors.map((c, i) => ({
-              rank: i + 1,
-              user_details: {
-                name: c.name,
-                address: c.address,
-                profile_image_url: c.profile_image_url
-              },
-              total_points: c.total_points
-            }))}
-            loading={false}
-            error={null}
-            showHeader={false}
-            compact={false}
-            hideAddress={true}
-          />
+        <HighlightsSlider
+          {highlights}
+          loading={false}
+          emptyTitle="No highlights yet"
+          emptyMessage="Highlighted contributions for this type will appear here."
+        />
+      </section>
+
+      <section class="rounded-[10px] border border-white/70 bg-white/78 p-5 shadow-[0_18px_55px_rgba(38,48,75,0.15)] backdrop-blur-md sm:p-7 md:p-8">
+        <div class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 class="text-[22px] sm:text-[25px] font-semibold font-display text-black leading-none">
+              Recent Contributions
+            </h2>
+            <p class="mt-2 text-[13px] sm:text-[14px] text-[#506078]">
+              Latest accepted contributions for this type.
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            {#if contributions.length > 1}
+              <button
+                type="button"
+                aria-label="Scroll recent contributions left"
+                onclick={() => scrollRecent(-1)}
+                class="hidden h-11 w-11 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white shadow-[0_8px_18px_rgba(31,42,68,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] sm:inline-flex"
+              >
+                <img src="/assets/icons/arrow-left-s-line.svg" alt="" class="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Scroll recent contributions right"
+                onclick={() => scrollRecent(1)}
+                class="hidden h-11 w-11 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white shadow-[0_8px_18px_rgba(31,42,68,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] sm:inline-flex"
+              >
+                <img src="/assets/icons/arrow-right-s-line.svg" alt="" class="h-5 w-5" />
+              </button>
+            {/if}
+            <button
+              type="button"
+              onclick={() => push(allContributionsPath)}
+              class="inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] border border-[#dfe4ee] bg-white px-3 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)]"
+            >
+              View all
+              <img src="/assets/icons/arrow-right-line.svg" alt="" class="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
-        <!-- Recent Contributions -->
-        <RecentContributions
-          contributionTypeId={params.id}
-          limit={5}
-          showViewAll={true}
-          viewAllPath={`/all-contributions?category=${contributionType?.category || ''}&type=${params.id}`}
-          viewAllText="View All →"
-        />
+        {#if contributions.length === 0}
+          <div class="rounded-[8px] border border-dashed border-[#dfe4ee] bg-white/70 p-8 text-center">
+            <h3 class="text-[15px] font-semibold text-black">No contributions yet</h3>
+            <p class="mt-1 text-[13px] text-[#6b6b6b]">Accepted contributions for this type will appear here.</p>
+          </div>
+        {:else}
+          <div bind:this={recentSlider} class="slider-scroll flex snap-x gap-3 overflow-x-auto pb-2">
+            {#each contributions as contribution (contribution.id)}
+              <div class="w-[300px] max-w-[82vw] flex-shrink-0 snap-start">
+                <PortalContributionCard {contribution} category={category} />
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </section>
+    {:else}
+      <div class="rounded-[8px] border border-amber-100 bg-amber-50 p-5 text-amber-800">
+        Contribution type not found.
       </div>
     {/if}
-
-  {:else}
-    <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
-      <p>Contribution type not found.</p>
-    </div>
-  {/if}
   </div>
 </div>
+
+<style>
+  .slider-scroll {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .slider-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sk-shimmer {
+    background-image: linear-gradient(
+      90deg,
+      rgba(241, 241, 241, 1) 0%,
+      rgba(228, 228, 228, 1) 50%,
+      rgba(241, 241, 241, 1) 100%
+    );
+    background-size: 200% 100%;
+    animation: sk-shimmer 1.4s ease-in-out infinite;
+  }
+
+  @keyframes sk-shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  .markdown-content :global(p) {
+    margin: 0 0 0.6em;
+  }
+  .markdown-content :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .markdown-content :global(ul) {
+    list-style-type: disc;
+    margin: 0 0 0.6em 1.25rem;
+  }
+  .markdown-content :global(ol) {
+    list-style-type: decimal;
+    margin: 0 0 0.6em 1.25rem;
+  }
+  .markdown-content :global(a) {
+    color: #387de8;
+    text-decoration: underline;
+  }
+  .markdown-content :global(strong) {
+    font-weight: 600;
+  }
+  .markdown-content :global(code) {
+    background: #f3f4f6;
+    padding: 0 0.25rem;
+    border-radius: 3px;
+    font-size: 0.9em;
+  }
+</style>

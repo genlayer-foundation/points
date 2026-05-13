@@ -282,10 +282,12 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
                   'contribution_type_details', 'contribution_date', 'notes', 'title', 'state', 'state_display',
                   'staff_reply', 'reviewed_by', 'reviewed_at', 'evidence_items', 'can_edit',
                   'proposed_points', 'converted_contribution', 'contribution', 'mission',
+                  'has_appeal', 'appeal_reason',
                   'created_at', 'updated_at', 'last_edited_at', 'recaptcha']
         read_only_fields = ['id', 'user', 'state', 'staff_reply', 'reviewed_by',
                           'reviewed_at', 'created_at', 'updated_at', 'last_edited_at',
-                          'proposed_points', 'converted_contribution']
+                          'proposed_points', 'converted_contribution',
+                          'has_appeal', 'appeal_reason']
 
     def get_user_details(self, obj):
         """
@@ -884,15 +886,41 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                   'proposed_by', 'proposed_at', 'proposed_by_details', 'has_proposal',
                   'proposed_confidence', 'proposed_template', 'proposed_template_name',
                   'notes_count', 'is_interesting',
+                  'has_appeal', 'appeal_reason',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution',
                   'mission']
-        read_only_fields = ['id', 'created_at', 'updated_at', 'proposed_points', 'is_interesting']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'proposed_points', 'is_interesting',
+                            'has_appeal', 'appeal_reason']
 
     def get_user_details(self, obj):
         use_light = self.context.get('use_light_serializers', False)
         if use_light:
-            return LightUserSerializer(obj.user).data
-        return UserSerializer(obj.user, context=self.context).data
+            data = LightUserSerializer(obj.user).data
+        else:
+            data = UserSerializer(obj.user, context=self.context).data
+
+        # Always include social connections so stewards can see which networks
+        # the user has linked, even on the paginated list view that uses the
+        # light serializer.
+        from social_connections.serializers import (
+            DiscordConnectionSerializer,
+            GitHubConnectionSerializer,
+            TwitterConnectionSerializer,
+        )
+
+        def _get(related_name, serializer_class):
+            try:
+                connection = getattr(obj.user, related_name)
+            except Exception:
+                return None
+            if connection is None:
+                return None
+            return serializer_class(connection).data
+
+        data.setdefault('github_connection', _get('githubconnection', GitHubConnectionSerializer))
+        data.setdefault('twitter_connection', _get('twitterconnection', TwitterConnectionSerializer))
+        data.setdefault('discord_connection', _get('discordconnection', DiscordConnectionSerializer))
+        return data
 
     def get_contribution_type_details(self, obj):
         use_light = self.context.get('use_light_serializers', False)
@@ -1011,6 +1039,10 @@ class FeaturedContentSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.name', read_only=True)
     user_address = serializers.CharField(source='user.address', read_only=True)
     user_profile_image_url = serializers.SerializerMethodField()
+    featured_profile_image_url = serializers.CharField(
+        source='user_profile_image_url',
+        read_only=True,
+    )
     link = serializers.SerializerMethodField()
 
     class Meta:
@@ -1019,6 +1051,7 @@ class FeaturedContentSerializer(serializers.ModelSerializer):
                   'hero_image_url', 'hero_image_url_tablet', 'hero_image_url_mobile',
                   'url', 'link',
                   'user', 'user_name', 'user_address', 'user_profile_image_url',
+                  'featured_profile_image_url',
                   'contribution', 'status', 'order', 'created_at']
 
     def get_user_profile_image_url(self, obj):

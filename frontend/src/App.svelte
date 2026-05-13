@@ -63,6 +63,7 @@
   import Leaderboard from './routes/Leaderboard.svelte';
   import Profile from './routes/Profile.svelte';
   import ContributionTypeDetail from './routes/ContributionTypeDetail.svelte';
+  import MissionDetail from './routes/MissionDetail.svelte';
   import BadgeDetail from './routes/BadgeDetail.svelte';
   import Validators from './routes/Validators.svelte';
   import SubmitContribution from './routes/SubmitContribution.svelte';
@@ -105,16 +106,12 @@
     '/how-it-works': HowItWorks,
     '/contributions': Contributions,
     '/all-contributions': AllContributions,
-    '/contributions/highlights': AllContributions,
-    '/highlights': AllContributions,
     '/leaderboard': Leaderboard,
     '/participants': Validators,
     '/referrals': Referrals,
     '/community': ReferralProgram,
     '/community/contributions': Contributions,
     '/community/all-contributions': AllContributions,
-    '/community/contributions/highlights': AllContributions,
-    '/community/highlights': AllContributions,
     '/community/leaderboard': Community,
     '/community/contribution/:id': ContributionPreview,
     '/hackathon': Hackathon,
@@ -125,8 +122,6 @@
     '/builders': Dashboard,
     '/builders/contributions': Contributions,
     '/builders/all-contributions': AllContributions,
-    '/builders/contributions/highlights': AllContributions,
-    '/builders/highlights': AllContributions,
     '/builders/leaderboard': Leaderboard,
 
     '/builders/resources': Resources,
@@ -136,8 +131,6 @@
     '/validators': Dashboard,
     '/validators/contributions': Contributions,
     '/validators/all-contributions': AllContributions,
-    '/validators/contributions/highlights': AllContributions,
-    '/validators/highlights': AllContributions,
     '/validators/leaderboard': Leaderboard,
     '/validators/participants': Validators,
     '/validators/waitlist': Waitlist,
@@ -150,6 +143,7 @@
     '/builders/contribution/:id': ContributionPreview,
     '/validators/contribution/:id': ContributionPreview,
     '/contribution-type/:id': ContributionTypeDetail,
+    '/mission/:id': MissionDetail,
     '/badge/:id': BadgeDetail,
     '/submit-contribution': SubmitContribution,
     '/my-submissions': MySubmissions,
@@ -228,6 +222,10 @@
     hideTooltips();
     // Reset OG meta to defaults; page-specific components will override if needed
     resetPageMeta();
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }
   }
 
   // Tooltip handling

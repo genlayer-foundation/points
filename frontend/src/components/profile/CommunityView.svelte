@@ -1,6 +1,5 @@
 <script>
     import { push } from "svelte-spa-router";
-    import CategoryIcon from "../portal/CategoryIcon.svelte";
     import ProfileHighlights from "./ProfileHighlights.svelte";
     import ProfileRecentContributions from "./ProfileRecentContributions.svelte";
     import CommunityProgressJourney from "./CommunityProgressJourney.svelte";
@@ -24,9 +23,9 @@
     );
 </script>
 
-<div class="w-full flex flex-col items-start mt-8">
+<div class="community-view w-full flex flex-col items-start mt-8">
     <!-- Header -->
-    <div class="flex items-center justify-between w-full mb-4">
+    <div class="community-view-header flex items-center justify-between w-full mb-4 gap-3">
         <div class="flex items-center gap-[10px]">
             <div
                 class="relative flex-shrink-0"
@@ -73,10 +72,10 @@
     {/if}
 
     <!-- Metrics Row: 2 cards -->
-    <div class="flex flex-col md:flex-row gap-4 w-full">
+    <div class="community-metrics flex flex-col md:flex-row gap-4 w-full">
         <!-- Community Points Card -->
         <div
-            class="bg-white border border-[#f0f0f0] rounded-[16px] flex items-center p-[24px] h-[92px] w-full relative overflow-hidden"
+            class="community-metric-card bg-white border border-[#f0f0f0] rounded-[16px] flex items-center p-[24px] h-[92px] w-full relative overflow-hidden"
         >
             {#if communityStatsLoading}
                 <div class="flex h-full items-center animate-pulse">
@@ -89,9 +88,9 @@
                     </div>
                 </div>
             {:else}
-                <div class="flex h-full items-center">
+                <div class="community-metric-content flex h-full items-center min-w-0">
                     <div
-                        class="w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
+                        class="community-metric-icon w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
                     >
                         <img
                             src="/assets/icons/hexagon-community.svg"
@@ -106,7 +105,7 @@
                         />
                     </div>
                     <div
-                        class="flex flex-col h-full items-start justify-center whitespace-nowrap z-10"
+                        class="community-metric-text flex flex-col h-full items-start justify-center whitespace-nowrap z-10 min-w-0"
                     >
                         <p
                             class="font-semibold text-[32px] leading-[32px] tracking-[-0.96px] text-black"
@@ -125,7 +124,7 @@
 
         <!-- Community Contributions Card -->
         <div
-            class="bg-white border border-[#f0f0f0] rounded-[16px] flex items-center p-[24px] h-[92px] w-full relative overflow-hidden"
+            class="community-metric-card bg-white border border-[#f0f0f0] rounded-[16px] flex items-center p-[24px] h-[92px] w-full relative overflow-hidden"
         >
             {#if communityStatsLoading}
                 <div class="flex h-full items-center animate-pulse">
@@ -138,18 +137,28 @@
                     </div>
                 </div>
             {:else}
-                <div class="flex h-full items-center">
+                <div class="community-metric-content flex h-full items-center min-w-0">
                     <div
-                        class="w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
+                        class="community-metric-icon w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
                     >
-                        <CategoryIcon
-                            category="community"
-                            mode="hexagon"
-                            size={48}
+                        <img
+                            src="/assets/icons/hexagon-community.svg"
+                            alt=""
+                            class="w-full h-full"
                         />
+                        <svg
+                            class="community-contributions-icon absolute text-white"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            aria-hidden="true"
+                        >
+                            <path
+                                d="M21 8V20.9932C21 21.5501 20.5552 22 20.0066 22H3.9934C3.44495 22 3 21.556 3 21.0082V2.9918C3 2.44405 3.44476 2 3.9934 2H14.9968L21 8ZM19 9H14V4H5V20H19V9ZM8 12H16V14H8V12ZM8 16H16V18H8V16Z"
+                            />
+                        </svg>
                     </div>
                     <div
-                        class="flex flex-col h-full items-start justify-center whitespace-nowrap z-10"
+                        class="community-metric-text flex flex-col h-full items-start justify-center whitespace-nowrap z-10 min-w-0"
                     >
                         <p
                             class="font-semibold text-[32px] leading-[32px] tracking-[-0.96px] text-black"
@@ -171,7 +180,7 @@
     <!-- Content Sections -->
     <div class="space-y-12 w-full mt-4">
         <div class="w-full">
-            <div class="flex items-start justify-between mb-[20px]">
+            <div class="community-section-header flex items-start justify-between mb-[20px] gap-4">
                 <div>
                     <h3
                         class="font-semibold text-[20px] text-black"
@@ -185,7 +194,7 @@
                 </div>
                 <button
                     onclick={() => push("/submit-contribution")}
-                    class="flex items-center gap-[6px] bg-[#101010] text-white px-4 py-2 rounded-[24px] text-[14px] font-medium hover:bg-black transition-colors whitespace-nowrap shrink-0"
+                    class="community-submit-button flex items-center gap-[6px] bg-[#101010] text-white px-4 py-2 rounded-[24px] text-[14px] font-medium hover:bg-black transition-colors whitespace-nowrap shrink-0"
                 >
                     Submit contribution
                     <img
@@ -221,3 +230,81 @@
         </div>
     </div>
 </div>
+
+<style>
+    .community-contributions-icon {
+        height: 24px;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 24px;
+    }
+
+    @media (max-width: 767px) {
+        .community-view {
+            margin-top: 24px;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
+        .community-view-header {
+            align-items: flex-start;
+        }
+
+        .community-metrics {
+            gap: 10px;
+        }
+
+        .community-metric-card {
+            height: 80px;
+            min-width: 0;
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .community-metric-icon {
+            height: 40px;
+            width: 40px;
+            margin-right: 12px;
+        }
+
+        .community-metric-icon :global(img),
+        .community-metric-icon :global(svg) {
+            max-height: 40px;
+            max-width: 40px;
+        }
+
+        .community-contributions-icon {
+            height: 20px;
+            width: 20px;
+        }
+
+        .community-metric-text {
+            white-space: normal;
+        }
+
+        .community-metric-text p:first-child {
+            font-size: 25px;
+            line-height: 27px;
+            letter-spacing: 0 !important;
+        }
+
+        .community-metric-text p:last-child {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .community-section-header {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .community-submit-button {
+            justify-content: center;
+            width: 100%;
+            min-height: 40px;
+        }
+    }
+</style>

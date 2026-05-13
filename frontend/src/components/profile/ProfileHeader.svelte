@@ -41,11 +41,11 @@
 </script>
 
 <div
-  class="bg-white rounded-[16px] overflow-hidden border border-[#f7f7f7] shadow-[0px_4px_12px_rgba(0,0,0,0.02)] mb-6"
+  class="profile-header-card bg-white rounded-[16px] overflow-hidden border border-[#f7f7f7] shadow-[0px_4px_12px_rgba(0,0,0,0.02)] mb-6"
 >
   <!-- Banner Image -->
   <div
-    class="h-32 md:h-48 relative overflow-hidden {participant?.banner_image_url ? '' : 'bg-gradient-to-r from-purple-600 via-indigo-500 to-sky-400'}"
+    class="profile-banner h-32 md:h-48 relative overflow-hidden {participant?.banner_image_url ? '' : 'bg-gradient-to-r from-purple-600 via-indigo-500 to-sky-400'}"
   >
     {#if participant?.banner_image_url}
       <img
@@ -57,28 +57,28 @@
   </div>
 
   <!-- Profile Info Section (Figma 1:3164 implementation) -->
-  <div class="p-[12px] bg-white rounded-bl-[8px] rounded-br-[8px]">
+  <div class="profile-info p-[12px] bg-white rounded-bl-[8px] rounded-br-[8px]">
     <div class="flex items-center">
-      <div class="flex gap-[12px] items-center w-full">
+      <div class="profile-primary-row flex gap-[12px] items-center w-full">
         <!-- Avatar Wrapper -->
         <div
-          class="bg-black border-[2.5px] border-[#e9f9fe] rounded-full w-[96px] h-[96px] overflow-hidden flex-shrink-0 relative flex items-center justify-center"
+          class="profile-avatar bg-black border-[2.5px] border-[#e9f9fe] rounded-full w-[96px] h-[96px] overflow-hidden flex-shrink-0 relative flex items-center justify-center"
         >
           <Avatar user={participant} size="full" showBorder={false} />
         </div>
 
         <!-- Info Content -->
-        <div class="flex flex-col gap-[8px] justify-center flex-1">
-          <div class="flex gap-[12px] items-center">
+        <div class="profile-identity flex flex-col gap-[8px] justify-center flex-1 min-w-0">
+          <div class="profile-name-row flex gap-[12px] items-center min-w-0">
             <h1
-              class="text-[40px] font-semibold text-black leading-[40px]"
+              class="profile-name text-[40px] font-semibold text-black leading-[40px] min-w-0"
               style="letter-spacing: -0.8px; font-family: 'F37 Lineca', 'Geist', sans-serif;"
             >
               {participant?.name ||
                 (isValidatorOnly ? "Validator" : "Participant")}
             </h1>
 
-            <div class="flex items-start gap-[5px] mt-1">
+            <div class="profile-badges flex items-start gap-[5px] mt-1">
               <!-- GenLayer badge (always shown) -->
               <div class="flex-shrink-0 relative badge-tooltip-wrap">
                 <CategoryIcon category="genlayer" mode="hexagon" size={32} />
@@ -131,7 +131,7 @@
           </div>
 
           <!-- Address -->
-          <div class="flex items-center gap-[12px]">
+          <div class="profile-address-row flex items-center gap-[12px]">
             <p
               class="text-[14px] text-[#5e6671] font-medium leading-[18px] whitespace-nowrap"
             >
@@ -178,8 +178,8 @@
     </div>
 
     <!-- Social Connections & Actions Row -->
-    <div class="flex items-center justify-between w-full mt-6">
-      <div class="flex gap-[8px] items-center text-[14px] flex-wrap">
+    <div class="profile-social-actions flex items-center justify-between w-full mt-6">
+      <div class="profile-social-list flex gap-[8px] items-center text-[14px] flex-wrap min-w-0">
         {#if isOwnProfile}
           <!-- Own profile: show interactive social link pills -->
           <SocialLink
@@ -213,7 +213,7 @@
               href={`https://github.com/${participant.github_connection.platform_username}`}
               target="_blank"
               rel="noopener noreferrer"
-              class="flex gap-[4px] items-center justify-center p-[4px] px-[8px] rounded-[6px] bg-white border border-[#f0f0f0] hover:bg-gray-50 transition-colors"
+              class="profile-readonly-social flex gap-[4px] items-center justify-center p-[4px] px-[8px] rounded-[6px] bg-white border border-[#f0f0f0] hover:bg-gray-50 transition-colors"
             >
               <svg class="w-4 h-4 opacity-80 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.45-1.15-1.11-1.46-1.11-1.46-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0012 2z"/></svg>
               <span class="font-medium text-black tracking-[0.28px]">{participant.github_connection.platform_username}</span>
@@ -224,14 +224,14 @@
               href={`https://x.com/${participant.twitter_connection.platform_username}`}
               target="_blank"
               rel="noopener noreferrer"
-              class="flex gap-[4px] items-center justify-center p-[4px] px-[8px] rounded-[6px] bg-white border border-[#f0f0f0] hover:bg-gray-50 transition-colors"
+              class="profile-readonly-social flex gap-[4px] items-center justify-center p-[4px] px-[8px] rounded-[6px] bg-white border border-[#f0f0f0] hover:bg-gray-50 transition-colors"
             >
               <svg class="w-4 h-4 opacity-80 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
               <span class="font-medium text-black tracking-[0.28px]">{participant.twitter_connection.platform_username}</span>
             </a>
           {/if}
           {#if participant?.discord_connection?.platform_username}
-            <div class="flex gap-[4px] items-center justify-center p-[4px] px-[8px] rounded-[6px] bg-white border border-[#f0f0f0]">
+            <div class="profile-readonly-social flex gap-[4px] items-center justify-center p-[4px] px-[8px] rounded-[6px] bg-white border border-[#f0f0f0]">
               <svg class="w-4 h-4 opacity-80 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
               <span class="font-medium text-black tracking-[0.28px]">{participant.discord_connection.platform_username}</span>
             </div>
@@ -239,11 +239,11 @@
         {/if}
       </div>
 
-      <div class="flex gap-[10px] items-center">
+      <div class="profile-edit-actions flex gap-[10px] items-center">
         {#if isOwnProfile}
           <button
             onclick={() => push("/profile")}
-            class="flex items-center gap-[8px] px-[14px] py-[10px] bg-white border border-[#f5f5f5] rounded-[6px] text-[13px] font-medium text-black hover:bg-gray-50 transition-colors"
+            class="profile-edit-button flex items-center gap-[8px] px-[14px] py-[10px] bg-white border border-[#f5f5f5] rounded-[6px] text-[13px] font-medium text-black hover:bg-gray-50 transition-colors"
           >
             <svg
               class="w-5 h-5 opacity-70"
@@ -303,5 +303,125 @@
     font-size: 12px;
     color: #999;
     line-height: 1.3;
+  }
+
+  @media (max-width: 767px) {
+    .profile-header-card {
+      border-radius: 12px;
+      max-width: 100%;
+    }
+
+    .profile-banner {
+      height: 104px;
+    }
+
+    .profile-info {
+      padding: 10px;
+    }
+
+    .profile-primary-row {
+      align-items: flex-start;
+      gap: 9px;
+    }
+
+    .profile-avatar {
+      width: 64px;
+      height: 64px;
+      border-width: 2px;
+    }
+
+    .profile-identity {
+      padding-top: 0;
+      gap: 6px;
+    }
+
+    .profile-name-row {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .profile-name {
+      max-width: 100%;
+      font-size: 24px;
+      line-height: 27px;
+      letter-spacing: 0 !important;
+      overflow-wrap: anywhere;
+    }
+
+    .profile-badges {
+      flex-wrap: wrap;
+      max-width: 100%;
+      gap: 4px;
+      margin-top: 0;
+    }
+
+    .profile-badges :global(.relative.flex-shrink-0) {
+      width: 26px !important;
+      height: 26px !important;
+    }
+
+    .profile-badges :global(img) {
+      max-width: 26px;
+      max-height: 26px;
+    }
+
+    .profile-address-row {
+      gap: 8px;
+    }
+
+    .profile-social-actions {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid #f2f2f2;
+    }
+
+    .profile-social-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      width: 100%;
+      gap: 6px;
+    }
+
+    .profile-social-list :global(.social-pill),
+    .profile-readonly-social {
+      min-width: 0;
+      width: 100%;
+    }
+
+    .profile-readonly-social span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .profile-edit-actions,
+    .profile-edit-button {
+      width: 100%;
+    }
+
+    .profile-edit-button {
+      justify-content: center;
+      min-height: 36px;
+      padding: 8px 12px;
+      border-color: #e8e8e8;
+      background: #fafafa;
+      font-size: 12px;
+    }
+
+    .profile-edit-button svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  @media (hover: none) and (pointer: coarse) {
+    .badge-tooltip-wrap:hover .badge-tooltip {
+      display: none;
+    }
   }
 </style>

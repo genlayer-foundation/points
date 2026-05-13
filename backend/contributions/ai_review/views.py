@@ -1,4 +1,4 @@
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from django.db.models.functions import Coalesce
 from django.db.models.expressions import Exists, OuterRef
 from django.shortcuts import get_object_or_404
@@ -37,11 +37,14 @@ class AIReviewFilterSet(FilterSet):
     """Filterset for AI review agent submission queries."""
 
     contribution_type = NumberFilter(field_name='contribution_type_id')
+    state = CharFilter(field_name='state')
     category = CharFilter(method='filter_category')
     exclude_category = CharFilter(method='filter_exclude_category')
     exclude_contribution_type = NumberFilter(method='filter_exclude_contribution_type')
     username_search = CharFilter(method='filter_username')
     exclude_username = CharFilter(method='filter_exclude_username')
+    assigned_to = CharFilter(method='filter_assigned_to')
+    exclude_assigned_to = CharFilter(method='filter_exclude_assigned_to')
     include_content = CharFilter(method='filter_include_content')
     exclude_content = CharFilter(method='filter_exclude_content')
     exclude_empty_evidence = BooleanFilter(method='filter_exclude_empty_evidence')
@@ -49,6 +52,15 @@ class AIReviewFilterSet(FilterSet):
     min_accepted_contributions = NumberFilter(method='filter_min_accepted_contributions')
     has_proposal = BooleanFilter(method='filter_has_proposal')
     exclude_state = CharFilter(method='filter_exclude_state')
+    proposed_action = CharFilter(method='filter_proposed_action')
+    proposed_confidence = CharFilter(method='filter_proposed_confidence')
+    proposed_template = NumberFilter(method='filter_proposed_template')
+    is_interesting = BooleanFilter(field_name='is_interesting')
+    has_appeal = BooleanFilter(field_name='has_appeal')
+    search = CharFilter(method='filter_search')
+    mission = CharFilter(method='filter_mission')
+    exclude_mission = CharFilter(method='filter_exclude_mission')
+    resubmitted_more_info = BooleanFilter(method='filter_resubmitted_more_info')
 
     class Meta:
         model = SubmittedContribution
@@ -84,6 +96,36 @@ class AIReviewFilterSet(FilterSet):
                 Q(user__name__icontains=value)
                 | Q(user__email__icontains=value)
                 | Q(user__address__icontains=value)
+            )
+        return queryset
+
+    def filter_assigned_to(self, queryset, name, value):
+        if value in ('null', 'unassigned'):
+            return queryset.filter(assigned_to__isnull=True)
+        if value:
+            return queryset.filter(assigned_to_id=value)
+        return queryset
+
+    def filter_exclude_assigned_to(self, queryset, name, value):
+        if value in ('null', 'unassigned'):
+            return queryset.exclude(assigned_to__isnull=True)
+        if value:
+            return queryset.exclude(assigned_to_id=value)
+        return queryset
+
+    def filter_search(self, queryset, name, value):
+        if value:
+            has_matching_evidence = Evidence.objects.filter(
+                submitted_contribution=OuterRef('pk'),
+            ).filter(
+                Q(url__icontains=value) | Q(description__icontains=value)
+            )
+            return queryset.filter(
+                Q(user__name__icontains=value)
+                | Q(user__email__icontains=value)
+                | Q(user__address__icontains=value)
+                | Q(notes__icontains=value)
+                | Exists(has_matching_evidence)
             )
         return queryset
 
@@ -173,6 +215,48 @@ class AIReviewFilterSet(FilterSet):
             return queryset.exclude(state=value)
         return queryset
 
+    def filter_proposed_action(self, queryset, name, value):
+        if value:
+            return queryset.filter(proposed_action=value.lower())
+        return queryset
+
+    def filter_proposed_confidence(self, queryset, name, value):
+        if value:
+            return queryset.filter(proposed_confidence=value.lower())
+        return queryset
+
+    def filter_proposed_template(self, queryset, name, value):
+        if value:
+            return queryset.filter(proposed_template_id=value)
+        return queryset
+
+    def filter_mission(self, queryset, name, value):
+        if value in ('none', 'null'):
+            return queryset.filter(mission__isnull=True)
+        if value:
+            return queryset.filter(mission_id=value)
+        return queryset
+
+    def filter_exclude_mission(self, queryset, name, value):
+        if value in ('none', 'null'):
+            return queryset.exclude(mission__isnull=True)
+        if value:
+            return queryset.exclude(mission_id=value)
+        return queryset
+
+    def filter_resubmitted_more_info(self, queryset, name, value):
+        condition = Q(
+            state='pending',
+            reviewed_at__isnull=False,
+            last_edited_at__isnull=False,
+            last_edited_at__gt=F('reviewed_at'),
+        )
+        if value is True:
+            return queryset.filter(condition)
+        elif value is False:
+            return queryset.exclude(condition)
+        return queryset
+
 
 # ─── ViewSet ──────────────────────────────────────────────────────────────────
 
@@ -194,7 +278,7 @@ class AIReviewViewSet(
     pagination_class = AIReviewPagination
     filter_backends = [filters.OrderingFilter]
     filterset_class = AIReviewFilterSet
-    ordering_fields = ['created_at']
+    ordering_fields = ['created_at', 'contribution_date']
     ordering = ['created_at']
 
     def get_serializer_class(self):
@@ -203,10 +287,11 @@ class AIReviewViewSet(
         return AIReviewSubmissionSerializer
 
     def get_queryset(self):
-        qs = SubmittedContribution.objects.filter(
-            state='pending',
-            reviewed_by__isnull=True,
-        )
+        qs = SubmittedContribution.objects.filter(state='pending')
+        # Appealed submissions are reserved for human stewards by default, but
+        # keep them queryable when the caller explicitly asks for has_appeal.
+        if 'has_appeal' not in self.request.query_params:
+            qs = qs.filter(has_appeal=False)
         # The list endpoint only returns unproposed submissions;
         # retrieve allows accessing proposed ones too (needed for PUT /propose/).
         if self.action == 'list':
@@ -216,6 +301,8 @@ class AIReviewViewSet(
                 'contribution_type',
                 'contribution_type__category',
                 'user',
+                'mission',
+                'assigned_to',
                 'proposed_by',
             )
             .prefetch_related('evidence_items')
@@ -231,6 +318,13 @@ class AIReviewViewSet(
         if filterset.is_valid():
             queryset = filterset.qs
         return super().filter_queryset(queryset)
+
+    def _apply_search_ordering(self, request, queryset):
+        ordering = request.query_params.get('ordering')
+        allowed = {'created_at', '-created_at', 'contribution_date', '-contribution_date'}
+        if ordering in allowed:
+            return queryset.order_by(ordering)
+        return queryset
 
     def _validate_and_apply_proposal(self, submission, data, ai_user, is_update=False):
         """Validate proposal data and apply it to the submission."""
@@ -354,8 +448,7 @@ class AIReviewViewSet(
         """
         List pending submissions that have an AI proposal awaiting steward review.
 
-        Returns submissions where state='pending', proposed_action is set,
-        and reviewed_by is NULL (steward hasn't finalized yet).
+        Returns submissions where state='pending' and proposed_action is set.
         Use GET /ai-review/{id}/ to retrieve full proposal details for any
         submission returned here.
         """
@@ -363,12 +456,13 @@ class AIReviewViewSet(
             SubmittedContribution.objects.filter(
                 state='pending',
                 proposed_action__isnull=False,
-                reviewed_by__isnull=True,
             )
             .select_related(
                 'contribution_type',
                 'contribution_type__category',
                 'user',
+                'mission',
+                'assigned_to',
                 'proposed_by',
             )
             .prefetch_related('evidence_items')
@@ -383,6 +477,7 @@ class AIReviewViewSet(
         )
         if filterset.is_valid():
             queryset = filterset.qs
+        queryset = self._apply_search_ordering(request, queryset)
 
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -416,23 +511,20 @@ class AIReviewViewSet(
             .select_related(
                 'contribution_type',
                 'contribution_type__category',
+                'mission',
             )
             .prefetch_related('evidence_items', 'internal_notes')
             .order_by('-reviewed_at')
         )
 
-        # Apply filters from query params
-        state = request.query_params.get('state')
-        if state:
-            queryset = queryset.filter(state=state)
-
-        contribution_type = request.query_params.get('contribution_type')
-        if contribution_type:
-            queryset = queryset.filter(contribution_type_id=contribution_type)
-
-        category = request.query_params.get('category')
-        if category:
-            queryset = queryset.filter(contribution_type__category__slug=category)
+        filterset = self.filterset_class(
+            data=request.query_params,
+            queryset=queryset,
+            request=request,
+        )
+        if filterset.is_valid():
+            queryset = filterset.qs
+        queryset = self._apply_search_ordering(request, queryset)
 
         page = self.paginate_queryset(queryset)
         if page is not None:

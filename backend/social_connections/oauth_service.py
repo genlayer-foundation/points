@@ -6,6 +6,7 @@ import base64
 from urllib.parse import urlencode, urlparse, urlunparse
 
 import requests
+from cryptography.fernet import InvalidToken
 from django.conf import settings
 from django.core import signing
 from django.http import HttpResponseRedirect
@@ -370,6 +371,31 @@ class GitHubOAuthService(OAuthService):
             'platform_user_id': str(data['id']),
             'platform_username': data['login'],
         }
+
+    def refresh_connection_username(self, connection):
+        """Refresh a linked GitHub username using the stored OAuth token."""
+        if not connection.access_token:
+            raise ValueError('missing_access_token')
+
+        try:
+            access_token = decrypt_token(connection.access_token)
+        except InvalidToken as exc:
+            raise ValueError('invalid_access_token') from exc
+
+        user_info = self.fetch_user_info(access_token)
+        platform_user_id = str(user_info.get('platform_user_id', ''))
+        platform_username = str(user_info.get('platform_username', ''))[:100]
+
+        if platform_user_id != str(connection.platform_user_id):
+            raise ValueError('account_mismatch')
+
+        changed = platform_username != connection.platform_username
+        if changed:
+            connection.platform_username = platform_username
+            connection.updated_at = timezone.now()
+            connection.save(update_fields=['platform_username', 'updated_at'])
+
+        return connection, changed
 
     def check_repo_star(self, connection):
         """Check if user has starred the configured repository."""

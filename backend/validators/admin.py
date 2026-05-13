@@ -58,15 +58,16 @@ class ValidatorInline(admin.StackedInline):
 
 @admin.register(Validator)
 class ValidatorAdmin(admin.ModelAdmin):
-    list_display = ('user', 'node_version_asimov', 'node_version_bradbury', 'wallet_count', 'created_at', 'updated_at')
+    list_display = ('user', 'display_order', 'node_version_asimov', 'node_version_bradbury', 'wallet_count', 'created_at', 'updated_at')
+    list_editable = ('display_order',)
     search_fields = ('user__email', 'user__name', 'node_version_asimov', 'node_version_bradbury')
     list_filter = ('created_at', 'updated_at')
-    ordering = ('-created_at',)
+    ordering = ('display_order', '-created_at')
     inlines = [ValidatorWalletInline]
 
     fieldsets = (
         (None, {
-            'fields': ('user', 'node_version_asimov', 'node_version_bradbury')
+            'fields': ('user', 'display_order', 'node_version_asimov', 'node_version_bradbury')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

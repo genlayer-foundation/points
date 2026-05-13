@@ -1,5 +1,5 @@
 <script>
-  let { item, showBadge = false } = $props();
+  let { item } = $props();
 
   function getInitials(name) {
     if (!name) return '?';
@@ -20,6 +20,7 @@
 
   let isPartner = $derived(item.category === 'partner');
   let isProject = $derived(item.category === 'project');
+  let isValidator = $derived(item.category === 'validator');
 
   // Soft gradients used for the initials fallback when there is no logo.
   // Listed verbatim so Tailwind keeps these classes in the build.
@@ -45,31 +46,13 @@
 
   let initialsGradient = $derived(pickGradient(item.name));
 
-  // Partners and validators share the smaller circle so the visual rhythm
-  // matches; projects keep the larger circle since their hero images benefit
-  // from extra room.
-  let outerPad = $derived(isProject ? 'p-3' : 'p-4');
-  let circleSize = $derived(isProject ? 'w-[72%] h-[72%]' : 'w-3/5 h-3/5');
-
-  let categoryLabel = $derived(
-    item.category === 'validator'
-      ? 'Validator'
-      : item.category === 'project'
-        ? 'Project'
-        : 'Partner'
+  let fallbackGradient = $derived(
+    isProject
+      ? 'from-orange-400 to-orange-600'
+      : isValidator
+        ? 'from-[#65b7ff] to-[#6c55ff]'
+        : initialsGradient
   );
-
-  let labelBg = $derived(
-    item.category === 'validator'
-      ? 'bg-blue-600 text-white'
-      : item.category === 'project'
-        ? 'bg-orange-500 text-white'
-        : 'bg-black text-white'
-  );
-
-  // Logo container background — partners get a black circle so brand logos
-  // pop, the others sit on a subtle neutral so the round shape stays visible.
-  let circleBg = $derived(isPartner ? 'bg-black' : 'bg-[#f4f4f5]');
 </script>
 
 <a
@@ -78,49 +61,37 @@
   rel={item.isExternal ? 'noopener noreferrer' : undefined}
   title={item.name}
   aria-label={item.name}
-  class="group relative aspect-square overflow-hidden rounded-[12px] bg-white border border-[#ececec] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-transparent hover:shadow-[0_10px_28px_rgba(0,0,0,0.08)]"
+  class="group flex h-[92px] min-w-0 items-center gap-4 rounded-[8px] border border-[#e8ebf2] bg-white px-4 shadow-[0_8px_18px_rgba(31,42,68,0.07)] outline-none transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
 >
-  {#if showBadge}
-    <span
-      class="absolute top-2 left-2 z-10 inline-flex items-center px-1.5 py-[2px] rounded text-[9px] font-semibold uppercase {labelBg}"
-      style="letter-spacing: 0.4px;"
-    >
-      {categoryLabel}
-    </span>
-  {/if}
-
-  <!-- Discrete redirect arrow -->
-  <span
-    class="absolute top-2 right-2 z-10 inline-flex items-center justify-center w-4 h-4 rounded bg-black/[0.04] opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-    aria-hidden="true"
-  >
-    <img
-      src="/assets/icons/arrow-right-up-line.svg"
-      alt=""
-      class="w-2.5 h-2.5 opacity-50"
-    />
-  </span>
-
-  <div class="absolute inset-0 flex items-center justify-center {outerPad}">
+  <div class="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center">
     {#if item.logo_url}
-      <div class="{circleSize} rounded-full {circleBg} flex items-center justify-center overflow-hidden">
+      {#if isPartner}
+        <div class="flex h-[58px] w-[58px] items-center justify-center rounded-[8px] bg-black p-2.5">
+          <img
+            src={item.logo_url}
+            alt=""
+            class="w-full h-full object-contain"
+            loading="lazy"
+          />
+        </div>
+      {:else}
         <img
           src={item.logo_url}
           alt=""
-          class={isPartner ? 'w-3/4 h-3/4 object-contain' : 'w-full h-full object-cover'}
+          class="h-[58px] w-[58px] rounded-[8px] object-cover"
           loading="lazy"
         />
-      </div>
+      {/if}
     {:else if isPartner}
-      <div class="{circleSize} rounded-full bg-black flex items-center justify-center">
-        <span class="text-[24px] font-medium font-display text-white">{initials}</span>
+      <div class="flex h-[58px] w-[58px] items-center justify-center rounded-[8px] bg-black">
+        <span class="text-[18px] font-medium font-display text-white">{initials}</span>
       </div>
     {:else}
       <div
-        class="{circleSize} rounded-full bg-gradient-to-br {initialsGradient} flex items-center justify-center text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),inset_0_-2px_4px_rgba(0,0,0,0.08)]"
+        class="flex h-[58px] w-[58px] items-center justify-center rounded-[8px] bg-gradient-to-br {fallbackGradient} text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),inset_0_-2px_4px_rgba(0,0,0,0.08)]"
       >
         <span
-          class="{isProject ? 'text-[28px]' : 'text-[22px]'} font-semibold tracking-tight"
+          class="text-[20px] font-semibold tracking-tight"
           style="text-shadow: 0 1px 2px rgba(0,0,0,0.12);"
         >
           {initials}
@@ -129,15 +100,15 @@
     {/if}
   </div>
 
-  <!-- Frosted name strip slides up on hover -->
   <div
-    class="absolute inset-x-0 bottom-0 backdrop-blur-xl bg-black/55 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"
+    class="min-w-0 flex-1 text-left text-[14px] font-semibold leading-snug text-[#111827] transition-colors group-hover:text-black group-focus-visible:text-black"
+    style="letter-spacing: 0;"
   >
-    <div
-      class="px-3 py-2 text-[12px] font-medium text-white text-center truncate"
-      style="letter-spacing: 0.1px;"
+    <span
+      class="block overflow-hidden"
+      style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
     >
       {item.name}
-    </div>
+    </span>
   </div>
 </a>

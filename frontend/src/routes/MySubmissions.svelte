@@ -2,10 +2,10 @@
   import { push } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { onMount } from 'svelte';
-  import api from '../lib/api.js';
+  import api, { submissionsAPI } from '../lib/api.js';
   import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
   import SubmissionCard from '../components/SubmissionCard.svelte';
-  import { showSuccess } from '../lib/toastStore';
+  import { showSuccess, showError } from '../lib/toastStore';
 
   let submissions = $state([]);
   let loading = $state(true);
@@ -86,6 +86,26 @@
   function handleFilterChange() {
     currentPage = 1;
     loadSubmissions();
+  }
+
+  async function handleAppeal(submissionId, reason) {
+    try {
+      const response = await submissionsAPI.appeal(submissionId, reason);
+      const idx = submissions.findIndex(s => s.id === submissionId);
+      if (idx !== -1) {
+        if (stateFilter && stateFilter !== response.data.state) {
+          submissions = submissions.filter(s => s.id !== submissionId);
+          totalCount = Math.max(0, totalCount - 1);
+        } else {
+          submissions[idx] = response.data;
+          submissions = [...submissions];
+        }
+      }
+      showSuccess('Appeal submitted. A steward will re-review your submission.');
+    } catch (err) {
+      showError(err.response?.data?.error || 'Failed to submit appeal');
+      throw err;
+    }
   }
 </script>
 
@@ -173,6 +193,7 @@
         <SubmissionCard
           {submission}
           isOwnSubmission={true}
+          onAppeal={handleAppeal}
         />
       {/each}
     </div>

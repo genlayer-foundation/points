@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters import FilterSet, CharFilter, BooleanFilter, NumberFilter
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Count, Max, F, Q, Exists, OuterRef, Subquery, Sum
 from django.db.models.functions import TruncDate, TruncWeek, TruncMonth
 from django.db.models.functions import Coalesce
@@ -12,7 +13,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.generic import ListView
 from django.utils.decorators import method_decorator
-from .models import ContributionType, Contribution, Evidence, SubmittedContribution, ContributionHighlight, Mission, StartupRequest, FeaturedContent, Alert
+from .models import ContributionType, Contribution, Evidence, SubmittedContribution, SubmissionNote, ContributionHighlight, Mission, StartupRequest, FeaturedContent, Alert
 from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
@@ -272,7 +273,21 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         from contributions.models import Category, ContributionType
         from django.db.models import Q
         
-        limit = int(request.query_params.get('limit', 10))
+        limit_param = request.query_params.get('limit')
+        limit = 10
+        if limit_param is not None:
+            try:
+                limit = int(limit_param)
+            except (TypeError, ValueError):
+                return Response(
+                    {'detail': 'limit must be an integer.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if limit < 0:
+                return Response(
+                    {'detail': 'limit must be greater than or equal to 0.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         category_slug = request.query_params.get('category')
         waitlist_only = request.query_params.get('waitlist_only', 'false').lower() == 'true'
         
@@ -336,7 +351,8 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                 # No validator type, just filter by waitlist users
                 queryset = queryset.filter(contribution__user_id__in=waitlist_users)
         
-        # Order by contribution date descending and apply limit
+        # Order by contribution date descending. `limit=0` is used by the
+        # all-contributions explorer so local filters can search every highlight.
         highlights = queryset.select_related(
             'contribution__user',
             'contribution__user__validator',
@@ -346,7 +362,10 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             'contribution__contribution_type__category'
         ).prefetch_related(
             'contribution__evidence_items'
-        ).order_by('-contribution__contribution_date')[:limit]
+        ).order_by('-contribution__contribution_date')
+
+        if limit > 0:
+            highlights = highlights[:limit]
         
         serializer = ContributionHighlightSerializer(highlights, many=True)
         return Response(serializer.data)
@@ -607,6 +626,16 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        # Appealed submissions are locked while awaiting re-review so the
+        # submitter can't edit-around the appeal. Once a steward explicitly
+        # asks for more info, edits are allowed again so the submitter can
+        # respond.
+        if instance.has_appeal and instance.state == 'pending':
+            return Response(
+                {'error': 'Appealed submissions cannot be edited while awaiting re-review.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         # Update the submission
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
@@ -633,7 +662,10 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
 
         # Soft delete - mark as rejected with cancellation note
         instance.state = 'rejected'
-        instance.staff_reply = 'Cancelled by user'
+        # Preserve the original rejection reason if this submission was appealed;
+        # otherwise record the cancellation in staff_reply.
+        if not instance.has_appeal:
+            instance.staff_reply = 'Cancelled by user'
         instance.reviewed_at = timezone.now()
         instance.save()
 
@@ -643,20 +675,79 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
     def my_submissions(self, request):
         """Get all submissions for the authenticated user."""
         queryset = self.get_queryset()
-        
+
         # Filter by state if provided
         state = request.query_params.get('state')
         if state:
             queryset = queryset.filter(state=state)
-        
+
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-        
+
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
-    
+
+    @action(detail=True, methods=['post'], url_path='appeal')
+    def appeal(self, request, pk=None):
+        """Submitter appeals a rejected submission. Allowed once per submission."""
+        if request.user.is_banned:
+            return Response(
+                {'error': 'Your account has been suspended due to repeated '
+                          'policy violations. You may submit one appeal from '
+                          'your profile page.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        submission = self.get_object()
+
+        if submission.state != 'rejected':
+            return Response(
+                {'error': 'Only rejected submissions can be appealed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if submission.has_appeal:
+            return Response(
+                {'error': 'This submission has already been appealed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reason = (request.data.get('reason') or '').strip()
+        if not reason:
+            return Response(
+                {'error': 'An appeal reason is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if len(reason) > 5000:
+            return Response(
+                {'error': 'Appeal reason must be 5000 characters or fewer.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            submission.has_appeal = True
+            submission.appeal_reason = reason
+            submission.state = 'pending'
+            submission.reviewed_by = None
+            submission.reviewed_at = None
+            submission.save(update_fields=[
+                'has_appeal', 'appeal_reason', 'state',
+                'reviewed_by', 'reviewed_at', 'updated_at',
+            ])
+
+            SubmissionNote.objects.create(
+                submitted_contribution=submission,
+                user=request.user,
+                message=f'APPEAL: {reason}',
+                is_proposal=False,
+                data={'kind': 'appeal'},
+            )
+
+        serializer = self.get_serializer(submission)
+        return Response(serializer.data)
+
     @action(detail=True, methods=['post'], url_path='add-evidence')
     def add_evidence(self, request, pk=None):
         """Add evidence to a submission."""
@@ -666,6 +757,14 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         if submission.state not in ['pending', 'more_info_needed']:
             return Response(
                 {'error': 'Evidence can only be added to pending submissions or when more information is requested.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Appealed submissions are locked while awaiting re-review; once a
+        # steward asks for more info, the submitter can attach new evidence.
+        if submission.has_appeal and submission.state == 'pending':
+            return Response(
+                {'error': 'Appealed submissions cannot be edited while awaiting re-review.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -713,6 +812,9 @@ class StewardSubmissionFilterSet(FilterSet):
     category = CharFilter(method='filter_category')
     exclude_category = CharFilter(method='filter_exclude_category')
     mission = CharFilter(method='filter_mission')
+    exclude_mission = CharFilter(method='filter_exclude_mission')
+    has_appeal = BooleanFilter(field_name='has_appeal')
+    resubmitted_more_info = BooleanFilter(method='filter_resubmitted_more_info')
 
     def filter_search(self, queryset, name, value):
         """General search across user name/email/address, notes, and evidence URLs."""
@@ -905,6 +1007,28 @@ class StewardSubmissionFilterSet(FilterSet):
             return queryset.filter(mission_id=value)
         return queryset
 
+    def filter_exclude_mission(self, queryset, name, value):
+        """Exclude submissions from a mission ID, or exclude missionless submissions."""
+        if value == 'none' or value == 'null':
+            return queryset.exclude(mission__isnull=True)
+        elif value:
+            return queryset.exclude(mission_id=value)
+        return queryset
+
+    def filter_resubmitted_more_info(self, queryset, name, value):
+        """Filter submissions resubmitted after a steward requested more information."""
+        condition = Q(
+            state='pending',
+            reviewed_at__isnull=False,
+            last_edited_at__isnull=False,
+            last_edited_at__gt=F('reviewed_at'),
+        )
+        if value is True:
+            return queryset.filter(condition)
+        elif value is False:
+            return queryset.exclude(condition)
+        return queryset
+
     class Meta:
         model = SubmittedContribution
         fields = ['state', 'contribution_type', 'user']
@@ -948,6 +1072,9 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'user',
             'user__validator',
             'user__builder',
+            'user__githubconnection',
+            'user__twitterconnection',
+            'user__discordconnection',
             'contribution_type',
             'contribution_type__category',
             'reviewed_by',
@@ -1031,13 +1158,16 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 fresh_user = type(contribution_user).objects.get(pk=contribution_user.pk)
                 update_user_leaderboard_entries(fresh_user)
 
-            # Copy evidence items using bulk_create for better performance
+            # Copy evidence items using bulk_create for better performance.
+            # Preserve url_type so the allow_duplicate exemption applies to
+            # the copied accepted-contribution evidence as well.
             Evidence.objects.bulk_create([
                 Evidence(
                     contribution=contribution,
                     description=evidence.description,
                     url=evidence.url,
-                    file=evidence.file
+                    file=evidence.file,
+                    url_type=evidence.url_type,
                 )
                 for evidence in submission.evidence_items.all()
             ])
@@ -1692,23 +1822,32 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
     Only missions are returned by default.
     """
     serializer_class = MissionSerializer
+    permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
         """
         Return active missions by default.
         Supports filtering by contribution_type and category.
         """
-        from django.utils import timezone
-        from django.db import models
+        queryset = Mission.objects.all().select_related(
+            'contribution_type',
+            'contribution_type__category',
+        )
 
-        now = timezone.now()
+        include_inactive = (
+            self.request.query_params.get('include_inactive', '').lower()
+            in ['1', 'true', 'yes']
+        )
+        is_active = self.request.query_params.get('is_active')
 
-        # Get base queryset of active highlights (without slicing)
-        queryset = Mission.objects.filter(
-            models.Q(start_date__isnull=True) | models.Q(start_date__lte=now)
-        ).filter(
-            models.Q(end_date__isnull=True) | models.Q(end_date__gt=now)
-        ).select_related('contribution_type', 'contribution_type__category')
+        # Detail lookups must be able to resolve expired missions so historical
+        # submissions/contributions can keep their mission identity.
+        if self.action != 'retrieve' and not include_inactive:
+            active_q = self._active_mission_q()
+            if is_active is None or is_active.lower() in ['1', 'true', 'yes']:
+                queryset = queryset.filter(active_q)
+            elif is_active.lower() in ['0', 'false', 'no']:
+                queryset = queryset.exclude(active_q)
 
         # Filter by contribution type if specified
         contribution_type = self.request.query_params.get('contribution_type', None)
@@ -1721,6 +1860,33 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(contribution_type__category__slug=category)
 
         return queryset
+
+    @staticmethod
+    def _active_mission_q():
+        from django.utils import timezone
+        from django.db import models
+
+        now = timezone.now()
+        return (
+            (models.Q(start_date__isnull=True) | models.Q(start_date__lte=now))
+            & (models.Q(end_date__isnull=True) | models.Q(end_date__gt=now))
+        )
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def stats(self, request, pk=None):
+        # Stats must remain available for expired missions; get_queryset()
+        # intentionally filters them out for list views.
+        mission = get_object_or_404(Mission, pk=pk)
+        stats = Contribution.objects.filter(mission=mission).aggregate(
+            unique_users=Count('user', distinct=True),
+            contributions_count=Count('id'),
+            points_earned=Coalesce(Sum('frozen_global_points'), 0),
+        )
+        return Response({
+            'unique_users': stats['unique_users'] or 0,
+            'contributions_count': stats['contributions_count'] or 0,
+            'points_earned': stats['points_earned'] or 0,
+        })
 
 
 class StartupRequestViewSet(viewsets.ReadOnlyModelViewSet):

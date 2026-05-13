@@ -32,7 +32,7 @@ class ValidatorViewSet(viewsets.ModelViewSet):
         """
         Allow read-only access without authentication for public endpoints.
         """
-        if self.action in ['newest_validators']:
+        if self.action in ['all_validators', 'newest_validators']:
             return [AllowAny()]
         return [IsAuthenticated()]
     
@@ -59,6 +59,29 @@ class ValidatorViewSet(viewsets.ModelViewSet):
                 serializer.save()
                 return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], url_path='all')
+    def all_validators(self, request):
+        """
+        Get all validator profile users for public ecosystem displays.
+        """
+        from users.serializers import LightUserSerializer
+
+        validators = (
+            Validator.objects
+            .select_related('user')
+            .filter(user__visible=True)
+            .order_by('display_order', '-created_at')
+        )
+
+        result = []
+        for validator in validators:
+            user_data = LightUserSerializer(validator.user).data
+            user_data['validator'] = True
+            user_data['validator_created_at'] = validator.created_at
+            result.append(user_data)
+
+        return Response(result)
     
     @action(detail=False, methods=['get'], url_path='newest')
     def newest_validators(self, request):
@@ -78,16 +101,17 @@ class ValidatorViewSet(viewsets.ModelViewSet):
         except ContributionType.DoesNotExist:
             return Response([], status=status.HTTP_200_OK)
 
-        # Get all validators with their first uptime contribution
-        # Similar to ActiveValidatorsView query
+        # Get all validators with their first uptime contribution.
+        # Order by Validator.display_order (admin-controlled), then newest-first
+        # as a tiebreaker. Mirrors the Partners ordering pattern.
         validators_with_first_uptime = (
             Contribution.objects
             .filter(contribution_type=uptime_type)
-            .values('user', 'user__address', 'user__name')
+            .values('user', 'user__address', 'user__name', 'user__validator__display_order')
             .annotate(
                 first_uptime_date=Min('contribution_date')
             )
-            .order_by('-first_uptime_date')[:limit]
+            .order_by('user__validator__display_order', '-first_uptime_date')[:limit]
         )
 
         # Get user IDs and fetch users with optimization

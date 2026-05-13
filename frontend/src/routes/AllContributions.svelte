@@ -10,7 +10,6 @@
   import SearchBar from '../components/portal/SearchBar.svelte';
   import Pagination from '../components/Pagination.svelte';
   import CategoryIcon from '../components/portal/CategoryIcon.svelte';
-  import CTABanner from '../components/shared/CTABanner.svelte';
 
   const HIGHLIGHTS_PREVIEW_COUNT = 15;
   const PAGE_SIZE = 20;
@@ -38,10 +37,17 @@
     return 'all';
   }
   function buildBasePath(path) {
-    if (path.startsWith('/builders')) return '/builders/all-contributions';
-    if (path.startsWith('/validators')) return '/validators/all-contributions';
-    if (path.startsWith('/community')) return '/community/all-contributions';
-    return '/all-contributions';
+    const isHighlightsPath = path.endsWith('/highlights');
+    if (path.startsWith('/builders')) {
+      return isHighlightsPath ? '/builders/contributions/highlights' : '/builders/all-contributions';
+    }
+    if (path.startsWith('/validators')) {
+      return isHighlightsPath ? '/validators/contributions/highlights' : '/validators/all-contributions';
+    }
+    if (path.startsWith('/community')) {
+      return isHighlightsPath ? '/community/contributions/highlights' : '/community/all-contributions';
+    }
+    return isHighlightsPath ? '/highlights' : '/all-contributions';
   }
 
   // === State ===
@@ -76,7 +82,6 @@
   let participantDetails = $state(null);
 
   let baseRoutePath = $derived(buildBasePath($location));
-  let routeIsHighlightsView = $derived($location.endsWith('/highlights'));
   let routeCategory = $derived(detectRouteCategory($location));
 
   let typesForCategory = $derived(
@@ -139,7 +144,7 @@
     const urlView = params.get('view');
     view = ['highlights', 'all', 'both'].includes(urlView)
       ? urlView
-      : (routeIsHighlightsView ? 'highlights' : 'both');
+      : 'both';
 
     highlightsPage = Math.max(1, Number(params.get('hpage')) || 1);
     allPage = Math.max(1, Number(params.get('page')) || 1);
@@ -156,8 +161,7 @@
     if (missionId) params.set('mission', String(missionId));
     if (participantQuery) params.set('user', participantQuery);
     if (sortBy !== '-contribution_date') params.set('sort', sortBy);
-    const naturalView = routeIsHighlightsView ? 'highlights' : 'both';
-    if (view !== naturalView) params.set('view', view);
+    if (view !== 'both') params.set('view', view);
     if (highlightsPage > 1) params.set('hpage', String(highlightsPage));
     if (allPage > 1) params.set('page', String(allPage));
 
@@ -267,7 +271,8 @@
 
   // === Loaders ===
   // Set of submittable type IDs (string-keyed for easy lookup); used to filter
-  // out non-submittable contributions client-side from the highlights endpoint.
+  // out non-submittable contributions client-side from the highlights endpoint
+  // (which only honors `category` server-side).
   let submittableTypeIds = $derived(new Set(allTypes.map(t => String(t.id))));
 
   function buildBaseParams() {
@@ -303,12 +308,12 @@
   function filterHighlightsClientSide(items) {
     const q = participantQuery?.trim().toLowerCase() || '';
     const isAddress = looksLikeAddress(q);
-    // Only apply the submittable filter once the catalog has loaded; otherwise
+    // Only enforce the submittable filter once the catalog has loaded; otherwise
     // we'd briefly render an empty list while `allTypes` is still empty.
     const enforceSubmittable = submittableTypeIds.size > 0;
     return items.filter(h => {
-      if (enforceSubmittable && !submittableTypeIds.has(String(h.contribution_type))) return false;
-      if (typeId && String(h.contribution_type) !== String(typeId)) return false;
+      if (enforceSubmittable && !submittableTypeIds.has(String(h.contribution_type_id))) return false;
+      if (typeId && String(h.contribution_type_id) !== String(typeId)) return false;
       if (missionId && String(h.mission_id ?? h.mission?.id ?? '') !== String(missionId)) return false;
       if (!q) return true;
       if (isAddress) return (h.user_address || '').toLowerCase() === q;
@@ -328,7 +333,9 @@
     highlightsError = null;
     try {
       // Backend /highlights/ only honors `category` server-side; rest is client-side.
-      const params = category !== 'all' ? { category } : {};
+      // Request every highlight so user/type/mission filters are not limited to
+      // only the latest dashboard-sized batch.
+      const params = category !== 'all' ? { category, limit: 0 } : { limit: 0 };
       const response = await contributionsAPI.getAllHighlights(params);
       const all = Array.isArray(response.data) ? response.data : (response.data?.results || []);
       const sorted = sortHighlights(filterHighlightsClientSide(all));
@@ -419,9 +426,13 @@
     }
     try {
       const res = await contributionsAPI.getMission(missionId);
-      activeMissionName = res.data?.name || '';
-      if (!typeId && res.data?.contribution_type) {
-        typeId = String(res.data.contribution_type);
+      const mission = res.data;
+      activeMissionName = mission?.name || '';
+      if (mission && !allMissions.some(m => String(m.id) === String(mission.id))) {
+        allMissions = [mission, ...allMissions];
+      }
+      if (!typeId && mission?.contribution_type) {
+        typeId = String(mission.contribution_type);
         resolveTypeName();
       }
     } catch {
@@ -434,7 +445,7 @@
     try {
       const [types, missions] = await Promise.all([
         getContributionTypes({ is_submittable: 'true' }),
-        getMissions({ is_active: true }),
+        getMissions(missionId ? { include_inactive: true } : { is_active: true }),
       ]);
       allTypes = Array.isArray(types) ? [...types].sort((a, b) => a.name.localeCompare(b.name)) : [];
       allMissions = Array.isArray(missions) ? missions : [];
@@ -477,7 +488,7 @@
     if (missionId) params.set('mission', String(missionId));
     if (participantQuery) params.set('user', participantQuery);
     if (sortBy !== '-contribution_date') params.set('sort', sortBy);
-    if (!routeIsHighlightsView) params.set('view', 'highlights');
+    params.set('view', 'highlights');
     const qs = params.toString();
     return baseRoutePath + (qs ? `?${qs}` : '');
   });
@@ -639,6 +650,23 @@
   )}
 {/snippet}
 
+{#snippet highlightsEmptyCompact()}
+  <div class="rounded-[12px] bg-[#fafafa] border border-dashed border-[#e6e6e6] px-4 py-3 flex items-center gap-3">
+    <div class="relative w-7 h-7 flex-shrink-0">
+      <img src="/assets/icons/hexagon-highlight.svg" alt="" class="w-full h-full" />
+      <div
+        class="absolute inset-0 m-auto w-3.5 h-3.5"
+        style="background-color: #FFFFFF; -webkit-mask-image: url(/assets/icons/star-line.svg); mask-image: url(/assets/icons/star-line.svg); mask-size: contain; mask-repeat: no-repeat; mask-position: center;"
+      ></div>
+    </div>
+    <p class="text-[13px] text-[#6b6b6b] leading-snug flex-1">
+      {hasActiveFilters
+        ? 'No highlights match these filters.'
+        : 'No highlighted contributions yet. Submit impactful work and a steward may highlight it.'}
+    </p>
+  </div>
+{/snippet}
+
 {#snippet contributionsEmptyState()}
   {@render emptyState(
     docIcon,
@@ -797,7 +825,7 @@
   <!-- Highlights section -->
   {#if view !== 'all'}
     <section class="space-y-3">
-      {#if view === 'both'}
+      {#if view === 'both' && (highlightsLoading || highlights.length > 0)}
         <div class="flex items-end justify-between gap-3">
           <div class="flex items-center gap-2">
             <h2 class="text-[16px] font-semibold text-black" style="letter-spacing: -0.2px;">Highlights</h2>
@@ -814,15 +842,14 @@
       {#if highlightsError}
         <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-[12px] text-sm">{highlightsError}</div>
       {:else if view === 'both'}
-        <HighlightsSlider
-          {highlights}
-          loading={highlightsLoading}
-          emptyTitle={hasActiveFilters ? 'No highlights match these filters' : 'No highlights yet'}
-          emptyMessage={hasActiveFilters
-            ? 'Try clearing some filters to see highlighted contributions from other categories or types.'
-            : 'Submit impactful or pioneering work and a steward may highlight it.'}
-          emptyAction={hasActiveFilters ? clearFiltersAction : submitContributionAction}
-        />
+        {#if highlightsLoading || highlights.length > 0}
+          <HighlightsSlider
+            {highlights}
+            loading={highlightsLoading}
+          />
+        {:else}
+          {@render highlightsEmptyCompact()}
+        {/if}
       {:else if highlightsLoading}
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {#each Array(10) as _}
@@ -885,17 +912,48 @@
     </section>
   {/if}
 
-  <!-- Branding footer -->
-  <div class="relative -mx-3 -mb-3 mt-12 pt-16 overflow-hidden">
-    <div class="absolute inset-0 pointer-events-none overflow-hidden" style="-webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 40%); mask-image: linear-gradient(to bottom, transparent 0%, black 40%);">
-      <div class="absolute inset-0 flex items-center justify-center">
-        <div class="relative w-full h-full" style="-webkit-mask-image: url('/assets/illustrations/welcome-gradient-mask.svg'); mask-image: url('/assets/illustrations/welcome-gradient-mask.svg'); -webkit-mask-size: 1818px 1489.395px; mask-size: 1818px 1489.395px; -webkit-mask-position: center; mask-position: center; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;">
-          <img src="/assets/illustrations/welcome-gradient.png" alt="" class="absolute inset-0 w-full h-full object-cover mix-blend-screen" />
-        </div>
+  <!-- Branding footer / CTA -->
+  <div class="relative -mx-3 -mb-3 mt-12 overflow-hidden">
+    <!-- Bottom-anchored gradient -->
+    <div class="absolute inset-x-0 bottom-0 h-[600px] pointer-events-none" aria-hidden="true">
+      <div class="absolute inset-0" style="-webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 35%); mask-image: linear-gradient(to bottom, transparent 0%, black 35%);">
+        <img
+          src="/assets/illustrations/welcome-gradient.png"
+          alt=""
+          class="absolute bottom-0 left-1/2 -translate-x-1/2 w-[1818px] max-w-none mix-blend-screen"
+          style="-webkit-mask-image: url('/assets/illustrations/welcome-gradient-mask.svg'); mask-image: url('/assets/illustrations/welcome-gradient-mask.svg'); -webkit-mask-size: 1818px 1489.395px; mask-size: 1818px 1489.395px; -webkit-mask-position: center bottom; mask-position: center bottom; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;"
+        />
       </div>
     </div>
-    <div class="relative z-10">
-      <CTABanner variant="light" />
+
+    <div class="relative z-10 px-[20px] pt-[140px] pb-[80px] flex items-center justify-center">
+      <div class="flex flex-col gap-[24px] items-center text-center max-w-[640px]">
+        <h2
+          class="text-[40px] md:text-[56px] font-medium font-display leading-[1.1] text-black"
+          style="letter-spacing: -1.12px;"
+        >
+          Bring value to the ecosystem
+        </h2>
+        <p
+          class="text-[17px] text-black leading-[28px]"
+          style="letter-spacing: 0.34px;"
+        >
+          Submit a contribution and help shape the future of GenLayer. Every action counts toward the network's progress.
+        </p>
+        <button
+          onclick={() => push('/submit-contribution')}
+          class="flex gap-[8px] items-center justify-center h-[44px] px-[20px] rounded-[22px] transition-colors hover:opacity-90"
+          style="background-color: #9e4bf6;"
+        >
+          <span
+            class="text-[14px] font-medium text-white leading-[21px]"
+            style="letter-spacing: 0.28px;"
+          >
+            Submit a contribution
+          </span>
+          <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="w-4 h-4" />
+        </button>
+      </div>
     </div>
   </div>
 </div>

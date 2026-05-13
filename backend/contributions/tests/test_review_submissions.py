@@ -847,3 +847,140 @@ class SubmittedContributionSerializerUpdateTest(TestCase):
         self.submission.refresh_from_db()
         self.assertEqual(self.submission.notes, 'Original notes')
         self.assertEqual(self.submission.evidence_items.count(), 1)
+
+
+class RuleDuplicateUrlAllowDuplicateTest(Tier1RuleTestBase):
+    """Tests for ``allow_duplicate`` exemption in ``rule_duplicate_evidence_url``.
+
+    The flag is admin-configurable (no data migration). ``setUp`` flips
+    github-repo into permissive mode so the exemption can be exercised.
+    Covers (a) lookup-time exclusion of permissive evidence,
+    (b) per-URL short-circuit when the new evidence's url_type is permissive,
+    (c) fallback to ``detect_url_type`` when ``url_type`` is null on the new
+    evidence, and (d) that other URL types still get rejected normally.
+    """
+
+    REPO_URL = 'https://github.com/genlayer/studio'
+    PR_URL = 'https://github.com/genlayer/studio/pull/42'
+
+    def setUp(self):
+        super().setUp()
+        from contributions.models import EvidenceURLType
+        EvidenceURLType.objects.filter(slug='github-repo').update(
+            allow_duplicate=True,
+        )
+
+    def _build_lookup(self):
+        from contributions.management.commands.review_submissions import Command
+        return Command()._build_url_lookup()
+
+    def test_permissive_evidence_excluded_from_lookup(self):
+        """Stored evidence with ``url_type.allow_duplicate=True`` must be
+        absent from ``url_to_sub_ids`` so subsequent submissions of the
+        same URL do not even see a candidate match."""
+        sub = self._create_submission()
+        self._add_evidence(sub, url=self.REPO_URL)
+        url_to_sub_ids, accepted_urls, _ = self._build_lookup()
+        self.assertNotIn(_normalize_url(self.REPO_URL), url_to_sub_ids)
+        self.assertNotIn(_normalize_url(self.REPO_URL), accepted_urls)
+
+    def test_non_permissive_evidence_still_in_lookup(self):
+        """A github-pr URL is not duplicate-allowed and must still appear
+        in the lookup (control case)."""
+        sub = self._create_submission()
+        self._add_evidence(sub, url=self.PR_URL)
+        url_to_sub_ids, _, _ = self._build_lookup()
+        self.assertIn(_normalize_url(self.PR_URL), url_to_sub_ids)
+
+    def test_duplicate_repo_url_passes_review(self):
+        """Two pending submissions of the same github-repo URL must both
+        pass the duplicate rule (because the URL type allows duplicates)."""
+        first = self._create_submission(
+            created_at=timezone.now() - timezone.timedelta(hours=2),
+        )
+        self._add_evidence(first, url=self.REPO_URL)
+        second = self._create_submission(user=self.other_user)
+        ev2 = self._add_evidence(second, url=self.REPO_URL)
+        url_to_sub_ids, accepted_urls, created_at = self._build_lookup()
+        result = rule_duplicate_evidence_url(
+            second, [ev2], url_to_sub_ids, accepted_urls,
+            submitted_created_at=created_at,
+        )
+        self.assertIsNone(result)
+
+    def test_duplicate_pr_url_still_rejects(self):
+        """github-pr is not permissive — duplicate must still reject so
+        that the exemption is truly per-type, not blanket-github."""
+        first = self._create_submission(
+            created_at=timezone.now() - timezone.timedelta(hours=2),
+        )
+        self._add_evidence(first, url=self.PR_URL)
+        second = self._create_submission(user=self.other_user)
+        ev2 = self._add_evidence(second, url=self.PR_URL)
+        url_to_sub_ids, accepted_urls, created_at = self._build_lookup()
+        result = rule_duplicate_evidence_url(
+            second, [ev2], url_to_sub_ids, accepted_urls,
+            submitted_created_at=created_at,
+        )
+        self.assertIsNotNone(result)
+
+    def test_null_url_type_falls_back_to_detect(self):
+        """When the new submission's evidence has ``url_type=None`` (legacy
+        or bulk-created without it), the rule must fall back to
+        ``detect_url_type(evidence.url)`` and recognise permissive URLs."""
+        # Existing pending repo evidence (correctly excluded from lookup
+        # because its detected url_type is permissive).
+        first = self._create_submission(
+            created_at=timezone.now() - timezone.timedelta(hours=2),
+        )
+        self._add_evidence(first, url=self.REPO_URL)
+
+        # New submission whose evidence row has no url_type FK.
+        second = self._create_submission(user=self.other_user)
+        ev2 = self._add_evidence(second, url=self.REPO_URL)
+        Evidence.objects.filter(pk=ev2.pk).update(url_type=None)
+        ev2.refresh_from_db()
+
+        url_to_sub_ids, accepted_urls, created_at = self._build_lookup()
+        result = rule_duplicate_evidence_url(
+            second, [ev2], url_to_sub_ids, accepted_urls,
+            submitted_created_at=created_at,
+        )
+        self.assertIsNone(result)
+
+    def test_accepted_contribution_evidence_preserves_url_type(self):
+        """When a submission is accepted, copied Evidence rows on the
+        Contribution must carry both ``url_type`` and ``normalized_url``
+        — bulk_create skips Evidence.save(), so the view must populate
+        them explicitly. Without this, accepted evidence with a permissive
+        type would silently degrade to null and bypass the lookup-time
+        exclusion."""
+        from contributions.url_utils import normalize_url
+        sub = self._create_submission()
+        ev = self._add_evidence(sub, url=self.REPO_URL)
+        # Sanity: source evidence has detected url_type and normalized_url.
+        self.assertIsNotNone(ev.url_type_id)
+        self.assertEqual(ev.normalized_url, normalize_url(self.REPO_URL))
+
+        # Mimic the views.py accept flow for evidence copying.
+        contribution = Contribution.objects.create(
+            user=sub.user,
+            contribution_type=sub.contribution_type,
+            points=10,
+            multiplier_at_creation=1,
+            frozen_global_points=10,
+        )
+        Evidence.objects.bulk_create([
+            Evidence(
+                contribution=contribution,
+                description=ev.description,
+                url=ev.url,
+                file=ev.file,
+                url_type=ev.url_type,
+                normalized_url=ev.normalized_url,
+            )
+        ])
+
+        copied = Evidence.objects.get(contribution=contribution)
+        self.assertEqual(copied.url_type_id, ev.url_type_id)
+        self.assertEqual(copied.normalized_url, normalize_url(self.REPO_URL))
