@@ -115,19 +115,19 @@
   };
 </script>
 
-<div>
+<div class="max-w-full overflow-hidden md:overflow-visible">
   <!-- Header -->
-  <div class="flex items-end justify-between mb-4">
-    <div>
+  <div class="flex items-end justify-between mb-4 min-w-0">
+    <div class="w-full min-w-0">
       <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: 0.4px;">Newest members</h2>
       <p class="text-[14px] text-[#6b6b6b] mt-1" style="letter-spacing: 0.28px;">New</p>
 
       <!-- Tab pills -->
-      <div class="flex border border-[#f7f7f7] p-[4px] rounded-[24px] gap-[8px] mt-2 w-fit">
+      <div class="flex flex-wrap md:flex-nowrap border border-[#f7f7f7] p-[4px] rounded-[24px] gap-[6px] md:gap-[8px] mt-2 w-full md:w-fit">
         {#each tabs as tab}
           <button
             onclick={() => selectTab(tab.key)}
-            class="text-[14px] text-black px-[10px] py-[8px] rounded-[18px] transition-colors {activeTab === tab.key ? 'bg-[#f5f5f5]' : ''}"
+            class="flex-1 md:flex-none text-[13px] md:text-[14px] text-black px-[8px] md:px-[10px] py-[8px] rounded-[18px] transition-colors {activeTab === tab.key ? 'bg-[#f5f5f5]' : ''}"
             style="letter-spacing: 0.28px;"
           >
             {tab.label}
@@ -140,7 +140,7 @@
 
   <!-- Content -->
   {#if loading}
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-[10px]">
+    <div class="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-[10px]">
       {#each [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] as _}
         <div class="flex items-center border border-[#f0f0f0] rounded-[8px] overflow-clip animate-pulse">
           <div class="w-[56px] h-[80px] flex items-center justify-center flex-shrink-0">
@@ -161,11 +161,11 @@
   {:else if members.length === 0}
     <div class="text-sm text-gray-500 py-4">No members yet</div>
   {:else}
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-[10px]">
+    <div class="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-[10px]">
       {#each members as member}
         <button
           onclick={() => getAddress(member) && push(`/participant/${getAddress(member)}`)}
-          class="flex items-center border border-[#f0f0f0] rounded-[8px] overflow-clip hover:border-[#d0d0d0] transition-colors bg-white text-left"
+          class="flex items-center min-w-0 border border-[#f0f0f0] rounded-[8px] overflow-clip hover:border-[#d0d0d0] transition-colors bg-white text-left"
         >
           <!-- Avatar container -->
           <div class="w-[56px] h-[80px] flex items-center justify-center flex-shrink-0">

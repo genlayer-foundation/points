@@ -673,6 +673,73 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response(response_data)
 
+    @action(detail=False, methods=['get'], url_path='community-contributors')
+    def community_contributors(self, request):
+        """
+        Get top contributors by actual community contribution points.
+        This intentionally excludes referral points, which are tracked separately.
+        """
+        from users.models import User
+        from users.serializers import LightUserSerializer
+
+        try:
+            limit = int(request.query_params.get('limit', 20))
+        except (ValueError, TypeError):
+            limit = 20
+        limit = min(max(limit, 1), 100)
+
+        try:
+            offset = int(request.query_params.get('offset', 0))
+        except (ValueError, TypeError):
+            offset = 0
+
+        community_totals = (
+            Contribution.objects
+            .filter(
+                user__visible=True,
+                contribution_type__category__slug='community',
+            )
+            .values('user_id')
+            .annotate(
+                total_points=Sum('frozen_global_points'),
+                contribution_count=Count('id'),
+            )
+            .filter(total_points__gt=0)
+            .order_by('-total_points', 'user__name')
+        )
+
+        count = community_totals.count()
+        page = list(community_totals[offset:offset + limit])
+        users_by_id = {
+            user.id: user
+            for user in User.objects.filter(id__in=[entry['user_id'] for entry in page])
+                .select_related('validator', 'builder', 'steward', 'creator')
+        }
+
+        results = []
+        for index, entry in enumerate(page, start=offset + 1):
+            user = users_by_id.get(entry['user_id'])
+            if not user:
+                continue
+
+            user_data = LightUserSerializer(user).data
+            total_points = entry['total_points'] or 0
+            results.append({
+                **user_data,
+                'user_details': user_data,
+                'user_address': user.address,
+                'user_name': user.name,
+                'community_points': total_points,
+                'total_points': total_points,
+                'contribution_count': entry['contribution_count'] or 0,
+                'rank': index,
+            })
+
+        return Response({
+            'count': count,
+            'results': results,
+        })
+
     @action(detail=False, methods=['get'])
     def trending(self, request):
         """

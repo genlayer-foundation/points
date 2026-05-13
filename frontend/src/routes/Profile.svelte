@@ -539,7 +539,7 @@
   }
 </script>
 
-<div class="profile-page">
+<div class="profile-page max-w-full overflow-x-hidden md:overflow-x-visible">
   {#if loading}
     <!-- ProfileHeader skeleton -->
     <div
@@ -651,10 +651,10 @@
 
     {#if !isValidatorOnly}
       <div class="mb-10 mt-6 w-full px-0 mx-0">
-        <div class="flex flex-col md:flex-row gap-4 items-center">
+        <div class="profile-stats-grid flex flex-col md:flex-row gap-4 items-center">
           <!-- Overall Points Card -->
           <div
-            class="bg-white border border-[#f0f0f0] rounded-[16px] flex items-center justify-between p-[24px] h-[92px] w-full relative overflow-hidden"
+            class="profile-stat-card bg-white border border-[#f0f0f0] rounded-[16px] flex items-center justify-between p-[24px] h-[92px] w-full relative overflow-hidden"
           >
             {#if !contributionStatsLoaded}
               <div class="flex h-full items-center animate-pulse">
@@ -667,14 +667,14 @@
                 </div>
               </div>
             {:else}
-              <div class="flex h-full items-center">
+              <div class="profile-stat-content flex h-full items-center min-w-0">
                 <div
-                  class="w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
+                  class="profile-stat-icon w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
                 >
                   <CategoryIcon category="genlayer" mode="hexagon" size={48} />
                 </div>
                 <div
-                  class="flex flex-col h-full items-start justify-center whitespace-nowrap z-10"
+                  class="profile-stat-text flex flex-col h-full items-start justify-center whitespace-nowrap z-10 min-w-0"
                 >
                   <p
                     class="font-medium text-[32px] leading-[32px] tracking-[-0.96px] text-black"
@@ -693,7 +693,7 @@
 
           <!-- Total Contributions Card -->
           <div
-            class="bg-white border border-[#f0f0f0] rounded-[16px] flex items-center justify-between p-[24px] h-[92px] w-full relative overflow-hidden"
+            class="profile-stat-card bg-white border border-[#f0f0f0] rounded-[16px] flex items-center justify-between p-[24px] h-[92px] w-full relative overflow-hidden"
           >
             {#if !contributionStatsLoaded}
               <div class="flex h-full items-center animate-pulse">
@@ -706,9 +706,9 @@
                 </div>
               </div>
             {:else}
-              <div class="flex h-full items-center">
+              <div class="profile-stat-content flex h-full items-center min-w-0">
                 <div
-                  class="w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
+                  class="profile-stat-icon w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
                 >
                   <img
                     src="/assets/icons/hexagon-genlayer.svg"
@@ -725,7 +725,7 @@
                   >
                 </div>
                 <div
-                  class="flex flex-col h-full items-start justify-center whitespace-nowrap z-10"
+                  class="profile-stat-text flex flex-col h-full items-start justify-center whitespace-nowrap z-10 min-w-0"
                 >
                   <p
                     class="font-medium text-[32px] leading-[32px] tracking-[-0.96px] text-black"
@@ -744,11 +744,11 @@
 
           <!-- Date Joined Card -->
           <div
-            class="bg-white border border-[#f0f0f0] rounded-[16px] flex items-center justify-between p-[24px] h-[92px] w-full relative overflow-hidden"
+            class="profile-stat-card bg-white border border-[#f0f0f0] rounded-[16px] flex items-center justify-between p-[24px] h-[92px] w-full relative overflow-hidden"
           >
-            <div class="flex h-full items-center">
+            <div class="profile-stat-content flex h-full items-center min-w-0">
               <div
-                class="w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
+                class="profile-stat-icon w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
               >
                 <img
                   src="/assets/icons/hexagon-genlayer.svg"
@@ -765,7 +765,7 @@
                 >
               </div>
               <div
-                class="flex flex-col h-full items-start justify-center whitespace-nowrap z-10"
+                class="profile-stat-text flex flex-col h-full items-start justify-center whitespace-nowrap z-10 min-w-0"
               >
                 <p
                   class="font-medium text-[26px] leading-[32px] tracking-[-0.96px] text-black"
@@ -975,5 +975,95 @@
       BlinkMacSystemFont,
       "Segoe UI",
       sans-serif;
+  }
+
+  @media (max-width: 767px) {
+    .profile-page {
+      padding-bottom: 12px;
+    }
+
+    .profile-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      align-items: stretch;
+    }
+
+    .profile-stat-card {
+      height: auto;
+      min-height: 64px;
+      min-width: 0;
+      border-radius: 10px;
+      padding: 10px 8px;
+      justify-content: center;
+    }
+
+    .profile-stat-content {
+      width: 100%;
+      height: auto;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .profile-stat-icon {
+      display: none;
+    }
+
+    .profile-stat-text {
+      width: 100%;
+      height: auto;
+      white-space: normal;
+    }
+
+    .profile-stat-text p:first-child {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 18px;
+      line-height: 21px;
+      letter-spacing: 0 !important;
+    }
+
+    .profile-stat-card:nth-child(3) .profile-stat-text p:first-child {
+      font-size: 14px;
+      line-height: 18px;
+    }
+
+    .profile-stat-text p:last-child {
+      font-size: 10px;
+      line-height: 12px;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-top: 2px;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .profile-stats-grid {
+      gap: 4px;
+    }
+
+    .profile-stat-card {
+      min-height: 58px;
+      padding: 8px 5px;
+    }
+
+    .profile-stat-text p:first-child {
+      font-size: 15px;
+      line-height: 18px;
+    }
+
+    .profile-stat-card:nth-child(3) .profile-stat-text p:first-child {
+      font-size: 12px;
+      line-height: 16px;
+    }
+
+    .profile-stat-text p:last-child {
+      font-size: 9px;
+      line-height: 11px;
+    }
   }
 </style>

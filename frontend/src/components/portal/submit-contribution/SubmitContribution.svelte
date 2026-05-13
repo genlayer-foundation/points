@@ -142,10 +142,14 @@
         // Load the specific type and pre-select it
         const type = types.find((t) => t.id === parseInt(initialTypeId));
         if (type) {
-          selectedType = type;
           selectedCategory = type.category || "builder";
-          formData.contribution_type = type.id;
           searchQuery = type.name;
+          if (type.is_submittable) {
+            selectedType = type;
+            formData.contribution_type = type.id;
+          } else {
+            showTypeDropdown = true;
+          }
         } else {
           // Type not in submittable list, try fetching directly
           try {
@@ -153,9 +157,13 @@
             const type = response.data;
             if (type) {
               selectedCategory = type.category || "builder";
-              selectedType = type;
-              formData.contribution_type = type.id;
               searchQuery = type.name;
+              if (type.is_submittable) {
+                selectedType = type;
+                formData.contribution_type = type.id;
+              } else {
+                showTypeDropdown = true;
+              }
             }
           } catch (err) {
             console.error("Failed to load contribution type:", err);
@@ -248,13 +256,6 @@
     });
   });
 
-  // Master gate: should the form details (date/title/notes/evidence/submit) be shown?
-  let canShowFormDetails = $derived(
-    selectedType &&
-    missingSocialAccounts.length === 0 &&
-    !allEvidenceTypesBlocked
-  );
-
   // Combined list of social account labels the user must link before the form
   // can be shown: both type-level required_social_accounts AND the accounts
   // implied by accepted evidence types when ALL of them are blocked.
@@ -273,6 +274,34 @@
     }
     return Array.from(labels);
   });
+
+  function isMissionActive(mission) {
+    if (!mission) return false;
+    if (mission.is_active === false) return false;
+    const now = new Date();
+    if (mission.start_date && now < new Date(mission.start_date)) return false;
+    if (mission.end_date && now > new Date(mission.end_date)) return false;
+    return true;
+  }
+
+  function activeMissionsForType(typeId) {
+    return missions.filter(
+      (mission) =>
+        String(mission.contribution_type) === String(typeId) &&
+        isMissionActive(mission),
+    );
+  }
+
+  function typeCanBeSelected(type) {
+    return type.is_submittable || activeMissionsForType(type.id).length > 0;
+  }
+
+  // Master gate: should the form details (date/title/notes/evidence/submit) be shown?
+  let canShowFormDetails = $derived(
+    selectedType &&
+    missingSocialAccounts.length === 0 &&
+    !allEvidenceTypesBlocked
+  );
 
   // True if any evidence slot has a URL that doesn't match its selected type
   let hasEvidencePatternMismatch = $derived.by(() => {
@@ -297,11 +326,11 @@
   // Build filtered items list (types + missions) based on category and search
   let filteredItems = $derived.by(() => {
     const categoryTypes = types.filter(
-      (t) => t.category === selectedCategory && t.is_submittable,
+      (t) => t.category === selectedCategory && typeCanBeSelected(t),
     );
     const categoryMissions = missions.filter((m) => {
-      const mType = types.find((t) => t.id === m.contribution_type);
-      return mType && mType.category === selectedCategory;
+      const mType = types.find((t) => String(t.id) === String(m.contribution_type));
+      return mType && mType.category === selectedCategory && isMissionActive(m);
     });
 
     let matchingTypes = categoryTypes;
@@ -321,20 +350,32 @@
       );
       // Also include types that have matching missions
       const typeIdsWithMatchingMissions = new Set(
-        matchingMissions.map((m) => m.contribution_type),
+        matchingMissions.map((m) => String(m.contribution_type)),
       );
       matchingTypes = categoryTypes.filter(
-        (t) => matchingTypes.includes(t) || typeIdsWithMatchingMissions.has(t.id),
+        (t) => matchingTypes.includes(t) || typeIdsWithMatchingMissions.has(String(t.id)),
       );
     }
 
     // Build flat list: types followed by their missions
     const items = [];
     matchingTypes.forEach((type) => {
-      items.push({ itemType: "type", data: type });
-      const typeMissions = matchingMissions.filter(
-        (m) => m.contribution_type === type.id,
+      const query = searchQuery?.toLowerCase() || "";
+      const typeMatchesQuery =
+        query &&
+        (type.name.toLowerCase().includes(query) ||
+          (type.description && type.description.toLowerCase().includes(query)));
+      const sourceMissions = typeMatchesQuery ? categoryMissions : matchingMissions;
+      const typeMissions = sourceMissions.filter(
+        (m) => String(m.contribution_type) === String(type.id),
       );
+
+      if (type.is_submittable) {
+        items.push({ itemType: "type", data: type });
+      } else if (typeMissions.length > 0) {
+        items.push({ itemType: "typeHeader", data: type });
+      }
+
       typeMissions.forEach((mission) => {
         items.push({ itemType: "mission", data: mission, parentType: type });
       });
@@ -359,6 +400,12 @@
   }
 
   function selectType(t) {
+    if (!t.is_submittable) {
+      searchQuery = t.name;
+      showTypeDropdown = true;
+      return;
+    }
+
     selectedType = t;
     selectedMission = null;
     selectedMissionData = null;
@@ -764,8 +811,8 @@
         recaptcha: recaptchaToken,
       };
 
-      // Include mission if selected (from URL param or dropdown selection)
-      const missionToSubmit = selectedMission || missionId;
+      // Include mission when selected from the URL preselection or dropdown.
+      const missionToSubmit = selectedMission;
       if (missionToSubmit) {
         submissionData.mission = missionToSubmit;
       }
@@ -830,12 +877,12 @@
 <svelte:window onclick={handleClickOutside} />
 
 <div
-  class="content-stretch flex flex-col gap-[12px] items-start relative shrink-0 w-full"
+  class="submit-form-shell content-stretch flex flex-col gap-[12px] items-start relative shrink-0 w-full"
   style="max-width: 550px; margin: 0 auto;"
 >
   <!-- Title -->
   <h1
-    class="font-['F37_Lineca'] font-medium leading-[40px] text-[32px] text-black tracking-[-0.64px]"
+    class="submit-page-title font-['F37_Lineca'] font-medium leading-[40px] text-[32px] text-black tracking-[-0.64px]"
   >
     Submit Contribution
   </h1>
@@ -843,7 +890,7 @@
   <form onsubmit={handleSubmit} class="w-full flex flex-col gap-[20px]">
     <!-- 1. Contribution Type Panel -->
     <div
-      class="flex flex-col gap-[12px] items-start p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full"
+      class="submit-panel flex flex-col gap-[12px] items-start p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full"
     >
       <h2
         class="font-['Switzer'] font-semibold leading-[25px] text-[20px] text-black tracking-[0.4px]"
@@ -853,12 +900,12 @@
 
       <!-- Category Tabs (Builder / Validator) -->
       <div
-        class="border border-[#f5f5f5] flex gap-[4px] items-start p-[4px] rounded-[24px] w-full bg-white"
+        class="category-tabs border border-[#f5f5f5] flex gap-[4px] items-start p-[4px] rounded-[24px] w-full bg-white"
       >
         <button
           type="button"
           onclick={() => selectCategory("builder")}
-          class="flex flex-[1_0_0] h-[40px] items-center justify-center p-[12px] rounded-[24px] transition-colors {selectedCategory ===
+          class="category-tab-button flex flex-[1_0_0] h-[40px] items-center justify-center p-[12px] rounded-[24px] transition-colors {selectedCategory ===
           'builder'
             ? 'bg-[#e99322] text-white'
             : 'bg-[#f5f5f5] text-[#1a1c1d] hover:bg-gray-200'}"
@@ -871,7 +918,7 @@
         <button
           type="button"
           onclick={() => selectCategory("validator")}
-          class="flex flex-[1_0_0] h-[40px] items-center justify-center p-[12px] rounded-[24px] transition-colors {selectedCategory ===
+          class="category-tab-button flex flex-[1_0_0] h-[40px] items-center justify-center p-[12px] rounded-[24px] transition-colors {selectedCategory ===
           'validator'
             ? 'bg-[#3b82f6] text-white'
             : 'bg-[#f5f5f5] text-[#1a1c1d] hover:bg-gray-200'}"
@@ -884,7 +931,7 @@
         <button
           type="button"
           onclick={() => selectCategory("community")}
-          class="flex flex-[1_0_0] h-[40px] items-center justify-center p-[12px] rounded-[24px] transition-colors {selectedCategory ===
+          class="category-tab-button flex flex-[1_0_0] h-[40px] items-center justify-center p-[12px] rounded-[24px] transition-colors {selectedCategory ===
           'community'
             ? 'bg-[#9333ea] text-white'
             : 'bg-[#f5f5f5] text-[#1a1c1d] hover:bg-gray-200'}"
@@ -950,7 +997,7 @@
       {#if canSubmitCurrentCategory}
       <div class="relative w-full" bind:this={dropdownRef}>
         <div
-          class="border {error && !formData.contribution_type
+          class="type-selector-control border {error && !formData.contribution_type
             ? 'border-red-400'
             : showTypeDropdown
               ? 'border-gray-400'
@@ -971,7 +1018,7 @@
           </svg>
           <input
             type="text"
-            class="flex-1 bg-transparent font-['Switzer'] font-medium text-[14px] tracking-[0.28px] text-black placeholder-[#6b6b6b] focus:outline-none"
+            class="type-search-input flex-1 bg-transparent font-['Switzer'] font-medium text-[14px] tracking-[0.28px] text-black placeholder-[#6b6b6b] focus:outline-none"
             placeholder={loadingTypes
               ? "Loading..."
               : "Search contribution type or mission..."}
@@ -1006,7 +1053,7 @@
 
         {#if showTypeDropdown}
           <div
-            class="absolute z-10 top-[48px] left-0 right-0 bg-white border border-[#f5f5f5] rounded-[8px] shadow-lg max-h-[300px] overflow-y-auto"
+            class="type-dropdown-menu absolute z-10 top-[48px] left-0 right-0 bg-white border border-[#f5f5f5] rounded-[8px] shadow-lg max-h-[300px] overflow-y-auto"
           >
             {#if loadingTypes}
               <div class="p-4 text-center text-sm text-gray-500">
@@ -1018,56 +1065,78 @@
               </div>
             {:else}
               {#each filteredItems as item}
-                <button
-                  type="button"
-                  onclick={() => selectItem(item)}
-                  class="w-full text-left flex items-start flex-col p-[12px] hover:bg-gray-50 border-b border-[#f5f5f5] last:border-0 {(item.itemType === 'type' && selectedType?.id === item.data.id && !selectedMission) || (item.itemType === 'mission' && selectedMission === item.data.id)
-                    ? 'bg-[#f0f0ff]'
-                    : ''}"
-                >
-                  <div class="flex items-center gap-2">
-                    <span
-                      class="font-['Switzer'] font-medium text-[14px] text-black tracking-[0.2px]"
-                      >{item.data.name}</span
-                    >
-                    {#if item.itemType === "mission"}
+                {#if item.itemType === "typeHeader"}
+                  <div
+                    class="type-dropdown-item w-full text-left flex items-start flex-col p-[12px] bg-[#fafafa] border-b border-[#f5f5f5]"
+                  >
+                    <div class="flex items-center gap-2">
                       <span
-                        class="bg-indigo-100 text-indigo-700 text-[11px] px-2 py-0.5 rounded-full font-medium"
-                        >Mission</span
+                        class="font-['Switzer'] font-medium text-[14px] text-black tracking-[0.2px]"
+                        >{item.data.name}</span
                       >
-                    {/if}
-                  </div>
-                  {#if item.data.description}
+                      <span
+                        class="bg-gray-100 text-gray-600 text-[11px] px-2 py-0.5 rounded-full font-medium"
+                        >Mission only</span
+                      >
+                    </div>
                     <span
                       class="font-['Switzer'] text-[12px] text-gray-500 mt-1 text-left"
                     >
-                      {#if item.data.description.length > 120}
-                        {item.data.description.substring(0, 120)}...
-                      {:else}
-                        {item.data.description}
-                      {/if}
+                      Select an active mission below to submit this contribution.
                     </span>
-                  {/if}
-                  {#if item.itemType === "mission" && item.parentType}
-                    <span
-                      class="font-['Switzer'] text-[11px] text-gray-400 mt-0.5 italic"
-                      >For: {item.parentType.name}</span
-                    >
-                  {/if}
-                  {#if item.itemType === "type"}
-                    <div class="mt-1 flex items-center gap-1">
+                  </div>
+                {:else}
+                  <button
+                    type="button"
+                    onclick={() => selectItem(item)}
+                    class="type-dropdown-item w-full text-left flex items-start flex-col p-[12px] hover:bg-gray-50 border-b border-[#f5f5f5] last:border-0 {(item.itemType === 'type' && selectedType?.id === item.data.id && !selectedMission) || (item.itemType === 'mission' && selectedMission === item.data.id)
+                      ? 'bg-[#f0f0ff]'
+                      : ''}"
+                  >
+                    <div class="flex items-center gap-2">
                       <span
-                        class="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded font-medium"
-                        >{#if item.data.current_multiplier}{Math.round(
-                            item.data.min_points * item.data.current_multiplier,
-                          )} - {Math.round(
-                            item.data.max_points * item.data.current_multiplier,
-                          )} pts{:else}{item.data.min_points}
-                          - {item.data.max_points} pts{/if}</span
+                        class="font-['Switzer'] font-medium text-[14px] text-black tracking-[0.2px]"
+                        >{item.data.name}</span
                       >
+                      {#if item.itemType === "mission"}
+                        <span
+                          class="bg-indigo-100 text-indigo-700 text-[11px] px-2 py-0.5 rounded-full font-medium"
+                          >Mission</span
+                        >
+                      {/if}
                     </div>
-                  {/if}
-                </button>
+                    {#if item.data.description}
+                      <span
+                        class="font-['Switzer'] text-[12px] text-gray-500 mt-1 text-left"
+                      >
+                        {#if item.data.description.length > 120}
+                          {item.data.description.substring(0, 120)}...
+                        {:else}
+                          {item.data.description}
+                        {/if}
+                      </span>
+                    {/if}
+                    {#if item.itemType === "mission" && item.parentType}
+                      <span
+                        class="font-['Switzer'] text-[11px] text-gray-400 mt-0.5 italic"
+                        >For: {item.parentType.name}</span
+                      >
+                    {/if}
+                    {#if item.itemType === "type"}
+                      <div class="mt-1 flex items-center gap-1">
+                        <span
+                          class="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded font-medium"
+                          >{#if item.data.current_multiplier}{Math.round(
+                              item.data.min_points * item.data.current_multiplier,
+                            )} - {Math.round(
+                              item.data.max_points * item.data.current_multiplier,
+                            )} pts{:else}{item.data.min_points}
+                            - {item.data.max_points} pts{/if}</span
+                        >
+                      </div>
+                    {/if}
+                  </button>
+                {/if}
               {/each}
             {/if}
           </div>
@@ -1078,7 +1147,7 @@
       <!-- Selection Info (shows details of selected type or mission) -->
       {#if selectedType && !showTypeDropdown}
         <div
-          class="bg-[#fafafa] border border-[#f0f0f0] rounded-[8px] p-[12px] w-full"
+          class="selection-info-card bg-[#fafafa] border border-[#f0f0f0] rounded-[8px] p-[12px] w-full"
         >
           {#if selectedMissionData}
             <div class="flex items-center gap-2 mb-1">
@@ -1130,9 +1199,9 @@
     </div>
 
     <!-- Social account linking gate: shown when type is selected but form can't be shown -->
-    {#if selectedType && !canShowFormDetails}
+    {#if selectedType && !canShowFormDetails && gateRequiredSocialAccounts.length > 0}
       <div
-        class="flex flex-col gap-[8px] p-[20px] rounded-[12px] bg-[#fafafa] border border-[#e0e0e0] w-full"
+        class="gate-card flex flex-col gap-[8px] p-[20px] rounded-[12px] bg-[#fafafa] border border-[#e0e0e0] w-full"
       >
         <p class="font-['Switzer'] font-medium text-[14px] text-black tracking-[0.28px]">
           Link your {gateRequiredSocialAccounts.join(", ")} account{gateRequiredSocialAccounts.length > 1 ? "s" : ""} from your profile to submit this contribution.
@@ -1149,18 +1218,18 @@
     {#if canShowFormDetails}
     <!-- 2. Contribution Details Panel -->
     <div
-      class="flex flex-col gap-[16px] items-start p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full"
+      class="submit-panel form-details-panel flex flex-col gap-[16px] items-start p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full"
     >
       <!-- Date Picker -->
-      <div class="w-full flex flex-col gap-[12px]">
+      <div class="field-section w-full flex flex-col gap-[12px]">
         <label
           for="contribution_date"
-          class="font-['Switzer'] font-semibold leading-[25px] text-[20px] text-black tracking-[0.4px]"
+          class="field-label font-['Switzer'] font-semibold leading-[25px] text-[20px] text-black tracking-[0.4px]"
         >
           Contribution Date
         </label>
         <div
-          class="border border-[#f5f5f5] flex h-[44px] items-center justify-between px-[12px] rounded-[8px] w-full bg-white relative hover:border-gray-300 focus-within:border-black transition-colors"
+          class="field-control border border-[#f5f5f5] flex h-[44px] items-center justify-between px-[12px] rounded-[8px] w-full bg-white relative hover:border-gray-300 focus-within:border-black transition-colors"
         >
           <input
             type="date"
@@ -1174,15 +1243,15 @@
       </div>
 
       <!-- Title (optional) -->
-      <div class="w-full flex flex-col gap-[12px] mt-2">
+      <div class="field-section w-full flex flex-col gap-[12px] mt-2">
         <label
           for="title"
-          class="font-['Switzer'] font-semibold leading-[25px] text-[20px] text-black tracking-[0.4px]"
+          class="field-label font-['Switzer'] font-semibold leading-[25px] text-[20px] text-black tracking-[0.4px]"
         >
           Title <span class="text-[14px] font-normal text-[#ababab]">(optional)</span>
         </label>
         <div
-          class="border border-[#f5f5f5] flex h-[44px] items-center px-[12px] rounded-[8px] w-full bg-white hover:border-gray-300 focus-within:border-black transition-colors"
+          class="field-control border border-[#f5f5f5] flex h-[44px] items-center px-[12px] rounded-[8px] w-full bg-white hover:border-gray-300 focus-within:border-black transition-colors"
         >
           <input
             type="text"
@@ -1196,15 +1265,15 @@
       </div>
 
       <!-- Notes/Description -->
-      <div class="w-full flex flex-col gap-[12px] mt-2">
+      <div class="field-section w-full flex flex-col gap-[12px] mt-2">
         <label
           for="notes"
-          class="font-['Switzer'] font-semibold leading-[25px] text-[20px] text-black tracking-[0.4px]"
+          class="field-label font-['Switzer'] font-semibold leading-[25px] text-[20px] text-black tracking-[0.4px]"
         >
           Notes / Description
         </label>
         <div
-          class="border border-[#f5f5f5] flex flex-col items-start rounded-[8px] w-full bg-white hover:border-gray-300 focus-within:border-black transition-colors"
+          class="field-control border border-[#f5f5f5] flex flex-col items-start rounded-[8px] w-full bg-white hover:border-gray-300 focus-within:border-black transition-colors"
         >
           <textarea
             id="notes"
@@ -1230,11 +1299,11 @@
 
     <!-- 3. Evidence & Supporting Info -->
     <div
-      class="flex flex-col gap-[16px] items-start p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full"
+      class="submit-panel evidence-panel flex flex-col gap-[16px] items-start p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full"
     >
       <!-- Header & Add Button -->
       <div
-        class="flex flex-col md:flex-row md:items-center justify-between w-full gap-[12px]"
+        class="evidence-header flex flex-col md:flex-row md:items-center justify-between w-full gap-[12px]"
       >
         <div class="flex flex-col gap-[4px] w-full md:max-w-[70%]">
           <h2
@@ -1253,7 +1322,7 @@
         <button
           type="button"
           onclick={addEvidenceSlot}
-          class="bg-[#1a1c1d] flex gap-[8px] h-[40px] items-center justify-center px-[16px] rounded-[20px] hover:bg-black transition-colors shrink-0"
+          class="add-evidence-button bg-[#1a1c1d] flex gap-[8px] h-[40px] items-center justify-center px-[16px] rounded-[20px] hover:bg-black transition-colors shrink-0"
         >
           <svg
             class="w-4 h-4 text-white"
@@ -1279,9 +1348,9 @@
       <!-- Required Evidence Slot (shown only when the contribution type requires specific URL types) -->
       {#if requiredEvidenceTypes.length > 0}
         <div
-          class="w-full border border-[#e99322] bg-[#fff8ee] rounded-[12px] p-[16px] flex flex-col gap-[10px] mt-2"
+          class="required-evidence-card w-full border border-[#e99322] bg-[#fff8ee] rounded-[12px] p-[16px] flex flex-col gap-[10px] mt-2"
         >
-          <div class="flex items-center gap-2">
+          <div class="required-evidence-header flex items-center gap-2">
             <span
               class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#e99322] text-white text-[11px] font-['Switzer'] font-semibold uppercase tracking-wider"
               >Required</span
@@ -1305,7 +1374,7 @@
               class="w-full px-3 py-2 border border-gray-200 rounded-[8px] text-[14px] focus:outline-none focus:border-gray-400 focus:bg-white bg-white font-mono transition-colors"
             />
           </div>
-          <div class="flex items-center gap-2">
+          <div class="evidence-status-row flex items-center gap-2">
             {#if requiredEvidenceSlot.selectedType}
               {#if requiredSlotSatisfied}
                 <span
@@ -1352,6 +1421,7 @@
         {#if evidenceSlots.length === 0}
           <div
             class="border border-[#f5f5f5] flex items-center justify-center p-[24px] w-full rounded-[8px] bg-gray-50/50"
+            class:evidence-empty-state={true}
           >
             <p
               class="font-['Switzer'] font-medium text-[14px] text-[#ababab] tracking-[0.28px] text-center"
@@ -1362,10 +1432,10 @@
         {:else}
           {#each evidenceSlots as slot, index}
             <div
-              class="border border-[#e0e0e0] rounded-[12px] p-[16px] bg-[#fcfcfc] flex flex-col gap-[12px] relative transition-all group"
+              class="evidence-slot-card border border-[#e0e0e0] rounded-[12px] p-[16px] bg-[#fcfcfc] flex flex-col gap-[12px] relative transition-all group"
             >
               <!-- URL field (primary input) -->
-              <div class="flex flex-col gap-1 pr-[30px]">
+              <div class="evidence-url-field flex flex-col gap-1 pr-[30px]">
                 <label
                   class="font-['Switzer'] text-[12px] font-semibold text-gray-500 uppercase tracking-widest pl-1"
                   >URL Link</label
@@ -1382,7 +1452,7 @@
 
               <!-- Detected type indicator + override dropdown -->
               {#if acceptedEvidenceTypes.length > 0}
-                <div class="flex items-center gap-2 pr-[30px]">
+                <div class="evidence-detected-row flex items-center gap-2 pr-[30px]">
                   {#if slot.selectedType}
                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-['Switzer'] font-medium bg-[#f0f0f0] text-[#1a1c1d]">
                       <svg class="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
@@ -1399,7 +1469,7 @@
                     <select
                       value={slot.selectedType?.slug || ''}
                       onchange={(e) => handleEvidenceTypeChange(index, e.target.value)}
-                      class="text-[12px] font-['Switzer'] text-[#6b6b6b] bg-transparent border-none underline decoration-dotted underline-offset-2 cursor-pointer focus:outline-none appearance-none pr-0"
+                      class="evidence-type-select text-[12px] font-['Switzer'] text-[#6b6b6b] bg-transparent border-none underline decoration-dotted underline-offset-2 cursor-pointer focus:outline-none appearance-none pr-0"
                     >
                       <option value="" disabled>Change type</option>
                       {#each acceptedEvidenceTypes as urlType}
@@ -1454,7 +1524,7 @@
 
       <!-- Social account linking banner for evidence URL types -->
       {#if evidenceRequiredAccounts.length > 0}
-        <div class="w-full bg-[#fafafa] border border-[#e0e0e0] rounded-[12px] p-[16px] flex flex-col gap-[6px] mt-2">
+        <div class="gate-card w-full bg-[#fafafa] border border-[#e0e0e0] rounded-[12px] p-[16px] flex flex-col gap-[6px] mt-2">
           <p class="font-['Switzer'] font-medium text-[14px] text-black tracking-[0.28px]">
             Link your {evidenceRequiredAccounts.map((a) => socialAccountLabels[a] || a).join(", ")} account{evidenceRequiredAccounts.length > 1 ? "s" : ""} from your profile to verify evidence ownership.
           </p>
@@ -1469,7 +1539,7 @@
     </div>
 
     <!-- recaptcha -->
-    <div class="w-full">
+    <div class="recaptcha-area w-full">
       <div id="recaptcha-wrapper" class="flex justify-start"></div>
       {#if error && error.includes("reCAPTCHA")}
         <p class="text-red-500 text-[13px] mt-1 font-['Switzer']">{error}</p>
@@ -1484,11 +1554,11 @@
     {/if}
 
     <!-- Actions -->
-    <div class="flex gap-[8px] items-center mt-2 pb-[60px]">
+    <div class="form-actions flex gap-[8px] items-center mt-2 pb-[60px]">
       <button
         type="submit"
         disabled={submitting || !canSubmitCurrentCategory || evidenceRequiredAccounts.length > 0 || hasEvidencePatternMismatch}
-        class="bg-[#9e4bf6] flex gap-[8px] h-[40px] items-center justify-center px-[20px] rounded-[20px] hover:bg-[#8b3ced] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        class="submit-action bg-[#9e4bf6] flex gap-[8px] h-[40px] items-center justify-center px-[20px] rounded-[20px] hover:bg-[#8b3ced] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         <span
           class="font-['Switzer'] font-medium leading-[21px] text-[14px] text-white tracking-[0.28px]"
@@ -1516,7 +1586,7 @@
         type="button"
         onclick={() => push("/")}
         disabled={submitting}
-        class="bg-[#f5f5f5] flex h-[40px] items-center justify-center px-[20px] rounded-[20px] hover:bg-[#eaeaea] disabled:opacity-50 transition-colors"
+        class="cancel-action bg-[#f5f5f5] flex h-[40px] items-center justify-center px-[20px] rounded-[20px] hover:bg-[#eaeaea] disabled:opacity-50 transition-colors"
       >
         <span
           class="font-['Switzer'] font-medium leading-[21px] text-[14px] text-[#1a1c1d] tracking-[0.28px]"
@@ -1528,3 +1598,199 @@
     {/if}
   </form>
 </div>
+
+<style>
+  @media (max-width: 767px) {
+    .submit-form-shell {
+      max-width: 100% !important;
+      min-width: 0;
+      overflow-x: hidden;
+    }
+
+    .submit-page-title {
+      font-size: 28px;
+      line-height: 32px;
+      letter-spacing: 0 !important;
+      overflow-wrap: anywhere;
+    }
+
+    .submit-panel {
+      border-radius: 12px;
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .submit-panel h2,
+    .field-label {
+      font-size: 17px;
+      line-height: 22px;
+      letter-spacing: 0 !important;
+    }
+
+    .category-tabs {
+      border-radius: 14px;
+      gap: 3px;
+      padding: 3px;
+    }
+
+    .category-tab-button {
+      border-radius: 12px;
+      height: 36px;
+      min-width: 0;
+      padding: 8px 6px;
+    }
+
+    .category-tab-button span {
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+      letter-spacing: 0 !important;
+    }
+
+    .type-selector-control,
+    .field-control {
+      min-width: 0;
+    }
+
+    .type-search-input {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 13px;
+      letter-spacing: 0 !important;
+    }
+
+    .type-dropdown-menu {
+      max-height: min(56vh, 320px);
+      width: 100%;
+    }
+
+    .type-dropdown-item {
+      min-width: 0;
+    }
+
+    .type-dropdown-item > div,
+    .type-dropdown-item span,
+    .selection-info-card,
+    .gate-card {
+      max-width: 100%;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .selection-info-card {
+      padding: 10px;
+    }
+
+    .gate-card {
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .field-section {
+      gap: 8px;
+      margin-top: 0;
+    }
+
+    .field-control input,
+    .field-control textarea,
+    .required-evidence-card input,
+    .evidence-slot-card input {
+      min-width: 0;
+      font-size: 13px;
+      letter-spacing: 0 !important;
+    }
+
+    .field-control textarea {
+      min-height: 108px;
+      padding: 12px;
+    }
+
+    .evidence-header {
+      gap: 14px;
+    }
+
+    .evidence-header > div {
+      max-width: 100%;
+    }
+
+    .evidence-header p {
+      font-size: 13px;
+      line-height: 19px;
+      letter-spacing: 0 !important;
+    }
+
+    .add-evidence-button {
+      width: 100%;
+      min-height: 40px;
+      border-radius: 12px;
+    }
+
+    .required-evidence-card,
+    .evidence-slot-card,
+    .evidence-empty-state {
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .required-evidence-header,
+    .evidence-status-row,
+    .evidence-detected-row {
+      align-items: flex-start;
+      flex-wrap: wrap;
+      max-width: 100%;
+    }
+
+    .required-evidence-header span,
+    .evidence-status-row span,
+    .evidence-detected-row span {
+      max-width: 100%;
+      white-space: normal;
+    }
+
+    .evidence-url-field,
+    .evidence-detected-row {
+      padding-right: 28px;
+    }
+
+    .evidence-type-select {
+      max-width: 100%;
+      min-height: 32px;
+      padding-right: 8px;
+      white-space: normal;
+    }
+
+    .recaptcha-area {
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .recaptcha-area :global(#recaptcha-wrapper) {
+      transform: scale(0.86);
+      transform-origin: left top;
+      min-height: 68px;
+    }
+
+    .form-actions {
+      align-items: stretch;
+      flex-direction: column;
+      padding-bottom: 24px;
+      width: 100%;
+    }
+
+    .submit-action,
+    .cancel-action {
+      width: 100%;
+      min-height: 42px;
+    }
+
+    .submit-action span,
+    .cancel-action span {
+      letter-spacing: 0 !important;
+      white-space: nowrap;
+    }
+  }
+</style>

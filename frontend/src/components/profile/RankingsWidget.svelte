@@ -236,7 +236,7 @@
 </script>
 
 {#if hasAnyRankableRole}
-    <div class="mt-8">
+    <div class="rankings-widget mt-8">
         <div class="flex items-center justify-between mb-4">
             <h2
                 class="text-[20px] font-semibold text-black"
@@ -262,7 +262,7 @@
         <div class="flex flex-col lg:flex-row gap-6">
             {#if availableTabs.length > 0}
             <!-- Left: Leaderboard (50%) -->
-            <div class="w-full lg:w-1/2 flex flex-col pt-2 min-h-[300px]">
+            <div class="w-full lg:w-1/2 flex flex-col pt-2 min-h-[300px] min-w-0">
                 <!-- Tabs Header -->
                 <div class="flex gap-6 border-b border-[#f0f0f0] mb-4">
                     {#each availableTabs as tab}
@@ -285,7 +285,7 @@
 
                 <!-- Tab Content (Leaderboard List) -->
                 <div
-                    class="bg-[#fcfcfc] border border-[#f0f0f0] rounded-[16px] overflow-hidden p-[16px]"
+                    class="ranking-list-card bg-[#fcfcfc] border border-[#f0f0f0] rounded-[16px] overflow-hidden p-[16px]"
                 >
                     {#if loading}
                         <div class="animate-pulse flex flex-col gap-[6px]">
@@ -344,13 +344,13 @@
                                             if (addr)
                                                 push(`/participant/${addr}`);
                                         }}
-                                        class="flex items-center justify-between rounded-[10px] px-3 py-[10px] transition-colors
+                                        class="ranking-row flex items-center justify-between rounded-[10px] px-3 py-[10px] transition-colors min-w-0
                                         {isCurrentUser(row)
                                             ? 'bg-[#f0f0f0]'
                                             : 'bg-white hover:bg-[#f8f8f8]'}"
                                     >
                                         <div
-                                            class="flex items-center gap-[10px]"
+                                            class="flex items-center gap-[10px] min-w-0"
                                         >
                                             <span
                                                 class="text-[13px] font-medium text-[#999] min-w-[20px] text-center"
@@ -363,7 +363,7 @@
                                                 clickable={false}
                                             />
                                             <span
-                                                class="text-[14px] font-medium text-black"
+                                                class="text-[14px] font-medium text-black truncate min-w-0"
                                                 style="letter-spacing: 0.2px;"
                                             >
                                                 {getDisplayName(row)}
@@ -407,14 +407,14 @@
 
             <!-- Right: Context Stats (50% when leaderboard is shown, otherwise full width) -->
             <div
-                class="w-full {availableTabs.length > 0
+                class="ranking-context-column w-full {availableTabs.length > 0
                     ? 'lg:w-1/2'
                     : ''} flex flex-col gap-3 pt-[36px]"
             >
                 <!-- Builder Stat -->
                 {#if isBuilder}
                     <div
-                        class="flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
+                        class="ranking-context-card flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
                     >
                         {#if !participant?.leaderboard_entries}
                             <div class="flex items-center gap-4 animate-pulse">
@@ -460,7 +460,7 @@
                 {:else if isOwnProfile}
                     <button
                         onclick={scrollToJourneys}
-                        class="flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm hover:bg-[#fafafa] transition-colors text-left w-full"
+                        class="ranking-context-card flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm hover:bg-[#fafafa] transition-colors text-left w-full"
                     >
                         <div class="flex items-center gap-4">
                             <CategoryIcon
@@ -488,7 +488,7 @@
                 <!-- Validator Stat -->
                 {#if isValidator}
                     <div
-                        class="flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
+                        class="ranking-context-card flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
                     >
                         {#if !participant?.leaderboard_entries}
                             <div class="flex items-center gap-4 animate-pulse">
@@ -538,7 +538,7 @@
                 {:else if isOwnProfile}
                     <button
                         onclick={scrollToJourneys}
-                        class="flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm hover:bg-[#fafafa] transition-colors text-left w-full"
+                        class="ranking-context-card flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm hover:bg-[#fafafa] transition-colors text-left w-full"
                     >
                         <div class="flex items-center gap-4">
                             <CategoryIcon
@@ -566,7 +566,7 @@
                 <!-- Community Points Stat -->
                 {#if isCreator}
                     <div
-                        class="flex items-center justify-between bg-[#fcfcfc] rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
+                        class="ranking-context-card flex items-center justify-between bg-[#fcfcfc] rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
                     >
                         {#if !participant?.leaderboard_entries}
                             <div class="flex items-center gap-4 animate-pulse">
@@ -612,7 +612,7 @@
                 {:else if isOwnProfile}
                     <button
                         onclick={scrollToJourneys}
-                        class="flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm hover:bg-[#fafafa] transition-colors text-left w-full"
+                        class="ranking-context-card flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm hover:bg-[#fafafa] transition-colors text-left w-full"
                     >
                         <div class="flex items-center gap-4">
                             <CategoryIcon
@@ -640,3 +640,41 @@
         </div>
     </div>
 {/if}
+
+<style>
+    @media (max-width: 767px) {
+        .rankings-widget {
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
+        .ranking-list-card {
+            border-radius: 12px;
+            padding: 10px;
+        }
+
+        .ranking-row {
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .ranking-context-column {
+            padding-top: 12px;
+        }
+
+        .ranking-context-card {
+            min-width: 0;
+            height: auto;
+            min-height: 82px;
+            padding: 16px;
+        }
+
+        .ranking-context-card > div:first-child {
+            min-width: 0;
+        }
+
+        .ranking-context-card span {
+            overflow-wrap: anywhere;
+        }
+    }
+</style>

@@ -27,7 +27,7 @@
   });
 </script>
 
-<div class="w-full px-4 py-[60px]">
+<div class="submit-contribution-route w-full px-4 py-[60px]">
   {#if !authChecked}
     <div class="flex justify-center py-12">
       <div
@@ -37,7 +37,7 @@
   {:else if !$authState.isAuthenticated}
     <div class="max-w-[550px] mx-auto">
       <div
-        class="bg-white border border-[#f5f5f5] rounded-[16px] p-[32px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] text-center"
+        class="auth-required-card bg-white border border-[#f5f5f5] rounded-[16px] p-[32px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] text-center"
       >
         <svg
           class="mx-auto h-12 w-12 text-gray-300 mb-4"
@@ -70,3 +70,18 @@
     <SubmitContributionForm {missionId} {initialTypeId} />
   {/if}
 </div>
+
+<style>
+  @media (max-width: 767px) {
+    .submit-contribution-route {
+      max-width: 100%;
+      overflow-x: hidden;
+      padding: 20px 12px 28px;
+    }
+
+    .auth-required-card {
+      border-radius: 12px;
+      padding: 24px 18px;
+    }
+  }
+</style>

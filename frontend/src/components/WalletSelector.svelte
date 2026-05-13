@@ -23,6 +23,34 @@
     trust: 'https://trustwallet.com/download',
     coinbase: 'https://www.coinbase.com/wallet/downloads'
   };
+
+  function isMobileBrowser() {
+    const userAgent = navigator.userAgent || navigator.vendor || window.opera || '';
+    return /android|iphone|ipad|ipod/i.test(userAgent);
+  }
+
+  function getCurrentDappUrl() {
+    return `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
+  }
+
+  function getMobileDeepLink(walletId) {
+    const dappUrl = getCurrentDappUrl();
+
+    if (walletId === 'metamask') {
+      const dappPath = `${window.location.host}${window.location.pathname}${window.location.search}${window.location.hash}`;
+      return `https://metamask.app.link/dapp/${encodeURIComponent(dappPath)}`;
+    }
+
+    if (walletId === 'phantom') {
+      return `https://phantom.app/ul/browse/${encodeURIComponent(dappUrl)}?ref=${encodeURIComponent(window.location.origin)}`;
+    }
+
+    if (walletId === 'trust') {
+      return `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(dappUrl)}`;
+    }
+
+    return null;
+  }
   
   const WALLET_LOGOS = {
     phantom: phantomLogo,
@@ -69,7 +97,6 @@
       name: 'MetaMask',
       checkInstalled: () => {
         return detectedProviders.has('metamask') ||
-               (window.ethereum?._metamask && !window.ethereum?.isPhantom && !window.ethereum?.isTrust) ||
                window.ethereum?.providers?.some(p => p.isMetaMask && !p.isTrust && !p.isPhantom) ||
                (window.ethereum?.isMetaMask && !window.ethereum?.isTrust && !window.ethereum?.isPhantom);
       },
@@ -77,11 +104,10 @@
         const eip6963 = getEIP6963Provider('metamask');
         if (eip6963) return eip6963;
         
-        const provider = findProviderInArray(p => p._metamask && !p.isTrust && !p.isPhantom) ||
-                        findProviderInArray(p => p.isMetaMask && !p.isTrust && !p.isPhantom);
+        const provider = findProviderInArray(p => p.isMetaMask && !p.isTrust && !p.isPhantom);
         if (provider) return provider;
-        
-        if (window.ethereum?._metamask && !window.ethereum?.isTrust && !window.ethereum?.isPhantom) {
+
+        if (window.ethereum?.isMetaMask && !window.ethereum?.isTrust && !window.ethereum?.isPhantom) {
           return window.ethereum;
         }
         
@@ -150,6 +176,7 @@
     
     // Listen for wallet announcements
     window.addEventListener('eip6963:announceProvider', handleProviderAnnouncement);
+    window.addEventListener('ethereum#initialized', detectWallets, { once: true });
     
     // Request providers to announce themselves
     window.dispatchEvent(new Event('eip6963:requestProvider'));
@@ -158,10 +185,16 @@
     setTimeout(() => {
       detectWallets();
     }, 100);
+
+    // MetaMask Mobile may inject the provider later than extension wallets.
+    setTimeout(() => {
+      detectWallets();
+    }, 3000);
     
     // Cleanup
     return () => {
       window.removeEventListener('eip6963:announceProvider', handleProviderAnnouncement);
+      window.removeEventListener('ethereum#initialized', detectWallets);
     };
   });
 
@@ -174,10 +207,12 @@
     
     for (const walletId of primaryWallets) {
       const config = walletConfigs[walletId];
+      const installed = Boolean(config.checkInstalled());
       wallets.push({
         id: walletId,
         name: config.name,
-        installed: config.checkInstalled(),
+        installed,
+        mobileDeepLink: isMobileBrowser() && !installed ? getMobileDeepLink(walletId) : null,
         getProvider: config.getProvider
       });
     }
@@ -213,6 +248,11 @@
     }
     
     if (!wallet.installed) {
+      if (wallet.mobileDeepLink) {
+        window.location.href = wallet.mobileDeepLink;
+        return;
+      }
+
       // If wallet not installed, open appropriate installation page
       if (INSTALL_URLS[wallet.id]) {
         window.open(INSTALL_URLS[wallet.id], '_blank');
@@ -404,7 +444,7 @@
                   {wallet.name}
                 </span>
                 {#if !wallet.installed}
-                  <span class="wallet-status">Not installed</span>
+                  <span class="wallet-status">{wallet.mobileDeepLink ? 'Open app' : 'Not installed'}</span>
                 {/if}
               </button>
             {/each}
