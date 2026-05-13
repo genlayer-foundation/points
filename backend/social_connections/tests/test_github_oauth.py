@@ -6,7 +6,12 @@ from rest_framework.test import force_authenticate
 
 from users.models import User
 from social_connections.models import GitHubConnection
-from social_connections.github_oauth import github_oauth_initiate, disconnect_github, check_repo_star
+from social_connections.github_oauth import (
+    github_oauth_initiate,
+    disconnect_github,
+    check_repo_star,
+    refresh_github_username,
+)
 from social_connections.oauth_service import GitHubOAuthService
 
 TEST_ENCRYPTION_KEY = 'dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ='
@@ -73,6 +78,55 @@ class GitHubOAuthTest(TestCase):
         response = check_repo_star(request)
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.data['has_starred'])
+
+    @patch('social_connections.oauth_service.decrypt_token', return_value='test_token')
+    @patch('social_connections.oauth_service.requests')
+    def test_refresh_github_username_updates_existing_connection(self, mock_requests, mock_decrypt_token):
+        GitHubConnection.objects.create(
+            user=self.user,
+            platform_user_id='12345',
+            platform_username='old-name',
+            access_token='encrypted-token',
+            linked_at=timezone.now(),
+        )
+
+        mock_user_response = MagicMock()
+        mock_user_response.raise_for_status = MagicMock()
+        mock_user_response.json.return_value = {'id': 12345, 'login': 'new-name'}
+        mock_requests.get.return_value = mock_user_response
+
+        request = self.factory.post('/api/v1/users/github/refresh/')
+        force_authenticate(request, user=self.user)
+        response = refresh_github_username(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['changed'])
+        self.assertEqual(response.data['github_connection']['platform_username'], 'new-name')
+        self.assertEqual(self.user.githubconnection.platform_username, 'new-name')
+
+    @patch('social_connections.oauth_service.decrypt_token', return_value='test_token')
+    @patch('social_connections.oauth_service.requests')
+    def test_refresh_github_username_rejects_account_mismatch(self, mock_requests, mock_decrypt_token):
+        GitHubConnection.objects.create(
+            user=self.user,
+            platform_user_id='12345',
+            platform_username='old-name',
+            access_token='encrypted-token',
+            linked_at=timezone.now(),
+        )
+
+        mock_user_response = MagicMock()
+        mock_user_response.raise_for_status = MagicMock()
+        mock_user_response.json.return_value = {'id': 99999, 'login': 'other-name'}
+        mock_requests.get.return_value = mock_user_response
+
+        request = self.factory.post('/api/v1/users/github/refresh/')
+        force_authenticate(request, user=self.user)
+        response = refresh_github_username(request)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['code'], 'account_mismatch')
+        self.assertEqual(self.user.githubconnection.platform_username, 'old-name')
 
     @patch('social_connections.oauth_service.requests')
     def test_callback_full_flow(self, mock_requests):

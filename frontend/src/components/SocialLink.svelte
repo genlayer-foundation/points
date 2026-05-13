@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { authState } from '../lib/auth';
   import { API_BASE_URL } from '../lib/config.js';
-  import { getCurrentUser } from '../lib/api';
+  import { getCurrentUser, socialAPI } from '../lib/api';
   import { showSuccess, showError } from '../lib/toastStore';
 
   let {
@@ -15,6 +15,7 @@
   } = $props();
 
   let isLinking = $state(false);
+  let isRefreshing = $state(false);
   let handledOAuthResult = $state(false);
 
   // Imperative bookkeeping — plain let, NOT $state, to avoid Svelte 5
@@ -255,6 +256,31 @@
       }
     }, 500);
   }
+
+  async function refreshAccount() {
+    if (!$authState.isAuthenticated || platform !== 'github' || !connection || isRefreshing) {
+      return;
+    }
+
+    isRefreshing = true;
+    try {
+      const response = await socialAPI.refreshGitHubUsername();
+      const updatedUser = await getCurrentUser();
+      const updatedConnection = response.data?.github_connection;
+      const username = updatedConnection?.platform_username || connection.platform_username;
+      showSuccess(
+        response.data?.changed
+          ? `GitHub username updated to @${username}`
+          : 'GitHub username is already up to date'
+      );
+      onLinked(updatedUser);
+    } catch (error) {
+      const message = error?.response?.data?.error || 'Could not refresh GitHub username. Please try again.';
+      showError(message);
+    } finally {
+      isRefreshing = false;
+    }
+  }
 </script>
 
 {#if compact}
@@ -300,11 +326,37 @@
   <!-- Full mode: for ProfileEdit -->
   {#if connection}
     <div
-      class="px-4 py-3 rounded-[8px] text-white flex items-center gap-2.5"
+      class="social-connected-row"
       style="background-color: {config.color};"
     >
-      <span class="flex-shrink-0 opacity-90">{@html config.icon}</span>
-      <span class="font-medium text-sm">{connection.platform_username}</span>
+      <div class="social-connected-identity">
+        <span class="flex-shrink-0 opacity-90">{@html config.icon}</span>
+        <span class="font-medium text-sm">{connection.platform_username}</span>
+      </div>
+      {#if platform === 'github'}
+        <button
+          type="button"
+          class="social-refresh-btn"
+          onclick={refreshAccount}
+          disabled={isRefreshing}
+          title="Refresh GitHub username"
+          aria-label="Refresh GitHub username"
+        >
+          {#if isRefreshing}
+            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          {:else}
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12a9 9 0 0 0-15-6.7L3 8"></path>
+              <path d="M3 3v5h5"></path>
+              <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"></path>
+              <path d="M21 21v-5h-5"></path>
+            </svg>
+          {/if}
+        </button>
+      {/if}
     </div>
     {#if connection.linked_at}
       <p class="text-xs text-gray-400 mt-1">
@@ -357,6 +409,57 @@
 
   .social-connect-btn:disabled {
     opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .social-connected-row {
+    width: 100%;
+    min-height: 44px;
+    padding: 0.625rem 0.75rem 0.625rem 1rem;
+    border-radius: 8px;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .social-connected-identity {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+  }
+
+  .social-connected-identity span:last-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .social-refresh-btn {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.26);
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, opacity 0.15s;
+  }
+
+  .social-refresh-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.42);
+  }
+
+  .social-refresh-btn:disabled {
+    opacity: 0.65;
     cursor: not-allowed;
   }
 

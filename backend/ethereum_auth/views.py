@@ -109,7 +109,7 @@ def login(request):
         # Verify the signature using eth_account
         message_hash = encode_defunct(text=message)
         recovered_address = Account.recover_message(message_hash, signature=signature)
-        
+
         if recovered_address.lower() != ethereum_address:
             return Response(
                 {'error': 'Invalid signature: address mismatch'},

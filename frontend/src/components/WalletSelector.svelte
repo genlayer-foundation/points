@@ -277,7 +277,7 @@
     try {
       // Get the provider (now async)
       const provider = await wallet.getProvider();
-      
+
       // Check if user aborted
       if (connectionAborted) {
         return;
