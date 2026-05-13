@@ -12,6 +12,10 @@
 
   // Color schemes per category
   const schemes = {
+    global: {
+      firstGradient: 'linear-gradient(135deg, #9d7cff 0%, #7f52e1 48%, #4d32a8 100%)',
+      glow: 'rgba(127, 82, 225, 0.25)',
+    },
     builder: {
       firstGradient: 'linear-gradient(to bottom, #f8b93d, #ee8d24)',
       glow: 'rgba(248, 185, 61, 0.25)',
@@ -19,6 +23,10 @@
     validator: {
       firstGradient: 'linear-gradient(135deg, #6da7f3 15%, #387de8 50%, #2159d2 85%)',
       glow: 'rgba(56, 125, 232, 0.25)',
+    },
+    steward: {
+      firstGradient: 'linear-gradient(135deg, #6bdc8a 0%, #3eb359 48%, #207b39 100%)',
+      glow: 'rgba(62, 179, 89, 0.25)',
     },
   };
 

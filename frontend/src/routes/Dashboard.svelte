@@ -76,8 +76,8 @@
         statsLoading = false;
       }).catch(() => { statsLoading = false; }),
 
-      // Leaderboard top 5
-      leaderboardAPI.getLeaderboardByType(cat, 'asc', { limit: 5 }).then(res => {
+      // Monthly leaderboard top 5, counted from day 1 of the current month.
+      leaderboardAPI.getMonthlyLeaderboardByType(cat, 5).then(res => {
         leaderboardEntries = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
         leaderboardLoading = false;
       }).catch(() => { leaderboardLoading = false; }),
