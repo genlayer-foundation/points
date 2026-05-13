@@ -7,6 +7,7 @@
   import HighlightsSlider from '../components/portal/HighlightsSlider.svelte';
   import PortalContributionCard from '../components/portal/PortalContributionCard.svelte';
   import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
+  import { parseMarkdown } from '../lib/markdownLoader.js';
 
   let { params = {} } = $props();
 
@@ -51,6 +52,9 @@
   let loading = $state(true);
   let error = $state(/** @type {string | null} */ (null));
   let recentSlider = $state(/** @type {HTMLElement | null} */ (null));
+  let descriptionExpanded = $state(false);
+  let descriptionOverflows = $state(false);
+  let descriptionEl = $state(/** @type {HTMLElement | null} */ (null));
 
   let category = $derived(contributionType?.category || 'global');
   let config = $derived(categoryConfig[category] || categoryConfig.global);
@@ -123,6 +127,14 @@
   }
 
   onMount(loadContributionTypeDetail);
+
+  $effect(() => {
+    // Track these so the effect re-runs when description loads.
+    void contributionType?.description;
+    if (!descriptionEl) return;
+    if (descriptionExpanded) return; // Only measure while clamped.
+    descriptionOverflows = descriptionEl.scrollHeight > descriptionEl.clientHeight + 1;
+  });
 </script>
 
 {#snippet contributionSkeleton()}
@@ -214,9 +226,24 @@
             </h1>
 
             {#if contributionType.description}
-              <p class="mt-3 max-w-3xl text-[14px] sm:text-[15px] text-[#3f4b5f] leading-relaxed" style="letter-spacing: 0.2px;">
-                {contributionType.description}
-              </p>
+              <div class="mt-3 max-w-3xl">
+                <div
+                  bind:this={descriptionEl}
+                  class="markdown-content text-[14px] sm:text-[15px] text-[#3f4b5f] leading-relaxed {descriptionExpanded ? '' : 'line-clamp-6'}"
+                  style="letter-spacing: 0.2px;"
+                >
+                  {@html parseMarkdown(contributionType.description)}
+                </div>
+                {#if descriptionOverflows}
+                  <button
+                    type="button"
+                    class="mt-2 text-[13px] font-medium text-primary-600 hover:text-primary-700 hover:underline"
+                    onclick={() => (descriptionExpanded = !descriptionExpanded)}
+                  >
+                    {descriptionExpanded ? 'Show less' : 'Show more'}
+                  </button>
+                {/if}
+              </div>
             {/if}
           </div>
 
@@ -416,5 +443,33 @@
     100% {
       background-position: -200% 0;
     }
+  }
+
+  .markdown-content :global(p) {
+    margin: 0 0 0.6em;
+  }
+  .markdown-content :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .markdown-content :global(ul) {
+    list-style-type: disc;
+    margin: 0 0 0.6em 1.25rem;
+  }
+  .markdown-content :global(ol) {
+    list-style-type: decimal;
+    margin: 0 0 0.6em 1.25rem;
+  }
+  .markdown-content :global(a) {
+    color: #387de8;
+    text-decoration: underline;
+  }
+  .markdown-content :global(strong) {
+    font-weight: 600;
+  }
+  .markdown-content :global(code) {
+    background: #f3f4f6;
+    padding: 0 0.25rem;
+    border-radius: 3px;
+    font-size: 0.9em;
   }
 </style>
