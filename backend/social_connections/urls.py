@@ -1,6 +1,11 @@
 from django.urls import path
 
-from .github_oauth import github_oauth_initiate, github_oauth_callback, check_repo_star
+from .github_oauth import (
+    github_oauth_initiate,
+    github_oauth_callback,
+    check_repo_star,
+    refresh_github_username,
+)
 from .twitter_oauth import twitter_oauth_initiate, twitter_oauth_callback
 from .discord_oauth import discord_oauth_initiate, discord_oauth_callback, check_discord_guild
 
@@ -8,6 +13,7 @@ urlpatterns = [
     # GitHub OAuth
     path('api/auth/github/', github_oauth_initiate, name='github_oauth'),
     path('api/auth/github/callback/', github_oauth_callback, name='github_callback'),
+    path('api/v1/users/github/refresh/', refresh_github_username, name='github_refresh_username'),
     path('api/v1/users/github/check-star/', check_repo_star, name='github_check_star'),
 
     # Twitter OAuth

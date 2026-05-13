@@ -180,6 +180,7 @@ export const githubAPI = {
 
 // Social connections API
 export const socialAPI = {
+  refreshGitHubUsername: () => api.post('/users/github/refresh/'),
   checkDiscordGuild: () => api.get('/users/discord/check-guild/'),
 };
 
