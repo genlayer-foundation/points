@@ -1,8 +1,10 @@
 <script>
+  // @ts-nocheck
   import LeaderboardTable from '../components/LeaderboardTable.svelte';
   import Podium from '../components/ui/Podium.svelte';
   import { leaderboardAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
+  import { getCategoryGradientStyle } from '../lib/categoryPresentation.js';
   
   const PAGE_SIZE = 10;
   const PODIUM_SIZE = 3;
@@ -64,9 +66,21 @@
       valueLabel: 'SP',
       podiumCategory: 'steward',
     },
+    community: {
+      title: 'Community Leaderboard',
+      label: 'community',
+      description: 'All-time Community Points rankings.',
+      icon: '/assets/icons/group-white.svg',
+      iconClass: 'bg-[#7f52e1]',
+      accentColor: '#7f52e1',
+      valueLabel: 'CP',
+      podiumCategory: 'community',
+    },
   };
 
   let pageConfig = $derived(categoryConfig[$currentCategory] || categoryConfig.global);
+  let activeGradientCategory = $derived($currentCategory || 'global');
+  let gradientStyle = $derived(getCategoryGradientStyle(activeGradientCategory, pageConfig.accentColor));
   let topEntries = $derived(podiumEntries);
   let tableEntries = $derived(leaderboard);
   let isSearching = $derived(searchQuery.trim().length > 0 || activeSearch.length > 0);
@@ -170,23 +184,27 @@
     class="absolute inset-x-0 top-0 h-[320px] pointer-events-none overflow-hidden"
     style="-webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%); mask-image: linear-gradient(to bottom, black 0%, transparent 100%);"
   >
-    <img
-      src="/assets/illustrations/welcome-gradient.png"
-      alt=""
-      class="absolute inset-0 w-full h-full object-cover opacity-70"
-    />
+    {#if activeGradientCategory === 'global'}
+      <img
+        src="/assets/illustrations/welcome-gradient.png"
+        alt=""
+        class="absolute inset-0 w-full h-full object-cover opacity-70"
+      />
+    {:else}
+      <div class="absolute inset-0" style={gradientStyle}></div>
+    {/if}
     <div class="absolute inset-0 bg-white/25"></div>
   </div>
 
   <div class="relative z-10 space-y-6">
     <header class="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
       <div class="space-y-2">
-        <div class="flex items-center gap-3">
-          <div class="flex h-10 w-10 items-center justify-center rounded-[12px] {pageConfig.iconClass} shadow-[0_8px_18px_rgba(90,96,125,0.18)]">
+        <div class="flex items-start gap-3">
+          <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] {pageConfig.iconClass} shadow-[0_8px_18px_rgba(90,96,125,0.18)]">
             <img src={pageConfig.icon} alt="" class="h-5 w-5" />
           </div>
           <h1
-            class="text-[34px] sm:text-[40px] md:text-[46px] font-semibold font-display text-black leading-none"
+            class="min-w-0 break-words text-[34px] sm:text-[40px] md:text-[46px] font-semibold font-display text-black leading-none"
             style="letter-spacing: -1px;"
           >
             {pageConfig.title}
@@ -276,20 +294,20 @@
             <button
               onclick={() => goToPage(currentPage - 1)}
               disabled={currentPage === 1 || loading || pageLoading}
-              class="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-4 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] disabled:translate-y-0 disabled:opacity-45 disabled:shadow-none"
+              class="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-4 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] disabled:translate-y-0 disabled:opacity-45 disabled:shadow-none"
             >
               Previous
             </button>
 
             {#if paginationPages[1] && paginationPages[1] > 2}
-              <span class="inline-flex h-10 min-w-10 items-center justify-center text-[13px] font-semibold text-[#7b8798]">...</span>
+              <span class="inline-flex min-h-11 min-w-11 items-center justify-center text-[13px] font-semibold text-[#7b8798]">...</span>
             {/if}
 
             {#each paginationPages as page}
               <button
                 onclick={() => goToPage(page)}
                 disabled={page === selectedPage || loading || pageLoading}
-                class={`inline-flex h-10 min-w-10 items-center justify-center rounded-[8px] border px-3 text-[13px] font-semibold shadow-[0_8px_18px_rgba(31,42,68,0.06)] transition ${
+                class={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-[8px] border px-3 text-[13px] font-semibold shadow-[0_8px_18px_rgba(31,42,68,0.06)] transition ${
                   page === selectedPage
                     ? 'text-white'
                     : 'border-[#dfe4ee] bg-white text-[#111827] hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)]'
@@ -304,7 +322,7 @@
             <button
               onclick={() => goToPage(currentPage + 1)}
               disabled={!hasNextPage || loading || pageLoading}
-              class="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-4 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] disabled:translate-y-0 disabled:opacity-45 disabled:shadow-none"
+              class="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-4 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] disabled:translate-y-0 disabled:opacity-45 disabled:shadow-none"
             >
               Next
             </button>

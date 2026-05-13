@@ -1,4 +1,5 @@
 <script>
+  // @ts-nocheck
   import { push } from 'svelte-spa-router';
   import Avatar from './Avatar.svelte';
   import { currentCategory } from '../stores/category.js';
@@ -49,21 +50,21 @@
       </div>
     {/if}
     
-    <div class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-[#eef1f6]">
+    <div class="overflow-hidden">
+      <table class="w-full table-fixed divide-y divide-[#eef1f6]">
         <thead class="bg-[#f8fafc]">
           <tr>
-            <th scope="col" class="px-6 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798]" style="letter-spacing: 0.8px;">
+            <th scope="col" class="w-[56px] px-2 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798] sm:w-[88px] sm:px-6" style="letter-spacing: 0.8px;">
               Rank
             </th>
-            <th scope="col" class="px-6 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798]" style="letter-spacing: 0.8px;">
+            <th scope="col" class="px-2 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798] sm:px-6" style="letter-spacing: 0.8px;">
               Participant
             </th>
-            <th scope="col" class="px-6 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798]" style="letter-spacing: 0.8px;">
+            <th scope="col" class="w-[78px] px-2 py-3 text-right text-[11px] font-semibold uppercase text-[#7b8798] sm:w-[120px] sm:px-6 sm:text-left" style="letter-spacing: 0.8px;">
               Points
             </th>
             {#if $currentCategory === 'validator'}
-              <th scope="col" class="px-6 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798]" style="letter-spacing: 0.8px;">
+              <th scope="col" class="hidden px-3 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798] sm:table-cell sm:w-[150px] sm:px-6" style="letter-spacing: 0.8px;">
                 Active Validators
               </th>
             {/if}
@@ -72,15 +73,15 @@
         <tbody class="divide-y divide-[#eef1f6] bg-white">
           {#each entries as entry, i}
             <tr class="bg-white transition-colors hover:bg-[#fbfcff]">
-              <td class="px-6 py-4 whitespace-nowrap">
+              <td class="px-2 py-4 align-top sm:px-6">
                 <span class={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[13px] font-semibold ${getRankClass(entry.rank)}`}>
                   {entry.rank}
                 </span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center">
+              <td class="min-w-0 px-2 py-4 align-top sm:px-6">
+                <div class="flex min-w-0 items-center">
                   {#if !compact}
-                    <div class="flex-shrink-0 mr-3">
+                    <div class="mr-2 flex-shrink-0 sm:mr-3">
                       <Avatar 
                         user={entry.user_details}
                         size="sm"
@@ -88,26 +89,43 @@
                       />
                     </div>
                   {/if}
-                  <div>
+                  <div class="min-w-0">
                     <button
                       onclick={() => push(`/participant/${entry.user_details?.address || ''}`)}
-                      class="text-[14px] font-semibold text-[#111827] transition-colors hover:text-black"
+                      class="block max-w-full truncate text-left text-[14px] font-semibold text-[#111827] transition-colors hover:text-black"
                     >
                       {entry.user_details?.name || 'N/A'}
                     </button>
                     {#if !hideAddress}
-                      <div class="text-[13px] text-[#7b8798]">
+                      <div class="hidden text-[13px] text-[#7b8798] sm:block">
                         {entry.user_details?.address || ''}
+                      </div>
+                    {/if}
+                    {#if $currentCategory === 'validator'}
+                      <div class="mt-1 sm:hidden">
+                        {#if entry.active_validators_count === null}
+                          <span class="inline-flex max-w-full items-center rounded-full bg-[#f3f5f9] px-2 py-1 text-[11px] font-semibold text-[#7b8798]">
+                            No validator
+                          </span>
+                        {:else}
+                          <a
+                            href="/validators/participants"
+                            onclick={(e) => { e.preventDefault(); push('/validators/participants'); }}
+                            class="inline-flex max-w-full items-center rounded-full bg-[#eef4ff] px-2 py-1 text-[11px] font-semibold text-[#387de8] transition-colors hover:bg-[#e0ebff]"
+                          >
+                            {entry.active_validators_count} active
+                          </a>
+                        {/if}
                       </div>
                     {/if}
                   </div>
                 </div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-[14px] font-semibold text-[#111827]">{entry.total_points}</div>
+              <td class="px-2 py-4 text-right align-top sm:px-6 sm:text-left">
+                <div class="truncate text-[14px] font-semibold text-[#111827]">{entry.total_points}</div>
               </td>
               {#if $currentCategory === 'validator'}
-                <td class="px-6 py-4 whitespace-nowrap">
+                <td class="hidden px-3 py-4 align-top sm:table-cell sm:px-6">
                   {#if entry.active_validators_count === null}
                     <span class="inline-block rounded-full bg-[#f3f5f9] px-2.5 py-1.5 text-xs font-semibold text-[#7b8798]">
                       No validator

@@ -1819,6 +1819,7 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
     Only missions are returned by default.
     """
     serializer_class = MissionSerializer
+    permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
         """
@@ -1867,6 +1868,22 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             (models.Q(start_date__isnull=True) | models.Q(start_date__lte=now))
             & (models.Q(end_date__isnull=True) | models.Q(end_date__gt=now))
         )
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def stats(self, request, pk=None):
+        # Stats must remain available for expired missions; get_queryset()
+        # intentionally filters them out for list views.
+        mission = get_object_or_404(Mission, pk=pk)
+        stats = Contribution.objects.filter(mission=mission).aggregate(
+            unique_users=Count('user', distinct=True),
+            contributions_count=Count('id'),
+            points_earned=Coalesce(Sum('frozen_global_points'), 0),
+        )
+        return Response({
+            'unique_users': stats['unique_users'] or 0,
+            'contributions_count': stats['contributions_count'] or 0,
+            'points_earned': stats['points_earned'] or 0,
+        })
 
 
 class StartupRequestViewSet(viewsets.ReadOnlyModelViewSet):
