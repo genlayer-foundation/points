@@ -895,8 +895,32 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
     def get_user_details(self, obj):
         use_light = self.context.get('use_light_serializers', False)
         if use_light:
-            return LightUserSerializer(obj.user).data
-        return UserSerializer(obj.user, context=self.context).data
+            data = LightUserSerializer(obj.user).data
+        else:
+            data = UserSerializer(obj.user, context=self.context).data
+
+        # Always include social connections so stewards can see which networks
+        # the user has linked, even on the paginated list view that uses the
+        # light serializer.
+        from social_connections.serializers import (
+            DiscordConnectionSerializer,
+            GitHubConnectionSerializer,
+            TwitterConnectionSerializer,
+        )
+
+        def _get(related_name, serializer_class):
+            try:
+                connection = getattr(obj.user, related_name)
+            except Exception:
+                return None
+            if connection is None:
+                return None
+            return serializer_class(connection).data
+
+        data.setdefault('github_connection', _get('githubconnection', GitHubConnectionSerializer))
+        data.setdefault('twitter_connection', _get('twitterconnection', TwitterConnectionSerializer))
+        data.setdefault('discord_connection', _get('discordconnection', DiscordConnectionSerializer))
+        return data
 
     def get_contribution_type_details(self, obj):
         use_light = self.context.get('use_light_serializers', False)
