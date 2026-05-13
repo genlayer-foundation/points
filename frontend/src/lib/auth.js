@@ -203,31 +203,48 @@ export async function getNonce() {
 export async function createAndSignMessage(address, nonce, provider = null) {
   const domain = window.location.host;
   const origin = window.location.origin;
-  
-  // Create a message string directly instead of using SiweMessage
+
+  // Use provided provider or default to window.ethereum
+  const ethereumProvider = provider || window.ethereum;
+
+  // Phantom rejects personal_sign when the SIWE Chain ID doesn't match the
+  // wallet's active chain. Reflect whatever the wallet reports; the backend
+  // doesn't validate chain id.
+  let chainId = 4221;
+  try {
+    const chainIdHex = await ethereumProvider.request({ method: 'eth_chainId' });
+    if (chainIdHex) {
+      chainId = parseInt(chainIdHex, 16);
+    }
+  } catch (chainIdError) {
+    // fall back to default
+  }
+
+  // EIP-4361 requires the address in the SIWE message body to use EIP-55
+  // checksum encoding. Phantom enforces this and rejects lowercase addresses.
+  let checksumAddress = address;
+  try {
+    checksumAddress = ethers.getAddress(address);
+  } catch (checksumError) {
+    // fall back to raw address
+  }
+
   const messageToSign = `${domain} wants you to sign in with your Ethereum account:
-${address}
+${checksumAddress}
 
 Sign in with Ethereum to GenLayer Testnet Contributions
 
 URI: ${origin}
 Version: 1
-Chain ID: 4221
+Chain ID: ${chainId}
 Nonce: ${nonce}
 Issued At: ${new Date().toISOString()}`;
-  
-  // Use provided provider or default to window.ethereum
-  const ethereumProvider = provider || window.ethereum;
-  
-  // Request signature from wallet
+
   const ethersProvider = new ethers.BrowserProvider(ethereumProvider);
   const signer = await ethersProvider.getSigner();
   const signature = await signer.signMessage(messageToSign);
-  
-  return {
-    message: messageToSign,
-    signature
-  };
+
+  return { message: messageToSign, signature };
 }
 
 /**
