@@ -2,11 +2,13 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ranks, recalculate_all_leaderboards, LEADERBOARD_CONFIG
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
 from contributions.models import Category, Contribution
+
+JOURNEY_AUTO_AWARD_SLUGS = ['builder-welcome', 'builder', 'validator-waitlist', 'validator']
 
 
 class GlobalLeaderboardMultiplierViewSet(viewsets.ReadOnlyModelViewSet):
@@ -102,6 +104,15 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 # Default to validator leaderboard only when not filtering by user
                 queryset = queryset.filter(type='validator')
 
+            if leaderboard_type == 'builder':
+                eligible_builder_contributions = Contribution.objects.filter(
+                    user_id=OuterRef('user_id'),
+                    contribution_type__category__slug='builder',
+                ).exclude(
+                    contribution_type__slug__in=['builder-welcome', 'builder'],
+                )
+                queryset = queryset.filter(Exists(eligible_builder_contributions))
+
             # Handle network filtering for validators
             # Only include validators with active wallets on the specified network.
             network = self.request.query_params.get('network')
@@ -183,6 +194,65 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         top_entries = LeaderboardEntry.objects.filter(user__visible=True, type='validator').order_by('rank')[:10]
         serializer = self.get_serializer(top_entries, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def monthly(self, request):
+        """
+        Get top contributors for the current month, starting on day 1.
+        """
+        from users.models import User
+        from users.serializers import LightUserSerializer
+
+        leaderboard_type = request.query_params.get('type', 'validator')
+        if leaderboard_type not in LEADERBOARD_CONFIG:
+            return Response(
+                {'detail': f'Unknown leaderboard type: {leaderboard_type}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            limit = int(request.query_params.get('limit', 10))
+        except (TypeError, ValueError):
+            limit = 10
+
+        now = timezone.localtime(timezone.now())
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        monthly_totals = (
+            Contribution.objects
+            .filter(
+                user__visible=True,
+                user__leaderboard_entries__type=leaderboard_type,
+                contribution_type__category__slug=leaderboard_type,
+                contribution_date__gte=month_start,
+            )
+            .exclude(contribution_type__slug__in=JOURNEY_AUTO_AWARD_SLUGS)
+            .values('user_id')
+            .annotate(total_points=Sum('frozen_global_points'))
+            .order_by('-total_points', 'user__name')[:limit]
+        )
+
+        user_ids = [entry['user_id'] for entry in monthly_totals]
+        users_by_id = {
+            user.id: user
+            for user in User.objects.filter(id__in=user_ids)
+        }
+
+        result = []
+        for rank, entry in enumerate(monthly_totals, 1):
+            user = users_by_id.get(entry['user_id'])
+            if not user:
+                continue
+            result.append({
+                'id': f'monthly-{leaderboard_type}-{user.id}',
+                'user': user.id,
+                'user_details': LightUserSerializer(user).data,
+                'type': leaderboard_type,
+                'total_points': entry['total_points'] or 0,
+                'rank': rank,
+            })
+
+        return Response(result)
         
     @action(detail=False, methods=['get'])
     def stats(self, request):
@@ -602,6 +672,73 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             response_data['user_total_points'] = user_total_points
 
         return Response(response_data)
+
+    @action(detail=False, methods=['get'], url_path='community-contributors')
+    def community_contributors(self, request):
+        """
+        Get top contributors by actual community contribution points.
+        This intentionally excludes referral points, which are tracked separately.
+        """
+        from users.models import User
+        from users.serializers import LightUserSerializer
+
+        try:
+            limit = int(request.query_params.get('limit', 20))
+        except (ValueError, TypeError):
+            limit = 20
+        limit = min(max(limit, 1), 100)
+
+        try:
+            offset = int(request.query_params.get('offset', 0))
+        except (ValueError, TypeError):
+            offset = 0
+
+        community_totals = (
+            Contribution.objects
+            .filter(
+                user__visible=True,
+                contribution_type__category__slug='community',
+            )
+            .values('user_id')
+            .annotate(
+                total_points=Sum('frozen_global_points'),
+                contribution_count=Count('id'),
+            )
+            .filter(total_points__gt=0)
+            .order_by('-total_points', 'user__name')
+        )
+
+        count = community_totals.count()
+        page = list(community_totals[offset:offset + limit])
+        users_by_id = {
+            user.id: user
+            for user in User.objects.filter(id__in=[entry['user_id'] for entry in page])
+                .select_related('validator', 'builder', 'steward', 'creator')
+        }
+
+        results = []
+        for index, entry in enumerate(page, start=offset + 1):
+            user = users_by_id.get(entry['user_id'])
+            if not user:
+                continue
+
+            user_data = LightUserSerializer(user).data
+            total_points = entry['total_points'] or 0
+            results.append({
+                **user_data,
+                'user_details': user_data,
+                'user_address': user.address,
+                'user_name': user.name,
+                'community_points': total_points,
+                'total_points': total_points,
+                'contribution_count': entry['contribution_count'] or 0,
+                'rank': index,
+            })
+
+        return Response({
+            'count': count,
+            'results': results,
+        })
 
     @action(detail=False, methods=['get'])
     def trending(self, request):

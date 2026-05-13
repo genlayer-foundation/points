@@ -24,7 +24,7 @@
       const [bRes, vRes, cRes] = await Promise.all([
         leaderboardAPI.getLeaderboard({ type: 'builder', limit: LIMIT }),
         leaderboardAPI.getLeaderboard({ type: 'validator', limit: LIMIT }),
-        leaderboardAPI.getCommunity({ limit: LIMIT }),
+        leaderboardAPI.getCommunityContributors({ limit: LIMIT }),
       ]);
       builders = extractEntries(bRes.data);
       validators = extractEntries(vRes.data);
@@ -142,7 +142,7 @@
 </div>
 
 {#snippet column(label, entries, viewPath, type)}
-  <div class="flex-1">
+  <div class="flex-1 min-w-0">
     <!-- Column header -->
     <div class="flex items-center justify-between px-[4px] mb-[8px]">
       <div class="flex items-center gap-[4px]">
@@ -156,15 +156,15 @@
     </div>
 
     <!-- Column card -->
-    <div class="bg-white border border-[#f7f7f7] rounded-[8px] overflow-clip p-[16px]">
+    <div class="bg-white border border-[#f7f7f7] rounded-[8px] overflow-clip p-[12px] md:p-[16px]">
       {#if entries.length === 0}
         <div class="py-6 text-center text-sm text-[#6b6b6b]">No data</div>
       {:else}
-        <div class="flex items-start justify-between">
+        <div class="flex items-start justify-between gap-[12px] min-w-0">
           <!-- Left: rank + user -->
-          <div class="flex gap-[24px]">
+          <div class="flex gap-[12px] md:gap-[24px] min-w-0 flex-1">
             <!-- Rank numbers -->
-            <div class="flex flex-col gap-[8px]">
+            <div class="flex flex-col gap-[8px] flex-shrink-0">
               {#each entries as _, i}
                 <div class="h-[48px] flex items-center">
                   <span class="text-[16px] text-black" style="letter-spacing: 0.32px; opacity: {RANK_OPACITY[i] ?? 0.5};">{i + 1}</span>
@@ -172,21 +172,21 @@
               {/each}
             </div>
             <!-- User info -->
-            <div class="flex flex-col gap-[8px]">
+            <div class="flex flex-col gap-[8px] min-w-0 flex-1">
               {#each entries as entry}
                 <button
                   onclick={() => getAddress(entry) && push(`/participant/${getAddress(entry)}`)}
-                  class="h-[48px] flex items-center gap-[4px] hover:opacity-80 transition-opacity"
+                  class="h-[48px] flex items-center gap-[4px] min-w-0 max-w-full hover:opacity-80 transition-opacity"
                 >
                   <Avatar user={getUserObj(entry)} size="md" clickable={false} />
-                  <span class="text-[14px] font-medium text-black" style="letter-spacing: 0.28px;">{getDisplayName(entry)}</span>
+                  <span class="text-[14px] font-medium text-black truncate" style="letter-spacing: 0.28px;">{getDisplayName(entry)}</span>
                 </button>
               {/each}
             </div>
           </div>
 
           <!-- Right: points -->
-          <div class="flex gap-[16px]">
+          <div class="flex gap-[8px] md:gap-[16px] flex-shrink-0">
             <!-- Category points -->
             <div class="flex flex-col gap-[8px]">
               {#each entries as entry}
@@ -194,7 +194,7 @@
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
                   </svg>
-                  <span class="text-[14px]" style="letter-spacing: 0.28px;">{formatPoints(entry.total_points ?? entry.points)}</span>
+                  <span class="text-[13px] md:text-[14px]" style="letter-spacing: 0.28px;">{formatPoints(entry.total_points ?? entry.points)}</span>
                 </div>
               {/each}
             </div>
@@ -202,7 +202,7 @@
             <div class="flex flex-col gap-[8px]">
               {#each entries as entry}
                 <div class="h-[48px] flex items-center">
-                  <span class="text-[14px] font-medium text-black" style="letter-spacing: 0.28px;">{formatPoints(entry.total_points ?? entry.points)}</span>
+                  <span class="text-[13px] md:text-[14px] font-medium text-black" style="letter-spacing: 0.28px;">{formatPoints(entry.total_points ?? entry.points)}</span>
                 </div>
               {/each}
             </div>
@@ -214,29 +214,29 @@
 {/snippet}
 
 {#snippet communityColumn()}
-  <div class="flex-1">
+  <div class="flex-1 min-w-0">
     <!-- Column header -->
     <div class="flex items-center justify-between px-[4px] mb-[8px]">
       <div class="flex items-center gap-[4px]">
         {@render labelIcon('community')}
         <span class="text-[14px] font-medium text-black" style="letter-spacing: 0.28px;">Community</span>
       </div>
-      <button onclick={() => push('/community')} class="flex items-center gap-[4px] text-[14px] text-[#6b6b6b] hover:text-black transition-colors" style="letter-spacing: 0.28px;">
+      <button onclick={() => push('/community/leaderboard')} class="flex items-center gap-[4px] text-[14px] text-[#6b6b6b] hover:text-black transition-colors" style="letter-spacing: 0.28px;">
         View all
         <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
       </button>
     </div>
 
     <!-- Column card -->
-    <div class="bg-white border border-[#f7f7f7] rounded-[8px] overflow-clip p-[16px]">
+    <div class="bg-white border border-[#f7f7f7] rounded-[8px] overflow-clip p-[12px] md:p-[16px]">
       {#if community.length === 0}
         <div class="py-6 text-center text-sm text-[#6b6b6b]">No data</div>
       {:else}
-        <div class="flex items-start justify-between">
+        <div class="flex items-start justify-between gap-[12px] min-w-0">
           <!-- Left: rank + user -->
-          <div class="flex gap-[24px]">
+          <div class="flex gap-[12px] md:gap-[24px] min-w-0 flex-1">
             <!-- Rank numbers -->
-            <div class="flex flex-col gap-[8px]">
+            <div class="flex flex-col gap-[8px] flex-shrink-0">
               {#each community as _, i}
                 <div class="h-[48px] flex items-center">
                   <span class="text-[16px] text-black" style="letter-spacing: 0.32px; opacity: {RANK_OPACITY[i] ?? 0.5};">{i + 1}</span>
@@ -244,21 +244,21 @@
               {/each}
             </div>
             <!-- User info -->
-            <div class="flex flex-col gap-[8px]">
+            <div class="flex flex-col gap-[8px] min-w-0 flex-1">
               {#each community as entry}
                 <button
                   onclick={() => getAddress(entry) && push(`/participant/${getAddress(entry)}`)}
-                  class="h-[48px] flex items-center gap-[4px] hover:opacity-80 transition-opacity"
+                  class="h-[48px] flex items-center gap-[4px] min-w-0 max-w-full hover:opacity-80 transition-opacity"
                 >
                   <Avatar user={getUserObj(entry)} size="md" clickable={false} />
-                  <span class="text-[14px] font-medium text-black" style="letter-spacing: 0.28px;">{getDisplayName(entry)}</span>
+                  <span class="text-[14px] font-medium text-black truncate" style="letter-spacing: 0.28px;">{getDisplayName(entry)}</span>
                 </button>
               {/each}
             </div>
           </div>
 
-          <!-- Right: community points columns -->
-          <div class="flex gap-[16px]">
+          <!-- Right: community points -->
+          <div class="flex gap-[8px] md:gap-[16px] flex-shrink-0">
             <!-- Community points (purple) -->
             <div class="flex flex-col gap-[8px]">
               {#each community as entry}
@@ -266,23 +266,7 @@
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
                   </svg>
-                  <span class="text-[14px]" style="letter-spacing: 0.28px;">{formatPoints(entry.total_points ?? entry.points)}</span>
-                </div>
-              {/each}
-            </div>
-            <!-- Builder points (orange) -->
-            <div class="flex flex-col gap-[8px]">
-              {#each community as entry}
-                <div class="h-[48px] flex items-center">
-                  <span class="text-[14px] font-medium text-[#ee8521]" style="letter-spacing: 0.28px;">{formatPoints(entry.builder_points ?? 0)}</span>
-                </div>
-              {/each}
-            </div>
-            <!-- Validator points (blue) -->
-            <div class="flex flex-col gap-[8px]">
-              {#each community as entry}
-                <div class="h-[48px] flex items-center">
-                  <span class="text-[14px] font-medium text-[#4f76f6]" style="letter-spacing: 0.28px;">{formatPoints(entry.validator_points ?? 0)}</span>
+                  <span class="text-[13px] md:text-[14px]" style="letter-spacing: 0.28px;">{formatPoints(entry.community_points ?? entry.total_points ?? entry.points)}</span>
                 </div>
               {/each}
             </div>
@@ -303,4 +287,3 @@
     ></div>
   </div>
 {/snippet}
-

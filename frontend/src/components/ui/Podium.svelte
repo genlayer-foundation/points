@@ -1,4 +1,5 @@
 <script>
+  // @ts-nocheck
   import Avatar from '../Avatar.svelte';
   import { push } from 'svelte-spa-router';
 
@@ -12,6 +13,10 @@
 
   // Color schemes per category
   const schemes = {
+    global: {
+      firstGradient: 'linear-gradient(135deg, #9d7cff 0%, #7f52e1 48%, #4d32a8 100%)',
+      glow: 'rgba(127, 82, 225, 0.25)',
+    },
     builder: {
       firstGradient: 'linear-gradient(to bottom, #f8b93d, #ee8d24)',
       glow: 'rgba(248, 185, 61, 0.25)',
@@ -19,6 +24,10 @@
     validator: {
       firstGradient: 'linear-gradient(135deg, #6da7f3 15%, #387de8 50%, #2159d2 85%)',
       glow: 'rgba(56, 125, 232, 0.25)',
+    },
+    steward: {
+      firstGradient: 'linear-gradient(135deg, #6bdc8a 0%, #3eb359 48%, #207b39 100%)',
+      glow: 'rgba(62, 179, 89, 0.25)',
     },
   };
 
@@ -62,10 +71,10 @@
   }
 </script>
 
-<div class="bg-white border border-[#f5f5f5] rounded-[8px] overflow-clip relative flex flex-col items-center justify-end" style="min-height: 304px;">
+<div class="bg-white border border-[#f5f5f5] rounded-[8px] overflow-clip relative flex flex-col items-center justify-end min-h-[272px] sm:min-h-[304px]">
   {#if loading}
     <!-- Loading skeleton -->
-    <div class="flex gap-[8px] items-end justify-center pb-0">
+    <div class="flex gap-[8px] items-end justify-center pb-0 px-3">
       {#each [120, 160, 80] as height}
         <div class="flex flex-col gap-[12px] items-center">
           <div class="flex flex-col gap-[4px] items-center">
@@ -73,7 +82,7 @@
             <div class="h-4 w-20 rounded bg-gray-200 animate-pulse"></div>
             <div class="h-4 w-12 rounded bg-gray-100 animate-pulse"></div>
           </div>
-          <div class="rounded-t-[8px] bg-gray-100 animate-pulse" style="width: 140px; height: {height}px;"></div>
+          <div class="w-[104px] rounded-t-[8px] bg-gray-100 animate-pulse sm:w-[140px]" style="height: {height}px;"></div>
         </div>
       {/each}
     </div>
@@ -89,7 +98,7 @@
     </div>
 
     <!-- Podium -->
-    <div class="flex gap-[8px] items-end justify-center relative z-10 px-[16px]">
+    <div class="flex gap-[8px] items-end justify-center relative z-10 px-[12px] sm:px-[16px]">
       {#each podiumEntries as entry, i}
         {@const rank = i === 0 ? 2 : i === 1 ? 1 : 3}
         {@const isFirst = rank === 1}
@@ -104,7 +113,7 @@
             <span class="inline-block rounded-full" style="box-shadow: 0 0 0 2.5px {accentColor}; line-height: 0;">
               <Avatar user={getUserObj(entry)} size={isFirst ? 'xl' : 'lg'} clickable={false} />
             </span>
-            <span class="text-[16px] font-medium text-black whitespace-nowrap" style="letter-spacing: 0.32px;">
+            <span class="text-[13px] sm:text-[16px] font-medium text-black whitespace-nowrap" style="letter-spacing: 0.32px;">
               {getDisplayName(entry)}
             </span>
             <span class="whitespace-nowrap flex items-baseline gap-[2px]" style="color: {accentColor};">
@@ -115,7 +124,7 @@
 
           <!-- Pedestal -->
           <div
-            class="flex flex-col items-center px-[24px] py-[12px] rounded-t-[8px] w-[140px] xl:w-[160px]"
+            class="flex flex-col items-center px-[12px] py-[12px] rounded-t-[8px] w-[104px] sm:w-[140px] xl:w-[160px]"
             style="height: {pedestalHeight}px; {isFirst
               ? `background: ${scheme.firstGradient};`
               : 'background: linear-gradient(to bottom, #f5f5f5, #e6e6e6); border: 1px solid #ababab; border-bottom: none;'

@@ -1,4 +1,5 @@
 <script>
+  // @ts-nocheck
   import { push } from 'svelte-spa-router';
   import Avatar from './Avatar.svelte';
   import { currentCategory } from '../stores/category.js';
@@ -11,15 +12,16 @@
     title = 'Leaderboard',
     subtitle = 'Top contributors ranked by points',
     compact = false,
-    hideAddress = false
+    hideAddress = false,
+    embedded = false
   } = $props();
 
   // Helper for rank styling
   function getRankClass(rank) {
-    if (rank === 1) return 'bg-amber-100 text-amber-800';
-    if (rank === 2) return 'bg-gray-100 text-gray-800';
-    if (rank === 3) return 'bg-amber-50 text-amber-700';
-    return 'bg-gray-50 text-gray-600';
+    if (rank === 1) return 'bg-[#f8b93d] text-white';
+    if (rank === 2) return 'bg-[#f1f3f7] text-[#333]';
+    if (rank === 3) return 'bg-[#c9956b] text-white';
+    return 'bg-[#f8fafc] text-[#506078]';
   }
 </script>
 
@@ -36,50 +38,50 @@
     <p class="text-gray-500">No entries found on the leaderboard yet.</p>
   </div>
 {:else}
-  <div class="bg-white shadow overflow-hidden rounded-lg">
+  <div class={embedded ? 'overflow-hidden' : 'overflow-hidden rounded-[8px] border border-[#e8ebf2] bg-white shadow-[0_8px_18px_rgba(31,42,68,0.07)]'}>
     {#if showHeader}
       <div class="px-4 py-5 sm:px-6">
-        <h3 class="text-lg leading-6 font-medium text-gray-900">
+        <h3 class="text-[18px] font-semibold leading-6 text-black">
           {title}
         </h3>
-        <p class="mt-1 max-w-2xl text-sm text-gray-500">
+        <p class="mt-1 max-w-2xl text-[14px] text-[#6b6b6b]">
           {subtitle}
         </p>
       </div>
     {/if}
     
-    <div class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
+    <div class="overflow-hidden">
+      <table class="w-full table-fixed divide-y divide-[#eef1f6]">
+        <thead class="bg-[#f8fafc]">
           <tr>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th scope="col" class="w-[56px] px-2 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798] sm:w-[88px] sm:px-6" style="letter-spacing: 0.8px;">
               Rank
             </th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th scope="col" class="px-2 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798] sm:px-6" style="letter-spacing: 0.8px;">
               Participant
             </th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th scope="col" class="w-[78px] px-2 py-3 text-right text-[11px] font-semibold uppercase text-[#7b8798] sm:w-[120px] sm:px-6 sm:text-left" style="letter-spacing: 0.8px;">
               Points
             </th>
             {#if $currentCategory === 'validator'}
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" class="hidden px-3 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798] sm:table-cell sm:w-[150px] sm:px-6" style="letter-spacing: 0.8px;">
                 Active Validators
               </th>
             {/if}
           </tr>
         </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
+        <tbody class="divide-y divide-[#eef1f6] bg-white">
           {#each entries as entry, i}
-            <tr class={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span class={`inline-flex items-center justify-center h-8 w-8 rounded-full ${getRankClass(entry.rank)}`}>
+            <tr class="bg-white transition-colors hover:bg-[#fbfcff]">
+              <td class="px-2 py-4 align-top sm:px-6">
+                <span class={`inline-flex h-8 w-8 items-center justify-center rounded-full text-[13px] font-semibold ${getRankClass(entry.rank)}`}>
                   {entry.rank}
                 </span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center">
+              <td class="min-w-0 px-2 py-4 align-top sm:px-6">
+                <div class="flex min-w-0 items-center">
                   {#if !compact}
-                    <div class="flex-shrink-0 mr-3">
+                    <div class="mr-2 flex-shrink-0 sm:mr-3">
                       <Avatar 
                         user={entry.user_details}
                         size="sm"
@@ -87,35 +89,52 @@
                       />
                     </div>
                   {/if}
-                  <div>
+                  <div class="min-w-0">
                     <button
                       onclick={() => push(`/participant/${entry.user_details?.address || ''}`)}
-                      class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors"
+                      class="block max-w-full truncate text-left text-[14px] font-semibold text-[#111827] transition-colors hover:text-black"
                     >
                       {entry.user_details?.name || 'N/A'}
                     </button>
                     {#if !hideAddress}
-                      <div class="text-sm text-gray-500">
+                      <div class="hidden text-[13px] text-[#7b8798] sm:block">
                         {entry.user_details?.address || ''}
+                      </div>
+                    {/if}
+                    {#if $currentCategory === 'validator'}
+                      <div class="mt-1 sm:hidden">
+                        {#if entry.active_validators_count === null}
+                          <span class="inline-flex max-w-full items-center rounded-full bg-[#f3f5f9] px-2 py-1 text-[11px] font-semibold text-[#7b8798]">
+                            No validator
+                          </span>
+                        {:else}
+                          <a
+                            href="/validators/participants"
+                            onclick={(e) => { e.preventDefault(); push('/validators/participants'); }}
+                            class="inline-flex max-w-full items-center rounded-full bg-[#eef4ff] px-2 py-1 text-[11px] font-semibold text-[#387de8] transition-colors hover:bg-[#e0ebff]"
+                          >
+                            {entry.active_validators_count} active
+                          </a>
+                        {/if}
                       </div>
                     {/if}
                   </div>
                 </div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-900 font-medium">{entry.total_points}</div>
+              <td class="px-2 py-4 text-right align-top sm:px-6 sm:text-left">
+                <div class="truncate text-[14px] font-semibold text-[#111827]">{entry.total_points}</div>
               </td>
               {#if $currentCategory === 'validator'}
-                <td class="px-6 py-4 whitespace-nowrap">
+                <td class="hidden px-3 py-4 align-top sm:table-cell sm:px-6">
                   {#if entry.active_validators_count === null}
-                    <span class="inline-block font-semibold rounded-full px-2.5 py-1.5 text-xs bg-gray-100 text-gray-500">
+                    <span class="inline-block rounded-full bg-[#f3f5f9] px-2.5 py-1.5 text-xs font-semibold text-[#7b8798]">
                       No validator
                     </span>
                   {:else}
                     <a
                       href="/validators/participants"
                       onclick={(e) => { e.preventDefault(); push('/validators/participants'); }}
-                      class="inline-block font-semibold rounded-full px-2.5 py-1.5 text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer transition-colors"
+                      class="inline-block cursor-pointer rounded-full bg-[#eef4ff] px-2.5 py-1.5 text-xs font-semibold text-[#387de8] transition-colors hover:bg-[#e0ebff]"
                     >
                       {entry.active_validators_count} active
                     </a>

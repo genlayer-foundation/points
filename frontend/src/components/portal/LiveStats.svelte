@@ -67,9 +67,9 @@
   </div>
 
   {#if loading}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
       {#each [1, 2, 3, 4] as _}
-        <div class="bg-white rounded-[8px] border border-[#f0f0f0] h-[80px] flex items-center px-4 gap-3 animate-pulse">
+        <div class="bg-white rounded-[8px] border border-[#f0f0f0] h-[76px] md:h-[80px] flex items-center px-3 md:px-4 gap-2 md:gap-3 animate-pulse">
           <div class="w-12 h-12 bg-gray-200 rounded-lg flex-shrink-0"></div>
           <div class="space-y-2 flex-1">
             <div class="h-8 bg-gray-200 rounded w-16"></div>
@@ -83,22 +83,22 @@
       Failed to load stats
     </div>
   {:else}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
       {#each statConfigs as stat}
-        <div class="bg-white rounded-[8px] border border-[#f0f0f0] h-[80px] flex items-start justify-between overflow-hidden pr-4">
+        <div class="bg-white rounded-[8px] border border-[#f0f0f0] h-[76px] md:h-[80px] flex items-start justify-between overflow-hidden pr-3 md:pr-4 min-w-0">
           <!-- Left: icon + value/label -->
-          <div class="flex items-center h-full">
-            <div class="flex items-center p-4">
+          <div class="flex items-center h-full min-w-0 flex-1">
+            <div class="flex items-center p-3 md:p-4 flex-shrink-0">
               <CategoryIcon category={stat.category} mode="hexagon" size={48} />
             </div>
-            <div class="flex flex-col justify-between h-full py-4 min-w-0">
-              <p class="text-[32px] font-medium font-display text-black leading-[25px]" style="letter-spacing: -0.96px;">{stat.value}</p>
-              <p class="text-[12px] text-[#6b6b6b] leading-[15px]" style="letter-spacing: 0.24px;">{stat.label}</p>
+            <div class="flex flex-col justify-between h-full py-3 md:py-4 min-w-0">
+              <p class="text-[28px] md:text-[32px] font-medium font-display text-black leading-[24px] md:leading-[25px]" style="letter-spacing: -0.96px;">{stat.value}</p>
+              <p class="text-[12px] text-[#6b6b6b] leading-[14px] md:leading-[15px] truncate" style="letter-spacing: 0.24px;">{stat.label}</p>
             </div>
           </div>
 
           <!-- Right: delta (top-aligned) -->
-          <div class="flex items-center py-4">
+          <div class="flex items-center py-3 md:py-4 flex-shrink-0">
             <img src="/assets/icons/arrow-up-s-line.svg" alt="" class="w-4 h-4">
             <span class="text-[14px] text-[#3eb359] leading-[16px]" style="letter-spacing: 0.28px;">{stat.delta}</span>
           </div>

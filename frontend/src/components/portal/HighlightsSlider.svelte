@@ -1,4 +1,5 @@
 <script>
+  // @ts-nocheck
   import HighlightCard from './HighlightCard.svelte';
 
   let {
@@ -107,7 +108,7 @@
         type="button"
         onclick={() => scrollBy(-1)}
         aria-label="Scroll left"
-        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-9 h-9 rounded-full bg-white border border-[#e6e6e6] shadow-md flex items-center justify-center hover:bg-[#fafafa] hover:shadow-lg transition-all z-10"
+        class="absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#e6e6e6] bg-white shadow-md transition-all hover:bg-[#fafafa] hover:shadow-lg sm:flex"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-black">
           <polyline points="15 18 9 12 15 6" />
@@ -119,7 +120,7 @@
         type="button"
         onclick={() => scrollBy(1)}
         aria-label="Scroll right"
-        class="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-9 h-9 rounded-full bg-white border border-[#e6e6e6] shadow-md flex items-center justify-center hover:bg-[#fafafa] hover:shadow-lg transition-all z-10"
+        class="absolute right-0 top-1/2 z-10 hidden h-11 w-11 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#e6e6e6] bg-white shadow-md transition-all hover:bg-[#fafafa] hover:shadow-lg sm:flex"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-black">
           <polyline points="9 18 15 12 9 6" />

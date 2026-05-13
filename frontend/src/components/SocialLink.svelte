@@ -24,6 +24,7 @@
 
   const storageKey = `oauth_result_${platform}`;
   const handledFlag = `oauth_handled_${platform}`;
+  const pendingFlag = `oauth_pending_${platform}`;
 
   function clearPopupMonitor() {
     if (popupMonitor) {
@@ -42,21 +43,39 @@
     return shouldToast;
   }
 
+  function markOAuthPending() {
+    sessionStorage.setItem(pendingFlag, '1');
+  }
+
+  function clearOAuthPending() {
+    sessionStorage.removeItem(pendingFlag);
+  }
+
+  function hasPendingOAuth() {
+    return isLinking || sessionStorage.getItem(pendingFlag) === '1';
+  }
+
   // --- Event handlers ---
 
   // Primary: postMessage from the OAuth popup
   function onMessageEvent(e) {
     if (e.data?.type !== 'oauth_result') return;
     if (e.data?.platform !== platform) return;
+    if (!hasPendingOAuth()) return;
     handleOAuthReturn(e.data.verified === 'true', e.data.error || '');
   }
 
   // Fallback: localStorage storage event (Safari may clear window.opener)
   function onStorageEvent(e) {
     if (e.key !== storageKey || !e.newValue) return;
-    const result = JSON.parse(e.newValue);
+    if (!hasPendingOAuth()) return;
     localStorage.removeItem(storageKey);
-    handleOAuthReturn(result.verified === 'true', result.error || '');
+    try {
+      const result = JSON.parse(e.newValue);
+      handleOAuthReturn(result.verified === 'true', result.error || '');
+    } catch {
+      handleOAuthReturn(false, 'authorization_failed');
+    }
   }
 
   // Lifecycle — use onMount/onDestroy (not $effect) to avoid reactive
@@ -64,6 +83,7 @@
   onMount(() => {
     window.addEventListener('message', onMessageEvent);
     window.addEventListener('storage', onStorageEvent);
+    consumeStoredOAuthResult();
   });
 
   onDestroy(() => {
@@ -73,9 +93,14 @@
   });
 
   function handleOAuthReturn(success, oauthError, currentUser = null) {
-    if (handledOAuthResult) return; // prevent double-processing from multiple channels
+    // Prevent double-processing from multiple OAuth return channels.
+    if (handledOAuthResult) {
+      clearOAuthPending();
+      return;
+    }
     handledOAuthResult = true;
     clearPopupMonitor();
+    clearOAuthPending();
 
     const shouldToast = reserveToastSlot();
 
@@ -169,6 +194,32 @@
 
   let config = $derived(platformConfig[platform] || platformConfig.github);
 
+  function isMobileBrowser() {
+    const userAgent = navigator.userAgent || navigator.vendor || window.opera || '';
+    const touchDesktopTablet =
+      navigator.maxTouchPoints > 1 && /macintosh/i.test(userAgent);
+    return /android|iphone|ipad|ipod/i.test(userAgent) || touchDesktopTablet;
+  }
+
+  function getCurrentRedirectUrl() {
+    return `${window.location.origin}${window.location.pathname}${window.location.search || ''}${window.location.hash || ''}`;
+  }
+
+  function consumeStoredOAuthResult() {
+    if (!hasPendingOAuth()) return;
+
+    const stored = localStorage.getItem(storageKey);
+    if (!stored) return;
+
+    localStorage.removeItem(storageKey);
+    try {
+      const result = JSON.parse(stored);
+      handleOAuthReturn(result.verified === 'true', result.error || '');
+    } catch {
+      handleOAuthReturn(false, 'authorization_failed');
+    }
+  }
+
   async function linkAccount() {
     if (!$authState.isAuthenticated) {
       document.querySelector('.auth-button')?.click();
@@ -177,15 +228,21 @@
 
     handledOAuthResult = false;
     isLinking = true;
+    localStorage.removeItem(storageKey);
+    markOAuthPending();
 
-    const redirectUrl = encodeURIComponent(`${window.location.origin}/`);
+    const redirectUrl = encodeURIComponent(getCurrentRedirectUrl());
     const oauthUrl = `${API_BASE_URL}${initiateUrl}?redirect=${redirectUrl}`;
+
+    if (isMobileBrowser()) {
+      window.location.assign(oauthUrl);
+      return;
+    }
 
     clearPopupMonitor();
     oauthWindow = window.open(oauthUrl, 'oauth_popup');
     if (!oauthWindow) {
-      isLinking = false;
-      showError(`Failed to open ${platformLabel} authorization window. Please allow pop-ups and try again.`);
+      window.location.assign(oauthUrl);
       return;
     }
 
@@ -234,7 +291,8 @@
         </svg>
       {:else}
         <span class="social-pill-icon">{@html config.icon}</span>
-        <span class="social-pill-name">Link {platformLabel}</span>
+        <span class="social-pill-prefix">Link</span>
+        <span class="social-pill-name">{platformLabel}</span>
       {/if}
     </button>
   {/if}
@@ -360,5 +418,38 @@
   .social-pill-name {
     letter-spacing: 0.28px;
     line-height: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @media (max-width: 767px) {
+    .social-connect-btn {
+      min-height: 40px;
+      padding: 0.625rem 0.75rem;
+      font-size: 0.8125rem;
+      white-space: nowrap;
+    }
+
+    .social-connect-btn span:last-child {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .social-pill {
+      width: 100%;
+      min-width: 0;
+      min-height: 32px;
+      justify-content: center;
+      padding: 0.375rem 0.4375rem;
+      font-size: 0.71875rem;
+      gap: 3px;
+    }
+
+    .social-pill-prefix {
+      display: none;
+    }
   }
 </style>
