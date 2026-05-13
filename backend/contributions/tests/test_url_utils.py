@@ -200,6 +200,16 @@ class ExtractHandleTests(TestCase):
         )
         self.assertEqual(handle, 'johndoe')
 
+    def test_x_intent_url_returns_none(self):
+        """X 'intent' URLs (e.g. /i/status/...) use 'i' as a reserved
+        segment rather than a real handle. extract_handle must return
+        None so ownership validation is skipped."""
+        url_type = EvidenceURLType.objects.get(slug='x-post')
+        handle = extract_handle(
+            'https://x.com/i/status/2020874480562659811', url_type,
+        )
+        self.assertIsNone(handle)
+
 
 class ValidateHandleOwnershipTests(TestCase):
     """Tests for handle ownership validation."""
@@ -286,6 +296,23 @@ class ValidateHandleOwnershipTests(TestCase):
         )
         self.assertIsNotNone(result)
         self.assertIn('otheruser', result)
+
+    def test_x_intent_url_bypasses_ownership_check(self):
+        """X intent URLs (/i/status/...) do not contain a real handle; the
+        user should be allowed to submit them even when their linked X
+        handle is different."""
+        from social_connections.models import TwitterConnection
+        TwitterConnection.objects.create(
+            user=self.user,
+            platform_user_id='12345',
+            platform_username='myhandle',
+            linked_at='2025-01-01T00:00:00Z',
+        )
+        url_type = EvidenceURLType.objects.get(slug='x-post')
+        result = validate_handle_ownership(
+            'https://x.com/i/status/2020874480562659811', url_type, self.user,
+        )
+        self.assertIsNone(result)
 
 
 class CheckDuplicateUrlTests(TestCase):

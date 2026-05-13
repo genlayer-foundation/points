@@ -117,7 +117,14 @@ def extract_handle(url, evidence_url_type):
     try:
         match = re.search(evidence_url_type.handle_extract_pattern, url, re.IGNORECASE)
         if match:
-            return match.group('handle').lower()
+            handle = match.group('handle').lower()
+            # X's intent URLs (e.g. https://x.com/i/status/123) use 'i' as a
+            # reserved segment, not a real handle. Returning None routes these
+            # through the "no handle, skip ownership check" path in
+            # validate_handle_ownership.
+            if handle == 'i' and evidence_url_type.slug == 'x-post':
+                return None
+            return handle
     except (re.error, IndexError):
         pass
     return None
