@@ -90,6 +90,8 @@ export const contributionsAPI = {
   })),
   getMissions: (params) => api.get('/missions/', { params }),
   getMission: (id) => api.get(`/missions/${id}/`),
+  /** @param {string | number} id */
+  getMissionStats: (id) => api.get(`/missions/${id}/stats/`),
   getStartupRequests: () => api.get('/startup-requests/'),
   getStartupRequest: (id) => api.get(`/startup-requests/${id}/`)
 };

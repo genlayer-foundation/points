@@ -1,4 +1,5 @@
 <script>
+  // @ts-nocheck
   import { onMount, onDestroy } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { marked } from 'marked';
@@ -257,43 +258,45 @@
 
       <div class="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors">
         <!-- Title row with badges and submit button -->
-        <div class="flex items-center gap-3 mb-2 flex-wrap">
-          <button
-            onclick={() => push(`/all-contributions?mission=${mission.id}${$currentCategory && $currentCategory !== 'global' ? `&category=${$currentCategory}` : ''}`)}
-            class="text-base font-bold font-heading text-gray-900 {colors.titleTextHover} transition-colors text-left"
-          >
-            {mission.name}
-          </button>
+        <div class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div class="flex min-w-0 flex-wrap items-center gap-2 sm:flex-1">
+            <button
+              onclick={() => push(`/mission/${mission.id}`)}
+              class="min-w-0 max-w-full truncate text-left text-base font-bold font-heading text-gray-900 {colors.titleTextHover} transition-colors"
+            >
+              {mission.name}
+            </button>
 
-          {#if mission.contribution_type_details}
-            <Badge
-              badge={{
-                id: mission.contribution_type,
-                name: mission.contribution_type_details.name,
-                description: mission.contribution_type_details.description || '',
-                points: 0,
-                actionId: mission.contribution_type,
-                actionName: mission.contribution_type_details.name,
-                evidenceUrl: ''
-              }}
-              color={colors.badgeColor}
-              size="sm"
-              bold={false}
-              clickable={true}
-            />
-          {/if}
+            {#if mission.contribution_type_details}
+              <Badge
+                badge={{
+                  id: mission.contribution_type,
+                  name: mission.contribution_type_details.name,
+                  description: mission.contribution_type_details.description || '',
+                  points: 0,
+                  actionId: mission.contribution_type,
+                  actionName: mission.contribution_type_details.name,
+                  evidenceUrl: ''
+                }}
+                color={colors.badgeColor}
+                size="sm"
+                bold={false}
+                clickable={true}
+              />
+            {/if}
 
-          {#if mission.end_date && countdowns[mission.id]}
-            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-              {countdowns[mission.id]}
-            </span>
-          {:else}
-            <span class="text-xs text-gray-600">Ongoing</span>
-          {/if}
+            {#if mission.end_date && countdowns[mission.id]}
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                {countdowns[mission.id]}
+              </span>
+            {:else}
+              <span class="text-xs text-gray-600">Ongoing</span>
+            {/if}
+          </div>
 
           <button
             onclick={() => push(`/submit-contribution?mission=${mission.id}`)}
-            class="ml-auto flex-shrink-0 text-sm font-normal {colors.titleText} {colors.titleTextHover} transition-colors"
+            class="inline-flex min-h-11 w-full flex-shrink-0 items-center justify-center rounded-[8px] border border-gray-200 px-3 text-sm font-normal {colors.titleText} {colors.titleTextHover} transition-colors sm:min-h-0 sm:w-auto sm:border-0 sm:p-0"
           >
             Submit →
           </button>

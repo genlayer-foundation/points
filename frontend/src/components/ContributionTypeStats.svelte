@@ -1,69 +1,53 @@
 <script>
   import { onMount } from 'svelte';
-  import { format } from 'date-fns';
   import { push } from 'svelte-spa-router';
-  import Badge from './Badge.svelte';
   import { contributionsAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
   import { getPioneerContributionsColors } from '../lib/categoryColors.js';
 
-  // State management
-  let typeStats = $state([]);
+  let typeStats = $state(/** @type {any[]} */ ([]));
   let loading = $state(true);
-  let error = $state(null);
+  let error = $state(/** @type {string | null} */ (null));
 
   // Derived state: include submittable types plus non-submittable types explicitly marked
   // to show in contributions (e.g. informational / mission-host types). Sort by points desc.
   let submittableTypes = $derived(
     typeStats
-      .filter(stats => stats.is_submittable || stats.show_in_contributions)
+      .filter((stats) => stats.is_submittable || stats.show_in_contributions)
       .sort((a, b) => {
-        // Sort by max_points descending
         const aMaxPoints = (a.max_points || 0) * (a.current_multiplier || 1);
         const bMaxPoints = (b.max_points || 0) * (b.current_multiplier || 1);
         return bMaxPoints - aMaxPoints;
       })
   );
 
-  // Get colors based on current category
-  let pioneerColors = $derived(getPioneerContributionsColors($currentCategory));
-
   onMount(async () => {
     await fetchTypeStatistics();
   });
-  
-  // Re-fetch when category changes
+
   $effect(() => {
     if ($currentCategory) {
       fetchTypeStatistics();
     }
   });
-  
+
   async function fetchTypeStatistics() {
     try {
       loading = true;
       error = null;
-      
-      // Pass category parameter if not global
+
+      /** @type {Record<string, string>} */
       const params = {};
       if ($currentCategory !== 'global') {
         params.category = $currentCategory;
       }
-      
+
       const res = await contributionsAPI.getContributionTypeStatistics(params);
       typeStats = res.data || [];
       loading = false;
     } catch (err) {
-      error = err.message || 'Failed to load contribution type statistics';
+      error = err instanceof Error ? err.message : 'Failed to load contribution type statistics';
       loading = false;
-    }
-  }
-  
-  function formatDate(dateString) {
-    try {
-      return format(new Date(dateString), 'MMM d, yyyy');
-    } catch (e) {
-      return dateString;
     }
   }
 </script>
@@ -101,46 +85,51 @@
         {#each submittableTypes as stats}
           <div class="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors">
             <!-- Title row with badges and stats -->
-            <div class="flex items-center gap-3 mb-2 flex-wrap">
-              <button
-                onclick={() => push(`/contribution-type/${stats.id}`)}
-                class="text-base font-bold font-heading {colors.titleText} {colors.titleTextHover} transition-colors"
-              >
-                {stats.name}
-              </button>
+            <div class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div class="flex min-w-0 flex-wrap items-center gap-2 sm:flex-1">
+                <button
+                  onclick={() => push(`/contribution-type/${stats.id}`)}
+                  class="min-w-0 max-w-full truncate text-left text-base font-bold font-heading {colors.titleText} {colors.titleTextHover} transition-colors"
+                >
+                  {stats.name}
+                </button>
 
-              <!-- Points available as badge -->
-              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-normal {colors.badgeBg} {colors.badgeText}">
-                {#if stats.min_points != null && stats.max_points != null && stats.current_multiplier != null}
-                  {#if stats.min_points === stats.max_points}
-                    {Math.round(stats.min_points * stats.current_multiplier)} pts
+                <!-- Points available as badge -->
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-normal {colors.badgeBg} {colors.badgeText}">
+                  {#if stats.min_points != null && stats.max_points != null && stats.current_multiplier != null}
+                    {#if stats.min_points === stats.max_points}
+                      {Math.round(stats.min_points * stats.current_multiplier)} pts
+                    {:else}
+                      {Math.round(stats.min_points * stats.current_multiplier)}-{Math.round(stats.max_points * stats.current_multiplier)} pts
+                    {/if}
                   {:else}
-                    {Math.round(stats.min_points * stats.current_multiplier)}-{Math.round(stats.max_points * stats.current_multiplier)} pts
+                    0 pts
                   {/if}
-                {:else}
-                  0 pts
-                {/if}
-              </span>
+                </span>
 
-              <!-- Pioneer or Stats -->
-              {#if stats.count === 0}
-                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Pioneer Opportunity
-                </span>
-              {:else}
-                <span class="text-xs text-gray-600">
-                  {stats.total_points_given.toLocaleString()} pts earned • {stats.count} {stats.count === 1 ? 'contribution' : 'contributions'} • {stats.participants_count} {stats.participants_count === 1 ? 'builder' : 'builders'}
-                </span>
-              {/if}
+                <!-- Pioneer or Stats -->
+                {#if stats.count === 0}
+                  <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Pioneer Opportunity
+                  </span>
+                {:else}
+                  <span class="hidden text-xs text-gray-600 sm:inline">
+                    {stats.total_points_given.toLocaleString()} pts earned • {stats.count} {stats.count === 1 ? 'contribution' : 'contributions'} • {stats.participants_count} {stats.participants_count === 1 ? 'builder' : 'builders'}
+                  </span>
+                  <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 sm:hidden">
+                    {stats.count} accepted
+                  </span>
+                {/if}
+              </div>
 
               <!-- Submit button (hidden for non-submittable types; those are accessed via their missions) -->
               {#if stats.is_submittable}
                 <button
                   onclick={() => push(`/submit-contribution?type=${stats.id}`)}
-                  class="ml-auto flex-shrink-0 text-sm font-normal {colors.titleText} {colors.titleTextHover} transition-colors"
+                  class="inline-flex min-h-11 w-full flex-shrink-0 items-center justify-center rounded-[8px] border border-gray-200 px-3 text-sm font-normal {colors.titleText} {colors.titleTextHover} transition-colors sm:min-h-0 sm:w-auto sm:border-0 sm:p-0"
                 >
                   Submit →
                 </button>
