@@ -37,8 +37,10 @@
     const dappUrl = getCurrentDappUrl();
 
     if (walletId === 'metamask') {
+      // Append host + path + search + hash literally — encoding the `/`, `?`,
+      // and `#` causes the in-app browser to open with a blank tab.
       const dappPath = `${window.location.host}${window.location.pathname}${window.location.search}${window.location.hash}`;
-      return `https://metamask.app.link/dapp/${encodeURIComponent(dappPath)}`;
+      return `https://link.metamask.io/dapp/${dappPath}`;
     }
 
     if (walletId === 'phantom') {
@@ -47,6 +49,10 @@
 
     if (walletId === 'trust') {
       return `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(dappUrl)}`;
+    }
+
+    if (walletId === 'coinbase') {
+      return `https://go.cb-w.com/dapp?cb_url=${encodeURIComponent(dappUrl)}`;
     }
 
     return null;
