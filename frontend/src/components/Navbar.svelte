@@ -47,11 +47,11 @@
 </script>
 
 <header class="bg-white relative z-50" style="border-bottom: 1.2px solid #e5e5e6;">
-  <div class="flex items-center justify-between p-3">
+  <div class="navbar-inner flex items-center justify-between p-3">
     <!-- Left: Logo -->
-    <div class="flex items-center gap-1 px-1">
+    <div class="navbar-logo-wrap flex items-center gap-1 px-1 min-w-0">
       <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex items-center">
-        <img src="/assets/genlayer-portal-logo.svg" alt="GenLayer Portal" class="h-[32px] w-auto">
+        <img src="/assets/genlayer-portal-logo.svg" alt="GenLayer Portal" class="portal-logo h-[32px] w-auto">
       </a>
     </div>
 
@@ -70,7 +70,7 @@
     </div>
 
     <!-- Mobile: Actions -->
-    <div class="flex items-center md:hidden gap-2">
+    <div class="navbar-mobile-actions flex items-center md:hidden gap-2">
       <AuthButton />
       <button
         onclick={() => {
@@ -78,18 +78,56 @@
             toggleSidebar();
           }
         }}
-        class="p-2 rounded-md text-gray-700 hover:bg-gray-100 relative"
+        class="mobile-menu-button p-2 rounded-md text-gray-700 hover:bg-gray-100 relative"
         aria-label="{sidebarOpen ? 'Close' : 'Open'} menu"
       >
-        <div class="h-6 w-6 relative flex items-center justify-center">
+        <div class="mobile-menu-icon h-6 w-6 relative flex items-center justify-center">
           <!-- Top line -->
-          <span class="absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? 'rotate-45' : 'rotate-0 -translate-y-2'}"></span>
+          <span class="mobile-menu-line absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? 'rotate-45' : 'rotate-0 -translate-y-2'}"></span>
           <!-- Middle line -->
-          <span class="absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? 'opacity-0' : 'opacity-100'}"></span>
+          <span class="mobile-menu-line absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? 'opacity-0' : 'opacity-100'}"></span>
           <!-- Bottom line -->
-          <span class="absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? '-rotate-45' : 'rotate-0 translate-y-2'}"></span>
+          <span class="mobile-menu-line absolute h-0.5 w-6 bg-current transform transition-all duration-300 ease-in-out {sidebarOpen ? '-rotate-45' : 'rotate-0 translate-y-2'}"></span>
         </div>
       </button>
     </div>
   </div>
 </header>
+
+<style>
+  @media (max-width: 767px) {
+    .navbar-inner {
+      gap: 0.5rem;
+      padding: 0.5rem 0.625rem;
+    }
+
+    .navbar-logo-wrap {
+      flex: 1 1 auto;
+      padding-left: 0;
+      padding-right: 0;
+    }
+
+    .portal-logo {
+      height: 1.375rem;
+      max-width: 7.625rem;
+    }
+
+    .navbar-mobile-actions {
+      flex: 0 0 auto;
+      gap: 0.375rem;
+    }
+
+    .mobile-menu-button {
+      padding: 0.375rem;
+    }
+
+    .mobile-menu-icon {
+      height: 1.25rem;
+      width: 1.25rem;
+    }
+
+    .mobile-menu-line {
+      width: 1.25rem;
+    }
+  }
+</style>

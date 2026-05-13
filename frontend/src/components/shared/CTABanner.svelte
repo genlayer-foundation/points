@@ -148,7 +148,7 @@
 {#if variant === "dark"}
     <!-- Dark variant (Profile page) -->
     <div
-        class="relative w-full overflow-hidden px-[20px] py-[120px] md:py-[160px] flex flex-col items-center justify-center text-center bg-[#131214]"
+        class="cta-banner-dark relative w-full overflow-hidden px-[20px] py-[120px] md:py-[160px] flex flex-col items-center justify-center text-center bg-[#131214]"
     >
         <!-- Iridescent gradient background -->
         <div
@@ -166,11 +166,11 @@
         </div>
 
         <!-- Content Container -->
-        <div class="relative z-10 flex flex-col items-center max-w-[800px] mx-auto">
+        <div class="cta-content relative z-10 flex flex-col items-center max-w-[800px] mx-auto">
             <!-- Rank Pill -->
             {#if showRankPill}
                 <div
-                    class="inline-flex items-center gap-[6px] bg-[#1a1a1a]/80 backdrop-blur-md border border-white/10 rounded-full px-4 py-2 mb-8 shadow-lg"
+                    class="cta-rank-pill inline-flex items-center gap-[6px] bg-[#1a1a1a]/80 backdrop-blur-md border border-white/10 rounded-full px-4 py-2 mb-8 shadow-lg"
                 >
                     {#if !rankComputed}
                         <div class="animate-pulse flex items-center gap-2">
@@ -180,7 +180,7 @@
                     {:else}
                         <CategoryIcon category="genlayer" mode="hexagon" size={20} />
                         <span
-                            class="text-[#dcdcdc] text-[13px] font-medium tracking-[0.2px]"
+                            class="cta-rank-text text-[#dcdcdc] text-[13px] font-medium tracking-[0.2px]"
                         >
                             {#if isTopRank}
                                 You lead the {rankLabel} ranks!
@@ -196,7 +196,7 @@
 
             <!-- Main Heading -->
             <h2
-                class="text-[48px] md:text-[64px] font-semibold text-white leading-tight mb-6 tracking-[-1.5px]"
+                class="cta-title text-[48px] md:text-[64px] font-semibold text-white leading-tight mb-6 tracking-[-1.5px]"
             >
                 {#if isLoggedIn}
                     Keep building, {displayName}
@@ -207,7 +207,7 @@
 
             <!-- Subtitle -->
             <p
-                class="text-[16px] md:text-[18px] text-[#b3b3b3] mb-10 w-full max-w-none leading-relaxed whitespace-nowrap overflow-hidden text-ellipsis"
+                class="cta-subtitle text-[16px] md:text-[18px] text-[#b3b3b3] mb-10 w-full max-w-none leading-relaxed whitespace-nowrap overflow-hidden text-ellipsis"
             >
                 {#if isLoggedIn}
                     Invite other builders to GenLayer and receive 10% of the points they
@@ -218,11 +218,11 @@
             </p>
 
             <!-- Action Buttons -->
-            <div class="flex flex-col sm:flex-row items-center gap-4">
+            <div class="cta-actions flex flex-col sm:flex-row items-center gap-4">
                 {#if isLoggedIn}
                     <button
                         onclick={copyReferralLink}
-                        class="flex items-center gap-[8px] bg-[#935cf1] hover:bg-[#824ce0] text-white px-6 py-[14px] rounded-full text-[15px] font-medium transition-all shadow-[0_0_20px_rgba(147,92,241,0.3)] hover:shadow-[0_0_25px_rgba(147,92,241,0.5)] transform hover:-translate-y-[1px]"
+                        class="cta-action-button flex items-center gap-[8px] bg-[#935cf1] hover:bg-[#824ce0] text-white px-6 py-[14px] rounded-full text-[15px] font-medium transition-all shadow-[0_0_20px_rgba(147,92,241,0.3)] hover:shadow-[0_0_25px_rgba(147,92,241,0.5)] transform hover:-translate-y-[1px]"
                     >
                         <svg
                             width="16"
@@ -246,7 +246,7 @@
                 {:else}
                     <button
                         onclick={() => push('/builders/welcome')}
-                        class="flex items-center gap-[8px] bg-[#935cf1] hover:bg-[#824ce0] text-white px-6 py-[14px] rounded-full text-[15px] font-medium transition-all shadow-[0_0_20px_rgba(147,92,241,0.3)] hover:shadow-[0_0_25px_rgba(147,92,241,0.5)] transform hover:-translate-y-[1px]"
+                        class="cta-action-button flex items-center gap-[8px] bg-[#935cf1] hover:bg-[#824ce0] text-white px-6 py-[14px] rounded-full text-[15px] font-medium transition-all shadow-[0_0_20px_rgba(147,92,241,0.3)] hover:shadow-[0_0_25px_rgba(147,92,241,0.5)] transform hover:-translate-y-[1px]"
                     >
                         Get started
                         <svg
@@ -268,7 +268,7 @@
                 <button
                     onclick={() =>
                         window.open("https://docs.genlayer.com", "_blank")}
-                    class="flex items-center gap-[8px] bg-transparent border border-white/20 hover:border-white/40 hover:bg-white/5 text-white px-6 py-[14px] rounded-full text-[15px] font-medium transition-all"
+                    class="cta-action-button flex items-center gap-[8px] bg-transparent border border-white/20 hover:border-white/40 hover:bg-white/5 text-white px-6 py-[14px] rounded-full text-[15px] font-medium transition-all"
                 >
                     Read the Docs
                     <svg
@@ -409,3 +409,60 @@
         </div>
     </div>
 {/if}
+
+<style>
+    @media (max-width: 767px) {
+        .cta-banner-dark {
+            padding: 72px 16px;
+        }
+
+        .cta-content {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+        }
+
+        .cta-rank-pill {
+            max-width: 100%;
+            justify-content: center;
+            border-radius: 12px;
+            padding: 8px 12px;
+        }
+
+        .cta-rank-text {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            letter-spacing: 0 !important;
+        }
+
+        .cta-title {
+            max-width: 100%;
+            font-size: 34px;
+            line-height: 38px;
+            letter-spacing: 0 !important;
+            overflow-wrap: anywhere;
+        }
+
+        .cta-subtitle {
+            max-width: 100%;
+            font-size: 15px;
+            line-height: 22px;
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+        }
+
+        .cta-actions {
+            width: 100%;
+            align-items: stretch;
+        }
+
+        .cta-action-button {
+            width: 100%;
+            min-height: 46px;
+            justify-content: center;
+        }
+    }
+</style>

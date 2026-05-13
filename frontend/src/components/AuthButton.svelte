@@ -17,6 +17,9 @@
   let loading = false;
   let showDropdown = false;
   let showWalletSelector = false;
+  let isMobileViewport = false;
+
+  $: authButtonLabel = isMobileViewport ? formatAddress(address) : (userName || formatAddress(address));
 
   function preserveCurrentRouteForLogin() {
     if (sessionStorage.getItem('redirectAfterLogin')) return;
@@ -101,10 +104,17 @@
       showDropdown = false;
     }
   }
+
+  function updateMobileViewport() {
+    isMobileViewport = window.matchMedia('(max-width: 767px)').matches;
+  }
   
   onMount(() => {
+    updateMobileViewport();
+    window.addEventListener('resize', updateMobileViewport);
     document.addEventListener('click', handleClickOutside);
     return () => {
+      window.removeEventListener('resize', updateMobileViewport);
       document.removeEventListener('click', handleClickOutside);
     };
   });
@@ -120,7 +130,7 @@
     {#if loading || storeLoading}
       <span class="loading-spinner"></span>
     {:else if isAuthenticated}
-      <span class="address">{$userStore.user?.name || formatAddress(address)}</span>
+      <span class="address">{authButtonLabel}</span>
       <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
       </svg>
@@ -262,5 +272,39 @@
 
   .dropdown-item.logout:hover {
     background-color: #fef2f2;
+  }
+
+  @media (max-width: 767px) {
+    .auth-dropdown-container {
+      max-width: min(40vw, 7.75rem);
+    }
+
+    .auth-button {
+      min-width: 6.75rem;
+      max-width: min(40vw, 7.75rem);
+      height: 2.125rem;
+      padding: 0.375rem 0.625rem;
+      border-radius: 1.0625rem;
+      font-size: 0.75rem;
+      line-height: 1rem;
+    }
+
+    .auth-button > span:not(.loading-spinner) {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .auth-button svg {
+      flex-shrink: 0;
+      height: 0.875rem;
+      width: 0.875rem;
+    }
+
+    .auth-dropdown {
+      min-width: min(15rem, calc(100vw - 1rem));
+      max-width: calc(100vw - 1rem);
+    }
   }
 </style>

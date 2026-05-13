@@ -115,6 +115,7 @@ export const leaderboardAPI = {
   getMonthlyLeaderboardByType: (type, limit = 10) =>
     api.get('/leaderboard/monthly/', { params: { type, limit } }),
   getCommunity: (params = {}) => api.get('/leaderboard/community/', { params }),
+  getCommunityContributors: (params = {}) => api.get('/leaderboard/community-contributors/', { params }),
   getTrending: (limit = 10) => api.get('/leaderboard/trending/', { params: { limit } }),
   getTypes: () => api.get('/leaderboard/types/'),
   recalculateAll: () => api.post('/leaderboard/recalculate/')
