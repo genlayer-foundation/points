@@ -21,6 +21,7 @@ class LightStreamSerializer(serializers.ModelSerializer):
             'ends_at',
             'category',
             'status',
+            'updated_at',
         ]
         read_only_fields = fields
 

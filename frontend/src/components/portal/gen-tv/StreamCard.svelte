@@ -46,6 +46,17 @@
     return !url || url.includes('/default-banner.');
   }
 
+  function withImageCacheKey(url, key) {
+    if (!url || !key) return url || '';
+    try {
+      const imageUrl = new URL(url);
+      imageUrl.searchParams.set('v', key);
+      return imageUrl.toString();
+    } catch {
+      return `${url}${url.includes('?') ? '&' : '?'}v=${encodeURIComponent(key)}`;
+    }
+  }
+
   let imageFailed = $state(false);
   let isLive = $derived(variant === 'live');
   let isUpcoming = $derived(variant === 'upcoming');
@@ -54,7 +65,14 @@
   let duration = $derived(formatDuration(stream.starts_at, stream.ends_at));
   let dateTime = $derived(formatDateTime(stream.starts_at));
   let description = $derived(descriptionPreview(stream.description));
+  let imageSrc = $derived(withImageCacheKey(stream.image_url, stream.updated_at || stream.id));
   let showDefaultInfo = $derived(isDefaultImage(stream.image_url) || imageFailed);
+
+  $effect(() => {
+    stream.image_url;
+    stream.updated_at;
+    imageFailed = false;
+  });
 </script>
 
 <a
@@ -66,9 +84,9 @@
 >
   <div class="relative w-full aspect-[16/9]">
     <div class="absolute inset-0 bg-gradient-to-br from-[#202020] via-[#111] to-black"></div>
-    {#if stream.image_url}
+    {#if imageSrc}
       <img
-        src={stream.image_url}
+        src={imageSrc}
         alt=""
         class="absolute inset-0 w-full h-full object-cover"
         loading="lazy"
