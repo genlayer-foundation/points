@@ -17,6 +17,21 @@
     }
   }
 
+  function withImageCacheKey(url, key) {
+    if (!url || !key) return url || '';
+    try {
+      const imageUrl = new URL(url);
+      imageUrl.searchParams.set('v', key);
+      return imageUrl.toString();
+    } catch {
+      return `${url}${url.includes('?') ? '&' : '?'}v=${encodeURIComponent(key)}`;
+    }
+  }
+
+  function imageSrc(item) {
+    return withImageCacheKey(item.image_url, item.updated_at || item.id);
+  }
+
   function selectStream(index) {
     currentIndex = index;
     startAutoAdvance();
@@ -66,9 +81,9 @@
         style="opacity: {i === currentIndex ? 1 : 0};"
       >
         <div class="absolute inset-0 bg-gradient-to-br from-[#202020] via-[#111] to-black"></div>
-        {#if item.image_url}
+        {#if imageSrc(item)}
           <img
-            src={item.image_url}
+            src={imageSrc(item)}
             alt=""
             class="absolute inset-0 h-full w-full scale-110 object-cover opacity-45 blur-2xl"
             loading={i === 0 ? 'eager' : 'lazy'}
@@ -77,7 +92,7 @@
             }}
           />
           <img
-            src={item.image_url}
+            src={imageSrc(item)}
             alt=""
             class="absolute inset-0 h-full w-full object-cover sm:object-contain"
             loading={i === 0 ? 'eager' : 'lazy'}
