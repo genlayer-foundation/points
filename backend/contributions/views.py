@@ -1881,6 +1881,11 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
                 'submissions',
                 filter=~Q(submissions__state='rejected'),
                 distinct=True,
+            ),
+            contribution_type_submission_count=Count(
+                'contribution_type__submitted_contributions',
+                filter=~Q(contribution_type__submitted_contributions__state='rejected'),
+                distinct=True,
             )
         )
 

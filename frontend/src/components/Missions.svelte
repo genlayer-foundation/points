@@ -259,7 +259,12 @@
     {#each missions as mission}
       {@const isExpanded = expandedMissions.has(mission.id)}
       {@const hasLongText = needsExpansion(mission.description)}
+      {@const parentType = mission.contribution_type_details}
       {@const missionIsFull = mission.is_full === true || (mission.max_submissions != null && mission.submissions_remaining != null && Number(mission.submissions_remaining) <= 0)}
+      {@const contributionTypeIsFull = parentType?.is_full === true || (parentType?.max_submissions != null && parentType?.submissions_remaining != null && Number(parentType.submissions_remaining) <= 0)}
+      {@const submissionClosed = missionIsFull || contributionTypeIsFull}
+      {@const capacityLabel = missionIsFull ? 'Full' : contributionTypeIsFull ? 'Submissions closed' : mission.max_submissions != null ? spotsLeftLabel(mission.submissions_remaining) : parentType?.max_submissions != null ? spotsLeftLabel(parentType.submissions_remaining) : null}
+      {@const submitLabel = missionIsFull ? 'Full' : contributionTypeIsFull ? 'Submissions closed' : 'Submit →'}
 
       <div class="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors">
         <!-- Title row with badges and submit button -->
@@ -272,15 +277,15 @@
               {mission.name}
             </button>
 
-            {#if mission.contribution_type_details}
+            {#if parentType}
               <Badge
                 badge={{
                   id: mission.contribution_type,
-                  name: mission.contribution_type_details.name,
-                  description: mission.contribution_type_details.description || '',
+                  name: parentType.name,
+                  description: parentType.description || '',
                   points: 0,
                   actionId: mission.contribution_type,
-                  actionName: mission.contribution_type_details.name,
+                  actionName: parentType.name,
                   evidenceUrl: ''
                 }}
                 color={colors.badgeColor}
@@ -298,19 +303,19 @@
               <span class="text-xs text-gray-600">Ongoing</span>
             {/if}
 
-            {#if mission.max_submissions != null}
-              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {missionIsFull ? 'bg-gray-100 text-gray-700' : 'bg-emerald-100 text-emerald-800'}">
-                {missionIsFull ? 'Full' : spotsLeftLabel(mission.submissions_remaining)}
+            {#if capacityLabel}
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {submissionClosed ? 'bg-gray-100 text-gray-700' : 'bg-emerald-100 text-emerald-800'}">
+                {capacityLabel}
               </span>
             {/if}
           </div>
 
           <button
-            onclick={() => !missionIsFull && push(`/submit-contribution?mission=${mission.id}`)}
-            disabled={missionIsFull}
-            class="inline-flex min-h-11 w-full flex-shrink-0 items-center justify-center rounded-[8px] border border-gray-200 px-3 text-sm font-normal transition-colors sm:min-h-0 sm:w-auto sm:border-0 sm:p-0 {missionIsFull ? 'cursor-not-allowed text-gray-400' : `${colors.titleText} ${colors.titleTextHover}`}"
+            onclick={() => !submissionClosed && push(`/submit-contribution?mission=${mission.id}`)}
+            disabled={submissionClosed}
+            class="inline-flex min-h-11 w-full flex-shrink-0 items-center justify-center rounded-[8px] border border-gray-200 px-3 text-sm font-normal transition-colors sm:min-h-0 sm:w-auto sm:border-0 sm:p-0 {submissionClosed ? 'cursor-not-allowed text-gray-400' : `${colors.titleText} ${colors.titleTextHover}`}"
           >
-            {missionIsFull ? 'Full' : 'Submit →'}
+            {submitLabel}
           </button>
         </div>
 

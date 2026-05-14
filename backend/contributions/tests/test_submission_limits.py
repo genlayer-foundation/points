@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
@@ -36,6 +38,12 @@ class SubmissionLimitTest(TestCase):
         )
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
+        self.recaptcha_patcher = patch(
+            'contributions.recaptcha_field.ReCaptchaField.to_internal_value',
+            return_value='test-token',
+        )
+        self.recaptcha_patcher.start()
+        self.addCleanup(self.recaptcha_patcher.stop)
 
     def _create_submission(self, state='pending', mission=None):
         return SubmittedContribution.objects.create(
@@ -53,6 +61,12 @@ class SubmissionLimitTest(TestCase):
             'contribution_date': timezone.now().date().isoformat(),
             'notes': 'Attempted submission',
             'recaptcha': 'test-token',
+            'evidence_items': [
+                {
+                    'description': 'Evidence',
+                    'url': f'https://example.com/evidence/{timezone.now().timestamp()}',
+                },
+            ],
         }
         if mission:
             payload['mission'] = mission.id
@@ -76,7 +90,7 @@ class SubmissionLimitTest(TestCase):
 
         response = self._post_submission()
 
-        self.assertNotEqual(response.data.get('error'), 'This contribution type has reached its submission limit.')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_mission_limit_blocks_new_submissions(self):
         mission = Mission.objects.create(
@@ -104,7 +118,7 @@ class SubmissionLimitTest(TestCase):
 
         response = self._post_submission(mission=mission)
 
-        self.assertNotEqual(response.data.get('error'), 'This mission has reached its submission limit.')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_mission_api_exposes_capacity_fields(self):
         mission = Mission.objects.create(

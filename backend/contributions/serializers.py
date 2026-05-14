@@ -1013,6 +1013,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
 
 class MissionSerializer(serializers.ModelSerializer):
     is_active = serializers.SerializerMethodField()
+    contribution_type_details = serializers.SerializerMethodField()
     submission_count = serializers.SerializerMethodField()
     submissions_remaining = serializers.SerializerMethodField()
     is_full = serializers.SerializerMethodField()
@@ -1022,6 +1023,7 @@ class MissionSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description',
             'start_date', 'end_date', 'contribution_type',
+            'contribution_type_details',
             'max_submissions', 'submission_count',
             'submissions_remaining', 'is_full',
             'is_active', 'created_at', 'updated_at'
@@ -1030,6 +1032,26 @@ class MissionSerializer(serializers.ModelSerializer):
 
     def get_is_active(self, obj):
         return obj.is_active()
+
+    def get_contribution_type_details(self, obj):
+        contribution_type = obj.contribution_type
+        data = LightContributionTypeSerializer(contribution_type).data
+        submission_count = getattr(obj, 'contribution_type_submission_count', None)
+        if submission_count is None:
+            submission_count = contribution_type.get_submission_count()
+
+        max_submissions = contribution_type.max_submissions
+        data['submission_count'] = submission_count
+        data['submissions_remaining'] = (
+            None
+            if max_submissions is None
+            else max(max_submissions - submission_count, 0)
+        )
+        data['is_full'] = (
+            max_submissions is not None
+            and submission_count >= max_submissions
+        )
+        return data
 
     def get_submission_count(self, obj):
         return obj.get_submission_count()
