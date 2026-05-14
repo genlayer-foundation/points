@@ -284,4 +284,10 @@ export const partnersAPI = {
   get: (slug) => api.get(`/partners/${slug}/`),
 };
 
+// Gen TV API
+export const genTvAPI = {
+  list: (params) => api.get('/gen-tv/streams/', { params }),
+  get: (slug) => api.get(`/gen-tv/streams/${slug}/`),
+};
+
 export default api;
