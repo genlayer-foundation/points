@@ -182,11 +182,49 @@
     </header>
 
     {#if loading}
-      <section class="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <div class="h-[360px] animate-pulse rounded-[8px] border border-white/70 bg-white/72 shadow-[0_18px_55px_rgba(38,48,75,0.14)]"></div>
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+      <section class="space-y-5" aria-busy="true" aria-live="polite">
+        <span class="sr-only">Loading GenNews announcements</span>
+
+        <div class="overflow-hidden rounded-[8px] border border-white/70 bg-white/86 shadow-[0_18px_55px_rgba(38,48,75,0.14)] backdrop-blur-md">
+          <div class="h-[220px] animate-pulse bg-[#eef1f7] sm:h-[300px] md:h-[360px] lg:h-[420px]"></div>
+          <div class="grid gap-5 border-t border-[#eef1f6] p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div class="animate-pulse">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="h-7 w-20 rounded-full bg-[#eef1f7]"></span>
+                <span class="h-3 w-24 rounded bg-[#eef1f7]"></span>
+                <span class="h-3 w-20 rounded bg-[#eef1f7]"></span>
+              </div>
+              <div class="mt-4 h-8 w-full max-w-[640px] rounded bg-[#eef1f7] sm:h-10"></div>
+              <div class="mt-3 h-4 w-full max-w-[760px] rounded bg-[#eef1f7]"></div>
+              <div class="mt-2 h-4 w-4/5 max-w-[620px] rounded bg-[#eef1f7]"></div>
+            </div>
+
+            <span class="h-10 w-40 animate-pulse rounded-[20px] bg-[#eef1f7]"></span>
+          </div>
+        </div>
+
+        <div class="space-y-3">
           {#each [1, 2, 3] as _}
-            <div class="h-[156px] animate-pulse rounded-[8px] border border-[#e8ebf2] bg-white shadow-[0_8px_18px_rgba(31,42,68,0.07)]"></div>
+            <div class="grid overflow-hidden rounded-[8px] border border-[#e8ebf2] bg-white shadow-[0_8px_18px_rgba(31,42,68,0.07)] md:min-h-[148px] md:grid-cols-[304px_minmax(0,1fr)_180px]">
+              <div class="flex items-center border-b border-[#eef1f6] p-3 md:border-b-0 md:border-r-0">
+                <div class="h-[122px] w-full animate-pulse rounded-[8px] bg-[#eef1f7] md:w-[280px]"></div>
+              </div>
+
+              <div class="min-w-0 p-4 md:flex md:flex-col md:justify-center md:p-5">
+                <div class="flex animate-pulse flex-wrap items-center gap-2">
+                  <span class="h-3 w-24 rounded bg-[#eef1f7]"></span>
+                  <span class="h-3 w-20 rounded bg-[#eef1f7]"></span>
+                </div>
+                <div class="mt-3 h-5 w-full max-w-[520px] animate-pulse rounded bg-[#eef1f7]"></div>
+                <div class="mt-2 h-3 w-full max-w-[640px] animate-pulse rounded bg-[#eef1f7]"></div>
+                <div class="mt-2 h-3 w-4/5 max-w-[520px] animate-pulse rounded bg-[#eef1f7]"></div>
+              </div>
+
+              <div class="hidden items-center justify-center gap-4 px-5 md:flex">
+                <span class="h-3 w-24 animate-pulse rounded bg-[#eef1f7]"></span>
+                <span class="h-9 w-9 animate-pulse rounded-full bg-[#eef1f7]"></span>
+              </div>
+            </div>
           {/each}
         </div>
       </section>

@@ -194,6 +194,12 @@
   };
 
   let config = $derived(platformConfig[platform] || platformConfig.github);
+  const refreshHandlers = {
+    github: socialAPI.refreshGitHubUsername,
+    twitter: socialAPI.refreshTwitterUsername,
+    discord: socialAPI.refreshDiscordUsername,
+  };
+  let canRefresh = $derived(!!refreshHandlers[platform]);
 
   function isMobileBrowser() {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera || '';
@@ -258,24 +264,24 @@
   }
 
   async function refreshAccount() {
-    if (!$authState.isAuthenticated || platform !== 'github' || !connection || isRefreshing) {
+    if (!$authState.isAuthenticated || !canRefresh || !connection || isRefreshing) {
       return;
     }
 
     isRefreshing = true;
     try {
-      const response = await socialAPI.refreshGitHubUsername();
+      const response = await refreshHandlers[platform]();
       const updatedUser = await getCurrentUser();
-      const updatedConnection = response.data?.github_connection;
+      const updatedConnection = response.data?.[`${platform}_connection`];
       const username = updatedConnection?.platform_username || connection.platform_username;
       showSuccess(
         response.data?.changed
-          ? `GitHub username updated to @${username}`
-          : 'GitHub username is already up to date'
+          ? `${platformLabel} username updated to ${username}`
+          : `${platformLabel} username is already up to date`
       );
       onLinked(updatedUser);
     } catch (error) {
-      const message = error?.response?.data?.error || 'Could not refresh GitHub username. Please try again.';
+      const message = error?.response?.data?.error || `Could not refresh ${platformLabel} username. Please try again.`;
       showError(message);
     } finally {
       isRefreshing = false;
@@ -333,14 +339,14 @@
         <span class="flex-shrink-0 opacity-90">{@html config.icon}</span>
         <span class="font-medium text-sm">{connection.platform_username}</span>
       </div>
-      {#if platform === 'github'}
+      {#if canRefresh}
         <button
           type="button"
           class="social-refresh-btn"
           onclick={refreshAccount}
           disabled={isRefreshing}
-          title="Refresh GitHub username"
-          aria-label="Refresh GitHub username"
+          title="Refresh {platformLabel} username"
+          aria-label="Refresh {platformLabel} username"
         >
           {#if isRefreshing}
             <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

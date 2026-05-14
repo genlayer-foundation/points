@@ -5,6 +5,21 @@
 
   Chart.register(...registerables);
 
+  const EXPORT_WIDTH = 1920;
+  const EXPORT_HEIGHT = 1080;
+  const EXPORT_FORMAT = 'image/png';
+
+  const exportBackgroundPlugin = {
+    id: 'exportBackground',
+    beforeDraw(chart, args, options) {
+      const { ctx, width, height } = chart;
+      ctx.save();
+      ctx.fillStyle = options?.color || '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
+    }
+  };
+
   const CATEGORY_LABELS = {
     builder: 'Builder',
     creator: 'Community',
@@ -192,6 +207,15 @@
   let submissionEndDate = $state('');
   let selectedCategory = $state('');
   let selectedContributionType = $state('');
+  let appliedSubmissionFilters = $state({
+    category: '',
+    contributionType: '',
+    endDate: '',
+    groupBy: 'week',
+    startDate: ''
+  });
+  let chartExporting = $state('');
+  let chartExportError = $state(null);
 
   let studioMetrics = $state(null);
   let studioLoading = $state(true);
@@ -271,17 +295,9 @@
     };
   });
 
-  let selectedContributionTypeLabel = $derived.by(() => {
-    if (!selectedContributionType) {
-      return 'All contribution types';
-    }
-
-    const matchedType = contributionTypes.find(
-      (type) => String(type.id) === String(selectedContributionType)
-    );
-
-    return matchedType?.name || 'Custom type';
-  });
+  let selectedContributionTypeLabel = $derived.by(() =>
+    getContributionTypeLabel(selectedContributionType)
+  );
 
   onMount(() => {
     fetchMetricsData();
@@ -456,6 +472,14 @@
       submissionStartDate = submissionsData.start_date || '';
       submissionEndDate = submissionsData.end_date || '';
     }
+
+    appliedSubmissionFilters = {
+      category: selectedCategory,
+      contributionType: selectedContributionType,
+      endDate: submissionEndDate,
+      groupBy: submissionGroupBy,
+      startDate: submissionStartDate
+    };
   }
 
   async function applySubmissionFilters() {
@@ -563,11 +587,138 @@
     const ctx = participantsCanvas.getContext('2d');
     const height = participantsCanvas.parentElement?.clientHeight || 320;
 
-    participantsChart = new Chart(ctx, {
+    participantsChart = new Chart(ctx, buildParticipantsChartConfig(ctx, height));
+  }
+
+  function createSubmissionsChart() {
+    const submissionsCanvas = document.getElementById('submissionsChart');
+
+    if (!submissionsCanvas || !submissionsData.data?.length) {
+      return;
+    }
+
+    const ctx = submissionsCanvas.getContext('2d');
+
+    submissionsChart = new Chart(ctx, buildSubmissionsChartConfig());
+  }
+
+  function createSubmissionsTrendChart() {
+    const trendCanvas = document.getElementById('submissionsTrendChart');
+
+    if (!trendCanvas || !submissionsData.data?.length) {
+      return;
+    }
+
+    const ctx = trendCanvas.getContext('2d');
+
+    submissionsTrendChart = new Chart(ctx, buildSubmissionsTrendChartConfig());
+  }
+
+  function handleLegendClick(event, legendItem, legend) {
+    const index = legendItem.datasetIndex;
+    const chart = legend.chart;
+    const meta = chart.getDatasetMeta(index);
+
+    meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+    chart.update();
+  }
+
+  function getLegendOptions({ interactive = true, fontSize = 12, padding = 18 } = {}) {
+    const legend = {
+      position: 'top',
+      labels: {
+        boxWidth: 10,
+        boxHeight: 10,
+        font: { size: fontSize },
+        padding,
+        usePointStyle: true
+      }
+    };
+
+    if (interactive) {
+      legend.onClick = handleLegendClick;
+    }
+
+    return legend;
+  }
+
+  function getHiddenDatasetLabels(chart) {
+    if (!chart) {
+      return new Set();
+    }
+
+    return new Set(
+      chart.data.datasets
+        .filter((_, index) => !chart.isDatasetVisible(index))
+        .map((dataset) => dataset.label)
+    );
+  }
+
+  function applyHiddenDatasets(datasets, hiddenLabels = new Set()) {
+    return datasets.map((dataset) => ({
+      ...dataset,
+      hidden: hiddenLabels.has(dataset.label)
+    }));
+  }
+
+  function getExportTitleOptions(title, subtitle, forExport) {
+    return {
+      title: {
+        display: forExport,
+        text: title,
+        align: 'start',
+        color: '#0f172a',
+        font: {
+          size: 34,
+          weight: '600'
+        },
+        padding: {
+          bottom: 10
+        }
+      },
+      subtitle: {
+        display: forExport && Boolean(subtitle),
+        text: subtitle,
+        align: 'start',
+        color: '#64748b',
+        font: {
+          size: 18,
+          weight: '500'
+        },
+        padding: {
+          bottom: 24
+        }
+      }
+    };
+  }
+
+  function getChartLayoutOptions(forExport) {
+    if (!forExport) {
+      return {};
+    }
+
+    return {
+      padding: {
+        top: 26,
+        right: 40,
+        bottom: 28,
+        left: 18
+      }
+    };
+  }
+
+  function buildParticipantsChartConfig(ctx, height, { forExport = false, hiddenLabels = new Set() } = {}) {
+    const exportTitle = getExportTitleOptions(
+      'Portal participation growth',
+      'Builders and validators over time',
+      forExport
+    );
+
+    return {
       type: 'line',
       data: {
         labels: participantsData.map((point) => point.date),
-        datasets: [
+        datasets: applyHiddenDatasets([
           {
             label: 'Builders',
             data: participantsData.map((point) => point.builders),
@@ -602,34 +753,26 @@
             tension: 0.24,
             yAxisID: 'yValidators'
           }
-        ]
+        ], hiddenLabels)
       },
       options: {
-        responsive: true,
+        animation: forExport ? false : undefined,
+        responsive: !forExport,
         maintainAspectRatio: false,
         interaction: {
           mode: 'index',
           intersect: false
         },
+        layout: getChartLayoutOptions(forExport),
         plugins: {
-          legend: {
-            position: 'top',
-            labels: {
-              boxWidth: 10,
-              boxHeight: 10,
-              padding: 18,
-              usePointStyle: true
-            },
-            onClick: function(event, legendItem, legend) {
-              const index = legendItem.datasetIndex;
-              const chart = legend.chart;
-              const meta = chart.getDatasetMeta(index);
-
-              meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
-              chart.update();
-            }
-          },
+          legend: getLegendOptions({
+            interactive: !forExport,
+            fontSize: forExport ? 20 : 12,
+            padding: forExport ? 28 : 18
+          }),
+          ...exportTitle,
           tooltip: {
+            enabled: !forExport,
             backgroundColor: 'rgba(255, 255, 255, 0.98)',
             bodyColor: '#0f172a',
             borderColor: 'rgba(148, 163, 184, 0.32)',
@@ -651,8 +794,9 @@
               callback: function(value) {
                 return formatParticipantAxisDate(this.getLabelForValue(value));
               },
+              font: { size: forExport ? 18 : 12 },
               maxRotation: 0,
-              maxTicksLimit: 8
+              maxTicksLimit: forExport ? 12 : 8
             }
           },
           yBuilders: {
@@ -663,13 +807,14 @@
               display: true,
               text: 'Builders',
               color: participantPalette.builders.border,
-              font: { size: 11 }
+              font: { size: forExport ? 18 : 11 }
             },
             grid: {
               color: 'rgba(148, 163, 184, 0.12)'
             },
             ticks: {
               color: participantPalette.builders.border,
+              font: { size: forExport ? 18 : 12 },
               callback: (value) => formatNumber(value)
             }
           },
@@ -681,35 +826,39 @@
               display: true,
               text: 'Validators',
               color: participantPalette.validators.border,
-              font: { size: 11 }
+              font: { size: forExport ? 18 : 11 }
             },
             grid: {
               drawOnChartArea: false
             },
             ticks: {
               color: participantPalette.validators.border,
+              font: { size: forExport ? 18 : 12 },
               callback: (value) => formatNumber(value)
             }
           }
         }
-      }
-    });
+      },
+      plugins: forExport ? [exportBackgroundPlugin] : []
+    };
   }
 
-  function createSubmissionsChart() {
-    const submissionsCanvas = document.getElementById('submissionsChart');
+  function buildSubmissionsChartConfig({
+    forExport = false,
+    groupBy = submissionGroupBy,
+    hiddenLabels = new Set()
+  } = {}) {
+    const exportTitle = getExportTitleOptions(
+      'Submission intake vs reviewed outcomes',
+      getSubmissionExportSubtitle(),
+      forExport
+    );
 
-    if (!submissionsCanvas || !submissionsData.data?.length) {
-      return;
-    }
-
-    const ctx = submissionsCanvas.getContext('2d');
-
-    submissionsChart = new Chart(ctx, {
+    return {
       type: 'bar',
       data: {
-        labels: submissionsData.data.map((point) => formatPeriodLabel(point.period, submissionGroupBy)),
-        datasets: [
+        labels: submissionsData.data.map((point) => formatPeriodLabel(point.period, groupBy)),
+        datasets: applyHiddenDatasets([
           {
             label: 'Submitted',
             data: submissionsData.data.map((point) => point.ingress),
@@ -750,32 +899,32 @@
             maxBarThickness: 22,
             stack: 'review'
           }
-        ]
+        ], hiddenLabels)
       },
       options: {
-        responsive: true,
+        animation: forExport ? false : undefined,
+        responsive: !forExport,
         maintainAspectRatio: false,
         interaction: {
           mode: 'index',
           intersect: false
         },
+        layout: getChartLayoutOptions(forExport),
         plugins: {
-          legend: {
-            position: 'top',
-            labels: {
-              boxWidth: 10,
-              boxHeight: 10,
-              padding: 18,
-              usePointStyle: true
-            }
-          },
+          legend: getLegendOptions({
+            interactive: !forExport,
+            fontSize: forExport ? 20 : 12,
+            padding: forExport ? 28 : 18
+          }),
+          ...exportTitle,
           tooltip: {
+            enabled: !forExport,
             backgroundColor: 'rgba(255, 255, 255, 0.98)',
             bodyColor: '#0f172a',
             borderColor: 'rgba(148, 163, 184, 0.32)',
             borderWidth: 1,
             callbacks: {
-              title: (items) => formatPeriodTooltip(submissionsData.data[items[0]?.dataIndex]?.period, submissionGroupBy),
+              title: (items) => formatPeriodTooltip(submissionsData.data[items[0]?.dataIndex]?.period, groupBy),
               footer: (items) => {
                 const point = submissionsData.data[items[0]?.dataIndex];
                 const reviewed =
@@ -798,6 +947,7 @@
             },
             ticks: {
               color: '#64748b',
+              font: { size: forExport ? 18 : 12 },
               maxRotation: 0
             }
           },
@@ -809,33 +959,23 @@
             },
             ticks: {
               color: '#64748b',
+              font: { size: forExport ? 18 : 12 },
               callback: (value) => formatNumber(value)
             }
           }
         }
-      }
-    });
+      },
+      plugins: forExport ? [exportBackgroundPlugin] : []
+    };
   }
 
-  function createSubmissionsTrendChart() {
-    const trendCanvas = document.getElementById('submissionsTrendChart');
-
-    if (!trendCanvas || !submissionsData.data?.length) {
-      return;
-    }
-
-    const ctx = trendCanvas.getContext('2d');
-    const height = trendCanvas.parentElement?.clientHeight || 320;
-    const isDaily = submissionGroupBy === 'day';
-    const dotRadius = isDaily ? 0 : 3;
-    const hoverRadius = isDaily ? 3 : 5;
-
-    // Build cumulative sums per state
+  function getSubmissionsCumulativeData() {
     let cumIngress = 0;
     let cumAccepted = 0;
     let cumRejected = 0;
     let cumMoreInfo = 0;
-    const cumData = submissionsData.data.map((point) => {
+
+    return submissionsData.data.map((point) => {
       cumIngress += Number(point.ingress || 0);
       cumAccepted += Number(point.accepted || 0);
       cumRejected += Number(point.rejected || 0);
@@ -843,12 +983,28 @@
       const pending = Math.max(0, cumIngress - cumAccepted - cumRejected - cumMoreInfo);
       return { pending, accepted: cumAccepted, rejected: cumRejected, moreInfo: cumMoreInfo };
     });
+  }
 
-    submissionsTrendChart = new Chart(ctx, {
+  function buildSubmissionsTrendChartConfig({
+    forExport = false,
+    groupBy = submissionGroupBy,
+    hiddenLabels = new Set()
+  } = {}) {
+    const isDaily = groupBy === 'day';
+    const dotRadius = isDaily ? 0 : 3;
+    const hoverRadius = isDaily ? 3 : 5;
+    const cumData = getSubmissionsCumulativeData();
+    const exportTitle = getExportTitleOptions(
+      'Submission state trends',
+      getSubmissionExportSubtitle(),
+      forExport
+    );
+
+    return {
       type: 'line',
       data: {
-        labels: submissionsData.data.map((point) => formatPeriodLabel(point.period, submissionGroupBy)),
-        datasets: [
+        labels: submissionsData.data.map((point) => formatPeriodLabel(point.period, groupBy)),
+        datasets: applyHiddenDatasets([
           {
             label: 'Pending review',
             data: cumData.map((point) => point.pending),
@@ -897,40 +1053,32 @@
             pointBackgroundColor: reviewPalette.moreInfo.border,
             tension: 0.3
           }
-        ]
+        ], hiddenLabels)
       },
       options: {
-        responsive: true,
+        animation: forExport ? false : undefined,
+        responsive: !forExport,
         maintainAspectRatio: false,
         interaction: {
           mode: 'index',
           intersect: false
         },
+        layout: getChartLayoutOptions(forExport),
         plugins: {
-          legend: {
-            position: 'top',
-            labels: {
-              boxWidth: 10,
-              boxHeight: 10,
-              padding: 18,
-              usePointStyle: true
-            },
-            onClick: function(event, legendItem, legend) {
-              const index = legendItem.datasetIndex;
-              const chart = legend.chart;
-              const meta = chart.getDatasetMeta(index);
-
-              meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
-              chart.update();
-            }
-          },
+          legend: getLegendOptions({
+            interactive: !forExport,
+            fontSize: forExport ? 20 : 12,
+            padding: forExport ? 28 : 18
+          }),
+          ...exportTitle,
           tooltip: {
+            enabled: !forExport,
             backgroundColor: 'rgba(255, 255, 255, 0.98)',
             bodyColor: '#0f172a',
             borderColor: 'rgba(148, 163, 184, 0.32)',
             borderWidth: 1,
             callbacks: {
-              title: (items) => formatPeriodTooltip(submissionsData.data[items[0]?.dataIndex]?.period, submissionGroupBy),
+              title: (items) => formatPeriodTooltip(submissionsData.data[items[0]?.dataIndex]?.period, groupBy),
               label: (context) => `${context.dataset.label}: ${formatNumber(context.parsed.y)}`
             },
             titleColor: '#0f172a'
@@ -943,6 +1091,7 @@
             },
             ticks: {
               color: '#64748b',
+              font: { size: forExport ? 18 : 12 },
               maxRotation: 0
             }
           },
@@ -953,12 +1102,154 @@
             },
             ticks: {
               color: '#64748b',
+              font: { size: forExport ? 18 : 12 },
               callback: (value) => formatNumber(value)
             }
           }
         }
-      }
+      },
+      plugins: forExport ? [exportBackgroundPlugin] : []
+    };
+  }
+
+  function getContributionTypeLabel(typeId) {
+    if (!typeId) {
+      return 'All contribution types';
+    }
+
+    const matchedType = contributionTypes.find(
+      (type) => String(type.id) === String(typeId)
+    );
+
+    return matchedType?.name || 'Custom type';
+  }
+
+  function getSubmissionExportSubtitle() {
+    const filters = appliedSubmissionFilters;
+    const startDate = filters.startDate ? formatDate(filters.startDate) : 'First available';
+    const endDate = filters.endDate ? formatDate(filters.endDate) : 'Latest available';
+    const category = filters.category ? getCategoryLabel(filters.category) : 'All categories';
+    const contributionType = getContributionTypeLabel(filters.contributionType);
+
+    return [
+      `${startDate} - ${endDate}`,
+      category,
+      contributionType,
+      getGroupingLabel(filters.groupBy)
+    ].join(' | ');
+  }
+
+  function slugify(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'all';
+  }
+
+  function getSubmissionExportFilename(kind) {
+    const filters = appliedSubmissionFilters;
+    const parts = [
+      'portal',
+      kind,
+      filters.groupBy,
+      filters.category || 'all-categories',
+      getContributionTypeLabel(filters.contributionType)
+    ];
+
+    return `${parts.map(slugify).join('-')}-16x9.png`;
+  }
+
+  function downloadCanvas(canvas, filename) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('Unable to export chart image'));
+          return;
+        }
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        resolve();
+      }, EXPORT_FORMAT);
     });
+  }
+
+  async function exportPortalChart(kind) {
+    if (chartExporting) {
+      return;
+    }
+
+    let exportChart = null;
+    chartExporting = kind;
+    chartExportError = null;
+
+    try {
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = EXPORT_WIDTH;
+      exportCanvas.height = EXPORT_HEIGHT;
+      const ctx = exportCanvas.getContext('2d');
+
+      if (!ctx) {
+        throw new Error('Unable to create export canvas');
+      }
+
+      let config;
+      let filename;
+
+      if (kind === 'participants') {
+        if (!participantsData.length) {
+          throw new Error('No participant growth data available to export');
+        }
+
+        config = buildParticipantsChartConfig(ctx, EXPORT_HEIGHT, {
+          forExport: true,
+          hiddenLabels: getHiddenDatasetLabels(participantsChart)
+        });
+        filename = 'portal-participation-growth-16x9.png';
+      } else if (kind === 'submissions') {
+        if (!submissionsData.data?.length) {
+          throw new Error('No submission analytics data available to export');
+        }
+
+        config = buildSubmissionsChartConfig({
+          forExport: true,
+          groupBy: appliedSubmissionFilters.groupBy,
+          hiddenLabels: getHiddenDatasetLabels(submissionsChart)
+        });
+        filename = getSubmissionExportFilename('submissions');
+      } else if (kind === 'submission-trends') {
+        if (!submissionsData.data?.length) {
+          throw new Error('No submission trend data available to export');
+        }
+
+        config = buildSubmissionsTrendChartConfig({
+          forExport: true,
+          groupBy: appliedSubmissionFilters.groupBy,
+          hiddenLabels: getHiddenDatasetLabels(submissionsTrendChart)
+        });
+        filename = getSubmissionExportFilename('submission-trends');
+      } else {
+        throw new Error('Unknown chart export');
+      }
+
+      exportChart = new Chart(ctx, config);
+      exportChart.update('none');
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await downloadCanvas(exportCanvas, filename);
+    } catch (err) {
+      chartExportError = err.message || 'Failed to export chart';
+    } finally {
+      if (exportChart) {
+        exportChart.destroy();
+      }
+      chartExporting = '';
+    }
   }
 
   function createGradient(ctx, height, topColor, bottomColor) {
@@ -1085,6 +1376,12 @@
   {#if pageError}
     <div class="mb-6 rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-rose-700 shadow-sm">
       <span class="font-semibold">Error:</span> {pageError}
+    </div>
+  {/if}
+
+  {#if chartExportError}
+    <div class="mb-6 rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-rose-700 shadow-sm">
+      <span class="font-semibold">Export error:</span> {chartExportError}
     </div>
   {/if}
 
@@ -1315,7 +1612,23 @@
             <h3 class="text-lg font-semibold text-slate-900">Growth trajectory</h3>
             <p class="mt-1 text-sm text-slate-500">Builders on the left axis, validators on the right.</p>
           </div>
-          <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Daily points</p>
+          <div class="flex flex-wrap items-center gap-3">
+            <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Daily points</p>
+            <button
+              type="button"
+              title="Export 16:9 PNG"
+              aria-label="Export growth trajectory as 16:9 PNG"
+              onclick={() => exportPortalChart('participants')}
+              disabled={loading || participantsData.length === 0 || Boolean(chartExporting)}
+              class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-slate-400 transition hover:border-slate-200 hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5"/>
+                <path d="M4 13.5V16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2.5"/>
+              </svg>
+              <span class="sr-only">{chartExporting === 'participants' ? 'Exporting growth trajectory' : 'Export growth trajectory as 16:9 PNG'}</span>
+            </button>
+          </div>
         </div>
 
         {#if loading}
@@ -1487,11 +1800,27 @@
 
       <div class="grid gap-6 xl:grid-cols-2">
         <div class="rounded-[28px] border border-slate-200 bg-slate-50/70 p-5 sm:p-6">
-          <div class="mb-5">
-            <h3 class="text-lg font-semibold text-slate-900">Submission intake vs reviewed outcomes</h3>
-            <p class="mt-1 text-sm text-slate-500">
-              Each period compares newly submitted work against the review decisions made in that same period.
-            </p>
+          <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 class="text-lg font-semibold text-slate-900">Submission intake vs reviewed outcomes</h3>
+              <p class="mt-1 text-sm text-slate-500">
+                Each period compares newly submitted work against the review decisions made in that same period.
+              </p>
+            </div>
+            <button
+              type="button"
+              title="Export 16:9 PNG"
+              aria-label="Export submission intake chart as 16:9 PNG"
+              onclick={() => exportPortalChart('submissions')}
+              disabled={loading || submissionsLoading || !submissionsData.data?.length || Boolean(chartExporting)}
+              class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-400 transition hover:border-slate-200 hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5"/>
+                <path d="M4 13.5V16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2.5"/>
+              </svg>
+              <span class="sr-only">{chartExporting === 'submissions' ? 'Exporting submission intake chart' : 'Export submission intake chart as 16:9 PNG'}</span>
+            </button>
           </div>
 
           {#if loading}
@@ -1508,11 +1837,27 @@
         </div>
 
         <div class="rounded-[28px] border border-slate-200 bg-slate-50/70 p-5 sm:p-6">
-          <div class="mb-5">
-            <h3 class="text-lg font-semibold text-slate-900">Submission state trends</h3>
-            <p class="mt-1 text-sm text-slate-500">
-              Per-state curves over time. Click a legend label to toggle its visibility.
-            </p>
+          <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 class="text-lg font-semibold text-slate-900">Submission state trends</h3>
+              <p class="mt-1 text-sm text-slate-500">
+                Per-state curves over time. Click a legend label to toggle its visibility.
+              </p>
+            </div>
+            <button
+              type="button"
+              title="Export 16:9 PNG"
+              aria-label="Export submission state trends as 16:9 PNG"
+              onclick={() => exportPortalChart('submission-trends')}
+              disabled={loading || submissionsLoading || !submissionsData.data?.length || Boolean(chartExporting)}
+              class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-400 transition hover:border-slate-200 hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5"/>
+                <path d="M4 13.5V16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2.5"/>
+              </svg>
+              <span class="sr-only">{chartExporting === 'submission-trends' ? 'Exporting submission state trends' : 'Export submission state trends as 16:9 PNG'}</span>
+            </button>
           </div>
 
           {#if loading}

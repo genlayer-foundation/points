@@ -2,6 +2,7 @@
 
 from urllib.parse import urlencode
 
+import requests
 from django.conf import settings
 from django.shortcuts import redirect
 from django.views.decorators.csrf import csrf_exempt
@@ -14,6 +15,7 @@ from tally.middleware.logging_utils import get_app_logger
 
 from .encryption import decrypt_token
 from .oauth_service import DiscordOAuthService
+from .serializers import DiscordConnectionSerializer
 
 logger = get_app_logger('discord_oauth')
 service = DiscordOAuthService()
@@ -59,6 +61,61 @@ def disconnect_discord(request):
         pass
 
     return Response({'message': 'Discord account disconnected successfully'}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def refresh_discord_username(request):
+    """Refresh the linked Discord username from Discord's current user API."""
+    from .models import DiscordConnection
+
+    try:
+        connection = request.user.discordconnection
+    except DiscordConnection.DoesNotExist:
+        return Response({
+            'error': 'Discord account not linked',
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        connection, changed = service.refresh_connection_username(connection)
+    except ValueError as e:
+        error_code = str(e)
+        if error_code in (
+            'missing_access_token',
+            'invalid_access_token',
+            'missing_refresh_token',
+            'invalid_refresh_token',
+            'refresh_not_supported',
+            'no_access_token',
+        ):
+            return Response({
+                'error': 'Discord authorization is no longer valid. Please reconnect Discord.',
+                'code': error_code,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        if error_code == 'account_mismatch':
+            logger.warning(
+                "Discord refresh returned a different account for user %s",
+                request.user.id,
+            )
+            return Response({
+                'error': 'Discord account mismatch. Please reconnect Discord.',
+                'code': error_code,
+            }, status=status.HTTP_409_CONFLICT)
+        logger.error(f"Failed to refresh Discord username: {e}")
+        return Response({
+            'error': 'Failed to refresh Discord username',
+        }, status=status.HTTP_400_BAD_REQUEST)
+    except requests.RequestException as e:
+        logger.error(f"Discord API request failed while refreshing username: {e}")
+        return Response({
+            'error': 'Failed to reach Discord. Please try again.',
+        }, status=status.HTTP_502_BAD_GATEWAY)
+
+    return Response({
+        'message': 'Discord username refreshed successfully',
+        'changed': changed,
+        'discord_connection': DiscordConnectionSerializer(connection).data,
+    }, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
