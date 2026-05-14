@@ -40,7 +40,13 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['name', 'created_at']
     
     def get_queryset(self):
-        queryset = ContributionType.objects.all()
+        queryset = ContributionType.objects.all().annotate(
+            submission_count=Count(
+                'submitted_contributions',
+                filter=~Q(submitted_contributions__state='rejected'),
+                distinct=True,
+            )
+        )
 
         # Filter by category if provided
         category = self.request.query_params.get('category')
@@ -540,6 +546,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             )
 
         mission_id = request.data.get('mission')
+        mission = None
         data = request.data.copy()  # Create mutable copy for modifications
 
         # Validate mission if provided
@@ -556,6 +563,11 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 if mission.end_date and now > mission.end_date:
                     return Response(
                         {'error': 'This mission has ended.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                if mission.is_full():
+                    return Response(
+                        {'error': 'This mission has reached its submission limit.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 # Always enforce contribution_type consistency with mission
@@ -575,6 +587,11 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 if not contribution_type.is_submittable and not mission_id:
                     return Response(
                         {'error': 'This contribution type cannot be submitted directly. Submit through one of its active missions.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                if contribution_type.is_full():
+                    return Response(
+                        {'error': 'This contribution type has reached its submission limit.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 if contribution_type.category:
@@ -610,7 +627,34 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+
+        if mission_id or contribution_type_id:
+            with transaction.atomic():
+                locked_type = ContributionType.objects.select_for_update().get(
+                    id=serializer.validated_data['contribution_type'].id
+                )
+                if locked_type.is_full():
+                    return Response(
+                        {'error': 'This contribution type has reached its submission limit.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                serializer.validated_data['contribution_type'] = locked_type
+
+                if mission_id:
+                    locked_mission = Mission.objects.select_for_update().get(
+                        id=mission.id
+                    )
+                    if locked_mission.is_full():
+                        return Response(
+                            {'error': 'This mission has reached its submission limit.'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    serializer.validated_data['mission'] = locked_mission
+
+                self.perform_create(serializer)
+        else:
+            self.perform_create(serializer)
+
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
@@ -1832,6 +1876,17 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = Mission.objects.all().select_related(
             'contribution_type',
             'contribution_type__category',
+        ).annotate(
+            submission_count=Count(
+                'submissions',
+                filter=~Q(submissions__state='rejected'),
+                distinct=True,
+            ),
+            contribution_type_submission_count=Count(
+                'contribution_type__submitted_contributions',
+                filter=~Q(contribution_type__submitted_contributions__state='rejected'),
+                distinct=True,
+            )
         )
 
         include_inactive = (
