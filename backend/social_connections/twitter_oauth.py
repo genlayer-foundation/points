@@ -2,6 +2,7 @@
 
 from urllib.parse import quote, urlencode
 
+import requests
 from django.conf import settings
 from django.shortcuts import redirect
 from django.views.decorators.csrf import csrf_exempt
@@ -12,6 +13,7 @@ from rest_framework import status
 
 from tally.middleware.logging_utils import get_app_logger
 
+from .serializers import TwitterConnectionSerializer
 from .oauth_service import TwitterOAuthService
 
 logger = get_app_logger('twitter_oauth')
@@ -69,3 +71,58 @@ def disconnect_twitter(request):
         pass
 
     return Response({'message': 'Twitter account disconnected successfully'}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def refresh_twitter_username(request):
+    """Refresh the linked X username from X's current user API."""
+    from .models import TwitterConnection
+
+    try:
+        connection = request.user.twitterconnection
+    except TwitterConnection.DoesNotExist:
+        return Response({
+            'error': 'X account not linked',
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        connection, changed = service.refresh_connection_username(connection)
+    except ValueError as e:
+        error_code = str(e)
+        if error_code in (
+            'missing_access_token',
+            'invalid_access_token',
+            'missing_refresh_token',
+            'invalid_refresh_token',
+            'refresh_not_supported',
+            'no_access_token',
+        ):
+            return Response({
+                'error': 'X authorization is no longer valid. Please reconnect X.',
+                'code': error_code,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        if error_code == 'account_mismatch':
+            logger.warning(
+                "X refresh returned a different account for user %s",
+                request.user.id,
+            )
+            return Response({
+                'error': 'X account mismatch. Please reconnect X.',
+                'code': error_code,
+            }, status=status.HTTP_409_CONFLICT)
+        logger.error(f"Failed to refresh X username: {e}")
+        return Response({
+            'error': 'Failed to refresh X username',
+        }, status=status.HTTP_400_BAD_REQUEST)
+    except requests.RequestException as e:
+        logger.error(f"X API request failed while refreshing username: {e}")
+        return Response({
+            'error': 'Failed to reach X. Please try again.',
+        }, status=status.HTTP_502_BAD_GATEWAY)
+
+    return Response({
+        'message': 'X username refreshed successfully',
+        'changed': changed,
+        'twitter_connection': TwitterConnectionSerializer(connection).data,
+    }, status=status.HTTP_200_OK)
