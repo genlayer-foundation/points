@@ -129,7 +129,12 @@
             if (parentType) {
               selectedCategory = parentType.category || "builder";
               if (isTypeFull(parentType)) {
-                searchQuery = mission.name;
+                selectedType = null;
+                selectedMission = null;
+                selectedMissionData = null;
+                formData.contribution_type = "";
+                searchQuery = "";
+                showTypeDropdown = true;
                 error = "This contribution type has reached its submission limit.";
               } else if (isMissionSubmittable(mission)) {
                 selectedType = parentType;
@@ -138,7 +143,12 @@
                 formData.contribution_type = parentType.id;
                 searchQuery = mission.name;
               } else {
-                searchQuery = mission.name;
+                selectedType = null;
+                selectedMission = null;
+                selectedMissionData = null;
+                formData.contribution_type = "";
+                searchQuery = "";
+                showTypeDropdown = true;
                 error = isMissionFull(mission)
                   ? "This mission has reached its submission limit."
                   : "This mission is not currently accepting submissions.";
@@ -158,6 +168,10 @@
             selectedType = type;
             formData.contribution_type = type.id;
           } else if (isTypeFull(type)) {
+            selectedType = null;
+            formData.contribution_type = "";
+            searchQuery = "";
+            showTypeDropdown = true;
             error = "This contribution type has reached its submission limit.";
           } else {
             showTypeDropdown = true;

@@ -86,6 +86,14 @@
         Number(contributionType.submissions_remaining) <= 0)
   );
   let submissionClosed = $derived(missionIsFull || contributionTypeIsFull);
+  let capacityLabel = $derived.by(() => {
+    if (mission?.max_submissions == null) {
+      return contributionTypeIsFull ? 'Submissions closed' : 'Unlimited';
+    }
+    if (missionIsFull) return 'Full';
+    if (contributionTypeIsFull) return 'Submissions closed';
+    return `${formatNumber(mission.submissions_remaining)} left`;
+  });
 
   function formatDate(dateString) {
     if (!dateString) return 'Ongoing';
@@ -254,7 +262,7 @@
           <div class="rounded-[8px] border border-[#e8ebf2] bg-white p-4 shadow-[0_8px_18px_rgba(31,42,68,0.07)]">
             <p class="text-[12px] font-semibold uppercase text-[#7b8798]">Capacity</p>
             <p class="mt-2 text-[16px] font-semibold text-black">
-              {mission.max_submissions == null ? 'Unlimited' : `${formatNumber(mission.submissions_remaining)} left`}
+              {capacityLabel}
             </p>
           </div>
         </div>

@@ -727,8 +727,8 @@ class Mission(BaseModel):
         """
         Count submissions that consume mission capacity.
 
-        Rejected submissions, including user-cancelled submissions, do not
-        consume capacity so a bad or withdrawn submission can reopen a slot.
+        Rejected submissions do not consume capacity so a bad or withdrawn
+        submission can reopen a slot.
         """
         annotated_count = getattr(self, 'submission_count', None)
         if annotated_count is not None:
