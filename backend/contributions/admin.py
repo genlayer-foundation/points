@@ -35,7 +35,12 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
 
 @admin.register(ContributionType)
 class ContributionTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'is_default', 'is_submittable', 'show_in_contributions', 'get_current_multiplier', 'min_points', 'max_points', 'description', 'created_at')
+    list_display = (
+        'name', 'category', 'is_default', 'is_submittable',
+        'get_submission_usage', 'show_in_contributions',
+        'get_current_multiplier', 'min_points', 'max_points',
+        'description', 'created_at',
+    )
     list_display_links = ('get_current_multiplier',)
     list_editable = ('name', 'is_default', 'is_submittable', 'show_in_contributions', 'description')
     search_fields = ('name', 'description')
@@ -50,6 +55,13 @@ class ContributionTypeAdmin(admin.ModelAdmin):
         from leaderboard.models import GlobalLeaderboardMultiplier
         return f"{GlobalLeaderboardMultiplier.get_current_multiplier_value(obj)}x"
     get_current_multiplier.short_description = "Current Multiplier"
+
+    def get_submission_usage(self, obj):
+        count = obj.get_submission_count()
+        if obj.max_submissions is None:
+            return f'{count} / Unlimited'
+        return f'{count} / {obj.max_submissions}'
+    get_submission_usage.short_description = 'Submissions'
 
 
 @admin.register(GlobalLeaderboardMultiplier)
@@ -631,7 +643,10 @@ class ContributionHighlightAdmin(admin.ModelAdmin):
 
 @admin.register(Mission)
 class MissionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'contribution_type', 'get_status', 'start_date', 'end_date', 'created_at')
+    list_display = (
+        'id', 'name', 'contribution_type', 'get_status',
+        'get_submission_usage', 'start_date', 'end_date', 'created_at',
+    )
     list_filter = ('contribution_type', 'start_date', 'end_date', 'created_at')
     search_fields = ('name', 'description')
     readonly_fields = ('id', 'created_at', 'updated_at')
@@ -648,6 +663,10 @@ class MissionAdmin(admin.ModelAdmin):
             'fields': ('start_date', 'end_date'),
             'description': 'Optional: Set dates to control when this mission is active'
         }),
+        ('Submission Limit', {
+            'fields': ('max_submissions',),
+            'description': 'Optional: Limit how many non-rejected submissions this mission can receive.'
+        }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
@@ -660,6 +679,13 @@ class MissionAdmin(admin.ModelAdmin):
         else:
             return format_html('<span style="color: {};">●</span> {}', 'red', 'Inactive')
     get_status.short_description = 'Status'
+
+    def get_submission_usage(self, obj):
+        count = obj.get_submission_count()
+        if obj.max_submissions is None:
+            return f'{count} / Unlimited'
+        return f'{count} / {obj.max_submissions}'
+    get_submission_usage.short_description = 'Submissions'
 
 
 @admin.register(StartupRequest)

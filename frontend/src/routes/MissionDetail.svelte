@@ -73,6 +73,19 @@
   let allContributionsPath = $derived(
     `/all-contributions?category=${explorerCategory}&mission=${params.id}`
   );
+  let missionIsFull = $derived(
+    mission?.is_full === true ||
+      (mission?.max_submissions != null &&
+        mission?.submissions_remaining != null &&
+        Number(mission.submissions_remaining) <= 0)
+  );
+  let contributionTypeIsFull = $derived(
+    contributionType?.is_full === true ||
+      (contributionType?.max_submissions != null &&
+        contributionType?.submissions_remaining != null &&
+        Number(contributionType.submissions_remaining) <= 0)
+  );
+  let submissionClosed = $derived(missionIsFull || contributionTypeIsFull);
 
   function formatDate(dateString) {
     if (!dateString) return 'Ongoing';
@@ -213,12 +226,15 @@
 
           <button
             type="button"
-            onclick={() => push(`/submit-contribution?mission=${mission.id}`)}
-            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black bg-black px-4 text-[13px] font-semibold text-white shadow-[0_8px_22px_rgba(31,42,68,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.16)] sm:w-auto"
-            style={submitButtonStyle}
+            onclick={() => !submissionClosed && push(`/submit-contribution?mission=${mission.id}`)}
+            disabled={submissionClosed}
+            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black bg-black px-4 text-[13px] font-semibold text-white shadow-[0_8px_22px_rgba(31,42,68,0.12)] transition sm:w-auto {submissionClosed ? 'cursor-not-allowed opacity-60' : 'hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.16)]'}"
+            style={submissionClosed ? '' : submitButtonStyle}
           >
-            Submit to mission
-            <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="h-4 w-4" />
+            {submissionClosed ? 'Submissions closed' : 'Submit to mission'}
+            {#if !submissionClosed}
+              <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="h-4 w-4" />
+            {/if}
           </button>
         </div>
 
@@ -236,8 +252,10 @@
             <p class="mt-2 font-display text-[28px] font-semibold leading-none text-black">{formatNumber(stats.points_earned)}</p>
           </div>
           <div class="rounded-[8px] border border-[#e8ebf2] bg-white p-4 shadow-[0_8px_18px_rgba(31,42,68,0.07)]">
-            <p class="text-[12px] font-semibold uppercase text-[#7b8798]">End Date</p>
-            <p class="mt-2 text-[16px] font-semibold text-black">{formatDate(mission.end_date)}</p>
+            <p class="text-[12px] font-semibold uppercase text-[#7b8798]">Capacity</p>
+            <p class="mt-2 text-[16px] font-semibold text-black">
+              {mission.max_submissions == null ? 'Unlimited' : `${formatNumber(mission.submissions_remaining)} left`}
+            </p>
           </div>
         </div>
       </section>
@@ -258,6 +276,14 @@
               <div class="flex items-center justify-between gap-4">
                 <span class="text-[12px] font-semibold uppercase text-[#7b8798]">End</span>
                 <span class="text-[13px] font-semibold text-black">{formatDate(mission.end_date)}</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-[12px] font-semibold uppercase text-[#7b8798]">Submissions</span>
+                <span class="text-[13px] font-semibold text-black">
+                  {mission.max_submissions == null
+                    ? `${formatNumber(mission.submission_count)} / Unlimited`
+                    : `${formatNumber(mission.submission_count)} / ${formatNumber(mission.max_submissions)}`}
+                </span>
               </div>
             </div>
           </div>

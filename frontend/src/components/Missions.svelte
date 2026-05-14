@@ -100,6 +100,10 @@
     }
   }
 
+  function spotsLeftLabel(count) {
+    return `${count} ${Number(count) === 1 ? 'spot' : 'spots'} left`;
+  }
+
   function toggleMissionExpanded(missionId) {
     const newExpanded = new Set(expandedMissions);
     if (newExpanded.has(missionId)) {
@@ -255,6 +259,7 @@
     {#each missions as mission}
       {@const isExpanded = expandedMissions.has(mission.id)}
       {@const hasLongText = needsExpansion(mission.description)}
+      {@const missionIsFull = mission.is_full === true || (mission.max_submissions != null && mission.submissions_remaining != null && Number(mission.submissions_remaining) <= 0)}
 
       <div class="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors">
         <!-- Title row with badges and submit button -->
@@ -292,13 +297,20 @@
             {:else}
               <span class="text-xs text-gray-600">Ongoing</span>
             {/if}
+
+            {#if mission.max_submissions != null}
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {missionIsFull ? 'bg-gray-100 text-gray-700' : 'bg-emerald-100 text-emerald-800'}">
+                {missionIsFull ? 'Full' : spotsLeftLabel(mission.submissions_remaining)}
+              </span>
+            {/if}
           </div>
 
           <button
-            onclick={() => push(`/submit-contribution?mission=${mission.id}`)}
-            class="inline-flex min-h-11 w-full flex-shrink-0 items-center justify-center rounded-[8px] border border-gray-200 px-3 text-sm font-normal {colors.titleText} {colors.titleTextHover} transition-colors sm:min-h-0 sm:w-auto sm:border-0 sm:p-0"
+            onclick={() => !missionIsFull && push(`/submit-contribution?mission=${mission.id}`)}
+            disabled={missionIsFull}
+            class="inline-flex min-h-11 w-full flex-shrink-0 items-center justify-center rounded-[8px] border border-gray-200 px-3 text-sm font-normal transition-colors sm:min-h-0 sm:w-auto sm:border-0 sm:p-0 {missionIsFull ? 'cursor-not-allowed text-gray-400' : `${colors.titleText} ${colors.titleTextHover}`}"
           >
-            Submit →
+            {missionIsFull ? 'Full' : 'Submit →'}
           </button>
         </div>
 

@@ -83,6 +83,14 @@ class ContributionType(BaseModel):
     max_points = models.PositiveIntegerField(default=100, help_text="Maximum points allowed for this contribution type")
     is_default = models.BooleanField(default=False, help_text="Include this contribution type by default when creating validators")
     is_submittable = models.BooleanField(default=True, help_text="Whether this contribution type can be submitted by users")
+    max_submissions = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Maximum number of non-rejected submissions allowed for this "
+            "contribution type. Leave blank for unlimited."
+        ),
+    )
     show_in_contributions = models.BooleanField(
         default=False,
         help_text=(
@@ -122,6 +130,26 @@ class ContributionType(BaseModel):
     def __str__(self):
         category_name = self.category.name if self.category else "No Category"
         return f"{category_name} - {self.name}"
+
+    def get_submission_count(self):
+        """
+        Count submissions that consume this contribution type's capacity.
+        """
+        annotated_count = getattr(self, 'submission_count', None)
+        if annotated_count is not None:
+            return annotated_count
+        return self.submitted_contributions.exclude(state='rejected').count()
+
+    def submissions_remaining(self):
+        if self.max_submissions is None:
+            return None
+        return max(self.max_submissions - self.get_submission_count(), 0)
+
+    def is_full(self):
+        return (
+            self.max_submissions is not None
+            and self.get_submission_count() >= self.max_submissions
+        )
         
     def clean(self):
         """Validate the contribution type data."""
@@ -664,6 +692,14 @@ class Mission(BaseModel):
         related_name='missions',
         help_text="The contribution type this mission is related to"
     )
+    max_submissions = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Maximum number of non-rejected submissions allowed for this "
+            "mission. Leave blank for unlimited."
+        ),
+    )
 
     class Meta:
         ordering = ['-created_at']
@@ -686,6 +722,29 @@ class Mission(BaseModel):
             return False
 
         return True
+
+    def get_submission_count(self):
+        """
+        Count submissions that consume mission capacity.
+
+        Rejected submissions, including user-cancelled submissions, do not
+        consume capacity so a bad or withdrawn submission can reopen a slot.
+        """
+        annotated_count = getattr(self, 'submission_count', None)
+        if annotated_count is not None:
+            return annotated_count
+        return self.submissions.exclude(state='rejected').count()
+
+    def submissions_remaining(self):
+        if self.max_submissions is None:
+            return None
+        return max(self.max_submissions - self.get_submission_count(), 0)
+
+    def is_full(self):
+        return (
+            self.max_submissions is not None
+            and self.get_submission_count() >= self.max_submissions
+        )
 
     @classmethod
     def get_active_missions(cls, limit=10):

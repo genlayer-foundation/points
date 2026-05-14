@@ -48,6 +48,7 @@ class LightContributionTypeSerializer(serializers.Serializer):
     description = serializers.CharField(read_only=True)
     min_points = serializers.IntegerField(read_only=True)
     max_points = serializers.IntegerField(read_only=True)
+    max_submissions = serializers.IntegerField(read_only=True)
     # Include category slug only, not the full category object
     category = serializers.SerializerMethodField()
 
@@ -64,6 +65,7 @@ class LightMissionSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     name = serializers.CharField(read_only=True)
     contribution_type = serializers.PrimaryKeyRelatedField(read_only=True)
+    max_submissions = serializers.IntegerField(read_only=True)
 
 
 class EvidenceSerializer(serializers.ModelSerializer):
@@ -110,12 +112,17 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
     category = serializers.CharField(source='category.slug', read_only=True)
     accepted_evidence_url_types = serializers.SerializerMethodField()
     required_evidence_url_types = serializers.SerializerMethodField()
+    submission_count = serializers.SerializerMethodField()
+    submissions_remaining = serializers.SerializerMethodField()
+    is_full = serializers.SerializerMethodField()
 
     class Meta:
         model = ContributionType
         fields = [
             'id', 'name', 'slug', 'description', 'category', 'min_points', 'max_points',
-            'current_multiplier', 'is_submittable', 'show_in_contributions', 'examples',
+            'current_multiplier', 'is_submittable', 'max_submissions',
+            'submission_count', 'submissions_remaining', 'is_full',
+            'show_in_contributions', 'examples',
             'required_social_accounts', 'accepted_evidence_url_types', 'required_evidence_url_types',
             'created_at', 'updated_at'
         ]
@@ -154,6 +161,15 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
         """Return required evidence URL types (at least one must match)."""
         url_types = obj.required_evidence_url_types.all().order_by('order')
         return EvidenceURLTypeSerializer(url_types, many=True).data
+
+    def get_submission_count(self, obj):
+        return obj.get_submission_count()
+
+    def get_submissions_remaining(self, obj):
+        return obj.submissions_remaining()
+
+    def get_is_full(self, obj):
+        return obj.is_full()
 
 
 
@@ -997,18 +1013,32 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
 
 class MissionSerializer(serializers.ModelSerializer):
     is_active = serializers.SerializerMethodField()
+    submission_count = serializers.SerializerMethodField()
+    submissions_remaining = serializers.SerializerMethodField()
+    is_full = serializers.SerializerMethodField()
 
     class Meta:
         model = Mission
         fields = [
             'id', 'name', 'description',
             'start_date', 'end_date', 'contribution_type',
+            'max_submissions', 'submission_count',
+            'submissions_remaining', 'is_full',
             'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_is_active(self, obj):
         return obj.is_active()
+
+    def get_submission_count(self, obj):
+        return obj.get_submission_count()
+
+    def get_submissions_remaining(self, obj):
+        return obj.submissions_remaining()
+
+    def get_is_full(self, obj):
+        return obj.is_full()
 
 
 class StartupRequestListSerializer(serializers.ModelSerializer):
