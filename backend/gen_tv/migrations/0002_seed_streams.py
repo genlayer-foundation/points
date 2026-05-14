@@ -277,6 +277,16 @@ STREAMS: list[tuple[str, str, datetime, str, str, bool]] = [
         "Speakers: @raskovsky, @driudor",
         True,
     ),
+    (
+        "fud-markets-testnet-launch",
+        "FUD Markets Testnet Launch Livestream",
+        _at(2026, 5, 15, 15, 0),
+        "https://x.com/GenLayer/status/2054659264912687394",
+        "@raskovsky and @theboymarc0x's deep dive on the recently launched app FUD "
+        "Markets that uses GenLayer's technology, their Testnet and Mainnet phases.\n\n"
+        "Speakers: @raskovsky, @theboymarc0x",
+        True,
+    ),
 ]
 
 

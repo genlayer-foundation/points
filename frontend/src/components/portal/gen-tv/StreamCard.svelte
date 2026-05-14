@@ -33,78 +33,111 @@
     }
   }
 
+  function descriptionPreview(value) {
+    if (!value) return '';
+    return value
+      .split(/\n\s*\n/)
+      .find(Boolean)
+      ?.replace(/\s+/g, ' ')
+      .trim() || '';
+  }
+
+  function isDefaultImage(url) {
+    return !url || url.includes('/default-banner.');
+  }
+
+  let imageFailed = $state(false);
   let isLive = $derived(variant === 'live');
   let isUpcoming = $derived(variant === 'upcoming');
   let categoryLabel = $derived(stream.category === 'internal' ? 'GenLayer Team' : 'Community');
   let host = $derived(hostLabel(stream.url));
   let duration = $derived(formatDuration(stream.starts_at, stream.ends_at));
+  let dateTime = $derived(formatDateTime(stream.starts_at));
+  let description = $derived(descriptionPreview(stream.description));
+  let showDefaultInfo = $derived(isDefaultImage(stream.image_url) || imageFailed);
 </script>
 
 <a
   href={stream.url}
   target="_blank"
   rel="noopener noreferrer"
-  class="group w-full rounded-[8px] overflow-hidden relative cursor-pointer bg-[#f8f8f8] block"
+  aria-label={`Open ${stream.title}${dateTime ? `, ${dateTime}` : ''}`}
+  class="group w-full rounded-[8px] overflow-hidden relative cursor-pointer bg-[#111] block shadow-sm ring-1 ring-black/5 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
 >
   <div class="relative w-full aspect-[16/9]">
+    <div class="absolute inset-0 bg-gradient-to-br from-[#202020] via-[#111] to-black"></div>
     {#if stream.image_url}
       <img
         src={stream.image_url}
         alt=""
         class="absolute inset-0 w-full h-full object-cover"
         loading="lazy"
+        onerror={(event) => {
+          imageFailed = true;
+          event.currentTarget.remove();
+        }}
       />
-    {:else}
-      <div class="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900"></div>
     {/if}
 
-    <div class="absolute inset-0 bg-gradient-to-b from-[rgba(0,0,0,0.2)] to-[rgba(0,0,0,0.7)]"></div>
+    <div class="absolute inset-0 {showDefaultInfo ? 'bg-gradient-to-b from-black/5 via-black/10 to-black/75' : 'bg-gradient-to-b from-black/0 via-black/0 to-black/20'}"></div>
 
-    <div class="absolute top-0 left-0 right-0 p-2.5 flex items-start justify-between gap-2">
-      <div class="flex items-center gap-1 min-w-0 flex-wrap">
+    <div class="absolute top-0 left-0 right-0 p-2.5 sm:p-3 flex items-start justify-between gap-3">
+      <div class="min-w-0">
         {#if isLive}
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-semibold uppercase tracking-wide">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500 text-white text-[11px] font-semibold uppercase">
             <span class="inline-block w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
             Live
           </span>
         {:else if isUpcoming}
-          <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-semibold uppercase tracking-wide">
+          <span class="inline-flex items-center px-2.5 py-1 rounded-full bg-[#f1c644] text-black text-[11px] font-semibold uppercase">
             Upcoming
-          </span>
-        {:else}
-          <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-600 text-white text-[10px] font-semibold uppercase tracking-wide">
-            Ended
-          </span>
-        {/if}
-
-        {#if duration}
-          <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-[10px] text-white text-[10px] font-medium tracking-wide">
-            {duration}
           </span>
         {/if}
       </div>
 
-      <div class="flex items-center p-1.5 rounded-[4px] backdrop-blur-[10px]" style="background: rgba(255,255,255,0.1);">
-        <img src="/assets/featured-builds/arrow-right-up-line.svg" alt="" class="w-3.5 h-3.5">
+      <div class="flex items-center p-2 rounded-[6px] backdrop-blur-[10px] bg-white/15 transition duration-300 group-hover:bg-white/25 group-focus-visible:bg-white/25">
+        <img src="/assets/featured-builds/arrow-right-up-line.svg" alt="" class="w-4 h-4">
       </div>
     </div>
 
-    <div class="absolute bottom-0 left-0 right-0 p-3 space-y-0.5">
-      <div class="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wide text-white/80">
-        <span>{categoryLabel}</span>
-        {#if host}
-          <span class="opacity-60">·</span>
-          <span class="normal-case font-medium opacity-80">{host}</span>
-        {/if}
-      </div>
-      <h3 class="text-white {isLive ? 'text-[16px] sm:text-[17px]' : 'text-[13px]'} font-display font-medium leading-tight line-clamp-1">
+    <div class="absolute bottom-0 left-0 right-0 p-3.5 sm:p-5 space-y-1.5 transition duration-200 {showDefaultInfo ? 'opacity-100 translate-y-0 group-hover:opacity-0 group-hover:translate-y-2 group-focus-visible:opacity-0 group-focus-visible:translate-y-2' : 'opacity-0 translate-y-2'}">
+      <h3 class="text-white text-[18px] sm:text-[22px] font-display font-medium leading-[1.05] line-clamp-2">
         {stream.title}
       </h3>
-      {#if stream.starts_at}
-        <p class="text-[#cfcfcf] text-[11px]" style="letter-spacing: 0.22px;">
-          {formatDateTime(stream.starts_at)}
+      {#if dateTime}
+        <p class="text-white/80 text-[12px] sm:text-[14px] font-medium">
+          {dateTime}
         </p>
       {/if}
+    </div>
+
+    <div class="absolute inset-0 p-3.5 sm:p-5 flex items-end bg-black/30 backdrop-blur-[14px] opacity-0 translate-y-3 transition duration-200 group-hover:opacity-100 group-hover:translate-y-0 group-focus-visible:opacity-100 group-focus-visible:translate-y-0">
+      <div class="space-y-3 drop-shadow-[0_2px_10px_rgba(0,0,0,0.65)]">
+        <div class="space-y-1">
+          <h3 class="text-white text-[18px] sm:text-[22px] font-display font-medium leading-[1.05] line-clamp-2">
+            {stream.title}
+          </h3>
+          {#if dateTime}
+            <p class="text-white/70 text-[12px] sm:text-[14px] font-medium">
+              {dateTime}{duration ? ` · ${duration}` : ''}
+            </p>
+          {/if}
+        </div>
+
+        {#if description}
+          <p class="text-white/85 text-[13px] sm:text-[15px] leading-snug line-clamp-3 max-w-[58ch]">
+            {description}
+          </p>
+        {/if}
+
+        <div class="flex items-center gap-2 text-[11px] font-semibold uppercase text-white/72">
+          <span>{categoryLabel}</span>
+          {#if host}
+            <span class="opacity-50">·</span>
+            <span class="normal-case font-medium">{host}</span>
+          {/if}
+        </div>
+      </div>
     </div>
   </div>
 </a>
