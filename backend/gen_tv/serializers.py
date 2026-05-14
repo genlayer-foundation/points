@@ -14,6 +14,7 @@ class LightStreamSerializer(serializers.ModelSerializer):
             'id',
             'title',
             'slug',
+            'description',
             'image_url',
             'url',
             'starts_at',

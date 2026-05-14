@@ -11,33 +11,33 @@ class StreamAPITest(TestCase):
             title='Internal Live',
             slug='internal-live',
             url='https://x.com/genlayer/status/1',
-            scheduled_at=now,
+            starts_at=now - timezone.timedelta(minutes=10),
+            ends_at=now + timezone.timedelta(minutes=50),
             category=Stream.Category.INTERNAL,
-            status=Stream.Status.LIVE,
         )
         Stream.objects.create(
             title='Internal Past',
             slug='internal-past',
             url='https://x.com/genlayer/status/2',
-            scheduled_at=now,
+            starts_at=now - timezone.timedelta(hours=2),
+            ends_at=now - timezone.timedelta(hours=1),
             category=Stream.Category.INTERNAL,
-            status=Stream.Status.PAST,
         )
         Stream.objects.create(
             title='Community Upcoming',
             slug='community-upcoming',
             url='https://x.com/community/status/3',
-            scheduled_at=now,
+            starts_at=now + timezone.timedelta(hours=1),
+            ends_at=now + timezone.timedelta(hours=2),
             category=Stream.Category.COMMUNITY,
-            status=Stream.Status.UPCOMING,
         )
         Stream.objects.create(
             title='Inactive',
             slug='inactive',
             url='https://x.com/genlayer/status/9',
-            scheduled_at=now,
+            starts_at=now - timezone.timedelta(minutes=10),
+            ends_at=now + timezone.timedelta(minutes=50),
             category=Stream.Category.INTERNAL,
-            status=Stream.Status.LIVE,
             is_active=False,
         )
 
