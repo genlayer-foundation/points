@@ -3,7 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { featuredAPI } from '../../lib/api.js';
 
-  let { category = 'builder' } = $props();
+  let { category = 'builder', showNewsLink = false } = $props();
 
   let heroes = $state([]);
   let currentIndex = $state(0);
@@ -142,10 +142,36 @@
         </p>
       </div>
 
-      <div class="h-10">
+      <div class={showNewsLink ? 'min-h-10' : 'h-10'}>
         {#if hero.link || hero.url}
-          <a href={projectLink} target={projectLink.startsWith('http') ? '_blank' : undefined} rel={projectLink.startsWith('http') ? 'noopener noreferrer' : undefined} class="inline-flex h-10 px-4 bg-white rounded-[20px] items-center gap-2 hover:bg-white/90 transition-colors">
-            <span class="text-black text-sm font-medium" style="letter-spacing: 0.28px;">View project</span>
+          {#if showNewsLink}
+            <div class="flex flex-wrap items-center gap-2">
+              <a href={projectLink} target={projectLink.startsWith('http') ? '_blank' : undefined} rel={projectLink.startsWith('http') ? 'noopener noreferrer' : undefined} class="inline-flex h-10 px-4 bg-white rounded-[20px] items-center gap-2 hover:bg-white/90 transition-colors">
+                <span class="text-black text-sm font-medium" style="letter-spacing: 0.28px;">View project</span>
+                <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
+              </a>
+              <a
+                href="#/gen-news"
+                class="inline-flex h-10 items-center gap-1 rounded-[20px] border border-white/25 bg-white/10 px-4 text-sm font-medium text-white backdrop-blur-[10px] transition-colors hover:bg-white/20"
+                style="letter-spacing: 0.28px;"
+              >
+                See all
+                <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4 brightness-0 invert">
+              </a>
+            </div>
+          {:else}
+            <a href={projectLink} target={projectLink.startsWith('http') ? '_blank' : undefined} rel={projectLink.startsWith('http') ? 'noopener noreferrer' : undefined} class="inline-flex h-10 px-4 bg-white rounded-[20px] items-center gap-2 hover:bg-white/90 transition-colors">
+              <span class="text-black text-sm font-medium" style="letter-spacing: 0.28px;">View project</span>
+              <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
+            </a>
+          {/if}
+        {:else if showNewsLink}
+          <a
+            href="#/gen-news"
+            class="inline-flex h-10 items-center gap-2 rounded-[20px] bg-white px-4 text-sm font-medium text-black transition-colors hover:bg-white/90"
+            style="letter-spacing: 0.28px;"
+          >
+            See all news
             <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
           </a>
         {/if}
