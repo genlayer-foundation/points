@@ -29,6 +29,7 @@ backend/
 ├── leaderboard/           # Leaderboard and rankings
 ├── users/                 # User management and auth
 ├── partners/              # Ecosystem partners directory
+├── gen_tv/                # Gen TV livestream index
 ├── utils/                 # Shared utilities
 └── backend/               # Django project settings
 ```
@@ -128,6 +129,17 @@ backend/
   - `/api/v1/partners/{slug}/` - Public read-only detail by slug
 - **Migrations**: `partners/migrations/0001_initial.py` creates the model and seeds the 22 founding partners from a `RunPython` step.
 - **Admin**: `partners/admin.py` - list_editable on `display_order`, `is_active`; slug prepopulated from name.
+
+### Gen TV
+- **Models**: `gen_tv/models.py`
+  - Stream - Livestream entry with `title`, `slug`, `description`, `url`, `image_url`, `starts_at` (required), `ends_at` (required), `category` (`internal` / `community`), `is_active`. `status` is a derived `@property` computed from `starts_at`/`ends_at` (no DB column).
+- **Serializers**: `gen_tv/serializers.py`
+  - LightStreamSerializer - Minimal fields for list views (status comes through as a read-only string)
+  - StreamSerializer - Full fields for detail
+- **Views**: `gen_tv/views.py`
+  - `/api/v1/gen-tv/streams/` - Public read-only list with `category` filter; pagination disabled (small dataset)
+  - `/api/v1/gen-tv/streams/{slug}/` - Public read-only detail by slug
+- **Admin**: `gen_tv/admin.py` - status surfaces as a read-only `computed_status` column; date_hierarchy on `starts_at`; slug prepopulated from title.
 
 ### Database & Migrations
 - **Migrations**: `{app}/migrations/`
@@ -248,6 +260,10 @@ GET    /api/v1/ai-review/templates/
 # Partners (Ecosystem Partners)
 GET    /api/v1/partners/                   (public, list active partners)
 GET    /api/v1/partners/{slug}/            (public, partner detail)
+
+# Gen TV
+GET    /api/v1/gen-tv/streams/             (public, supports ?category= filter)
+GET    /api/v1/gen-tv/streams/{slug}/      (public, stream detail)
 ```
 
 ## Environment Variables

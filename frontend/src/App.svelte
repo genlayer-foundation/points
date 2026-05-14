@@ -84,6 +84,7 @@
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
   import EcosystemPartners from './routes/EcosystemPartners.svelte';
   import GenNews from './routes/GenNews.svelte';
+  import GenTV from './routes/GenTV.svelte';
   import Referrals from './routes/Referrals.svelte';
   import Community from './routes/Community.svelte';
   import Hackathon from './routes/Hackathon.svelte';
@@ -164,6 +165,7 @@
     // Ecosystem
     '/ecosystem-partners': EcosystemPartners,
     '/gen-news': GenNews,
+    '/gen-tv': GenTV,
 
     '*': NotFound
   };
