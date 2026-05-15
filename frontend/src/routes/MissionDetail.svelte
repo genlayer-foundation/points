@@ -74,7 +74,8 @@
     `/all-contributions?category=${explorerCategory}&mission=${params.id}`
   );
   let missionIsFull = $derived(
-    mission?.is_full === true ||
+    mission?.user_is_full === true ||
+      mission?.is_full === true ||
       (mission?.max_submissions != null &&
         mission?.submissions_remaining != null &&
         Number(mission.submissions_remaining) <= 0)
@@ -87,6 +88,7 @@
   );
   let submissionClosed = $derived(missionIsFull || contributionTypeIsFull);
   let capacityLabel = $derived.by(() => {
+    if (mission?.user_is_full === true) return 'Your limit reached';
     if (mission?.max_submissions == null) {
       return contributionTypeIsFull ? 'Submissions closed' : 'Unlimited';
     }

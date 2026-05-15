@@ -700,6 +700,14 @@ class Mission(BaseModel):
             "mission. Leave blank for unlimited."
         ),
     )
+    max_submissions_per_user = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Maximum number of non-rejected submissions allowed per user for "
+            "this mission. Leave blank for unlimited."
+        ),
+    )
 
     class Meta:
         ordering = ['-created_at']
@@ -745,6 +753,34 @@ class Mission(BaseModel):
             self.max_submissions is not None
             and self.get_submission_count() >= self.max_submissions
         )
+
+    def get_user_submission_count(self, user):
+        """
+        Count submissions from a specific user that consume mission capacity.
+        """
+        if not user or not getattr(user, 'is_authenticated', False):
+            return None
+        return self.submissions.filter(user=user).exclude(state='rejected').count()
+
+    def user_submissions_remaining(self, user):
+        if self.max_submissions_per_user is None:
+            return None
+
+        submission_count = self.get_user_submission_count(user)
+        if submission_count is None:
+            return None
+
+        return max(self.max_submissions_per_user - submission_count, 0)
+
+    def is_full_for_user(self, user):
+        if self.max_submissions_per_user is None:
+            return False
+
+        submission_count = self.get_user_submission_count(user)
+        if submission_count is None:
+            return False
+
+        return submission_count >= self.max_submissions_per_user
 
     @classmethod
     def get_active_missions(cls, limit=10):
