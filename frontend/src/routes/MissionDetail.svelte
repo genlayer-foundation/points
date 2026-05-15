@@ -87,6 +87,13 @@
         Number(contributionType.submissions_remaining) <= 0)
   );
   let submissionClosed = $derived(missionIsFull || contributionTypeIsFull);
+  let submitButtonLabel = $derived(
+    mission?.user_is_full === true
+      ? 'Limit reached'
+      : submissionClosed
+        ? 'Submissions closed'
+        : 'Submit to mission'
+  );
   let capacityLabel = $derived.by(() => {
     if (mission?.user_is_full === true) return 'Your limit reached';
     if (mission?.max_submissions == null) {
@@ -241,7 +248,7 @@
             class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black bg-black px-4 text-[13px] font-semibold text-white shadow-[0_8px_22px_rgba(31,42,68,0.12)] transition sm:w-auto {submissionClosed ? 'cursor-not-allowed opacity-60' : 'hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.16)]'}"
             style={submissionClosed ? '' : submitButtonStyle}
           >
-            {submissionClosed ? 'Submissions closed' : 'Submit to mission'}
+            {submitButtonLabel}
             {#if !submissionClosed}
               <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="h-4 w-4" />
             {/if}
