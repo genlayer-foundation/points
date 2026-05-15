@@ -765,6 +765,9 @@ class Mission(BaseModel):
         """
         if not user or not getattr(user, 'is_authenticated', False):
             return None
+        annotated_count = getattr(self, 'user_submission_count', None)
+        if annotated_count is not None:
+            return annotated_count
         return self.submissions.filter(user=user).exclude(
             state__in=['rejected', 'canceled']
         ).count()
