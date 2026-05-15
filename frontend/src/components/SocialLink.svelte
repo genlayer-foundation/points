@@ -12,6 +12,7 @@
     initiateUrl = '',
     onLinked = () => {},
     compact = false,
+    allowUsernameRefresh = false,
   } = $props();
 
   let isLinking = $state(false);
@@ -26,6 +27,7 @@
   const storageKey = `oauth_result_${platform}`;
   const handledFlag = `oauth_handled_${platform}`;
   const pendingFlag = `oauth_pending_${platform}`;
+  const modeFlag = `oauth_mode_${platform}`;
 
   function clearPopupMonitor() {
     if (popupMonitor) {
@@ -50,10 +52,11 @@
 
   function clearOAuthPending() {
     sessionStorage.removeItem(pendingFlag);
+    sessionStorage.removeItem(modeFlag);
   }
 
   function hasPendingOAuth() {
-    return isLinking || sessionStorage.getItem(pendingFlag) === '1';
+    return isLinking || isRefreshing || sessionStorage.getItem(pendingFlag) === '1';
   }
 
   // --- Event handlers ---
@@ -100,6 +103,7 @@
       return;
     }
     handledOAuthResult = true;
+    const wasRefreshing = isRefreshing || sessionStorage.getItem(modeFlag) === 'refresh_username';
     clearPopupMonitor();
     clearOAuthPending();
 
@@ -111,32 +115,58 @@
         if (shouldToast) {
           const connData = resolvedUser?.[`${platform}_connection`];
           const username = connData?.platform_username || '';
-          showSuccess(`${platformLabel} account linked successfully!${username ? ` (@${username})` : ''}`);
+          if (wasRefreshing) {
+            const previousUsername = connection?.platform_username || '';
+            showSuccess(
+              username && previousUsername && username !== previousUsername
+                ? `${platformLabel} username updated to ${username}`
+                : `${platformLabel} username is already up to date`
+            );
+          } else {
+            showSuccess(`${platformLabel} account linked successfully!${username ? ` (@${username})` : ''}`);
+          }
         }
         onLinked(resolvedUser);
         isLinking = false;
+        isRefreshing = false;
       }).catch(() => {
         if (shouldToast) {
-          showSuccess(`${platformLabel} account linked! Please refresh to see changes.`);
+          showSuccess(
+            wasRefreshing
+              ? `${platformLabel} username refreshed! Please reload to see changes.`
+              : `${platformLabel} account linked! Please refresh to see changes.`
+          );
         }
         isLinking = false;
+        isRefreshing = false;
       });
     } else {
       if (shouldToast) {
         if (oauthError === 'already_linked') {
-          showError(`This ${platformLabel} account is already linked to another user`);
+          showError(
+            wasRefreshing
+              ? `This ${platformLabel} account is linked to another user`
+              : `This ${platformLabel} account is already linked to another user`
+          );
+        } else if (oauthError === 'account_mismatch') {
+          showError(`This ${platformLabel} account does not match the account already linked`);
         } else if (oauthError === 'authorization_failed') {
           showError(`${platformLabel} authorization was cancelled or failed`);
         } else {
-          showError(`Failed to link ${platformLabel} account. Please try again.`);
+          showError(
+            wasRefreshing
+              ? `Failed to refresh ${platformLabel} username. Please try again.`
+              : `Failed to link ${platformLabel} account. Please try again.`
+          );
         }
       }
       isLinking = false;
+      isRefreshing = false;
     }
   }
 
   async function reconcileAfterPopupClose() {
-    if (!isLinking || handledOAuthResult) return;
+    if ((!isLinking && !isRefreshing) || handledOAuthResult) return;
 
     // Check localStorage first — the popup writes here, and the storage event
     // may have been missed (same-tab writes don't fire storage events; the
@@ -154,7 +184,7 @@
       if (handledOAuthResult) return;
       try {
         const currentUser = await getCurrentUser();
-        if (currentUser?.[`${platform}_connection`]?.platform_username) {
+        if (!isRefreshing && currentUser?.[`${platform}_connection`]?.platform_username) {
           handleOAuthReturn(true, '', currentUser);
           return;
         }
@@ -196,10 +226,9 @@
   let config = $derived(platformConfig[platform] || platformConfig.github);
   const refreshHandlers = {
     github: socialAPI.refreshGitHubUsername,
-    twitter: socialAPI.refreshTwitterUsername,
     discord: socialAPI.refreshDiscordUsername,
   };
-  let canRefresh = $derived(!!refreshHandlers[platform]);
+  let canRefresh = $derived(allowUsernameRefresh && (platform === 'twitter' || !!refreshHandlers[platform]));
 
   function isMobileBrowser() {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera || '';
@@ -227,16 +256,18 @@
     }
   }
 
-  async function linkAccount() {
+  async function linkAccount({ refreshUsername = false } = {}) {
     if (!$authState.isAuthenticated) {
       document.querySelector('.auth-button')?.click();
       return;
     }
 
     handledOAuthResult = false;
-    isLinking = true;
+    isLinking = !refreshUsername;
+    isRefreshing = refreshUsername;
     localStorage.removeItem(storageKey);
     markOAuthPending();
+    sessionStorage.setItem(modeFlag, refreshUsername ? 'refresh_username' : 'link');
 
     const redirectUrl = encodeURIComponent(getCurrentRedirectUrl());
     const oauthUrl = `${API_BASE_URL}${initiateUrl}?redirect=${redirectUrl}`;
@@ -264,7 +295,12 @@
   }
 
   async function refreshAccount() {
-    if (!$authState.isAuthenticated || !canRefresh || !connection || isRefreshing) {
+    if (!$authState.isAuthenticated || !canRefresh || !connection || isRefreshing || isLinking) {
+      return;
+    }
+
+    if (platform === 'twitter') {
+      await linkAccount({ refreshUsername: true });
       return;
     }
 
@@ -281,7 +317,7 @@
       );
       onLinked(updatedUser);
     } catch (error) {
-      const message = error?.response?.data?.error || `Could not refresh ${platformLabel} username. Please try again.`;
+      const message = error?.response?.data?.error || `Failed to refresh ${platformLabel} username. Please try again.`;
       showError(message);
     } finally {
       isRefreshing = false;
