@@ -1,10 +1,19 @@
 from django.contrib import admin
 
+from utils.admin_mixins import CloudinaryUploadMixin
+
 from .models import Partner
 
 
 @admin.register(Partner)
-class PartnerAdmin(admin.ModelAdmin):
+class PartnerAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
+    cloudinary_upload_fields = {
+        'logo_url': {
+            'public_id_field': 'logo_public_id',
+            'folder': 'tally/partners',
+        },
+    }
+
     list_display = (
         'name',
         'display_order',
@@ -16,13 +25,14 @@ class PartnerAdmin(admin.ModelAdmin):
     list_filter = ('is_active',)
     search_fields = ('name', 'description')
     prepopulated_fields = {'slug': ('name',)}
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'logo_public_id')
     fieldsets = (
         (None, {
             'fields': ('name', 'slug', 'description', 'is_active'),
         }),
         ('URLs', {
             'fields': ('logo_url', 'website_url', 'url'),
+            'description': 'Upload a logo directly or paste a Cloudinary URL.',
         }),
         ('Display', {
             'fields': ('display_order',),
