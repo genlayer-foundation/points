@@ -2,7 +2,7 @@
  * Parse a GitHub-style search query into structured filters.
  *
  * Supported tags:
- * - status:pending|accepted|rejected|more_info
+ * - status:pending|accepted|rejected|canceled|more_info
  * - type:contribution-type-name
  * - from:username
  * - assigned:me|unassigned|steward-name

@@ -974,13 +974,18 @@
     let cumAccepted = 0;
     let cumRejected = 0;
     let cumMoreInfo = 0;
+    let cumCanceled = 0;
 
     return submissionsData.data.map((point) => {
       cumIngress += Number(point.ingress || 0);
       cumAccepted += Number(point.accepted || 0);
       cumRejected += Number(point.rejected || 0);
       cumMoreInfo += Number(point.more_info_requested || 0);
-      const pending = Math.max(0, cumIngress - cumAccepted - cumRejected - cumMoreInfo);
+      cumCanceled += Number(point.canceled || 0);
+      const pending = Math.max(
+        0,
+        cumIngress - cumAccepted - cumRejected - cumMoreInfo - cumCanceled
+      );
       return { pending, accepted: cumAccepted, rejected: cumRejected, moreInfo: cumMoreInfo };
     });
   }
