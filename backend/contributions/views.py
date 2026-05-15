@@ -5,7 +5,19 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django_filters import FilterSet, CharFilter, BooleanFilter, NumberFilter
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Count, Max, F, Q, Exists, OuterRef, Subquery, Sum
+from django.db.models import (
+    Count,
+    DecimalField,
+    Exists,
+    F,
+    IntegerField,
+    Max,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+)
 from django.db.models.functions import TruncDate, TruncWeek, TruncMonth
 from django.db.models.functions import Coalesce
 from django.shortcuts import render, redirect, get_object_or_404
@@ -40,14 +52,30 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['name', 'created_at']
     
     def get_queryset(self):
-        queryset = ContributionType.objects.all().annotate(
-            submission_count=Count(
-                'submitted_contributions',
-                filter=~Q(
-                    submitted_contributions__state__in=['rejected', 'canceled']
-                ),
-                distinct=True,
-            )
+        active_submissions = SubmittedContribution.objects.exclude(
+            state__in=['rejected', 'canceled']
+        )
+        submission_count = active_submissions.filter(
+            contribution_type_id=OuterRef('pk')
+        ).values('contribution_type_id').annotate(
+            count=Count('pk')
+        ).values('count')
+        multiplier_field = DecimalField(max_digits=10, decimal_places=2)
+        current_multiplier = GlobalLeaderboardMultiplier.objects.filter(
+            contribution_type_id=OuterRef('pk')
+        ).order_by('-valid_from').values('multiplier_value')[:1]
+
+        queryset = ContributionType.objects.select_related('category').annotate(
+            submission_count=Coalesce(
+                Subquery(submission_count, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            current_multiplier_value=Coalesce(
+                Subquery(current_multiplier, output_field=multiplier_field),
+                Value(1.0, output_field=multiplier_field),
+                output_field=multiplier_field,
+            ),
         )
 
         # Filter by category if provided
@@ -66,7 +94,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset.prefetch_related(
             'accepted_evidence_url_types',
             'required_evidence_url_types',
-        )
+        ).order_by('category__name', 'name', 'id')
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def statistics(self, request):
@@ -79,8 +107,6 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             - last date someone earned each type
             - total points given for each type
         """
-        from django.db.models import Sum
-        
         # Start with all contribution types
         queryset = ContributionType.objects.all()
 
@@ -92,26 +118,28 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             if category == 'builder':
                 queryset = queryset.exclude(slug='builder-welcome')
         
+        multiplier_field = DecimalField(max_digits=10, decimal_places=2)
+        current_multiplier = GlobalLeaderboardMultiplier.objects.filter(
+            contribution_type_id=OuterRef('pk')
+        ).order_by('-valid_from').values('multiplier_value')[:1]
+
         types_with_stats = queryset.annotate(
             count=Count('contributions'),
             participants_count=Count('contributions__user', distinct=True),
             last_earned=Coalesce(Max('contributions__contribution_date'), timezone.now()),
-            total_points_given=Coalesce(Sum('contributions__frozen_global_points'), 0)
-        ).values('id', 'name', 'description', 'min_points', 'max_points', 'count', 'participants_count', 'last_earned', 'total_points_given', 'is_submittable', 'show_in_contributions')
-        
-        # Add current multiplier for each type
-        result = []
-        for type_data in types_with_stats:
-            try:
-                contribution_type = ContributionType.objects.get(id=type_data['id'])
-                multiplier_value = GlobalLeaderboardMultiplier.get_current_multiplier_value(contribution_type)
-                type_data['current_multiplier'] = multiplier_value
-            except Exception:
-                type_data['current_multiplier'] = 1.0
+            total_points_given=Coalesce(Sum('contributions__frozen_global_points'), 0),
+            current_multiplier=Coalesce(
+                Subquery(current_multiplier, output_field=multiplier_field),
+                Value(1.0, output_field=multiplier_field),
+                output_field=multiplier_field,
+            ),
+        ).values(
+            'id', 'name', 'description', 'min_points', 'max_points', 'count',
+            'participants_count', 'last_earned', 'total_points_given',
+            'is_submittable', 'show_in_contributions', 'current_multiplier',
+        )
             
-            result.append(type_data)
-            
-        return Response(result)
+        return Response(list(types_with_stats))
     
     @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
     def top_contributors(self, request, pk=None):
@@ -1905,10 +1933,54 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
         Return active missions by default.
         Supports filtering by contribution_type and category.
         """
+        active_submissions = SubmittedContribution.objects.exclude(
+            state__in=['rejected', 'canceled']
+        )
+        mission_submission_count = active_submissions.filter(
+            mission_id=OuterRef('pk')
+        ).values('mission_id').annotate(
+            count=Count('pk')
+        ).values('count')
+        contribution_type_submission_count = active_submissions.filter(
+            contribution_type_id=OuterRef('contribution_type_id')
+        ).values('contribution_type_id').annotate(
+            count=Count('pk')
+        ).values('count')
+
+        annotations = {
+            'submission_count': Coalesce(
+                Subquery(mission_submission_count, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            'contribution_type_submission_count': Coalesce(
+                Subquery(
+                    contribution_type_submission_count,
+                    output_field=IntegerField(),
+                ),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+        }
+
+        user = getattr(self.request, 'user', None)
+        if user and getattr(user, 'is_authenticated', False):
+            user_submission_count = active_submissions.filter(
+                mission_id=OuterRef('pk'),
+                user_id=user.id,
+            ).values('mission_id').annotate(
+                count=Count('pk')
+            ).values('count')
+            annotations['user_submission_count'] = Coalesce(
+                Subquery(user_submission_count, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            )
+
         queryset = Mission.objects.all().select_related(
             'contribution_type',
             'contribution_type__category',
-        ).order_by('-created_at')
+        ).annotate(**annotations).order_by('-created_at', '-id')
 
         include_inactive = (
             self.request.query_params.get('include_inactive', '').lower()

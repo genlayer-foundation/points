@@ -131,11 +131,26 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
 
     def get_current_multiplier(self, obj):
         """Get the current multiplier value for this contribution type."""
+        annotated_multiplier = getattr(obj, 'current_multiplier_value', None)
+        if annotated_multiplier is not None:
+            return float(annotated_multiplier)
+
         from leaderboard.models import GlobalLeaderboardMultiplier
         try:
             return float(GlobalLeaderboardMultiplier.get_current_multiplier_value(obj))
         except Exception:
             return 1.0
+
+    def _all_evidence_url_types(self):
+        cached = self.context.get('_all_evidence_url_types')
+        if cached is None:
+            cached = list(EvidenceURLType.objects.all().order_by('order', 'name'))
+            self.context['_all_evidence_url_types'] = cached
+        return cached
+
+    @staticmethod
+    def _ordered_url_types(url_types):
+        return sorted(url_types, key=lambda t: (t.order, t.name))
 
     def get_accepted_evidence_url_types(self, obj):
         """Return accepted evidence URL types with patterns for client-side detection.
@@ -147,20 +162,22 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
         Required types are merged in when an explicit accepted list is set,
         so they are always part of the returned list.
         """
-        accepted = obj.accepted_evidence_url_types.all()
-        if not accepted.exists():
-            url_types = EvidenceURLType.objects.all().order_by('order')
+        accepted = list(obj.accepted_evidence_url_types.all())
+        if not accepted:
+            url_types = self._all_evidence_url_types()
         else:
-            required = obj.required_evidence_url_types.all()
+            required = list(obj.required_evidence_url_types.all())
             merged = {t.id: t for t in accepted}
             for t in required:
                 merged.setdefault(t.id, t)
-            url_types = sorted(merged.values(), key=lambda t: (t.order, t.name))
+            url_types = self._ordered_url_types(merged.values())
         return EvidenceURLTypeSerializer(url_types, many=True).data
 
     def get_required_evidence_url_types(self, obj):
         """Return required evidence URL types (at least one must match)."""
-        url_types = obj.required_evidence_url_types.all().order_by('order')
+        url_types = self._ordered_url_types(
+            obj.required_evidence_url_types.all()
+        )
         return EvidenceURLTypeSerializer(url_types, many=True).data
 
     def get_submission_count(self, obj):
@@ -1044,13 +1061,8 @@ class MissionSerializer(serializers.ModelSerializer):
         data = LightContributionTypeSerializer(contribution_type).data
         submission_count = getattr(obj, 'contribution_type_submission_count', None)
         max_submissions = contribution_type.max_submissions
-        if submission_count is None and max_submissions is not None:
-            submission_count = contribution_type.get_submission_count()
         if submission_count is None:
-            data['submission_count'] = None
-            data['submissions_remaining'] = None
-            data['is_full'] = False
-            return data
+            submission_count = contribution_type.get_submission_count()
 
         data['submission_count'] = submission_count
         data['submissions_remaining'] = (
@@ -1065,8 +1077,6 @@ class MissionSerializer(serializers.ModelSerializer):
         return data
 
     def get_submission_count(self, obj):
-        if obj.max_submissions is None:
-            return getattr(obj, 'submission_count', None)
         return obj.get_submission_count()
 
     def get_submissions_remaining(self, obj):
@@ -1083,8 +1093,6 @@ class MissionSerializer(serializers.ModelSerializer):
         return None
 
     def get_user_submission_count(self, obj):
-        if obj.max_submissions_per_user is None:
-            return getattr(obj, 'user_submission_count', None)
         return obj.get_user_submission_count(self._current_user())
 
     def get_user_submissions_remaining(self, obj):
