@@ -1908,25 +1908,7 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = Mission.objects.all().select_related(
             'contribution_type',
             'contribution_type__category',
-        ).annotate(
-            submission_count=Count(
-                'submissions',
-                filter=~Q(
-                    submissions__state__in=['rejected', 'canceled']
-                ),
-                distinct=True,
-            ),
-            contribution_type_submission_count=Count(
-                'contribution_type__submitted_contributions',
-                filter=~Q(
-                    contribution_type__submitted_contributions__state__in=[
-                        'rejected',
-                        'canceled',
-                    ]
-                ),
-                distinct=True,
-            )
-        )
+        ).order_by('-created_at')
 
         include_inactive = (
             self.request.query_params.get('include_inactive', '').lower()

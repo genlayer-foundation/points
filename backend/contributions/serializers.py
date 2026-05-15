@@ -1043,10 +1043,15 @@ class MissionSerializer(serializers.ModelSerializer):
         contribution_type = obj.contribution_type
         data = LightContributionTypeSerializer(contribution_type).data
         submission_count = getattr(obj, 'contribution_type_submission_count', None)
-        if submission_count is None:
-            submission_count = contribution_type.get_submission_count()
-
         max_submissions = contribution_type.max_submissions
+        if submission_count is None and max_submissions is not None:
+            submission_count = contribution_type.get_submission_count()
+        if submission_count is None:
+            data['submission_count'] = None
+            data['submissions_remaining'] = None
+            data['is_full'] = False
+            return data
+
         data['submission_count'] = submission_count
         data['submissions_remaining'] = (
             None
@@ -1060,6 +1065,8 @@ class MissionSerializer(serializers.ModelSerializer):
         return data
 
     def get_submission_count(self, obj):
+        if obj.max_submissions is None:
+            return getattr(obj, 'submission_count', None)
         return obj.get_submission_count()
 
     def get_submissions_remaining(self, obj):
@@ -1076,6 +1083,8 @@ class MissionSerializer(serializers.ModelSerializer):
         return None
 
     def get_user_submission_count(self, obj):
+        if obj.max_submissions_per_user is None:
+            return getattr(obj, 'user_submission_count', None)
         return obj.get_user_submission_count(self._current_user())
 
     def get_user_submissions_remaining(self, obj):
