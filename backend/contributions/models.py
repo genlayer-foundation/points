@@ -87,8 +87,8 @@ class ContributionType(BaseModel):
         null=True,
         blank=True,
         help_text=(
-            "Maximum number of non-rejected submissions allowed for this "
-            "contribution type. Leave blank for unlimited."
+            "Maximum number of non-rejected, non-canceled submissions allowed "
+            "for this contribution type. Leave blank for unlimited."
         ),
     )
     show_in_contributions = models.BooleanField(
@@ -138,7 +138,9 @@ class ContributionType(BaseModel):
         annotated_count = getattr(self, 'submission_count', None)
         if annotated_count is not None:
             return annotated_count
-        return self.submitted_contributions.exclude(state='rejected').count()
+        return self.submitted_contributions.exclude(
+            state__in=['rejected', 'canceled']
+        ).count()
 
     def submissions_remaining(self):
         if self.max_submissions is None:
@@ -327,6 +329,7 @@ class SubmittedContribution(BaseModel):
         ('pending', 'Pending Review'),
         ('accepted', 'Accepted'),
         ('rejected', 'Rejected'),
+        ('canceled', 'Canceled'),
         ('more_info_needed', 'More Information Needed')
     ]
     state = models.CharField(
@@ -696,8 +699,16 @@ class Mission(BaseModel):
         null=True,
         blank=True,
         help_text=(
-            "Maximum number of non-rejected submissions allowed for this "
-            "mission. Leave blank for unlimited."
+            "Maximum number of non-rejected, non-canceled submissions allowed "
+            "for this mission. Leave blank for unlimited."
+        ),
+    )
+    max_submissions_per_user = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Maximum number of non-rejected, non-canceled submissions allowed "
+            "per user for this mission. Leave blank for unlimited."
         ),
     )
 
@@ -727,13 +738,15 @@ class Mission(BaseModel):
         """
         Count submissions that consume mission capacity.
 
-        Rejected submissions do not consume capacity so a bad or withdrawn
-        submission can reopen a slot.
+        Rejected and canceled submissions do not consume capacity so a bad or
+        withdrawn submission can reopen a slot.
         """
         annotated_count = getattr(self, 'submission_count', None)
         if annotated_count is not None:
             return annotated_count
-        return self.submissions.exclude(state='rejected').count()
+        return self.submissions.exclude(
+            state__in=['rejected', 'canceled']
+        ).count()
 
     def submissions_remaining(self):
         if self.max_submissions is None:
@@ -745,6 +758,36 @@ class Mission(BaseModel):
             self.max_submissions is not None
             and self.get_submission_count() >= self.max_submissions
         )
+
+    def get_user_submission_count(self, user):
+        """
+        Count submissions from a specific user that consume mission capacity.
+        """
+        if not user or not getattr(user, 'is_authenticated', False):
+            return None
+        return self.submissions.filter(user=user).exclude(
+            state__in=['rejected', 'canceled']
+        ).count()
+
+    def user_submissions_remaining(self, user):
+        if self.max_submissions_per_user is None:
+            return None
+
+        submission_count = self.get_user_submission_count(user)
+        if submission_count is None:
+            return None
+
+        return max(self.max_submissions_per_user - submission_count, 0)
+
+    def is_full_for_user(self, user):
+        if self.max_submissions_per_user is None:
+            return False
+
+        submission_count = self.get_user_submission_count(user)
+        if submission_count is None:
+            return False
+
+        return submission_count >= self.max_submissions_per_user
 
     @classmethod
     def get_active_missions(cls, limit=10):

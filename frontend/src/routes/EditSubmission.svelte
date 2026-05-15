@@ -869,7 +869,7 @@
 <ConfirmDialog
   isOpen={showDeleteDialog}
   title="Remove Submission"
-  message="Are you sure you want to remove this submission? It will be marked as rejected."
+  message="Are you sure you want to remove this submission? It will be marked as canceled."
   confirmText="Remove"
   cancelText="Cancel"
   onConfirm={confirmDelete}

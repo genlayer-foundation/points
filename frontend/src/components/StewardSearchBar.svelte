@@ -20,6 +20,11 @@
   let lastSearchedValue = $state('');
 
   const TAGS = [
+    {
+      name: 'status',
+      description: 'Filter by review status',
+      values: () => ['pending', 'accepted', 'rejected', 'canceled', 'more_info_needed']
+    },
     { name: 'type', description: 'Filter by contribution type', values: () => contributionTypes.map(t => t.name.toLowerCase().replace(/\s+/g, '-')) },
     { name: 'category', description: 'Filter by category', values: () => [...new Set(contributionTypes.map(t => t.category).filter(Boolean))] },
     { name: 'from', description: 'Search by user name/email/address', values: () => [] },
@@ -226,6 +231,7 @@
       <div class="help-content">
         <div class="help-section">
           <div class="help-row"><code>type:blog-post</code><span>Filter by contribution type</span></div>
+          <div class="help-row"><code>status:canceled</code><span>Filter by review status</span></div>
           <div class="help-row"><code>category:builder</code><span>Filter by category (builder, validator)</span></div>
           <div class="help-row"><code>from:username</code><span>Search by user name/email/address</span></div>
           <div class="help-row"><code>assigned:me</code><span>Filter by assignment (me, unassigned, name)</span></div>

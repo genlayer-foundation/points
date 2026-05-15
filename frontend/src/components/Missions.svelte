@@ -260,11 +260,11 @@
       {@const isExpanded = expandedMissions.has(mission.id)}
       {@const hasLongText = needsExpansion(mission.description)}
       {@const parentType = mission.contribution_type_details}
-      {@const missionIsFull = mission.is_full === true || (mission.max_submissions != null && mission.submissions_remaining != null && Number(mission.submissions_remaining) <= 0)}
+      {@const missionIsFull = mission.user_is_full === true || mission.is_full === true || (mission.max_submissions != null && mission.submissions_remaining != null && Number(mission.submissions_remaining) <= 0)}
       {@const contributionTypeIsFull = parentType?.is_full === true || (parentType?.max_submissions != null && parentType?.submissions_remaining != null && Number(parentType.submissions_remaining) <= 0)}
       {@const submissionClosed = missionIsFull || contributionTypeIsFull}
-      {@const capacityLabel = missionIsFull ? 'Full' : contributionTypeIsFull ? 'Submissions closed' : mission.max_submissions != null ? spotsLeftLabel(mission.submissions_remaining) : parentType?.max_submissions != null ? spotsLeftLabel(parentType.submissions_remaining) : null}
-      {@const submitLabel = missionIsFull ? 'Full' : contributionTypeIsFull ? 'Submissions closed' : 'Submit →'}
+      {@const capacityLabel = mission.user_is_full === true ? 'Your limit reached' : missionIsFull ? 'Full' : contributionTypeIsFull ? 'Submissions closed' : mission.max_submissions != null ? spotsLeftLabel(mission.submissions_remaining) : parentType?.max_submissions != null ? spotsLeftLabel(parentType.submissions_remaining) : null}
+      {@const submitLabel = mission.user_is_full === true ? 'Limit reached' : missionIsFull ? 'Full' : contributionTypeIsFull ? 'Submissions closed' : 'Submit →'}
 
       <div class="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors">
         <!-- Title row with badges and submit button -->
