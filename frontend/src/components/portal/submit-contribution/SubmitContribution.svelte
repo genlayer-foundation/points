@@ -150,7 +150,7 @@
                 searchQuery = "";
                 showTypeDropdown = true;
                 error = isMissionFull(mission)
-                  ? "This mission has reached its submission limit."
+                  ? missionLimitError(mission)
                   : "This mission is not currently accepting submissions.";
               }
             }
@@ -312,6 +312,7 @@
 
   function isMissionFull(mission) {
     if (!mission) return false;
+    if (mission.user_is_full === true) return true;
     if (mission.is_full === true) return true;
     return (
       mission.max_submissions !== null &&
@@ -320,6 +321,13 @@
       mission.submissions_remaining !== undefined &&
       Number(mission.submissions_remaining) <= 0
     );
+  }
+
+  function missionLimitError(mission) {
+    if (mission?.user_is_full === true) {
+      return "You have reached your submission limit for this mission.";
+    }
+    return "This mission has reached its submission limit.";
   }
 
   function isMissionSubmittable(mission) {
@@ -495,7 +503,7 @@
       }
       if (!isMissionSubmittable(item.data)) {
         error = isMissionFull(item.data)
-          ? "This mission has reached its submission limit."
+          ? missionLimitError(item.data)
           : "This mission is not currently accepting submissions.";
         return;
       }
@@ -901,7 +909,7 @@
       const missionToSubmit = selectedMission;
       if (missionToSubmit) {
         if (isMissionFull(selectedMissionData)) {
-          error = "This mission has reached its submission limit.";
+          error = missionLimitError(selectedMissionData);
           submitting = false;
           return;
         }

@@ -570,6 +570,11 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                         {'error': 'This mission has reached its submission limit.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
+                if mission.is_full_for_user(request.user):
+                    return Response(
+                        {'error': 'You have reached your submission limit for this mission.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
                 # Always enforce contribution_type consistency with mission
                 data['contribution_type'] = mission.contribution_type_id
             except Mission.DoesNotExist:
@@ -647,6 +652,11 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                     if locked_mission.is_full():
                         return Response(
                             {'error': 'This mission has reached its submission limit.'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    if locked_mission.is_full_for_user(request.user):
+                        return Response(
+                            {'error': 'You have reached your submission limit for this mission.'},
                             status=status.HTTP_400_BAD_REQUEST
                         )
                     serializer.validated_data['mission'] = locked_mission

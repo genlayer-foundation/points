@@ -66,6 +66,7 @@ class LightMissionSerializer(serializers.Serializer):
     name = serializers.CharField(read_only=True)
     contribution_type = serializers.PrimaryKeyRelatedField(read_only=True)
     max_submissions = serializers.IntegerField(read_only=True)
+    max_submissions_per_user = serializers.IntegerField(read_only=True)
 
 
 class EvidenceSerializer(serializers.ModelSerializer):
@@ -1017,6 +1018,9 @@ class MissionSerializer(serializers.ModelSerializer):
     submission_count = serializers.SerializerMethodField()
     submissions_remaining = serializers.SerializerMethodField()
     is_full = serializers.SerializerMethodField()
+    user_submission_count = serializers.SerializerMethodField()
+    user_submissions_remaining = serializers.SerializerMethodField()
+    user_is_full = serializers.SerializerMethodField()
 
     class Meta:
         model = Mission
@@ -1024,8 +1028,10 @@ class MissionSerializer(serializers.ModelSerializer):
             'id', 'name', 'description',
             'start_date', 'end_date', 'contribution_type',
             'contribution_type_details',
-            'max_submissions', 'submission_count',
-            'submissions_remaining', 'is_full',
+            'max_submissions', 'max_submissions_per_user',
+            'submission_count', 'submissions_remaining', 'is_full',
+            'user_submission_count', 'user_submissions_remaining',
+            'user_is_full',
             'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -1061,6 +1067,22 @@ class MissionSerializer(serializers.ModelSerializer):
 
     def get_is_full(self, obj):
         return obj.is_full()
+
+    def _current_user(self):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user and getattr(user, 'is_authenticated', False):
+            return user
+        return None
+
+    def get_user_submission_count(self, obj):
+        return obj.get_user_submission_count(self._current_user())
+
+    def get_user_submissions_remaining(self, obj):
+        return obj.user_submissions_remaining(self._current_user())
+
+    def get_user_is_full(self, obj):
+        return obj.is_full_for_user(self._current_user())
 
 
 class StartupRequestListSerializer(serializers.ModelSerializer):

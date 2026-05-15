@@ -45,9 +45,9 @@ class SubmissionLimitTest(TestCase):
         self.recaptcha_patcher.start()
         self.addCleanup(self.recaptcha_patcher.stop)
 
-    def _create_submission(self, state='pending', mission=None):
+    def _create_submission(self, state='pending', mission=None, user=None):
         return SubmittedContribution.objects.create(
-            user=self.other_user,
+            user=user or self.other_user,
             contribution_type=self.contribution_type,
             mission=mission,
             contribution_date=timezone.now(),
@@ -120,22 +120,68 @@ class SubmissionLimitTest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    def test_mission_per_user_limit_blocks_same_user(self):
+        mission = Mission.objects.create(
+            name='Per User Limited Mission',
+            description='Test mission',
+            contribution_type=self.contribution_type,
+            max_submissions_per_user=1,
+        )
+        self._create_submission(state='pending', mission=mission, user=self.user)
+
+        response = self._post_submission(mission=mission)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('your submission limit', response.data['error'])
+        self.assertIn('mission', response.data['error'])
+
+    def test_other_users_do_not_consume_mission_per_user_capacity(self):
+        mission = Mission.objects.create(
+            name='Per User Limited Mission',
+            description='Test mission',
+            contribution_type=self.contribution_type,
+            max_submissions_per_user=1,
+        )
+        self._create_submission(state='pending', mission=mission, user=self.other_user)
+
+        response = self._post_submission(mission=mission)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_rejected_submissions_do_not_consume_mission_per_user_capacity(self):
+        mission = Mission.objects.create(
+            name='Per User Limited Mission',
+            description='Test mission',
+            contribution_type=self.contribution_type,
+            max_submissions_per_user=1,
+        )
+        self._create_submission(state='rejected', mission=mission, user=self.user)
+
+        response = self._post_submission(mission=mission)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     def test_mission_api_exposes_capacity_fields(self):
         mission = Mission.objects.create(
             name='Limited Mission',
             description='Test mission',
             contribution_type=self.contribution_type,
             max_submissions=2,
+            max_submissions_per_user=1,
         )
-        self._create_submission(state='pending', mission=mission)
+        self._create_submission(state='pending', mission=mission, user=self.user)
 
         response = self.client.get(f'/api/v1/missions/{mission.id}/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['max_submissions'], 2)
+        self.assertEqual(response.data['max_submissions_per_user'], 1)
         self.assertEqual(response.data['submission_count'], 1)
         self.assertEqual(response.data['submissions_remaining'], 1)
         self.assertFalse(response.data['is_full'])
+        self.assertEqual(response.data['user_submission_count'], 1)
+        self.assertEqual(response.data['user_submissions_remaining'], 0)
+        self.assertTrue(response.data['user_is_full'])
 
     def test_contribution_type_api_exposes_capacity_fields(self):
         self.contribution_type.max_submissions = 2
