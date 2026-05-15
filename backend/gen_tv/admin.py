@@ -1,10 +1,19 @@
 from django.contrib import admin
 
+from utils.admin_mixins import CloudinaryUploadMixin
+
 from .models import Stream
 
 
 @admin.register(Stream)
-class StreamAdmin(admin.ModelAdmin):
+class StreamAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
+    cloudinary_upload_fields = {
+        'image_url': {
+            'public_id_field': 'image_public_id',
+            'folder': 'tally/gen-tv',
+        },
+    }
+
     list_display = (
         'title',
         'category',
@@ -18,7 +27,7 @@ class StreamAdmin(admin.ModelAdmin):
     search_fields = ('title', 'description')
     prepopulated_fields = {'slug': ('title',)}
     date_hierarchy = 'starts_at'
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'image_public_id')
     fieldsets = (
         (None, {
             'fields': ('title', 'slug', 'description', 'is_active'),
@@ -28,6 +37,7 @@ class StreamAdmin(admin.ModelAdmin):
         }),
         ('Media', {
             'fields': ('url', 'image_url'),
+            'description': 'Upload a cover image directly or paste a Cloudinary URL.',
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
