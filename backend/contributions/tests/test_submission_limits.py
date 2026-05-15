@@ -92,6 +92,15 @@ class SubmissionLimitTest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    def test_canceled_submissions_do_not_consume_type_capacity(self):
+        self.contribution_type.max_submissions = 1
+        self.contribution_type.save(update_fields=['max_submissions'])
+        self._create_submission(state='canceled')
+
+        response = self._post_submission()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     def test_mission_limit_blocks_new_submissions(self):
         mission = Mission.objects.create(
             name='Limited Mission',
@@ -115,6 +124,19 @@ class SubmissionLimitTest(TestCase):
             max_submissions=1,
         )
         self._create_submission(state='rejected', mission=mission)
+
+        response = self._post_submission(mission=mission)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_canceled_submissions_do_not_consume_mission_capacity(self):
+        mission = Mission.objects.create(
+            name='Limited Mission',
+            description='Test mission',
+            contribution_type=self.contribution_type,
+            max_submissions=1,
+        )
+        self._create_submission(state='canceled', mission=mission)
 
         response = self._post_submission(mission=mission)
 
@@ -156,6 +178,19 @@ class SubmissionLimitTest(TestCase):
             max_submissions_per_user=1,
         )
         self._create_submission(state='rejected', mission=mission, user=self.user)
+
+        response = self._post_submission(mission=mission)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_canceled_submissions_do_not_consume_mission_per_user_capacity(self):
+        mission = Mission.objects.create(
+            name='Per User Limited Mission',
+            description='Test mission',
+            contribution_type=self.contribution_type,
+            max_submissions_per_user=1,
+        )
+        self._create_submission(state='canceled', mission=mission, user=self.user)
 
         response = self._post_submission(mission=mission)
 

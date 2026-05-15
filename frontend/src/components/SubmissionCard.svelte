@@ -321,6 +321,8 @@
         return 'bg-green-100 text-green-800';
       case 'rejected':
         return 'bg-red-100 text-red-800';
+      case 'canceled':
+        return 'bg-gray-100 text-gray-700';
       case 'more_info_needed':
         return 'bg-blue-100 text-blue-800';
       default:
@@ -336,6 +338,8 @@
         return 'border-l-green-400';
       case 'rejected':
         return 'border-l-red-400';
+      case 'canceled':
+        return 'border-l-gray-400';
       case 'more_info_needed':
         return 'border-l-blue-400';
       default:
@@ -351,6 +355,8 @@
         return 'bg-green-50';
       case 'rejected':
         return 'bg-red-50';
+      case 'canceled':
+        return 'bg-gray-50';
       case 'more_info_needed':
         return 'bg-blue-50';
       default:
@@ -695,7 +701,7 @@
           </div>
         {/if}
 
-        {#if submission.staff_reply && submission.state !== 'rejected'}
+        {#if submission.staff_reply && submission.state !== 'rejected' && submission.state !== 'canceled'}
           <div class="bg-gray-50 p-3 rounded">
             <h4 class="text-sm font-medium text-gray-700 mb-1">Staff Response</h4>
             <div class="markdown-content text-sm text-gray-600">{@html parseMarkdown(submission.staff_reply)}</div>
@@ -1117,6 +1123,11 @@
               </div>
             {/if}
           {/if}
+        {:else if submission.state === 'canceled'}
+          <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+            <h4 class="text-sm font-medium text-gray-900 mb-2">Canceled</h4>
+            <p class="text-sm text-gray-700">Canceled by user</p>
+          </div>
         {:else if isOwnSubmission && submission.state === 'pending' && submission.has_appeal}
           <div class="border border-orange-200 rounded-lg p-3 bg-orange-50">
             <h4 class="text-sm font-medium text-orange-900 mb-1">Your appeal is under review</h4>

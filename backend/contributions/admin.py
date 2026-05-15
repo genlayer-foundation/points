@@ -665,7 +665,11 @@ class MissionAdmin(admin.ModelAdmin):
         }),
         ('Submission Limit', {
             'fields': ('max_submissions', 'max_submissions_per_user'),
-            'description': 'Optional: Limit total non-rejected submissions and per-user non-rejected submissions for this mission.'
+            'description': (
+                'Optional: Limit total non-rejected, non-canceled submissions '
+                'and per-user non-rejected, non-canceled submissions for '
+                'this mission.'
+            )
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),

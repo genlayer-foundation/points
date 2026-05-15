@@ -24,10 +24,18 @@ export function searchToParams(parsed, options = {}) {
 
   // status → state (handle negation as exclude_state)
   if (filters.status) {
+    const statusMap = {
+      more_info: 'more_info_needed',
+      'more-info': 'more_info_needed',
+      info: 'more_info_needed',
+      canceled: 'canceled',
+      cancelled: 'canceled',
+    };
+    const state = statusMap[filters.status.value.toLowerCase()] || filters.status.value;
     if (filters.status.negated) {
-      params.exclude_state = filters.status.value;
+      params.exclude_state = state;
     } else {
-      params.state = filters.status.value;
+      params.state = state;
     }
   }
 
