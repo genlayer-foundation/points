@@ -9,7 +9,8 @@ class Partner(BaseModel):
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=200, unique=True)
     description = models.TextField(blank=True)
-    logo_url = models.URLField(max_length=500, blank=True)
+    logo_url = models.URLField(max_length=500, blank=True, help_text="Cloudinary URL for partner logo.")
+    logo_public_id = models.CharField(max_length=255, blank=True, help_text="Cloudinary public ID for partner logo.")
     website_url = models.URLField(
         max_length=500,
         help_text="Official website (primary redirect target).",

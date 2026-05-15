@@ -26,7 +26,12 @@ class Stream(BaseModel):
     image_url = models.URLField(
         max_length=500,
         blank=True,
-        help_text="Thumbnail / cover image URL.",
+        help_text="Cloudinary URL for thumbnail / cover image.",
+    )
+    image_public_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Cloudinary public ID for thumbnail / cover image.",
     )
     starts_at = models.DateTimeField(
         help_text="Scheduled start time (used for sorting and status).",
