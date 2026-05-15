@@ -11,7 +11,7 @@
 </script>
 
 <div class="space-y-8 max-w-full overflow-x-hidden md:overflow-x-visible">
-  <HeroBanner />
+  <HeroBanner showNewsLink={true} />
   <LiveStats />
   <TrendingContributors />
   <FeaturedBuilds />

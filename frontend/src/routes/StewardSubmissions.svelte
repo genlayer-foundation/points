@@ -524,6 +524,7 @@
           <option value="pending">Pending Review</option>
           <option value="accepted">Accepted</option>
           <option value="rejected">Rejected</option>
+          <option value="canceled">Canceled</option>
           <option value="more_info_needed">More Info Needed</option>
         </select>
       </div>

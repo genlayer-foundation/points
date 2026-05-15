@@ -375,6 +375,7 @@ const routes = {
 
   // Discover
   '/ecosystem-partners': EcosystemPartners,  // Public directory of partners + validators + projects
+  '/gen-tv': GenTV,                          // Livestream index split by category section
 
   '*': NotFound
 }
@@ -402,6 +403,7 @@ const routes = {
   - `journeyAPI` - Onboarding journeys (startBuilderJourney, startValidatorJourney, completeBuilderJourney, linkXAccount, linkDiscordAccount)
   - `creatorAPI` - Community/creator membership (joinAsCreator)
   - `partnersAPI` - Ecosystem partners directory (`list`, `get(slug)`)
+  - `genTvAPI` - Gen TV streams (`list`, `get(slug)`)
 
 ### Authentication (`src/lib/auth.js`)
 - **Auth Store**: Svelte store `authState`
@@ -469,6 +471,12 @@ Reusable, data-driven display components that accept data via props. Used on Das
   - Props: `item` (normalized `{ id, slug, name, logo_url, href, isExternal, category }`), `showBadge=false`
   - Partner cards put the logo on a black circle; validator/project cards use a soft-gradient initials fallback when no image is available
   - Click opens `item.href` (external opens in a new tab; validator profile links navigate in-app)
+
+#### Gen TV Components (`src/components/portal/gen-tv/`)
+- **`StreamCard.svelte`** - Card for a livestream with image, dark overlay, status badge, and title
+  - Props: `stream`, `variant='past'|'live'|'upcoming'`
+  - Computed `status` and `duration` come from `starts_at` / `ends_at` on the API payload
+  - Click opens `stream.url` in a new tab
 
 #### How It Works / Landing Page Components (`src/components/portal/landing-page/`)
 - Used by the `/how-it-works` route (`HowItWorks.svelte`)

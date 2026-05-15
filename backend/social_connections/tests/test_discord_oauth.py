@@ -1,13 +1,18 @@
 from unittest.mock import patch, MagicMock
 
+import requests
 from django.test import TestCase, RequestFactory, override_settings
 from django.utils import timezone
 from rest_framework.test import force_authenticate
 
 from users.models import User
+from social_connections.encryption import encrypt_token
 from social_connections.models import DiscordConnection
 from social_connections.discord_oauth import (
-    discord_oauth_initiate, disconnect_discord, check_discord_guild,
+    discord_oauth_initiate,
+    disconnect_discord,
+    check_discord_guild,
+    refresh_discord_username,
 )
 from social_connections.oauth_service import DiscordOAuthService
 
@@ -66,6 +71,141 @@ class DiscordOAuthTest(TestCase):
         force_authenticate(request, user=self.user)
         response = disconnect_discord(request)
         self.assertEqual(response.status_code, 200)
+
+    @patch('social_connections.oauth_service.decrypt_token', return_value='test_token')
+    @patch('social_connections.oauth_service.requests')
+    def test_refresh_discord_username_updates_existing_connection(self, mock_requests, mock_decrypt_token):
+        DiscordConnection.objects.create(
+            user=self.user,
+            platform_user_id='11111',
+            platform_username='old-discord-name',
+            access_token='encrypted-token',
+            avatar_hash='old-avatar',
+            linked_at=timezone.now(),
+        )
+
+        mock_user_response = MagicMock()
+        mock_user_response.raise_for_status = MagicMock()
+        mock_user_response.json.return_value = {
+            'id': '11111',
+            'username': 'new-discord-name',
+            'discriminator': '0',
+            'avatar': 'new-avatar',
+        }
+        mock_requests.get.return_value = mock_user_response
+
+        request = self.factory.post('/api/v1/users/discord/refresh/')
+        force_authenticate(request, user=self.user)
+        response = refresh_discord_username(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['changed'])
+        self.assertEqual(response.data['discord_connection']['platform_username'], 'new-discord-name')
+        self.assertEqual(self.user.discordconnection.platform_username, 'new-discord-name')
+        self.assertEqual(self.user.discordconnection.avatar_hash, 'new-avatar')
+
+    @patch('social_connections.oauth_service.requests')
+    def test_refresh_discord_username_uses_refresh_token_when_access_token_expired(self, mock_requests):
+        DiscordConnection.objects.create(
+            user=self.user,
+            platform_user_id='11111',
+            platform_username='old-discord-name',
+            access_token=encrypt_token('expired-token'),
+            refresh_token=encrypt_token('refresh-token'),
+            linked_at=timezone.now(),
+        )
+
+        expired_response = MagicMock()
+        expired_response.status_code = 401
+        expired_error = requests.HTTPError(response=expired_response)
+        first_user_response = MagicMock()
+        first_user_response.raise_for_status.side_effect = expired_error
+
+        refresh_response = MagicMock()
+        refresh_response.raise_for_status = MagicMock()
+        refresh_response.json.return_value = {
+            'access_token': 'fresh-token',
+            'refresh_token': 'new-refresh-token',
+        }
+
+        second_user_response = MagicMock()
+        second_user_response.raise_for_status = MagicMock()
+        second_user_response.json.return_value = {
+            'id': '11111',
+            'username': 'new-discord-name',
+        }
+
+        mock_requests.get.side_effect = [first_user_response, second_user_response]
+        mock_requests.post.return_value = refresh_response
+
+        request = self.factory.post('/api/v1/users/discord/refresh/')
+        force_authenticate(request, user=self.user)
+        response = refresh_discord_username(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['changed'])
+        self.assertEqual(self.user.discordconnection.platform_username, 'new-discord-name')
+
+    @patch('social_connections.oauth_service.requests')
+    def test_refresh_discord_username_reconnects_when_refresh_token_rejected(self, mock_requests):
+        DiscordConnection.objects.create(
+            user=self.user,
+            platform_user_id='11111',
+            platform_username='old-discord-name',
+            access_token=encrypt_token('expired-token'),
+            refresh_token=encrypt_token('revoked-refresh-token'),
+            linked_at=timezone.now(),
+        )
+
+        expired_response = MagicMock()
+        expired_response.status_code = 401
+        expired_error = requests.HTTPError(response=expired_response)
+        first_user_response = MagicMock()
+        first_user_response.raise_for_status.side_effect = expired_error
+
+        rejected_refresh_response = MagicMock()
+        rejected_refresh_response.status_code = 400
+        rejected_refresh_response.raise_for_status.side_effect = requests.HTTPError(
+            response=rejected_refresh_response,
+        )
+
+        mock_requests.get.return_value = first_user_response
+        mock_requests.post.return_value = rejected_refresh_response
+
+        request = self.factory.post('/api/v1/users/discord/refresh/')
+        force_authenticate(request, user=self.user)
+        response = refresh_discord_username(request)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['code'], 'invalid_refresh_token')
+        self.assertIn('Please reconnect Discord', response.data['error'])
+
+    @patch('social_connections.oauth_service.decrypt_token', return_value='test_token')
+    @patch('social_connections.oauth_service.requests')
+    def test_refresh_discord_username_rejects_account_mismatch(self, mock_requests, mock_decrypt_token):
+        DiscordConnection.objects.create(
+            user=self.user,
+            platform_user_id='11111',
+            platform_username='old-discord-name',
+            access_token='encrypted-token',
+            linked_at=timezone.now(),
+        )
+
+        mock_user_response = MagicMock()
+        mock_user_response.raise_for_status = MagicMock()
+        mock_user_response.json.return_value = {
+            'id': '22222',
+            'username': 'other-discord-name',
+        }
+        mock_requests.get.return_value = mock_user_response
+
+        request = self.factory.post('/api/v1/users/discord/refresh/')
+        force_authenticate(request, user=self.user)
+        response = refresh_discord_username(request)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['code'], 'account_mismatch')
+        self.assertEqual(self.user.discordconnection.platform_username, 'old-discord-name')
 
     @patch('social_connections.oauth_service.requests')
     def test_callback_full_flow(self, mock_requests):
@@ -199,7 +339,6 @@ class DiscordOAuthTest(TestCase):
     @patch('social_connections.discord_oauth.service.check_guild_membership')
     def test_check_guild_is_member(self, mock_check):
         """Test guild check when user is a member."""
-        from social_connections.encryption import encrypt_token
         DiscordConnection.objects.create(
             user=self.user,
             platform_user_id='11111',
@@ -223,7 +362,6 @@ class DiscordOAuthTest(TestCase):
     @patch('social_connections.discord_oauth.service.check_guild_membership')
     def test_check_guild_not_member(self, mock_check):
         """Test guild check when user is not a member."""
-        from social_connections.encryption import encrypt_token
         DiscordConnection.objects.create(
             user=self.user,
             platform_user_id='11111',

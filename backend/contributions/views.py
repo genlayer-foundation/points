@@ -40,7 +40,15 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['name', 'created_at']
     
     def get_queryset(self):
-        queryset = ContributionType.objects.all()
+        queryset = ContributionType.objects.all().annotate(
+            submission_count=Count(
+                'submitted_contributions',
+                filter=~Q(
+                    submitted_contributions__state__in=['rejected', 'canceled']
+                ),
+                distinct=True,
+            )
+        )
 
         # Filter by category if provided
         category = self.request.query_params.get('category')
@@ -540,6 +548,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             )
 
         mission_id = request.data.get('mission')
+        mission = None
         data = request.data.copy()  # Create mutable copy for modifications
 
         # Validate mission if provided
@@ -556,6 +565,16 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 if mission.end_date and now > mission.end_date:
                     return Response(
                         {'error': 'This mission has ended.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                if mission.is_full():
+                    return Response(
+                        {'error': 'This mission has reached its submission limit.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                if mission.is_full_for_user(request.user):
+                    return Response(
+                        {'error': 'You have reached your submission limit for this mission.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 # Always enforce contribution_type consistency with mission
@@ -575,6 +594,11 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 if not contribution_type.is_submittable and not mission_id:
                     return Response(
                         {'error': 'This contribution type cannot be submitted directly. Submit through one of its active missions.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                if contribution_type.is_full():
+                    return Response(
+                        {'error': 'This contribution type has reached its submission limit.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 if contribution_type.category:
@@ -610,7 +634,39 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+
+        if mission_id or contribution_type_id:
+            with transaction.atomic():
+                locked_type = ContributionType.objects.select_for_update().get(
+                    id=serializer.validated_data['contribution_type'].id
+                )
+                if locked_type.is_full():
+                    return Response(
+                        {'error': 'This contribution type has reached its submission limit.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                serializer.validated_data['contribution_type'] = locked_type
+
+                if mission_id:
+                    locked_mission = Mission.objects.select_for_update().get(
+                        id=mission.id
+                    )
+                    if locked_mission.is_full():
+                        return Response(
+                            {'error': 'This mission has reached its submission limit.'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    if locked_mission.is_full_for_user(request.user):
+                        return Response(
+                            {'error': 'You have reached your submission limit for this mission.'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    serializer.validated_data['mission'] = locked_mission
+
+                self.perform_create(serializer)
+        else:
+            self.perform_create(serializer)
+
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
@@ -650,26 +706,33 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
-        """Soft delete submission by marking as rejected (only allowed for pending or more_info_needed states)."""
+        """
+        Soft delete submission by marking as canceled.
+
+        Only pending or more_info_needed submissions can be canceled.
+        """
         instance = self.get_object()
 
         # Check if cancellation is allowed
         if instance.state not in ['pending', 'more_info_needed']:
             return Response(
-                {'error': 'Only pending or unreviewed submissions can be cancelled.'},
+                {'error': 'Only pending or unreviewed submissions can be canceled.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Soft delete - mark as rejected with cancellation note
-        instance.state = 'rejected'
+        # Soft delete - mark as canceled with cancellation note
+        instance.state = 'canceled'
         # Preserve the original rejection reason if this submission was appealed;
         # otherwise record the cancellation in staff_reply.
         if not instance.has_appeal:
-            instance.staff_reply = 'Cancelled by user'
+            instance.staff_reply = 'Canceled by user'
         instance.reviewed_at = timezone.now()
         instance.save()
 
-        return Response({'message': 'Submission cancelled successfully'}, status=status.HTTP_200_OK)
+        return Response(
+            {'message': 'Submission canceled successfully'},
+            status=status.HTTP_200_OK,
+        )
     
     @action(detail=False, methods=['get'], url_path='my')
     def my_submissions(self, request):
@@ -1239,21 +1302,18 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         
         # Stats specific to authenticated steward (if logged in)
         if request.user and request.user.is_authenticated:
-            total_reviewed = SubmittedContribution.objects.filter(
+            reviewed_qs = SubmittedContribution.objects.filter(
                 reviewed_by=request.user
-            ).count()
+            ).exclude(state='canceled')
+            total_reviewed = reviewed_qs.count()
             
             # Get last review time
-            last_review = SubmittedContribution.objects.filter(
-                reviewed_by=request.user
-            ).order_by('-reviewed_at').first()
+            last_review = reviewed_qs.order_by('-reviewed_at').first()
             
             last_review_time = last_review.reviewed_at if last_review else None
             
             # Get acceptance rate
-            user_reviews = SubmittedContribution.objects.filter(
-                reviewed_by=request.user
-            ).exclude(state='pending')
+            user_reviews = reviewed_qs.exclude(state='pending')
             
             total_decisions = user_reviews.count()
             accepted = user_reviews.filter(state='accepted').count()
@@ -1262,17 +1322,21 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
         else:
             # Public stats - show overall system stats
-            total_reviewed = SubmittedContribution.objects.exclude(state='pending').count()
+            total_reviewed = SubmittedContribution.objects.exclude(
+                state__in=['pending', 'canceled']
+            ).count()
             
             # Get last review time (system-wide)
             last_review = SubmittedContribution.objects.exclude(
                 reviewed_at__isnull=True
-            ).order_by('-reviewed_at').first()
+            ).exclude(state='canceled').order_by('-reviewed_at').first()
             
             last_review_time = last_review.reviewed_at if last_review else None
             
             # Get overall acceptance rate
-            all_reviews = SubmittedContribution.objects.exclude(state='pending')
+            all_reviews = SubmittedContribution.objects.exclude(
+                state__in=['pending', 'canceled']
+            )
             total_decisions = all_reviews.count()
             accepted = all_reviews.filter(state='accepted').count()
             total_rejected = all_reviews.filter(state='rejected').count()
@@ -1413,6 +1477,15 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             .order_by('period')
         )
 
+        canceled = (
+            reviews_base
+            .filter(state='canceled')
+            .annotate(period=trunc_func('reviewed_at'))
+            .values('period')
+            .annotate(count=Count('id'))
+            .order_by('period')
+        )
+
         # Get points awarded (from converted contributions)
         points_qs = Contribution.objects.filter(
             created_at__date__gte=start_date,
@@ -1444,6 +1517,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         accepted_dict = {to_date(item['period']): item['count'] for item in accepted}
         rejected_dict = {to_date(item['period']): item['count'] for item in rejected}
         more_info_dict = {to_date(item['period']): item['count'] for item in more_info}
+        canceled_dict = {to_date(item['period']): item['count'] for item in canceled}
         points_dict = {to_date(item['period']): item['total_points'] for item in points}
 
         # Build response with all periods in range
@@ -1465,6 +1539,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 'accepted': accepted_dict.get(current_date, 0),
                 'rejected': rejected_dict.get(current_date, 0),
                 'more_info_requested': more_info_dict.get(current_date, 0),
+                'canceled': canceled_dict.get(current_date, 0),
                 'points_awarded': points_dict.get(current_date, 0) or 0
             })
 
@@ -1497,6 +1572,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'accepted': sum(d['accepted'] for d in data),
             'rejected': sum(d['rejected'] for d in data),
             'more_info_requested': sum(d['more_info_requested'] for d in data),
+            'canceled': sum(d['canceled'] for d in data),
             'points_awarded': sum(d['points_awarded'] for d in data),
             'pending_review': pending_review
         }
@@ -1832,6 +1908,24 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = Mission.objects.all().select_related(
             'contribution_type',
             'contribution_type__category',
+        ).annotate(
+            submission_count=Count(
+                'submissions',
+                filter=~Q(
+                    submissions__state__in=['rejected', 'canceled']
+                ),
+                distinct=True,
+            ),
+            contribution_type_submission_count=Count(
+                'contribution_type__submitted_contributions',
+                filter=~Q(
+                    contribution_type__submitted_contributions__state__in=[
+                        'rejected',
+                        'canceled',
+                    ]
+                ),
+                distinct=True,
+            )
         )
 
         include_inactive = (

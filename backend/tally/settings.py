@@ -78,6 +78,7 @@ INSTALLED_APPS = [
     'stewards',
     'creators',
     'partners',
+    'gen_tv',
     'social_connections',
 ]
 

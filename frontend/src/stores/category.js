@@ -133,7 +133,7 @@ export function detectCategoryFromRoute(path) {
     return 'steward';
   } else if (path.startsWith('/community')) {
     return 'community';
-  } else if (path.startsWith('/ecosystem-partners')) {
+  } else if (path.startsWith('/ecosystem-partners') || path.startsWith('/gen-tv')) {
     return 'global';
   }
   return 'global';

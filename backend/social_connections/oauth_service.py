@@ -6,6 +6,7 @@ import base64
 from urllib.parse import urlencode, urlparse, urlunparse
 
 import requests
+from requests import HTTPError
 from cryptography.fernet import InvalidToken
 from django.conf import settings
 from django.core import signing
@@ -138,6 +139,96 @@ class OAuthService:
     def fetch_user_info(self, access_token):
         """Fetch and normalize user info. Returns dict with 'platform_user_id', 'platform_username', and any extras."""
         raise NotImplementedError
+
+    def refresh_access_token(self, refresh_token):
+        """Refresh an OAuth access token. Override for providers that support it."""
+        raise ValueError('refresh_not_supported')
+
+    def refresh_stored_access_token(self, connection):
+        """Rotate a stored OAuth access token using the stored refresh token."""
+        if not connection.refresh_token:
+            raise ValueError('missing_refresh_token')
+
+        try:
+            refresh_token = decrypt_token(connection.refresh_token)
+        except InvalidToken as exc:
+            raise ValueError('invalid_refresh_token') from exc
+
+        try:
+            token_data = self.refresh_access_token(refresh_token)
+        except HTTPError as exc:
+            response = getattr(exc, 'response', None)
+            status_code = getattr(response, 'status_code', None)
+            if status_code is not None and 400 <= status_code < 500:
+                raise ValueError('invalid_refresh_token') from exc
+            raise
+        except ValueError as exc:
+            raise ValueError('invalid_refresh_token') from exc
+
+        access_token = token_data.get('access_token')
+        if not access_token:
+            raise ValueError('no_access_token')
+
+        update_fields = ['access_token', 'updated_at']
+        connection.access_token = encrypt_token(access_token)
+
+        new_refresh_token = token_data.get('refresh_token')
+        if new_refresh_token:
+            connection.refresh_token = encrypt_token(new_refresh_token)
+            update_fields.append('refresh_token')
+
+        connection.updated_at = timezone.now()
+        connection.save(update_fields=update_fields)
+        return access_token
+
+    def refresh_connection_username(self, connection):
+        """Refresh linked account details using the provider's current user API."""
+        if not connection.access_token:
+            raise ValueError('missing_access_token')
+
+        try:
+            access_token = decrypt_token(connection.access_token)
+        except InvalidToken as exc:
+            raise ValueError('invalid_access_token') from exc
+
+        try:
+            user_info = self.fetch_user_info(access_token)
+        except HTTPError as exc:
+            response = getattr(exc, 'response', None)
+            if response is None or response.status_code != 401:
+                raise
+            access_token = self.refresh_stored_access_token(connection)
+            user_info = self.fetch_user_info(access_token)
+
+        platform_user_id = str(user_info.get('platform_user_id', ''))
+        platform_username = str(user_info.get('platform_username', ''))[:100]
+
+        if platform_user_id != str(connection.platform_user_id):
+            raise ValueError('account_mismatch')
+
+        update_fields = []
+        changed = False
+
+        if platform_username != connection.platform_username:
+            connection.platform_username = platform_username
+            update_fields.append('platform_username')
+            changed = True
+
+        extra_fields = user_info.get('extra_fields', {})
+        for field_name, field_value in extra_fields.items():
+            if not hasattr(connection, field_name):
+                continue
+            if getattr(connection, field_name) != field_value:
+                setattr(connection, field_name, field_value)
+                update_fields.append(field_name)
+                changed = True
+
+        if changed:
+            connection.updated_at = timezone.now()
+            update_fields.append('updated_at')
+            connection.save(update_fields=update_fields)
+
+        return connection, changed
 
     # --- Template rendering ---
 
@@ -372,31 +463,6 @@ class GitHubOAuthService(OAuthService):
             'platform_username': data['login'],
         }
 
-    def refresh_connection_username(self, connection):
-        """Refresh a linked GitHub username using the stored OAuth token."""
-        if not connection.access_token:
-            raise ValueError('missing_access_token')
-
-        try:
-            access_token = decrypt_token(connection.access_token)
-        except InvalidToken as exc:
-            raise ValueError('invalid_access_token') from exc
-
-        user_info = self.fetch_user_info(access_token)
-        platform_user_id = str(user_info.get('platform_user_id', ''))
-        platform_username = str(user_info.get('platform_username', ''))[:100]
-
-        if platform_user_id != str(connection.platform_user_id):
-            raise ValueError('account_mismatch')
-
-        changed = platform_username != connection.platform_username
-        if changed:
-            connection.platform_username = platform_username
-            connection.updated_at = timezone.now()
-            connection.save(update_fields=['platform_username', 'updated_at'])
-
-        return connection, changed
-
     def check_repo_star(self, connection):
         """Check if user has starred the configured repository."""
         from .encryption import decrypt_token
@@ -439,7 +505,7 @@ class TwitterOAuthService(OAuthService):
     authorize_url = 'https://x.com/i/oauth2/authorize'
     token_url = 'https://api.x.com/2/oauth2/token'
     user_info_url = 'https://api.x.com/2/users/me'
-    scopes = ['tweet.read', 'users.read']
+    scopes = ['tweet.read', 'users.read', 'offline.access']
     uses_pkce = True
 
     def get_connection_model(self):
@@ -469,6 +535,27 @@ class TwitterOAuthService(OAuthService):
                 'grant_type': 'authorization_code',
                 'redirect_uri': self.get_redirect_uri(),
                 'code_verifier': code_verifier,
+            }, headers={
+                'Authorization': f'Basic {auth_string}',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            })
+            response.raise_for_status()
+            data = response.json()
+
+        if 'error' in data:
+            raise ValueError(data.get('error', 'unknown error'))
+        return data
+
+    def refresh_access_token(self, refresh_token):
+        auth_string = base64.b64encode(
+            f"{self.get_client_id()}:{self.get_client_secret()}".encode()
+        ).decode()
+
+        with trace_external('twitter', 'token_refresh'):
+            response = requests.post(self.token_url, data={
+                'grant_type': 'refresh_token',
+                'refresh_token': refresh_token,
+                'client_id': self.get_client_id(),
             }, headers={
                 'Authorization': f'Basic {auth_string}',
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -536,6 +623,23 @@ class DiscordOAuthService(OAuthService):
             raise ValueError(data.get('error', 'unknown error'))
         return data
 
+    def refresh_access_token(self, refresh_token):
+        with trace_external('discord', 'token_refresh'):
+            response = requests.post(self.token_url, data={
+                'client_id': self.get_client_id(),
+                'client_secret': self.get_client_secret(),
+                'grant_type': 'refresh_token',
+                'refresh_token': refresh_token,
+            }, headers={
+                'Content-Type': 'application/x-www-form-urlencoded',
+            })
+            response.raise_for_status()
+            data = response.json()
+
+        if 'error' in data:
+            raise ValueError(data.get('error', 'unknown error'))
+        return data
+
     def fetch_user_info(self, access_token):
         with trace_external('discord', 'get_user'):
             response = requests.get(self.user_info_url, headers={
@@ -547,11 +651,10 @@ class DiscordOAuthService(OAuthService):
         if not data.get('id') or not data.get('username'):
             raise ValueError("Missing id or username in Discord user response")
 
-        extra_fields = {}
-        if data.get('discriminator'):
-            extra_fields['discriminator'] = str(data['discriminator'])[:10]
-        if data.get('avatar'):
-            extra_fields['avatar_hash'] = str(data['avatar'])[:100]
+        extra_fields = {
+            'discriminator': str(data.get('discriminator') or '')[:10],
+            'avatar_hash': str(data.get('avatar') or '')[:100],
+        }
 
         return {
             'platform_user_id': str(data['id']),

@@ -181,6 +181,8 @@ export const githubAPI = {
 // Social connections API
 export const socialAPI = {
   refreshGitHubUsername: () => api.post('/users/github/refresh/'),
+  refreshTwitterUsername: () => api.post('/users/twitter/refresh/'),
+  refreshDiscordUsername: () => api.post('/users/discord/refresh/'),
   checkDiscordGuild: () => api.get('/users/discord/check-guild/'),
 };
 
@@ -282,6 +284,12 @@ export const alertsAPI = {
 export const partnersAPI = {
   list: (params) => api.get('/partners/', { params }),
   get: (slug) => api.get(`/partners/${slug}/`),
+};
+
+// Gen TV API
+export const genTvAPI = {
+  list: (params) => api.get('/gen-tv/streams/', { params }),
+  get: (slug) => api.get(`/gen-tv/streams/${slug}/`),
 };
 
 export default api;

@@ -59,7 +59,7 @@
                         <td>{{ submission.contribution_type.name }}</td>
                         <td>{{ submission.contribution_date|date:"Y-m-d H:i" }}</td>
                         <td>
-                            <span class="badge badge-{% if submission.state == 'pending' %}warning{% elif submission.state == 'accepted' %}success{% elif submission.state == 'rejected' %}danger{% else %}info{% endif %}">
+                            <span class="badge badge-{% if submission.state == 'pending' %}warning{% elif submission.state == 'accepted' %}success{% elif submission.state == 'rejected' %}danger{% elif submission.state == 'canceled' %}secondary{% else %}info{% endif %}">
                                 {{ submission.get_state_display }}
                             </span>
                         </td>

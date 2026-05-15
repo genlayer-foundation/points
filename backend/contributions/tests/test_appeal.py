@@ -268,6 +268,24 @@ class AppealEndpointTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         submission.refresh_from_db()
-        self.assertEqual(submission.state, 'rejected')
+        self.assertEqual(submission.state, 'canceled')
         # Original staff_reply is preserved on cancel because it was appealed
         self.assertEqual(submission.staff_reply, 'Original rejection reason')
+
+    def test_cancelling_pending_submission_marks_canceled(self):
+        submission = self._make_submission(state='pending')
+        submission.staff_reply = ''
+        submission.reviewed_by = None
+        submission.reviewed_at = None
+        submission.save(
+            update_fields=['staff_reply', 'reviewed_by', 'reviewed_at']
+        )
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.delete(f'/api/v1/submissions/{submission.id}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'canceled')
+        self.assertEqual(submission.staff_reply, 'Canceled by user')
+        self.assertIsNotNone(submission.reviewed_at)

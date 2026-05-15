@@ -6,8 +6,13 @@ from .github_oauth import (
     check_repo_star,
     refresh_github_username,
 )
-from .twitter_oauth import twitter_oauth_initiate, twitter_oauth_callback
-from .discord_oauth import discord_oauth_initiate, discord_oauth_callback, check_discord_guild
+from .twitter_oauth import twitter_oauth_initiate, twitter_oauth_callback, refresh_twitter_username
+from .discord_oauth import (
+    discord_oauth_initiate,
+    discord_oauth_callback,
+    check_discord_guild,
+    refresh_discord_username,
+)
 
 urlpatterns = [
     # GitHub OAuth
@@ -19,9 +24,11 @@ urlpatterns = [
     # Twitter OAuth
     path('api/auth/twitter/', twitter_oauth_initiate, name='twitter_oauth'),
     path('api/auth/twitter/callback/', twitter_oauth_callback, name='twitter_callback'),
+    path('api/v1/users/twitter/refresh/', refresh_twitter_username, name='twitter_refresh_username'),
 
     # Discord OAuth
     path('api/auth/discord/', discord_oauth_initiate, name='discord_oauth'),
     path('api/auth/discord/callback/', discord_oauth_callback, name='discord_callback'),
+    path('api/v1/users/discord/refresh/', refresh_discord_username, name='discord_refresh_username'),
     path('api/v1/users/discord/check-guild/', check_discord_guild, name='discord_check_guild'),
 ]

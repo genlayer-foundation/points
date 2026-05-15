@@ -169,7 +169,7 @@
                                     
                                     <dt>Current State:</dt>
                                     <dd>
-                                        <span class="badge badge-{% if submission.state == 'pending' %}warning{% elif submission.state == 'accepted' %}success{% elif submission.state == 'rejected' %}danger{% else %}info{% endif %}">
+                                        <span class="badge badge-{% if submission.state == 'pending' %}warning{% elif submission.state == 'accepted' %}success{% elif submission.state == 'rejected' %}danger{% elif submission.state == 'canceled' %}secondary{% else %}info{% endif %}">
                                             {{ submission.get_state_display }}
                                         </span>
                                     </dd>

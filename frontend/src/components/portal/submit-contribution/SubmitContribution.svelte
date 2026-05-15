@@ -127,12 +127,32 @@
           if (mission) {
             const parentType = types.find((t) => t.id === mission.contribution_type);
             if (parentType) {
-              selectedType = parentType;
-              selectedMission = mission.id;
-              selectedMissionData = mission;
               selectedCategory = parentType.category || "builder";
-              formData.contribution_type = parentType.id;
-              searchQuery = mission.name;
+              if (isTypeFull(parentType)) {
+                selectedType = null;
+                selectedMission = null;
+                selectedMissionData = null;
+                formData.contribution_type = "";
+                searchQuery = "";
+                showTypeDropdown = true;
+                error = "This contribution type has reached its submission limit.";
+              } else if (isMissionSubmittable(mission)) {
+                selectedType = parentType;
+                selectedMission = mission.id;
+                selectedMissionData = mission;
+                formData.contribution_type = parentType.id;
+                searchQuery = mission.name;
+              } else {
+                selectedType = null;
+                selectedMission = null;
+                selectedMissionData = null;
+                formData.contribution_type = "";
+                searchQuery = "";
+                showTypeDropdown = true;
+                error = isMissionFull(mission)
+                  ? missionLimitError(mission)
+                  : "This mission is not currently accepting submissions.";
+              }
             }
           }
         } catch (err) {
@@ -144,9 +164,15 @@
         if (type) {
           selectedCategory = type.category || "builder";
           searchQuery = type.name;
-          if (type.is_submittable) {
+          if (type.is_submittable && !isTypeFull(type)) {
             selectedType = type;
             formData.contribution_type = type.id;
+          } else if (isTypeFull(type)) {
+            selectedType = null;
+            formData.contribution_type = "";
+            searchQuery = "";
+            showTypeDropdown = true;
+            error = "This contribution type has reached its submission limit.";
           } else {
             showTypeDropdown = true;
           }
@@ -284,16 +310,63 @@
     return true;
   }
 
+  function isMissionFull(mission) {
+    if (!mission) return false;
+    if (mission.user_is_full === true) return true;
+    if (mission.is_full === true) return true;
+    return (
+      mission.max_submissions !== null &&
+      mission.max_submissions !== undefined &&
+      mission.submissions_remaining !== null &&
+      mission.submissions_remaining !== undefined &&
+      Number(mission.submissions_remaining) <= 0
+    );
+  }
+
+  function missionLimitError(mission) {
+    if (mission?.user_is_full === true) {
+      return "You have reached your submission limit for this mission.";
+    }
+    return "This mission has reached its submission limit.";
+  }
+
+  function isMissionSubmittable(mission) {
+    return isMissionActive(mission) && !isMissionFull(mission);
+  }
+
+  function isTypeFull(type) {
+    if (!type) return false;
+    if (type.is_full === true) return true;
+    return (
+      type.max_submissions !== null &&
+      type.max_submissions !== undefined &&
+      type.submissions_remaining !== null &&
+      type.submissions_remaining !== undefined &&
+      Number(type.submissions_remaining) <= 0
+    );
+  }
+
+  function canSubmitTypeDirectly(type) {
+    return type.is_submittable && !isTypeFull(type);
+  }
+
+  function spotsLeftLabel(count) {
+    return `${count} ${Number(count) === 1 ? "spot" : "spots"} left`;
+  }
+
   function activeMissionsForType(typeId) {
+    const type = types.find((t) => String(t.id) === String(typeId));
+    if (isTypeFull(type)) return [];
+
     return missions.filter(
       (mission) =>
         String(mission.contribution_type) === String(typeId) &&
-        isMissionActive(mission),
+        isMissionSubmittable(mission),
     );
   }
 
   function typeCanBeSelected(type) {
-    return type.is_submittable || activeMissionsForType(type.id).length > 0;
+    return canSubmitTypeDirectly(type) || activeMissionsForType(type.id).length > 0;
   }
 
   // Master gate: should the form details (date/title/notes/evidence/submit) be shown?
@@ -330,7 +403,7 @@
     );
     const categoryMissions = missions.filter((m) => {
       const mType = types.find((t) => String(t.id) === String(m.contribution_type));
-      return mType && mType.category === selectedCategory && isMissionActive(m);
+      return mType && mType.category === selectedCategory && isMissionSubmittable(m);
     });
 
     let matchingTypes = categoryTypes;
@@ -370,7 +443,7 @@
         (m) => String(m.contribution_type) === String(type.id),
       );
 
-      if (type.is_submittable) {
+      if (canSubmitTypeDirectly(type)) {
         items.push({ itemType: "type", data: type });
       } else if (typeMissions.length > 0) {
         items.push({ itemType: "typeHeader", data: type });
@@ -400,6 +473,11 @@
   }
 
   function selectType(t) {
+    if (isTypeFull(t)) {
+      error = "This contribution type has reached its submission limit.";
+      return;
+    }
+
     if (!t.is_submittable) {
       searchQuery = t.name;
       showTypeDropdown = true;
@@ -419,6 +497,16 @@
     if (item.itemType === "type") {
       selectType(item.data);
     } else if (item.itemType === "mission") {
+      if (isTypeFull(item.parentType)) {
+        error = "This contribution type has reached its submission limit.";
+        return;
+      }
+      if (!isMissionSubmittable(item.data)) {
+        error = isMissionFull(item.data)
+          ? missionLimitError(item.data)
+          : "This mission is not currently accepting submissions.";
+        return;
+      }
       selectedType = item.parentType;
       selectedMission = item.data.id;
       selectedMissionData = item.data;
@@ -803,6 +891,12 @@
     error = "";
 
     try {
+      if (isTypeFull(selectedType)) {
+        error = "This contribution type has reached its submission limit.";
+        submitting = false;
+        return;
+      }
+
       const submissionData = {
         contribution_type: formData.contribution_type,
         contribution_date: formData.contribution_date + "T00:00:00Z",
@@ -814,6 +908,11 @@
       // Include mission when selected from the URL preselection or dropdown.
       const missionToSubmit = selectedMission;
       if (missionToSubmit) {
+        if (isMissionFull(selectedMissionData)) {
+          error = missionLimitError(selectedMissionData);
+          submitting = false;
+          return;
+        }
         submissionData.mission = missionToSubmit;
       }
 
@@ -1122,6 +1221,12 @@
                         >For: {item.parentType.name}</span
                       >
                     {/if}
+                    {#if item.itemType === "mission" && item.data.max_submissions != null}
+                      <span
+                        class="font-['Switzer'] text-[11px] text-emerald-700 mt-0.5"
+                        >{spotsLeftLabel(item.data.submissions_remaining)}</span
+                      >
+                    {/if}
                     {#if item.itemType === "type"}
                       <div class="mt-1 flex items-center gap-1">
                         <span
@@ -1133,6 +1238,12 @@
                             )} pts{:else}{item.data.min_points}
                             - {item.data.max_points} pts{/if}</span
                         >
+                        {#if item.data.max_submissions != null}
+                          <span
+                            class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded font-medium"
+                            >{spotsLeftLabel(item.data.submissions_remaining)}</span
+                          >
+                        {/if}
                       </div>
                     {/if}
                   </button>
@@ -1171,11 +1282,21 @@
             <p class="font-['Switzer'] text-[12px] text-gray-500 mt-0.5">
               Type: {selectedType.name}
             </p>
+            {#if selectedMissionData.max_submissions != null}
+              <p class="font-['Switzer'] text-[12px] text-gray-500 mt-0.5">
+                Mission capacity: {spotsLeftLabel(selectedMissionData.submissions_remaining)}
+              </p>
+            {/if}
           {:else}
             <span
               class="font-['Switzer'] font-semibold text-[14px] text-black"
               >{selectedType.name}</span
             >
+            {#if selectedType.max_submissions != null}
+              <p class="font-['Switzer'] text-[12px] text-gray-500 mt-0.5">
+                Capacity: {spotsLeftLabel(selectedType.submissions_remaining)}
+              </p>
+            {/if}
             {#if selectedType.description}
               <p class="font-['Switzer'] text-[12px] text-gray-500 mt-1">
                 {selectedType.description}

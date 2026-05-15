@@ -79,7 +79,14 @@ def refresh_github_username(request):
         connection, changed = service.refresh_connection_username(connection)
     except ValueError as e:
         error_code = str(e)
-        if error_code in ('missing_access_token', 'invalid_access_token'):
+        if error_code in (
+            'missing_access_token',
+            'invalid_access_token',
+            'missing_refresh_token',
+            'invalid_refresh_token',
+            'refresh_not_supported',
+            'no_access_token',
+        ):
             return Response({
                 'error': 'GitHub authorization is no longer valid. Please reconnect GitHub.',
                 'code': error_code,
