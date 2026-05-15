@@ -100,6 +100,35 @@
     }
   }
 
+  function spotsLeftLabel(count) {
+    return `${count} ${Number(count) === 1 ? 'spot' : 'spots'} left`;
+  }
+
+  function isFull(entity) {
+    if (!entity) return false;
+    if (entity.is_full === true) return true;
+    return (
+      entity.max_submissions !== null &&
+      entity.max_submissions !== undefined &&
+      entity.submissions_remaining !== null &&
+      entity.submissions_remaining !== undefined &&
+      Number(entity.submissions_remaining) <= 0
+    );
+  }
+
+  function missionCapacityLabel(mission, parentType) {
+    if (mission?.user_is_full === true) return 'Your limit reached';
+    if (isFull(mission)) return 'Full';
+    if (isFull(parentType)) return 'Submissions closed';
+    if (mission?.max_submissions != null && mission?.submissions_remaining != null) {
+      return spotsLeftLabel(mission.submissions_remaining);
+    }
+    if (parentType?.max_submissions != null && parentType?.submissions_remaining != null) {
+      return spotsLeftLabel(parentType.submissions_remaining);
+    }
+    return null;
+  }
+
   function toggleMissionExpanded(missionId) {
     const newExpanded = new Set(expandedMissions);
     if (newExpanded.has(missionId)) {
@@ -256,6 +285,9 @@
       {@const isExpanded = expandedMissions.has(mission.id)}
       {@const hasLongText = needsExpansion(mission.description)}
       {@const parentType = mission.contribution_type_details}
+      {@const submissionClosed = mission.user_is_full === true || isFull(mission) || isFull(parentType)}
+      {@const capacityLabel = missionCapacityLabel(mission, parentType)}
+      {@const submitLabel = mission.user_is_full === true ? 'Limit reached' : isFull(mission) ? 'Full' : isFull(parentType) ? 'Submissions closed' : 'Submit →'}
 
       <div class="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors">
         <!-- Title row with badges and submit button -->
@@ -294,13 +326,20 @@
               <span class="text-xs text-gray-600">Ongoing</span>
             {/if}
 
+            {#if capacityLabel}
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {submissionClosed ? 'bg-gray-100 text-gray-700' : 'bg-emerald-100 text-emerald-800'}">
+                {capacityLabel}
+              </span>
+            {/if}
+
           </div>
 
           <button
-            onclick={() => push(`/submit-contribution?mission=${mission.id}`)}
-            class="inline-flex min-h-11 w-full flex-shrink-0 items-center justify-center rounded-[8px] border border-gray-200 px-3 text-sm font-normal transition-colors sm:min-h-0 sm:w-auto sm:border-0 sm:p-0 {colors.titleText} {colors.titleTextHover}"
+            onclick={() => !submissionClosed && push(`/submit-contribution?mission=${mission.id}`)}
+            disabled={submissionClosed}
+            class="inline-flex min-h-11 w-full flex-shrink-0 items-center justify-center rounded-[8px] border border-gray-200 px-3 text-sm font-normal transition-colors sm:min-h-0 sm:w-auto sm:border-0 sm:p-0 {submissionClosed ? 'cursor-not-allowed text-gray-400' : `${colors.titleText} ${colors.titleTextHover}`}"
           >
-            Submit →
+            {submitLabel}
           </button>
         </div>
 
