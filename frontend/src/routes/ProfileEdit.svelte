@@ -601,6 +601,7 @@
                     connection={user.github_connection}
                     initiateUrl="/api/auth/github/"
                     onLinked={handleSocialLinked}
+                    allowUsernameRefresh={true}
                   />
                 </div>
 
@@ -612,6 +613,7 @@
                     connection={user.twitter_connection}
                     initiateUrl="/api/auth/twitter/"
                     onLinked={handleSocialLinked}
+                    allowUsernameRefresh={true}
                   />
                 </div>
 
@@ -623,6 +625,7 @@
                     connection={user.discord_connection}
                     initiateUrl="/api/auth/discord/"
                     onLinked={handleSocialLinked}
+                    allowUsernameRefresh={true}
                   />
                 </div>
               </div>
