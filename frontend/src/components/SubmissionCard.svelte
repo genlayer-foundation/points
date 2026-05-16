@@ -21,6 +21,8 @@
     successMessage = '',
     contributionTypes = [],
     users = [],
+    usersLoading = false,
+    usersLoaded = false,
     multipliers = {},
     isOwnSubmission = false,
     permissions = {},
@@ -30,6 +32,7 @@
     onAddNote = null,
     onToggleInteresting = null,
     onRequestNotes = null,
+    onRequestUsers = null,
     onAppeal = null
   } = $props();
 
@@ -37,6 +40,7 @@
   let copyingReviewContext = $state(false);
   let appealReason = $state('');
   let submittingAppeal = $state(false);
+  let showUserPicker = $state(false);
 
   let canCopyReviewContext = $derived(
     showReviewForm && !isOwnSubmission && submission.state === 'pending'
@@ -240,6 +244,25 @@
   );
   let selectedUser = $state(reviewData?.user || submission.user);
   let selectedType = $state(reviewData?.contribution_type || submission.contribution_type);
+  let defaultSelectedUserDetails = $derived(
+    String(selectedUser) === String(submission.user)
+      ? submission.user_details
+      : String(selectedUser) === String(submission.proposed_user)
+        ? submission.proposed_user_details
+        : null
+  );
+  let selectedUserDetails = $derived(
+    showUserPicker
+      ? users.find(u => String(u.id) === String(selectedUser)) || defaultSelectedUserDetails
+      : defaultSelectedUserDetails
+  );
+  let selectedUserLabel = $derived(
+    selectedUserDetails?.display_name ||
+    selectedUserDetails?.name ||
+    selectedUserDetails?.address ||
+    (selectedUser ? `User #${selectedUser}` : 'Current submitter')
+  );
+  let selectedTypeDetails = $derived(contributionTypes.find(t => t.id === selectedType));
   let points = $state(reviewData?.points || submission.proposed_points || submission.contribution_type_details?.min_points || 0);
   let staffReply = $state(reviewData?.staff_reply || '');
   let createHighlight = $state(reviewData?.create_highlight || false);
@@ -370,7 +393,7 @@
   }
 
   function adjustPoints(delta) {
-    const type = contributionTypes.find(t => t.id === selectedType);
+    const type = selectedTypeDetails;
     if (!type) return;
 
     const newPoints = points + delta;
@@ -397,6 +420,13 @@
     if (template) {
       staffReply = template.text;
       selectedTemplateId = template.id;
+    }
+  }
+
+  async function handleShowUserPicker() {
+    showUserPicker = true;
+    if (!usersLoaded && onRequestUsers) {
+      await onRequestUsers();
     }
   }
 
@@ -813,16 +843,16 @@
                     {/if}
                     {#if reviewAction === 'accept' || proposedAction === 'accept'}
                     <div class="space-y-3">
-                    {#if users.length > 0}
-                      <div>
-                        <label class="block text-sm font-medium text-gray-700">
-                          Assign Contribution To
-                        </label>
-                        <div class="mt-1 flex items-center gap-2">
-                          <Avatar
-                            user={users.find(u => u.id === selectedUser)}
-                            size="sm"
-                          />
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700">
+                        Assign Contribution To
+                      </label>
+                      <div class="mt-1 flex items-center gap-2">
+                        <Avatar
+                          user={selectedUserDetails}
+                          size="sm"
+                        />
+                        {#if showUserPicker && users.length > 0}
                           <select
                             bind:value={selectedUser}
                             class="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
@@ -833,12 +863,24 @@
                               </option>
                             {/each}
                           </select>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-1">
-                          The contribution will be assigned to this user
-                        </p>
+                        {:else}
+                          <div class="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-md text-sm bg-white text-gray-700 truncate">
+                            {selectedUserLabel}
+                          </div>
+                          <button
+                            type="button"
+                            onclick={handleShowUserPicker}
+                            disabled={usersLoading}
+                            class="px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {usersLoading ? 'Loading...' : 'Change'}
+                          </button>
+                        {/if}
                       </div>
-                    {/if}
+                      <p class="text-xs text-gray-500 mt-1">
+                        The contribution will be assigned to this user
+                      </p>
+                    </div>
 
                     <div>
                       <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -884,7 +926,7 @@
                           </button>
                         </div>
                         <p class="text-xs text-gray-500 mt-1">
-                          Range: {contributionTypes.find(t => t.id === selectedType)?.min_points || 0}-{contributionTypes.find(t => t.id === selectedType)?.max_points || 100}
+                          Range: {selectedTypeDetails?.min_points || 0}-{selectedTypeDetails?.max_points || 100}
                         </p>
                       </div>
 

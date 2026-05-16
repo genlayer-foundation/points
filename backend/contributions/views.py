@@ -1158,6 +1158,12 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             else:
                 queryset = queryset.none()
 
+        notes_count = SubmissionNote.objects.filter(
+            submitted_contribution_id=OuterRef('pk')
+        ).values('submitted_contribution_id').annotate(
+            count=Count('pk')
+        ).values('count')
+
         # Comprehensive prefetch for optimization
         queryset = queryset.select_related(
             'user',
@@ -1176,7 +1182,13 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'proposed_contribution_type',
             'proposed_user',
             'proposed_template',
-        ).prefetch_related('evidence_items', 'internal_notes')
+        ).prefetch_related('evidence_items').annotate(
+            internal_notes_count=Coalesce(
+                Subquery(notes_count, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            )
+        )
 
         return queryset
 

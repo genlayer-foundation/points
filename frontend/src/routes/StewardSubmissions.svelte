@@ -16,6 +16,9 @@
   let submissions = $state([]);
   let contributionTypes = $state([]);
   let users = $state([]);
+  let usersLoading = $state(false);
+  let usersLoaded = $state(false);
+  let usersRequest = null;
   let loading = $state(true);
   let error = $state(null);
   let currentPage = $state(1);
@@ -42,6 +45,9 @@
   // CRM Notes state - keyed by submission ID
   let submissionNotes = $state({});
   let notesLoading = $state({});
+  let submissionsRequestId = 0;
+  let notesBatchRequestId = 0;
+  const NOTES_CONCURRENCY = 4;
 
   // Bulk selection state
   let selectedSubmissions = $state(new Set());
@@ -73,7 +79,6 @@
       loadPermissions(),
       loadTemplates(),
       loadContributionTypes(),
-      loadUsers(),
       loadStewards(),
       loadMissions()
     ]);
@@ -102,11 +107,33 @@
   }
 
   async function loadUsers() {
+    if (usersLoaded) return users;
+    if (usersRequest) return usersRequest;
+
+    usersLoading = true;
+    usersRequest = (async () => {
+      try {
+        const response = await stewardAPI.getUsers();
+        users = response.data;
+        usersLoaded = true;
+        return users;
+      } catch (err) {
+        showError('Failed to load users: ' + (err.response?.data?.detail || err.message));
+        return users;
+      } finally {
+        usersLoading = false;
+        usersRequest = null;
+      }
+    })();
+
+    return usersRequest;
+  }
+
+  async function ensureUsersLoaded() {
     try {
-      const response = await stewardAPI.getUsers();
-      users = response.data;
+      return await loadUsers();
     } catch (err) {
-      // Error loading users silently handled
+      return users;
     }
   }
 
@@ -193,6 +220,7 @@
   }
 
   async function loadSubmissions() {
+    const requestId = ++submissionsRequestId;
     loading = true;
     error = null;
     clearSelection();
@@ -221,7 +249,10 @@
       params.page_size = pageSize;
 
       const response = await stewardAPI.getSubmissions(params);
-      submissions = response.data.results || [];
+      if (requestId !== submissionsRequestId) return;
+
+      const loadedSubmissions = response.data.results || [];
+      submissions = loadedSubmissions;
       totalCount = response.data.count || 0;
 
       // If we got no results and we're not on page 1, it means this page doesn't exist anymore
@@ -233,7 +264,7 @@
       }
 
       // Initialize review data for each submission
-      submissions.forEach(sub => {
+      loadedSubmissions.forEach(sub => {
         if (!reviewData[sub.id]) {
           reviewData[sub.id] = {
             action: 'accept',
@@ -248,13 +279,10 @@
         }
       });
 
-      // Load notes for visible pending/more_info_needed submissions
-      for (const sub of submissions) {
-        if (sub.state === 'pending' || sub.state === 'more_info_needed') {
-          loadNotes(sub.id);
-        }
-      }
+      loadVisibleNotes(loadedSubmissions, requestId);
     } catch (err) {
+      if (requestId !== submissionsRequestId) return;
+
       // If we get a 404 error and we're not on page 1, it might mean the page doesn't exist
       // Try going to the previous page
       if (err.response?.status === 404 && currentPage > 1) {
@@ -268,8 +296,56 @@
         ? 'You do not have permission to access steward tools'
         : 'Failed to load submissions';
     } finally {
-      loading = false;
+      if (requestId === submissionsRequestId) {
+        loading = false;
+      }
     }
+  }
+
+  async function loadVisibleNotes(visibleSubmissions, requestId) {
+    const ids = visibleSubmissions
+      .filter(sub =>
+        (sub.state === 'pending' || sub.state === 'more_info_needed') &&
+        (sub.notes_count ?? 0) > 0
+      )
+      .map(sub => sub.id);
+
+    if (ids.length === 0) return;
+
+    const batchId = ++notesBatchRequestId;
+    const loadingUpdates = {};
+    ids.forEach(id => {
+      loadingUpdates[id] = true;
+    });
+    notesLoading = { ...notesLoading, ...loadingUpdates };
+
+    const loadedNotes = {};
+    const finishedLoading = {};
+    let nextIndex = 0;
+
+    async function loadNext() {
+      while (nextIndex < ids.length) {
+        const id = ids[nextIndex];
+        nextIndex += 1;
+
+        try {
+          const response = await stewardAPI.getNotes(id);
+          loadedNotes[id] = response.data || [];
+        } catch (err) {
+          loadedNotes[id] = [];
+        } finally {
+          finishedLoading[id] = false;
+        }
+      }
+    }
+
+    const workerCount = Math.min(NOTES_CONCURRENCY, ids.length);
+    await Promise.all(Array.from({ length: workerCount }, loadNext));
+
+    if (requestId !== submissionsRequestId || batchId !== notesBatchRequestId) return;
+
+    submissionNotes = { ...submissionNotes, ...loadedNotes };
+    notesLoading = { ...notesLoading, ...finishedLoading };
   }
 
   async function loadNotes(submissionId) {
@@ -663,7 +739,7 @@
 
     <div class="space-y-4">
       {#each submissions as submission (submission.id)}
-        <div>
+        <div class="submission-row">
           {#if submission.state === 'pending' || submission.state === 'more_info_needed'}
             <div class="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2 shadow-sm">
               <label class="flex items-center gap-2 text-sm text-gray-700">
@@ -706,6 +782,8 @@
             successMessage={''}
             {contributionTypes}
             {users}
+            {usersLoading}
+            {usersLoaded}
             {multipliers}
             isOwnSubmission={false}
             permissions={permissionsMap}
@@ -715,6 +793,7 @@
             onAddNote={handleAddNote}
             onToggleInteresting={handleToggleInteresting}
             onRequestNotes={fetchNotesForCopy}
+            onRequestUsers={ensureUsersLoaded}
           />
         </div>
       {/each}
@@ -736,3 +815,10 @@
     {/if}
   {/if}
 </div>
+
+<style>
+  .submission-row {
+    content-visibility: auto;
+    contain-intrinsic-size: 900px;
+  }
+</style>

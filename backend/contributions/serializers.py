@@ -903,6 +903,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
     assigned_to = serializers.PrimaryKeyRelatedField(read_only=True)
     # Proposal fields
     proposed_by_details = serializers.SerializerMethodField()
+    proposed_user_details = serializers.SerializerMethodField()
     has_proposal = serializers.SerializerMethodField()
     proposed_template_name = serializers.SerializerMethodField()
     notes_count = serializers.SerializerMethodField()
@@ -914,7 +915,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                   'reviewed_by', 'reviewed_at', 'assigned_to',
                   'evidence_items', 'proposed_points',
                   # Proposal fields
-                  'proposed_action', 'proposed_contribution_type', 'proposed_user',
+                  'proposed_action', 'proposed_contribution_type', 'proposed_user', 'proposed_user_details',
                   'proposed_staff_reply', 'proposed_create_highlight',
                   'proposed_highlight_title', 'proposed_highlight_description',
                   'proposed_by', 'proposed_at', 'proposed_by_details', 'has_proposal',
@@ -1002,6 +1003,17 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
             }
         return None
 
+    def get_proposed_user_details(self, obj):
+        if obj.proposed_user:
+            return {
+                'id': obj.proposed_user.id,
+                'name': obj.proposed_user.name,
+                'address': obj.proposed_user.address,
+                'display_name': obj.proposed_user.name or f"{obj.proposed_user.address[:6]}...{obj.proposed_user.address[-4:]}",
+                'profile_image_url': obj.proposed_user.profile_image_url,
+            }
+        return None
+
     def get_has_proposal(self, obj):
         return obj.proposed_action is not None
 
@@ -1011,6 +1023,9 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
         return None
 
     def get_notes_count(self, obj):
+        if hasattr(obj, 'internal_notes_count'):
+            return obj.internal_notes_count
+
         # Use prefetched data if available
         if hasattr(obj, '_prefetched_objects_cache') and 'internal_notes' in obj._prefetched_objects_cache:
             return len(obj._prefetched_objects_cache['internal_notes'])
