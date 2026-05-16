@@ -80,7 +80,7 @@
   target="_blank"
   rel="noopener noreferrer"
   aria-label={`Open ${stream.title}${dateTime ? `, ${dateTime}` : ''}`}
-  class="group w-full rounded-[8px] overflow-hidden relative cursor-pointer bg-[#111] block shadow-sm ring-1 ring-black/5 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
+  class="stream-card group w-full rounded-[8px] overflow-hidden relative cursor-pointer bg-[#111] block shadow-sm ring-1 ring-black/5 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
 >
   <div class="relative w-full aspect-[16/9]">
     <div class="absolute inset-0 bg-gradient-to-br from-[#202020] via-[#111] to-black"></div>
@@ -118,37 +118,37 @@
       </div>
     </div>
 
-    <div class="absolute bottom-0 left-0 right-0 p-3.5 sm:p-5 space-y-1.5 transition duration-200 {showDefaultInfo ? 'opacity-100 translate-y-0 group-hover:opacity-0 group-hover:translate-y-2 group-focus-visible:opacity-0 group-focus-visible:translate-y-2' : 'opacity-0 translate-y-2'}">
-      <h3 class="text-white text-[18px] sm:text-[22px] font-display font-medium leading-[1.05] line-clamp-2">
+    <div class="stream-card-preview absolute bottom-0 left-0 right-0 p-3.5 sm:p-5 space-y-1.5 transition duration-200 {showDefaultInfo ? 'opacity-100 translate-y-0 group-hover:opacity-0 group-hover:translate-y-2 group-focus-visible:opacity-0 group-focus-visible:translate-y-2' : 'opacity-0 translate-y-2'}">
+      <h3 class="stream-card-title text-white font-display font-medium line-clamp-2">
         {stream.title}
       </h3>
       {#if dateTime}
-        <p class="text-white/80 text-[12px] sm:text-[14px] font-medium">
+        <p class="stream-card-date text-white/80 font-medium">
           {dateTime}
         </p>
       {/if}
     </div>
 
-    <div class="absolute inset-0 p-3.5 sm:p-5 flex items-end bg-black/30 backdrop-blur-[14px] opacity-0 translate-y-3 transition duration-200 group-hover:opacity-100 group-hover:translate-y-0 group-focus-visible:opacity-100 group-focus-visible:translate-y-0">
-      <div class="space-y-3 drop-shadow-[0_2px_10px_rgba(0,0,0,0.65)]">
+    <div class="stream-card-hover absolute inset-0 p-3.5 sm:p-5 flex items-end bg-black/30 backdrop-blur-[14px] opacity-0 translate-y-3 transition duration-200 group-hover:opacity-100 group-hover:translate-y-0 group-focus-visible:opacity-100 group-focus-visible:translate-y-0">
+      <div class="stream-card-copy space-y-3 drop-shadow-[0_2px_10px_rgba(0,0,0,0.65)]">
         <div class="space-y-1">
-          <h3 class="text-white text-[18px] sm:text-[22px] font-display font-medium leading-[1.05] line-clamp-2">
+          <h3 class="stream-card-title text-white font-display font-medium line-clamp-2">
             {stream.title}
           </h3>
           {#if dateTime}
-            <p class="text-white/70 text-[12px] sm:text-[14px] font-medium">
+            <p class="stream-card-date text-white/70 font-medium">
               {dateTime}{duration ? ` · ${duration}` : ''}
             </p>
           {/if}
         </div>
 
         {#if description}
-          <p class="text-white/85 text-[13px] sm:text-[15px] leading-snug line-clamp-3 max-w-[58ch]">
+          <p class="stream-card-description text-white/85 leading-snug line-clamp-3 max-w-[58ch]">
             {description}
           </p>
         {/if}
 
-        <div class="flex items-center gap-2 text-[11px] font-semibold uppercase text-white/72">
+        <div class="stream-card-meta flex items-center gap-2 font-semibold uppercase text-white/72">
           <span>{categoryLabel}</span>
           {#if host}
             <span class="opacity-50">·</span>
@@ -159,3 +159,73 @@
     </div>
   </div>
 </a>
+
+<style>
+  .stream-card {
+    container-type: inline-size;
+  }
+
+  .stream-card-title {
+    font-size: 22px;
+    line-height: 1.05;
+  }
+
+  .stream-card-date {
+    font-size: 14px;
+    line-height: 1.25;
+  }
+
+  .stream-card-description {
+    font-size: 15px;
+  }
+
+  .stream-card-meta {
+    font-size: 11px;
+  }
+
+  @container (max-width: 340px) {
+    .stream-card-preview,
+    .stream-card-hover {
+      padding: 12px;
+    }
+
+    .stream-card-title {
+      font-size: 16px;
+      line-height: 1.08;
+    }
+
+    .stream-card-date {
+      font-size: 11px;
+    }
+
+    .stream-card-description {
+      font-size: 12px;
+      line-height: 1.28;
+      -webkit-line-clamp: 2;
+    }
+
+    .stream-card-copy > :not([hidden]) ~ :not([hidden]) {
+      margin-top: 8px;
+    }
+
+    .stream-card-meta {
+      font-size: 10px;
+    }
+  }
+
+  @container (max-width: 260px) {
+    .stream-card-preview,
+    .stream-card-hover {
+      padding: 10px;
+    }
+
+    .stream-card-title {
+      font-size: 14px;
+    }
+
+    .stream-card-description,
+    .stream-card-meta {
+      display: none;
+    }
+  }
+</style>

@@ -8,10 +8,12 @@
   import PortalHighlights from '../components/portal/PortalHighlights.svelte';
   import NewestMembers from '../components/portal/NewestMembers.svelte';
   import MiniLeaderboard from '../components/portal/MiniLeaderboard.svelte';
+  import BuilderResourcesPromo from '../components/portal/BuilderResourcesPromo.svelte';
 </script>
 
 <div class="space-y-8 max-w-full overflow-x-hidden md:overflow-x-visible">
   <HeroBanner showNewsLink={true} />
+  <BuilderResourcesPromo />
   <LiveStats />
   <TrendingContributors />
   <FeaturedBuilds />
