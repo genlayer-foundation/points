@@ -444,6 +444,7 @@
         onclick={() => navigate('/how-it-works')}
         class="w-full flex px-3 py-2 rounded-[8px] transition-colors {isActive('/how-it-works') ? 'bg-[#eeedfb]' : 'hover:bg-[#f5f5f5]'}"
         title="How it works"
+        aria-label="How it works"
       >
         <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={isActive('/how-it-works') ? '#6D5DD3' : '#656567'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
@@ -465,6 +466,7 @@
         onclick={handleSubmitContribution}
         class="w-full flex px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors"
         title="Submit Contribution"
+        aria-label="Submit Contribution"
       >
         <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
       </button>
@@ -487,6 +489,7 @@
           onclick={() => navigate('/my-submissions')}
           class="w-full flex px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors"
           title="My Submissions"
+          aria-label="My Submissions"
         >
           <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="#656567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
