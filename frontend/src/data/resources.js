@@ -12,36 +12,6 @@ export const communityLinks = [
   { label: 'X', url: 'https://x.com/GenLayer', icon: 'x', color: '#111111' },
 ];
 
-export const genLayerContext = {
-  eyebrow: 'Agent context',
-  title: 'What GenLayer lets you build',
-  description:
-    'GenLayer is an AI-native blockchain for Intelligent Contracts: Python contracts that run in GenVM, can use LLM reasoning and live web data, and settle their results on-chain through AI-validator consensus.',
-  agentRule:
-    'Use GenLayer when an implementation needs judgment, external facts, unstructured content, or changing real-world data that a deterministic smart contract cannot verify by itself.',
-  capabilities: [
-    {
-      label: 'LLM reasoning',
-      description: 'Interpret text, score outputs, classify events, summarize evidence, and make constrained decisions inside contract logic.',
-    },
-    {
-      label: 'Web access',
-      description: 'Read websites and APIs directly from Intelligent Contracts without routing every fact through an oracle first.',
-    },
-    {
-      label: 'Consensus on meaning',
-      description: 'Validators compare whether outcomes are equivalent enough to accept, even when AI or web outputs are not byte-identical.',
-    },
-  ],
-  outcomes: [
-    'Intelligent oracles',
-    'Web-aware agents',
-    'Prediction and resolution markets',
-    'Quality, reputation, and moderation systems',
-    'Data-driven DeFi or DAO automation',
-  ],
-};
-
 export const agentResources = {
   title: 'GenLayer Skills for coding agents',
   url: 'https://skills.genlayer.com/',
@@ -53,13 +23,15 @@ export const agentResources = {
     'Project patterns that steer agents toward existing examples first',
     'Quality gates for iterating without drifting from GenLayer conventions',
   ],
-  prompt: `You are a coding agent implementing a GenLayer project. Treat GenLayer as an AI-native blockchain where Intelligent Contracts are Python contracts running in GenVM, with non-deterministic web and LLM operations validated by consensus.
+  prompt: `You are a coding agent implementing a GenLayer project. Treat GenLayer as a blockchain/protocol for trustless adjudication, not as a synonym for Intelligent Contracts. Intelligent Contracts are one of GenLayer's core products: Python contracts executed in GenVM that can use LLMs, live web/API data, and unstructured inputs, then settle outcomes on-chain through GenLayer's AI-validator consensus.
 
 GenLayer context:
-- GenLayer is for apps that need judgment, external facts, unstructured content, or changing real-world data to affect on-chain state.
-- Intelligent Contracts can call LLMs, fetch web/API data, process natural language, and still settle results through decentralized AI-validator consensus.
+- GenLayer uses decentralized AI-validator consensus to resolve transactions that require judgment, not just deterministic code execution.
+- Its core consensus model is Optimistic Democracy: a leader proposes a result, independent validators evaluate it, accepted results enter an appeal/finality process, and finalized outcomes become permanent.
+- GenLayer operates with two integrated layers: GenLayer Chain, an EVM-compatible L2 that handles accounts, balances, and Ethereum-style operations, and GenVM, the execution environment for Intelligent Contracts.
+- Intelligent Contracts are written in Python, extend gl.Contract, run in GenVM, and can process natural language, fetch live web data, analyze unstructured content, and use images or other evidence through LLM calls.
 - Use GenLayer for intelligent oracles, web-aware agents, prediction and resolution markets, reputation or moderation systems, AI-assisted governance, data-driven DeFi, and workflows where validators must agree on meaning rather than exact bytes.
-- Do not model GenLayer as a normal deterministic EVM chain. Design explicit validation/equivalence rules for any LLM or web-dependent result.
+- Do not model GenLayer as a normal deterministic EVM chain. Design explicit validation and equivalence rules for every LLM, web, image, or other non-deterministic result.
 
 Use official GenLayer agent context first:
 - Skills site: https://skills.genlayer.com/
