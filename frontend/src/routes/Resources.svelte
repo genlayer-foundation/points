@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { genTvAPI } from '../lib/api.js';
   import { getCategoryGradientStyle } from '../lib/categoryPresentation.js';
+  import CategoryIcon from '../components/portal/CategoryIcon.svelte';
   import StreamCard from '../components/portal/gen-tv/StreamCard.svelte';
   import {
     pageHeader,
@@ -134,9 +135,12 @@
   <div class="relative z-10 mx-auto flex max-w-[1180px] flex-col gap-6 px-1 pb-12 md:px-3">
     <header class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
       <div class="flex flex-col gap-2">
-        <h1 class="font-display text-[32px] font-medium leading-[38px] text-black md:text-[46px] md:leading-[50px]" style="letter-spacing: -0.96px;">
-          {pageHeader.title}
-        </h1>
+        <div class="flex items-start gap-3">
+          <CategoryIcon category="builder" mode="hexagon" size={48} />
+          <h1 class="min-w-0 break-words font-display text-[32px] font-medium leading-[38px] text-black md:text-[46px] md:leading-[50px]" style="letter-spacing: -0.96px;">
+            {pageHeader.title}
+          </h1>
+        </div>
       </div>
 
       <div class="flex items-center gap-2 md:pt-1">
