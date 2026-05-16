@@ -12,7 +12,6 @@
   import PortalHighlights from '../components/portal/PortalHighlights.svelte';
   import CTASection from '../components/ui/CTASection.svelte';
   import Podium from '../components/ui/Podium.svelte';
-  import BuilderResourcesPromo from '../components/portal/BuilderResourcesPromo.svelte';
 
   // Portal components (self-fetching)
   import HeroBanner from '../components/portal/HeroBanner.svelte';
@@ -137,10 +136,6 @@
 <div class="space-y-8">
   <!-- 1. Hero Banner -->
   <HeroBanner category={category} />
-
-  {#if isBuilder}
-    <BuilderResourcesPromo />
-  {/if}
 
   <!-- 2. Live Dashboard Stats -->
   <div>
