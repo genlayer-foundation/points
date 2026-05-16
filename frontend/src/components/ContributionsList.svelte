@@ -18,8 +18,8 @@
   let limit = $state(maxLimit || (compact ? 5 : 10));
   let totalCount = $state(0);
   let localContributions = $state(contributions || []);
-  let localLoading = $state(externalLoading);
-  let localError = $state(externalError);
+  let localLoading = $derived(externalLoading);
+  let localError = $derived(externalError);
 
   // Normalize each contribution into the shape ContributionCard expects.
   // No grouping — every contribution is its own card.
