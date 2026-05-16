@@ -101,12 +101,12 @@ Deliverable expectations:
     {
       label: 'Full documentation',
       url: 'https://docs.genlayer.com/full-documentation.txt',
-      description: 'Plain-text docs for comparing or double-checking agent output.',
+      description: 'Raw GenLayer docs for agents that need complete source context.',
     },
     {
       label: 'API documentation',
       url: 'https://sdk.genlayer.com/main/_static/ai/api.txt',
-      description: 'Plain-text SDK reference when a skill needs verification.',
+      description: 'Raw SDK reference for exact GenVM and API details.',
     },
   ],
 };
