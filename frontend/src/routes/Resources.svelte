@@ -6,7 +6,6 @@
   import {
     pageHeader,
     communityLinks,
-    genLayerContext,
     agentResources,
     codingStreams,
     starterProjects,
@@ -147,19 +146,19 @@
             target="_blank"
             rel="noopener noreferrer"
             aria-label={link.label}
-            class="flex h-11 w-11 items-center justify-center rounded-full border transition hover:-translate-y-0.5 hover:shadow-sm"
-            style="color: {link.color}; border-color: {link.color}3D; background: {link.color}14;"
+            class="flex h-12 w-12 items-center justify-center rounded-full border border-white/90 bg-white shadow-[0_6px_18px_rgba(94,55,21,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_9px_22px_rgba(94,55,21,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+            style="color: {link.color};"
           >
             {#if link.icon === 'telegram'}
-              <svg class="h-[21px] w-[21px]" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.1 18.6 20c-.2 1.1-.9 1.4-1.8.9l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5.1 9.3-8.4c.4-.4-.1-.6-.6-.3L6 13.4l-5-1.6c-1.1-.3-1.1-1.1.2-1.6L20.5 2.8c.9-.3 1.7.2 1.4 1.3z" /></svg>
+              <svg class="h-[22px] w-[22px]" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.1 18.6 20c-.2 1.1-.9 1.4-1.8.9l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5.1 9.3-8.4c.4-.4-.1-.6-.6-.3L6 13.4l-5-1.6c-1.1-.3-1.1-1.1.2-1.6L20.5 2.8c.9-.3 1.7.2 1.4 1.3z" /></svg>
             {:else if link.icon === 'discord'}
-              <svg class="h-[26px] w-[26px]" viewBox="0 0 32 32" fill="none">
+              <svg class="h-[27px] w-[27px]" viewBox="0 0 32 32" fill="none">
                 <path fill="currentColor" d="M9.7 9.2c1.3-.5 2.7-.8 4.1-1l.5 1.1c1.1-.1 2.3-.1 3.4 0l.5-1.1c1.4.2 2.8.5 4.1 1 2.5 3.4 3.5 7 3.1 10.9-1.5 1.1-3.1 2-4.9 2.5l-1-1.5c.6-.2 1.1-.5 1.6-.8-3.3 1.5-6.9 1.5-10.2 0 .5.3 1 .6 1.6.8l-1 1.5c-1.8-.5-3.4-1.4-4.9-2.5-.4-3.9.6-7.5 3.1-10.9Z" />
                 <circle cx="12.3" cy="16" r="1.75" fill="white" />
                 <circle cx="19.7" cy="16" r="1.75" fill="white" />
               </svg>
             {:else}
-              <svg class="h-[20px] w-[20px]" viewBox="0 0 24 24" fill="currentColor"><path d="M18.2 2.3h3.3l-7.3 8.4 8.6 11h-6.7l-5.2-6.8-6 6.8H1.6l7.8-8.9L1.2 2.3H8l4.7 6.2 5.5-6.2zm-1.2 17.5h1.8L7 4.1H5l12 15.7z" /></svg>
+              <svg class="h-[21px] w-[21px]" viewBox="0 0 24 24" fill="currentColor"><path d="M18.2 2.3h3.3l-7.3 8.4 8.6 11h-6.7l-5.2-6.8-6 6.8H1.6l7.8-8.9L1.2 2.3H8l4.7 6.2 5.5-6.2zm-1.2 17.5h1.8L7 4.1H5l12 15.7z" /></svg>
             {/if}
           </a>
         {/each}
@@ -260,52 +259,6 @@
             <svg class="h-3.5 w-3.5 shrink-0 transition {item.kind === 'faucet' ? 'text-[#ee8521]/55 group-hover:text-[#ee8521]' : 'text-[#ababab] group-hover:text-[#387de8]'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
           </a>
         {/each}
-      </div>
-    </div>
-  </section>
-
-  <section class="rounded-[8px] border border-[#ead8c4] bg-[#fffaf4] p-4 shadow-[0_12px_35px_rgba(164,92,25,0.08)] md:p-5">
-    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)] lg:items-start">
-      <div class="flex flex-col gap-3">
-        <div class="flex flex-col gap-1.5">
-          <p class="text-[12px] font-semibold uppercase text-[#b76312]" style="letter-spacing: 0.8px;">
-            {genLayerContext.eyebrow}
-          </p>
-          <h2 class="font-display text-[24px] font-medium leading-[29px] text-black md:text-[30px] md:leading-[34px]" style="letter-spacing: -0.4px;">
-            {genLayerContext.title}
-          </h2>
-        </div>
-        <p class="max-w-[610px] text-[14px] leading-[21px] text-[#4b453e]" style="letter-spacing: 0.14px;">
-          {genLayerContext.description}
-        </p>
-        <div class="rounded-[8px] border border-[#f2d2ae] bg-white/75 px-3 py-2.5 text-[13px] leading-[19px] text-[#6b4a26]">
-          {genLayerContext.agentRule}
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(230px,0.68fr)]">
-        <div class="grid grid-cols-3 gap-2 md:grid-cols-1 xl:grid-cols-3">
-          {#each genLayerContext.capabilities as capability}
-            <div class="min-h-[82px] rounded-[8px] border border-[#f1dfca] bg-white px-2 py-2.5 sm:px-3 sm:py-3 md:min-h-[118px]">
-              <div class="mb-1.5 flex h-7 w-7 items-center justify-center rounded-[8px] bg-[#ee8521]/12 text-[#c66d18] sm:mb-2 sm:h-8 sm:w-8">
-                <svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3.75l1.75 4.25L18 9.75l-4.25 1.75L12 15.75l-1.75-4.25L6 9.75 10.25 8 12 3.75zM18.25 14.25l.85 2.05 2.15.85-2.15.85-.85 2.05-.85-2.05-2.15-.85 2.15-.85.85-2.05zM5.75 14.25l.65 1.55 1.6.65-1.6.65-.65 1.55-.65-1.55-1.6-.65 1.6-.65.65-1.55z" /></svg>
-              </div>
-              <h3 class="text-[12px] font-semibold leading-[15px] text-black sm:text-[13px] sm:leading-[17px]">{capability.label}</h3>
-              <p class="mt-1 hidden text-[12px] leading-[17px] text-[#6f6a63] sm:line-clamp-2 md:block md:line-clamp-none">{capability.description}</p>
-            </div>
-          {/each}
-        </div>
-
-        <div class="rounded-[8px] border border-[#f1dfca] bg-white p-3">
-          <p class="text-[12px] font-semibold uppercase text-[#8d7b67]" style="letter-spacing: 0.7px;">Good fits</p>
-          <div class="mt-2 flex flex-wrap gap-1.5">
-            {#each genLayerContext.outcomes as outcome}
-              <span class="rounded-full border border-[#f0dfcb] bg-[#fff8f0] px-2.5 py-1 text-[12px] font-medium leading-[16px] text-[#5f5143]">
-                {outcome}
-              </span>
-            {/each}
-          </div>
-        </div>
       </div>
     </div>
   </section>
