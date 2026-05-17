@@ -175,7 +175,7 @@ class Command(BaseCommand):
                     continue
 
                 try:
-                    self._import_claim_rows(batch, drop, drop_entry, rows)
+                    self._import_claim_rows(batch, drop, drop_entry, rows, errors)
                 except Exception as exc:
                     batch.error_count += 1
                     errors.append({'drop': drop_entry.data_path, 'error': str(exc)})
@@ -240,9 +240,27 @@ class Command(BaseCommand):
         image_only_ids = sorted(set(image_by_id) - set(data_by_id), key=int)
         return drops, duplicate_data_paths, image_only_ids
 
-    def _import_claim_rows(self, batch, drop, drop_entry, rows):
-        entries = [self._claim_entry(drop_entry, row) for row in rows]
+    def _import_claim_rows(self, batch, drop, drop_entry, rows, errors):
+        entries = [
+            self._claim_entry(drop_entry, row, row_number)
+            for row_number, row in enumerate(rows, start=2)
+        ]
         batch.total_rows += len(entries)
+
+        valid_entries = []
+        for entry in entries:
+            entry_errors = self._claim_entry_errors(entry)
+            if entry_errors:
+                batch.error_count += 1
+                errors.append({
+                    'drop': drop_entry.data_path,
+                    'row': entry['row_number'],
+                    'error': '; '.join(entry_errors),
+                    'data': entry['row'],
+                })
+                continue
+            valid_entries.append(entry)
+        entries = valid_entries
 
         user_by_wallet = self._users_by_wallet(entries)
         existing_user_ids = set(
@@ -254,13 +272,16 @@ class Command(BaseCommand):
 
         claims_to_create = []
         claims_to_update = []
+        imported_count = 0
+        matched_count = 0
+        unmatched_count = 0
         now = timezone.now()
 
         for entry in entries:
             user = user_by_wallet.get(entry['wallet_key'])
             if user:
                 if user.id in existing_user_ids:
-                    batch.imported_count += 1
+                    imported_count += 1
                     continue
 
                 unmatched_claim = unmatched_by_wallet.get(entry['wallet_key'])
@@ -282,20 +303,20 @@ class Command(BaseCommand):
                     claims_to_create.append(self._claim_from_entry(batch, drop, entry, user=user))
 
                 existing_user_ids.add(user.id)
-                batch.imported_count += 1
-                batch.matched_count += 1
+                imported_count += 1
+                matched_count += 1
                 continue
 
             if self._entry_has_unmatched_claim(entry, unmatched_by_wallet, unmatched_by_external, unmatched_by_email):
-                batch.imported_count += 1
-                batch.unmatched_count += 1
+                imported_count += 1
+                unmatched_count += 1
                 continue
 
             claim = self._claim_from_entry(batch, drop, entry, user=None)
             claims_to_create.append(claim)
             self._remember_unmatched_claim(entry, claim, unmatched_by_wallet, unmatched_by_external, unmatched_by_email)
-            batch.imported_count += 1
-            batch.unmatched_count += 1
+            imported_count += 1
+            unmatched_count += 1
 
         with transaction.atomic():
             if claims_to_update:
@@ -314,7 +335,11 @@ class Command(BaseCommand):
             if claims_to_create:
                 PoapClaim.objects.bulk_create(claims_to_create, batch_size=500)
 
-    def _claim_entry(self, drop_entry, row):
+        batch.imported_count += imported_count
+        batch.matched_count += matched_count
+        batch.unmatched_count += unmatched_count
+
+    def _claim_entry(self, drop_entry, row, row_number):
         wallet = self._row_value(row, self.WALLET_FIELDS)
         email = self._row_value(row, self.EMAIL_FIELDS)
         ens = self._row_value(row, self.ENS_FIELDS)
@@ -324,6 +349,7 @@ class Command(BaseCommand):
             metadata['ens'] = ens
         metadata['legacy_poap_id'] = drop_entry.legacy_id
         return {
+            'row_number': row_number,
             'row': row,
             'wallet': wallet,
             'wallet_key': wallet.lower(),
@@ -333,6 +359,20 @@ class Command(BaseCommand):
             'external_id': external_id,
             'metadata': metadata,
         }
+
+    def _claim_entry_errors(self, entry):
+        errors = []
+        field_map = [
+            ('wallet', 'legacy_wallet_address'),
+            ('email', 'legacy_email'),
+            ('external_id', 'legacy_external_id'),
+        ]
+        for entry_key, model_field in field_map:
+            value = entry[entry_key]
+            max_length = PoapClaim._meta.get_field(model_field).max_length
+            if value and max_length and len(value) > max_length:
+                errors.append(f'{model_field} exceeds max length {max_length}')
+        return errors
 
     def _claim_from_entry(self, batch, drop, entry, user=None):
         return PoapClaim(
@@ -378,11 +418,13 @@ class Command(BaseCommand):
         return unmatched_by_wallet, unmatched_by_external, unmatched_by_email
 
     def _entry_has_unmatched_claim(self, entry, unmatched_by_wallet, unmatched_by_external, unmatched_by_email):
-        return (
-            bool(entry['wallet_key'] and entry['wallet_key'] in unmatched_by_wallet)
-            or bool(entry['external_id'] and entry['external_id'] in unmatched_by_external)
-            or bool(entry['email_key'] and entry['email_key'] in unmatched_by_email)
-        )
+        if entry['wallet_key']:
+            return entry['wallet_key'] in unmatched_by_wallet
+        if entry['external_id']:
+            return entry['external_id'] in unmatched_by_external
+        if entry['email_key']:
+            return entry['email_key'] in unmatched_by_email
+        return False
 
     def _remember_unmatched_claim(self, entry, claim, unmatched_by_wallet, unmatched_by_external, unmatched_by_email):
         if entry['wallet_key']:
