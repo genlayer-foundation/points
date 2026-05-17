@@ -325,6 +325,15 @@
             >
               Referrals
             </a>
+            <a
+              href="/community/poaps"
+              onclick={(e) => { e.preventDefault(); navigate('/community/poaps'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/community/poaps') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+              }"
+            >
+              POAPs
+            </a>
           </div>
         {/if}
       </div>
@@ -716,6 +725,15 @@
             }"
           >
             Referrals
+          </a>
+          <a
+            href="/community/poaps"
+            onclick={(e) => { e.preventDefault(); navigate('/community/poaps'); }}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              isActive('/community/poaps') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+            }"
+          >
+            POAPs
           </a>
         </div>
       {/if}

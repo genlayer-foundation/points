@@ -80,6 +80,7 @@ INSTALLED_APPS = [
     'partners',
     'gen_tv',
     'social_connections',
+    'poaps.apps.PoapsConfig',
 ]
 
 MIDDLEWARE = [

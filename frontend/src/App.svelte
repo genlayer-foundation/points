@@ -48,6 +48,23 @@
     }
   }
 
+  // The portal uses hash routing. Normalize pasted/local links such as
+  // /claim/poap/:token so mint links work on localhost and 127.0.0.1.
+  {
+    const path = window.location.pathname;
+    const shouldNormalize =
+      !window.location.hash &&
+      (path.startsWith('/claim/poap/') || path.startsWith('/community/poaps/'));
+
+    if (shouldNormalize) {
+      window.history.replaceState(
+        {},
+        '',
+        `/#${path}${window.location.search || ''}`
+      );
+    }
+  }
+
   // State for sidebar toggle on mobile and collapse on desktop
   let sidebarOpen = $state(false);
   let sidebarCollapsed = $state(false);
@@ -87,6 +104,9 @@
   import GenTV from './routes/GenTV.svelte';
   import Referrals from './routes/Referrals.svelte';
   import Community from './routes/Community.svelte';
+  import CommunityPoaps from './routes/CommunityPoaps.svelte';
+  import PoapDetail from './routes/PoapDetail.svelte';
+  import PoapClaim from './routes/PoapClaim.svelte';
   import Hackathon from './routes/Hackathon.svelte';
   import HackathonWinners from './routes/HackathonWinners.svelte';
   import Resources from './routes/Resources.svelte';
@@ -114,7 +134,10 @@
     '/community/contributions': Contributions,
     '/community/all-contributions': AllContributions,
     '/community/leaderboard': Community,
+    '/community/poaps': CommunityPoaps,
+    '/community/poaps/:slug': PoapDetail,
     '/community/contribution/:id': ContributionPreview,
+    '/claim/poap/:token': PoapClaim,
     '/hackathon': Hackathon,
     '/hackathon-winners': HackathonWinners,
     '/referral-program': ReferralProgram,
