@@ -9,13 +9,14 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
-from django.db import IntegrityError, transaction
+from django.db import transaction
+from django.db.models.functions import Lower
 from django.utils import timezone
 from django.utils.text import slugify
 
 from poaps.models import PoapClaim, PoapDrop, PoapImportBatch
-from poaps.services import find_user_for_legacy_claim
 
 
 @dataclass
@@ -152,7 +153,11 @@ class Command(BaseCommand):
             )
             errors = []
 
-            for drop_entry in drops:
+            for index, drop_entry in enumerate(drops, start=1):
+                started_at = time.monotonic()
+                self.stdout.write(
+                    f'[{index}/{len(drops)}] Importing POAP {drop_entry.legacy_id}: {drop_entry.title}'
+                )
                 try:
                     existing_drop = self._existing_drop_for_legacy_id(drop_entry.legacy_id)
                     rows = self._read_rows(archive, drop_entry.data_path)
@@ -169,18 +174,18 @@ class Command(BaseCommand):
                     errors.append({'drop': drop_entry.data_path, 'error': str(exc)})
                     continue
 
-                for row_number, row in enumerate(rows, start=2):
-                    batch.total_rows += 1
-                    try:
-                        self._import_claim_row(batch, drop, drop_entry, row)
-                    except Exception as exc:
-                        batch.error_count += 1
-                        errors.append({
-                            'drop': drop_entry.data_path,
-                            'row': row_number,
-                            'error': str(exc),
-                            'data': row,
-                        })
+                try:
+                    self._import_claim_rows(batch, drop, drop_entry, rows)
+                except Exception as exc:
+                    batch.error_count += 1
+                    errors.append({'drop': drop_entry.data_path, 'error': str(exc)})
+                    continue
+
+                elapsed = time.monotonic() - started_at
+                self.stdout.write(self.style.SUCCESS(
+                    f'[{index}/{len(drops)}] Imported {len(rows)} collector row(s) '
+                    f'for POAP {drop_entry.legacy_id} in {elapsed:.1f}s.'
+                ))
 
             batch.errors = errors
             batch.save()
@@ -235,73 +240,157 @@ class Command(BaseCommand):
         image_only_ids = sorted(set(image_by_id) - set(data_by_id), key=int)
         return drops, duplicate_data_paths, image_only_ids
 
-    def _import_claim_row(self, batch, drop, drop_entry, row):
+    def _import_claim_rows(self, batch, drop, drop_entry, rows):
+        entries = [self._claim_entry(drop_entry, row) for row in rows]
+        batch.total_rows += len(entries)
+
+        user_by_wallet = self._users_by_wallet(entries)
+        existing_user_ids = set(
+            PoapClaim.objects
+            .filter(drop=drop, user_id__in=[user.id for user in user_by_wallet.values()])
+            .values_list('user_id', flat=True)
+        )
+        unmatched_by_wallet, unmatched_by_external, unmatched_by_email = self._unmatched_claim_maps(drop)
+
+        claims_to_create = []
+        claims_to_update = []
+        now = timezone.now()
+
+        for entry in entries:
+            user = user_by_wallet.get(entry['wallet_key'])
+            if user:
+                if user.id in existing_user_ids:
+                    batch.imported_count += 1
+                    continue
+
+                unmatched_claim = unmatched_by_wallet.get(entry['wallet_key'])
+                if unmatched_claim:
+                    metadata = dict(unmatched_claim.legacy_metadata or {})
+                    metadata.update(entry['row'])
+                    if entry['ens']:
+                        metadata['ens'] = entry['ens']
+                    metadata['legacy_poap_id'] = drop_entry.legacy_id
+
+                    unmatched_claim.user = user
+                    unmatched_claim.legacy_email = entry['email'] or unmatched_claim.legacy_email
+                    unmatched_claim.legacy_external_id = entry['external_id'] or unmatched_claim.legacy_external_id
+                    unmatched_claim.legacy_metadata = metadata
+                    unmatched_claim.import_batch = batch
+                    unmatched_claim.updated_at = now
+                    claims_to_update.append(unmatched_claim)
+                else:
+                    claims_to_create.append(self._claim_from_entry(batch, drop, entry, user=user))
+
+                existing_user_ids.add(user.id)
+                batch.imported_count += 1
+                batch.matched_count += 1
+                continue
+
+            if self._entry_has_unmatched_claim(entry, unmatched_by_wallet, unmatched_by_external, unmatched_by_email):
+                batch.imported_count += 1
+                batch.unmatched_count += 1
+                continue
+
+            claim = self._claim_from_entry(batch, drop, entry, user=None)
+            claims_to_create.append(claim)
+            self._remember_unmatched_claim(entry, claim, unmatched_by_wallet, unmatched_by_external, unmatched_by_email)
+            batch.imported_count += 1
+            batch.unmatched_count += 1
+
+        with transaction.atomic():
+            if claims_to_update:
+                PoapClaim.objects.bulk_update(
+                    claims_to_update,
+                    [
+                        'user',
+                        'legacy_email',
+                        'legacy_external_id',
+                        'legacy_metadata',
+                        'import_batch',
+                        'updated_at',
+                    ],
+                    batch_size=500,
+                )
+            if claims_to_create:
+                PoapClaim.objects.bulk_create(claims_to_create, batch_size=500)
+
+    def _claim_entry(self, drop_entry, row):
         wallet = self._row_value(row, self.WALLET_FIELDS)
         email = self._row_value(row, self.EMAIL_FIELDS)
         ens = self._row_value(row, self.ENS_FIELDS)
         external_id = self._row_value(row, self.EXTERNAL_ID_FIELDS)
-        user = find_user_for_legacy_claim(wallet=wallet)
-
-        if user:
-            if PoapClaim.objects.filter(drop=drop, user=user).exists():
-                batch.imported_count += 1
-                return
-
-            unmatched_claim = self._unmatched_claim_for_wallet(drop, wallet)
-            if unmatched_claim:
-                metadata = dict(unmatched_claim.legacy_metadata or {})
-                metadata.update(row)
-                if ens:
-                    metadata['ens'] = ens
-                metadata['legacy_poap_id'] = drop_entry.legacy_id
-                unmatched_claim.user = user
-                unmatched_claim.legacy_email = email or unmatched_claim.legacy_email
-                unmatched_claim.legacy_external_id = external_id or unmatched_claim.legacy_external_id
-                unmatched_claim.legacy_metadata = metadata
-                unmatched_claim.import_batch = batch
-                unmatched_claim.save(update_fields=[
-                    'user',
-                    'legacy_email',
-                    'legacy_external_id',
-                    'legacy_metadata',
-                    'import_batch',
-                    'updated_at',
-                ])
-                batch.imported_count += 1
-                batch.matched_count += 1
-                return
-
-        if not user and self._unmatched_claim_exists(drop, wallet, email, external_id):
-            batch.imported_count += 1
-            batch.unmatched_count += 1
-            return
-
         metadata = dict(row)
         if ens:
             metadata['ens'] = ens
         metadata['legacy_poap_id'] = drop_entry.legacy_id
+        return {
+            'row': row,
+            'wallet': wallet,
+            'wallet_key': wallet.lower(),
+            'email': email,
+            'email_key': email.lower(),
+            'ens': ens,
+            'external_id': external_id,
+            'metadata': metadata,
+        }
 
-        try:
-            with transaction.atomic():
-                PoapClaim.objects.create(
-                    drop=drop,
-                    user=user,
-                    claim_method=PoapClaim.CLAIM_LEGACY,
-                    source=PoapClaim.SOURCE_LEGACY_IMPORT,
-                    claimed_at=drop.event_start_at,
-                    legacy_wallet_address=wallet,
-                    legacy_email=email,
-                    legacy_external_id=external_id,
-                    legacy_metadata=metadata,
-                    import_batch=batch,
-                )
-            batch.imported_count += 1
-            if user:
-                batch.matched_count += 1
-            else:
-                batch.unmatched_count += 1
-        except IntegrityError:
-            batch.imported_count += 1
+    def _claim_from_entry(self, batch, drop, entry, user=None):
+        return PoapClaim(
+            drop=drop,
+            user=user,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+            source=PoapClaim.SOURCE_LEGACY_IMPORT,
+            claimed_at=drop.event_start_at,
+            legacy_wallet_address=entry['wallet'],
+            legacy_email=entry['email'],
+            legacy_external_id=entry['external_id'],
+            legacy_metadata=entry['metadata'],
+            import_batch=batch,
+        )
+
+    def _users_by_wallet(self, entries):
+        wallet_keys = sorted({entry['wallet_key'] for entry in entries if entry['wallet_key']})
+        if not wallet_keys:
+            return {}
+
+        User = get_user_model()
+        users = (
+            User.objects
+            .exclude(address__isnull=True)
+            .exclude(address='')
+            .annotate(address_key=Lower('address'))
+            .filter(address_key__in=wallet_keys)
+            .only('id', 'address')
+        )
+        return {user.address.lower(): user for user in users if user.address}
+
+    def _unmatched_claim_maps(self, drop):
+        unmatched_by_wallet = {}
+        unmatched_by_external = {}
+        unmatched_by_email = {}
+        for claim in PoapClaim.objects.filter(drop=drop, user__isnull=True).order_by('created_at'):
+            if claim.legacy_wallet_address:
+                unmatched_by_wallet.setdefault(claim.legacy_wallet_address.lower(), claim)
+            if claim.legacy_external_id:
+                unmatched_by_external.setdefault(claim.legacy_external_id, claim)
+            if claim.legacy_email:
+                unmatched_by_email.setdefault(claim.legacy_email.lower(), claim)
+        return unmatched_by_wallet, unmatched_by_external, unmatched_by_email
+
+    def _entry_has_unmatched_claim(self, entry, unmatched_by_wallet, unmatched_by_external, unmatched_by_email):
+        return (
+            bool(entry['wallet_key'] and entry['wallet_key'] in unmatched_by_wallet)
+            or bool(entry['external_id'] and entry['external_id'] in unmatched_by_external)
+            or bool(entry['email_key'] and entry['email_key'] in unmatched_by_email)
+        )
+
+    def _remember_unmatched_claim(self, entry, claim, unmatched_by_wallet, unmatched_by_external, unmatched_by_email):
+        if entry['wallet_key']:
+            unmatched_by_wallet.setdefault(entry['wallet_key'], claim)
+        if entry['external_id']:
+            unmatched_by_external.setdefault(entry['external_id'], claim)
+        if entry['email_key']:
+            unmatched_by_email.setdefault(entry['email_key'], claim)
 
     def _upsert_drop(self, drop_entry, artwork, options, row_count, existing_drop=None):
         slug = self._default_slug(drop_entry.title, drop_entry.legacy_id)
@@ -552,26 +641,6 @@ class Command(BaseCommand):
 
     def _normalize_header(self, value):
         return re.sub(r'[^a-z0-9]', '', (value or '').lower())
-
-    def _unmatched_claim_exists(self, drop, wallet, email, external_id):
-        queryset = PoapClaim.objects.filter(drop=drop, user__isnull=True)
-        if wallet:
-            return queryset.filter(legacy_wallet_address__iexact=wallet).exists()
-        if external_id:
-            return queryset.filter(legacy_external_id=external_id).exists()
-        if email:
-            return queryset.filter(legacy_email__iexact=email).exists()
-        return False
-
-    def _unmatched_claim_for_wallet(self, drop, wallet):
-        if not wallet:
-            return None
-        return (
-            PoapClaim.objects
-            .filter(drop=drop, user__isnull=True, legacy_wallet_address__iexact=wallet)
-            .order_by('created_at')
-            .first()
-        )
 
     def _default_slug(self, title, legacy_poap_id):
         base = slugify(title)[:150] or 'legacy-poap'
