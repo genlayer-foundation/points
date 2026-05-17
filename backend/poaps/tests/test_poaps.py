@@ -11,7 +11,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from poaps.models import PoapClaim, PoapDistribution, PoapDrop
+from poaps.models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch
 from poaps.services import generate_mint_links, hash_secret
 
 User = get_user_model()
@@ -418,3 +418,83 @@ class PoapAPITest(TestCase):
         ).exists())
         upload_image.assert_called_once()
         self.assertEqual(PoapClaim.objects.filter(drop=drop).count(), 2)
+
+    @patch('users.cloudinary_service.CloudinaryService.upload_image')
+    def test_poap_archive_import_keeps_shared_email_wallet_claims(self, upload_image):
+        upload_image.return_value = {
+            'url': 'https://res.cloudinary.com/demo/image/upload/tally/poaps/poap-456.webp',
+            'public_id': 'tally/poaps/poap_456',
+        }
+        first_wallet = '0x7777777777777777777777777777777777777777'
+        second_wallet = '0x8888888888888888888888888888888888888888'
+        csv_data = (
+            'email_address,ethereum_address\n'
+            f'shared@example.com,{first_wallet}\n'
+            f'shared@example.com,{second_wallet}\n'
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive_path = f'{temp_dir}/poaps.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.writestr(
+                    'poap.data/POAP_drop_456_collectors_2026-03-25 - Shared Email.csv',
+                    csv_data,
+                )
+                archive.writestr(
+                    'poap.data/poap_images/ID 456_Shared Email.webp',
+                    b'fake-webp',
+                )
+
+            call_command(
+                'import_poap_archive',
+                archive_path,
+                '--upload-artwork',
+                verbosity=0,
+            )
+
+        drop = PoapDrop.objects.get(legacy_poap_id='456')
+        self.assertEqual(PoapClaim.objects.filter(drop=drop).count(), 2)
+        self.assertTrue(PoapClaim.objects.filter(drop=drop, legacy_wallet_address=first_wallet).exists())
+        self.assertTrue(PoapClaim.objects.filter(drop=drop, legacy_wallet_address=second_wallet).exists())
+
+    @patch('users.cloudinary_service.CloudinaryService.upload_image')
+    def test_poap_archive_import_skips_bad_rows_without_rolling_back_drop(self, upload_image):
+        upload_image.return_value = {
+            'url': 'https://res.cloudinary.com/demo/image/upload/tally/poaps/poap-789.webp',
+            'public_id': 'tally/poaps/poap_789',
+        }
+        valid_wallet = '0x9999999999999999999999999999999999999999'
+        overlong_wallet = '0x' + ('a' * 120)
+        csv_data = (
+            'email_address,ethereum_address\n'
+            f'valid@example.com,{valid_wallet}\n'
+            f'invalid@example.com,{overlong_wallet}\n'
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive_path = f'{temp_dir}/poaps.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.writestr(
+                    'poap.data/POAP_drop_789_collectors_2026-03-25 - Bad Row.csv',
+                    csv_data,
+                )
+                archive.writestr(
+                    'poap.data/poap_images/ID 789_Bad Row.webp',
+                    b'fake-webp',
+                )
+
+            call_command(
+                'import_poap_archive',
+                archive_path,
+                '--upload-artwork',
+                verbosity=0,
+            )
+
+        drop = PoapDrop.objects.get(legacy_poap_id='789')
+        batch = PoapImportBatch.objects.get(file_name=archive_path)
+        self.assertEqual(PoapClaim.objects.filter(drop=drop).count(), 1)
+        self.assertTrue(PoapClaim.objects.filter(drop=drop, legacy_wallet_address=valid_wallet).exists())
+        self.assertEqual(batch.total_rows, 2)
+        self.assertEqual(batch.imported_count, 1)
+        self.assertEqual(batch.unmatched_count, 1)
+        self.assertEqual(batch.error_count, 1)
