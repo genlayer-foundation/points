@@ -292,4 +292,30 @@ export const genTvAPI = {
   get: (slug) => api.get(`/gen-tv/streams/${slug}/`),
 };
 
+// POAP API
+/** @typedef {Record<string, any>} PoapApiPayload */
+export const poapsAPI = {
+  /** @param {PoapApiPayload} [params] */
+  list: (params) => api.get('/poaps/', { params }),
+  /** @param {string} slug */
+  get: (slug) => api.get(`/poaps/${slug}/`),
+  /** @param {PoapApiPayload} data */
+  create: (data) => api.post('/poaps/', data),
+  /** @param {string} slug @param {PoapApiPayload} data */
+  update: (slug, data) => api.patch(`/poaps/${slug}/`, data),
+  /** @param {string} slug @param {PoapApiPayload} [params] */
+  getClaims: (slug, params) => api.get(`/poaps/${slug}/claims/`, { params }),
+  /** @param {string} address @param {PoapApiPayload} [params] */
+  getUserPoaps: (address, params) => api.get(`/users/by-address/${address}/poaps/`, { params }),
+  /** @param {string} slug @param {string} secret */
+  claimSecret: (slug, secret) => api.post(`/poaps/${slug}/claim-secret/`, { secret }),
+  /** @param {string} token */
+  claimLink: (token) => api.post(`/poaps/claim-link/${encodeURIComponent(token)}/`),
+  /** @param {string} slug @param {PoapApiPayload} data */
+  createSecretDistribution: (slug, data) => api.post(`/poaps/${slug}/distributions/secret/`, data),
+  /** @param {string} slug @param {PoapApiPayload} data */
+  generateMintLinks: (slug, data) => api.post(`/poaps/${slug}/mint-links/generate/`, data),
+  permissions: () => api.get('/poaps/permissions/'),
+};
+
 export default api;

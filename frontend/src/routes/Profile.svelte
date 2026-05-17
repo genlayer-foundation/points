@@ -31,6 +31,7 @@
   import RoleView from "../components/profile/RoleView.svelte";
   import StewardView from "../components/profile/StewardView.svelte";
   import CommunityView from "../components/profile/CommunityView.svelte";
+  import ProfilePoaps from "../components/poaps/ProfilePoaps.svelte";
   import ReferralsView from "../components/profile/ReferralsView.svelte";
   import CTABanner from "../components/shared/CTABanner.svelte";
   import CategoryIcon from "../components/portal/CategoryIcon.svelte";
@@ -903,6 +904,13 @@
               participant?.has_validator_waitlist}
             loading={!validatorStatsLoaded}
           />
+        </div>
+      {/if}
+
+      <!-- POAP Section -->
+      {#if participant}
+        <div id="poaps-section" class="w-full mb-16 pt-10 border-t border-gray-100 mt-10">
+          <ProfilePoaps userId={participant.address} />
         </div>
       {/if}
 
