@@ -320,7 +320,7 @@
               href="/community/referrals"
               onclick={(e) => { e.preventDefault(); navigate('/community/referrals'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-                isActive('/community/referrals') || isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+                isActive('/community/referrals') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               }"
             >
               Referrals
@@ -721,7 +721,7 @@
             href="/community/referrals"
             onclick={(e) => { e.preventDefault(); navigate('/community/referrals'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-              isActive('/community/referrals') || isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+              isActive('/community/referrals') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             }"
           >
             Referrals

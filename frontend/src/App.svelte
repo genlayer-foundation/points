@@ -133,7 +133,6 @@
     '/community/contributions': Contributions,
     '/community/all-contributions': AllContributions,
     '/community/referrals': Referrals,
-    '/community/leaderboard': Referrals,
     '/community/poaps': CommunityPoaps,
     '/community/poaps/:slug': PoapDetail,
     '/community/contribution/:id': ContributionPreview,
