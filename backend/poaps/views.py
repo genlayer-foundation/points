@@ -1,7 +1,6 @@
 from datetime import timezone as datetime_timezone
 
 from django.db.models import BooleanField, Count, Exists, F, OuterRef, Prefetch, Q, Value
-from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
@@ -9,20 +8,15 @@ from rest_framework.response import Response
 
 from .models import PoapClaim, PoapDistribution, PoapDrop
 from .serializers import (
-    MintLinkGenerateSerializer,
     PoapClaimSerializer,
     PoapDropDetailSerializer,
     PoapDropListSerializer,
-    PoapDropWriteSerializer,
     PoapProfileClaimSerializer,
-    SecretDistributionCreateSerializer,
 )
 from .services import (
     PoapClaimError,
     claim_with_mint_link,
     claim_with_secret,
-    generate_mint_links,
-    mint_links_csv,
 )
 
 
@@ -50,34 +44,15 @@ def open_distribution_queryset(at_time=None):
     )
 
 
-def drop_claimed_count(drop):
-    return PoapClaim.objects.filter(drop=drop, user__isnull=False).count()
-
-
-def drop_has_capacity(drop):
-    if drop.max_claims is None:
-        return True
-    return drop_claimed_count(drop) < drop.max_claims
-
-
-class IsStaffOrReadOnly(permissions.BasePermission):
-    def has_permission(self, request, view):
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        return bool(request.user and request.user.is_staff)
-
-
-class PoapDropViewSet(viewsets.ModelViewSet):
+class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'slug'
-    permission_classes = [IsStaffOrReadOnly]
+    permission_classes = [permissions.AllowAny]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'description', 'legacy_poap_id']
     ordering_fields = ['event_start_at', 'created_at', 'title']
     ordering = ['-event_start_at']
 
     def get_serializer_class(self):
-        if self.action in ['create', 'update', 'partial_update']:
-            return PoapDropWriteSerializer
         if self.action == 'retrieve':
             return PoapDropDetailSerializer
         return PoapDropListSerializer
@@ -139,9 +114,6 @@ class PoapDropViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user if self.request.user.is_authenticated else None)
-
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         if request.user.is_authenticated:
@@ -199,88 +171,6 @@ class PoapDropViewSet(viewsets.ModelViewSet):
             'claim': PoapClaimSerializer(claim).data,
             'drop': PoapDropListSerializer(claim.drop, context={'request': request}).data,
         }, status=status.HTTP_201_CREATED)
-
-    @action(detail=True, methods=['post'], url_path='distributions/secret', permission_classes=[permissions.IsAdminUser])
-    def create_secret_distribution(self, request, slug=None):
-        drop = self.get_object()
-        serializer = SecretDistributionCreateSerializer(data=request.data, context={'drop': drop})
-        serializer.is_valid(raise_exception=True)
-        if drop.status == PoapDrop.STATUS_ARCHIVED:
-            return Response({'error': 'Archived POAPs cannot receive new distributions.'}, status=status.HTTP_400_BAD_REQUEST)
-        if not drop_has_capacity(drop):
-            return Response({'error': 'This POAP has reached its claim limit.'}, status=status.HTTP_400_BAD_REQUEST)
-        requested_max = serializer.validated_data.get('max_claims')
-        if drop.max_claims is not None and requested_max is not None:
-            remaining = drop.max_claims - drop_claimed_count(drop)
-            if requested_max > remaining:
-                return Response({'error': f'Only {remaining} claim slots remain for this POAP.'}, status=status.HTTP_400_BAD_REQUEST)
-        distribution = serializer.save()
-        return Response({
-            'id': distribution.id,
-            'method': distribution.method,
-            'active': distribution.active,
-            'starts_at': distribution.starts_at,
-            'ends_at': distribution.ends_at,
-            'max_claims': distribution.max_claims,
-            'claimed_count': distribution.claimed_count,
-        }, status=status.HTTP_201_CREATED)
-
-    @action(detail=True, methods=['post'], url_path='mint-links/generate', permission_classes=[permissions.IsAdminUser])
-    def generate_mint_links_action(self, request, slug=None):
-        drop = self.get_object()
-        serializer = MintLinkGenerateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        if drop.status == PoapDrop.STATUS_ARCHIVED:
-            return Response({'error': 'Archived POAPs cannot receive new mint links.'}, status=status.HTTP_400_BAD_REQUEST)
-        if not drop_has_capacity(drop):
-            return Response({'error': 'This POAP has reached its claim limit.'}, status=status.HTTP_400_BAD_REQUEST)
-        data = serializer.validated_data
-        requested_claims = data['count'] * data['max_uses']
-        if drop.max_claims is not None:
-            remaining = drop.max_claims - drop_claimed_count(drop)
-            if requested_claims > remaining:
-                return Response({'error': f'Only {remaining} claim slots remain for this POAP.'}, status=status.HTTP_400_BAD_REQUEST)
-        distribution = PoapDistribution.objects.create(
-            drop=drop,
-            method=PoapDistribution.METHOD_MINT_LINK,
-            active=True,
-            starts_at=data.get('starts_at'),
-            ends_at=data.get('ends_at'),
-            max_claims=requested_claims,
-        )
-        created = generate_mint_links(
-            distribution=distribution,
-            count=data['count'],
-            max_uses=data['max_uses'],
-            expires_at=data.get('expires_at'),
-        )
-        links = [
-            {
-                'id': link.id,
-                'token': token,
-                'path': f'/claim/poap/{token}',
-                'hash_path': f'/#/claim/poap/{token}',
-                'max_uses': link.max_uses,
-                'expires_at': link.expires_at,
-            }
-            for link, token in created
-        ]
-        return Response({
-            'distribution_id': distribution.id,
-            'created': len(links),
-            'links': links,
-        }, status=status.HTTP_201_CREATED)
-
-    @action(detail=True, methods=['get'], url_path='mint-links/download', permission_classes=[permissions.IsAdminUser])
-    def download_mint_links(self, request, slug=None):
-        drop = self.get_object()
-        response = HttpResponse(mint_links_csv(drop), content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="{drop.slug}-mint-links.csv"'
-        return response
-
-    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
-    def permissions(self, request):
-        return Response({'can_manage_poaps': bool(request.user and request.user.is_staff)})
 
 
 class UserPoapMixin:
