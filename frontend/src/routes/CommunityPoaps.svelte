@@ -71,13 +71,13 @@
   });
 </script>
 
-<div class="relative -mx-3 -my-3 overflow-hidden bg-white px-3 py-8 sm:px-5 sm:py-10 md:px-8 md:py-12">
+<div class="relative -mx-3 -my-3 min-h-[calc(100vh-64px)] overflow-hidden bg-white px-3 py-8 sm:px-5 sm:py-10 md:px-8 md:py-12">
   <div
-    class="absolute inset-x-0 top-0 h-[320px] pointer-events-none overflow-hidden"
+    class="absolute inset-x-0 top-0 h-[220px] pointer-events-none overflow-hidden"
     style="-webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%); mask-image: linear-gradient(to bottom, black 0%, transparent 100%);"
   >
     <div class="absolute inset-0" style={poapGradientStyle}></div>
-    <div class="absolute inset-0 bg-white/25"></div>
+    <div class="absolute inset-0 bg-white/55"></div>
   </div>
 
   <div class="relative z-10 space-y-6">
