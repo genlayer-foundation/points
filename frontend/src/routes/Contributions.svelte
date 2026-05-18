@@ -63,6 +63,9 @@
   let activeCategory = $derived($currentCategory || 'global');
   let pageConfig = $derived(categoryConfig[activeCategory] || categoryConfig.global);
   let gradientStyle = $derived(getCategoryGradientStyle(activeCategory, pageConfig.accentColor));
+  let pageGradientStyle = $derived(
+    gradientStyle || getCategoryGradientStyle('community', categoryConfig.community.accentColor)
+  );
   let submitButtonStyle = $derived(getCategoryButtonStyle(pageConfig.accentColor));
   let viewAllUrl = $derived(
     activeCategory === 'global' ? '/all-contributions' : `/all-contributions?category=${activeCategory}`
@@ -139,20 +142,12 @@
   </div>
 {/snippet}
 
-<div class="relative -mx-3 -my-3 overflow-hidden px-3 py-8 sm:px-5 sm:py-10 md:px-8 md:py-12">
+<div class="relative -mx-3 -my-3 overflow-hidden bg-white px-3 py-8 sm:px-5 sm:py-10 md:px-8 md:py-12">
   <div
     class="absolute inset-x-0 top-0 h-[320px] pointer-events-none overflow-hidden"
     style="-webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%); mask-image: linear-gradient(to bottom, black 0%, transparent 100%);"
   >
-    {#if activeCategory === 'global'}
-      <img
-        src="/assets/illustrations/welcome-gradient.png"
-        alt=""
-        class="absolute inset-0 h-full w-full object-cover opacity-70"
-      />
-    {:else}
-      <div class="absolute inset-0" style={gradientStyle}></div>
-    {/if}
+    <div class="absolute inset-0" style={pageGradientStyle}></div>
     <div class="absolute inset-0 bg-white/25"></div>
   </div>
 
