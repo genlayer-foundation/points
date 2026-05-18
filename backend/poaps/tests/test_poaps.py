@@ -8,9 +8,12 @@ from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
+from eth_account import Account
+from eth_account.messages import encode_defunct
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from ethereum_auth.models import Nonce
 from poaps.admin import PoapDistributionAdminForm, PoapDropAdminForm
 from poaps.models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch
 from poaps.services import generate_mint_links, hash_secret
@@ -55,6 +58,31 @@ class PoapAPITest(TestCase):
         }
         defaults.update(kwargs)
         return PoapDistribution.objects.create(**defaults)
+
+    def _recovery_payload(self, account, portal_user=None, nonce_value='recover-nonce'):
+        portal_user = portal_user or self.user
+        Nonce.objects.create(
+            value=nonce_value,
+            expires_at=timezone.now() + timezone.timedelta(minutes=5),
+        )
+        message = (
+            f'localhost wants you to verify a wallet for GenLayer POAP recovery:\n'
+            f'{account.address}\n\n'
+            'This signature only proves ownership of this wallet for attaching legacy POAPs '
+            'to your current portal account. It will not sign you into the portal or change your account.\n\n'
+            f'Portal Account: {portal_user.address}\n'
+            'URI: http://localhost:5173\n'
+            'Version: 1\n'
+            'Chain ID: 1\n'
+            f'Nonce: {nonce_value}\n'
+            f'Issued At: {timezone.now().isoformat()}'
+        )
+        signed = Account.sign_message(encode_defunct(text=message), private_key=account.key)
+        return {
+            'address': account.address,
+            'message': message,
+            'signature': signed.signature.hex(),
+        }
 
     def test_unique_claim_per_user_and_drop(self):
         PoapClaim.objects.create(
@@ -279,6 +307,153 @@ class PoapAPITest(TestCase):
         response = self.client.get('/api/v1/poaps/permissions/')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_verify_wallet_attaches_unmatched_legacy_claims_without_changing_session(self):
+        account = Account.create()
+        claim = PoapClaim.objects.create(
+            drop=self.drop,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+            source=PoapClaim.SOURCE_LEGACY_IMPORT,
+            legacy_wallet_address=account.address,
+        )
+        session = self.client.session
+        session['ethereum_address'] = self.user.address
+        session['authenticated'] = True
+        session.save()
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/verify-wallet/',
+            self._recovery_payload(account),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['attached_count'], 1)
+        self.assertEqual(response.data['attached_poaps'][0]['drop']['slug'], self.drop.slug)
+        claim.refresh_from_db()
+        self.assertEqual(claim.user, self.user)
+        self.assertEqual(self.client.session['ethereum_address'], self.user.address)
+
+    def test_verify_wallet_rejects_invalid_signature(self):
+        account = Account.create()
+        signer = Account.create()
+        payload = self._recovery_payload(account)
+        payload['signature'] = Account.sign_message(
+            encode_defunct(text=payload['message']),
+            private_key=signer.key,
+        ).signature.hex()
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post('/api/v1/poaps/verify-wallet/', payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_verify_wallet_rejects_expired_nonce(self):
+        account = Account.create()
+        nonce_value = 'expired-recovery-nonce'
+        Nonce.objects.create(
+            value=nonce_value,
+            expires_at=timezone.now() - timezone.timedelta(minutes=1),
+        )
+        message = (
+            f'localhost wants you to verify a wallet for GenLayer POAP recovery:\n'
+            f'{account.address}\n\n'
+            'This signature only proves ownership of this wallet for attaching legacy POAPs '
+            'to your current portal account. It will not sign you into the portal or change your account.\n\n'
+            f'Portal Account: {self.user.address}\n'
+            'URI: http://localhost:5173\n'
+            'Version: 1\n'
+            'Chain ID: 1\n'
+            f'Nonce: {nonce_value}\n'
+            f'Issued At: {timezone.now().isoformat()}'
+        )
+        payload = {
+            'address': account.address,
+            'message': message,
+            'signature': Account.sign_message(encode_defunct(text=message), private_key=account.key).signature.hex(),
+        }
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post('/api/v1/poaps/verify-wallet/', payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_verify_wallet_blocks_another_users_primary_wallet(self):
+        account = Account.create()
+        self.other_user.address = account.address
+        self.other_user.save(update_fields=['address', 'updated_at'])
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/verify-wallet/',
+            self._recovery_payload(account),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_verify_wallet_blocks_legacy_claims_attached_to_another_user(self):
+        account = Account.create()
+        PoapClaim.objects.create(
+            drop=self.drop,
+            user=self.other_user,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+            source=PoapClaim.SOURCE_LEGACY_IMPORT,
+            legacy_wallet_address=account.address,
+        )
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/verify-wallet/',
+            self._recovery_payload(account),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_verify_wallet_skips_drops_user_already_has(self):
+        account = Account.create()
+        second_drop = PoapDrop.objects.create(
+            title='Second Drop',
+            slug='second-drop',
+            description='Another badge',
+            artwork_url='https://example.com/poap-2.png',
+            event_start_at=timezone.now(),
+            status=PoapDrop.STATUS_ACTIVE,
+        )
+        PoapClaim.objects.create(
+            drop=self.drop,
+            user=self.user,
+            claim_method=PoapClaim.CLAIM_SECRET,
+        )
+        duplicate_claim = PoapClaim.objects.create(
+            drop=self.drop,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+            source=PoapClaim.SOURCE_LEGACY_IMPORT,
+            legacy_wallet_address=account.address,
+        )
+        attachable_claim = PoapClaim.objects.create(
+            drop=second_drop,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+            source=PoapClaim.SOURCE_LEGACY_IMPORT,
+            legacy_wallet_address=account.address,
+        )
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/verify-wallet/',
+            self._recovery_payload(account),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['attached_count'], 1)
+        self.assertEqual(response.data['skipped_existing_drop_count'], 1)
+        duplicate_claim.refresh_from_db()
+        attachable_claim.refresh_from_db()
+        self.assertIsNone(duplicate_claim.user)
+        self.assertEqual(attachable_claim.user, self.user)
+
     def test_poap_drop_admin_form_rejects_lower_max_claims_below_current_claims(self):
         PoapClaim.objects.create(
             drop=self.drop,
@@ -339,6 +514,31 @@ class PoapAPITest(TestCase):
 
         self.assertFalse(form.is_valid())
         self.assertIn('mint_link_count', form.errors)
+
+    def test_poap_distribution_admin_form_hides_discord_voice_for_new_distributions(self):
+        form = PoapDistributionAdminForm()
+
+        method_choices = [value for value, _label in form.fields['method'].choices]
+
+        self.assertEqual(
+            method_choices,
+            [
+                PoapDistribution.METHOD_SECRET,
+                PoapDistribution.METHOD_MINT_LINK,
+            ],
+        )
+
+    def test_poap_distribution_admin_form_keeps_existing_discord_voice_distribution_editable(self):
+        distribution = PoapDistribution.objects.create(
+            drop=self.drop,
+            method=PoapDistribution.METHOD_DISCORD_VOICE,
+            active=True,
+        )
+        form = PoapDistributionAdminForm(instance=distribution)
+
+        method_choices = [value for value, _label in form.fields['method'].choices]
+
+        self.assertIn(PoapDistribution.METHOD_DISCORD_VOICE, method_choices)
 
     def test_poap_distribution_admin_form_counts_existing_unused_links_against_drop_capacity(self):
         self.drop.max_claims = 10

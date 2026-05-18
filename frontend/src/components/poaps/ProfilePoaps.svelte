@@ -2,6 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import { poapsAPI } from '../../lib/api.js';
+  import { authState } from '../../lib/auth.js';
   import PoapCollectionWall from './PoapCollectionWall.svelte';
 
   /** @type {{ userId?: string | null, limit?: number }} */
@@ -109,6 +110,12 @@
   );
   let hasMore = $derived(viewAll && count > claims.length);
   let canViewAll = $derived(count > 0);
+  let canRecover = $derived(Boolean(
+    userId &&
+    $authState.isAuthenticated &&
+    $authState.address &&
+    String(userId).toLowerCase() === String($authState.address).toLowerCase()
+  ));
 
   $effect(() => {
     if (userId && userId !== loadedUserId) {
@@ -127,14 +134,24 @@
       <h3 class="text-[20px] font-semibold text-black">POAPs</h3>
       <p class="mt-1 text-[14px] text-[#999]">Collected GenLayer community badges.</p>
     </div>
-    {#if canViewAll}
+    {#if canViewAll || canRecover}
       <div class="flex items-center gap-2">
-        <button
-          class="h-8 rounded-full border border-[#d9d2ff] bg-white px-3 text-[12px] font-semibold text-[#6b5bd6] transition-colors hover:bg-[#f7f4ff]"
-          onclick={viewAll ? showRecentPoaps : showAllPoaps}
-        >
-          {viewAll ? 'Show recent' : 'View all'}
-        </button>
+        {#if canRecover}
+          <button
+            class="h-8 rounded-full border border-[#d9d2ff] bg-white px-3 text-[12px] font-semibold text-[#6b5bd6] transition-colors hover:bg-[#f7f4ff]"
+            onclick={() => push('/community/poaps/recover')}
+          >
+            Recover
+          </button>
+        {/if}
+        {#if canViewAll}
+          <button
+            class="h-8 rounded-full border border-[#d9d2ff] bg-white px-3 text-[12px] font-semibold text-[#6b5bd6] transition-colors hover:bg-[#f7f4ff]"
+            onclick={viewAll ? showRecentPoaps : showAllPoaps}
+          >
+            {viewAll ? 'Show recent' : 'View all'}
+          </button>
+        {/if}
       </div>
     {/if}
   </div>
