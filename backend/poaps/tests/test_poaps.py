@@ -11,7 +11,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from poaps.admin import PoapDropAdminForm
+from poaps.admin import PoapDistributionAdminForm, PoapDropAdminForm
 from poaps.models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch
 from poaps.services import generate_mint_links, hash_secret
 
@@ -309,6 +309,67 @@ class PoapAPITest(TestCase):
         )
         self.assertFalse(form.is_valid())
         self.assertIn('max_claims', form.errors)
+
+    def test_poap_distribution_admin_form_counts_existing_unused_links_against_distribution_capacity(self):
+        distribution = PoapDistribution.objects.create(
+            drop=self.drop,
+            method=PoapDistribution.METHOD_MINT_LINK,
+            active=True,
+            max_claims=10,
+        )
+        generate_mint_links(distribution=distribution, count=10)
+
+        form = PoapDistributionAdminForm(
+            data={
+                'drop': self.drop.pk,
+                'method': PoapDistribution.METHOD_MINT_LINK,
+                'active': 'on',
+                'starts_at': '',
+                'ends_at': '',
+                'max_claims': 10,
+                'claimed_count': distribution.claimed_count,
+                'secret_hash': '',
+                'secret_phrase': '',
+                'mint_link_count': 1,
+                'mint_link_max_uses': 1,
+                'mint_link_expires_at': '',
+            },
+            instance=distribution,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('mint_link_count', form.errors)
+
+    def test_poap_distribution_admin_form_counts_existing_unused_links_against_drop_capacity(self):
+        self.drop.max_claims = 10
+        self.drop.save(update_fields=['max_claims', 'updated_at'])
+        existing_distribution = PoapDistribution.objects.create(
+            drop=self.drop,
+            method=PoapDistribution.METHOD_MINT_LINK,
+            active=True,
+            max_claims=10,
+        )
+        generate_mint_links(distribution=existing_distribution, count=10)
+
+        form = PoapDistributionAdminForm(
+            data={
+                'drop': self.drop.pk,
+                'method': PoapDistribution.METHOD_MINT_LINK,
+                'active': 'on',
+                'starts_at': '',
+                'ends_at': '',
+                'max_claims': 1,
+                'claimed_count': 0,
+                'secret_hash': '',
+                'secret_phrase': '',
+                'mint_link_count': 1,
+                'mint_link_max_uses': 1,
+                'mint_link_expires_at': '',
+            },
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('mint_link_count', form.errors)
 
     def test_legacy_unmatched_claim_attaches_when_user_matches_wallet(self):
         claim = PoapClaim.objects.create(

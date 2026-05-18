@@ -4,12 +4,25 @@ from django import forms
 from django.contrib import admin
 from django.contrib import messages
 from django.conf import settings
+from django.db.models import F, IntegerField, Q, Sum
 from django.http import HttpResponse
+from django.utils import timezone
 
 from utils.admin_mixins import CloudinaryUploadMixin
 
 from .models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch, PoapMintLink
 from .services import decrypt_token, encrypt_token, generate_mint_links, hash_secret, hash_token
+
+
+def unused_mint_link_capacity(queryset):
+    now = timezone.now()
+    return queryset.filter(
+        max_uses__gt=F('used_count'),
+    ).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gte=now),
+    ).aggregate(
+        total=Sum(F('max_uses') - F('used_count'), output_field=IntegerField())
+    )['total'] or 0
 
 
 class PoapDropAdminForm(forms.ModelForm):
@@ -29,8 +42,15 @@ class PoapDropAdminForm(forms.ModelForm):
 
         if self.instance.pk and max_claims is not None:
             claimed_count = self.instance.claims.filter(user__isnull=False).count()
-            if max_claims < claimed_count:
-                errors['max_claims'] = f'Max claims cannot be lower than the current claimed count ({claimed_count}).'
+            reserved_link_capacity = unused_mint_link_capacity(
+                PoapMintLink.objects.filter(distribution__drop=self.instance)
+            )
+            minimum_max_claims = claimed_count + reserved_link_capacity
+            if max_claims < minimum_max_claims:
+                errors['max_claims'] = (
+                    f'Max claims cannot be lower than the current claimed count plus '
+                    f'unused mint-link capacity ({minimum_max_claims}).'
+                )
 
         if errors:
             raise forms.ValidationError(errors)
@@ -93,21 +113,40 @@ class PoapDistributionAdminForm(forms.ModelForm):
         if starts_at and mint_link_expires_at and mint_link_expires_at <= starts_at:
             errors['mint_link_expires_at'] = 'Expiration must be after start time.'
 
-        if max_claims is not None and self.instance.pk and max_claims < self.instance.claimed_count:
-            errors['max_claims'] = f'Max claims cannot be lower than the current claimed count ({self.instance.claimed_count}).'
+        existing_distribution_link_capacity = 0
+        if self.instance.pk and method == PoapDistribution.METHOD_MINT_LINK:
+            existing_distribution_link_capacity = unused_mint_link_capacity(
+                PoapMintLink.objects.filter(distribution=self.instance)
+            )
+
+        if max_claims is not None and self.instance.pk:
+            minimum_max_claims = self.instance.claimed_count + existing_distribution_link_capacity
+            if max_claims < minimum_max_claims:
+                errors['max_claims'] = (
+                    f'Max claims cannot be lower than the current claimed count plus '
+                    f'unused mint-link capacity ({minimum_max_claims}).'
+                )
 
         if mint_link_count:
             requested_claims = mint_link_count * mint_link_max_uses
             claimed_count = getattr(self.instance, 'claimed_count', 0)
-            if max_claims is not None and requested_claims > max_claims - claimed_count:
-                errors['mint_link_count'] = f'Only {max_claims - claimed_count} claim slots remain on this distribution.'
+            if max_claims is not None:
+                remaining_distribution_claims = max_claims - claimed_count - existing_distribution_link_capacity
+                if requested_claims > remaining_distribution_claims:
+                    errors['mint_link_count'] = (
+                        f'Only {max(remaining_distribution_claims, 0)} unreserved claim slot(s) '
+                        'remain on this distribution.'
+                    )
 
             drop = cleaned_data.get('drop')
             if drop and drop.max_claims is not None:
                 drop_claimed_count = drop.claims.filter(user__isnull=False).count()
-                remaining_drop_claims = drop.max_claims - drop_claimed_count
+                existing_drop_link_capacity = unused_mint_link_capacity(
+                    PoapMintLink.objects.filter(distribution__drop=drop)
+                )
+                remaining_drop_claims = drop.max_claims - drop_claimed_count - existing_drop_link_capacity
                 if requested_claims > remaining_drop_claims:
-                    errors['mint_link_count'] = f'Only {remaining_drop_claims} claim slots remain on this POAP.'
+                    errors['mint_link_count'] = f'Only {max(remaining_drop_claims, 0)} unreserved claim slot(s) remain on this POAP.'
 
         if errors:
             raise forms.ValidationError(errors)
