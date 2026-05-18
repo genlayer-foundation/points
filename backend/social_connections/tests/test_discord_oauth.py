@@ -24,6 +24,7 @@ TEST_ENCRYPTION_KEY = 'dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ='
     DISCORD_CLIENT_SECRET='test_discord_secret',
     DISCORD_REDIRECT_URI='http://localhost:8000/api/auth/discord/callback/',
     DISCORD_GUILD_ID='test_guild_123',
+    DISCORD_BOT_TOKEN='',
     GITHUB_ENCRYPTION_KEY=TEST_ENCRYPTION_KEY,
     SOCIAL_ENCRYPTION_KEY='',
     FRONTEND_URL='http://localhost:5173',

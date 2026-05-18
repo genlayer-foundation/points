@@ -224,6 +224,23 @@
   };
 
   let config = $derived(platformConfig[platform] || platformConfig.github);
+  let discordRoles = $derived.by(() => {
+    if (platform !== 'discord') return [];
+    return [...(connection?.roles || [])].sort((a, b) => (b.position || 0) - (a.position || 0) || String(a.name).localeCompare(String(b.name)));
+  });
+  let compactTitle = $derived.by(() => {
+    if (platform !== 'discord' || !connection) return undefined;
+    if (discordRoles.length === 0) return 'Discord roles not synced yet';
+    return `Discord roles: ${discordRoles.map((role) => role.name).join(', ')}`;
+  });
+
+  function getDiscordRoleColor(role) {
+    if (role?.color && role.color > 0 && role.color_hex) {
+      return role.color_hex;
+    }
+    return '#b5bac1';
+  }
+
   const refreshHandlers = {
     github: socialAPI.refreshGitHubUsername,
     discord: socialAPI.refreshDiscordUsername,
@@ -335,14 +352,37 @@
         rel="noopener noreferrer"
         class="social-pill social-pill-clickable"
         style="--brand-color: {config.color};"
+        title={compactTitle}
       >
         <span class="social-pill-icon">{@html config.icon}</span>
         <span class="social-pill-name">{connection.platform_username}</span>
       </a>
     {:else}
-      <div class="social-pill" style="--brand-color: {config.color};">
+      <div
+        class="social-pill"
+        class:discord-role-tooltip-wrap={platform === 'discord'}
+        style="--brand-color: {config.color};"
+        aria-label={compactTitle}
+      >
         <span class="social-pill-icon">{@html config.icon}</span>
         <span class="social-pill-name">{connection.platform_username}</span>
+        {#if platform === 'discord'}
+          <div class="discord-role-tooltip">
+            <span class="discord-role-heading">Roles</span>
+            {#if discordRoles.length > 0}
+              <div class="discord-role-list">
+                {#each discordRoles as role}
+                  <span class="discord-role-chip">
+                    <span class="discord-role-dot" style="--role-color: {getDiscordRoleColor(role)}"></span>
+                    <span class="discord-role-name">{role.name}</span>
+                  </span>
+                {/each}
+              </div>
+            {:else}
+              <span class="discord-role-empty">Roles not synced yet</span>
+            {/if}
+          </div>
+        {/if}
       </div>
     {/if}
   {:else}
@@ -507,6 +547,7 @@
 
   /* Compact pill (ProfileHeader) */
   .social-pill {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -519,6 +560,24 @@
     color: #1a1a1a;
     transition: background-color 0.15s, border-color 0.15s;
     white-space: nowrap;
+  }
+
+  .social-pill.discord-role-tooltip-wrap {
+    cursor: default;
+    transition:
+      transform 0.16s ease,
+      border-color 0.16s ease,
+      background-color 0.16s ease,
+      box-shadow 0.16s ease;
+  }
+
+  .social-pill.discord-role-tooltip-wrap:hover,
+  .social-pill.discord-role-tooltip-wrap:focus-visible {
+    background: #fbfbff;
+    border-color: #d8dafb;
+    box-shadow: 0 6px 16px rgba(88, 101, 242, 0.12);
+    outline: none;
+    transform: translateY(-1px);
   }
 
   .social-pill-link {
@@ -568,6 +627,99 @@
     text-overflow: ellipsis;
   }
 
+  .discord-role-tooltip {
+    display: flex;
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translate(4px, -50%) scale(0.98);
+    width: max-content;
+    min-width: 220px;
+    max-width: min(360px, calc(100vw - 32px));
+    background: #24242c;
+    border: 1px solid #34343e;
+    border-radius: 14px;
+    padding: 16px;
+    z-index: 80;
+    flex-direction: column;
+    gap: 12px;
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+    transition:
+      opacity 0.14s ease,
+      transform 0.14s ease,
+      visibility 0.14s ease;
+  }
+
+  .discord-role-tooltip::before {
+    content: '';
+    position: absolute;
+    right: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 5px solid transparent;
+    border-right-color: #24242c;
+  }
+
+  .discord-role-tooltip-wrap:hover .discord-role-tooltip,
+  .discord-role-tooltip-wrap:focus-visible .discord-role-tooltip {
+    opacity: 1;
+    transform: translate(0, -50%) scale(1);
+    visibility: visible;
+  }
+
+  .discord-role-heading {
+    color: #f6f6f7;
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.1;
+  }
+
+  .discord-role-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .discord-role-chip {
+    min-width: 0;
+    max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid #393943;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.035);
+    padding: 7px 10px;
+    color: #f4f4f5;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  .discord-role-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .discord-role-dot {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 12px;
+    border-radius: 999px;
+    background: var(--role-color);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06);
+  }
+
+  .discord-role-empty {
+    color: #b5bac1;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
   @media (max-width: 767px) {
     .social-connect-btn {
       min-height: 40px;
@@ -595,6 +747,14 @@
 
     .social-pill-prefix {
       display: none;
+    }
+  }
+
+  @media (hover: none) and (pointer: coarse) {
+    .discord-role-tooltip-wrap:hover .discord-role-tooltip,
+    .discord-role-tooltip-wrap:focus-visible .discord-role-tooltip {
+      opacity: 0;
+      visibility: hidden;
     }
   }
 </style>
