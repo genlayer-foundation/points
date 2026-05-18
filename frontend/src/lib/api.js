@@ -183,6 +183,7 @@ export const socialAPI = {
   refreshGitHubUsername: () => api.post('/users/github/refresh/'),
   refreshTwitterUsername: () => api.post('/users/twitter/refresh/'),
   refreshDiscordUsername: () => api.post('/users/discord/refresh/'),
+  refreshDiscordRoles: () => api.post('/users/discord/sync-roles/me/'),
   checkDiscordGuild: () => api.get('/users/discord/check-guild/'),
 };
 

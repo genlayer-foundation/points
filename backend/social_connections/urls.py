@@ -12,6 +12,8 @@ from .discord_oauth import (
     discord_oauth_callback,
     check_discord_guild,
     refresh_discord_username,
+    sync_discord_roles,
+    sync_my_discord_roles,
 )
 
 urlpatterns = [
@@ -31,4 +33,6 @@ urlpatterns = [
     path('api/auth/discord/callback/', discord_oauth_callback, name='discord_callback'),
     path('api/v1/users/discord/refresh/', refresh_discord_username, name='discord_refresh_username'),
     path('api/v1/users/discord/check-guild/', check_discord_guild, name='discord_check_guild'),
+    path('api/v1/users/discord/sync-roles/', sync_discord_roles, name='discord_sync_roles'),
+    path('api/v1/users/discord/sync-roles/me/', sync_my_discord_roles, name='discord_sync_my_roles'),
 ]

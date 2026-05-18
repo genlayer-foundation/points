@@ -108,6 +108,15 @@ class ContributionType(BaseModel):
         blank=True,
         help_text="List of required social accounts for submission: 'twitter', 'discord', 'github'"
     )
+    required_discord_roles = models.ManyToManyField(
+        'social_connections.DiscordRole',
+        blank=True,
+        related_name='required_by_contribution_types',
+        help_text=(
+            "Discord guild roles required for submission. "
+            "If set, the submitter must have at least one of these roles."
+        ),
+    )
     accepted_evidence_url_types = models.ManyToManyField(
         'EvidenceURLType',
         blank=True,

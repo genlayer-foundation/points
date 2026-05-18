@@ -11,6 +11,7 @@ from django.db.models import (
     Count,
     DecimalField,
     Exists,
+    F,
     IntegerField,
     OuterRef,
     Subquery,
@@ -23,6 +24,7 @@ from datetime import datetime
 from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert, BlocklistedURL, EvidenceURLType
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
+from social_connections.models import DiscordRole
 from utils.admin_mixins import CloudinaryUploadMixin
 
 User = get_user_model()
@@ -101,7 +103,11 @@ class ContributionTypeAdmin(admin.ModelAdmin):
     list_filter = ('category', 'is_default', 'is_submittable', 'show_in_contributions')
     # Auto-fill slug from name on the edit page
     prepopulated_fields = { 'slug': ('name',) }
-    filter_horizontal = ('accepted_evidence_url_types', 'required_evidence_url_types')
+    filter_horizontal = (
+        'required_discord_roles',
+        'accepted_evidence_url_types',
+        'required_evidence_url_types',
+    )
     inlines = [GlobalLeaderboardMultiplierInline]
     show_facets = admin.ShowFacets.NEVER
 
@@ -136,6 +142,15 @@ class ContributionTypeAdmin(admin.ModelAdmin):
             return f'{count} / Unlimited'
         return f'{count} / {obj.max_submissions}'
     get_submission_usage.short_description = 'Submissions'
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == 'required_discord_roles':
+            kwargs['queryset'] = DiscordRole.objects.filter(
+                deleted_at__isnull=True,
+            ).exclude(
+                role_id=F('guild_id'),
+            ).order_by('guild_id', '-position', 'name')
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
 
 
 @admin.register(GlobalLeaderboardMultiplier)

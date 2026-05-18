@@ -247,6 +247,14 @@ DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', '')
 DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET', '')
 DISCORD_REDIRECT_URI = os.environ.get('DISCORD_REDIRECT_URI', f"{BACKEND_URL}/api/auth/discord/callback/")
 DISCORD_GUILD_ID = os.environ.get('DISCORD_GUILD_ID', '')
+DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN', '')
+DISCORD_ROLE_SYNC_BATCH_SIZE = int(os.environ.get('DISCORD_ROLE_SYNC_BATCH_SIZE', '500'))
+DISCORD_MANUAL_ROLE_SYNC_COOLDOWN_SECONDS = int(
+    os.environ.get('DISCORD_MANUAL_ROLE_SYNC_COOLDOWN_SECONDS', '30')
+)
+DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS = int(
+    os.environ.get('DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS', '30')
+)
 
 # Shared social connection encryption key (falls back to GitHub key for backward compat)
 SOCIAL_ENCRYPTION_KEY = os.environ.get('SOCIAL_ENCRYPTION_KEY', '') or GITHUB_ENCRYPTION_KEY

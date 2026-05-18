@@ -130,6 +130,7 @@
   const ownershipPlatformMap = {
     twitter: { platform: 'twitter', label: 'X', field: 'twitter_connection', initiateUrl: '/api/auth/twitter/' },
     github: { platform: 'github', label: 'GitHub', field: 'github_connection', initiateUrl: '/api/auth/github/' },
+    discord: { platform: 'discord', label: 'Discord', field: 'discord_connection', initiateUrl: '/api/auth/discord/' },
   };
 
   let evidenceRequiredAccounts = $derived.by(() => {
@@ -178,6 +179,15 @@
         return field && !user[field];
       })
       .map((a) => socialAccountLabels[a] || a);
+  });
+  let missingDiscordRoles = $derived.by(() => {
+    const requiredRoles = selectedContributionType?.required_discord_roles || [];
+    if (requiredRoles.length === 0) return [];
+
+    const userRoles = $userStore.user?.discord_connection?.roles || [];
+    const userRoleIds = new Set(userRoles.map((role) => String(role.role_id)));
+    const hasRequiredRole = requiredRoles.some((role) => userRoleIds.has(String(role.role_id)));
+    return hasRequiredRole ? [] : requiredRoles.map((role) => role.name);
   });
 
   // True when ALL non-generic accepted evidence types require an unlinked social account
@@ -237,6 +247,7 @@
   let canShowFormDetails = $derived(
     selectedContributionType &&
     missingSocialAccounts.length === 0 &&
+    missingDiscordRoles.length === 0 &&
     !allEvidenceTypesBlocked
   );
 
@@ -627,6 +638,11 @@
               <p class="text-sm text-gray-500">
                 This contribution type requires account verification. Please connect your account to continue.
               </p>
+              {#if missingDiscordRoles.length > 0}
+                <p class="text-sm text-gray-500 mt-2">
+                  {$userStore.user?.discord_connection ? "Required Discord role" : "Link Discord and make sure you have one of these roles"}: {missingDiscordRoles.join(", ")}
+                </p>
+              {/if}
             </div>
             <div class="flex flex-col gap-3 w-full max-w-[280px]">
               {#each blockingSocialAccounts as account}
@@ -643,6 +659,11 @@
                 {/if}
               {/each}
             </div>
+            {#if missingDiscordRoles.length > 0}
+              <a href="#/profile" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">
+                {$userStore.user?.discord_connection ? "Refresh Discord roles from profile" : "Go to profile"} →
+              </a>
+            {/if}
           </div>
         {/if}
 
