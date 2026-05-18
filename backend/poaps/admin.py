@@ -25,6 +25,12 @@ def unused_mint_link_capacity(queryset):
     )['total'] or 0
 
 
+POAP_DISTRIBUTION_ADMIN_METHOD_CHOICES = [
+    (PoapDistribution.METHOD_SECRET, 'Secret phrase'),
+    (PoapDistribution.METHOD_MINT_LINK, 'Mint link'),
+]
+
+
 class PoapDropAdminForm(forms.ModelForm):
     class Meta:
         model = PoapDrop
@@ -59,6 +65,7 @@ class PoapDropAdminForm(forms.ModelForm):
 
 
 class PoapDistributionAdminForm(forms.ModelForm):
+    method = forms.ChoiceField(choices=POAP_DISTRIBUTION_ADMIN_METHOD_CHOICES)
     secret_phrase = forms.CharField(
         required=False,
         help_text='For secret phrase distributions only. Enter a new value to set or rotate the phrase.',
@@ -87,6 +94,13 @@ class PoapDistributionAdminForm(forms.ModelForm):
     class Meta:
         model = PoapDistribution
         fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        method_choices = list(POAP_DISTRIBUTION_ADMIN_METHOD_CHOICES)
+        if self.instance.pk and self.instance.method == PoapDistribution.METHOD_DISCORD_VOICE:
+            method_choices.append((PoapDistribution.METHOD_DISCORD_VOICE, 'Discord voice'))
+        self.fields['method'].choices = method_choices
 
     def clean(self):
         cleaned_data = super().clean()
@@ -214,7 +228,7 @@ class PoapDropAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
             'fields': ('event_start_at', 'event_end_at'),
         }),
         ('Claiming', {
-            'fields': ('max_claims', 'discord_role_id'),
+            'fields': ('max_claims',),
         }),
         ('Legacy import', {
             'fields': ('legacy_poap_id',),

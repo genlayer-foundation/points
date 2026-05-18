@@ -515,6 +515,31 @@ class PoapAPITest(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn('mint_link_count', form.errors)
 
+    def test_poap_distribution_admin_form_hides_discord_voice_for_new_distributions(self):
+        form = PoapDistributionAdminForm()
+
+        method_choices = [value for value, _label in form.fields['method'].choices]
+
+        self.assertEqual(
+            method_choices,
+            [
+                PoapDistribution.METHOD_SECRET,
+                PoapDistribution.METHOD_MINT_LINK,
+            ],
+        )
+
+    def test_poap_distribution_admin_form_keeps_existing_discord_voice_distribution_editable(self):
+        distribution = PoapDistribution.objects.create(
+            drop=self.drop,
+            method=PoapDistribution.METHOD_DISCORD_VOICE,
+            active=True,
+        )
+        form = PoapDistributionAdminForm(instance=distribution)
+
+        method_choices = [value for value, _label in form.fields['method'].choices]
+
+        self.assertIn(PoapDistribution.METHOD_DISCORD_VOICE, method_choices)
+
     def test_poap_distribution_admin_form_counts_existing_unused_links_against_drop_capacity(self):
         self.drop.max_claims = 10
         self.drop.save(update_fields=['max_claims', 'updated_at'])
