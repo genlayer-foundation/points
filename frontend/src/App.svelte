@@ -106,6 +106,7 @@
   import CommunityPoaps from './routes/CommunityPoaps.svelte';
   import PoapDetail from './routes/PoapDetail.svelte';
   import PoapClaim from './routes/PoapClaim.svelte';
+  import PoapRecovery from './routes/PoapRecovery.svelte';
   import Hackathon from './routes/Hackathon.svelte';
   import HackathonWinners from './routes/HackathonWinners.svelte';
   import Resources from './routes/Resources.svelte';
@@ -134,6 +135,7 @@
     '/community/all-contributions': AllContributions,
     '/community/referrals': Referrals,
     '/community/poaps': CommunityPoaps,
+    '/community/poaps/recover': PoapRecovery,
     '/community/poaps/:slug': PoapDetail,
     '/community/contribution/:id': ContributionPreview,
     '/claim/poap/:token': PoapClaim,

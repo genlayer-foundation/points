@@ -188,22 +188,64 @@ def generate_mint_links(*, distribution, count, max_uses=1, expires_at=None):
     return created
 
 
+def normalize_wallet_address(value):
+    return (value or '').strip().lower()
+
+
+def recover_unmatched_claims_for_wallet(user, wallet_address):
+    result = {
+        'attached_claims': [],
+        'skipped_existing_drop_count': 0,
+    }
+    if not user or not user.pk or not wallet_address:
+        return result
+
+    normalized_wallet = normalize_wallet_address(wallet_address)
+    if not normalized_wallet:
+        return result
+
+    with transaction.atomic():
+        claims = list(
+            PoapClaim.objects
+            .select_for_update()
+            .filter(
+                user__isnull=True,
+                legacy_wallet_address__iexact=normalized_wallet,
+            )
+            .select_related('drop')
+            .order_by('claimed_at', 'pk')
+        )
+        if not claims:
+            return result
+
+        drop_ids = [claim.drop_id for claim in claims]
+        existing_drop_ids = set(
+            PoapClaim.objects
+            .filter(user=user, drop_id__in=drop_ids)
+            .values_list('drop_id', flat=True)
+        )
+
+        for claim in claims:
+            if claim.drop_id in existing_drop_ids:
+                result['skipped_existing_drop_count'] += 1
+                continue
+            claim.user = user
+            claim.save(update_fields=['user', 'updated_at'])
+            result['attached_claims'].append(claim)
+            existing_drop_ids.add(claim.drop_id)
+
+    return result
+
+
+def attach_unmatched_claims_for_wallet(user, wallet_address):
+    return recover_unmatched_claims_for_wallet(user, wallet_address)['attached_claims']
+
+
 def attach_unmatched_claims_for_user(user):
     if not user or not user.pk or not user.address:
         return 0
 
-    attached = 0
-    claims = PoapClaim.objects.filter(
-        user__isnull=True,
-        legacy_wallet_address__iexact=user.address,
-    )
-    for claim in claims.select_related('drop'):
-        if PoapClaim.objects.filter(drop=claim.drop, user=user).exists():
-            continue
-        claim.user = user
-        claim.save(update_fields=['user', 'updated_at'])
-        attached += 1
-    return attached
+    return len(attach_unmatched_claims_for_wallet(user, user.address))
 
 
 def find_user_for_legacy_claim(wallet='', email=''):

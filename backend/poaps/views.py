@@ -1,10 +1,17 @@
+import re
 from datetime import timezone as datetime_timezone
 
+from django.contrib.auth import get_user_model
 from django.db.models import BooleanField, Count, Exists, F, OuterRef, Prefetch, Q, Value
+from django.db import transaction
 from django.utils import timezone
+from eth_account import Account
+from eth_account.messages import encode_defunct
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+
+from ethereum_auth.models import Nonce
 
 from .models import PoapClaim, PoapDistribution, PoapDrop
 from .serializers import (
@@ -17,7 +24,27 @@ from .services import (
     PoapClaimError,
     claim_with_mint_link,
     claim_with_secret,
+    normalize_wallet_address,
+    recover_unmatched_claims_for_wallet,
 )
+
+User = get_user_model()
+
+
+def extract_message_field(message, field_name):
+    prefix = f'{field_name}:'
+    for line in (message or '').splitlines():
+        if line.startswith(prefix):
+            return line.split(':', 1)[1].strip()
+    return ''
+
+
+def extract_nonce(message):
+    return extract_message_field(message, 'Nonce')
+
+
+def is_ethereum_address(value):
+    return bool(re.fullmatch(r'0x[a-fA-F0-9]{40}', value or ''))
 
 
 def open_distribution_queryset(at_time=None):
@@ -171,6 +198,129 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
             'claim': PoapClaimSerializer(claim).data,
             'drop': PoapDropListSerializer(claim.drop, context={'request': request}).data,
         }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='verify-wallet', permission_classes=[permissions.IsAuthenticated])
+    def verify_wallet(self, request):
+        if not request.user.address:
+            return Response(
+                {'error': 'Your portal account does not have a wallet address.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        wallet_address = normalize_wallet_address(request.data.get('address'))
+        message = request.data.get('message') or ''
+        signature = request.data.get('signature') or ''
+
+        if not wallet_address or not message or not signature:
+            return Response(
+                {'error': 'Address, message, and signature are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not is_ethereum_address(wallet_address):
+            return Response({'error': 'Invalid wallet address.'}, status=status.HTTP_400_BAD_REQUEST)
+        if 'GenLayer POAP recovery' not in message or 'will not sign you into the portal' not in message:
+            return Response(
+                {'error': 'Invalid recovery message.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if wallet_address not in message.lower():
+            return Response(
+                {'error': 'Recovery message does not include the wallet being verified.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        portal_account = normalize_wallet_address(extract_message_field(message, 'Portal Account'))
+        if portal_account != normalize_wallet_address(request.user.address):
+            return Response(
+                {'error': 'Recovery message is not for the current portal account.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        nonce_value = extract_nonce(message)
+        if not nonce_value:
+            return Response({'error': 'Invalid message format: No nonce found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            try:
+                nonce = Nonce.objects.select_for_update().get(value=nonce_value)
+            except Nonce.DoesNotExist:
+                return Response({'error': 'Invalid nonce.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if not nonce.is_valid():
+                return Response({'error': 'Invalid or expired nonce.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                recovered_address = Account.recover_message(
+                    encode_defunct(text=message),
+                    signature=signature,
+                )
+            except Exception:
+                return Response({'error': 'Invalid signature.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if normalize_wallet_address(recovered_address) != wallet_address:
+                return Response(
+                    {'error': 'Invalid signature: address mismatch.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            nonce.mark_as_used()
+
+            if User.objects.filter(address__iexact=wallet_address).exclude(pk=request.user.pk).exists():
+                return Response(
+                    {'error': 'This wallet already belongs to another portal account.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            attached_to_other = (
+                PoapClaim.objects
+                .filter(
+                    legacy_wallet_address__iexact=wallet_address,
+                    user__isnull=False,
+                )
+                .exclude(user=request.user)
+                .exists()
+            )
+            if attached_to_other:
+                return Response(
+                    {'error': 'POAPs for this wallet are already linked to another portal account.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            recovery_result = recover_unmatched_claims_for_wallet(request.user, wallet_address)
+            attached_claims = recovery_result['attached_claims']
+            skipped_existing_drop_count = recovery_result['skipped_existing_drop_count']
+
+            if not attached_claims and (
+                PoapClaim.objects
+                .filter(
+                    legacy_wallet_address__iexact=wallet_address,
+                    user__isnull=False,
+                )
+                .exclude(user=request.user)
+                .exists()
+            ):
+                return Response(
+                    {'error': 'POAPs for this wallet were linked to another portal account.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            already_attached_count = PoapClaim.objects.filter(
+                legacy_wallet_address__iexact=wallet_address,
+                user=request.user,
+            ).count()
+
+        serializer = PoapProfileClaimSerializer(
+            attached_claims,
+            many=True,
+            context={'request': request},
+        )
+        return Response({
+            'verified_address': wallet_address,
+            'attached_count': len(attached_claims),
+            'skipped_existing_drop_count': skipped_existing_drop_count,
+            'already_attached_count': already_attached_count,
+            'attached_poaps': serializer.data,
+        })
 
 
 class UserPoapMixin:
