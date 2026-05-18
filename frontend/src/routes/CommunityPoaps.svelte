@@ -4,6 +4,7 @@
   import { showError } from '../lib/toastStore.js';
   import PoapCollectionWall from '../components/poaps/PoapCollectionWall.svelte';
   import CategoryIcon from '../components/portal/CategoryIcon.svelte';
+  import { getCategoryGradientStyle } from '../lib/categoryPresentation.js';
 
   let loading = $state(true);
   /** @type {any[]} */
@@ -13,6 +14,7 @@
   let monthFilter = $state('');
 
   const PAGE_SIZE = 100;
+  const poapGradientStyle = getCategoryGradientStyle('community', '#7f52e1');
 
   async function loadPoaps() {
     loading = true;
@@ -69,10 +71,13 @@
   });
 </script>
 
-<div class="relative -mx-3 -my-3 overflow-hidden px-3 py-8 sm:px-5 sm:py-10 md:px-8 md:py-12">
-  <div class="absolute inset-x-0 top-0 h-[260px] pointer-events-none overflow-hidden" style="-webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%); mask-image: linear-gradient(to bottom, black 0%, transparent 100%);">
-    <img src="/assets/illustrations/welcome-gradient.png" alt="" class="absolute inset-0 h-full w-full object-cover opacity-60" />
-    <div class="absolute inset-0 bg-white/35"></div>
+<div class="relative -mx-3 -my-3 min-h-[calc(100vh-64px)] overflow-hidden bg-white px-3 py-8 sm:px-5 sm:py-10 md:px-8 md:py-12">
+  <div
+    class="absolute inset-x-0 top-0 h-[220px] pointer-events-none overflow-hidden"
+    style="-webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%); mask-image: linear-gradient(to bottom, black 0%, transparent 100%);"
+  >
+    <div class="absolute inset-0" style={poapGradientStyle}></div>
+    <div class="absolute inset-0 bg-white/55"></div>
   </div>
 
   <div class="relative z-10 space-y-6">

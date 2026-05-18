@@ -5,6 +5,7 @@
   import { poapsAPI } from '../lib/api.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
   import PoapBadgeImage from '../components/poaps/PoapBadgeImage.svelte';
+  import { getCategoryGradientStyle } from '../lib/categoryPresentation.js';
 
   /** @type {any} */
   let poap = $state(null);
@@ -19,6 +20,7 @@
   let claiming = $state(false);
 
   const CLAIM_PAGE_SIZE = 10;
+  const poapGradientStyle = getCategoryGradientStyle('community', '#7f52e1');
 
   let slug = $derived($params?.slug || '');
   let claimTotalPages = $derived(Math.max(1, Math.ceil(claimsCount / CLAIM_PAGE_SIZE)));
@@ -155,8 +157,16 @@
   });
 </script>
 
-<div class="-mx-3 -my-3 px-3 py-8 sm:px-5 sm:py-10 md:px-8 md:py-12">
-  <div class="space-y-6">
+<div class="relative -mx-3 -my-3 overflow-hidden bg-white px-3 py-8 sm:px-5 sm:py-10 md:px-8 md:py-12">
+  <div
+    class="absolute inset-x-0 top-0 h-[320px] pointer-events-none overflow-hidden"
+    style="-webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%); mask-image: linear-gradient(to bottom, black 0%, transparent 100%);"
+  >
+    <div class="absolute inset-0" style={poapGradientStyle}></div>
+    <div class="absolute inset-0 bg-white/25"></div>
+  </div>
+
+  <div class="relative z-10 space-y-6">
     <button class="inline-flex items-center gap-2 text-[14px] font-medium text-[#6b5bd6] hover:text-[#4c3dbd]" onclick={() => push('/community/poaps')}>
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6" /></svg>
       Back to POAPs

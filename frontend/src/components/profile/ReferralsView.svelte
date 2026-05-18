@@ -308,7 +308,7 @@
                     </div>
                     {#if isOwnProfile}
                         <button
-                            onclick={() => push("/referrals")}
+                            onclick={() => push("/community/referrals")}
                             class="flex items-center gap-[4px] text-[14px] text-[#6b6b6b] hover:text-black transition-colors"
                             style="letter-spacing: 0.28px;"
                         >
