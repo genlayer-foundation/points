@@ -1,7 +1,6 @@
 <script>
   import { params, push } from 'svelte-spa-router';
   import { format } from 'date-fns';
-  import { API_BASE_URL } from '../lib/config.js';
   import { authState } from '../lib/auth.js';
   import { poapsAPI } from '../lib/api.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
@@ -18,37 +17,6 @@
   let claimPage = $state(1);
   let secret = $state('');
   let claiming = $state(false);
-  let creatingSecret = $state(false);
-  let generatingLinks = $state(false);
-  /** @type {any[]} */
-  let generatedLinks = $state([]);
-  let showEdit = $state(false);
-  let showManage = $state(false);
-  let savingDrop = $state(false);
-  /** @type {any} */
-  let editForm = $state({
-    title: '',
-    description: '',
-    artwork_url: '',
-    event_start_at: '',
-    event_end_at: '',
-    status: 'active',
-    max_claims: '',
-  });
-  let secretForm = $state({
-    secret: '',
-    starts_at: '',
-    ends_at: '',
-    max_claims: '',
-    active: true,
-  });
-  let linkForm = $state({
-    count: 1,
-    max_uses: 1,
-    expires_at: '',
-    starts_at: '',
-    ends_at: '',
-  });
 
   const CLAIM_PAGE_SIZE = 10;
 
@@ -105,29 +73,6 @@
     return statusCode === 401 || statusCode === 403;
   }
 
-  /** @param {string | Date | null | undefined} value */
-  function toDateTimeLocal(value) {
-    if (!value) return '';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-    return offsetDate.toISOString().slice(0, 16);
-  }
-
-  function openEdit() {
-    if (!poap) return;
-    editForm = {
-      title: poap.title || '',
-      description: poap.description || '',
-      artwork_url: poap.artwork_url || '',
-      event_start_at: toDateTimeLocal(poap.event_start_at),
-      event_end_at: toDateTimeLocal(poap.event_end_at),
-      status: poap.status || 'active',
-      max_claims: poap.max_claims || '',
-    };
-    showEdit = true;
-  }
-
   function signInForClaim() {
     sessionStorage.setItem('redirectAfterLogin', `/community/poaps/${slug}`);
     window.setTimeout(() => {
@@ -143,7 +88,6 @@
     try {
       const response = await poapsAPI.get(slug);
       poap = response.data;
-      showManage = false;
     } catch (err) {
       const requestError = /** @type {any} */ (err);
       error = requestError.response?.data?.detail || 'Unable to load this POAP.';
@@ -169,29 +113,6 @@
       claimsCount = 0;
     } finally {
       claimsLoading = false;
-    }
-  }
-
-  async function saveDrop() {
-    if (!editForm.title || !editForm.event_start_at) {
-      showError('Title and event start date are required.');
-      return;
-    }
-    savingDrop = true;
-    try {
-      await poapsAPI.update(slug, {
-        ...editForm,
-        event_end_at: editForm.event_end_at || null,
-        max_claims: editForm.max_claims ? Number(editForm.max_claims) : null,
-      });
-      showSuccess('POAP updated.');
-      showEdit = false;
-      await loadPoap();
-    } catch (err) {
-      const data = /** @type {any} */ (err).response?.data;
-      showError(typeof data === 'string' ? data : data?.detail || data?.error || 'Unable to update POAP.');
-    } finally {
-      savingDrop = false;
     }
   }
 
@@ -223,78 +144,6 @@
     } finally {
       claiming = false;
     }
-  }
-
-  async function createSecretDistribution() {
-    if (!secretForm.secret.trim()) {
-      showError('Secret phrase is required.');
-      return;
-    }
-    creatingSecret = true;
-    try {
-      await poapsAPI.createSecretDistribution(slug, {
-        secret: secretForm.secret,
-        starts_at: secretForm.starts_at || null,
-        ends_at: secretForm.ends_at || null,
-        max_claims: secretForm.max_claims ? Number(secretForm.max_claims) : null,
-        active: secretForm.active,
-      });
-      showSuccess('Secret distribution created.');
-      secretForm = { secret: '', starts_at: '', ends_at: '', max_claims: '', active: true };
-      await loadPoap();
-    } catch (err) {
-      const requestError = /** @type {any} */ (err);
-      showError(requestError.response?.data?.detail || requestError.response?.data?.error || 'Unable to create distribution.');
-    } finally {
-      creatingSecret = false;
-    }
-  }
-
-  async function generateLinks() {
-    generatingLinks = true;
-    generatedLinks = [];
-    try {
-      const response = await poapsAPI.generateMintLinks(slug, {
-        count: Number(linkForm.count) || 1,
-        max_uses: Number(linkForm.max_uses) || 1,
-        expires_at: linkForm.expires_at || null,
-        starts_at: linkForm.starts_at || null,
-        ends_at: linkForm.ends_at || null,
-      });
-      generatedLinks = response.data?.links || [];
-      showSuccess(`${response.data?.created || generatedLinks.length} mint link${generatedLinks.length === 1 ? '' : 's'} generated.`);
-      await loadPoap();
-    } catch (err) {
-      const requestError = /** @type {any} */ (err);
-      showError(requestError.response?.data?.detail || requestError.response?.data?.error || 'Unable to generate mint links.');
-    } finally {
-      generatingLinks = false;
-    }
-  }
-
-  /** @param {any} link */
-  function mintLinkUrl(link) {
-    const path = typeof link === 'string' ? link : link?.hash_path || link?.path || '';
-    if (!path) return window.location.origin;
-    if (/^https?:\/\//.test(path)) return path;
-    if (path.startsWith('/#/')) return `${window.location.origin}${path}`;
-    if (path.startsWith('#/')) return `${window.location.origin}/${path}`;
-    return `${window.location.origin}#${path.startsWith('/') ? path : `/${path}`}`;
-  }
-
-  /** @param {any} link */
-  async function copyLink(link) {
-    const absolute = mintLinkUrl(link);
-    try {
-      await navigator.clipboard.writeText(absolute);
-      showSuccess('Link copied.');
-    } catch {
-      showError('Unable to copy link.');
-    }
-  }
-
-  function downloadMintLinks() {
-    window.open(`${API_BASE_URL}/api/v1/poaps/${slug}/mint-links/download/`, '_blank', 'noopener,noreferrer');
   }
 
   $effect(() => {
@@ -344,15 +193,6 @@
               {#if poap.has_claimed}
                 <span class="rounded-full border border-[#d8f0df] bg-[#f2fbf5] px-3 py-1 text-[12px] font-semibold uppercase text-[#167b48]">Claimed</span>
               {/if}
-              {#if poap.can_manage}
-                <button class="rounded-full border border-[#d9d2ff] bg-white px-3 py-1 text-[12px] font-semibold text-[#6b5bd6] hover:bg-[#f7f4ff]" onclick={openEdit}>Edit</button>
-                <button
-                  class="rounded-full border border-[#d9d2ff] bg-white px-3 py-1 text-[12px] font-semibold text-[#6b5bd6] hover:bg-[#f7f4ff]"
-                  onclick={() => (showManage = !showManage)}
-                >
-                  Distribution
-                </button>
-              {/if}
             </div>
 
             {#if poap.max_claims}
@@ -388,90 +228,6 @@
           </aside>
         </div>
       </section>
-
-      {#if poap.can_manage && showManage}
-        <section class="rounded-[10px] border border-[#e8e3ff] bg-white p-5 shadow-[0_12px_34px_rgba(80,64,150,0.08)] sm:p-6">
-          <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 class="text-[20px] font-semibold text-black">Distribution</h2>
-              <p class="mt-1 text-[14px] text-[#777]">Create secret phrases or individual mint links for this POAP.</p>
-            </div>
-            <button class="rounded-[8px] border border-[#d9d2ff] px-3 py-2 text-[13px] font-medium text-[#6b5bd6] hover:bg-[#f7f4ff]" onclick={downloadMintLinks}>Download mint links</button>
-          </div>
-
-          <div class="grid gap-5 lg:grid-cols-2">
-            <div class="rounded-[8px] border border-[#f0f0f0] p-4">
-              <h3 class="text-[15px] font-semibold text-black">Secret phrase</h3>
-              <div class="mt-4 grid gap-3">
-                <input bind:value={secretForm.secret} class="h-10 rounded-[8px] border border-[#e6e6e6] px-3 text-[14px] outline-none focus:border-[#8d81e1]" placeholder="friend-scientist-natural" />
-                <div class="grid gap-3 sm:grid-cols-2">
-                  <input bind:value={secretForm.starts_at} type="datetime-local" class="h-10 rounded-[8px] border border-[#e6e6e6] px-3 text-[14px] outline-none focus:border-[#8d81e1]" />
-                  <input bind:value={secretForm.ends_at} type="datetime-local" class="h-10 rounded-[8px] border border-[#e6e6e6] px-3 text-[14px] outline-none focus:border-[#8d81e1]" />
-                </div>
-                <input bind:value={secretForm.max_claims} type="number" min="1" class="h-10 rounded-[8px] border border-[#e6e6e6] px-3 text-[14px] outline-none focus:border-[#8d81e1]" placeholder="Max claims, optional" />
-                <label class="flex items-center gap-2 text-[13px] text-[#555]"><input bind:checked={secretForm.active} type="checkbox" /> Active</label>
-                <button class="h-10 rounded-[8px] bg-[#101010] px-4 text-[14px] font-medium text-white disabled:opacity-50" disabled={creatingSecret} onclick={createSecretDistribution}>
-                  {creatingSecret ? 'Creating...' : 'Create secret'}
-                </button>
-              </div>
-            </div>
-
-            <div class="rounded-[8px] border border-[#f0f0f0] p-4">
-              <h3 class="text-[15px] font-semibold text-black">Individual mint links</h3>
-              <div class="mt-4 grid gap-3">
-                <div class="grid gap-3 sm:grid-cols-2">
-                  <label class="grid gap-1 text-[13px] text-[#555]">Links
-                    <input bind:value={linkForm.count} type="number" min="1" max="500" class="h-10 rounded-[8px] border border-[#e6e6e6] px-3 text-[14px] outline-none focus:border-[#8d81e1]" />
-                  </label>
-                  <label class="grid gap-1 text-[13px] text-[#555]">Uses per link
-                    <input bind:value={linkForm.max_uses} type="number" min="1" max="100" class="h-10 rounded-[8px] border border-[#e6e6e6] px-3 text-[14px] outline-none focus:border-[#8d81e1]" />
-                  </label>
-                </div>
-                <input bind:value={linkForm.expires_at} type="datetime-local" class="h-10 rounded-[8px] border border-[#e6e6e6] px-3 text-[14px] outline-none focus:border-[#8d81e1]" />
-                <button class="h-10 rounded-[8px] bg-[#101010] px-4 text-[14px] font-medium text-white disabled:opacity-50" disabled={generatingLinks} onclick={generateLinks}>
-                  {generatingLinks ? 'Generating...' : 'Generate links'}
-                </button>
-              </div>
-              {#if generatedLinks.length > 0}
-                <div class="mt-4 max-h-44 overflow-auto rounded-[8px] bg-[#fafafa] p-3">
-                  {#each generatedLinks as link}
-                    <button class="mb-2 block w-full truncate rounded-[6px] border border-[#e6e6e6] bg-white px-3 py-2 text-left text-[12px] text-[#555] hover:border-[#d9d2ff]" onclick={() => copyLink(link)}>
-                      {mintLinkUrl(link)}
-                    </button>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-          </div>
-
-          {#if poap.distributions?.length}
-            <div class="mt-5 overflow-x-auto">
-              <table class="min-w-full text-left text-[13px]">
-                <thead class="text-[#777]">
-                  <tr class="border-b border-[#ededed]">
-                    <th class="py-2 pr-4 font-medium">Method</th>
-                    <th class="py-2 pr-4 font-medium">Active</th>
-                    <th class="py-2 pr-4 font-medium">Claims</th>
-                    <th class="py-2 pr-4 font-medium">Window</th>
-                    <th class="py-2 pr-4 font-medium">Links</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each poap.distributions as distribution}
-                    <tr class="border-b border-[#f5f5f5]">
-                      <td class="py-2 pr-4 text-black">{distribution.method}</td>
-                      <td class="py-2 pr-4">{distribution.active ? 'Yes' : 'No'}</td>
-                      <td class="py-2 pr-4">{distribution.claimed_count}{distribution.max_claims ? ` / ${distribution.max_claims}` : ''}</td>
-                      <td class="py-2 pr-4">{distribution.starts_at ? formatDate(distribution.starts_at, 'MMM d, h:mm a') : 'Live'} - {distribution.ends_at ? formatDate(distribution.ends_at, 'MMM d, h:mm a') : 'No end'}</td>
-                      <td class="py-2 pr-4">{distribution.mint_link_count || 0}</td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            </div>
-          {/if}
-        </section>
-      {/if}
 
       <section class="poap-collectors-card">
         <div class="poap-collectors-header">
@@ -536,59 +292,6 @@
     {/if}
   </div>
 </div>
-
-{#if showEdit}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="dialog" aria-modal="true">
-    <div class="w-full max-w-2xl rounded-[10px] bg-white p-6 shadow-[0_24px_80px_rgba(0,0,0,0.24)]">
-      <div class="mb-5 flex items-start justify-between gap-4">
-        <div>
-          <h2 class="text-[22px] font-semibold text-black">Edit POAP</h2>
-          <p class="mt-1 text-[14px] text-[#777]">Update badge metadata and availability.</p>
-        </div>
-        <button class="rounded-full p-2 hover:bg-[#f5f5f5]" onclick={() => (showEdit = false)} aria-label="Close">
-          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
-        </button>
-      </div>
-      <div class="grid gap-4">
-        <label class="grid gap-1 text-[13px] font-medium text-[#555]">Title
-          <input bind:value={editForm.title} class="h-10 rounded-[8px] border border-[#e6e6e6] px-3 text-[14px] text-black outline-none focus:border-[#8d81e1]" />
-        </label>
-        <label class="grid gap-1 text-[13px] font-medium text-[#555]">Artwork URL
-          <input bind:value={editForm.artwork_url} class="h-10 rounded-[8px] border border-[#e6e6e6] px-3 text-[14px] text-black outline-none focus:border-[#8d81e1]" placeholder="https://..." />
-        </label>
-        <label class="grid gap-1 text-[13px] font-medium text-[#555]">Description
-          <textarea bind:value={editForm.description} class="min-h-[96px] rounded-[8px] border border-[#e6e6e6] p-3 text-[14px] text-black outline-none focus:border-[#8d81e1]"></textarea>
-        </label>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <label class="grid gap-1 text-[13px] font-medium text-[#555]">Event start
-            <input bind:value={editForm.event_start_at} type="datetime-local" class="h-10 rounded-[8px] border border-[#e6e6e6] px-3 text-[14px] text-black outline-none focus:border-[#8d81e1]" />
-          </label>
-          <label class="grid gap-1 text-[13px] font-medium text-[#555]">Event end
-            <input bind:value={editForm.event_end_at} type="datetime-local" class="h-10 rounded-[8px] border border-[#e6e6e6] px-3 text-[14px] text-black outline-none focus:border-[#8d81e1]" />
-          </label>
-        </div>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <label class="grid gap-1 text-[13px] font-medium text-[#555]">Status
-            <select bind:value={editForm.status} class="h-10 rounded-[8px] border border-[#e6e6e6] px-3 text-[14px] text-black outline-none focus:border-[#8d81e1]">
-              <option value="draft">Draft</option>
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-            </select>
-          </label>
-          <label class="grid gap-1 text-[13px] font-medium text-[#555]">Max claims
-            <input bind:value={editForm.max_claims} type="number" min="1" class="h-10 rounded-[8px] border border-[#e6e6e6] px-3 text-[14px] text-black outline-none focus:border-[#8d81e1]" placeholder="Unlimited" />
-          </label>
-        </div>
-      </div>
-      <div class="mt-6 flex justify-end gap-2">
-        <button class="h-10 rounded-[8px] border border-[#e6e6e6] px-4 text-[14px] font-medium text-[#555]" onclick={() => (showEdit = false)}>Cancel</button>
-        <button class="h-10 rounded-[8px] bg-[#101010] px-4 text-[14px] font-medium text-white disabled:opacity-50" disabled={savingDrop} onclick={saveDrop}>
-          {savingDrop ? 'Saving...' : 'Save POAP'}
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
 
 <style>
   .poap-detail-card {

@@ -299,10 +299,6 @@ export const poapsAPI = {
   list: (params) => api.get('/poaps/', { params }),
   /** @param {string} slug */
   get: (slug) => api.get(`/poaps/${slug}/`),
-  /** @param {PoapApiPayload} data */
-  create: (data) => api.post('/poaps/', data),
-  /** @param {string} slug @param {PoapApiPayload} data */
-  update: (slug, data) => api.patch(`/poaps/${slug}/`, data),
   /** @param {string} slug @param {PoapApiPayload} [params] */
   getClaims: (slug, params) => api.get(`/poaps/${slug}/claims/`, { params }),
   /** @param {string} address @param {PoapApiPayload} [params] */
@@ -311,11 +307,6 @@ export const poapsAPI = {
   claimSecret: (slug, secret) => api.post(`/poaps/${slug}/claim-secret/`, { secret }),
   /** @param {string} token */
   claimLink: (token) => api.post(`/poaps/claim-link/${encodeURIComponent(token)}/`),
-  /** @param {string} slug @param {PoapApiPayload} data */
-  createSecretDistribution: (slug, data) => api.post(`/poaps/${slug}/distributions/secret/`, data),
-  /** @param {string} slug @param {PoapApiPayload} data */
-  generateMintLinks: (slug, data) => api.post(`/poaps/${slug}/mint-links/generate/`, data),
-  permissions: () => api.get('/poaps/permissions/'),
 };
 
 export default api;

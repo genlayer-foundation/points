@@ -1,14 +1,59 @@
+import csv
+
+from django import forms
 from django.contrib import admin
+from django.contrib import messages
+from django.conf import settings
+from django.http import HttpResponse
 
 from utils.admin_mixins import CloudinaryUploadMixin
 
 from .models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch, PoapMintLink
+from .services import decrypt_token, encrypt_token, hash_secret, hash_token
+
+
+class PoapDistributionAdminForm(forms.ModelForm):
+    secret_phrase = forms.CharField(
+        required=False,
+        help_text='For secret phrase distributions only. Enter a new value to set or rotate the phrase.',
+        widget=forms.PasswordInput(render_value=False),
+    )
+
+    class Meta:
+        model = PoapDistribution
+        fields = '__all__'
+
+    def clean(self):
+        cleaned_data = super().clean()
+        method = cleaned_data.get('method')
+        secret_phrase = (cleaned_data.get('secret_phrase') or '').strip()
+        existing_secret_hash = getattr(self.instance, 'secret_hash', '')
+
+        if method == PoapDistribution.METHOD_SECRET and not secret_phrase and not existing_secret_hash:
+            raise forms.ValidationError('Secret phrase is required for secret phrase distributions.')
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        secret_phrase = (self.cleaned_data.get('secret_phrase') or '').strip()
+        if instance.method == PoapDistribution.METHOD_SECRET:
+            if secret_phrase:
+                instance.secret_hash = hash_secret(secret_phrase)
+        else:
+            instance.secret_hash = ''
+
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 class PoapDistributionInline(admin.TabularInline):
     model = PoapDistribution
+    form = PoapDistributionAdminForm
     extra = 0
-    fields = ('method', 'active', 'starts_at', 'ends_at', 'max_claims', 'claimed_count')
+    fields = ('method', 'active', 'starts_at', 'ends_at', 'max_claims', 'secret_phrase', 'claimed_count')
     readonly_fields = ('claimed_count',)
 
 
@@ -64,19 +109,95 @@ class PoapDropAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
 
 @admin.register(PoapDistribution)
 class PoapDistributionAdmin(admin.ModelAdmin):
+    form = PoapDistributionAdminForm
     list_display = ('drop', 'method', 'active', 'starts_at', 'ends_at', 'max_claims', 'claimed_count')
     list_filter = ('method', 'active')
     search_fields = ('drop__title', 'drop__slug')
     readonly_fields = ('claimed_count', 'created_at', 'updated_at')
     autocomplete_fields = ('drop',)
+    fieldsets = (
+        (None, {
+            'fields': ('drop', 'method', 'active'),
+        }),
+        ('Claim window and cap', {
+            'fields': ('starts_at', 'ends_at', 'max_claims', 'claimed_count'),
+        }),
+        ('Secret phrase', {
+            'fields': ('secret_phrase',),
+            'description': 'Only used when method is Secret phrase. Existing phrases are stored hashed and cannot be viewed.',
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
 
 
 @admin.register(PoapMintLink)
 class PoapMintLinkAdmin(admin.ModelAdmin):
-    list_display = ('distribution', 'max_uses', 'used_count', 'expires_at', 'created_at')
+    list_display = ('distribution', 'claim_url', 'max_uses', 'used_count', 'expires_at', 'created_at')
     list_filter = ('expires_at',)
     search_fields = ('distribution__drop__title', 'distribution__drop__slug')
-    readonly_fields = ('token_hash', 'token_ciphertext', 'used_count', 'created_at', 'updated_at')
+    readonly_fields = ('claim_url', 'token_hash', 'token_ciphertext', 'used_count', 'created_at', 'updated_at')
+    autocomplete_fields = ('distribution',)
+    actions = ('download_selected_claim_urls',)
+    fieldsets = (
+        (None, {
+            'fields': ('distribution', 'max_uses', 'expires_at'),
+        }),
+        ('Generated claim link', {
+            'fields': ('claim_url', 'token_hash', 'token_ciphertext', 'used_count'),
+            'description': 'The token is generated automatically when a mint link is created.',
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        generated_token = ''
+        if not obj.token_hash:
+            generated_token = PoapMintLink.generate_token()
+            obj.token_hash = hash_token(generated_token)
+            obj.token_ciphertext = encrypt_token(generated_token)
+
+        super().save_model(request, obj, form, change)
+
+        if generated_token:
+            messages.success(request, f'Mint link generated: {self._claim_url_from_token(generated_token)}')
+
+    @admin.display(description='Claim URL')
+    def claim_url(self, obj):
+        token = decrypt_token(obj.token_ciphertext)
+        if not token:
+            return ''
+        return self._claim_url_from_token(token)
+
+    @admin.action(description='Download selected claim URLs')
+    def download_selected_claim_urls(self, request, queryset):
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="poap-mint-links.csv"'
+        writer = csv.writer(response)
+        writer.writerow(['drop', 'distribution_id', 'mint_link_id', 'claim_url', 'max_uses', 'used_count', 'expires_at'])
+        for link in queryset.select_related('distribution__drop'):
+            token = decrypt_token(link.token_ciphertext)
+            writer.writerow([
+                link.distribution.drop.title,
+                link.distribution_id,
+                link.id,
+                self._claim_url_from_token(token) if token else '',
+                link.max_uses,
+                link.used_count,
+                link.expires_at.isoformat() if link.expires_at else '',
+            ])
+        return response
+
+    def _claim_url_from_token(self, token):
+        frontend_url = getattr(settings, 'FRONTEND_URL', '').rstrip('/')
+        if not frontend_url:
+            return f'/#/claim/poap/{token}'
+        return f'{frontend_url}/#/claim/poap/{token}'
 
 
 @admin.register(PoapClaim)
