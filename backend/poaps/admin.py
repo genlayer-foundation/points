@@ -9,7 +9,7 @@ from django.http import HttpResponse
 from utils.admin_mixins import CloudinaryUploadMixin
 
 from .models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch, PoapMintLink
-from .services import decrypt_token, encrypt_token, hash_secret, hash_token
+from .services import decrypt_token, encrypt_token, generate_mint_links, hash_secret, hash_token
 
 
 class PoapDropAdminForm(forms.ModelForm):
@@ -44,6 +44,25 @@ class PoapDistributionAdminForm(forms.ModelForm):
         help_text='For secret phrase distributions only. Enter a new value to set or rotate the phrase.',
         widget=forms.PasswordInput(render_value=False),
     )
+    mint_link_count = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=500,
+        label='Generate mint links',
+        help_text='Optional. Creates this many mint links when saving a mint-link distribution.',
+    )
+    mint_link_max_uses = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=100,
+        initial=1,
+        label='Uses per generated link',
+    )
+    mint_link_expires_at = forms.DateTimeField(
+        required=False,
+        label='Generated link expiration',
+        help_text='Optional expiration applied to links generated from this save.',
+    )
 
     class Meta:
         model = PoapDistribution
@@ -57,16 +76,38 @@ class PoapDistributionAdminForm(forms.ModelForm):
         starts_at = cleaned_data.get('starts_at')
         ends_at = cleaned_data.get('ends_at')
         max_claims = cleaned_data.get('max_claims')
+        mint_link_count = cleaned_data.get('mint_link_count') or 0
+        mint_link_max_uses = cleaned_data.get('mint_link_max_uses') or 1
+        mint_link_expires_at = cleaned_data.get('mint_link_expires_at')
         errors = {}
 
         if method == PoapDistribution.METHOD_SECRET and not secret_phrase and not existing_secret_hash:
             errors['secret_phrase'] = 'Secret phrase is required for secret phrase distributions.'
 
+        if mint_link_count and method != PoapDistribution.METHOD_MINT_LINK:
+            errors['mint_link_count'] = 'Mint links can only be generated for mint-link distributions.'
+
         if starts_at and ends_at and ends_at <= starts_at:
             errors['ends_at'] = 'End time must be after start time.'
 
+        if starts_at and mint_link_expires_at and mint_link_expires_at <= starts_at:
+            errors['mint_link_expires_at'] = 'Expiration must be after start time.'
+
         if max_claims is not None and self.instance.pk and max_claims < self.instance.claimed_count:
             errors['max_claims'] = f'Max claims cannot be lower than the current claimed count ({self.instance.claimed_count}).'
+
+        if mint_link_count:
+            requested_claims = mint_link_count * mint_link_max_uses
+            claimed_count = getattr(self.instance, 'claimed_count', 0)
+            if max_claims is not None and requested_claims > max_claims - claimed_count:
+                errors['mint_link_count'] = f'Only {max_claims - claimed_count} claim slots remain on this distribution.'
+
+            drop = cleaned_data.get('drop')
+            if drop and drop.max_claims is not None:
+                drop_claimed_count = drop.claims.filter(user__isnull=False).count()
+                remaining_drop_claims = drop.max_claims - drop_claimed_count
+                if requested_claims > remaining_drop_claims:
+                    errors['mint_link_count'] = f'Only {remaining_drop_claims} claim slots remain on this POAP.'
 
         if errors:
             raise forms.ValidationError(errors)
@@ -166,11 +207,29 @@ class PoapDistributionAdmin(admin.ModelAdmin):
             'fields': ('secret_phrase',),
             'description': 'Only used when method is Secret phrase. Existing phrases are stored hashed and cannot be viewed.',
         }),
+        ('Mint links', {
+            'fields': ('mint_link_count', 'mint_link_max_uses', 'mint_link_expires_at'),
+            'description': 'Only used when method is Mint link. Generated URLs can be downloaded from the POAP mint links admin list.',
+        }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',),
         }),
     )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        mint_link_count = form.cleaned_data.get('mint_link_count') or 0
+        if not mint_link_count:
+            return
+
+        created = generate_mint_links(
+            distribution=obj,
+            count=mint_link_count,
+            max_uses=form.cleaned_data.get('mint_link_max_uses') or 1,
+            expires_at=form.cleaned_data.get('mint_link_expires_at'),
+        )
+        messages.success(request, f'Generated {len(created)} mint link(s).')
 
 
 @admin.register(PoapMintLink)
