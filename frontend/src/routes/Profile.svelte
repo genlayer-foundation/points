@@ -18,6 +18,7 @@
     getCurrentUser,
     githubAPI,
     validatorsAPI,
+    poapsAPI,
   } from "../lib/api";
   import { authState } from "../lib/auth";
   import { getValidatorBalance } from "../lib/blockchain";
@@ -31,7 +32,6 @@
   import RoleView from "../components/profile/RoleView.svelte";
   import StewardView from "../components/profile/StewardView.svelte";
   import CommunityView from "../components/profile/CommunityView.svelte";
-  import ProfilePoaps from "../components/poaps/ProfilePoaps.svelte";
   import ReferralsView from "../components/profile/ReferralsView.svelte";
   import CTABanner from "../components/shared/CTABanner.svelte";
   import CategoryIcon from "../components/portal/CategoryIcon.svelte";
@@ -92,6 +92,8 @@
   let builderStatsLoaded = $state(false);
   let validatorStatsLoaded = $state(false);
   let communityStatsLoaded = $state(false);
+  let poapCount = $state(0);
+  let poapCountLoaded = $state(false);
 
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
@@ -140,6 +142,9 @@
   );
 
   let showReferralsSection = $derived(isOwnProfile || hasReferralData);
+  let showCommunitySection = $derived(
+    Boolean(participant && (participant.creator || poapCount > 0)),
+  );
 
   $effect(() => {
     const currentParams = $params;
@@ -318,6 +323,32 @@
     } catch (_) {}
   }
 
+  async function fetchPoapCount(participantAddress: string) {
+    const isCurrentRequest = () =>
+      participant?.address?.toLowerCase() === participantAddress.toLowerCase();
+    poapCountLoaded = false;
+    poapCount = 0;
+    try {
+      const response = await poapsAPI.getUserPoaps(participantAddress, {
+        page: 1,
+        page_size: 1,
+      });
+      const data = response.data || {};
+      if (!isCurrentRequest()) {
+        return;
+      }
+      poapCount = data.count ?? (Array.isArray(data) ? data.length : 0);
+    } catch (_) {
+      if (isCurrentRequest()) {
+        poapCount = 0;
+      }
+    } finally {
+      if (isCurrentRequest()) {
+        poapCountLoaded = true;
+      }
+    }
+  }
+
   async function handleClaimX() {
     if (!$authState.isAuthenticated || isClaimingX) return;
     isClaimingX = true;
@@ -358,12 +389,15 @@
       builderStatsLoaded = false;
       validatorStatsLoaded = false;
       communityStatsLoaded = false;
+      poapCountLoaded = false;
+      poapCount = 0;
 
       const res = await usersAPI.getUserByAddress(participantAddress);
       participant = res.data;
       loading = false;
 
       if (participant.address) {
+        fetchPoapCount(participant.address);
         loadingBalance = true;
         getValidatorBalance(participant.address)
           .then((result) => {
@@ -513,6 +547,8 @@
         isValidatorOnly = true;
         loading = false;
         error = null;
+        poapCount = 0;
+        poapCountLoaded = true;
       } else {
         error = err.message || "Failed to load participant data";
         loading = false;
@@ -907,21 +943,16 @@
         </div>
       {/if}
 
-      <!-- POAP Section -->
-      {#if participant}
-        <div id="poaps-section" class="w-full mb-16 pt-10 border-t border-gray-100 mt-10">
-          <ProfilePoaps userId={participant.address} />
-        </div>
-      {/if}
-
       <!-- Community Section -->
-      {#if participant?.creator}
+      {#if showCommunitySection}
         <div id="community-journey-section" class="w-full mb-16 pt-10 border-t border-gray-100 mt-10">
           <CommunityView
             {participant}
             {isOwnProfile}
             communityStats={communityStats}
             communityStatsLoading={!communityStatsLoaded}
+            {poapCount}
+            poapCountLoading={!poapCountLoaded}
             onSocialLinked={handleCommunityLinked}
             onClaimX={handleClaimX}
             onClaimDiscord={handleClaimDiscord}
