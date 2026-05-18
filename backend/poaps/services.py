@@ -1,7 +1,5 @@
 import base64
-import csv
 import hashlib
-import io
 
 from cryptography.fernet import Fernet, InvalidToken
 from django.conf import settings
@@ -188,29 +186,6 @@ def generate_mint_links(*, distribution, count, max_uses=1, expires_at=None):
         )
         created.append((link, token))
     return created
-
-
-def mint_links_csv(drop):
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(['drop_slug', 'token', 'path', 'max_uses', 'used_count', 'expires_at'])
-    links = (
-        PoapMintLink.objects
-        .filter(distribution__drop=drop)
-        .select_related('distribution', 'distribution__drop')
-        .order_by('created_at')
-    )
-    for link in links:
-        token = decrypt_token(link.token_ciphertext)
-        writer.writerow([
-            drop.slug,
-            token,
-            f'/#/claim/poap/{token}' if token else '',
-            link.max_uses,
-            link.used_count,
-            link.expires_at.isoformat() if link.expires_at else '',
-        ])
-    return buffer.getvalue()
 
 
 def attach_unmatched_claims_for_user(user):

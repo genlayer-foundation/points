@@ -12,6 +12,32 @@ from .models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch, Poap
 from .services import decrypt_token, encrypt_token, hash_secret, hash_token
 
 
+class PoapDropAdminForm(forms.ModelForm):
+    class Meta:
+        model = PoapDrop
+        fields = '__all__'
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start = cleaned_data.get('event_start_at')
+        end = cleaned_data.get('event_end_at')
+        max_claims = cleaned_data.get('max_claims')
+        errors = {}
+
+        if start and end and end <= start:
+            errors['event_end_at'] = 'End time must be after start time.'
+
+        if self.instance.pk and max_claims is not None:
+            claimed_count = self.instance.claims.filter(user__isnull=False).count()
+            if max_claims < claimed_count:
+                errors['max_claims'] = f'Max claims cannot be lower than the current claimed count ({claimed_count}).'
+
+        if errors:
+            raise forms.ValidationError(errors)
+
+        return cleaned_data
+
+
 class PoapDistributionAdminForm(forms.ModelForm):
     secret_phrase = forms.CharField(
         required=False,
@@ -28,9 +54,22 @@ class PoapDistributionAdminForm(forms.ModelForm):
         method = cleaned_data.get('method')
         secret_phrase = (cleaned_data.get('secret_phrase') or '').strip()
         existing_secret_hash = getattr(self.instance, 'secret_hash', '')
+        starts_at = cleaned_data.get('starts_at')
+        ends_at = cleaned_data.get('ends_at')
+        max_claims = cleaned_data.get('max_claims')
+        errors = {}
 
         if method == PoapDistribution.METHOD_SECRET and not secret_phrase and not existing_secret_hash:
-            raise forms.ValidationError('Secret phrase is required for secret phrase distributions.')
+            errors['secret_phrase'] = 'Secret phrase is required for secret phrase distributions.'
+
+        if starts_at and ends_at and ends_at <= starts_at:
+            errors['ends_at'] = 'End time must be after start time.'
+
+        if max_claims is not None and self.instance.pk and max_claims < self.instance.claimed_count:
+            errors['max_claims'] = f'Max claims cannot be lower than the current claimed count ({self.instance.claimed_count}).'
+
+        if errors:
+            raise forms.ValidationError(errors)
 
         return cleaned_data
 
@@ -68,6 +107,7 @@ class PoapClaimInline(admin.TabularInline):
 
 @admin.register(PoapDrop)
 class PoapDropAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
+    form = PoapDropAdminForm
     cloudinary_upload_fields = {
         'artwork_url': {
             'public_id_field': 'artwork_public_id',

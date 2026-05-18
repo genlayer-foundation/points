@@ -11,6 +11,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from poaps.admin import PoapDropAdminForm
 from poaps.models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch
 from poaps.services import generate_mint_links, hash_secret
 
@@ -237,71 +238,48 @@ class PoapAPITest(TestCase):
         self.assertNotIn('legacy_external_id', claim)
         self.assertNotIn('legacy_ens', claim)
 
-    def test_staff_permissions_and_generation(self):
-        self.client.force_authenticate(user=self.user)
+    def test_poap_management_api_is_not_exposed(self):
+        self.client.force_authenticate(user=self.staff)
+
         response = self.client.post(
             '/api/v1/poaps/',
             {
-                'title': 'Private',
+                'title': 'Admin Only',
                 'event_start_at': timezone.now().isoformat(),
                 'status': PoapDrop.STATUS_ACTIVE,
             },
             format='json',
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
-        self.client.force_authenticate(user=self.staff)
+        response = self.client.patch(
+            '/api/v1/poaps/ama-session/',
+            {'max_claims': 10},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
         response = self.client.post(
             '/api/v1/poaps/ama-session/distributions/secret/',
             {'secret': 'secret-code'},
             format='json',
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
         response = self.client.post(
             '/api/v1/poaps/ama-session/mint-links/generate/',
             {'count': 2},
             format='json',
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['created'], 2)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_staff_distribution_generation_rejects_archived_and_over_capacity_drops(self):
-        archived_drop = PoapDrop.objects.create(
-            title='Archived',
-            slug='archived',
-            event_start_at=timezone.now(),
-            status=PoapDrop.STATUS_ARCHIVED,
-        )
-        full_drop = PoapDrop.objects.create(
-            title='Full',
-            slug='full',
-            event_start_at=timezone.now(),
-            status=PoapDrop.STATUS_ACTIVE,
-            max_claims=1,
-        )
-        PoapClaim.objects.create(
-            drop=full_drop,
-            user=self.user,
-            claim_method=PoapClaim.CLAIM_LEGACY,
-        )
+        response = self.client.get('/api/v1/poaps/ama-session/mint-links/download/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-        self.client.force_authenticate(user=self.staff)
-        response = self.client.post(
-            '/api/v1/poaps/archived/mint-links/generate/',
-            {'count': 1},
-            format='json',
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = self.client.get('/api/v1/poaps/permissions/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-        response = self.client.post(
-            '/api/v1/poaps/full/distributions/secret/',
-            {'secret': 'closed'},
-            format='json',
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_cannot_lower_drop_max_claims_below_current_claims(self):
+    def test_poap_drop_admin_form_rejects_lower_max_claims_below_current_claims(self):
         PoapClaim.objects.create(
             drop=self.drop,
             user=self.user,
@@ -313,15 +291,24 @@ class PoapAPITest(TestCase):
             claim_method=PoapClaim.CLAIM_LEGACY,
         )
 
-        self.client.force_authenticate(user=self.staff)
-        response = self.client.patch(
-            '/api/v1/poaps/ama-session/',
-            {'max_claims': 1},
-            format='json',
+        form = PoapDropAdminForm(
+            data={
+                'title': self.drop.title,
+                'slug': self.drop.slug,
+                'description': self.drop.description,
+                'artwork_url': self.drop.artwork_url,
+                'event_start_at': self.drop.event_start_at.isoformat(),
+                'event_end_at': '',
+                'status': self.drop.status,
+                'max_claims': 1,
+                'created_by': '',
+                'legacy_poap_id': self.drop.legacy_poap_id,
+                'discord_role_id': self.drop.discord_role_id,
+            },
+            instance=self.drop,
         )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('max_claims', response.data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('max_claims', form.errors)
 
     def test_legacy_unmatched_claim_attaches_when_user_matches_wallet(self):
         claim = PoapClaim.objects.create(

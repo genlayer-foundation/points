@@ -2,8 +2,7 @@ from rest_framework import serializers
 
 from users.serializers import LightUserSerializer
 
-from .models import PoapClaim, PoapDistribution, PoapDrop
-from .services import hash_secret
+from .models import PoapClaim, PoapDrop
 
 
 class PoapDropListSerializer(serializers.ModelSerializer):
@@ -80,12 +79,11 @@ class PoapDropListSerializer(serializers.ModelSerializer):
 class PoapDropDetailSerializer(PoapDropListSerializer):
     distributions = serializers.SerializerMethodField()
     current_user_claim = serializers.SerializerMethodField()
-    can_manage = serializers.SerializerMethodField()
 
     class Meta(PoapDropListSerializer.Meta):
         fields = PoapDropListSerializer.Meta.fields + [
             'artwork_public_id', 'legacy_poap_id', 'discord_role_id',
-            'distributions', 'current_user_claim', 'can_manage',
+            'distributions', 'current_user_claim',
         ]
 
     def get_distributions(self, obj):
@@ -116,35 +114,6 @@ class PoapDropDetailSerializer(PoapDropListSerializer):
             'claim_method': claim.claim_method,
             'source': claim.source,
         }
-
-    def get_can_manage(self, obj):
-        request = self.context.get('request')
-        return bool(request and request.user and request.user.is_staff)
-
-
-class PoapDropWriteSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PoapDrop
-        fields = [
-            'id', 'title', 'slug', 'description', 'artwork_url',
-            'artwork_public_id', 'event_start_at', 'event_end_at',
-            'status', 'max_claims', 'legacy_poap_id', 'discord_role_id',
-        ]
-        read_only_fields = ['id']
-
-    def validate(self, attrs):
-        start = attrs.get('event_start_at', getattr(self.instance, 'event_start_at', None))
-        end = attrs.get('event_end_at', getattr(self.instance, 'event_end_at', None))
-        if start and end and end <= start:
-            raise serializers.ValidationError({'event_end_at': 'End time must be after start time.'})
-        max_claims = attrs.get('max_claims', getattr(self.instance, 'max_claims', None))
-        if self.instance and max_claims is not None:
-            claimed_count = self.instance.claims.filter(user__isnull=False).count()
-            if max_claims < claimed_count:
-                raise serializers.ValidationError({
-                    'max_claims': f'Max claims cannot be lower than the current claimed count ({claimed_count}).'
-                })
-        return attrs
 
 
 class PoapClaimSerializer(serializers.ModelSerializer):
@@ -180,53 +149,3 @@ class PoapProfileClaimSerializer(serializers.ModelSerializer):
         model = PoapClaim
         fields = ['id', 'drop', 'claim_method', 'claimed_at', 'source']
         read_only_fields = fields
-
-
-class SecretDistributionCreateSerializer(serializers.Serializer):
-    secret = serializers.CharField(max_length=255, write_only=True)
-    starts_at = serializers.DateTimeField(required=False, allow_null=True)
-    ends_at = serializers.DateTimeField(required=False, allow_null=True)
-    max_claims = serializers.IntegerField(required=False, allow_null=True, min_value=1)
-    active = serializers.BooleanField(default=True)
-
-    def validate_secret(self, value):
-        if not value or not value.strip():
-            raise serializers.ValidationError('Secret phrase is required.')
-        return value
-
-    def validate(self, attrs):
-        starts_at = attrs.get('starts_at')
-        ends_at = attrs.get('ends_at')
-        if starts_at and ends_at and ends_at <= starts_at:
-            raise serializers.ValidationError({'ends_at': 'End time must be after start time.'})
-        return attrs
-
-    def create(self, validated_data):
-        drop = self.context['drop']
-        return PoapDistribution.objects.create(
-            drop=drop,
-            method=PoapDistribution.METHOD_SECRET,
-            active=validated_data.get('active', True),
-            starts_at=validated_data.get('starts_at'),
-            ends_at=validated_data.get('ends_at'),
-            max_claims=validated_data.get('max_claims'),
-            secret_hash=hash_secret(validated_data['secret']),
-        )
-
-
-class MintLinkGenerateSerializer(serializers.Serializer):
-    count = serializers.IntegerField(min_value=1, max_value=500, default=1)
-    max_uses = serializers.IntegerField(min_value=1, max_value=100, default=1)
-    expires_at = serializers.DateTimeField(required=False, allow_null=True)
-    starts_at = serializers.DateTimeField(required=False, allow_null=True)
-    ends_at = serializers.DateTimeField(required=False, allow_null=True)
-
-    def validate(self, attrs):
-        starts_at = attrs.get('starts_at')
-        ends_at = attrs.get('ends_at')
-        expires_at = attrs.get('expires_at')
-        if starts_at and ends_at and ends_at <= starts_at:
-            raise serializers.ValidationError({'ends_at': 'End time must be after start time.'})
-        if starts_at and expires_at and expires_at <= starts_at:
-            raise serializers.ValidationError({'expires_at': 'Expiration must be after start time.'})
-        return attrs
