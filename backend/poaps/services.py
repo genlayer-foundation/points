@@ -147,22 +147,50 @@ def claim_with_secret(*, drop_slug, user, secret):
 def claim_with_mint_link(*, token, user):
     if not user or not user.is_authenticated:
         raise InvalidClaimError('Authentication is required.')
+    if not token:
+        raise InvalidClaimError('Mint link token is missing.')
 
     token_digest = hash_token(token)
     with transaction.atomic():
-        mint_link = (
-            PoapMintLink.objects
-            .select_for_update()
-            .select_related('distribution', 'distribution__drop')
-            .get(token_hash=token_digest)
-        )
+        try:
+            mint_link = (
+                PoapMintLink.objects
+                .select_for_update()
+                .select_related('distribution', 'distribution__drop')
+                .get(token_hash=token_digest)
+            )
+        except PoapMintLink.DoesNotExist as exc:
+            raise InvalidClaimError(
+                'Mint link token was not found. Check that the full Claim URL was copied from the admin.'
+            ) from exc
+
         distribution = mint_link.distribution
         drop = PoapDrop.objects.select_for_update().get(pk=distribution.drop_id)
+        now = timezone.now()
+
+        if distribution.method != PoapDistribution.METHOD_MINT_LINK:
+            raise InvalidClaimError('This mint link is not attached to a mint-link distribution.')
+
+        if drop.status == PoapDrop.STATUS_DRAFT:
+            raise ClaimClosedError('This POAP is still in draft and cannot be claimed yet.')
+        if drop.status == PoapDrop.STATUS_ARCHIVED:
+            raise ClaimClosedError('This POAP is archived and is no longer claimable.')
 
         validate_drop_capacity(drop)
-        validate_distribution(distribution)
-        if not mint_link.is_open():
-            raise ClaimClosedError('This mint link is no longer available.')
+
+        if not distribution.active:
+            raise ClaimClosedError('This mint-link distribution is inactive.')
+        if distribution.starts_at and now < distribution.starts_at:
+            raise ClaimClosedError('This mint-link distribution is not open yet.')
+        if distribution.ends_at and now > distribution.ends_at:
+            raise ClaimClosedError('This mint-link distribution has ended.')
+        if distribution.max_claims is not None and distribution.claimed_count >= distribution.max_claims:
+            raise ClaimClosedError('This mint-link distribution has reached its claim limit.')
+
+        if mint_link.expires_at and now > mint_link.expires_at:
+            raise ClaimClosedError('This mint link has expired.')
+        if mint_link.used_count >= mint_link.max_uses:
+            raise ClaimClosedError('This mint link has already been used.')
 
         return _create_claim(
             drop=drop,

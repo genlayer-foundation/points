@@ -175,6 +175,65 @@ class PoapAPITest(TestCase):
         self.assertEqual(link.used_count, 1)
         self.assertEqual(distribution.claimed_count, 1)
 
+    def test_mint_link_claim_reports_missing_token(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post('/api/v1/poaps/claim-link/not-a-real-token/')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data['error'],
+            'Mint link token was not found. Check that the full Claim URL was copied from the admin.',
+        )
+
+    def test_mint_link_claim_reports_inactive_distribution(self):
+        distribution = PoapDistribution.objects.create(
+            drop=self.drop,
+            method=PoapDistribution.METHOD_MINT_LINK,
+            active=False,
+        )
+        [(_link, token)] = generate_mint_links(distribution=distribution, count=1)
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'This mint-link distribution is inactive.')
+
+    def test_mint_link_claim_reports_expired_link(self):
+        distribution = PoapDistribution.objects.create(
+            drop=self.drop,
+            method=PoapDistribution.METHOD_MINT_LINK,
+            active=True,
+        )
+        [(_link, token)] = generate_mint_links(
+            distribution=distribution,
+            count=1,
+            expires_at=timezone.now() - timezone.timedelta(minutes=1),
+        )
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'This mint link has expired.')
+
+    def test_mint_link_claim_reports_used_link(self):
+        distribution = PoapDistribution.objects.create(
+            drop=self.drop,
+            method=PoapDistribution.METHOD_MINT_LINK,
+            active=True,
+        )
+        [(link, token)] = generate_mint_links(distribution=distribution, count=1)
+        link.used_count = 1
+        link.save(update_fields=['used_count', 'updated_at'])
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'This mint link has already been used.')
+
     def test_list_and_profile_poaps_are_query_bounded(self):
         for index in range(15):
             drop = PoapDrop.objects.create(

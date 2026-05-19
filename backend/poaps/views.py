@@ -189,10 +189,8 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
             claim = claim_with_mint_link(token=token, user=request.user)
         except PoapDrop.DoesNotExist:
             return Response({'error': 'POAP not found.'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as exc:
-            if hasattr(exc, 'status_code'):
-                return Response({'error': str(exc)}, status=exc.status_code)
-            return Response({'error': 'Invalid mint link.'}, status=status.HTTP_400_BAD_REQUEST)
+        except PoapClaimError as exc:
+            return Response({'error': str(exc)}, status=exc.status_code)
 
         return Response({
             'claim': PoapClaimSerializer(claim).data,
