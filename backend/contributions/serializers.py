@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import models, transaction
 from rest_framework import serializers
 from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert, EvidenceURLType
 from users.serializers import UserSerializer, LightUserSerializer
@@ -113,6 +113,7 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
     category = serializers.CharField(source='category.slug', read_only=True)
     accepted_evidence_url_types = serializers.SerializerMethodField()
     required_evidence_url_types = serializers.SerializerMethodField()
+    required_discord_roles = serializers.SerializerMethodField()
     submission_count = serializers.SerializerMethodField()
     submissions_remaining = serializers.SerializerMethodField()
     is_full = serializers.SerializerMethodField()
@@ -124,7 +125,8 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
             'current_multiplier', 'is_submittable', 'max_submissions',
             'submission_count', 'submissions_remaining', 'is_full',
             'show_in_contributions', 'examples',
-            'required_social_accounts', 'accepted_evidence_url_types', 'required_evidence_url_types',
+            'required_social_accounts', 'required_discord_roles',
+            'accepted_evidence_url_types', 'required_evidence_url_types',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -179,6 +181,17 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
             obj.required_evidence_url_types.all()
         )
         return EvidenceURLTypeSerializer(url_types, many=True).data
+
+    def get_required_discord_roles(self, obj):
+        """Return active Discord roles that can satisfy this contribution type."""
+        from social_connections.serializers import DiscordRoleSerializer
+
+        roles = obj.required_discord_roles.filter(
+            deleted_at__isnull=True,
+        ).exclude(
+            role_id=models.F('guild_id'),
+        ).order_by('-position', 'name')
+        return DiscordRoleSerializer(roles, many=True).data
 
     def get_submission_count(self, obj):
         return obj.get_submission_count()

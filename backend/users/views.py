@@ -15,6 +15,7 @@ from .cloudinary_service import CloudinaryService
 from .genlayer_service import GenLayerDeploymentService
 from contributions.models import Contribution
 from leaderboard.models import LeaderboardEntry
+from poaps.views import UserPoapMixin
 from web3 import Web3
 import secrets
 import string
@@ -25,7 +26,7 @@ from tally.middleware.tracing import trace_external
 logger = get_app_logger('users')
 
 
-class UserViewSet(viewsets.ReadOnlyModelViewSet):
+class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
     """
     API endpoint that allows users to be viewed.
     Users with visible=False are excluded from the queryset,

@@ -1,7 +1,7 @@
 <script>
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import { push } from "svelte-spa-router";
-  import { getCurrentUser, updateUserProfile, imageAPI, validatorsAPI } from "../lib/api";
+  import { getCurrentUser, updateUserProfile, imageAPI, socialAPI, validatorsAPI } from "../lib/api";
   import { authState } from "../lib/auth";
   import ImageCropper from "../components/ImageCropper.svelte";
   import { userStore } from "../lib/userStore";
@@ -41,10 +41,26 @@
   let operatorAddress = $state("");
   let isLinkingWallets = $state(false);
   let validatorWallets = $state([]);
+  let isRefreshingDiscordRoles = $state(false);
+  let roleRefreshClock = $state(Date.now());
+  let roleRefreshTimer = null;
 
   // Derived per-network wallets
   let asimovWallets = $derived(validatorWallets.filter(w => w.network === 'asimov'));
   let bradburyWallets = $derived(validatorWallets.filter(w => w.network === 'bradbury'));
+  let discordRoles = $derived.by(() => {
+    const roles = user?.discord_connection?.roles || [];
+    return [...roles].sort((a, b) => (b.position || 0) - (a.position || 0) || String(a.name).localeCompare(String(b.name)));
+  });
+  let discordNextRoleRefreshAt = $derived.by(() => {
+    const raw = user?.discord_connection?.next_manual_role_sync_at;
+    if (!raw) return null;
+    const date = new Date(raw);
+    return Number.isNaN(date.getTime()) ? null : date;
+  });
+  let discordRoleRefreshBlocked = $derived(
+    discordNextRoleRefreshAt && discordNextRoleRefreshAt.getTime() > roleRefreshClock
+  );
 
   // Validation state
   let nameError = $state("");
@@ -125,6 +141,13 @@
     // Give auth state a moment to initialize
     await new Promise((resolve) => setTimeout(resolve, 100));
     loadUserData();
+    roleRefreshTimer = setInterval(() => {
+      roleRefreshClock = Date.now();
+    }, 30000);
+  });
+
+  onDestroy(() => {
+    if (roleRefreshTimer) clearInterval(roleRefreshTimer);
   });
 
   // Validation functions
@@ -335,6 +358,42 @@
 
   async function handleSocialLinked(updatedUser) {
     user = updatedUser;
+    userStore.setUser(updatedUser);
+  }
+
+  function formatDateTime(value) {
+    if (!value) return "Never";
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "Never";
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
+
+  async function handleRefreshDiscordRoles() {
+    if (!user?.discord_connection || isRefreshingDiscordRoles || discordRoleRefreshBlocked) return;
+
+    isRefreshingDiscordRoles = true;
+    try {
+      const response = await socialAPI.refreshDiscordRoles();
+      const updatedUser = response.data?.user || await getCurrentUser();
+      user = updatedUser;
+      userStore.setUser(updatedUser);
+      if (response.data?.cooldown_active) {
+        showError(`Discord roles can be refreshed again after ${formatDateTime(response.data.next_allowed_at)}.`);
+      } else {
+        showSuccess("Discord roles refreshed.");
+      }
+    } catch (err) {
+      const message = err.response?.data?.error || "Failed to refresh Discord roles";
+      showError(message);
+    } finally {
+      isRefreshingDiscordRoles = false;
+      roleRefreshClock = Date.now();
+    }
   }
 
 </script>
@@ -627,6 +686,59 @@
                     onLinked={handleSocialLinked}
                     allowUsernameRefresh={true}
                   />
+                  {#if user.discord_connection}
+                    <div class="mt-3 rounded-[8px] border border-[#ececff] bg-[#fbfbff] p-3">
+                      <div class="flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                          <p class="text-[12px] font-medium text-gray-900">Server roles</p>
+                          <p class="mt-0.5 text-[11px] text-gray-500">
+                            Last synced {formatDateTime(user.discord_connection.roles_synced_at)}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onclick={handleRefreshDiscordRoles}
+                          disabled={isRefreshingDiscordRoles || discordRoleRefreshBlocked}
+                          class="h-[32px] shrink-0 rounded-[6px] border border-[#d8dafb] bg-white px-3 text-[12px] font-medium text-[#4752c4] transition-colors hover:border-[#5865f2] hover:text-[#313aa3] disabled:cursor-not-allowed disabled:opacity-50"
+                          title={discordRoleRefreshBlocked ? `Available after ${formatDateTime(discordNextRoleRefreshAt)}` : "Refresh Discord roles"}
+                        >
+                          {isRefreshingDiscordRoles ? "Refreshing..." : "Refresh roles"}
+                        </button>
+                      </div>
+
+                      {#if discordRoleRefreshBlocked}
+                        <p class="mt-2 text-[11px] text-gray-500">
+                          Available again after {formatDateTime(discordNextRoleRefreshAt)}
+                        </p>
+                      {/if}
+
+                      {#if user.discord_connection.roles_sync_error}
+                        <p class="mt-2 text-[11px] text-red-600">
+                          {user.discord_connection.roles_sync_error}
+                        </p>
+                      {/if}
+
+                      {#if discordRoles.length > 0}
+                        <div class="mt-3 flex flex-wrap gap-1.5">
+                          {#each discordRoles as role}
+                            <span
+                              class="inline-flex max-w-full items-center gap-1 rounded-[5px] border border-[#e4e4f8] bg-white px-2 py-1 text-[11px] font-medium text-gray-700"
+                            >
+                              <span
+                                class="h-2 w-2 shrink-0 rounded-full"
+                                style="background-color: {role.color_hex || '#5865f2'}"
+                              ></span>
+                              <span class="truncate">{role.name}</span>
+                            </span>
+                          {/each}
+                        </div>
+                      {:else}
+                        <p class="mt-3 text-[12px] text-gray-500">
+                          Roles have not been synced yet.
+                        </p>
+                      {/if}
+                    </div>
+                  {/if}
                 </div>
               </div>
             </div>

@@ -273,6 +273,15 @@
       })
       .map((a) => socialAccountLabels[a] || a);
   });
+  let missingDiscordRoles = $derived.by(() => {
+    const requiredRoles = selectedType?.required_discord_roles || [];
+    if (requiredRoles.length === 0) return [];
+
+    const userRoles = $userStore.user?.discord_connection?.roles || [];
+    const userRoleIds = new Set(userRoles.map((role) => String(role.role_id)));
+    const hasRequiredRole = requiredRoles.some((role) => userRoleIds.has(String(role.role_id)));
+    return hasRequiredRole ? [] : requiredRoles.map((role) => role.name);
+  });
 
   // True when ALL non-generic accepted evidence types require an unlinked social account
   let allEvidenceTypesBlocked = $derived.by(() => {
@@ -379,6 +388,7 @@
   let canShowFormDetails = $derived(
     selectedType &&
     missingSocialAccounts.length === 0 &&
+    missingDiscordRoles.length === 0 &&
     !allEvidenceTypesBlocked
   );
 
@@ -1338,6 +1348,22 @@
           class="font-['Switzer'] text-[13px] text-[#6b6b6b] hover:text-black transition-colors tracking-[0.26px]"
         >
           Go to profile →
+        </a>
+      </div>
+    {/if}
+
+    {#if selectedType && !canShowFormDetails && missingDiscordRoles.length > 0}
+      <div
+        class="gate-card flex flex-col gap-[8px] p-[20px] rounded-[12px] bg-[#fafafa] border border-[#e0e0e0] w-full"
+      >
+        <p class="font-['Switzer'] font-medium text-[14px] text-black tracking-[0.28px]">
+          {$userStore.user?.discord_connection ? "You need one of these Discord roles to submit this contribution" : "Link Discord and make sure you have one of these roles"}: {missingDiscordRoles.join(", ")}.
+        </p>
+        <a
+          href="#/profile"
+          class="font-['Switzer'] text-[13px] text-[#6b6b6b] hover:text-black transition-colors tracking-[0.26px]"
+        >
+          {$userStore.user?.discord_connection ? "Refresh Discord roles from profile" : "Go to profile"} →
         </a>
       </div>
     {/if}

@@ -227,7 +227,11 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "TWITTER_REDIRECT_URI": "$SSM_PREFIX/prod/twitter_redirect_uri",
           "DISCORD_CLIENT_ID": "$SSM_PREFIX/prod/discord_client_id",
           "DISCORD_CLIENT_SECRET": "$SSM_PREFIX/prod/discord_client_secret",
+          "DISCORD_BOT_TOKEN": "$SSM_PREFIX/prod/discord_bot_token",
           "DISCORD_GUILD_ID": "$SSM_PREFIX/prod/discord_guild_id",
+          "DISCORD_ROLE_SYNC_BATCH_SIZE": "$SSM_PREFIX/prod/discord_role_sync_batch_size",
+          "DISCORD_MANUAL_ROLE_SYNC_COOLDOWN_SECONDS": "$SSM_PREFIX/prod/discord_manual_role_sync_cooldown_seconds",
+          "DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS": "$SSM_PREFIX/prod/discord_role_submission_sync_grace_seconds",
           "DISCORD_REDIRECT_URI": "$SSM_PREFIX/prod/discord_redirect_uri"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
@@ -324,7 +328,11 @@ else
           "TWITTER_REDIRECT_URI": "$SSM_PREFIX/prod/twitter_redirect_uri",
           "DISCORD_CLIENT_ID": "$SSM_PREFIX/prod/discord_client_id",
           "DISCORD_CLIENT_SECRET": "$SSM_PREFIX/prod/discord_client_secret",
+          "DISCORD_BOT_TOKEN": "$SSM_PREFIX/prod/discord_bot_token",
           "DISCORD_GUILD_ID": "$SSM_PREFIX/prod/discord_guild_id",
+          "DISCORD_ROLE_SYNC_BATCH_SIZE": "$SSM_PREFIX/prod/discord_role_sync_batch_size",
+          "DISCORD_MANUAL_ROLE_SYNC_COOLDOWN_SECONDS": "$SSM_PREFIX/prod/discord_manual_role_sync_cooldown_seconds",
+          "DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS": "$SSM_PREFIX/prod/discord_role_submission_sync_grace_seconds",
           "DISCORD_REDIRECT_URI": "$SSM_PREFIX/prod/discord_redirect_uri"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"

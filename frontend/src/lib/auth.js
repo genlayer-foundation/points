@@ -90,6 +90,13 @@ const createAuthStore = () => {
 };
 
 const authState = createAuthStore();
+let walletAccountChangeSuppressionCount = 0;
+
+export function setWalletAccountChangeHandlingSuppressed(suppressed) {
+  walletAccountChangeSuppressionCount = suppressed
+    ? walletAccountChangeSuppressionCount + 1
+    : Math.max(0, walletAccountChangeSuppressionCount - 1);
+}
 
 // Create axios instance for auth endpoints with credentials
 const authAxios = axios.create({
@@ -446,6 +453,10 @@ let chainChangedHandler = null;
  * Handle account changes from wallet
  */
 async function handleAccountsChanged(accounts) {
+  if (walletAccountChangeSuppressionCount > 0) {
+    return;
+  }
+
   const state = authState.get();
   
   if (accounts.length === 0) {

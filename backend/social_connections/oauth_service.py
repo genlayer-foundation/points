@@ -230,6 +230,10 @@ class OAuthService:
 
         return connection, changed
 
+    def after_connection_saved(self, connection):
+        """Hook for platform-specific post-link work."""
+        return None
+
     # --- Template rendering ---
 
     def render_callback(self, request, success, error='', message='', redirect_url=None):
@@ -392,7 +396,12 @@ class OAuthService:
         defaults.update(extra_fields)
 
         # Create or update connection
-        ConnectionModel.objects.update_or_create(user=user, defaults=defaults)
+        connection, _ = ConnectionModel.objects.update_or_create(user=user, defaults=defaults)
+        try:
+            self.after_connection_saved(connection)
+        except Exception as e:
+            # OAuth linking should not fail just because auxiliary sync work failed.
+            logger.warning(f"{log_prefix}: post-link sync failed: {e}")
         logger.debug(f"{log_prefix}: account linked successfully for user {user_id}")
 
         return respond(True)
@@ -661,6 +670,16 @@ class DiscordOAuthService(OAuthService):
             'platform_username': data['username'],
             'extra_fields': extra_fields,
         }
+
+    def after_connection_saved(self, connection):
+        if not getattr(settings, 'DISCORD_BOT_TOKEN', '') or not getattr(settings, 'DISCORD_GUILD_ID', ''):
+            return None
+
+        from .discord_roles import DiscordRoleSyncService
+
+        service = DiscordRoleSyncService()
+        service.sync_member_roles(connection, sync_catalog=True)
+        return None
 
     def check_guild_membership(self, access_token, guild_id):
         """Check if user is a member of the specified guild. Returns True/False."""
