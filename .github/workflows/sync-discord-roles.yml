@@ -15,7 +15,7 @@ jobs:
           response=$(curl -s -w "\n%{http_code}" -X POST \
             -H "Content-Type: application/json" \
             -H "X-Cron-Token: ${{ secrets.CRON_SYNC_TOKEN }}" \
-            "${{ secrets.DEV_API_BASE_URL }}/api/v1/users/discord/sync-roles/")
+            "${{ secrets.API_BASE_URL }}/api/v1/users/discord/sync-roles/")
 
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | sed '$d')
