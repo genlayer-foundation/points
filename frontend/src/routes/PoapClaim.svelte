@@ -12,7 +12,20 @@
   let drop = $state(null);
   let attempted = $state(false);
 
-  let token = $derived($params?.token || '');
+  let routeToken = $derived($params?.token || '');
+  let token = $derived(routeToken || tokenFromUrl());
+
+  function tokenFromUrl() {
+    if (typeof window === 'undefined') return '';
+    const hashMatch = window.location.hash.match(/^#\/claim\/poap\/([^/?#]+)/);
+    const pathMatch = window.location.pathname.match(/^\/claim\/poap\/([^/?#]+)/);
+    const rawToken = hashMatch?.[1] || pathMatch?.[1] || '';
+    try {
+      return decodeURIComponent(rawToken);
+    } catch {
+      return rawToken;
+    }
+  }
 
   /** @param {any} err */
   function isAuthError(err) {
@@ -21,7 +34,14 @@
   }
 
   function requestLogin() {
-    sessionStorage.setItem('redirectAfterLogin', `/claim/poap/${token}`);
+    const claimToken = token;
+    if (!claimToken) {
+      status = 'error';
+      message = 'This mint link is missing its claim token.';
+      showError(message);
+      return;
+    }
+    sessionStorage.setItem('redirectAfterLogin', `/claim/poap/${claimToken}`);
     window.setTimeout(() => {
       const authButton = document.querySelector('[data-auth-button]');
       if (authButton instanceof HTMLElement) authButton.click();
@@ -30,11 +50,18 @@
 
   async function claim() {
     if (attempted || !$authState.isAuthenticated) return;
+    const claimToken = token;
+    if (!claimToken) {
+      status = 'error';
+      message = 'This mint link is missing its claim token.';
+      showError(message);
+      return;
+    }
     attempted = true;
     status = 'claiming';
     message = 'Claiming your POAP...';
     try {
-      const response = await poapsAPI.claimLink(token);
+      const response = await poapsAPI.claimLink(claimToken);
       drop = response.data?.drop;
       status = 'claimed';
       message = 'POAP claimed. Opening the details...';
