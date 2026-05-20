@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework.test import force_authenticate
 
 from users.models import User
-from social_connections.models import TwitterConnection
+from social_connections.models import PendingOAuthState, TwitterConnection
 from social_connections.encryption import encrypt_token
 from social_connections.twitter_oauth import (
     twitter_oauth_initiate,
@@ -70,8 +70,12 @@ class TwitterOAuthTest(TestCase):
         self.assertIn('scope=tweet.read%20users.read%20offline.access', response.url)
         self.assertNotIn('scope=tweet.read+users.read', response.url)
         state_data = self.service.validate_state(query['state'][0])
-        self.assertTrue(state_data['code_verifier'])
-        self.assertEqual(state_data['redirect_url'], 'http://localhost:5173')
+        self.assertIn('state_id', state_data)
+        self.assertNotIn('code_verifier', state_data)
+        self.assertNotIn('redirect_url', state_data)
+        pending = PendingOAuthState.objects.get(state_id=state_data['state_id'])
+        self.assertTrue(pending.code_verifier)
+        self.assertEqual(pending.redirect_url, 'http://localhost:5173')
 
     def test_initiate_validates_redirect_before_storing_in_state(self):
         request = self.factory.get('/api/auth/twitter/', {
@@ -84,9 +88,32 @@ class TwitterOAuthTest(TestCase):
 
         query = parse_qs(urlparse(response.url).query)
         state_data = self.service.validate_state(query['state'][0])
+        pending = PendingOAuthState.objects.get(state_id=state_data['state_id'])
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(state_data['redirect_url'], 'http://localhost:5173')
+        self.assertEqual(pending.redirect_url, 'http://localhost:5173')
+
+    @override_settings(FRONTEND_URL='https://portal.genlayer.foundation')
+    def test_initiate_with_long_redirect_keeps_twitter_state_under_limit(self):
+        redirect_url = (
+            'https://portal.genlayer.foundation/#/participant/'
+            '0xaf7169e1c3c759e668cf106b69ddce085d464aea'
+        )
+        request = self.factory.get('/api/auth/twitter/', {
+            'redirect': redirect_url,
+        })
+        self.attach_session(request)
+        force_authenticate(request, user=self.user)
+
+        response = twitter_oauth_initiate(request)
+
+        query = parse_qs(urlparse(response.url).query)
+        state_data = self.service.validate_state(query['state'][0])
+        pending = PendingOAuthState.objects.get(state_id=state_data['state_id'])
+
+        self.assertEqual(response.status_code, 302)
+        self.assertLessEqual(len(query['state'][0]), 500)
+        self.assertEqual(pending.redirect_url, redirect_url)
 
     def test_disconnect_deletes_connection(self):
         TwitterConnection.objects.create(
@@ -111,10 +138,12 @@ class TwitterOAuthTest(TestCase):
     def test_callback_full_flow(self, mock_requests):
         """Test the full Twitter OAuth callback flow with PKCE."""
         code_verifier = self.service.generate_code_verifier()
-        state = self.service.generate_state(self.user.id, extra_data={
-            'code_verifier': code_verifier,
-            'redirect_url': 'http://localhost:5173',
-        })
+        state = self.service.create_pending_state(
+            self.user,
+            code_verifier=code_verifier,
+            redirect_url='http://localhost:5173/profile',
+        )
+        state_id = self.service.validate_state(state)['state_id']
 
         mock_token_response = MagicMock()
         mock_token_response.raise_for_status = MagicMock()
@@ -138,12 +167,14 @@ class TwitterOAuthTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('oauth_platform=twitter', response.url)
         self.assertIn('oauth_verified=true', response.url)
+        self.assertIn('http://localhost:5173/profile', response.url)
 
         conn = TwitterConnection.objects.get(user=self.user)
         self.assertEqual(conn.platform_username, 'twitteruser')
         self.assertEqual(conn.platform_user_id, '99999')
         mock_requests.post.assert_called_once()
         self.assertEqual(mock_requests.post.call_args.kwargs['data']['code_verifier'], code_verifier)
+        self.assertIsNotNone(PendingOAuthState.objects.get(state_id=state_id).consumed_at)
 
     def test_callback_duplicate_code(self):
         """Test that a duplicate code is rejected."""

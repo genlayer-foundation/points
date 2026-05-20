@@ -5,6 +5,7 @@ from .models import (
     DiscordRole,
     DiscordRoleSyncLock,
     GitHubConnection,
+    PendingOAuthState,
     TwitterConnection,
     UsedOAuthCode,
 )
@@ -91,6 +92,21 @@ class DiscordRoleAdmin(admin.ModelAdmin):
 class DiscordRoleSyncLockAdmin(admin.ModelAdmin):
     list_display = ('name', 'owner_token', 'acquired_at', 'heartbeat_at', 'released_at')
     readonly_fields = ('name', 'owner_token', 'acquired_at', 'heartbeat_at', 'released_at')
+
+
+@admin.register(PendingOAuthState)
+class PendingOAuthStateAdmin(admin.ModelAdmin):
+    list_display = ('platform', 'user', 'created_at', 'consumed_at')
+    list_filter = ('platform',)
+    readonly_fields = (
+        'state_id',
+        'platform',
+        'user',
+        'code_verifier',
+        'redirect_url',
+        'created_at',
+        'consumed_at',
+    )
 
 
 @admin.register(UsedOAuthCode)
