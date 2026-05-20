@@ -24,6 +24,7 @@
   import { getValidatorBalance } from "../lib/blockchain";
   import { showSuccess, showWarning, showError } from "../lib/toastStore";
   import { parseMarkdown } from "../lib/markdownLoader.js";
+  import { getTopRole } from "../lib/profileRole.js";
 
   import ProfileHeader from "../components/profile/ProfileHeader.svelte";
   import RankingsWidget from "../components/profile/RankingsWidget.svelte";
@@ -127,12 +128,16 @@
       !participant.has_builder_welcome,
   );
 
-  let overallPoints = $derived(
-    (builderStats?.totalPoints || 0) +
-      (validatorStats?.totalPoints || 0) +
-      (communityStats?.totalPoints || 0) +
-      (referralPoints?.builder_points || 0) +
-      (referralPoints?.validator_points || 0),
+  let topRole = $derived(
+    getTopRole(participant, {
+      builderStats,
+      validatorStats,
+      communityStats,
+    }),
+  );
+
+  let topRoleStatsLoaded = $derived(
+    builderStatsLoaded && validatorStatsLoaded && communityStatsLoaded,
   );
 
   let hasReferralData = $derived(
@@ -689,11 +694,11 @@
     {#if !isValidatorOnly}
       <div class="mb-10 mt-6 w-full px-0 mx-0">
         <div class="profile-stats-grid flex flex-col md:flex-row gap-4 items-center">
-          <!-- Overall Points Card -->
+          <!-- Top Role Card -->
           <div
             class="profile-stat-card bg-white border border-[#f0f0f0] rounded-[16px] flex items-center justify-between p-[24px] h-[92px] w-full relative overflow-hidden"
           >
-            {#if !contributionStatsLoaded}
+            {#if !topRoleStatsLoaded}
               <div class="flex h-full items-center animate-pulse">
                 <div
                   class="w-[48px] h-[48px] rounded-full bg-gray-200 mr-4 shrink-0"
@@ -706,22 +711,38 @@
             {:else}
               <div class="profile-stat-content flex h-full items-center min-w-0">
                 <div
-                  class="profile-stat-icon w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0"
+                  class="profile-stat-icon w-[48px] h-[48px] relative flex items-center justify-center mr-4 shrink-0 bg-black"
+                  style="clip-path: polygon(50% 0%, 94% 25%, 94% 75%, 50% 100%, 6% 75%, 6% 25%);"
                 >
-                  <CategoryIcon category="genlayer" mode="hexagon" size={48} />
+                  <img
+                    src="/assets/icons/gl-symbol-white.svg"
+                    alt=""
+                    class="w-[24px] h-[24px]"
+                  />
                 </div>
                 <div
-                  class="profile-stat-text flex flex-col h-full items-start justify-center whitespace-nowrap z-10 min-w-0"
+                  class="profile-stat-text flex flex-1 flex-col h-full items-start justify-center z-10 min-w-0"
                 >
-                  <p
-                    class="font-medium text-[32px] leading-[32px] tracking-[-0.96px] text-black"
-                  >
-                    {overallPoints}
-                  </p>
+                  <div class="flex items-center gap-[6px] min-w-0 max-w-full flex-wrap">
+                    <p
+                      class="font-medium text-[22px] md:text-[24px] leading-[24px] md:leading-[26px] text-black min-w-0 max-w-full break-words"
+                    >
+                      {topRole.label}
+                    </p>
+                    {#if topRole.badges?.length}
+                      <div class="flex items-center gap-[3px] shrink-0" aria-label="Top role categories">
+                        {#each topRole.badges as badge (badge.key)}
+                          <span title={badge.label} class="shrink-0">
+                            <CategoryIcon category={badge.category} mode="hexagon" size={22} />
+                          </span>
+                        {/each}
+                      </div>
+                    {/if}
+                  </div>
                   <p
                     class="text-[14px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                   >
-                    All Points
+                    Top role
                   </p>
                 </div>
               </div>
@@ -829,7 +850,6 @@
           {builderStats}
           {validatorStats}
           {communityStats}
-          {overallPoints}
           {referralPoints}
         />
       </div>
