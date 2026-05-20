@@ -18,7 +18,7 @@ from tally.middleware.logging_utils import get_app_logger
 from tally.middleware.tracing import trace_external
 
 from .encryption import encrypt_token, decrypt_token
-from .models import UsedOAuthCode
+from .models import PendingOAuthState, UsedOAuthCode
 
 logger = get_app_logger('social_oauth')
 
@@ -120,6 +120,45 @@ class OAuthService:
                 logger.error("Failed to decrypt code_verifier from state")
                 raise signing.BadSignature("Invalid state: code_verifier decryption failed")
         return data
+
+    def create_pending_state(self, user, code_verifier='', redirect_url=''):
+        """Persist bulky state data server-side and return a compact signed state."""
+        PendingOAuthState.cleanup_old(minutes=10)
+        pending = PendingOAuthState.objects.create(
+            state_id=secrets.token_urlsafe(16),
+            platform=self.platform_name,
+            user=user,
+            code_verifier=encrypt_token(code_verifier) if code_verifier else '',
+            redirect_url=validate_redirect_url(redirect_url),
+        )
+        return self.generate_state(user.id, extra_data={'state_id': pending.state_id})
+
+    def consume_pending_state(self, state_data):
+        """Merge server-side state data into a validated state payload."""
+        state_id = state_data.get('state_id')
+        user_id = state_data.get('user_id')
+        if not state_id or not user_id:
+            return state_data
+
+        pending = PendingOAuthState.consume(
+            state_id=state_id,
+            platform=self.platform_name,
+            user_id=user_id,
+        )
+        if not pending:
+            raise signing.BadSignature("Invalid state: pending state not found")
+
+        if pending.code_verifier:
+            try:
+                state_data['code_verifier'] = decrypt_token(pending.code_verifier)
+            except Exception:
+                logger.error("Failed to decrypt code_verifier from pending state")
+                raise signing.BadSignature("Invalid state: code_verifier decryption failed")
+
+        if pending.redirect_url:
+            state_data['redirect_url'] = pending.redirect_url
+
+        return state_data
 
     # --- Code replay prevention ---
 
@@ -301,6 +340,7 @@ class OAuthService:
 
         try:
             state_data = self.validate_state(state)
+            state_data = self.consume_pending_state(state_data)
             user_id = state_data.get('user_id')
             redirect_url = state_data.get('redirect_url')
         except signing.SignatureExpired:

@@ -2,6 +2,7 @@ import logging
 from datetime import timedelta
 
 from django.conf import settings
+from django.db import IntegrityError, transaction
 from django.db import models
 from django.utils import timezone
 
@@ -146,6 +147,60 @@ class DiscordRoleSyncLock(models.Model):
         return f"DiscordRoleSyncLock({self.name}, acquired={self.acquired_at})"
 
 
+class PendingOAuthState(models.Model):
+    """Short-lived OAuth state data stored server-side for multi-worker safety."""
+
+    state_id = models.CharField(max_length=64, unique=True)
+    platform = models.CharField(max_length=20, db_index=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    code_verifier = models.TextField(blank=True)
+    redirect_url = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'social_connections_pending_oauth_state'
+        indexes = [
+            models.Index(fields=['created_at']),
+            models.Index(fields=['platform', 'state_id']),
+        ]
+
+    @classmethod
+    def consume(cls, state_id, platform, user_id, max_age_minutes=10):
+        """Atomically consume a pending OAuth state row and return it."""
+        cutoff = timezone.now() - timedelta(minutes=max_age_minutes)
+        with transaction.atomic():
+            pending = (
+                cls.objects
+                .select_for_update()
+                .filter(
+                    state_id=state_id,
+                    platform=platform,
+                    user_id=user_id,
+                    consumed_at__isnull=True,
+                    created_at__gte=cutoff,
+                )
+                .first()
+            )
+            if not pending:
+                return None
+
+            pending.consumed_at = timezone.now()
+            pending.save(update_fields=['consumed_at'])
+            return pending
+
+    @classmethod
+    def cleanup_old(cls, minutes=10):
+        cutoff = timezone.now() - timedelta(minutes=minutes)
+        deleted, _ = cls.objects.filter(created_at__lt=cutoff).delete()
+        if deleted:
+            logger.debug(f"Cleaned up {deleted} expired pending OAuth states")
+        return deleted
+
+    def __str__(self):
+        return f"PendingOAuthState({self.platform}, user={self.user_id})"
+
+
 class UsedOAuthCode(models.Model):
     """Tracks used OAuth authorization codes to prevent replay attacks.
     DB-backed for multi-worker safety (replaces in-memory dict)."""
@@ -164,7 +219,6 @@ class UsedOAuthCode(models.Model):
     @classmethod
     def mark_used(cls, code, platform):
         """Mark an OAuth code as used. Returns True if newly marked, False if already used."""
-        from django.db import IntegrityError
         try:
             _, created = cls.objects.get_or_create(
                 code=code,
