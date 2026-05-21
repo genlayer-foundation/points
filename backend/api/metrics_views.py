@@ -165,14 +165,12 @@ class ParticipantsGrowthView(APIView):
 
     A "builder" is counted from the date of their first accepted contribution
     in the `builder` category (excluding the welcome auto-award). The
-    "validator" rule is the parallel: first accepted contribution in the
-    `validator` category, excluding the waitlist auto-award. Both cohorts
+    "validator" is counted from their validator graduation date. Both cohorts
     require `user.visible=True`, matching the Dashboard `/leaderboard/stats/`
     definitions so the time series and the live counts agree.
     """
 
     EXCLUDED_BUILDER_SLUGS = ('builder-welcome', 'builder')
-    EXCLUDED_VALIDATOR_SLUGS = ('validator-waitlist', 'validator')
 
     def get(self, request):
         from django.db.models import Min
@@ -180,25 +178,45 @@ class ParticipantsGrowthView(APIView):
         from collections import defaultdict
         from validators.models import Validator
         from builders.models import Builder
+        from leaderboard.models import LeaderboardEntry
 
         # Validators are users with a visible Validator profile AND at least
-        # one accepted contribution in the `validator` category (excluding the
-        # waitlist/auto-award). Mirrors the Dashboard `?type=validator` rule.
+        # one recorded validator graduation date. Graduation is first taken
+        # from the frozen graduation leaderboard, then backfilled from the
+        # validator auto-award contribution for older data.
         validators_by_date = defaultdict(set)
         validator_user_ids = set(
             Validator.objects.filter(user__visible=True).values_list('user_id', flat=True)
         )
         if validator_user_ids:
-            qualifying_validator_contributions = (
+            graduation_dates = {}
+
+            graduation_entries = (
+                LeaderboardEntry.objects
+                .filter(
+                    type='validator-waitlist-graduation',
+                    user_id__in=validator_user_ids,
+                    graduation_date__isnull=False
+                )
+                .values('user_id', 'graduation_date')
+            )
+            for entry in graduation_entries:
+                graduation_dates[entry['user_id']] = entry['graduation_date'].date()
+
+            validator_graduations = (
                 Contribution.objects
                 .filter(user_id__in=validator_user_ids)
-                .filter(contribution_type__category__slug='validator')
-                .exclude(contribution_type__slug__in=self.EXCLUDED_VALIDATOR_SLUGS)
+                .filter(contribution_type__slug='validator')
+                .exclude(contribution_date__isnull=True)
                 .values('user_id')
-                .annotate(first_contribution=Min('contribution_date'))
+                .annotate(graduation_date=Min('contribution_date'))
             )
-            for entry in qualifying_validator_contributions:
-                validators_by_date[entry['first_contribution'].date()].add(entry['user_id'])
+            for entry in validator_graduations:
+                if entry['user_id'] not in graduation_dates:
+                    graduation_dates[entry['user_id']] = entry['graduation_date'].date()
+
+            for user_id, graduation_date in graduation_dates.items():
+                validators_by_date[graduation_date].add(user_id)
 
         # Use first waitlist contribution per user so repeat submissions do not inflate counts.
         waitlist_by_date = defaultdict(set)
