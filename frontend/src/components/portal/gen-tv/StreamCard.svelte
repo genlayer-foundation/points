@@ -60,7 +60,11 @@
   let imageFailed = $state(false);
   let isLive = $derived(variant === 'live');
   let isUpcoming = $derived(variant === 'upcoming');
-  let categoryLabel = $derived(stream.category === 'internal' ? 'GenLayer Team' : 'Community');
+  let categoryLabel = $derived(
+    stream.detailed_category?.name ||
+      stream.category_display ||
+      (stream.category === 'internal' ? 'Internal team' : 'Community')
+  );
   let host = $derived(hostLabel(stream.url));
   let duration = $derived(formatDuration(stream.starts_at, stream.ends_at));
   let dateTime = $derived(formatDateTime(stream.starts_at));
