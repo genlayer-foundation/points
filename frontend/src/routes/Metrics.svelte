@@ -22,6 +22,7 @@
 
   const CATEGORY_LABELS = {
     builder: 'Builder',
+    community: 'Community',
     creator: 'Community',
     steward: 'Steward',
     validator: 'Validator'
@@ -110,6 +111,9 @@
   const DISCORD_HANDLE = 'discord.gg/A6jpkqrb';
   const X_URL = 'https://x.com/GenLayer';
   const X_HANDLE = '@GenLayer';
+  const COMMUNITY_CATEGORY_SLUG = 'community';
+  const COMMUNITY_CATEGORY_SLUGS = ['community', 'creator'];
+  const COMMUNITY_PAGE_SIZE = 10;
 
   const ONCHAIN_KPI_DEFS = [
     { label: 'Decisions',           range: 'Last 7 days', primaryKey: 'decisions7d',         secondaryKey: 'decisionsAllTime',         compact: true  },
@@ -201,12 +205,21 @@
     totals: {}
   });
   let contributionTypes = $state([]);
+  let communityContributions = $state([]);
+  let communityContributionsCount = $state(0);
 
   let submissionGroupBy = $state('week');
   let submissionStartDate = $state('');
   let submissionEndDate = $state('');
   let selectedCategory = $state('');
   let selectedContributionType = $state('');
+  let communityContributionsLoading = $state(false);
+  let communityContributionsError = $state(null);
+  let communityContributionType = $state('');
+  let communityStartDate = $state('');
+  let communityEndDate = $state('');
+  let communitySortBy = $state('-contribution_date');
+  let communityPage = $state(1);
   let appliedSubmissionFilters = $state({
     category: '',
     contributionType: '',
@@ -262,10 +275,20 @@
     return baseTypes.filter((type) => type.category === selectedCategory);
   });
 
+  let communityContributionTypes = $derived.by(() =>
+    contributionTypes.filter((type) =>
+      type.is_submittable && COMMUNITY_CATEGORY_SLUGS.includes(type.category)
+    )
+  );
+
   let latestParticipantsSnapshot = $derived(
     participantsData.length > 0
       ? participantsData[participantsData.length - 1]
       : emptyParticipantsSnapshot
+  );
+
+  let communityTotalPages = $derived(
+    Math.max(1, Math.ceil(communityContributionsCount / COMMUNITY_PAGE_SIZE))
   );
 
   let submissionsSummary = $derived.by(() => {
@@ -332,6 +355,7 @@
       );
 
       await fetchSubmissionsData({ syncDates: true });
+      await fetchCommunityContributions();
 
       loading = false;
       await tick();
@@ -482,6 +506,43 @@
     };
   }
 
+  async function fetchCommunityContributions() {
+    try {
+      communityContributionsLoading = true;
+      communityContributionsError = null;
+
+      const params = {
+        category: COMMUNITY_CATEGORY_SLUG,
+        ordering: communitySortBy,
+        page: communityPage,
+        page_size: COMMUNITY_PAGE_SIZE,
+        submittable_only: 'true'
+      };
+
+      if (communityContributionType) {
+        params.contribution_type = communityContributionType;
+      }
+
+      if (communityStartDate) {
+        params.start_date = communityStartDate;
+      }
+
+      if (communityEndDate) {
+        params.end_date = communityEndDate;
+      }
+
+      const response = await api.get('/contributions/', { params });
+      communityContributions = response.data?.results || [];
+      communityContributionsCount = response.data?.count || 0;
+    } catch (err) {
+      communityContributionsError = err.message || 'Failed to load community contributions';
+      communityContributions = [];
+      communityContributionsCount = 0;
+    } finally {
+      communityContributionsLoading = false;
+    }
+  }
+
   async function applySubmissionFilters() {
     try {
       submissionsLoading = true;
@@ -524,6 +585,25 @@
 
   function onCategoryChange() {
     selectedContributionType = '';
+  }
+
+  async function applyCommunityFilters() {
+    communityPage = 1;
+    await fetchCommunityContributions();
+  }
+
+  async function clearCommunityFilters() {
+    communityContributionType = '';
+    communityStartDate = '';
+    communityEndDate = '';
+    communitySortBy = '-contribution_date';
+    communityPage = 1;
+    await fetchCommunityContributions();
+  }
+
+  async function setCommunityPage(nextPage) {
+    communityPage = Math.min(Math.max(1, nextPage), communityTotalPages);
+    await fetchCommunityContributions();
   }
 
   function normalizeContributionTypes(types) {
@@ -710,7 +790,7 @@
   function buildParticipantsChartConfig(ctx, height, { forExport = false, hiddenLabels = new Set() } = {}) {
     const exportTitle = getExportTitleOptions(
       'Portal participation growth',
-      'Builders and validators over time',
+      'Builders over time and validators by graduation date',
       forExport
     );
 
@@ -1035,18 +1115,6 @@
             tension: 0.3
           },
           {
-            label: 'Rejected',
-            data: cumData.map((point) => point.rejected),
-            borderColor: reviewPalette.rejected.border,
-            backgroundColor: 'rgba(220, 38, 38, 0.06)',
-            borderWidth: isDaily ? 1.5 : 2,
-            fill: false,
-            pointRadius: dotRadius,
-            pointHoverRadius: hoverRadius,
-            pointBackgroundColor: reviewPalette.rejected.border,
-            tension: 0.3
-          },
-          {
             label: 'More info requested',
             data: cumData.map((point) => point.moreInfo),
             borderColor: reviewPalette.moreInfo.border,
@@ -1335,6 +1403,26 @@
     });
   }
 
+  function formatAddress(address) {
+    if (!address) {
+      return 'Unknown';
+    }
+
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  }
+
+  function getContributionUserName(contribution) {
+    return contribution.user_details?.name || formatAddress(contribution.user_details?.address);
+  }
+
+  function getContributionTypeName(contribution) {
+    return contribution.contribution_type_details?.name || contribution.contribution_type_name || 'Community contribution';
+  }
+
+  function getContributionTitle(contribution) {
+    return contribution.title || getContributionTypeName(contribution);
+  }
+
   function formatNumber(value) {
     return Number(value || 0).toLocaleString('en-US');
   }
@@ -1559,6 +1647,165 @@
             </div>
           </div>
         </div>
+
+        <div class="rounded-[24px] border border-slate-200 bg-slate-50/60 p-5 sm:p-6">
+          <div class="mb-5 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p class="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Portal contributions</p>
+              <h3 class="text-base font-semibold text-slate-900">Community contributions</h3>
+            </div>
+            {#if communityContributionsLoading}
+              <div class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600">
+                Refreshing contributions...
+              </div>
+            {/if}
+          </div>
+
+          <div class="mb-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_200px_auto]">
+            <div>
+              <label for="community-start-date" class="mb-1.5 block text-sm font-medium text-slate-600">Start date</label>
+              <input
+                id="community-start-date"
+                type="date"
+                bind:value={communityStartDate}
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+              />
+            </div>
+
+            <div>
+              <label for="community-end-date" class="mb-1.5 block text-sm font-medium text-slate-600">End date</label>
+              <input
+                id="community-end-date"
+                type="date"
+                bind:value={communityEndDate}
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+              />
+            </div>
+
+            <div>
+              <label for="community-type" class="mb-1.5 block text-sm font-medium text-slate-600">Contribution type</label>
+              <select
+                id="community-type"
+                bind:value={communityContributionType}
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+              >
+                <option value="">All types</option>
+                {#each communityContributionTypes as type}
+                  <option value={type.id}>{type.name}</option>
+                {/each}
+              </select>
+            </div>
+
+            <div>
+              <label for="community-sort" class="mb-1.5 block text-sm font-medium text-slate-600">Sort by</label>
+              <select
+                id="community-sort"
+                bind:value={communitySortBy}
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+              >
+                <option value="-contribution_date">Newest</option>
+                <option value="contribution_date">Oldest</option>
+                <option value="-frozen_global_points">Highest points</option>
+                <option value="frozen_global_points">Lowest points</option>
+              </select>
+            </div>
+
+            <div class="flex flex-wrap items-end gap-3">
+              <button
+                type="button"
+                onclick={applyCommunityFilters}
+                disabled={communityContributionsLoading}
+                class="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Apply filters
+              </button>
+              <button
+                type="button"
+                onclick={clearCommunityFilters}
+                disabled={communityContributionsLoading}
+                class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+
+          {#if communityContributionsError}
+            <div class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <span class="font-semibold">Community contributions error:</span> {communityContributionsError}
+            </div>
+          {/if}
+
+          {#if communityContributionsLoading && communityContributions.length === 0}
+            <div class="space-y-3">
+              {#each [0, 1, 2] as _, i (i)}
+                <div class="h-[72px] animate-pulse rounded-2xl border border-slate-200 bg-white"></div>
+              {/each}
+            </div>
+          {:else if communityContributions.length > 0}
+            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
+                  <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    <tr>
+                      <th scope="col" class="px-4 py-3">Contribution</th>
+                      <th scope="col" class="px-4 py-3">Contributor</th>
+                      <th scope="col" class="px-4 py-3">Type</th>
+                      <th scope="col" class="px-4 py-3">Date</th>
+                      <th scope="col" class="px-4 py-3 text-right">Points</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    {#each communityContributions as contribution (contribution.id)}
+                      <tr class="align-top">
+                        <td class="max-w-[360px] px-4 py-3 font-medium text-slate-900">
+                          <span class="line-clamp-2">{getContributionTitle(contribution)}</span>
+                        </td>
+                        <td class="px-4 py-3 text-slate-600">{getContributionUserName(contribution)}</td>
+                        <td class="px-4 py-3 text-slate-600">{getContributionTypeName(contribution)}</td>
+                        <td class="px-4 py-3 text-slate-600">{formatDate(contribution.contribution_date)}</td>
+                        <td class="px-4 py-3 text-right font-semibold text-slate-900">
+                          {formatNumber(contribution.frozen_global_points)}
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p class="text-sm text-slate-500">
+                {formatNumber(communityContributionsCount)} contribution{communityContributionsCount === 1 ? '' : 's'}
+              </p>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  onclick={() => setCommunityPage(communityPage - 1)}
+                  disabled={communityPage <= 1 || communityContributionsLoading}
+                  class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span class="px-2 text-sm font-medium text-slate-500">
+                  Page {communityPage} of {communityTotalPages}
+                </span>
+                <button
+                  type="button"
+                  onclick={() => setCommunityPage(communityPage + 1)}
+                  disabled={communityPage >= communityTotalPages || communityContributionsLoading}
+                  class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          {:else}
+            <div class="flex min-h-[160px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm text-slate-500">
+              No community contributions matched the selected filters.
+            </div>
+          {/if}
+        </div>
       </div>
     </section>
 
@@ -1615,7 +1862,7 @@
         <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h3 class="text-lg font-semibold text-slate-900">Growth trajectory</h3>
-            <p class="mt-1 text-sm text-slate-500">Builders on the left axis, validators on the right.</p>
+            <p class="mt-1 text-sm text-slate-500">Builders on the left axis, validators by graduation date on the right.</p>
           </div>
           <div class="flex flex-wrap items-center gap-3">
             <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Daily points</p>
@@ -1846,7 +2093,7 @@
             <div>
               <h3 class="text-lg font-semibold text-slate-900">Submission state trends</h3>
               <p class="mt-1 text-sm text-slate-500">
-                Per-state curves over time. Click a legend label to toggle its visibility.
+                Pending, accepted, and more-info curves over time. Click a legend label to toggle its visibility.
               </p>
             </div>
             <button
