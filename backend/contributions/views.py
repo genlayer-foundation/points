@@ -275,6 +275,18 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         if category:
             queryset = queryset.filter(contribution_type__category__slug=category)
 
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        if start_date or end_date:
+            from django.utils.dateparse import parse_date
+
+            parsed_start = parse_date(start_date) if start_date else None
+            parsed_end = parse_date(end_date) if end_date else None
+            if parsed_start:
+                queryset = queryset.filter(contribution_date__date__gte=parsed_start)
+            if parsed_end:
+                queryset = queryset.filter(contribution_date__date__lte=parsed_end)
+
         # Exclude onboarding contributions (builder-welcome and validator-waitlist)
         # EXCEPT when viewing a specific user's profile (user_address is present)
         if not user_address:
