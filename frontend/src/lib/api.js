@@ -291,6 +291,7 @@ export const partnersAPI = {
 export const genTvAPI = {
   list: (params) => api.get('/gen-tv/streams/', { params }),
   get: (slug) => api.get(`/gen-tv/streams/${slug}/`),
+  categories: (params) => api.get('/gen-tv/categories/', { params }),
 };
 
 // POAP API
