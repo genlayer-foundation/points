@@ -289,9 +289,10 @@
     const totals = submissionsData.totals || {};
     const ingress = Number(totals.ingress || 0);
     const accepted = Number(totals.accepted || 0);
+    const rejected = Number(totals.rejected || 0);
     const moreInfoRequested = Number(totals.more_info_requested || 0);
     const pointsAwarded = Number(totals.points_awarded || 0);
-    const reviewed = accepted + moreInfoRequested;
+    const reviewed = accepted + rejected + moreInfoRequested;
     // Pending review comes from the backend: submissions created in the
     // selected range that are still in pending state. We can't derive it from
     // ingress - reviewed because ingress is bucketed by created_at and reviews
@@ -306,6 +307,7 @@
       moreInfoRequested,
       pendingReview,
       pointsAwarded,
+      rejected,
       reviewed
     };
   });
@@ -991,6 +993,7 @@
                 const point = submissionsData.data[items[0]?.dataIndex];
                 const reviewed =
                   Number(point?.accepted || 0) +
+                  Number(point?.rejected || 0) +
                   Number(point?.more_info_requested || 0);
 
                 return `Reviewed decisions: ${formatNumber(reviewed)}`;
@@ -1998,7 +2001,7 @@
           <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50/40 p-5">
             <p class="text-sm font-medium text-slate-500">Reviewed</p>
             <p class="mt-3 text-3xl font-semibold text-slate-900">{formatNumber(submissionsSummary.reviewed)}</p>
-            <p class="mt-2 text-xs leading-5 text-slate-500">Accepted and more-info combined.</p>
+            <p class="mt-2 text-xs leading-5 text-slate-500">All reviewed outcomes combined.</p>
           </div>
 
           <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.pending.surface} p-5">
