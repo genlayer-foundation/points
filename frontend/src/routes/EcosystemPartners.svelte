@@ -5,13 +5,13 @@
 
   const SECTIONS = [
     {
-      id: 'partner',
-      title: 'Partners',
-      description: 'Organizations supporting and expanding the GenLayer ecosystem.',
-      icon: '/assets/icons/group-white.svg',
-      iconClass: 'bg-black',
-      countClass: 'border-blue-200 bg-blue-50 text-blue-700',
-      skeletonCount: 18,
+      id: 'project',
+      title: 'Projects',
+      description: "High-signal products built on GenLayer, from applications to infrastructure that can grow with intelligent contracts.",
+      icon: '/assets/icons/terminal-fill-white.svg',
+      iconClass: 'bg-orange-500',
+      countClass: 'border-orange-200 bg-orange-50 text-orange-600',
+      skeletonCount: 6,
     },
     {
       id: 'validator',
@@ -23,13 +23,13 @@
       skeletonCount: 6,
     },
     {
-      id: 'project',
-      title: 'Projects',
-      description: "High-signal products built on GenLayer, from applications to infrastructure that can grow with intelligent contracts.",
-      icon: '/assets/icons/terminal-fill-white.svg',
-      iconClass: 'bg-orange-500',
-      countClass: 'border-orange-200 bg-orange-50 text-orange-600',
-      skeletonCount: 6,
+      id: 'partner',
+      title: 'Partners',
+      description: 'Organizations supporting and expanding the GenLayer ecosystem.',
+      icon: '/assets/icons/group-white.svg',
+      iconClass: 'bg-black',
+      countClass: 'border-blue-200 bg-blue-50 text-blue-700',
+      skeletonCount: 18,
     },
   ];
 
@@ -133,7 +133,7 @@
         Ecosystem
       </h1>
       <p class="text-[14px] sm:text-[15px] text-[#3f4b5f]" style="letter-spacing: 0.2px;">
-        A thriving network of partners, validators, and projects building the future of the GenLayer ecosystem.
+        A thriving network of projects, validators, and partners building the future of the GenLayer ecosystem.
       </p>
     </header>
 
