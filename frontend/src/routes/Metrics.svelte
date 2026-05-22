@@ -157,12 +157,6 @@
       text: 'text-emerald-600',
       surface: 'from-emerald-50 via-white to-emerald-50/40'
     },
-    rejected: {
-      bg: 'rgba(239, 68, 68, 0.74)',
-      border: 'rgb(220, 38, 38)',
-      text: 'text-rose-600',
-      surface: 'from-rose-50 via-white to-rose-50/40'
-    },
     moreInfo: {
       bg: 'rgba(245, 158, 11, 0.74)',
       border: 'rgb(217, 119, 6)',
@@ -295,10 +289,9 @@
     const totals = submissionsData.totals || {};
     const ingress = Number(totals.ingress || 0);
     const accepted = Number(totals.accepted || 0);
-    const rejected = Number(totals.rejected || 0);
     const moreInfoRequested = Number(totals.more_info_requested || 0);
     const pointsAwarded = Number(totals.points_awarded || 0);
-    const reviewed = accepted + rejected + moreInfoRequested;
+    const reviewed = accepted + moreInfoRequested;
     // Pending review comes from the backend: submissions created in the
     // selected range that are still in pending state. We can't derive it from
     // ingress - reviewed because ingress is bucketed by created_at and reviews
@@ -313,7 +306,6 @@
       moreInfoRequested,
       pendingReview,
       pointsAwarded,
-      rejected,
       reviewed
     };
   });
@@ -960,16 +952,6 @@
             stack: 'review'
           },
           {
-            label: 'Rejected',
-            data: submissionsData.data.map((point) => point.rejected),
-            backgroundColor: reviewPalette.rejected.bg,
-            borderColor: reviewPalette.rejected.border,
-            borderRadius: 10,
-            borderWidth: 1,
-            maxBarThickness: 22,
-            stack: 'review'
-          },
-          {
             label: 'More info requested',
             data: submissionsData.data.map((point) => point.more_info_requested),
             backgroundColor: reviewPalette.moreInfo.bg,
@@ -1009,7 +991,6 @@
                 const point = submissionsData.data[items[0]?.dataIndex];
                 const reviewed =
                   Number(point?.accepted || 0) +
-                  Number(point?.rejected || 0) +
                   Number(point?.more_info_requested || 0);
 
                 return `Reviewed decisions: ${formatNumber(reviewed)}`;
@@ -1066,7 +1047,7 @@
         0,
         cumIngress - cumAccepted - cumRejected - cumMoreInfo - cumCanceled
       );
-      return { pending, accepted: cumAccepted, rejected: cumRejected, moreInfo: cumMoreInfo };
+      return { pending, accepted: cumAccepted, moreInfo: cumMoreInfo };
     });
   }
 
@@ -2017,7 +1998,7 @@
           <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50/40 p-5">
             <p class="text-sm font-medium text-slate-500">Reviewed</p>
             <p class="mt-3 text-3xl font-semibold text-slate-900">{formatNumber(submissionsSummary.reviewed)}</p>
-            <p class="mt-2 text-xs leading-5 text-slate-500">Accepted, rejected, and more-info combined.</p>
+            <p class="mt-2 text-xs leading-5 text-slate-500">Accepted and more-info combined.</p>
           </div>
 
           <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.pending.surface} p-5">
