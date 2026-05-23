@@ -332,16 +332,13 @@ upload_to_development() {
         DEV_DB_NAME=${HOST_PORT_DB#*/}
         echo -e "${GREEN}Using dev database from AWS${NC}"
     else
-        # Use local defaults if not in AWS
-        echo -e "${YELLOW}No dev database URL in AWS, using local defaults${NC}"
+        # Use local defaults matching the shared tally-postgres container
+        echo -e "${YELLOW}No dev database URL in AWS, using local PostgreSQL container defaults${NC}"
         DEV_DB_HOST="localhost"
         DEV_DB_PORT="5432"
-        DEV_DB_NAME="tally_dev"
-        DEV_DB_USER="postgres"
-        
-        echo -e "${YELLOW}Enter password for local development database user ($DEV_DB_USER):${NC}"
-        read -s DEV_DB_PASSWORD
-        echo ""
+        DEV_DB_NAME="tally_template"
+        DEV_DB_USER="tally_user"
+        DEV_DB_PASSWORD="tally_password"
     fi
     
     echo -e "${GREEN}Development database configuration:${NC}"
@@ -454,26 +451,8 @@ setup_django() {
     DEV_DATABASE_URL=$(get_parameter "$DEV_PARAM_PATH")
     
     if [ -z "$DEV_DATABASE_URL" ]; then
-        echo -e "${YELLOW}No dev database URL in AWS, building from local defaults${NC}"
-        echo -e "${YELLOW}Enter dev database connection details:${NC}"
-        
-        read -p "Host (default: localhost): " DEV_DB_HOST
-        DEV_DB_HOST=${DEV_DB_HOST:-localhost}
-        
-        read -p "Port (default: 5432): " DEV_DB_PORT
-        DEV_DB_PORT=${DEV_DB_PORT:-5432}
-        
-        read -p "Database name (default: tally_dev): " DEV_DB_NAME
-        DEV_DB_NAME=${DEV_DB_NAME:-tally_dev}
-        
-        read -p "Username (default: postgres): " DEV_DB_USER
-        DEV_DB_USER=${DEV_DB_USER:-postgres}
-        
-        echo -n "Password: "
-        read -s DEV_DB_PASSWORD
-        echo ""
-        
-        DEV_DATABASE_URL="postgresql://${DEV_DB_USER}:${DEV_DB_PASSWORD}@${DEV_DB_HOST}:${DEV_DB_PORT}/${DEV_DB_NAME}"
+        echo -e "${YELLOW}No dev database URL in AWS, using local PostgreSQL container defaults${NC}"
+        DEV_DATABASE_URL="postgresql://tally_user:tally_password@localhost:5432/tally_template"
     fi
     
     echo -e "${GREEN}Using database: $DEV_DATABASE_URL${NC}"

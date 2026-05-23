@@ -1,83 +1,79 @@
 # Database Migration Scripts
 
-Scripts for migrating Tally production database to development environment.
+Scripts for syncing the Tally production database to local development.
 
-## Prerequisites
+## Local PostgreSQL Setup
 
-1. **Virtual Environment** must be activated:
+Local development uses a shared PostgreSQL container. All orca sessions connect to the same container, each with its own database.
+
+### Architecture
+```
+Docker: tally-postgres (port 5432, postgres:17)
+  ├── tally_main        ← main worktree
+  ├── tally_template    ← production snapshot (restored via migrate-prod-to-dev.sh)
+  ├── tally_feature_x   ← orca session (created automatically)
+  └── tally_pr_123      ← PR session (created automatically)
+```
+
+### Start the PostgreSQL Container
+
+```bash
+cd backend
+docker compose up -d db
+```
+
+Container credentials (used by all local databases):
+- **User**: `tally_user`
+- **Password**: `tally_password`
+- **Port**: `5432`
+
+## Syncing Production Data
+
+### Prerequisites
+
+1. **Virtual Environment** activated:
    ```bash
-   # If using virtualenvwrapper:
-   workon your-tally-env
-   
-   # If using venv:
    source backend/env/bin/activate
    ```
-
-2. **AWS CLI configured** with access to Parameter Store:
+2. **AWS CLI configured** with Parameter Store access:
    ```bash
    aws configure
    ```
+3. **Docker** installed and the `tally-postgres` container running
 
-3. **AWS Parameters** must be set up (see below)
-
-4. **Required tools**:
-   - Docker (for database operations)
-   - Python 3 with Django environment (activated)
-   - AWS CLI
-
-## AWS Parameter Store Setup
-
-The scripts expect database URLs stored as single parameters in AWS Systems Manager Parameter Store:
-
-### Production Parameter
-```
-/tally/prod/database_url  # Full PostgreSQL URL (SecureString)
-```
-
-### Development Parameter (Optional)
-```
-/tally-backend/dev/database_url  # Full PostgreSQL URL for dev environment (SecureString)
-```
-
-### Setting Parameters
-
-To set parameters in AWS:
+### Quick Sync Workflow
 
 ```bash
-# Set production database URL
-aws ssm put-parameter \
-  --name "/tally/prod/database_url" \
-  --value "postgresql://username:password@host:port/database" \
-  --type "SecureString" \
-  --overwrite
-
-# Set development database URL (optional)
-aws ssm put-parameter \
-  --name "/tally-backend/dev/database_url" \
-  --value "postgresql://tally_dev:password@host:port/tally_dev" \
-  --type "SecureString" \
-  --overwrite
-```
-
-The database URL format is: `postgresql://username:password@host:port/database_name`
-
-If the development database URL is not set in AWS, the script will use local defaults (localhost, postgres user) and prompt for the password.
-
-## Usage
-
-**IMPORTANT**: Always activate your virtual environment first!
-
-```bash
-# Activate your virtual environment
-workon your-tally-env  # or source backend/env/bin/activate
-
-# Navigate to scripts directory
 cd backend/scripts
+
+# Download production database (creates timestamped backup in backend/backups/)
+./migrate-prod-to-dev.sh --download
+
+# Restore to tally_template database in local container
+./migrate-prod-to-dev.sh --upload
+
+# Run Django migrations and create admin user
+./migrate-prod-to-dev.sh --setup
+
+# Or do all three at once:
+./migrate-prod-to-dev.sh
 ```
 
-### Migration Script Options
+### Creating Session Databases from Template
 
-The migration script (`migrate-prod-to-dev.sh`) supports modular operations:
+After syncing production data to `tally_template`, create instant clones for orca sessions:
+
+```bash
+# Create a database for a session (instant via PostgreSQL template)
+docker compose exec db psql -U tally_user -c 'CREATE DATABASE "tally-feature-x" TEMPLATE tally_template'
+
+# Drop a session database
+docker compose exec db psql -U tally_user -c 'DROP DATABASE IF EXISTS "tally-feature-x"'
+```
+
+Note: orca sessions get their `DATABASE_URL` set automatically via `orchestrator.yml` env_substitutions. You only need to create the database manually if the template exists and you want an instant clone.
+
+### Script Options
 
 ```bash
 # Show help and all options
@@ -86,7 +82,7 @@ The migration script (`migrate-prod-to-dev.sh`) supports modular operations:
 # Download production database only
 ./migrate-prod-to-dev.sh --download
 
-# Upload last dump to dev database
+# Upload last dump to local PostgreSQL (tally_template)
 ./migrate-prod-to-dev.sh --upload
 
 # Upload specific backup file
@@ -99,60 +95,48 @@ The migration script (`migrate-prod-to-dev.sh`) supports modular operations:
 ./migrate-prod-to-dev.sh
 ```
 
-### Common Workflows
-
-```bash
-# First time setup
-./migrate-prod-to-dev.sh  # Full migration
-
-# Re-run just the setup after fixing issues
-./migrate-prod-to-dev.sh --setup
-
-# Use existing backup without re-downloading
-./migrate-prod-to-dev.sh --upload
-./migrate-prod-to-dev.sh --setup
-
-# Download fresh backup for later use
-./migrate-prod-to-dev.sh --download
-```
-
-The script uses Docker containers with matching PostgreSQL versions to avoid version mismatch issues.
-
 ## What the Script Does
 
 1. **Fetch credentials** from AWS Parameter Store
 2. **Backup production database** to `backend/backups/` directory
-3. **Drop and recreate** development database (with confirmation)
-4. **Restore production data** to development
+3. **Drop and recreate** the `tally_template` database (with confirmation)
+4. **Restore production data** to `tally_template`
 5. **Run Django migrations**
 6. **Create admin user**:
    - Email: `dev@genlayer.foundation`
    - Password: `password`
    - Roles: Steward and Superuser
 
-## Security Notes
+## AWS Parameter Store Setup
 
-- Production credentials are fetched from AWS Parameter Store (never hardcoded)
-- Backups are stored locally in `backend/backups/` (add to .gitignore)
-- The admin user password is intentionally simple for development only
-- Never use these scripts in production environments
+The scripts expect database URLs stored as parameters in AWS Systems Manager:
+
+```
+/tally/prod/database_url          # Production PostgreSQL URL (SecureString)
+/tally-backend/dev/database_url   # Optional: remote dev database URL
+```
+
+If the dev parameter is not set, the script defaults to the local `tally-postgres` container.
+
+## Deprecated: SQLite Migration
+
+The old `migrate_rds_to_sqlite.py` script is deprecated. It converted production PostgreSQL to SQLite, which was slow (1+ hour) and had behavioral differences. Use the PostgreSQL workflow above instead.
 
 ## Troubleshooting
 
-### pg_dump Version Mismatch
+### Container Not Running
+```bash
+docker compose -f backend/docker-compose.yml up -d db
+docker compose -f backend/docker-compose.yml ps
+```
 
-The script automatically uses Docker containers with the correct PostgreSQL version to avoid mismatch issues.
+### pg_dump Version Mismatch
+The script uses Docker containers with the correct PostgreSQL version automatically.
+
+### Connection from orca Container
+From inside orca Docker containers, use `host.docker.internal` instead of `localhost` to reach the PostgreSQL container. This is set automatically by `orchestrator.yml`.
 
 ### AWS Credentials Error
-
-If you get AWS credential errors:
 1. Run `aws configure` to set up your credentials
 2. Ensure your AWS user has permissions to read from Parameter Store
 3. Check the parameter paths are correct for your environment
-
-### Connection Issues
-
-If you can't connect to the database:
-1. Check network connectivity to production database
-2. Verify firewall/security group rules allow your IP
-3. Ensure database credentials are correct in AWS Parameter Store
