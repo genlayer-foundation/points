@@ -2282,6 +2282,25 @@ class FeaturedContentViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.AllowAny]
     pagination_class = None
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        placement = request.query_params.get('placement')
+
+        if placement:
+            valid_placements = {choice[0] for choice in FeaturedContent.HERO_PLACEMENT_CHOICES}
+            if placement not in valid_placements - {FeaturedContent.HERO_PLACEMENT_ALL}:
+                return Response(
+                    {'detail': f"Invalid placement '{placement}'."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            queryset = [
+                item for item in queryset
+                if item.shows_in_placement(placement)
+            ]
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
     def get_queryset(self):
         include_inactive = (
             self.request.query_params.get('include_inactive', '').lower()
