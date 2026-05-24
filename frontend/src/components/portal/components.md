@@ -87,7 +87,7 @@ Horizontal scrolling list of trending contributor cards.
 
 **File**: `FeaturedBuilds.svelte`
 
-Grid of featured project cards (placeholder, needs API).
+Grid of project cards loaded from the public projects API.
 
 ---
 

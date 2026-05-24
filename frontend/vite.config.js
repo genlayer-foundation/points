@@ -9,6 +9,15 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            // Django's CSRF origin check sees forwarded Origin headers.
+            // In local dev, the browser can run on random localhost ports
+            // (for example Conductor workspaces), so normalize proxied API
+            // requests to the backend origin.
+            proxyReq.setHeader('Origin', 'http://localhost:8000');
+          });
+        },
       }
     }
   },

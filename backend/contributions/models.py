@@ -931,6 +931,7 @@ class FeaturedContent(BaseModel):
     """
     CONTENT_TYPE_CHOICES = [
         ('hero', 'Hero Banner'),
+        # Legacy portal builds are kept for compatibility; new project profiles live in projects.Project.
         ('build', 'Featured Build'),
         ('community', 'Featured Community'),
         ('validator_steward', 'Featured Validator/Steward'),

@@ -114,6 +114,8 @@
   import HowItWorks from './routes/HowItWorks.svelte';
   import StartupRequestDetail from './routes/StartupRequestDetail.svelte';
   import ContributionPreview from './routes/ContributionPreview.svelte';
+  import ProjectDetail from './routes/ProjectDetail.svelte';
+  import ProjectPageEditor from './routes/ProjectPageEditor.svelte';
   import GlobalDashboard from './components/GlobalDashboard.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
 
@@ -150,6 +152,8 @@
     '/builders/leaderboard': Leaderboard,
 
     '/builders/resources': Resources,
+    '/builders/projects/:slug/edit': ProjectPageEditor,
+    '/builders/projects/:slug': ProjectDetail,
     '/builders/startup-requests/:id': StartupRequestDetail,
     
     // Validators routes

@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     'users',
     'contributions',
     'contributions.node_upgrade',
+    'projects',
     'leaderboard',
     'ethereum_auth',
     'validators',
@@ -265,6 +266,18 @@ FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173').strip().r
 
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = get_required_env('CSRF_TRUSTED_ORIGINS').split(',')
+if DEBUG:
+    # Local frontend ports vary across Vite, Conductor, and ad-hoc preview
+    # servers. The Vite dev proxy normalizes Origin for /api requests, and
+    # these entries cover the common direct-backend cases during development.
+    CSRF_TRUSTED_ORIGINS = list(dict.fromkeys([
+        *CSRF_TRUSTED_ORIGINS,
+        FRONTEND_URL,
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:55010',
+        'http://127.0.0.1:55010',
+    ]))
 
 # Session settings
 SESSION_COOKIE_HTTPONLY = True
