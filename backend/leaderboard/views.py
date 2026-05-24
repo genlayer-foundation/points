@@ -204,7 +204,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         from users.serializers import LightUserSerializer
 
         leaderboard_type = request.query_params.get('type', 'validator')
-        if leaderboard_type not in LEADERBOARD_CONFIG:
+        monthly_types = set(LEADERBOARD_CONFIG.keys()) | {'community'}
+        if leaderboard_type not in monthly_types:
             return Response(
                 {'detail': f'Unknown leaderboard type: {leaderboard_type}'},
                 status=status.HTTP_400_BAD_REQUEST,
