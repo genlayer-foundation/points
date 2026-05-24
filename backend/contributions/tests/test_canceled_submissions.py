@@ -1,10 +1,13 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from contributions.models import Category, ContributionType, SubmittedContribution
+from contributions.models import Category, Contribution, ContributionType, SubmittedContribution
+from leaderboard.models import GlobalLeaderboardMultiplier
 
 User = get_user_model()
 
@@ -67,3 +70,112 @@ class CanceledSubmissionMetricsTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['total_reviewed'], 1)
         self.assertEqual(response.data['total_rejected'], 1)
+
+    def test_daily_metrics_points_exclude_onboarding_and_social_linking_awards(self):
+        builder_category = Category.objects.create(
+            name='Builder', slug='builder', description='Builder',
+        )
+        community_category = Category.objects.create(
+            name='Community', slug='community', description='Community',
+        )
+        real_type = ContributionType.objects.create(
+            name='Real Contribution',
+            slug='real-contribution',
+            description='Real contribution',
+            category=builder_category,
+            min_points=0,
+            max_points=1000,
+        )
+        excluded_types = [
+            ContributionType.objects.create(
+                name='Builder Welcome',
+                slug='builder-welcome',
+                description='Builder welcome',
+                category=builder_category,
+                min_points=0,
+                max_points=1000,
+            ),
+            ContributionType.objects.create(
+                name='Builder',
+                slug='builder',
+                description='Builder social linking',
+                category=builder_category,
+                min_points=0,
+                max_points=1000,
+            ),
+            ContributionType.objects.create(
+                name='Link X Account',
+                slug='community-link-x',
+                description='Community X link',
+                category=community_category,
+                min_points=0,
+                max_points=1000,
+            ),
+            ContributionType.objects.create(
+                name='Link Discord Account',
+                slug='community-link-discord',
+                description='Community Discord link',
+                category=community_category,
+                min_points=0,
+                max_points=1000,
+            ),
+        ]
+        for contribution_type in [real_type, *excluded_types]:
+            GlobalLeaderboardMultiplier.objects.create(
+                contribution_type=contribution_type,
+                multiplier_value=1.0,
+                valid_from=timezone.now() - timedelta(days=1),
+            )
+
+        today = timezone.now()
+        real_submission = SubmittedContribution.objects.create(
+            user=self.user,
+            contribution_type=real_type,
+            contribution_date=today,
+            notes='Real submission',
+            state='accepted',
+            reviewed_at=today,
+        )
+        real_contribution = Contribution.objects.create(
+            user=self.user,
+            contribution_type=real_type,
+            points=100,
+            frozen_global_points=100,
+            contribution_date=today,
+            notes='Real contribution',
+        )
+        real_submission.converted_contribution = real_contribution
+        real_submission.save(update_fields=['converted_contribution'])
+
+        for contribution_type in excluded_types:
+            submission = SubmittedContribution.objects.create(
+                user=self.user,
+                contribution_type=contribution_type,
+                contribution_date=today,
+                notes='Excluded submission',
+                state='accepted',
+                reviewed_at=today,
+            )
+            contribution = Contribution.objects.create(
+                user=self.user,
+                contribution_type=contribution_type,
+                points=25,
+                frozen_global_points=25,
+                contribution_date=today,
+                notes='Excluded contribution',
+            )
+            submission.converted_contribution = contribution
+            submission.save(update_fields=['converted_contribution'])
+
+        response = self.client.get(
+            '/api/v1/steward-submissions/daily-metrics/',
+            {
+                'group_by': 'day',
+                'start_date': today.date().isoformat(),
+                'end_date': today.date().isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['totals']['accepted'], 5)
+        self.assertEqual(response.data['totals']['points_awarded'], 100)

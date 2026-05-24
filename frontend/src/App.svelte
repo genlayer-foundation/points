@@ -7,7 +7,7 @@
   import Sidebar from './components/Sidebar.svelte';
   import ToastContainer from './components/ToastContainer.svelte';
   import ProfileCompletionGuard from './components/ProfileCompletionGuard.svelte';
-  import { categoryTheme, currentCategory, detectCategoryFromRoute } from './stores/category.js';
+  import { currentCategory, detectCategoryFromRoute } from './stores/category.js';
   import { location } from 'svelte-spa-router';
   import { resetPageMeta } from './lib/meta.js';
   
@@ -381,7 +381,7 @@
   }
 </script>
 
-<div class="h-screen flex flex-col {$categoryTheme.bg} transition-colors duration-300">
+<div class="h-screen flex flex-col bg-white">
   <Navbar {toggleSidebar} {sidebarOpen} />
   <div class="flex-1 flex overflow-hidden">
     <Sidebar bind:isOpen={sidebarOpen} bind:collapsed={sidebarCollapsed} />
