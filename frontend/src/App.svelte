@@ -130,7 +130,7 @@
     '/leaderboard': Leaderboard,
     '/participants': Validators,
     '/referrals': Referrals,
-    '/community': ReferralProgram,
+    '/community': Dashboard,
     '/community/contributions': Contributions,
     '/community/all-contributions': AllContributions,
     '/community/referrals': Referrals,

@@ -48,9 +48,9 @@
       category: 'validator',
     },
     {
-      key: 'creator_count',
+      key: 'community_member_count',
       label: 'Community Members',
-      value: stats ? formatNumber(stats.creator_count ?? stats.participant_count) : '—',
+      value: stats ? formatNumber(stats.community_member_count ?? stats.creator_count ?? stats.participant_count) : '—',
       delta: '+15%',
       category: 'community',
     },
