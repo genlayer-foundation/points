@@ -40,6 +40,13 @@ from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from ethereum_auth.authentication import EthereumAuthentication
 
+METRICS_POINTS_EXCLUDED_TYPE_SLUGS = [
+    'builder-welcome',
+    'builder',
+    'community-link-x',
+    'community-link-discord',
+]
+
 
 class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -1522,7 +1529,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         - accepted: Submissions accepted
         - rejected: Submissions rejected
         - more_info_requested: Submissions requesting more info
-        - points_awarded: Total points from accepted contributions
+        - points_awarded: Total points from accepted contributions, excluding
+          onboarding and social-linking awards
 
         The `totals` block also includes `pending_review`: submissions created
         in the date range that are still in the pending state, respecting the
@@ -1643,6 +1651,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             created_at__date__gte=start_date,
             created_at__date__lte=end_date,
             source_submission__isnull=False  # Only from submissions
+        ).exclude(
+            contribution_type__slug__in=METRICS_POINTS_EXCLUDED_TYPE_SLUGS
         )
 
         # Apply category/type filters to points query if specified

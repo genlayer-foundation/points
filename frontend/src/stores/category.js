@@ -82,7 +82,7 @@ export const categoryTheme = derived(currentCategory, $category => {
     },
     steward: {
       // Green/nature theme
-      bg: 'bg-green-50',
+      bg: 'bg-white',
       bgSecondary: 'bg-green-100',
       primary: 'bg-green-600',
       primaryHover: 'hover:bg-green-700',
@@ -97,7 +97,7 @@ export const categoryTheme = derived(currentCategory, $category => {
     },
     community: {
       // Purple theme
-      bg: 'bg-purple-50',
+      bg: 'bg-white',
       bgSecondary: 'bg-purple-100',
       primary: 'bg-purple-600',
       primaryHover: 'hover:bg-purple-700',
