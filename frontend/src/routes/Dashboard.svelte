@@ -10,6 +10,7 @@
   import RankedList from '../components/ui/RankedList.svelte';
   import UserCardScroller from '../components/ui/UserCardScroller.svelte';
   import PortalHighlights from '../components/portal/PortalHighlights.svelte';
+  import PortalContributionCard from '../components/portal/PortalContributionCard.svelte';
   import CTASection from '../components/ui/CTASection.svelte';
   import Podium from '../components/ui/Podium.svelte';
 
@@ -31,6 +32,9 @@
   let waitlistLoading = $state(true);
   let trendingLoading = $state(true);
   let recentLoading = $state(true);
+  let recentSlider = $state(null);
+  let canRecentLeft = $state(false);
+  let canRecentRight = $state(false);
 
   let category = $derived($currentCategory);
   let isBuilder = $derived(category === 'builder');
@@ -42,11 +46,21 @@
     isBuilder ? "Builder's Live Dashboard" : isCommunity ? "Community Live Dashboard" : "Validator's Live Dashboard"
   );
   let leaderboardTitle = $derived(isCommunity ? 'Top Community Contributors' : 'Top Contributors');
-  let leaderboardSubtitle = $derived(isCommunity ? 'Highest community contribution points' : 'This month curated builds');
+  let leaderboardSubtitle = $derived(
+    isCommunity
+      ? 'This month community contributions'
+      : isValidator
+        ? 'All-time validator contributors'
+        : 'This month curated builds'
+  );
   let leaderboardPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/leaderboard' : '/validators/leaderboard');
-  let podiumTitle = $derived(isCommunity ? 'Community Podium' : "This month's Podium");
+  let podiumTitle = $derived(isValidator ? 'All-time Podium' : "This month's Podium");
   let podiumSubtitle = $derived(
-    isCommunity ? "Who's contributing most to the community?" : "Who's contributing more to GenLayer this month?"
+    isCommunity
+      ? "Who's contributing most to the community this month?"
+      : isValidator
+        ? "Who's contributed most to GenLayer?"
+        : "Who's contributing more to GenLayer this month?"
   );
   let newestTitle = $derived(isBuilder ? 'Newest Builders' : isCommunity ? 'Newest Community Contributors' : 'Newest Validators');
   let newestPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/all-contributions' : '/validators/participants');
@@ -78,8 +92,8 @@
     if (cat === 'community') {
       return [
         { value: data.community_member_count ?? data.creator_count ?? data.participant_count, label: 'Community Members', delta: data.new_community_members_count || '', category: 'community' },
-        { value: data.total_points, label: 'Community points earned', delta: data.new_points_count || '', iconSrc: '/assets/icons/gradient-icon-points.svg' },
-        { value: data.contribution_count, label: 'Community Contributions', delta: data.new_contributions_count || '', iconSrc: '/assets/icons/gradient-icon-contributions.svg' },
+        { value: data.total_points, label: 'Community points earned', delta: data.new_points_count || '', category: 'genlayer', hexCategory: 'community' },
+        { value: data.contribution_count, label: 'Community Contributions', delta: data.new_contributions_count || '', category: 'community' },
       ];
     }
     // validator
@@ -101,11 +115,11 @@
         statsLoading = false;
       }).catch(() => { statsLoading = false; }),
 
-      // Top contributors. Community uses actual community contribution points,
-      // not referral points.
-      (cat === 'community'
-        ? leaderboardAPI.getLeaderboard({ type: 'community', limit: 5 })
-        : leaderboardAPI.getMonthlyLeaderboardByType(cat, 5)
+      // Top contributors. Validator dashboard is intentionally all-time;
+      // builder and community dashboards use current-month contribution totals.
+      (cat === 'validator'
+          ? leaderboardAPI.getLeaderboard({ type: 'validator', order: 'asc', limit: 5 })
+          : leaderboardAPI.getMonthlyLeaderboardByType(cat, 5)
       ).then(res => {
         leaderboardEntries = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
         leaderboardLoading = false;
@@ -190,6 +204,27 @@
     if (isBuilder) return `/builders/contribution/${contrib.id}`;
     return `/badge/${contrib.id}`;
   }
+
+  function updateRecentArrows() {
+    if (!recentSlider) return;
+    const { scrollLeft, scrollWidth, clientWidth } = recentSlider;
+    canRecentLeft = scrollLeft > 4;
+    canRecentRight = scrollLeft + clientWidth < scrollWidth - 4;
+  }
+
+  function scrollRecent(direction) {
+    if (!recentSlider) return;
+    recentSlider.scrollBy({
+      left: direction * Math.round(recentSlider.clientWidth * 0.8),
+      behavior: 'smooth',
+    });
+  }
+
+  $effect(() => {
+    if (!recentSlider) return;
+    void recentContributions.length;
+    requestAnimationFrame(updateRecentArrows);
+  });
 </script>
 
 <div class="space-y-8">
@@ -309,46 +344,115 @@
           linkText="View all"
           linkPath={isCommunity ? '/community/all-contributions' : '/validators/contributions'}
         />
-        <div class="bg-white border border-[#f7f7f7] rounded-[8px] overflow-clip p-[16px]">
-          {#if recentLoading}
-            <div class="space-y-3 animate-pulse">
-              {#each [1, 2, 3, 4, 5] as _}
-                <div class="h-[40px] flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-full bg-gray-200"></div>
-                  <div class="flex-1 space-y-1">
-                    <div class="h-3 bg-gray-200 rounded w-32"></div>
-                    <div class="h-2.5 bg-gray-100 rounded w-20"></div>
-                  </div>
-                  <div class="h-3 bg-gray-100 rounded w-16"></div>
-                </div>
-              {/each}
-            </div>
-          {:else if recentContributions.length === 0}
-            <div class="py-6 text-center text-sm text-[#6b6b6b]">No recent contributions</div>
-          {:else}
-            <div class="space-y-2">
-              {#each recentContributions as contrib}
-                <button
-                  onclick={() => push(contributionPath(contrib))}
-                  class="w-full flex items-center gap-3 py-2 px-1 hover:bg-gray-50 rounded transition-colors text-left"
-                >
-                  {#if contrib.user_details?.profile_image_url}
-                    <img src={contrib.user_details.profile_image_url} alt="" class="w-8 h-8 rounded-full">
-                  {:else}
-                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium {isCommunity ? 'bg-purple-100 text-purple-600' : 'bg-sky-100 text-sky-600'}">
-                      {(contrib.user_details?.name || contrib.user_name || '?')[0].toUpperCase()}
+        {#if isCommunity}
+          <div class="relative">
+            {#if recentLoading}
+              <div class="flex gap-3 overflow-hidden pb-2">
+                {#each [1, 2, 3, 4, 5] as _}
+                  <div class="w-[300px] h-[180px] flex-shrink-0 rounded-[8px] border border-[#f0f0f0] bg-white p-4 animate-pulse">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <div class="w-6 h-6 rounded-full bg-gray-200"></div>
+                        <div class="h-3 w-20 rounded bg-gray-200"></div>
+                      </div>
+                      <div class="h-5 w-14 rounded-full bg-gray-100"></div>
                     </div>
-                  {/if}
-                  <div class="flex-1 min-w-0">
-                    <p class="text-[13px] font-medium text-black truncate">{contrib.contribution_type_name || 'Contribution'}</p>
-                    <p class="text-[11px] text-[#999]">{contrib.user_details?.name || contrib.user_name || 'Anonymous'}</p>
+                    <div class="mt-5 space-y-2">
+                      <div class="h-3 w-3/4 rounded bg-gray-200"></div>
+                      <div class="h-2.5 w-full rounded bg-gray-100"></div>
+                      <div class="h-2.5 w-5/6 rounded bg-gray-100"></div>
+                    </div>
+                    <div class="mt-8 flex items-center justify-between">
+                      <div class="h-5 w-24 rounded-full bg-gray-100"></div>
+                      <div class="h-3 w-16 rounded bg-gray-100"></div>
+                    </div>
                   </div>
-                  <span class="text-[12px] text-[#bbb] flex-shrink-0">{formatContribDate(contrib.contribution_date)}</span>
+                {/each}
+              </div>
+            {:else if recentContributions.length === 0}
+              <div class="rounded-[8px] border border-dashed border-[#e6e6e6] bg-[#fafafa] px-6 py-10 text-center text-sm text-[#6b6b6b]">
+                No recent contributions
+              </div>
+            {:else}
+              <div
+                bind:this={recentSlider}
+                onscroll={updateRecentArrows}
+                class="hide-scrollbar flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scroll-smooth"
+              >
+                {#each recentContributions as contribution (contribution.id)}
+                  <div class="w-[300px] max-w-[82vw] flex-shrink-0">
+                    <PortalContributionCard
+                      {contribution}
+                      category="community"
+                      pathPrefix="/community/contribution"
+                    />
+                  </div>
+                {/each}
+              </div>
+              {#if canRecentLeft}
+                <button
+                  type="button"
+                  onclick={() => scrollRecent(-1)}
+                  aria-label="Scroll recent contributions left"
+                  class="absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#e6e6e6] bg-white shadow-md transition-all hover:bg-[#fafafa] hover:shadow-lg sm:flex"
+                >
+                  <img src="/assets/icons/arrow-left-s-line.svg" alt="" class="h-5 w-5" />
                 </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
+              {/if}
+              {#if canRecentRight}
+                <button
+                  type="button"
+                  onclick={() => scrollRecent(1)}
+                  aria-label="Scroll recent contributions right"
+                  class="absolute right-0 top-1/2 z-10 hidden h-11 w-11 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#e6e6e6] bg-white shadow-md transition-all hover:bg-[#fafafa] hover:shadow-lg sm:flex"
+                >
+                  <img src="/assets/icons/arrow-right-s-line.svg" alt="" class="h-5 w-5" />
+                </button>
+              {/if}
+            {/if}
+          </div>
+        {:else}
+          <div class="bg-white border border-[#f7f7f7] rounded-[8px] overflow-clip p-[16px]">
+            {#if recentLoading}
+              <div class="space-y-3 animate-pulse">
+                {#each [1, 2, 3, 4, 5] as _}
+                  <div class="h-[40px] flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-gray-200"></div>
+                    <div class="flex-1 space-y-1">
+                      <div class="h-3 bg-gray-200 rounded w-32"></div>
+                      <div class="h-2.5 bg-gray-100 rounded w-20"></div>
+                    </div>
+                    <div class="h-3 bg-gray-100 rounded w-16"></div>
+                  </div>
+                {/each}
+              </div>
+            {:else if recentContributions.length === 0}
+              <div class="py-6 text-center text-sm text-[#6b6b6b]">No recent contributions</div>
+            {:else}
+              <div class="space-y-2">
+                {#each recentContributions as contrib}
+                  <button
+                    onclick={() => push(contributionPath(contrib))}
+                    class="w-full flex items-center gap-3 py-2 px-1 hover:bg-gray-50 rounded transition-colors text-left"
+                  >
+                    {#if contrib.user_details?.profile_image_url}
+                      <img src={contrib.user_details.profile_image_url} alt="" class="w-8 h-8 rounded-full">
+                    {:else}
+                      <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium bg-sky-100 text-sky-600">
+                        {(contrib.user_details?.name || contrib.user_name || '?')[0].toUpperCase()}
+                      </div>
+                    {/if}
+                    <div class="flex-1 min-w-0">
+                      <p class="text-[13px] font-medium text-black truncate">{contrib.contribution_type_name || 'Contribution'}</p>
+                      <p class="text-[11px] text-[#999]">{contrib.user_details?.name || contrib.user_name || 'Anonymous'}</p>
+                    </div>
+                    <span class="text-[12px] text-[#bbb] flex-shrink-0">{formatContribDate(contrib.contribution_date)}</span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
@@ -402,3 +506,14 @@
     {/if}
   </div>
 </div>
+
+<style>
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+</style>
