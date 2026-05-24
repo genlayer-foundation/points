@@ -105,7 +105,20 @@ export const submissionsAPI = {
 
 // API endpoints for leaderboard
 export const leaderboardAPI = {
-  getLeaderboard: (params) => api.get('/leaderboard/', { params }),
+  getLeaderboard: (params = {}) => {
+    const { type, category, ...restParams } = params;
+    const leaderboardType = type || category;
+
+    if (leaderboardType === 'community') {
+      return api.get('/leaderboard/community/', { params: restParams });
+    }
+
+    if (leaderboardType) {
+      return api.get('/leaderboard/', { params: { type: leaderboardType, ...restParams } });
+    }
+
+    return api.get('/leaderboard/', { params: restParams });
+  },
   getLeaderboardByType: (type, order = 'asc', additionalParams = {}) =>
     api.get('/leaderboard/', { params: { type, order, ...additionalParams } }),
   getLeaderboardEntry: (address) => api.get(`/leaderboard/?user_address=${address}`),
@@ -117,8 +130,9 @@ export const leaderboardAPI = {
   getWaitlistTop: (limit = 10) => api.get('/leaderboard/validator-waitlist/top/', { params: { limit } }),
   getMonthlyLeaderboardByType: (type, limit = 10) =>
     api.get('/leaderboard/monthly/', { params: { type, limit } }),
-  getCommunity: (params = {}) => api.get('/leaderboard/community/', { params }),
-  getCommunityContributors: (params = {}) => api.get('/leaderboard/community-contributors/', { params }),
+  getCommunity: (params = {}) => leaderboardAPI.getLeaderboard({ type: 'community', ...params }),
+  getCommunityContributors: (params = {}) => leaderboardAPI.getLeaderboard({ type: 'community', ...params }),
+  getReferrals: (params = {}) => api.get('/leaderboard/referrals/', { params }),
   getTrending: (limit = 10) => api.get('/leaderboard/trending/', { params: { limit } }),
   getTypes: () => api.get('/leaderboard/types/'),
   recalculateAll: () => api.post('/leaderboard/recalculate/')

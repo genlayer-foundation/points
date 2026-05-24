@@ -154,7 +154,8 @@
         // Fetch community rank only if user is a creator
         if (isCreator) {
             (leaderboardAPI as any)
-                .getCommunity({
+                .getLeaderboard({
+                    type: "community",
                     limit: 1,
                     user_address: addr,
                 })
@@ -624,7 +625,7 @@
                                     >Join the community</span
                                 >
                                 <span class="text-[12px] text-[#6b6b6b]"
-                                    >Become a referrer to earn community points</span
+                                    >Link socials and submit community contributions</span
                                 >
                             </div>
                         </div>

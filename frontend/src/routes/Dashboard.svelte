@@ -43,7 +43,7 @@
   );
   let leaderboardTitle = $derived(isCommunity ? 'Top Community Contributors' : 'Top Contributors');
   let leaderboardSubtitle = $derived(isCommunity ? 'Highest community contribution points' : 'This month curated builds');
-  let leaderboardPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/all-contributions' : '/validators/leaderboard');
+  let leaderboardPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/leaderboard' : '/validators/leaderboard');
   let podiumTitle = $derived(isCommunity ? 'Community Podium' : "This month's Podium");
   let podiumSubtitle = $derived(
     isCommunity ? "Who's contributing most to the community?" : "Who's contributing more to GenLayer this month?"
@@ -104,7 +104,7 @@
       // Top contributors. Community uses actual community contribution points,
       // not referral points.
       (cat === 'community'
-        ? leaderboardAPI.getCommunityContributors({ limit: 5 })
+        ? leaderboardAPI.getLeaderboard({ type: 'community', limit: 5 })
         : leaderboardAPI.getMonthlyLeaderboardByType(cat, 5)
       ).then(res => {
         leaderboardEntries = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);

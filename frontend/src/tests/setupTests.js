@@ -146,6 +146,8 @@ vi.mock('../lib/api', () => {
       getParticipantCount: vi.fn().mockResolvedValue({ data: { count: 10 } }),
       getCurrentUser: vi.fn().mockResolvedValue(mockUserData.data),
       updateUserProfile: vi.fn().mockResolvedValue(mockUserData.data),
+      getReferrals: vi.fn().mockResolvedValue({ data: { total_referrals: 0, builder_points: 0, validator_points: 0, referrals: [] } }),
+      getReferralPoints: vi.fn().mockResolvedValue({ data: { builder_points: 0, validator_points: 0 } }),
       searchUsers: vi.fn().mockResolvedValue({ data: { results: [] } })
     },
     contributionsAPI: {
@@ -164,6 +166,8 @@ vi.mock('../lib/api', () => {
       getMultiplierPeriods: vi.fn().mockResolvedValue({ data: { results: [] } }),
       getStats: vi.fn().mockResolvedValue(mockStatsData),
       getMonthlyLeaderboardByType: vi.fn().mockResolvedValue(mockLeaderboardData),
+      getCommunity: vi.fn().mockResolvedValue({ data: { results: [] } }),
+      getReferrals: vi.fn().mockResolvedValue({ data: { results: [] } }),
       getWaitlistTop: vi.fn().mockResolvedValue({ data: [] }),
       getTrending: vi.fn().mockResolvedValue({ data: [] })
     },
