@@ -10,6 +10,7 @@
   import { categoryTheme, currentCategory, detectCategoryFromRoute } from './stores/category.js';
   import { location } from 'svelte-spa-router';
   import { resetPageMeta } from './lib/meta.js';
+  import { normalizeLocation } from './lib/normalizePath.js';
   
   // Early OAuth result detection — runs before routes mount.
   // Backend redirects here with ?oauth_platform=X&oauth_verified=true/false&oauth_error=...
@@ -48,22 +49,12 @@
     }
   }
 
-  // The portal uses hash routing. Normalize pasted/local links such as
-  // /claim/poap/:token so mint links work on localhost and 127.0.0.1.
-  {
-    const path = window.location.pathname;
-    const shouldNormalize =
-      !window.location.hash &&
-      (path.startsWith('/claim/poap/') || path.startsWith('/community/poaps/'));
-
-    if (shouldNormalize) {
-      window.history.replaceState(
-        {},
-        '',
-        `/#${path}${window.location.search || ''}`
-      );
-    }
-  }
+  // The portal uses hash routing. Direct/path-based links (sidebar hrefs opened
+  // in a new tab, refreshes of a path route, shared or indexed links such as
+  // /testnets and /metrics) arrive without a hash and would otherwise 404.
+  // Rewrite any such path into its hash equivalent so the router resolves it;
+  // unknown paths still fall through to the router's own NotFound view.
+  normalizeLocation(window);
 
   // State for sidebar toggle on mobile and collapse on desktop
   let sidebarOpen = $state(false);
