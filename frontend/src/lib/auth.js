@@ -3,6 +3,7 @@ import axios from 'axios';
 import { writable } from 'svelte/store';
 import { userStore } from './userStore';
 import { API_BASE_URL } from './config.js';
+import { attachCsrfToken } from './csrf.js';
 
 // Create a Svelte store for authentication state
 const createAuthStore = () => {
@@ -98,6 +99,14 @@ const authAxios = axios.create({
     'Content-Type': 'application/json'
   }
 });
+
+authAxios.interceptors.request.use(
+  async (config) => {
+    config.withCredentials = true;
+    return attachCsrfToken(config);
+  },
+  (error) => Promise.reject(error)
+);
 
 // Authentication API endpoints (relative to base URL, not api/v1)
 const API_ENDPOINTS = {

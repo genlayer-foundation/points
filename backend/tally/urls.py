@@ -23,7 +23,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
 
-from django.views.decorators.csrf import csrf_exempt
+from django.middleware.csrf import get_token
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from django.views import View
 
@@ -32,6 +33,15 @@ from django.views import View
 def health_check(request):
     """Simple health check endpoint that bypasses host validation"""
     return JsonResponse({"status": "healthy", "service": "tally-backend"})
+
+
+@ensure_csrf_cookie
+def csrf_token(request):
+    """Expose the active CSRF cookie name and ensure the cookie is set."""
+    return JsonResponse({
+        "csrfToken": get_token(request),
+        "csrfCookieName": settings.CSRF_COOKIE_NAME,
+    })
 
 # Schema view for Swagger documentation
 schema_view = get_schema_view(
@@ -52,6 +62,9 @@ urlpatterns = [
     
     # Health check endpoint
     path('health/', health_check, name='health_check'),
+
+    # CSRF bootstrap endpoint for the SPA
+    path('api/csrf/', csrf_token, name='csrf_token'),
     
     # API endpoints
     path('api/v1/', include('api.urls')),

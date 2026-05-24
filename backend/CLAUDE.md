@@ -66,6 +66,7 @@ backend/
 - **Models**: `contributions/models.py`
   - Contribution - Individual contribution records
   - ContributionType - Categories with slug field, has M2M `accepted_evidence_url_types`
+  - FeaturedContent - Portal hero/community/validator-steward content managed through admin
   - ContributionTypeMultiplier - Dynamic point multipliers
   - Evidence - Evidence items with `url_type` FK for auto-detected URL type, `normalized_url` indexed field for fast duplicate detection (text descriptions and URLs only - file uploads are disabled)
   - EvidenceURLType - Defines URL type categories (X Post, GitHub PR, etc.) with regex patterns for auto-detection and handle ownership validation
@@ -79,6 +80,12 @@ backend/
   - Custom DRF serializer field for Google reCAPTCHA v2 validation
   - Validates tokens from frontend reCAPTCHA widget
   - Required for new contribution submissions only (not for edits)
+
+### Projects
+- **Models**: `projects/models.py`
+  - Project - Project profile with website/GitHub links, description, usage notes, details, media, participants, and related accepted contributions
+  - ProjectMetric - Admin-managed title/value/detail metric rows for project pages
+  - ProjectPageRevision - Owner-submitted ordered page blocks rendered through whitelisted portal components
 - **AI Review**: `contributions/ai_review/views.py`
   - `/api/v1/ai-review/` - List pending submissions for the external AI review agent
   - `/api/v1/ai-review/{id}/` - Retrieve a pending submission with evidence and user history
@@ -260,6 +267,10 @@ GET    /api/v1/ai-review/templates/
 # Partners (Ecosystem Partners)
 GET    /api/v1/partners/                   (public, list active partners)
 GET    /api/v1/partners/{slug}/            (public, partner detail)
+
+# Projects
+GET    /api/v1/projects/                   (public, active project profiles)
+GET    /api/v1/projects/{slug}/            (public, project detail with metrics and related contributions)
 
 # Gen TV
 GET    /api/v1/gen-tv/streams/             (public, supports ?category= filter)

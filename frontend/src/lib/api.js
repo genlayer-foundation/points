@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from './config.js';
+import { attachCsrfToken } from './csrf.js';
 
 // Create axios instance with base configuration
 const api = axios.create({
@@ -13,7 +14,7 @@ const api = axios.create({
 
 // Add request interceptor to ensure credentials are always sent
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // Ensure withCredentials is always true
     config.withCredentials = true;
     
@@ -22,7 +23,7 @@ api.interceptors.request.use(
       delete config.headers['Content-Type'];
     }
     
-    return config;
+    return attachCsrfToken(config);
   },
   (error) => {
     return Promise.reject(error);
@@ -270,9 +271,23 @@ export const updateUserProfile = async (data) => {
 export const featuredAPI = {
   getFeatured: (params) => api.get('/featured/', { params }),
   getHero: () => api.get('/featured/', { params: { type: 'hero' } }),
-  getBuilds: () => api.get('/featured/', { params: { type: 'build' } }),
   getCommunity: () => api.get('/featured/', { params: { type: 'community' } }),
   getValidatorsStewards: () => api.get('/featured/', { params: { type: 'validator_steward' } }),
+};
+
+// Project profile API
+export const projectsAPI = {
+  list: () => api.get('/projects/'),
+  /** @param {string} slug */
+  get: (slug) => api.get(`/projects/${slug}/`),
+  /** @param {string} slug @param {Record<string, any>} data */
+  updateProfile: (slug, data) => api.patch(`/projects/${slug}/profile/`, data),
+  /** @param {string} slug @param {FormData} formData */
+  uploadImage: (slug, formData) => api.post(`/projects/${slug}/upload-image/`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
 };
 
 // Alerts API

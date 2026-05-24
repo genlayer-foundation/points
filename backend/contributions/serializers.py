@@ -93,8 +93,22 @@ class LightContributionSerializer(serializers.Serializer):
     contribution_date = serializers.DateTimeField(read_only=True)
     notes = serializers.CharField(read_only=True)
     title = serializers.CharField(read_only=True, allow_blank=True)
+    is_highlighted = serializers.SerializerMethodField()
+    highlight = serializers.SerializerMethodField()
     evidence_items = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(read_only=True)
+
+    def get_highlight(self, obj):
+        highlight = next(iter(obj.highlights.all()), None)
+        if not highlight:
+            return None
+        return {
+            'title': highlight.title,
+            'description': highlight.description,
+        }
+
+    def get_is_highlighted(self, obj):
+        return bool(self.get_highlight(obj))
 
     def get_evidence_items(self, obj):
         """Returns serialized evidence items for this contribution."""

@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { partnersAPI, validatorsAPI, featuredAPI } from '../lib/api.js';
+  import { partnersAPI, validatorsAPI, projectsAPI } from '../lib/api.js';
   import PartnerCard from '../components/portal/partners/PartnerCard.svelte';
 
   const SECTIONS = [
@@ -66,7 +66,7 @@
   }
 
   function normalizeProject(b) {
-    const link = b.link || b.url || '';
+    const link = b.slug ? `#/builders/projects/${b.slug}` : (b.link || b.url || '');
     return {
       id: `project-${b.id || b.title}`,
       name: b.title || b.name || 'Project',
@@ -87,7 +87,7 @@
     const [partnersRes, validatorsRes, buildsRes] = await Promise.allSettled([
       partnersAPI.list({ page_size: 200 }),
       validatorsAPI.getAllValidators(),
-      featuredAPI.getBuilds(),
+      projectsAPI.list(),
     ]);
 
     const partners =
