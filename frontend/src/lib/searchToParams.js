@@ -109,6 +109,34 @@ export function searchToParams(parsed, options = {}) {
     }
   }
 
+  // reviewed → reviewed_by (the steward who actually accepted/rejected/requested info)
+  if (filters.reviewed) {
+    const val = filters.reviewed.value.toLowerCase();
+    let reviewedValue = null;
+
+    if (val === 'me' && currentUserId) {
+      reviewedValue = currentUserId;
+    } else {
+      const steward = stewardsList.find(s =>
+        String(s.user_id) === filters.reviewed.value ||
+        s.name?.toLowerCase().includes(val) ||
+        s.user_name?.toLowerCase().includes(val) ||
+        s.address?.toLowerCase().includes(val)
+      );
+      if (steward) {
+        reviewedValue = steward.user_id;
+      }
+    }
+
+    if (reviewedValue) {
+      if (filters.reviewed.negated) {
+        params.exclude_reviewed_by = reviewedValue;
+      } else {
+        params.reviewed_by = reviewedValue;
+      }
+    }
+  }
+
   // exclude → exclude_content (comma-separated for multiple values)
   if (filters.exclude && filters.exclude.length > 0) {
     params.exclude_content = filters.exclude.join(',');

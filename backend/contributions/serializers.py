@@ -844,6 +844,34 @@ class StewardSubmissionReviewSerializer(serializers.Serializer):
         return data
 
 
+class StewardAcceptedSubmissionUpdateSerializer(serializers.Serializer):
+    """Serializer for correcting accepted submission awards."""
+    points = serializers.IntegerField(required=True, min_value=0)
+    create_highlight = serializers.BooleanField(default=False, required=False)
+    highlight_title = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    highlight_description = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, data):
+        contribution_type = self.context['contribution_type']
+        points = data['points']
+        if points < contribution_type.min_points or points > contribution_type.max_points:
+            raise serializers.ValidationError({
+                'points': f'Points must be between {contribution_type.min_points} and {contribution_type.max_points} for {contribution_type.name}.'
+            })
+
+        if data.get('create_highlight'):
+            if not data.get('highlight_title'):
+                raise serializers.ValidationError({
+                    'highlight_title': 'Title is required when creating a highlight.'
+                })
+            if not data.get('highlight_description'):
+                raise serializers.ValidationError({
+                    'highlight_description': 'Description is required when creating a highlight.'
+                })
+
+        return data
+
+
 class SubmissionNoteSerializer(serializers.ModelSerializer):
     """Serializer for CRM notes on submissions."""
     user_name = serializers.SerializerMethodField()
@@ -995,10 +1023,37 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
         return EvidenceSerializer(evidence_items, many=True, context=self.context).data
 
     def get_contribution(self, obj):
-        if self.context.get('use_light_serializers', False):
-            return None
-
         if obj.converted_contribution:
+            if self.context.get('use_light_serializers', False):
+                contribution = obj.converted_contribution
+                highlight = next(iter(contribution.highlights.all()), None)
+                return {
+                    'id': contribution.id,
+                    'user': contribution.user_id,
+                    'user_details': LightUserSerializer(contribution.user).data,
+                    'contribution_type': contribution.contribution_type_id,
+                    'contribution_type_name': contribution.contribution_type.name,
+                    'contribution_type_min_points': contribution.contribution_type.min_points,
+                    'contribution_type_max_points': contribution.contribution_type.max_points,
+                    'contribution_type_details': LightContributionTypeSerializer(
+                        contribution.contribution_type
+                    ).data,
+                    'points': contribution.points,
+                    'frozen_global_points': contribution.frozen_global_points,
+                    'multiplier_at_creation': str(contribution.multiplier_at_creation) if contribution.multiplier_at_creation is not None else None,
+                    'contribution_date': contribution.contribution_date,
+                    'notes': contribution.notes,
+                    'title': contribution.title,
+                    'highlight': {
+                        'title': highlight.title,
+                        'description': highlight.description
+                    } if highlight else None,
+                    'is_highlighted': bool(highlight),
+                    'mission': LightMissionSerializer(contribution.mission).data if contribution.mission else None,
+                    'created_at': contribution.created_at,
+                    'updated_at': contribution.updated_at,
+                }
+
             from .models import ContributionHighlight
             contrib_context = self.context.copy()
             contrib_context['use_light_serializers'] = True
