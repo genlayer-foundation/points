@@ -1237,6 +1237,7 @@ class FeaturedContentSerializer(serializers.ModelSerializer):
         model = FeaturedContent
         fields = ['id', 'content_type', 'title', 'description', 'author',
                   'hero_image_url', 'hero_image_url_tablet', 'hero_image_url_mobile',
+                  'hero_placements',
                   'url', 'link',
                   'user', 'user_name', 'user_address', 'user_profile_image_url',
                   'featured_profile_image_url',

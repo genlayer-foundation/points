@@ -292,7 +292,7 @@ export const updateUserProfile = async (data) => {
 // Featured content API
 export const featuredAPI = {
   getFeatured: (params) => api.get('/featured/', { params }),
-  getHero: () => api.get('/featured/', { params: { type: 'hero' } }),
+  getHero: (params = {}) => api.get('/featured/', { params: { type: 'hero', ...params } }),
   getCommunity: () => api.get('/featured/', { params: { type: 'community' } }),
   getValidatorsStewards: () => api.get('/featured/', { params: { type: 'validator_steward' } }),
 };
