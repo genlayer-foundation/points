@@ -6,8 +6,16 @@
   import UpcomingStreamsSlider from '../components/portal/gen-tv/UpcomingStreamsSlider.svelte';
 
   let streams = $state([]);
+  let categories = $state([]);
   let loading = $state(true);
   let error = $state('');
+  let searchQuery = $state('');
+  let selectedCategory = $state('all');
+
+  const broadCategories = [
+    { value: 'broad:internal', label: 'Internal team' },
+    { value: 'broad:community', label: 'Community' },
+  ];
 
   function devIso(offsetMinutes) {
     return new Date(Date.now() + offsetMinutes * 60000).toISOString();
@@ -20,6 +28,7 @@
       image_url: 'https://res.cloudinary.com/dfqmoeawa/image/upload/gen_tv/gentalks-ep13.png',
       url: 'https://x.com/GenLayer',
       category: 'internal',
+      category_display: 'Internal team',
       ...overrides,
     };
   }
@@ -51,6 +60,7 @@
         ends_at: devIso(35),
         status: 'live',
         category: 'community',
+        category_display: 'Community',
       }),
       devStream({
         id: 'dev-upcoming-preview-1',
@@ -98,6 +108,7 @@
         ends_at: devIso(1470),
         status: 'upcoming',
         category: 'community',
+        category_display: 'Community',
       }),
     ];
   }
@@ -112,27 +123,80 @@
     return [...createDevPreviewStreams(), ...items];
   }
 
+  function categoryMatches(stream) {
+    if (selectedCategory === 'all') return true;
+
+    if (selectedCategory.startsWith('broad:')) {
+      return stream.category === selectedCategory.replace('broad:', '');
+    }
+
+    if (selectedCategory.startsWith('detail:')) {
+      return stream.detailed_category?.slug === selectedCategory.replace('detail:', '');
+    }
+
+    return true;
+  }
+
+  function streamSearchText(stream) {
+    return [
+      stream.title,
+      stream.description,
+      stream.category_display,
+      stream.category,
+      stream.detailed_category?.name,
+      stream.detailed_category?.group_display,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+  }
+
+  let categoryOptions = $derived([
+    { value: 'all', label: 'All categories' },
+    ...broadCategories,
+    ...categories.map((category) => ({
+      value: `detail:${category.slug}`,
+      label: category.name,
+    })),
+  ]);
+  let normalizedSearchQuery = $derived(searchQuery.trim().toLowerCase());
+  let filteredStreams = $derived(
+    streams.filter((stream) => {
+      const matchesCategory = categoryMatches(stream);
+      const matchesSearch = !normalizedSearchQuery || streamSearchText(stream).includes(normalizedSearchQuery);
+      return matchesCategory && matchesSearch;
+    })
+  );
+  let hasActiveFilters = $derived(selectedCategory !== 'all' || normalizedSearchQuery.length > 0);
   let liveStreams = $derived(
-    streams
+    filteredStreams
       .filter((s) => s.status === 'live')
       .sort((a, b) => new Date(b.starts_at) - new Date(a.starts_at))
   );
   let upcomingStreams = $derived(
-    streams
+    filteredStreams
       .filter((s) => s.status === 'upcoming')
       .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at))
   );
   let pastStreams = $derived(
-    streams
+    filteredStreams
       .filter((s) => s.status === 'past')
       .sort((a, b) => new Date(b.starts_at) - new Date(a.starts_at))
   );
-  let hasStreams = $derived(liveStreams.length || upcomingStreams.length || pastStreams.length);
+  let hasStreams = $derived(streams.length > 0);
+  let hasFilteredStreams = $derived(liveStreams.length || upcomingStreams.length || pastStreams.length);
 
   onMount(async () => {
     try {
-      const res = await genTvAPI.list();
-      streams = withDevPreviewStreams(res.data?.results || res.data || []);
+      const streamsRes = await genTvAPI.list();
+      streams = withDevPreviewStreams(streamsRes.data?.results || streamsRes.data || []);
+
+      try {
+        const categoriesRes = await genTvAPI.categories();
+        categories = categoriesRes.data?.results || categoriesRes.data || [];
+      } catch {
+        categories = [];
+      }
     } catch (err) {
       if (shouldShowDevPreviewStreams()) {
         streams = createDevPreviewStreams();
@@ -166,13 +230,49 @@
     loading="eager"
   />
 
-  <header class="relative z-10 space-y-2 pr-[170px] sm:pr-[260px] lg:pr-[390px]">
-      <h1 class="text-[42px] sm:text-[56px] md:text-[64px] font-semibold font-display text-black leading-none" style="letter-spacing: -1.6px;">
-        Gen TV
-      </h1>
-      <p class="max-w-[560px] text-[14px] sm:text-[15px] text-[#3f4b5f]" style="letter-spacing: 0.2px;">
-        Live and recorded streams from the GenLayer team and community.
-      </p>
+  <header class="relative z-10 pr-[170px] sm:pr-[260px] lg:pr-[390px]">
+      <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div class="space-y-2">
+          <h1 class="text-[42px] sm:text-[56px] md:text-[64px] font-semibold font-display text-black leading-none">
+            Gen TV
+          </h1>
+          <p class="max-w-[560px] text-[14px] sm:text-[15px] text-[#3f4b5f]" style="letter-spacing: 0.2px;">
+            Live and recorded streams from the GenLayer team and community.
+          </p>
+        </div>
+
+        <div class="flex w-full max-w-[540px] flex-col gap-2 sm:flex-row xl:pt-2">
+          <label class="relative min-w-0 flex-1">
+            <span class="sr-only">Search Gen TV streams</span>
+            <input
+              bind:value={searchQuery}
+              type="search"
+              placeholder="Search streams or categories"
+              class="h-10 w-full rounded-[8px] border border-black/10 bg-white/85 px-3 pr-9 text-[14px] text-black shadow-sm backdrop-blur placeholder:text-[#7d8794] focus:border-black/30 focus:outline-none focus:ring-2 focus:ring-black/10"
+            />
+            <img
+              src="/assets/icons/search-line.svg"
+              alt=""
+              class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 opacity-50"
+            />
+          </label>
+
+          <label class="relative sm:w-[190px]">
+            <span class="sr-only">Filter Gen TV categories</span>
+            <select
+              bind:value={selectedCategory}
+              class="h-10 w-full appearance-none rounded-[8px] border border-black/10 bg-white/85 px-3 pr-8 text-[14px] font-medium text-black shadow-sm backdrop-blur focus:border-black/30 focus:outline-none focus:ring-2 focus:ring-black/10"
+            >
+              {#each categoryOptions as option (option.value)}
+                <option value={option.value}>{option.label}</option>
+              {/each}
+            </select>
+            <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[#7d8794]">
+              ▾
+            </span>
+          </label>
+        </div>
+      </div>
   </header>
 
   {#if loading}
@@ -193,6 +293,13 @@
       <h3 class="font-heading font-semibold text-black">No streams yet</h3>
       <p class="mt-1 text-[14px] text-[#6b6b6b]">
         Streams will appear here once they're scheduled.
+      </p>
+    </div>
+  {:else if !hasFilteredStreams}
+    <div class="relative z-10 bg-[#f8f8f8] rounded-[8px] p-12 text-center">
+      <h3 class="font-heading font-semibold text-black">No matching streams</h3>
+      <p class="mt-1 text-[14px] text-[#6b6b6b]">
+        {hasActiveFilters ? 'Try a different search or category filter.' : "Streams will appear here once they're scheduled."}
       </p>
     </div>
   {:else}

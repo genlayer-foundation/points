@@ -184,9 +184,9 @@
 
   function handleGetReferral() {
     if ($authState.isAuthenticated) {
-      push('/referrals');
+      push('/community/referrals');
     } else {
-      sessionStorage.setItem('redirectAfterLogin', '/referrals');
+      sessionStorage.setItem('redirectAfterLogin', '/community/referrals');
       const authButton = document.querySelector('[data-auth-button]');
       if (authButton) authButton.click();
     }

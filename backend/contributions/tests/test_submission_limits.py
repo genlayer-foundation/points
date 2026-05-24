@@ -1,7 +1,9 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -217,6 +219,48 @@ class SubmissionLimitTest(TestCase):
         self.assertEqual(response.data['user_submission_count'], 1)
         self.assertEqual(response.data['user_submissions_remaining'], 0)
         self.assertTrue(response.data['user_is_full'])
+
+    def test_mission_list_exposes_capacity_fields_with_constant_queries(self):
+        self.contribution_type.max_submissions = 4
+        self.contribution_type.save(update_fields=['max_submissions'])
+        mission = Mission.objects.create(
+            name='Limited Mission',
+            description='Test mission',
+            contribution_type=self.contribution_type,
+            max_submissions=3,
+            max_submissions_per_user=1,
+        )
+        other_mission = Mission.objects.create(
+            name='Other Mission',
+            description='Other mission',
+            contribution_type=self.contribution_type,
+        )
+        self._create_submission(state='pending', mission=mission, user=self.user)
+        self._create_submission(state='accepted', mission=mission, user=self.other_user)
+        self._create_submission(state='canceled', mission=mission, user=self.other_user)
+        self._create_submission(state='pending', mission=other_mission, user=self.other_user)
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get('/api/v1/missions/?include_inactive=true&page_size=100')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertLessEqual(len(queries), 4)
+
+        missions = response.data['results']
+        mission_data = next(
+            item for item in missions if item['id'] == mission.id
+        )
+        type_data = mission_data['contribution_type_details']
+
+        self.assertEqual(mission_data['submission_count'], 2)
+        self.assertEqual(mission_data['submissions_remaining'], 1)
+        self.assertFalse(mission_data['is_full'])
+        self.assertEqual(mission_data['user_submission_count'], 1)
+        self.assertEqual(mission_data['user_submissions_remaining'], 0)
+        self.assertTrue(mission_data['user_is_full'])
+        self.assertEqual(type_data['submission_count'], 3)
+        self.assertEqual(type_data['submissions_remaining'], 1)
+        self.assertFalse(type_data['is_full'])
 
     def test_contribution_type_api_exposes_capacity_fields(self):
         self.contribution_type.max_submissions = 2

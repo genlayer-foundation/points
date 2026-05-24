@@ -18,7 +18,7 @@ from tally.middleware.logging_utils import get_app_logger
 from tally.middleware.tracing import trace_external
 
 from .encryption import encrypt_token, decrypt_token
-from .models import UsedOAuthCode
+from .models import PendingOAuthState, UsedOAuthCode
 
 logger = get_app_logger('social_oauth')
 
@@ -120,6 +120,45 @@ class OAuthService:
                 logger.error("Failed to decrypt code_verifier from state")
                 raise signing.BadSignature("Invalid state: code_verifier decryption failed")
         return data
+
+    def create_pending_state(self, user, code_verifier='', redirect_url=''):
+        """Persist bulky state data server-side and return a compact signed state."""
+        PendingOAuthState.cleanup_old(minutes=10)
+        pending = PendingOAuthState.objects.create(
+            state_id=secrets.token_urlsafe(16),
+            platform=self.platform_name,
+            user=user,
+            code_verifier=encrypt_token(code_verifier) if code_verifier else '',
+            redirect_url=validate_redirect_url(redirect_url),
+        )
+        return self.generate_state(user.id, extra_data={'state_id': pending.state_id})
+
+    def consume_pending_state(self, state_data):
+        """Merge server-side state data into a validated state payload."""
+        state_id = state_data.get('state_id')
+        user_id = state_data.get('user_id')
+        if not state_id or not user_id:
+            return state_data
+
+        pending = PendingOAuthState.consume(
+            state_id=state_id,
+            platform=self.platform_name,
+            user_id=user_id,
+        )
+        if not pending:
+            raise signing.BadSignature("Invalid state: pending state not found")
+
+        if pending.code_verifier:
+            try:
+                state_data['code_verifier'] = decrypt_token(pending.code_verifier)
+            except Exception:
+                logger.error("Failed to decrypt code_verifier from pending state")
+                raise signing.BadSignature("Invalid state: code_verifier decryption failed")
+
+        if pending.redirect_url:
+            state_data['redirect_url'] = pending.redirect_url
+
+        return state_data
 
     # --- Code replay prevention ---
 
@@ -230,6 +269,10 @@ class OAuthService:
 
         return connection, changed
 
+    def after_connection_saved(self, connection):
+        """Hook for platform-specific post-link work."""
+        return None
+
     # --- Template rendering ---
 
     def render_callback(self, request, success, error='', message='', redirect_url=None):
@@ -297,6 +340,7 @@ class OAuthService:
 
         try:
             state_data = self.validate_state(state)
+            state_data = self.consume_pending_state(state_data)
             user_id = state_data.get('user_id')
             redirect_url = state_data.get('redirect_url')
         except signing.SignatureExpired:
@@ -392,7 +436,12 @@ class OAuthService:
         defaults.update(extra_fields)
 
         # Create or update connection
-        ConnectionModel.objects.update_or_create(user=user, defaults=defaults)
+        connection, _ = ConnectionModel.objects.update_or_create(user=user, defaults=defaults)
+        try:
+            self.after_connection_saved(connection)
+        except Exception as e:
+            # OAuth linking should not fail just because auxiliary sync work failed.
+            logger.warning(f"{log_prefix}: post-link sync failed: {e}")
         logger.debug(f"{log_prefix}: account linked successfully for user {user_id}")
 
         return respond(True)
@@ -661,6 +710,16 @@ class DiscordOAuthService(OAuthService):
             'platform_username': data['username'],
             'extra_fields': extra_fields,
         }
+
+    def after_connection_saved(self, connection):
+        if not getattr(settings, 'DISCORD_BOT_TOKEN', '') or not getattr(settings, 'DISCORD_GUILD_ID', ''):
+            return None
+
+        from .discord_roles import DiscordRoleSyncService
+
+        service = DiscordRoleSyncService()
+        service.sync_member_roles(connection, sync_catalog=True)
+        return None
 
     def check_guild_membership(self, access_token, guild_id):
         """Check if user is a member of the specified guild. Returns True/False."""

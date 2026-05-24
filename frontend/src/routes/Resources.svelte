@@ -1,16 +1,93 @@
 <script>
+  import { onMount } from 'svelte';
+  import { genTvAPI } from '../lib/api.js';
+  import { getCategoryGradientStyle } from '../lib/categoryPresentation.js';
+  import CategoryIcon from '../components/portal/CategoryIcon.svelte';
+  import StreamCard from '../components/portal/gen-tv/StreamCard.svelte';
   import {
     pageHeader,
     communityLinks,
-    sdks,
-    documentation,
-    boilerplates,
-    tools,
-    aiResources,
-    tracksAndIdeas,
+    agentResources,
+    codingStreams,
+    starterProjects,
+    buildTools,
+    networkResources,
+    deepDiveReferences,
   } from '../data/resources.js';
 
+  const builderGradientStyle = getCategoryGradientStyle('builder', '#ee8521');
+
   let copiedStates = $state({});
+  let streams = $state([]);
+  let starterTrack = $state(null);
+  let tvTrack = $state(null);
+  let canScrollStartersPrev = $state(false);
+  let canScrollStartersNext = $state(false);
+  let canScrollTvPrev = $state(false);
+  let canScrollTvNext = $state(false);
+
+  function asArray(maybe) {
+    if (Array.isArray(maybe)) return maybe;
+    if (Array.isArray(maybe?.results)) return maybe.results;
+    return [];
+  }
+
+  function fallbackStream(item) {
+    return {
+      id: `fallback-${item.slug}`,
+      slug: item.slug,
+      title: item.title,
+      description: item.description,
+      url: item.url,
+      image_url: item.image_url,
+      starts_at: item.starts_at,
+      ends_at: item.ends_at,
+      status: 'past',
+      category: 'internal',
+    };
+  }
+
+  let codingStreamCards = $derived(
+    codingStreams.map((item) => {
+      const fallback = fallbackStream(item);
+      const stream = streams.find((entry) => entry.slug === item.slug);
+
+      if (!stream) return fallback;
+
+      return {
+        ...fallback,
+        ...stream,
+        title: stream.title || fallback.title,
+        description: stream.description || fallback.description,
+        url: stream.url || fallback.url,
+        image_url: stream.image_url || fallback.image_url,
+        starts_at: stream.starts_at || fallback.starts_at,
+        ends_at: stream.ends_at || fallback.ends_at,
+        category: stream.category || fallback.category,
+      };
+    })
+  );
+
+  function updateStarterScrollState() {
+    if (!starterTrack) return;
+    canScrollStartersPrev = starterTrack.scrollLeft > 4;
+    canScrollStartersNext = starterTrack.scrollLeft + starterTrack.clientWidth < starterTrack.scrollWidth - 4;
+  }
+
+  function updateTvScrollState() {
+    if (!tvTrack) return;
+    canScrollTvPrev = tvTrack.scrollLeft > 4;
+    canScrollTvNext = tvTrack.scrollLeft + tvTrack.clientWidth < tvTrack.scrollWidth - 4;
+  }
+
+  function scrollTrack(track, direction, updateState) {
+    if (!track) return;
+    track.scrollBy({
+      left: direction * Math.max(track.clientWidth * 0.85, 280),
+      behavior: 'smooth',
+    });
+    setTimeout(updateState, 320);
+  }
 
   async function copyToClipboard(text, key) {
     try {
@@ -30,226 +107,378 @@
       setTimeout(() => { copiedStates[key] = false; }, 2000);
     }
   }
+
+  onMount(async () => {
+    try {
+      const res = await genTvAPI.list();
+      streams = asArray(res.data);
+    } catch {
+      streams = [];
+    } finally {
+      setTimeout(() => {
+        updateStarterScrollState();
+        updateTvScrollState();
+      }, 0);
+    }
+  });
 </script>
 
-<div class="flex flex-col gap-6 max-w-[1100px] mx-auto pb-12 px-1 md:px-3">
-
-  <!-- Header: title + community links -->
-  <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 pt-4 md:pt-8">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-[28px] md:text-[36px] font-display font-medium leading-tight tracking-[-0.72px] text-black">
-        {pageHeader.title}
-      </h1>
-      <p class="text-[15px] leading-[24px] tracking-[0.3px] text-[#6b6b6b]">
-        {pageHeader.subtitle}
-      </p>
-    </div>
-    <div class="flex items-center gap-2 shrink-0">
-      {#each communityLinks as link}
-        <a href={link.url} target="_blank" rel="noopener noreferrer"
-           class="inline-flex items-center justify-center w-[34px] h-[34px] rounded-[8px] border border-[#f0f0f0] transition-all hover:shadow-md hover:scale-105 hover:border-transparent"
-           title={link.label}>
-          {#if link.label === 'Discord'}
-            <svg class="w-[18px] h-[18px]" viewBox="0 0 127.14 96.36" fill={link.color}><path d="M107.7 8.07A105.15 105.15 0 0081.47 0a72.06 72.06 0 00-3.36 6.83 97.68 97.68 0 00-29.11 0A72.37 72.37 0 0045.64 0a105.89 105.89 0 00-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0032.17 16.15 77.7 77.7 0 006.89-11.11 68.42 68.42 0 01-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0064.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 01-10.87 5.19 77 77 0 006.89 11.1 105.25 105.25 0 0032.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15zM42.45 65.69C36.18 65.69 31 60 31 53.05s5-12.68 11.43-12.68S54 46.06 53.89 53.05 48.84 65.69 42.45 65.69zm42.24 0C78.41 65.69 73.25 60 73.25 53.05s5-12.68 11.44-12.68S96.23 46.06 96.12 53.05 91.08 65.69 84.69 65.69z"/></svg>
-          {:else if link.label === 'Telegram'}
-            <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill={link.color}><path d="M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0a12 12 0 00-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-          {:else if link.label === 'X'}
-            <svg class="w-[15px] h-[15px]" viewBox="0 0 24 24" fill={link.color}><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-          {:else if link.label === 'YouTube'}
-            <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill={link.color}><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-          {/if}
-        </a>
-      {/each}
-    </div>
+<div class="relative -mx-3 -my-3 overflow-hidden px-3 py-8 sm:px-5 sm:py-10 md:px-8 md:py-12">
+  <div
+    class="pointer-events-none absolute inset-x-0 top-0 h-[320px] overflow-hidden"
+    style="-webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%); mask-image: linear-gradient(to bottom, black 0%, transparent 100%);"
+  >
+    <div class="absolute inset-0" style={builderGradientStyle}></div>
+    <div class="absolute inset-0 bg-white/25"></div>
   </div>
 
-  <!-- ═══ SDKs row ═══ -->
-  <div class="flex items-center gap-3 flex-wrap">
-    <span class="text-[13px] font-medium text-[#6b6b6b] tracking-[0.26px]">SDKs</span>
-    {#each sdks as sdk}
-      <a href={sdk.url} target="_blank" rel="noopener noreferrer"
-         class="w-[44px] h-[44px] rounded-[10px] border border-[#f0f0f0] flex items-center justify-center group hover:border-[#ee8521]/40 hover:shadow-sm transition-all {sdk.icon === 'js' ? 'bg-[#F7DF1E]/5' : sdk.icon === 'python' ? 'bg-[#3776AB]/5' : 'bg-[#6b6b6b]/5'}"
-         title={sdk.label}>
-        {#if sdk.icon === 'js'}
-          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="#F7DF1E"><path d="M0 0h24v24H0V0zm22.034 18.276c-.175-1.095-.888-2.015-3.003-2.873-.736-.345-1.554-.585-1.797-1.14-.091-.33-.105-.51-.046-.705.15-.646.915-.84 1.515-.66.39.12.75.42.976.9 1.034-.676 1.034-.676 1.755-1.125-.27-.42-.405-.6-.586-.78-.63-.705-1.469-1.065-2.834-1.034l-.705.089c-.676.165-1.32.525-1.71 1.005-1.14 1.291-.811 3.541.569 4.471 1.365 1.02 3.361 1.244 3.616 2.205.24 1.17-.87 1.545-1.966 1.41-.811-.18-1.26-.586-1.755-1.336l-1.83 1.051c.21.48.45.689.81 1.109 1.74 1.756 6.09 1.666 6.871-1.004.029-.09.24-.705.074-1.65l.046.067zm-8.983-7.245h-2.248c0 1.938-.009 3.864-.009 5.805 0 1.232.063 2.363-.138 2.711-.33.689-1.18.601-1.566.48-.396-.196-.597-.466-.83-.855-.063-.105-.11-.196-.127-.196l-1.825 1.125c.305.63.75 1.172 1.324 1.517.855.51 2.004.675 3.207.405.783-.226 1.458-.691 1.811-1.411.51-.93.402-2.07.397-3.346.012-2.054 0-4.109 0-6.179l.004-.056z"/></svg>
-        {:else if sdk.icon === 'python'}
-          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="#3776AB"><path d="M14.25.18l.9.2.73.26.59.3.45.32.34.34.25.34.16.33.1.3.04.26.02.2-.01.13V8.5l-.05.63-.13.55-.21.46-.26.38-.3.31-.33.25-.35.19-.35.14-.33.1-.3.07-.26.04-.21.02H8.77l-.69.05-.59.14-.5.22-.41.27-.33.32-.27.35-.2.36-.15.37-.1.35-.07.32-.04.27-.02.21v3.06H3.17l-.21-.03-.28-.07-.32-.12-.35-.18-.36-.26-.36-.36-.35-.46-.32-.59-.28-.73-.21-.88-.14-1.05-.05-1.23.06-1.22.16-1.04.24-.87.32-.71.36-.57.4-.44.42-.33.42-.24.4-.16.36-.1.32-.05.24-.01h.16l.06.01h8.16v-.83H6.18l-.01-2.75-.02-.37.05-.34.11-.31.17-.28.25-.26.31-.23.38-.2.44-.18.51-.15.58-.12.64-.1.71-.06.77-.04.84-.02 1.27.05zm-6.3 1.98l-.23.33-.08.41.08.41.23.34.33.22.41.09.41-.09.33-.22.23-.34.08-.41-.08-.41-.23-.33-.33-.22-.41-.09-.41.09zm13.09 3.95l.28.06.32.12.35.18.36.27.36.35.35.47.32.59.28.73.21.88.14 1.04.05 1.23-.06 1.23-.16 1.04-.24.86-.32.71-.36.57-.4.45-.42.33-.42.24-.4.16-.36.09-.32.05-.24.02-.16-.01h-8.22v.82h5.84l.01 2.76.02.36-.05.34-.11.31-.17.29-.25.25-.31.24-.38.2-.44.17-.51.15-.58.13-.64.09-.71.07-.77.04-.84.01-1.27-.04-1.07-.14-.9-.2-.73-.25-.59-.3-.45-.33-.34-.34-.25-.34-.16-.33-.1-.3-.04-.25-.02-.2.01-.13v-5.34l.05-.64.13-.54.21-.46.26-.38.3-.32.33-.24.35-.2.35-.14.33-.1.3-.06.26-.04.21-.02.13-.01h5.84l.69-.05.59-.14.5-.21.41-.28.33-.32.27-.35.2-.36.15-.36.1-.35.07-.32.04-.28.02-.21V6.07h2.09l.14.01zm-6.47 14.25l-.23.33-.08.41.08.41.23.33.33.23.41.08.41-.08.33-.23.23-.33.08-.41-.08-.41-.23-.33-.33-.23-.41-.08-.41.08z"/></svg>
-        {:else}
-          <svg class="w-5 h-5 text-[#6b6b6b]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" /></svg>
-        {/if}
-      </a>
-    {/each}
-  </div>
-
-  <!-- ═══ TWO-COLUMN: Documentation + Tools ═══ -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-    <!-- Documentation -->
-    <div class="flex flex-col gap-3">
-      <div class="flex items-center gap-[10px]">
-        <div class="relative flex-shrink-0" style="width: 28px; height: 28px;">
-          <img src="/assets/icons/hexagon-builder-light.svg" alt="" class="w-full h-full" />
-          <img src="/assets/icons/terminal-line-orange.svg" alt="" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" style="width: 14px; height: 14px;" />
+  <div class="relative z-10 mx-auto flex max-w-[1180px] flex-col gap-6 px-1 pb-12 md:px-3">
+    <header class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+      <div class="flex flex-col gap-2">
+        <div class="flex items-start gap-3">
+          <CategoryIcon category="builder" mode="hexagon" size={48} />
+          <h1 class="min-w-0 break-words font-display text-[32px] font-medium leading-[38px] text-black md:text-[46px] md:leading-[50px]" style="letter-spacing: -0.96px;">
+            {pageHeader.title}
+          </h1>
         </div>
-        <h2 class="text-[17px] font-semibold text-black" style="letter-spacing: 0.34px;">Documentation</h2>
       </div>
-      <section class="bg-white border border-[#f0f0f0] rounded-[14px] p-[16px] flex flex-col flex-1">
-        {#each documentation as doc}
-          <a href={doc.url} target="_blank" rel="noopener noreferrer"
-             class="flex items-center gap-3 py-3 border-b border-[#f5f5f5] last:border-b-0 group hover:bg-[#fafafa] rounded-[4px] px-2 -mx-2 transition-colors">
-            <div class="w-[28px] h-[28px] rounded-[8px] flex items-center justify-center shrink-0 bg-[#ee8521]/10">
-              {#if doc.icon === 'docs'}
-                <svg class="w-[14px] h-[14px] text-[#ee8521]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
-              {:else if doc.icon === 'eq'}
-                <svg class="w-[14px] h-[14px] text-[#ee8521]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
-              {:else}
-                <svg class="w-[14px] h-[14px] text-[#ee8521]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" /></svg>
-              {/if}
-            </div>
-            <div class="flex flex-col gap-0.5 flex-1 min-w-0">
-              <span class="text-[13px] font-medium text-black group-hover:text-[#ee8521] transition-colors">{doc.label}</span>
-              <span class="text-[11px] text-[#ababab]">{doc.description}</span>
-            </div>
-            <svg class="w-3.5 h-3.5 text-[#ababab] group-hover:text-[#ee8521] transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+
+      <div class="flex items-center gap-2 md:pt-1">
+        {#each communityLinks as link}
+          <a
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={link.label}
+            class="flex h-12 w-12 items-center justify-center rounded-full border border-white/90 bg-white shadow-[0_6px_18px_rgba(94,55,21,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_9px_22px_rgba(94,55,21,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+            style="color: {link.color};"
+          >
+            {#if link.icon === 'telegram'}
+              <svg class="h-[22px] w-[22px]" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.1 18.6 20c-.2 1.1-.9 1.4-1.8.9l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5.1 9.3-8.4c.4-.4-.1-.6-.6-.3L6 13.4l-5-1.6c-1.1-.3-1.1-1.1.2-1.6L20.5 2.8c.9-.3 1.7.2 1.4 1.3z" /></svg>
+            {:else if link.icon === 'discord'}
+              <svg class="h-[27px] w-[27px]" viewBox="0 0 32 32" fill="none">
+                <path fill="currentColor" d="M9.7 9.2c1.3-.5 2.7-.8 4.1-1l.5 1.1c1.1-.1 2.3-.1 3.4 0l.5-1.1c1.4.2 2.8.5 4.1 1 2.5 3.4 3.5 7 3.1 10.9-1.5 1.1-3.1 2-4.9 2.5l-1-1.5c.6-.2 1.1-.5 1.6-.8-3.3 1.5-6.9 1.5-10.2 0 .5.3 1 .6 1.6.8l-1 1.5c-1.8-.5-3.4-1.4-4.9-2.5-.4-3.9.6-7.5 3.1-10.9Z" />
+                <circle cx="12.3" cy="16" r="1.75" fill="white" />
+                <circle cx="19.7" cy="16" r="1.75" fill="white" />
+              </svg>
+            {:else}
+              <svg class="h-[21px] w-[21px]" viewBox="0 0 24 24" fill="currentColor"><path d="M18.2 2.3h3.3l-7.3 8.4 8.6 11h-6.7l-5.2-6.8-6 6.8H1.6l7.8-8.9L1.2 2.3H8l4.7 6.2 5.5-6.2zm-1.2 17.5h1.8L7 4.1H5l12 15.7z" /></svg>
+            {/if}
           </a>
         {/each}
-      </section>
-    </div>
-
-    <!-- Tools -->
-    <div class="flex flex-col gap-3">
-      <div class="flex items-center gap-[10px]">
-        <div class="relative flex-shrink-0" style="width: 28px; height: 28px;">
-          <img src="/assets/icons/hexagon-light.svg" alt="" class="w-full h-full" />
-          <div
-            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-            style="width: 14px; height: 14px; background-color: #7F52E1; -webkit-mask-image: url(/assets/icons/dashboard-fill-black.svg); mask-image: url(/assets/icons/dashboard-fill-black.svg); mask-size: contain; mask-repeat: no-repeat; mask-position: center;"
-          ></div>
-        </div>
-        <h2 class="text-[17px] font-semibold text-black" style="letter-spacing: 0.34px;">Tools</h2>
       </div>
-      <section class="bg-white border border-[#f0f0f0] rounded-[14px] p-[16px] flex flex-col flex-1">
-        {#each tools as tool}
-          <a href={tool.url} target="_blank" rel="noopener noreferrer"
-             class="flex items-center gap-3 py-3 border-b border-[#f5f5f5] last:border-b-0 group hover:bg-[#fafafa] rounded-[4px] px-2 -mx-2 transition-colors">
-            <div class="w-[28px] h-[28px] rounded-[8px] flex items-center justify-center shrink-0 bg-[#7f52e1]/10">
-              {#if tool.label === 'GenLayer Studio'}
-                <svg class="w-[14px] h-[14px] text-[#7f52e1]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" /></svg>
-              {:else if tool.label === 'Testnet Faucet'}
-                <svg class="w-[14px] h-[14px] text-[#7f52e1]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              {:else}
-                <svg class="w-[14px] h-[14px] text-[#7f52e1]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
-              {/if}
-            </div>
-            <div class="flex flex-col gap-0.5 flex-1 min-w-0">
-              <span class="text-[13px] font-medium text-black group-hover:text-[#7f52e1] transition-colors">{tool.label}</span>
-              <span class="text-[11px] text-[#ababab]">{tool.description}</span>
-            </div>
-            <svg class="w-3.5 h-3.5 text-[#ababab] group-hover:text-[#7f52e1] transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-          </a>
-        {/each}
-      </section>
-    </div>
-  </div>
+    </header>
 
-  <!-- ═══ Boilerplates ═══ -->
-  <div class="flex flex-col gap-3">
-    <div class="flex items-center gap-[10px]">
-      <div class="relative flex-shrink-0" style="width: 28px; height: 28px;">
-        <img src="/assets/icons/hexagon-builder-light.svg" alt="" class="w-full h-full" />
-        <svg class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[14px] h-[14px]" viewBox="0 0 24 24" fill="#ee8521"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
-      </div>
-      <h2 class="text-[17px] font-semibold text-black" style="letter-spacing: 0.34px;">Templates & Boilerplates</h2>
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-      {#each boilerplates as bp}
-        <a href={bp.url} target="_blank" rel="noopener noreferrer"
-           class="bg-white border border-[#f0f0f0] rounded-[14px] p-4 flex flex-col gap-2 group hover:border-[#ee8521]/30 hover:shadow-sm transition-all">
-          <div class="flex items-center justify-between">
-            <span class="text-[13px] font-medium text-black group-hover:text-[#ee8521] transition-colors">{bp.label}</span>
-            <svg class="w-3.5 h-3.5 text-[#ababab] group-hover:text-[#ee8521] transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+  <section class="grid grid-cols-1 gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+    <div class="agent-hero relative overflow-hidden rounded-[8px] bg-[#101010] p-5 text-white shadow-[0_18px_50px_rgba(38,48,75,0.16)] md:p-6">
+      <img src="/assets/resources/coding-agents-background.png" alt="" class="absolute inset-0 h-full w-full object-cover opacity-70 mix-blend-screen" loading="eager" />
+      <div class="absolute inset-0 bg-[#050505]/78"></div>
+      <div class="absolute inset-0" style="background: linear-gradient(90deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.7) 52%, rgba(0,0,0,0.42) 100%);"></div>
+      <div class="relative flex flex-col gap-5">
+        <div class="flex flex-col gap-3">
+          <span class="inline-flex w-fit items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase text-white/70" style="letter-spacing: 0.8px;">
+            Primary builder resource
+          </span>
+          <div class="flex flex-col gap-2">
+            <h2 class="max-w-[700px] font-display text-[30px] font-medium leading-[34px] md:text-[42px] md:leading-[44px]" style="letter-spacing: -0.8px;">
+              {agentResources.title}
+            </h2>
+            <p class="max-w-[680px] text-[14px] leading-[21px] text-white/72">
+              {agentResources.description}
+            </p>
           </div>
-          <span class="text-[11px] text-[#ababab] leading-[17px]">{bp.description}</span>
-        </a>
-      {/each}
-    </div>
-  </div>
-
-  <!-- ═══ AI-Assisted Development ═══ -->
-  <div class="flex flex-col gap-3">
-    <div class="flex items-center gap-[10px]">
-      <div class="relative flex-shrink-0" style="width: 28px; height: 28px;">
-        <img src="/assets/icons/hexagon-builder-light.svg" alt="" class="w-full h-full" />
-        <svg class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[14px] h-[14px]" fill="none" stroke="#ee8521" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" /></svg>
-      </div>
-      <h2 class="text-[17px] font-semibold text-black" style="letter-spacing: 0.34px;">AI-Assisted Development</h2>
-    </div>
-
-    <div class="bg-[#fafafa] border border-[#f0f0f0] rounded-[14px] p-[20px] flex flex-col gap-4">
-      <!-- Copy for LLMs -->
-      <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div class="flex-1 min-w-0">
-          <p class="text-[13px] font-medium text-black">GenLayer Context Prompt</p>
-          <p class="text-[11px] text-[#ababab] mt-0.5">Copy a comprehensive GenLayer context prompt to use with any LLM — covers Intelligent Contracts, the Equivalence Principle, SDKs, testnets, and all key references.</p>
         </div>
+
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <a
+            href={agentResources.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex h-10 items-center justify-center gap-2 rounded-[20px] bg-white px-4 text-[14px] font-medium text-black transition hover:bg-white/90"
+          >
+            Open skills
+            <img src="/assets/icons/arrow-right-line.svg" alt="" class="h-4 w-4" />
+          </a>
+          <button
+            type="button"
+            onclick={() => copyToClipboard(agentResources.prompt, 'agent-prompt')}
+            class="inline-flex h-10 items-center justify-center gap-2 rounded-[20px] border border-white/15 px-4 text-[14px] font-medium text-white transition hover:bg-white/10"
+          >
+            {#if copiedStates['agent-prompt']}
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              Copied
+            {:else}
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+              Copy agent prompt
+            {/if}
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 gap-2 border-t border-white/10 pt-4 sm:grid-cols-2">
+          {#each agentResources.includedReferences as reference}
+            <a href={reference.url} target="_blank" rel="noopener noreferrer" class="group flex min-h-[64px] items-center justify-between gap-3 rounded-[8px] border border-white/10 bg-white/[0.04] px-3 py-2.5 transition hover:bg-white/[0.08]">
+              <span>
+                <span class="block text-[13px] font-medium text-white">{reference.label}</span>
+                <span class="mt-0.5 block text-[11px] leading-[15px] text-white/50">{reference.description}</span>
+              </span>
+              <svg class="h-3.5 w-3.5 shrink-0 text-white/35 transition group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+            </a>
+          {/each}
+        </div>
+      </div>
+    </div>
+
+    <div class="rounded-[8px] border border-[#ebebeb] bg-white p-4">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-[12px] font-semibold uppercase text-[#387de8]" style="letter-spacing: 0.8px;">Network</p>
+          <h2 class="mt-1 font-display text-[22px] font-medium leading-[26px] text-black">Track live transactions</h2>
+        </div>
+        <div class="flex h-8 w-8 items-center justify-center rounded-[8px] bg-[#387de8]/10 text-[#387de8]">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 0a8.25 8.25 0 0116.5 0m-16.5 0a8.25 8.25 0 0016.5 0M12 3.75c2.25 2.09 3.38 4.84 3.38 8.25S14.25 18.16 12 20.25M12 3.75C9.75 5.84 8.62 8.59 8.62 12s1.13 6.16 3.38 8.25" /></svg>
+        </div>
+      </div>
+
+      <div class="mt-3 grid grid-cols-1 gap-2">
+        {#each networkResources as item}
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="group flex items-center justify-between gap-3 rounded-[8px] border px-3 py-2 transition {item.kind === 'faucet' ? 'border-[#f5d2aa] bg-[#fff8f0] hover:border-[#ee8521]/55 hover:bg-white' : 'border-[#eef3fb] bg-[#f8fbff] hover:border-[#cfdcf7] hover:bg-white'}"
+          >
+            <span class="flex min-w-0 items-center gap-2.5">
+              <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] {item.kind === 'faucet' ? 'bg-[#ee8521]/12 text-[#ee8521]' : 'bg-[#387de8]/10 text-[#387de8]'}">
+                {#if item.kind === 'faucet'}
+                  <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3.75S6.75 9.8 6.75 14.1a5.25 5.25 0 0010.5 0C17.25 9.8 12 3.75 12 3.75z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 11.25v5.5m-2.75-2.75h5.5" /></svg>
+                {:else}
+                  <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 0a8.25 8.25 0 0116.5 0m-16.5 0a8.25 8.25 0 0016.5 0M12 3.75c2.25 2.09 3.38 4.84 3.38 8.25S14.25 18.16 12 20.25M12 3.75C9.75 5.84 8.62 8.59 8.62 12s1.13 6.16 3.38 8.25" /></svg>
+                {/if}
+              </span>
+              <span class="min-w-0">
+                <span class="block text-[13px] font-medium text-black">{item.label}</span>
+                <span class="mt-0.5 block text-[11px] leading-[15px] text-[#777]">{item.description}</span>
+              </span>
+            </span>
+            <svg class="h-3.5 w-3.5 shrink-0 transition {item.kind === 'faucet' ? 'text-[#ee8521]/55 group-hover:text-[#ee8521]' : 'text-[#ababab] group-hover:text-[#387de8]'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+          </a>
+        {/each}
+      </div>
+    </div>
+  </section>
+
+  <section class="flex flex-col gap-3">
+    <div class="flex items-end justify-between gap-4">
+      <div class="flex flex-col gap-1">
+        <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: 0.4px;">Open-Source Starters</h2>
+        <p class="text-[14px] leading-[21px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">Scrollable project references with visible code paths and room for more examples.</p>
+      </div>
+      <div class="flex items-center gap-1">
         <button
-          onclick={() => copyToClipboard(aiResources.metaprompt, 'metaprompt')}
-          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-[10px] text-[13px] font-medium transition-all cursor-pointer shrink-0 {copiedStates['metaprompt'] ? 'bg-[#e8fbe8] text-[#2d9a46]' : 'bg-[#101010] text-white hover:bg-[#2a2a2a]'}"
+          type="button"
+          onclick={() => scrollTrack(starterTrack, -1, updateStarterScrollState)}
+          disabled={!canScrollStartersPrev}
+          class="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white text-black transition hover:bg-[#f5f5f5] disabled:cursor-default disabled:opacity-35"
+          aria-label="Previous starters"
         >
-          {#if copiedStates['metaprompt']}
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-            Copied!
-          {:else}
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-            Copy for LLMs
-          {/if}
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6" /></svg>
+        </button>
+        <button
+          type="button"
+          onclick={() => scrollTrack(starterTrack, 1, updateStarterScrollState)}
+          disabled={!canScrollStartersNext}
+          class="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white text-black transition hover:bg-[#f5f5f5] disabled:cursor-default disabled:opacity-35"
+          aria-label="Next starters"
+        >
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6" /></svg>
         </button>
       </div>
+    </div>
 
-      <!-- AI resource links -->
-      <div class="flex flex-col sm:flex-row gap-3">
-        {#each aiResources.links as link}
-          <a href={link.url} target="_blank" rel="noopener noreferrer"
-             class="flex-1 bg-white border border-[#e8e8e8] rounded-[10px] p-3 flex items-center gap-3 group hover:border-[#101010]/20 hover:shadow-sm transition-all">
-            <div class="w-[28px] h-[28px] rounded-[8px] flex items-center justify-center shrink-0 bg-[#101010]/5">
-              {#if link.label.includes('API')}
-                <svg class="w-[14px] h-[14px] text-[#101010]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
-              {:else}
-                <svg class="w-[14px] h-[14px] text-[#101010]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
-              {/if}
+    <div
+      bind:this={starterTrack}
+      onscroll={updateStarterScrollState}
+      class="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1"
+      style="-ms-overflow-style: none; scrollbar-width: none;"
+    >
+      {#each starterProjects as project}
+        <div class="flex min-h-[210px] w-[310px] flex-none snap-start flex-col gap-4 rounded-[8px] border p-4 sm:w-[350px] {project.featured ? 'border-[#101010] bg-[#101010] text-white' : 'border-[#f0f0f0] bg-white text-black'}">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex flex-col gap-2">
+              <span class="w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase {project.featured ? 'bg-white/10 text-white/70' : 'bg-[#f5f5f5] text-[#6b6b6b]'}" style="letter-spacing: 0.7px;">
+                {project.category}
+              </span>
+              <h3 class="font-display text-[22px] font-medium leading-[26px] {project.featured ? 'text-white' : 'text-black'}">
+                {project.label}
+              </h3>
             </div>
-            <div class="flex flex-col gap-0.5 flex-1 min-w-0">
-              <span class="text-[12px] font-medium text-black group-hover:text-[#101010] transition-colors">{link.label}</span>
-              <span class="text-[10px] text-[#ababab]">{link.description}</span>
-            </div>
-            <svg class="w-3 h-3 text-[#ababab] group-hover:text-[#101010] transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+            {#if project.pending}
+              <span class="rounded-full border px-2 py-1 text-[11px] font-medium {project.featured ? 'border-white/15 text-white/55' : 'border-[#ebebeb] text-[#ababab]'}">URL pending</span>
+            {/if}
+          </div>
+
+          <p class="text-[14px] leading-[21px] {project.featured ? 'text-white/70' : 'text-[#6b6b6b]'}">
+            {project.description}
+          </p>
+
+          <div class="mt-auto flex flex-wrap gap-2">
+            {#if project.codeUrl || project.url}
+              <a
+                href={project.codeUrl || project.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex h-9 items-center gap-2 rounded-[18px] px-3 text-[13px] font-medium {project.featured ? 'bg-white text-black hover:bg-white/90' : 'bg-[#101010] text-white hover:bg-[#2a2a2a]'}"
+              >
+                {project.codeUrl ? 'View code' : 'Open project'}
+                {#if project.codeUrl}
+                  <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" /></svg>
+                {:else}
+                  <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                {/if}
+              </a>
+            {:else}
+              <span class="inline-flex h-9 items-center rounded-[18px] border px-3 text-[13px] font-medium {project.featured ? 'border-white/15 text-white/50' : 'border-[#ebebeb] text-[#ababab]'}">Code pending</span>
+            {/if}
+          </div>
+        </div>
+      {/each}
+    </div>
+  </section>
+
+  <section class="flex flex-col gap-3">
+    <div class="flex items-end justify-between gap-4">
+      <div class="flex flex-col gap-1">
+        <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: 0.4px;">Watch First</h2>
+        <p class="text-[14px] leading-[21px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">GenTV coding content for builders who need a guided entry point.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="#/gen-tv" class="hidden text-[13px] font-medium text-[#6b6b6b] transition hover:text-black sm:inline-flex">
+          View GenTV
+        </a>
+        <div class="flex items-center gap-1">
+          <button
+            type="button"
+            onclick={() => scrollTrack(tvTrack, -1, updateTvScrollState)}
+            disabled={!canScrollTvPrev}
+            class="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white text-black transition hover:bg-[#f5f5f5] disabled:cursor-default disabled:opacity-35"
+            aria-label="Previous GenTV videos"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6" /></svg>
+          </button>
+          <button
+            type="button"
+            onclick={() => scrollTrack(tvTrack, 1, updateTvScrollState)}
+            disabled={!canScrollTvNext}
+            class="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white text-black transition hover:bg-[#f5f5f5] disabled:cursor-default disabled:opacity-35"
+            aria-label="Next GenTV videos"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6" /></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      bind:this={tvTrack}
+      onscroll={updateTvScrollState}
+      class="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1"
+      style="-ms-overflow-style: none; scrollbar-width: none;"
+    >
+      {#each codingStreamCards as stream (stream.id)}
+        <div class="w-[82%] flex-none snap-start sm:w-[calc((100%_-_12px)/2)] lg:w-[calc((100%_-_24px)/3)] xl:w-[calc((100%_-_36px)/4)]">
+          <StreamCard {stream} variant="past" />
+        </div>
+      {/each}
+    </div>
+  </section>
+
+  <section class="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.82fr)]">
+    <div class="flex min-w-0 flex-col gap-3">
+      <div class="flex flex-col gap-1">
+        <div class="flex min-w-0 items-center justify-between gap-3 sm:justify-start">
+          <h2 class="shrink-0 text-[20px] font-semibold text-black" style="letter-spacing: 0.4px;">Tools</h2>
+          <div class="flex shrink-0 items-center gap-1.5">
+            {#each buildTools.filter((tool) => ['cli', 'python', 'js'].includes(tool.icon)) as tool}
+              <a
+                href={tool.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={tool.label}
+                title={tool.label}
+                class="group flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#e9e9e9] bg-white transition hover:-translate-y-0.5 hover:border-[#d8d8d8] hover:bg-[#fafafa] hover:shadow-sm sm:h-9 sm:w-9"
+              >
+                {#if tool.icon === 'js'}
+                  <svg class="h-[18px] w-[18px] text-[#c7a900]" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h18v18H3V3zm9.7 14.7c.4.8 1.1 1.4 2.4 1.4 1.4 0 2.5-.7 2.5-2.1 0-1.3-.8-1.8-2.2-2.4l-.4-.2c-.7-.3-1-.5-1-.9 0-.4.3-.7.8-.7.5 0 .8.2 1.1.7l1.5-1c-.5-.9-1.3-1.3-2.5-1.3-1.6 0-2.6 1-2.6 2.3 0 1.4.8 2 2.1 2.5l.4.2c.7.3 1.1.5 1.1 1 0 .4-.4.7-1 .7-.7 0-1.1-.4-1.4-1l-1.5.8zm-4.6.1c.3.6.9 1.2 2 1.2 1.2 0 2-.6 2-2.1v-4.6h-1.8v4.6c0 .6-.2.8-.6.8-.4 0-.6-.3-.8-.6l-1.5.9z" /></svg>
+                {:else if tool.icon === 'python'}
+                  <svg class="h-[18px] w-[18px] text-[#3776AB]" viewBox="0 0 24 24" fill="currentColor"><path d="M12.1 2c-4.8 0-4.5 2.1-4.5 2.1v2.2h4.6V7H5.8S3 6.7 3 11.5 5.4 16 5.4 16h1.4v-2s-.1-2.4 2.3-2.4h4.5s2.3 0 2.3-2.2V4.1S16.2 2 12.1 2zM9.6 3.4c.5 0 .8.4.8.8s-.4.8-.8.8-.8-.4-.8-.8.3-.8.8-.8zM12 22c4.8 0 4.5-2.1 4.5-2.1v-2.2h-4.6V17h6.4s2.7.3 2.7-4.5S18.6 8 18.6 8h-1.4v2s.1 2.4-2.3 2.4h-4.5s-2.3 0-2.3 2.2v5.3S7.8 22 12 22zm2.5-1.4c-.5 0-.8-.4-.8-.8s.4-.8.8-.8.8.4.8.8-.4.8-.8.8z" /></svg>
+                {:else}
+                  <svg class="h-[18px] w-[18px] text-[#101010]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.55"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3M5.25 20.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" /></svg>
+                {/if}
+                <span class="sr-only">{tool.label}</span>
+              </a>
+            {/each}
+          </div>
+        </div>
+        <p class="text-[14px] leading-[21px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">SDKs as quick-launch icons, with Studio and local workflow tools below.</p>
+      </div>
+
+      <div class="min-w-0 rounded-[8px] border border-[#e9e9e9] bg-white p-3">
+        <div class="grid grid-cols-1 gap-2">
+          {#each buildTools.filter((tool) => !['cli', 'python', 'js'].includes(tool.icon)) as tool}
+            {#if tool.url}
+              <a href={tool.url} target="_blank" rel="noopener noreferrer" class="group flex min-h-[58px] items-center justify-between gap-3 rounded-[8px] border border-[#f0f0f0] bg-[#fafafa] px-3 py-2 transition hover:border-[#d8d8d8] hover:bg-white">
+                <span class="flex min-w-0 items-center gap-3">
+                  <span class="flex h-8 w-8 items-center justify-center rounded-[8px] {tool.icon === 'test' ? 'bg-[#3eb359]/12 text-[#3eb359]' : 'bg-[#ee8521]/12 text-[#ee8521]'}">
+                    {#if tool.icon === 'test'}
+                      <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M12 3.75l7.5 3v5.7c0 4.5-3.2 7.25-7.5 8.8-4.3-1.55-7.5-4.3-7.5-8.8v-5.7l7.5-3z" /></svg>
+                    {:else}
+                      <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 7.5h15m-12 4.5h9m-7.5 4.5h6M5.25 4.5h13.5A1.5 1.5 0 0120.25 6v12a1.5 1.5 0 01-1.5 1.5H5.25A1.5 1.5 0 013.75 18V6a1.5 1.5 0 011.5-1.5z" /></svg>
+                    {/if}
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block text-[13px] font-semibold leading-[17px] text-black">{tool.label}</span>
+                    <span class="mt-0.5 block text-[11px] leading-[15px] text-[#777]">{tool.description}</span>
+                  </span>
+                </span>
+                <svg class="h-3.5 w-3.5 shrink-0 text-[#ababab] transition group-hover:text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+              </a>
+            {:else}
+              <div class="flex min-h-[58px] items-center justify-between gap-3 rounded-[8px] border border-dashed border-[#d7d7d7] bg-[#fafafa] px-3 py-2">
+                <span class="flex min-w-0 items-center gap-3">
+                  <span class="flex h-8 w-8 items-center justify-center rounded-[8px] bg-[#387de8]/10 text-[#387de8]">
+                    <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 18.75h4.5M4.5 5.25A2.25 2.25 0 016.75 3h10.5a2.25 2.25 0 012.25 2.25v10.5A2.25 2.25 0 0117.25 18H6.75a2.25 2.25 0 01-2.25-2.25V5.25z" /></svg>
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block text-[13px] font-semibold leading-[17px] text-black">{tool.label}</span>
+                    <span class="mt-0.5 block text-[11px] leading-[15px] text-[#777]">{tool.description}</span>
+                  </span>
+                </span>
+                <span class="rounded-full border border-[#ebebeb] px-2 py-1 text-[11px] font-medium text-[#ababab]">Soon</span>
+              </div>
+            {/if}
+          {/each}
+        </div>
+      </div>
+    </div>
+
+    <div class="flex min-w-0 flex-col gap-3">
+      <div class="flex flex-col gap-1">
+        <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: 0.4px;">Deep-Dive</h2>
+        <p class="text-[14px] leading-[21px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">Direct references for advanced inspection.</p>
+      </div>
+
+      <div class="min-w-0 overflow-hidden rounded-[8px] border border-[#e9e9e9] bg-white">
+        {#each deepDiveReferences as reference}
+          <a href={reference.url} target="_blank" rel="noopener noreferrer" class="group flex items-start justify-between gap-4 border-t border-[#f0f0f0] p-4 first:border-t-0">
+            <span class="flex min-w-0 flex-col gap-1">
+              <span class="text-[14px] font-medium text-black transition group-hover:text-[#ee8521]">{reference.label}</span>
+              <span class="text-[12px] leading-[18px] text-[#777]">{reference.description}</span>
+            </span>
+            <svg class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#ababab] transition group-hover:text-[#ee8521]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
           </a>
         {/each}
       </div>
     </div>
+  </section>
   </div>
-
-  <!-- ═══ Tracks & Ideas ═══ -->
-  <div class="flex flex-col gap-3">
-    <div class="flex items-center gap-[10px]">
-      <div class="relative flex-shrink-0 w-[28px] h-[28px]">
-        <svg viewBox="0 0 32 32" class="w-full h-full"><polygon points="16,0 29.86,8 29.86,24 16,32 2.14,24 2.14,8" fill="#101010"/></svg>
-        <img src="/assets/icons/gl-symbol-white.svg" alt="" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" style="width: 14px; height: 14px;" />
-      </div>
-      <h2 class="text-[17px] font-semibold text-black" style="letter-spacing: 0.34px;">Tracks & Ideas</h2>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-      {#each tracksAndIdeas as track}
-        <div class="bg-white border border-[#f0f0f0] rounded-[14px] p-4 flex flex-col gap-2">
-          <div class="flex items-center gap-2">
-            <div class="w-2 h-2 rounded-full shrink-0" style="background-color: {track.color};"></div>
-            <span class="text-[13px] font-medium text-black">{track.title}</span>
-          </div>
-          <span class="text-[11px] text-[#ababab] leading-[17px]">{track.description}</span>
-        </div>
-      {/each}
-    </div>
-  </div>
-
 </div>

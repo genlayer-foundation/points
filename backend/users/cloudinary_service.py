@@ -230,7 +230,7 @@ class CloudinaryService:
             raise
 
     @classmethod
-    def upload_image(cls, image_file, folder: str = 'tally/uploads') -> Dict:
+    def upload_image(cls, image_file, folder: str = 'tally/uploads', public_id: Optional[str] = None) -> Dict:
         """
         Generic image upload to Cloudinary. Used by the admin upload mixin.
 
@@ -251,7 +251,7 @@ class CloudinaryService:
                 result = cloudinary.uploader.unsigned_upload(
                     image_file,
                     upload_preset,
-                    public_id=f"admin_{timestamp}",
+                    public_id=public_id or f"admin_{timestamp}",
                     folder=folder,
                 )
 

@@ -104,6 +104,31 @@
     return `${count} ${Number(count) === 1 ? 'spot' : 'spots'} left`;
   }
 
+  function isFull(entity) {
+    if (!entity) return false;
+    if (entity.is_full === true) return true;
+    return (
+      entity.max_submissions !== null &&
+      entity.max_submissions !== undefined &&
+      entity.submissions_remaining !== null &&
+      entity.submissions_remaining !== undefined &&
+      Number(entity.submissions_remaining) <= 0
+    );
+  }
+
+  function missionCapacityLabel(mission, parentType) {
+    if (mission?.user_is_full === true) return 'Your limit reached';
+    if (isFull(mission)) return 'Full';
+    if (isFull(parentType)) return 'Submissions closed';
+    if (mission?.max_submissions != null && mission?.submissions_remaining != null) {
+      return spotsLeftLabel(mission.submissions_remaining);
+    }
+    if (parentType?.max_submissions != null && parentType?.submissions_remaining != null) {
+      return spotsLeftLabel(parentType.submissions_remaining);
+    }
+    return null;
+  }
+
   function toggleMissionExpanded(missionId) {
     const newExpanded = new Set(expandedMissions);
     if (newExpanded.has(missionId)) {
@@ -260,11 +285,9 @@
       {@const isExpanded = expandedMissions.has(mission.id)}
       {@const hasLongText = needsExpansion(mission.description)}
       {@const parentType = mission.contribution_type_details}
-      {@const missionIsFull = mission.user_is_full === true || mission.is_full === true || (mission.max_submissions != null && mission.submissions_remaining != null && Number(mission.submissions_remaining) <= 0)}
-      {@const contributionTypeIsFull = parentType?.is_full === true || (parentType?.max_submissions != null && parentType?.submissions_remaining != null && Number(parentType.submissions_remaining) <= 0)}
-      {@const submissionClosed = missionIsFull || contributionTypeIsFull}
-      {@const capacityLabel = mission.user_is_full === true ? 'Your limit reached' : missionIsFull ? 'Full' : contributionTypeIsFull ? 'Submissions closed' : mission.max_submissions != null ? spotsLeftLabel(mission.submissions_remaining) : parentType?.max_submissions != null ? spotsLeftLabel(parentType.submissions_remaining) : null}
-      {@const submitLabel = mission.user_is_full === true ? 'Limit reached' : missionIsFull ? 'Full' : contributionTypeIsFull ? 'Submissions closed' : 'Submit →'}
+      {@const submissionClosed = mission.user_is_full === true || isFull(mission) || isFull(parentType)}
+      {@const capacityLabel = missionCapacityLabel(mission, parentType)}
+      {@const submitLabel = mission.user_is_full === true ? 'Limit reached' : isFull(mission) ? 'Full' : isFull(parentType) ? 'Submissions closed' : 'Submit →'}
 
       <div class="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors">
         <!-- Title row with badges and submit button -->
@@ -308,6 +331,7 @@
                 {capacityLabel}
               </span>
             {/if}
+
           </div>
 
           <button

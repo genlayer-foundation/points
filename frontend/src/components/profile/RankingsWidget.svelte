@@ -10,7 +10,6 @@
         builderStats = null,
         validatorStats = null,
         communityStats = null,
-        overallPoints = 0,
         referralPoints = { builder_points: 0, validator_points: 0 },
     } = $props();
 

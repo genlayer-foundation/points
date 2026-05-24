@@ -2,6 +2,7 @@ import logging
 from datetime import timedelta
 
 from django.conf import settings
+from django.db import IntegrityError, transaction
 from django.db import models
 from django.utils import timezone
 
@@ -50,6 +51,36 @@ class DiscordConnection(SocialConnection):
     avatar_hash = models.CharField(max_length=100, blank=True, help_text="Discord avatar hash for CDN URL")
     guild_member = models.BooleanField(default=False, help_text="Whether user is in the configured Discord guild")
     guild_checked_at = models.DateTimeField(null=True, blank=True, help_text="When guild membership was last checked")
+    current_roles = models.ManyToManyField(
+        'DiscordRole',
+        blank=True,
+        related_name='discord_connections',
+        help_text="Current roles for this user in the configured Discord guild",
+    )
+    roles_synced_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When Discord roles were last synced",
+    )
+    roles_sync_error = models.TextField(
+        blank=True,
+        help_text="Most recent Discord role sync error, if any",
+    )
+    roles_manual_synced_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this user last manually refreshed Discord roles",
+    )
+    guild_joined_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the user joined the configured Discord guild",
+    )
+    guild_nick = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Nickname in the configured Discord guild",
+    )
 
     @property
     def avatar_url(self):
@@ -61,6 +92,113 @@ class DiscordConnection(SocialConnection):
         db_table = 'social_connections_discord'
         verbose_name = 'Discord Connection'
         verbose_name_plural = 'Discord Connections'
+
+
+class DiscordRole(models.Model):
+    """Cached Discord guild role metadata."""
+
+    guild_id = models.CharField(max_length=100, db_index=True)
+    role_id = models.CharField(max_length=100)
+    name = models.CharField(max_length=100)
+    color = models.PositiveIntegerField(default=0)
+    position = models.IntegerField(default=0)
+    hoist = models.BooleanField(default=False)
+    managed = models.BooleanField(default=False)
+    mentionable = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    last_synced_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def color_hex(self):
+        return f"#{self.color:06x}"
+
+    @property
+    def is_everyone(self):
+        return self.role_id == self.guild_id
+
+    def __str__(self):
+        return f"{self.name} ({self.guild_id}/{self.role_id})"
+
+    class Meta:
+        db_table = 'social_connections_discord_role'
+        unique_together = ('guild_id', 'role_id')
+        ordering = ['guild_id', '-position', 'name']
+        indexes = [
+            models.Index(fields=['guild_id', 'deleted_at']),
+            models.Index(fields=['role_id']),
+        ]
+
+
+class DiscordRoleSyncLock(models.Model):
+    """Database-backed lock for scheduled Discord role syncs."""
+
+    name = models.CharField(max_length=100, unique=True)
+    owner_token = models.CharField(max_length=32, null=True, blank=True, db_index=True)
+    acquired_at = models.DateTimeField(null=True, blank=True)
+    heartbeat_at = models.DateTimeField(null=True, blank=True)
+    released_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'social_connections_discord_role_sync_lock'
+
+    def __str__(self):
+        return f"DiscordRoleSyncLock({self.name}, acquired={self.acquired_at})"
+
+
+class PendingOAuthState(models.Model):
+    """Short-lived OAuth state data stored server-side for multi-worker safety."""
+
+    state_id = models.CharField(max_length=64, unique=True)
+    platform = models.CharField(max_length=20, db_index=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    code_verifier = models.TextField(blank=True)
+    redirect_url = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'social_connections_pending_oauth_state'
+        indexes = [
+            models.Index(fields=['created_at']),
+            models.Index(fields=['platform', 'state_id']),
+        ]
+
+    @classmethod
+    def consume(cls, state_id, platform, user_id, max_age_minutes=10):
+        """Atomically consume a pending OAuth state row and return it."""
+        cutoff = timezone.now() - timedelta(minutes=max_age_minutes)
+        with transaction.atomic():
+            pending = (
+                cls.objects
+                .select_for_update()
+                .filter(
+                    state_id=state_id,
+                    platform=platform,
+                    user_id=user_id,
+                    consumed_at__isnull=True,
+                    created_at__gte=cutoff,
+                )
+                .first()
+            )
+            if not pending:
+                return None
+
+            pending.consumed_at = timezone.now()
+            pending.save(update_fields=['consumed_at'])
+            return pending
+
+    @classmethod
+    def cleanup_old(cls, minutes=10):
+        cutoff = timezone.now() - timedelta(minutes=minutes)
+        deleted, _ = cls.objects.filter(created_at__lt=cutoff).delete()
+        if deleted:
+            logger.debug(f"Cleaned up {deleted} expired pending OAuth states")
+        return deleted
+
+    def __str__(self):
+        return f"PendingOAuthState({self.platform}, user={self.user_id})"
 
 
 class UsedOAuthCode(models.Model):
@@ -81,7 +219,6 @@ class UsedOAuthCode(models.Model):
     @classmethod
     def mark_used(cls, code, platform):
         """Mark an OAuth code as used. Returns True if newly marked, False if already used."""
-        from django.db import IntegrityError
         try:
             _, created = cls.objects.get_or_create(
                 code=code,

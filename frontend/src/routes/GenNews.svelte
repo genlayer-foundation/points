@@ -134,7 +134,7 @@
 
   onMount(async () => {
     try {
-      const heroRes = await featuredAPI.getHero();
+      const heroRes = await featuredAPI.getFeatured({ type: 'hero', include_inactive: true });
       const fetchedAnnouncements = dedupeById(
         asArray(heroRes.data).map((item) => normalizeAnnouncement(item, 'hero'))
       );

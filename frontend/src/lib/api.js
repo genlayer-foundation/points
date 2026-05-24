@@ -184,6 +184,7 @@ export const socialAPI = {
   refreshGitHubUsername: () => api.post('/users/github/refresh/'),
   refreshTwitterUsername: () => api.post('/users/twitter/refresh/'),
   refreshDiscordUsername: () => api.post('/users/discord/refresh/'),
+  refreshDiscordRoles: () => api.post('/users/discord/sync-roles/me/'),
   checkDiscordGuild: () => api.get('/users/discord/check-guild/'),
 };
 
@@ -305,6 +306,26 @@ export const partnersAPI = {
 export const genTvAPI = {
   list: (params) => api.get('/gen-tv/streams/', { params }),
   get: (slug) => api.get(`/gen-tv/streams/${slug}/`),
+  categories: (params) => api.get('/gen-tv/categories/', { params }),
+};
+
+// POAP API
+/** @typedef {Record<string, any>} PoapApiPayload */
+export const poapsAPI = {
+  /** @param {PoapApiPayload} [params] */
+  list: (params) => api.get('/poaps/', { params }),
+  /** @param {string} slug */
+  get: (slug) => api.get(`/poaps/${slug}/`),
+  /** @param {string} slug @param {PoapApiPayload} [params] */
+  getClaims: (slug, params) => api.get(`/poaps/${slug}/claims/`, { params }),
+  /** @param {string} address @param {PoapApiPayload} [params] */
+  getUserPoaps: (address, params) => api.get(`/users/by-address/${address}/poaps/`, { params }),
+  /** @param {string} slug @param {string} secret */
+  claimSecret: (slug, secret) => api.post(`/poaps/${slug}/claim-secret/`, { secret }),
+  /** @param {string} token */
+  claimLink: (token) => api.post(`/poaps/claim-link/${encodeURIComponent(token)}/`),
+  /** @param {{ address: string, message: string, signature: string }} payload */
+  verifyWallet: (payload) => api.post('/poaps/verify-wallet/', payload),
 };
 
 export default api;

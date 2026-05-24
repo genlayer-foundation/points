@@ -184,9 +184,15 @@
             if (type) {
               selectedCategory = type.category || "builder";
               searchQuery = type.name;
-              if (type.is_submittable) {
+              if (type.is_submittable && !isTypeFull(type)) {
                 selectedType = type;
                 formData.contribution_type = type.id;
+              } else if (isTypeFull(type)) {
+                selectedType = null;
+                formData.contribution_type = "";
+                searchQuery = "";
+                showTypeDropdown = true;
+                error = "This contribution type has reached its submission limit.";
               } else {
                 showTypeDropdown = true;
               }
@@ -266,6 +272,15 @@
         return field && !user[field];
       })
       .map((a) => socialAccountLabels[a] || a);
+  });
+  let missingDiscordRoles = $derived.by(() => {
+    const requiredRoles = selectedType?.required_discord_roles || [];
+    if (requiredRoles.length === 0) return [];
+
+    const userRoles = $userStore.user?.discord_connection?.roles || [];
+    const userRoleIds = new Set(userRoles.map((role) => String(role.role_id)));
+    const hasRequiredRole = requiredRoles.some((role) => userRoleIds.has(String(role.role_id)));
+    return hasRequiredRole ? [] : requiredRoles.map((role) => role.name);
   });
 
   // True when ALL non-generic accepted evidence types require an unlinked social account
@@ -373,6 +388,7 @@
   let canShowFormDetails = $derived(
     selectedType &&
     missingSocialAccounts.length === 0 &&
+    missingDiscordRoles.length === 0 &&
     !allEvidenceTypesBlocked
   );
 
@@ -1221,7 +1237,7 @@
                         >For: {item.parentType.name}</span
                       >
                     {/if}
-                    {#if item.itemType === "mission" && item.data.max_submissions != null}
+                    {#if item.itemType === "mission" && item.data.max_submissions != null && item.data.submissions_remaining != null}
                       <span
                         class="font-['Switzer'] text-[11px] text-emerald-700 mt-0.5"
                         >{spotsLeftLabel(item.data.submissions_remaining)}</span
@@ -1238,7 +1254,7 @@
                             )} pts{:else}{item.data.min_points}
                             - {item.data.max_points} pts{/if}</span
                         >
-                        {#if item.data.max_submissions != null}
+                        {#if item.data.max_submissions != null && item.data.submissions_remaining != null}
                           <span
                             class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded font-medium"
                             >{spotsLeftLabel(item.data.submissions_remaining)}</span
@@ -1282,7 +1298,7 @@
             <p class="font-['Switzer'] text-[12px] text-gray-500 mt-0.5">
               Type: {selectedType.name}
             </p>
-            {#if selectedMissionData.max_submissions != null}
+            {#if selectedMissionData.max_submissions != null && selectedMissionData.submissions_remaining != null}
               <p class="font-['Switzer'] text-[12px] text-gray-500 mt-0.5">
                 Mission capacity: {spotsLeftLabel(selectedMissionData.submissions_remaining)}
               </p>
@@ -1292,7 +1308,7 @@
               class="font-['Switzer'] font-semibold text-[14px] text-black"
               >{selectedType.name}</span
             >
-            {#if selectedType.max_submissions != null}
+            {#if selectedType.max_submissions != null && selectedType.submissions_remaining != null}
               <p class="font-['Switzer'] text-[12px] text-gray-500 mt-0.5">
                 Capacity: {spotsLeftLabel(selectedType.submissions_remaining)}
               </p>
@@ -1332,6 +1348,22 @@
           class="font-['Switzer'] text-[13px] text-[#6b6b6b] hover:text-black transition-colors tracking-[0.26px]"
         >
           Go to profile →
+        </a>
+      </div>
+    {/if}
+
+    {#if selectedType && !canShowFormDetails && missingDiscordRoles.length > 0}
+      <div
+        class="gate-card flex flex-col gap-[8px] p-[20px] rounded-[12px] bg-[#fafafa] border border-[#e0e0e0] w-full"
+      >
+        <p class="font-['Switzer'] font-medium text-[14px] text-black tracking-[0.28px]">
+          {$userStore.user?.discord_connection ? "You need one of these Discord roles to submit this contribution" : "Link Discord and make sure you have one of these roles"}: {missingDiscordRoles.join(", ")}.
+        </p>
+        <a
+          href="#/profile"
+          class="font-['Switzer'] text-[13px] text-[#6b6b6b] hover:text-black transition-colors tracking-[0.26px]"
+        >
+          {$userStore.user?.discord_connection ? "Refresh Discord roles from profile" : "Go to profile"} →
         </a>
       </div>
     {/if}

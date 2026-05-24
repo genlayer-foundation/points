@@ -7,16 +7,71 @@ from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.utils.html import format_html
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import (
+    Count,
+    DecimalField,
+    Exists,
+    F,
+    IntegerField,
+    OuterRef,
+    Subquery,
+    Value,
+)
+from django.db.models.functions import Coalesce
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from datetime import datetime
 from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert, BlocklistedURL, EvidenceURLType
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
+from social_connections.models import DiscordRole
 from utils.admin_mixins import CloudinaryUploadMixin
 
 User = get_user_model()
+
+NON_CAPACITY_STATES = ['rejected', 'canceled']
+
+
+def active_submission_count_subquery(fk_name):
+    return SubmittedContribution.objects.exclude(
+        state__in=NON_CAPACITY_STATES
+    ).filter(
+        **{fk_name: OuterRef('pk')}
+    ).values(
+        fk_name
+    ).annotate(
+        count=Count('pk')
+    ).values('count')
+
+
+def coalesced_count(subquery):
+    return Coalesce(
+        Subquery(subquery, output_field=IntegerField()),
+        Value(0),
+        output_field=IntegerField(),
+    )
+
+
+class ContributionTypeListFilter(admin.SimpleListFilter):
+    title = 'contribution type'
+    parameter_name = 'contribution_type__id__exact'
+
+    def lookups(self, request, model_admin):
+        contribution_types = ContributionType.objects.select_related(
+            'category'
+        ).order_by('category__name', 'name')
+        return [
+            (
+                str(contribution_type.id),
+                str(contribution_type),
+            )
+            for contribution_type in contribution_types
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(contribution_type_id=self.value())
+        return queryset
 
 
 @admin.register(Category)
@@ -48,12 +103,37 @@ class ContributionTypeAdmin(admin.ModelAdmin):
     list_filter = ('category', 'is_default', 'is_submittable', 'show_in_contributions')
     # Auto-fill slug from name on the edit page
     prepopulated_fields = { 'slug': ('name',) }
-    filter_horizontal = ('accepted_evidence_url_types', 'required_evidence_url_types')
+    filter_horizontal = (
+        'required_discord_roles',
+        'accepted_evidence_url_types',
+        'required_evidence_url_types',
+    )
     inlines = [GlobalLeaderboardMultiplierInline]
+    show_facets = admin.ShowFacets.NEVER
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        multiplier_field = DecimalField(max_digits=10, decimal_places=2)
+        current_multiplier = GlobalLeaderboardMultiplier.objects.filter(
+            contribution_type_id=OuterRef('pk')
+        ).order_by('-valid_from').values('multiplier_value')[:1]
+
+        return qs.select_related('category').annotate(
+            submission_count=coalesced_count(
+                active_submission_count_subquery('contribution_type_id')
+            ),
+            current_multiplier_value=Coalesce(
+                Subquery(current_multiplier, output_field=multiplier_field),
+                Value(1.0, output_field=multiplier_field),
+                output_field=multiplier_field,
+            ),
+        )
     
     def get_current_multiplier(self, obj):
-        from leaderboard.models import GlobalLeaderboardMultiplier
-        return f"{GlobalLeaderboardMultiplier.get_current_multiplier_value(obj)}x"
+        multiplier = getattr(obj, 'current_multiplier_value', None)
+        if multiplier is None:
+            multiplier = GlobalLeaderboardMultiplier.get_current_multiplier_value(obj)
+        return f"{multiplier}x"
     get_current_multiplier.short_description = "Current Multiplier"
 
     def get_submission_usage(self, obj):
@@ -63,11 +143,20 @@ class ContributionTypeAdmin(admin.ModelAdmin):
         return f'{count} / {obj.max_submissions}'
     get_submission_usage.short_description = 'Submissions'
 
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == 'required_discord_roles':
+            kwargs['queryset'] = DiscordRole.objects.filter(
+                deleted_at__isnull=True,
+            ).exclude(
+                role_id=F('guild_id'),
+            ).order_by('guild_id', '-position', 'name')
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
+
 
 @admin.register(GlobalLeaderboardMultiplier)
 class GlobalLeaderboardMultiplierAdmin(admin.ModelAdmin):
     list_display = ('contribution_type', 'multiplier_value', 'valid_from', 'description', 'created_at')
-    list_filter = ('contribution_type', 'valid_from')
+    list_filter = (ContributionTypeListFilter, 'valid_from')
     search_fields = ('contribution_type__name', 'description', 'notes')
     readonly_fields = ('created_at', 'updated_at')
 
@@ -126,7 +215,7 @@ class ContributionAdmin(admin.ModelAdmin):
     list_display = ('id', 'user_display', 'user_address_short', 'contribution_type', 'points',
                    'frozen_global_points', 'contribution_date_display', 'has_evidence',
                    'has_highlight', 'created_at')
-    list_filter = ('contribution_type__category', 'contribution_type', 'contribution_date', 'created_at',
+    list_filter = ('contribution_type__category', ContributionTypeListFilter, 'contribution_date', 'created_at',
                   ('evidence_items', admin.EmptyFieldListFilter))
     search_fields = ('user__email', 'user__name', 'user__address', 'contribution_type__name',
                     'notes', 'evidence_items__description', 'evidence_items__url', 'mission__name')
@@ -135,9 +224,10 @@ class ContributionAdmin(admin.ModelAdmin):
     ordering = ('-contribution_date', '-created_at')  # Most recent contributions first
     inlines = [ContributionHighlightInline, EvidenceInline]
     list_per_page = 50
-    date_hierarchy = 'contribution_date'
     list_select_related = ['user', 'contribution_type']
     autocomplete_fields = ['user', 'contribution_type']
+    show_full_result_count = False
+    show_facets = admin.ShowFacets.NEVER
     change_form_template = 'admin/contributions/contribution_change_form.html'
     fieldsets = (
         (None, {
@@ -332,9 +422,20 @@ class ContributionAdmin(admin.ModelAdmin):
             return JsonResponse({'error': 'Not found'}, status=404)
     
     def get_queryset(self, request):
-        """Optimize queryset to avoid N+1 queries."""
+        """Keep the contribution changelist cheap for large contribution tables."""
         qs = super().get_queryset(request)
-        return qs.select_related('user', 'contribution_type').prefetch_related('source_submission', 'evidence_items', 'highlights')
+        return qs.select_related(
+            'user',
+            'contribution_type',
+            'contribution_type__category',
+        ).annotate(
+            has_evidence_value=Exists(
+                Evidence.objects.filter(contribution_id=OuterRef('pk'))
+            ),
+            has_highlight_value=Exists(
+                ContributionHighlight.objects.filter(contribution_id=OuterRef('pk'))
+            ),
+        )
     
     def user_display(self, obj):
         """Display user name with email."""
@@ -361,13 +462,19 @@ class ContributionAdmin(admin.ModelAdmin):
     
     def has_evidence(self, obj):
         """Check if contribution has evidence."""
+        annotated = getattr(obj, 'has_evidence_value', None)
+        if annotated is not None:
+            return annotated
         return obj.evidence_items.exists()
     has_evidence.boolean = True
     has_evidence.short_description = 'Evidence'
     
     def has_highlight(self, obj):
         """Check if contribution has a highlight."""
-        return obj.highlights.filter().exists()
+        annotated = getattr(obj, 'has_highlight_value', None)
+        if annotated is not None:
+            return annotated
+        return obj.highlights.exists()
     has_highlight.boolean = True
     has_highlight.short_description = 'Highlighted'
     
@@ -388,11 +495,14 @@ class SubmissionNoteInline(admin.TabularInline):
 
 @admin.register(SubmittedContribution)
 class SubmittedContributionAdmin(admin.ModelAdmin):
-    list_display = ('user', 'contribution_type', 'proposed_points', 'evidence_count', 'state',
+    list_display = ('user', 'contribution_type', 'proposed_points', 'state',
                    'contribution_date', 'created_at', 'reviewed_by')
-    list_filter = ('state', 'contribution_type__category', 'contribution_type', 'created_at', 'reviewed_at')
+    list_filter = ('state', 'contribution_type__category', ContributionTypeListFilter, 'created_at', 'reviewed_at')
     search_fields = ('user__email', 'user__name', 'notes', 'staff_reply', 'mission__name')
-    date_hierarchy = 'created_at'
+    list_per_page = 25
+    show_full_result_count = False
+    show_facets = admin.ShowFacets.NEVER
+    autocomplete_fields = ('user', 'contribution_type', 'reviewed_by')
     readonly_fields = ('id', 'created_at', 'updated_at', 'last_edited_at',
                       'converted_contribution_link', 'contribution_type_info', 'proposed_points')
     inlines = [EvidenceInline, SubmissionNoteInline]
@@ -459,15 +569,15 @@ class SubmittedContributionAdmin(admin.ModelAdmin):
         return readonly
 
     def get_queryset(self, request):
-        """Annotate queryset with evidence count to avoid N+1 queries."""
+        """Keep the changelist query cheap for large submission tables."""
         qs = super().get_queryset(request)
-        return qs.annotate(evidence_count_annotated=Count('evidence_items'))
-
-    def evidence_count(self, obj):
-        """Display evidence count from annotation."""
-        return obj.evidence_count_annotated
-    evidence_count.short_description = 'Evidence'
-    evidence_count.admin_order_field = 'evidence_count_annotated'
+        return qs.select_related(
+            'user',
+            'contribution_type',
+            'contribution_type__category',
+            'reviewed_by',
+            'mission',
+        )
 
     class Media:
         js = ('admin/js/contribution_type_dynamic.js',)
@@ -647,10 +757,14 @@ class MissionAdmin(admin.ModelAdmin):
         'id', 'name', 'contribution_type', 'get_status',
         'get_submission_usage', 'start_date', 'end_date', 'created_at',
     )
-    list_filter = ('contribution_type', 'start_date', 'end_date', 'created_at')
+    list_filter = (ContributionTypeListFilter, 'start_date', 'end_date', 'created_at')
     search_fields = ('name', 'description')
     readonly_fields = ('id', 'created_at', 'updated_at')
     list_editable = ()
+    list_per_page = 25
+    show_full_result_count = False
+    show_facets = admin.ShowFacets.NEVER
+    autocomplete_fields = ('contribution_type',)
 
     fieldsets = (
         (None, {
@@ -676,6 +790,14 @@ class MissionAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('contribution_type').annotate(
+            submission_count=coalesced_count(
+                active_submission_count_subquery('mission_id')
+            )
+        ).order_by('-created_at', '-id')
 
     def get_status(self, obj):
         if obj.is_active():

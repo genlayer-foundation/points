@@ -41,6 +41,11 @@ class ParticipantsGrowthViewTests(TestCase):
             slug='uptime',
             category=self.validator_category
         )
+        self.validator_graduation_type = ContributionType.objects.create(
+            name='Validator',
+            slug='validator',
+            category=self.validator_category
+        )
 
     def _create_user(self, email, address):
         return User.objects.create_user(
@@ -117,6 +122,20 @@ class ParticipantsGrowthViewTests(TestCase):
                 contribution_type=self.validator_real_type,
                 points=5,
                 frozen_global_points=5,
+                contribution_date=base + timedelta(days=1)
+            ),
+            Contribution(
+                user=shared_user,
+                contribution_type=self.validator_graduation_type,
+                points=0,
+                frozen_global_points=0,
+                contribution_date=base + timedelta(days=2)
+            ),
+            Contribution(
+                user=validator_only,
+                contribution_type=self.validator_graduation_type,
+                points=0,
+                frozen_global_points=0,
                 contribution_date=base + timedelta(days=2)
             ),
         ])
@@ -125,14 +144,18 @@ class ParticipantsGrowthViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         final_point = response.data['data'][-1]
+        point_before_graduation = next(
+            point
+            for point in response.data['data']
+            if point['date'] == (base + timedelta(days=1)).date().isoformat()
+        )
 
-        # shared_user qualifies as a builder via their validator-waitlist
-        # contribution: the only types excluded from the builder check are
-        # builder-welcome and builder (the auto-awards from the builder
-        # journey), so any other contribution counts.
-        self.assertEqual(final_point['builders'], 2)
+        # validator_only has real validator activity before graduation, but the
+        # chart should only count validators from their graduation date.
+        self.assertEqual(point_before_graduation['validators'], 0)
+        self.assertEqual(final_point['builders'], 1)
         self.assertEqual(final_point['validators'], 2)
         self.assertEqual(final_point['waitlist'], 2)
-        self.assertEqual(final_point['cohort_total'], 6)
+        self.assertEqual(final_point['cohort_total'], 5)
         self.assertEqual(final_point['total'], 4)
-        self.assertEqual(final_point['overlap_count'], 2)
+        self.assertEqual(final_point['overlap_count'], 1)

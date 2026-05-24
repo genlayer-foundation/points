@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import models, transaction
 from rest_framework import serializers
 from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert, EvidenceURLType
 from users.serializers import UserSerializer, LightUserSerializer
@@ -127,6 +127,7 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
     category = serializers.CharField(source='category.slug', read_only=True)
     accepted_evidence_url_types = serializers.SerializerMethodField()
     required_evidence_url_types = serializers.SerializerMethodField()
+    required_discord_roles = serializers.SerializerMethodField()
     submission_count = serializers.SerializerMethodField()
     submissions_remaining = serializers.SerializerMethodField()
     is_full = serializers.SerializerMethodField()
@@ -138,18 +139,34 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
             'current_multiplier', 'is_submittable', 'max_submissions',
             'submission_count', 'submissions_remaining', 'is_full',
             'show_in_contributions', 'examples',
-            'required_social_accounts', 'accepted_evidence_url_types', 'required_evidence_url_types',
+            'required_social_accounts', 'required_discord_roles',
+            'accepted_evidence_url_types', 'required_evidence_url_types',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_current_multiplier(self, obj):
         """Get the current multiplier value for this contribution type."""
+        annotated_multiplier = getattr(obj, 'current_multiplier_value', None)
+        if annotated_multiplier is not None:
+            return float(annotated_multiplier)
+
         from leaderboard.models import GlobalLeaderboardMultiplier
         try:
             return float(GlobalLeaderboardMultiplier.get_current_multiplier_value(obj))
         except Exception:
             return 1.0
+
+    def _all_evidence_url_types(self):
+        cached = self.context.get('_all_evidence_url_types')
+        if cached is None:
+            cached = list(EvidenceURLType.objects.all().order_by('order', 'name'))
+            self.context['_all_evidence_url_types'] = cached
+        return cached
+
+    @staticmethod
+    def _ordered_url_types(url_types):
+        return sorted(url_types, key=lambda t: (t.order, t.name))
 
     def get_accepted_evidence_url_types(self, obj):
         """Return accepted evidence URL types with patterns for client-side detection.
@@ -161,21 +178,34 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
         Required types are merged in when an explicit accepted list is set,
         so they are always part of the returned list.
         """
-        accepted = obj.accepted_evidence_url_types.all()
-        if not accepted.exists():
-            url_types = EvidenceURLType.objects.all().order_by('order')
+        accepted = list(obj.accepted_evidence_url_types.all())
+        if not accepted:
+            url_types = self._all_evidence_url_types()
         else:
-            required = obj.required_evidence_url_types.all()
+            required = list(obj.required_evidence_url_types.all())
             merged = {t.id: t for t in accepted}
             for t in required:
                 merged.setdefault(t.id, t)
-            url_types = sorted(merged.values(), key=lambda t: (t.order, t.name))
+            url_types = self._ordered_url_types(merged.values())
         return EvidenceURLTypeSerializer(url_types, many=True).data
 
     def get_required_evidence_url_types(self, obj):
         """Return required evidence URL types (at least one must match)."""
-        url_types = obj.required_evidence_url_types.all().order_by('order')
+        url_types = self._ordered_url_types(
+            obj.required_evidence_url_types.all()
+        )
         return EvidenceURLTypeSerializer(url_types, many=True).data
+
+    def get_required_discord_roles(self, obj):
+        """Return active Discord roles that can satisfy this contribution type."""
+        from social_connections.serializers import DiscordRoleSerializer
+
+        roles = obj.required_discord_roles.filter(
+            deleted_at__isnull=True,
+        ).exclude(
+            role_id=models.F('guild_id'),
+        ).order_by('-position', 'name')
+        return DiscordRoleSerializer(roles, many=True).data
 
     def get_submission_count(self, obj):
         return obj.get_submission_count()
@@ -900,6 +930,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
     assigned_to = serializers.PrimaryKeyRelatedField(read_only=True)
     # Proposal fields
     proposed_by_details = serializers.SerializerMethodField()
+    proposed_user_details = serializers.SerializerMethodField()
     has_proposal = serializers.SerializerMethodField()
     proposed_template_name = serializers.SerializerMethodField()
     notes_count = serializers.SerializerMethodField()
@@ -911,7 +942,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                   'reviewed_by', 'reviewed_at', 'assigned_to',
                   'evidence_items', 'proposed_points',
                   # Proposal fields
-                  'proposed_action', 'proposed_contribution_type', 'proposed_user',
+                  'proposed_action', 'proposed_contribution_type', 'proposed_user', 'proposed_user_details',
                   'proposed_staff_reply', 'proposed_create_highlight',
                   'proposed_highlight_title', 'proposed_highlight_description',
                   'proposed_by', 'proposed_at', 'proposed_by_details', 'has_proposal',
@@ -999,6 +1030,17 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
             }
         return None
 
+    def get_proposed_user_details(self, obj):
+        if obj.proposed_user:
+            return {
+                'id': obj.proposed_user.id,
+                'name': obj.proposed_user.name,
+                'address': obj.proposed_user.address,
+                'display_name': obj.proposed_user.name or f"{obj.proposed_user.address[:6]}...{obj.proposed_user.address[-4:]}",
+                'profile_image_url': obj.proposed_user.profile_image_url,
+            }
+        return None
+
     def get_has_proposal(self, obj):
         return obj.proposed_action is not None
 
@@ -1008,6 +1050,9 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
         return None
 
     def get_notes_count(self, obj):
+        if hasattr(obj, 'internal_notes_count'):
+            return obj.internal_notes_count
+
         # Use prefetched data if available
         if hasattr(obj, '_prefetched_objects_cache') and 'internal_notes' in obj._prefetched_objects_cache:
             return len(obj._prefetched_objects_cache['internal_notes'])
@@ -1057,10 +1102,10 @@ class MissionSerializer(serializers.ModelSerializer):
         contribution_type = obj.contribution_type
         data = LightContributionTypeSerializer(contribution_type).data
         submission_count = getattr(obj, 'contribution_type_submission_count', None)
+        max_submissions = contribution_type.max_submissions
         if submission_count is None:
             submission_count = contribution_type.get_submission_count()
 
-        max_submissions = contribution_type.max_submissions
         data['submission_count'] = submission_count
         data['submissions_remaining'] = (
             None

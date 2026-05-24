@@ -29,12 +29,14 @@ def twitter_oauth_initiate(request):
 
     redirect_url = request.GET.get('redirect', settings.FRONTEND_URL)
 
-    # Pack code_verifier and redirect_url into the signed state token
-    # (not sessions — sessions break on multi-instance deployments like App Runner).
-    state = service.generate_state(request.user.id, extra_data={
-        'code_verifier': code_verifier,
-        'redirect_url': redirect_url,
-    })
+    # Keep PKCE verifier and redirect URL out of X's front-channel state
+    # parameter. X caps state at 500 chars, and signed+encrypted PKCE data
+    # can exceed that limit by itself.
+    state = service.create_pending_state(
+        request.user,
+        code_verifier=code_verifier,
+        redirect_url=redirect_url,
+    )
     if len(state) > 500:
         logger.error("Twitter OAuth state exceeded X's 500 character limit (len=%d)", len(state))
         return Response({'detail': 'Unable to initiate Twitter OAuth'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

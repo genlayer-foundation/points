@@ -4,8 +4,21 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters import FilterSet, CharFilter, BooleanFilter, NumberFilter
 from django.utils import timezone
+from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, Max, F, Q, Exists, OuterRef, Subquery, Sum
+from django.db.models import (
+    Count,
+    DecimalField,
+    Exists,
+    F,
+    IntegerField,
+    Max,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+)
 from django.db.models.functions import TruncDate, TruncWeek, TruncMonth
 from django.db.models.functions import Coalesce
 from django.shortcuts import render, redirect, get_object_or_404
@@ -40,14 +53,30 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['name', 'created_at']
     
     def get_queryset(self):
-        queryset = ContributionType.objects.all().annotate(
-            submission_count=Count(
-                'submitted_contributions',
-                filter=~Q(
-                    submitted_contributions__state__in=['rejected', 'canceled']
-                ),
-                distinct=True,
-            )
+        active_submissions = SubmittedContribution.objects.exclude(
+            state__in=['rejected', 'canceled']
+        )
+        submission_count = active_submissions.filter(
+            contribution_type_id=OuterRef('pk')
+        ).values('contribution_type_id').annotate(
+            count=Count('pk')
+        ).values('count')
+        multiplier_field = DecimalField(max_digits=10, decimal_places=2)
+        current_multiplier = GlobalLeaderboardMultiplier.objects.filter(
+            contribution_type_id=OuterRef('pk')
+        ).order_by('-valid_from').values('multiplier_value')[:1]
+
+        queryset = ContributionType.objects.select_related('category').annotate(
+            submission_count=Coalesce(
+                Subquery(submission_count, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            current_multiplier_value=Coalesce(
+                Subquery(current_multiplier, output_field=multiplier_field),
+                Value(1.0, output_field=multiplier_field),
+                output_field=multiplier_field,
+            ),
         )
 
         # Filter by category if provided
@@ -66,7 +95,8 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset.prefetch_related(
             'accepted_evidence_url_types',
             'required_evidence_url_types',
-        )
+            'required_discord_roles',
+        ).order_by('category__name', 'name', 'id')
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def statistics(self, request):
@@ -79,8 +109,6 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             - last date someone earned each type
             - total points given for each type
         """
-        from django.db.models import Sum
-        
         # Start with all contribution types
         queryset = ContributionType.objects.all()
 
@@ -92,26 +120,28 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             if category == 'builder':
                 queryset = queryset.exclude(slug='builder-welcome')
         
+        multiplier_field = DecimalField(max_digits=10, decimal_places=2)
+        current_multiplier = GlobalLeaderboardMultiplier.objects.filter(
+            contribution_type_id=OuterRef('pk')
+        ).order_by('-valid_from').values('multiplier_value')[:1]
+
         types_with_stats = queryset.annotate(
             count=Count('contributions'),
             participants_count=Count('contributions__user', distinct=True),
             last_earned=Coalesce(Max('contributions__contribution_date'), timezone.now()),
-            total_points_given=Coalesce(Sum('contributions__frozen_global_points'), 0)
-        ).values('id', 'name', 'description', 'min_points', 'max_points', 'count', 'participants_count', 'last_earned', 'total_points_given', 'is_submittable', 'show_in_contributions')
-        
-        # Add current multiplier for each type
-        result = []
-        for type_data in types_with_stats:
-            try:
-                contribution_type = ContributionType.objects.get(id=type_data['id'])
-                multiplier_value = GlobalLeaderboardMultiplier.get_current_multiplier_value(contribution_type)
-                type_data['current_multiplier'] = multiplier_value
-            except Exception:
-                type_data['current_multiplier'] = 1.0
+            total_points_given=Coalesce(Sum('contributions__frozen_global_points'), 0),
+            current_multiplier=Coalesce(
+                Subquery(current_multiplier, output_field=multiplier_field),
+                Value(1.0, output_field=multiplier_field),
+                output_field=multiplier_field,
+            ),
+        ).values(
+            'id', 'name', 'description', 'min_points', 'max_points', 'count',
+            'participants_count', 'last_earned', 'total_points_given',
+            'is_submittable', 'show_in_contributions', 'current_multiplier',
+        )
             
-            result.append(type_data)
-            
-        return Response(result)
+        return Response(list(types_with_stats))
     
     @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
     def top_contributors(self, request, pk=None):
@@ -244,6 +274,18 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         category = self.request.query_params.get('category')
         if category:
             queryset = queryset.filter(contribution_type__category__slug=category)
+
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        if start_date or end_date:
+            from django.utils.dateparse import parse_date
+
+            parsed_start = parse_date(start_date) if start_date else None
+            parsed_end = parse_date(end_date) if end_date else None
+            if parsed_start:
+                queryset = queryset.filter(contribution_date__date__gte=parsed_start)
+            if parsed_end:
+                queryset = queryset.filter(contribution_date__date__lte=parsed_end)
 
         # Exclude onboarding contributions (builder-welcome and validator-waitlist)
         # EXCEPT when viewing a specific user's profile (user_address is present)
@@ -535,6 +577,80 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         # my_submissions needs full data including evidence
         context['use_light_serializers'] = self.action == 'list'
         return context
+
+    def _validate_required_discord_roles(self, user, contribution_type):
+        """Ensure the user has at least one role required by this type."""
+        required_roles = list(
+            contribution_type.required_discord_roles.filter(
+                deleted_at__isnull=True,
+            ).exclude(
+                role_id=F('guild_id'),
+            )
+        )
+        if not required_roles:
+            return None
+
+        try:
+            connection = user.discordconnection
+        except Exception:
+            return Response(
+                {'error': 'You must link your Discord account to submit this type of contribution.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        recently_synced = (
+            connection.roles_synced_at
+            and (timezone.now() - connection.roles_synced_at).total_seconds()
+            <= int(getattr(settings, 'DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS', 30))
+        )
+
+        if not recently_synced:
+            try:
+                from social_connections.discord_roles import (
+                    DiscordRoleSyncConfigurationError,
+                    DiscordRoleSyncError,
+                    DiscordRoleSyncService,
+                    DiscordRoleSyncUnavailable,
+                )
+
+                result = DiscordRoleSyncService().sync_member_roles(connection)
+                connection = result.connection
+            except DiscordRoleSyncConfigurationError:
+                return Response(
+                    {'error': 'Discord role verification is not configured. Please try again later.'},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            except DiscordRoleSyncUnavailable:
+                return Response(
+                    {'error': 'Discord role verification is temporarily unavailable. Please try again later.'},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            except DiscordRoleSyncError:
+                return Response(
+                    {'error': 'Discord role verification failed. Please try again later.'},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+
+        if not connection.guild_member:
+            return Response(
+                {'error': 'You must be a member of the GenLayer Discord server to submit this type of contribution.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        user_role_ids = set(
+            connection.current_roles.filter(
+                deleted_at__isnull=True,
+            ).values_list('role_id', flat=True)
+        )
+        required_role_ids = {role.role_id for role in required_roles}
+        if user_role_ids.isdisjoint(required_role_ids):
+            role_names = ', '.join(role.name for role in required_roles)
+            return Response(
+                {'error': f'You need one of these Discord roles to submit this contribution: {role_names}.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        return None
     
     def create(self, request, *args, **kwargs):
         """Create a new submission with optional mission tracking."""
@@ -589,7 +705,12 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         contribution_type_id = data.get('contribution_type')
         if contribution_type_id:
             try:
-                contribution_type = ContributionType.objects.select_related('category').get(id=contribution_type_id)
+                contribution_type = (
+                    ContributionType.objects
+                    .select_related('category')
+                    .prefetch_related('required_discord_roles')
+                    .get(id=contribution_type_id)
+                )
                 # Non-submittable types can only be submitted through an active mission
                 if not contribution_type.is_submittable and not mission_id:
                     return Response(
@@ -629,6 +750,9 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                                 {'error': f'You must link your {", ".join(missing)} account(s) to submit this type of contribution.'},
                                 status=status.HTTP_403_FORBIDDEN
                             )
+                    discord_role_error = self._validate_required_discord_roles(request.user, contribution_type)
+                    if discord_role_error is not None:
+                        return discord_role_error
             except ContributionType.DoesNotExist:
                 pass
 
@@ -695,6 +819,22 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         # Update the submission
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
+
+        contribution_type = (
+            serializer.validated_data.get('contribution_type')
+            or instance.contribution_type
+        )
+        contribution_type = (
+            ContributionType.objects
+            .prefetch_related('required_discord_roles')
+            .get(id=contribution_type.id)
+        )
+        discord_role_error = self._validate_required_discord_roles(
+            request.user,
+            contribution_type,
+        )
+        if discord_role_error is not None:
+            return discord_role_error
 
         # Update state back to pending and track edit time
         instance.state = 'pending'
@@ -1130,6 +1270,12 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             else:
                 queryset = queryset.none()
 
+        notes_count = SubmissionNote.objects.filter(
+            submitted_contribution_id=OuterRef('pk')
+        ).values('submitted_contribution_id').annotate(
+            count=Count('pk')
+        ).values('count')
+
         # Comprehensive prefetch for optimization
         queryset = queryset.select_related(
             'user',
@@ -1148,7 +1294,13 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'proposed_contribution_type',
             'proposed_user',
             'proposed_template',
-        ).prefetch_related('evidence_items', 'internal_notes')
+        ).prefetch_related('evidence_items').annotate(
+            internal_notes_count=Coalesce(
+                Subquery(notes_count, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            )
+        )
 
         return queryset
 
@@ -1905,28 +2057,54 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
         Return active missions by default.
         Supports filtering by contribution_type and category.
         """
+        active_submissions = SubmittedContribution.objects.exclude(
+            state__in=['rejected', 'canceled']
+        )
+        mission_submission_count = active_submissions.filter(
+            mission_id=OuterRef('pk')
+        ).values('mission_id').annotate(
+            count=Count('pk')
+        ).values('count')
+        contribution_type_submission_count = active_submissions.filter(
+            contribution_type_id=OuterRef('contribution_type_id')
+        ).values('contribution_type_id').annotate(
+            count=Count('pk')
+        ).values('count')
+
+        annotations = {
+            'submission_count': Coalesce(
+                Subquery(mission_submission_count, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            'contribution_type_submission_count': Coalesce(
+                Subquery(
+                    contribution_type_submission_count,
+                    output_field=IntegerField(),
+                ),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+        }
+
+        user = getattr(self.request, 'user', None)
+        if user and getattr(user, 'is_authenticated', False):
+            user_submission_count = active_submissions.filter(
+                mission_id=OuterRef('pk'),
+                user_id=user.id,
+            ).values('mission_id').annotate(
+                count=Count('pk')
+            ).values('count')
+            annotations['user_submission_count'] = Coalesce(
+                Subquery(user_submission_count, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            )
+
         queryset = Mission.objects.all().select_related(
             'contribution_type',
             'contribution_type__category',
-        ).annotate(
-            submission_count=Count(
-                'submissions',
-                filter=~Q(
-                    submissions__state__in=['rejected', 'canceled']
-                ),
-                distinct=True,
-            ),
-            contribution_type_submission_count=Count(
-                'contribution_type__submitted_contributions',
-                filter=~Q(
-                    contribution_type__submitted_contributions__state__in=[
-                        'rejected',
-                        'canceled',
-                    ]
-                ),
-                distinct=True,
-            )
-        )
+        ).annotate(**annotations).order_by('-created_at', '-id')
 
         include_inactive = (
             self.request.query_params.get('include_inactive', '').lower()
@@ -2012,9 +2190,15 @@ class FeaturedContentViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
-        queryset = FeaturedContent.objects.filter(status='active').select_related(
+        include_inactive = (
+            self.request.query_params.get('include_inactive', '').lower()
+            in ('1', 'true', 'yes')
+        )
+        queryset = FeaturedContent.objects.select_related(
             'user', 'contribution', 'contribution__contribution_type'
         ).order_by('order', '-created_at')
+        if not include_inactive:
+            queryset = queryset.filter(status='active')
         content_type = self.request.query_params.get('type')
         if content_type:
             queryset = queryset.filter(content_type=content_type)
