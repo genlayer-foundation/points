@@ -276,18 +276,18 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 user__visible=True
             )
 
-            participant_count = leaderboard_entries.count()
-
             # Get contribution count for this category
             category_map = {
                 'validator': 'validator',
                 'builder': 'builder',
-                'steward': 'steward'
+                'steward': 'steward',
+                'community': 'community'
             }
             category = category_map.get(leaderboard_type)
 
             if category:
                 category_contributions = Contribution.objects.filter(
+                    user__visible=True,
                     contribution_type__category__slug=category
                 ).exclude(
                     contribution_type__slug__in=['builder-welcome', 'builder', 'validator-waitlist', 'validator']
@@ -304,6 +304,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 new_points_count = category_contributions.filter(
                     created_at__gte=last_month
                 ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
+                if category == 'community':
+                    participant_count = category_contributions.values('user_id').distinct().count()
+                else:
+                    participant_count = leaderboard_entries.count()
             else:
                 contribution_count = 0
                 new_contributions_count = 0
@@ -311,6 +315,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 total_points = leaderboard_entries.aggregate(
                     total=Sum('total_points')
                 )['total'] or 0
+                participant_count = leaderboard_entries.count()
 
             # New participants in the last 30 days for the specific leaderboard type
             if leaderboard_type == 'builder':
@@ -401,13 +406,15 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )
         validator_count = validator_contribs.values('user_id').distinct().count()
 
-        from .models import ReferralPoints
-        from django.db.models import F
-        creator_count = ReferralPoints.objects.filter(
-            user__visible=True
-        ).annotate(
-            total_pts=F('builder_points') + F('validator_points')
-        ).filter(total_pts__gt=0).count()
+        community_member_count = Contribution.objects.filter(
+            user__visible=True,
+            contribution_type__category__slug='community'
+        ).values('user_id').distinct().count()
+        new_community_members_count = Contribution.objects.filter(
+            user__visible=True,
+            contribution_type__category__slug='community',
+            created_at__gte=last_month
+        ).values('user_id').distinct().count()
 
         return Response({
             'participant_count': participant_count,
@@ -415,7 +422,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             'total_points': total_points,
             'builder_count': builder_count,
             'validator_count': validator_count,
-            'creator_count': creator_count,
+            'community_member_count': community_member_count,
+            # Backward-compatible alias for older clients.
+            'creator_count': community_member_count,
+            'new_community_members_count': new_community_members_count,
             'new_builders_count': new_builders_count,
             'new_validators_count': new_validators_count,
             'new_contributions_count': new_contributions_count,

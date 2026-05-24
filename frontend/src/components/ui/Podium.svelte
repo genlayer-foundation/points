@@ -29,6 +29,10 @@
       firstGradient: 'linear-gradient(135deg, #6bdc8a 0%, #3eb359 48%, #207b39 100%)',
       glow: 'rgba(62, 179, 89, 0.25)',
     },
+    community: {
+      firstGradient: 'linear-gradient(135deg, #aa8dff 0%, #7f52e1 48%, #4630a3 100%)',
+      glow: 'rgba(127, 82, 225, 0.25)',
+    },
     referral: {
       firstGradient: 'linear-gradient(135deg, #aa8dff 0%, #7f52e1 48%, #4630a3 100%)',
       glow: 'rgba(127, 82, 225, 0.25)',
