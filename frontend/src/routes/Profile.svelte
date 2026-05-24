@@ -243,7 +243,7 @@
       const response = await creatorAPI.joinAsCreator();
       if (response.status === 201 || response.status === 200) {
         showSuccess(
-          "You are now a Community Member! Start growing the community through referrals.",
+          "You are now a Community Member! Start contributing to the community.",
         );
         participant = await getCurrentUser();
       }

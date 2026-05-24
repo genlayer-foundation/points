@@ -110,7 +110,7 @@ Three side-by-side top-5 leaderboard columns.
 
 - Columns: Builders, Validators, Community
 - Category-colored point values
-- Data source: `leaderboardAPI.getBuilders()`, `.getValidators()`, `.getCommunity()`
+- Data source: `leaderboardAPI.getLeaderboard()` with `type` set to `builder`, `validator`, or `community`
 
 ---
 

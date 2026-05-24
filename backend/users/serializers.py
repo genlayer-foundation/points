@@ -507,38 +507,12 @@ class StewardSerializer(serializers.ModelSerializer):
 
 class CreatorSerializer(serializers.ModelSerializer):
     """
-    Serializer for Creator profile.
+    Serializer for Community profile.
     """
-    total_referrals = serializers.SerializerMethodField()
-    referral_points = serializers.SerializerMethodField()
-
     class Meta:
         model = Creator
-        fields = ['total_referrals', 'referral_points', 'created_at', 'updated_at']
+        fields = ['created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
-
-    def get_total_referrals(self, obj):
-        """Get total number of users referred by this creator."""
-        return obj.user.referrals.count()
-
-    def get_referral_points(self, obj):
-        """Get total points earned from referrals."""
-        from contributions.models import Contribution
-        from django.db.models import Sum
-
-        # Get all contributions from referred users
-        referred_users = obj.user.referrals.all()
-        if not referred_users.exists():
-            return 0
-
-        # Calculate 10% of points from referred users' contributions
-        total_points = Contribution.objects.filter(
-            user__in=referred_users
-        ).aggregate(
-            total=Sum('frozen_global_points')
-        )['total'] or 0
-
-        return int(total_points * 0.1)  # 10% of referred users' points
 
 
 class UserSerializer(serializers.ModelSerializer):

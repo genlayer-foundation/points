@@ -23,6 +23,8 @@
     if (rank === 3) return 'bg-[#c9956b] text-white';
     return 'bg-[#f8fafc] text-[#506078]';
   }
+
+  let pointsLabel = $derived($currentCategory === 'community' ? 'Community Points' : 'Points');
 </script>
 
 {#if loading}
@@ -61,7 +63,7 @@
               Participant
             </th>
             <th scope="col" class="w-[78px] px-2 py-3 text-right text-[11px] font-semibold uppercase text-[#7b8798] sm:w-[120px] sm:px-6 sm:text-left" style="letter-spacing: 0.8px;">
-              Points
+              {pointsLabel}
             </th>
             {#if $currentCategory === 'validator'}
               <th scope="col" class="hidden px-3 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798] sm:table-cell sm:w-[150px] sm:px-6" style="letter-spacing: 0.8px;">

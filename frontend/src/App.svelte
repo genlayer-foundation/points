@@ -103,6 +103,7 @@
   import GenNews from './routes/GenNews.svelte';
   import GenTV from './routes/GenTV.svelte';
   import Referrals from './routes/Referrals.svelte';
+  import LegacyReferralRedirect from './routes/LegacyReferralRedirect.svelte';
   import CommunityPoaps from './routes/CommunityPoaps.svelte';
   import PoapDetail from './routes/PoapDetail.svelte';
   import PoapClaim from './routes/PoapClaim.svelte';
@@ -135,7 +136,8 @@
     '/community': Dashboard,
     '/community/contributions': Contributions,
     '/community/all-contributions': AllContributions,
-    '/community/referrals': Referrals,
+    '/community/referrals': LegacyReferralRedirect,
+    '/community/leaderboard': Leaderboard,
     '/community/poaps': CommunityPoaps,
     '/community/poaps/recover': PoapRecovery,
     '/community/poaps/:slug': PoapDetail,

@@ -188,8 +188,8 @@
           <CategoryIcon category="community" mode="hexagon" size={40} />
         </div>
         <p class="text-[14px] text-[#6b6b6b] leading-snug">
-          Invite others to GenLayer and earn 10% of the points they make,
-          forever.
+          Link your social accounts and submit community work to earn community
+          points.
         </p>
       </div>
 
@@ -218,7 +218,7 @@
             onclick={onJoinCommunity}
             class="w-full bg-[#101010] text-white py-2 rounded-[24px] text-[14px] font-medium hover:bg-black transition-colors"
           >
-            Become a referrer <img
+            Join community <img
               src="/assets/icons/arrow-right-line.svg"
               class="inline w-4 h-4 ml-1 brightness-0 invert"
               alt=""

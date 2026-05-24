@@ -109,7 +109,7 @@
       error = null;
 
       if (query) {
-        const response = await leaderboardAPI.getCommunity({ limit: SEARCH_LIMIT, offset: 0 });
+        const response = await leaderboardAPI.getReferrals({ limit: SEARCH_LIMIT, offset: 0 });
         if (requestId !== requestSequence) return;
 
         const entries = (response.data?.results || [])
@@ -124,7 +124,7 @@
         return;
       }
 
-      const podiumResponse = await leaderboardAPI.getCommunity({ limit: PODIUM_SIZE, offset: 0 });
+      const podiumResponse = await leaderboardAPI.getReferrals({ limit: PODIUM_SIZE, offset: 0 });
       if (requestId !== requestSequence) return;
 
       const topEntries = (podiumResponse.data?.results || []).map((member, index) => normalizeReferral(member, index + 1));
@@ -133,7 +133,7 @@
         ? PODIUM_SIZE + ((page - 1) * PAGE_SIZE)
         : ((page - 1) * PAGE_SIZE);
 
-      const tableResponse = await leaderboardAPI.getCommunity({ limit: REQUEST_SIZE, offset: tableOffset });
+      const tableResponse = await leaderboardAPI.getReferrals({ limit: REQUEST_SIZE, offset: tableOffset });
       if (requestId !== requestSequence) return;
 
       const tableData = (tableResponse.data?.results || []).map((member, index) => normalizeReferral(member, tableOffset + index + 1));
@@ -301,7 +301,7 @@
                           Referrer
                         </th>
                         <th scope="col" class="w-[96px] px-2 py-3 text-right text-[11px] font-semibold uppercase text-[#7b8798] sm:w-[150px] sm:px-6 sm:text-left" style="letter-spacing: 0.8px;">
-                          Points
+                          Referral Points
                         </th>
                         <th scope="col" class="hidden w-[220px] px-3 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798] lg:table-cell lg:px-6" style="letter-spacing: 0.8px;">
                           Breakdown

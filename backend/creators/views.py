@@ -10,22 +10,20 @@ from users.serializers import CreatorSerializer
 @permission_classes([IsAuthenticated])
 def join_creator_view(request):
     """
-    Allow authenticated users to become creators.
+    Allow authenticated users to join the community program.
     """
     user = request.user
 
-    # Check if user already has a creator profile
     if hasattr(user, 'creator'):
         return Response(
-            {'message': 'You are already a creator!'},
+            {'message': 'You are already a community member!'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Create creator profile
     creator = Creator.objects.create(user=user)
     serializer = CreatorSerializer(creator)
 
     return Response({
-        'message': 'Successfully joined as a creator!',
+        'message': 'Successfully joined the community!',
         'creator': serializer.data
     }, status=status.HTTP_201_CREATED)

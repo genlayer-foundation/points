@@ -24,7 +24,7 @@
       const [bRes, vRes, cRes] = await Promise.all([
         leaderboardAPI.getLeaderboard({ type: 'builder', limit: LIMIT }),
         leaderboardAPI.getLeaderboard({ type: 'validator', limit: LIMIT }),
-        leaderboardAPI.getCommunityContributors({ limit: LIMIT }),
+        leaderboardAPI.getLeaderboard({ type: 'community', limit: LIMIT }),
       ]);
       builders = extractEntries(bRes.data);
       validators = extractEntries(vRes.data);
@@ -221,7 +221,7 @@
         {@render labelIcon('community')}
         <span class="text-[14px] font-medium text-black" style="letter-spacing: 0.28px;">Community</span>
       </div>
-      <button onclick={() => push('/community/referrals')} class="flex items-center gap-[4px] text-[14px] text-[#6b6b6b] hover:text-black transition-colors" style="letter-spacing: 0.28px;">
+      <button onclick={() => push('/community/leaderboard')} class="flex items-center gap-[4px] text-[14px] text-[#6b6b6b] hover:text-black transition-colors" style="letter-spacing: 0.28px;">
         View all
         <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
       </button>

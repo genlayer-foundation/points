@@ -615,79 +615,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def community(self, request):
         """
-        Get community statistics and paginated community members with referral points.
-        Returns users with referrals sorted by total referral points.
+        Get community statistics and paginated community members.
+        Returns users sorted by actual community contribution points.
         Supports limit/offset pagination and user_address lookup.
-        """
-        from .models import ReferralPoints
-        from users.serializers import LightUserSerializer
-        from django.db.models import F
-
-        limit = min(int(request.query_params.get('limit', 20)), 100)
-        offset = int(request.query_params.get('offset', 0))
-
-        referral_qs = ReferralPoints.objects.select_related('user').annotate(
-            total_points=F('builder_points') + F('validator_points')
-        ).filter(user__visible=True, total_points__gt=0).order_by('-total_points')
-
-        # Aggregate totals at DB level
-        totals = referral_qs.aggregate(
-            total_community=Count('id'),
-            total_builder=Sum('builder_points'),
-            total_validator=Sum('validator_points')
-        )
-
-        # Check if user_address is requested for rank lookup
-        user_address = request.query_params.get('user_address')
-        user_rank = None
-        user_total_points = None
-        if user_address:
-            # Find user's points first with a single DB query
-            try:
-                user_rp = ReferralPoints.objects.select_related('user').annotate(
-                    total_points=F('builder_points') + F('validator_points')
-                ).get(user__address__iexact=user_address, user__visible=True)
-                user_tp = user_rp.builder_points + user_rp.validator_points
-                if user_tp > 0:
-                    user_total_points = user_tp
-                    # Count how many users have more points (DB-level rank calculation)
-                    user_rank = referral_qs.filter(total_points__gt=user_tp).count() + 1
-            except ReferralPoints.DoesNotExist:
-                pass
-
-        # Paginated results with light serializer
-        page = referral_qs[offset:offset + limit]
-        results = []
-        for rank, rp in enumerate(page, start=offset + 1):
-            user_data = LightUserSerializer(rp.user).data
-            results.append({
-                **user_data,
-                'referral_builder_points': rp.builder_points,
-                'referral_validator_points': rp.validator_points,
-                'total_referral_points': rp.builder_points + rp.validator_points,
-                'total_points': rp.builder_points + rp.validator_points,
-                'rank': rank,
-            })
-
-        response_data = {
-            'total_community': totals['total_community'] or 0,
-            'total_builder_points': totals['total_builder'] or 0,
-            'total_validator_points': totals['total_validator'] or 0,
-            'count': totals['total_community'] or 0,
-            'results': results,
-        }
-
-        if user_address:
-            response_data['user_rank'] = user_rank
-            response_data['user_total_points'] = user_total_points
-
-        return Response(response_data)
-
-    @action(detail=False, methods=['get'], url_path='community-contributors')
-    def community_contributors(self, request):
-        """
-        Get top contributors by actual community contribution points.
-        This intentionally excludes referral points, which are tracked separately.
         """
         from users.models import User
         from users.serializers import LightUserSerializer
@@ -703,13 +633,20 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         except (ValueError, TypeError):
             offset = 0
 
-        community_totals = (
-            Contribution.objects
-            .filter(
-                user__visible=True,
-                contribution_type__category__slug='community',
+        community_contributions = Contribution.objects.filter(
+            user__visible=True,
+            contribution_type__category__slug='community',
+        )
+
+        search = request.query_params.get('search', '').strip()
+        if search:
+            community_contributions = community_contributions.filter(
+                Q(user__name__icontains=search) |
+                Q(user__address__icontains=search)
             )
-            .values('user_id')
+
+        community_totals = (
+            community_contributions.values('user_id')
             .annotate(
                 total_points=Sum('frozen_global_points'),
                 contribution_count=Count('id'),
@@ -719,6 +656,17 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
         count = community_totals.count()
+        user_address = request.query_params.get('user_address')
+        user_rank = None
+        user_total_points = None
+
+        if user_address:
+            user_entry = community_totals.filter(user__address__iexact=user_address).first()
+            if user_entry:
+                user_total_points = user_entry['total_points'] or 0
+                if user_total_points > 0:
+                    user_rank = community_totals.filter(total_points__gt=user_total_points).count() + 1
+
         page = list(community_totals[offset:offset + limit])
         users_by_id = {
             user.id: user
@@ -745,10 +693,97 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 'rank': index,
             })
 
-        return Response({
+        response_data = {
+            'total_community': count,
             'count': count,
             'results': results,
-        })
+        }
+
+        if user_address:
+            response_data['user_rank'] = user_rank
+            response_data['user_total_points'] = user_total_points
+
+        return Response(response_data)
+
+    @action(detail=False, methods=['get'])
+    def referrals(self, request):
+        """
+        Get referral leaderboard entries sorted by total referral points.
+        """
+        from .models import ReferralPoints
+        from users.serializers import LightUserSerializer
+        from django.db.models import F
+
+        try:
+            limit = int(request.query_params.get('limit', 20))
+        except (ValueError, TypeError):
+            limit = 20
+        limit = min(max(limit, 1), 100)
+
+        try:
+            offset = int(request.query_params.get('offset', 0))
+        except (ValueError, TypeError):
+            offset = 0
+
+        referral_qs = ReferralPoints.objects.select_related('user').annotate(
+            total_points=F('builder_points') + F('validator_points')
+        ).filter(user__visible=True, total_points__gt=0).order_by('-total_points')
+
+        search = request.query_params.get('search', '').strip()
+        if search:
+            referral_qs = referral_qs.filter(
+                Q(user__name__icontains=search) |
+                Q(user__address__icontains=search)
+            )
+
+        totals = referral_qs.aggregate(
+            total_referrers=Count('id'),
+            total_builder=Sum('builder_points'),
+            total_validator=Sum('validator_points')
+        )
+
+        user_address = request.query_params.get('user_address')
+        user_rank = None
+        user_total_points = None
+        if user_address:
+            try:
+                user_rp = referral_qs.get(user__address__iexact=user_address)
+                user_total_points = user_rp.builder_points + user_rp.validator_points
+                user_rank = referral_qs.filter(total_points__gt=user_total_points).count() + 1
+            except ReferralPoints.DoesNotExist:
+                pass
+
+        page = referral_qs[offset:offset + limit]
+        results = []
+        for rank, rp in enumerate(page, start=offset + 1):
+            user_data = LightUserSerializer(rp.user).data
+            results.append({
+                **user_data,
+                'referral_builder_points': rp.builder_points,
+                'referral_validator_points': rp.validator_points,
+                'total_referral_points': rp.builder_points + rp.validator_points,
+                'total_points': rp.builder_points + rp.validator_points,
+                'rank': rank,
+            })
+
+        response_data = {
+            'total_referrers': totals['total_referrers'] or 0,
+            'total_builder_points': totals['total_builder'] or 0,
+            'total_validator_points': totals['total_validator'] or 0,
+            'count': totals['total_referrers'] or 0,
+            'results': results,
+        }
+
+        if user_address:
+            response_data['user_rank'] = user_rank
+            response_data['user_total_points'] = user_total_points
+
+        return Response(response_data)
+
+    @action(detail=False, methods=['get'], url_path='community-contributors')
+    def community_contributors(self, request):
+        """Backward-compatible alias for the community points leaderboard."""
+        return self.community(request)
 
     @action(detail=False, methods=['get'])
     def trending(self, request):
