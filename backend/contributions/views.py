@@ -31,6 +31,7 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
                          StewardSubmissionSerializer, StewardSubmissionReviewSerializer,
+                         StewardAcceptedSubmissionUpdateSerializer,
                          SubmissionNoteSerializer, SubmissionProposeSerializer,
                          MissionSerializer, StartupRequestListSerializer, StartupRequestDetailSerializer,
                          FeaturedContentSerializer, AlertSerializer)
@@ -1006,6 +1007,8 @@ class StewardSubmissionFilterSet(FilterSet):
     exclude_username = CharFilter(method='filter_exclude_username')
     assigned_to = CharFilter(method='filter_assigned_to')
     exclude_assigned_to = CharFilter(method='filter_exclude_assigned_to')
+    reviewed_by = CharFilter(method='filter_reviewed_by')
+    exclude_reviewed_by = CharFilter(method='filter_exclude_reviewed_by')
     exclude_contribution_type = NumberFilter(method='filter_exclude_contribution_type')
     exclude_content = CharFilter(method='filter_exclude_content')
     include_content = CharFilter(method='filter_include_content')
@@ -1089,6 +1092,18 @@ class StewardSubmissionFilterSet(FilterSet):
             return queryset.exclude(assigned_to__isnull=True)
         elif value:
             return queryset.exclude(assigned_to_id=value)
+        return queryset
+
+    def filter_reviewed_by(self, queryset, name, value):
+        """Filter by steward who took the review action."""
+        if value:
+            return queryset.filter(reviewed_by_id=value)
+        return queryset
+
+    def filter_exclude_reviewed_by(self, queryset, name, value):
+        """Exclude submissions reviewed by a specific steward."""
+        if value:
+            return queryset.exclude(reviewed_by_id=value)
         return queryset
 
     def filter_exclude_contribution_type(self, queryset, name, value):
@@ -1296,12 +1311,19 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'reviewed_by',
             'assigned_to',
             'converted_contribution',
+            'converted_contribution__user',
+            'converted_contribution__contribution_type',
+            'converted_contribution__contribution_type__category',
+            'converted_contribution__mission',
             'mission',
             'proposed_by',
             'proposed_contribution_type',
             'proposed_user',
             'proposed_template',
-        ).prefetch_related('evidence_items').annotate(
+        ).prefetch_related(
+            'evidence_items',
+            'converted_contribution__highlights',
+        ).annotate(
             internal_notes_count=Coalesce(
                 Subquery(notes_count, output_field=IntegerField()),
                 Value(0),
@@ -1446,6 +1468,67 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 'points': serializer.validated_data.get('points'),
                 'staff_reply': reply_text,
                 'template_id': serializer.validated_data['template_id'].id if serializer.validated_data.get('template_id') else None,
+            },
+        )
+
+        return Response(
+            self.get_serializer(submission).data,
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['post'], url_path='update-accepted')
+    @transaction.atomic
+    def update_accepted(self, request, pk=None):
+        """Correct points or add/update a highlight for an accepted submission."""
+        submission = self.get_object()
+        contribution = submission.converted_contribution
+
+        if submission.state != 'accepted' or not contribution:
+            return Response(
+                {'detail': 'Only accepted submissions with a created contribution can be updated.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not steward_has_permission(request.user, submission.contribution_type_id, 'accept'):
+            return Response(
+                {'detail': 'You do not have permission to update accepted submissions of this contribution type.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = StewardAcceptedSubmissionUpdateSerializer(
+            data=request.data,
+            context={'contribution_type': contribution.contribution_type}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        points = serializer.validated_data['points']
+        contribution.points = points
+        multiplier = float(contribution.multiplier_at_creation or 1)
+        contribution.frozen_global_points = round(points * multiplier)
+        contribution.save(update_fields=['points', 'frozen_global_points', 'updated_at'])
+
+        if serializer.validated_data.get('create_highlight'):
+            highlight = ContributionHighlight.objects.filter(contribution=contribution).first()
+            if highlight:
+                highlight.title = serializer.validated_data['highlight_title']
+                highlight.description = serializer.validated_data['highlight_description']
+                highlight.save(update_fields=['title', 'description', 'updated_at'])
+            else:
+                ContributionHighlight.objects.create(
+                    contribution=contribution,
+                    title=serializer.validated_data['highlight_title'],
+                    description=serializer.validated_data['highlight_description']
+                )
+
+        SubmissionNote.objects.create(
+            submitted_contribution=submission,
+            user=request.user,
+            message=f"Updated accepted contribution: **{points} points**",
+            is_proposal=False,
+            data={
+                'action': 'update_accepted',
+                'points': points,
+                'create_highlight': serializer.validated_data.get('create_highlight', False),
             },
         )
 
