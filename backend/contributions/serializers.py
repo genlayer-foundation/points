@@ -848,6 +848,7 @@ class StewardAcceptedSubmissionUpdateSerializer(serializers.Serializer):
     """Serializer for correcting accepted submission awards."""
     points = serializers.IntegerField(required=True, min_value=0)
     create_highlight = serializers.BooleanField(default=False, required=False)
+    remove_highlight = serializers.BooleanField(default=False, required=False)
     highlight_title = serializers.CharField(max_length=200, required=False, allow_blank=True)
     highlight_description = serializers.CharField(required=False, allow_blank=True)
 
@@ -860,6 +861,10 @@ class StewardAcceptedSubmissionUpdateSerializer(serializers.Serializer):
             })
 
         if data.get('create_highlight'):
+            if data.get('remove_highlight'):
+                raise serializers.ValidationError({
+                    'remove_highlight': 'Cannot remove and create a highlight in the same update.'
+                })
             if not data.get('highlight_title'):
                 raise serializers.ValidationError({
                     'highlight_title': 'Title is required when creating a highlight.'

@@ -293,6 +293,40 @@ class StewardPermissionTest(TestCase):
         )
         self.assertEqual(highlight.title, 'Featured after review')
         self.assertEqual(response.data['contribution']['highlight']['title'], 'Featured after review')
+
+    def test_steward_can_remove_accepted_submission_highlight(self):
+        """Test that stewards can remove a feature after accepting."""
+        self.client.force_authenticate(user=self.steward_user)
+        self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 50,
+                'contribution_type': self.contribution_type.id,
+                'create_highlight': True,
+                'highlight_title': 'Featured after review',
+                'highlight_description': 'Added after points were assigned'
+            },
+            format='json'
+        )
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/update-accepted/',
+            {
+                'points': 50,
+                'remove_highlight': True
+            },
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.submission.refresh_from_db()
+        self.assertFalse(
+            ContributionHighlight.objects.filter(
+                contribution=self.submission.converted_contribution
+            ).exists()
+        )
+        self.assertIsNone(response.data['contribution']['highlight'])
     
     def test_points_validation(self):
         """Test that points are validated within contribution type limits."""

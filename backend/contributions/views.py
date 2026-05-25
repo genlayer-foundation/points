@@ -1479,7 +1479,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='update-accepted')
     @transaction.atomic
     def update_accepted(self, request, pk=None):
-        """Correct points or add/update a highlight for an accepted submission."""
+        """Correct points or add/update/remove a highlight for an accepted submission."""
         submission = self.get_object()
         contribution = submission.converted_contribution
 
@@ -1519,6 +1519,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                     title=serializer.validated_data['highlight_title'],
                     description=serializer.validated_data['highlight_description']
                 )
+        elif serializer.validated_data.get('remove_highlight'):
+            ContributionHighlight.objects.filter(contribution=contribution).delete()
 
         SubmissionNote.objects.create(
             submitted_contribution=submission,
@@ -1529,6 +1531,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 'action': 'update_accepted',
                 'points': points,
                 'create_highlight': serializer.validated_data.get('create_highlight', False),
+                'remove_highlight': serializer.validated_data.get('remove_highlight', False),
             },
         )
 
