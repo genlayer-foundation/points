@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { featuredAPI } from '../../lib/api.js';
+  import { projectsAPI } from '../../lib/api.js';
 
   let { title = 'Featured Builds', subtitle = 'This month curated builds' } = $props();
 
@@ -9,7 +9,7 @@
 
   onMount(async () => {
     try {
-      const response = await featuredAPI.getBuilds();
+      const response = await projectsAPI.list();
       if (response.data && response.data.length > 0) {
         builds = response.data;
       }
@@ -46,10 +46,12 @@
   {:else}
     <div class="flex gap-[10px] overflow-x-auto pb-2" style="-ms-overflow-style: none; scrollbar-width: none;">
       {#each builds as build}
+        {@const projectHref = build.slug ? `#/builders/projects/${build.slug}` : (build.link || build.url || '#')}
+        {@const isExternal = projectHref.startsWith('http')}
         <a
-          href={build.link || build.url || '#'}
-          target={build.url?.startsWith('http') ? '_blank' : undefined}
-          rel={build.url?.startsWith('http') ? 'noopener noreferrer' : undefined}
+          href={projectHref}
+          target={isExternal ? '_blank' : undefined}
+          rel={isExternal ? 'noopener noreferrer' : undefined}
           class="flex-shrink-0 w-[300px] h-[150px] rounded-[8px] overflow-hidden relative group cursor-pointer bg-[#f8f8f8]"
         >
           <!-- Background image -->

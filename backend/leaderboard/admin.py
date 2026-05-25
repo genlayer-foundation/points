@@ -90,7 +90,7 @@ class ReferralPointsAdmin(admin.ModelAdmin):
     def total_referral_points(self, obj):
         """Display total referral points (builder + validator)"""
         return obj.builder_points + obj.validator_points
-    total_referral_points.short_description = 'Total Points'
+    total_referral_points.short_description = 'Total Referral Points'
 
     def has_add_permission(self, request):
         # Don't allow manual creation

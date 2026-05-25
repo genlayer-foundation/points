@@ -7,7 +7,7 @@
   import Sidebar from './components/Sidebar.svelte';
   import ToastContainer from './components/ToastContainer.svelte';
   import ProfileCompletionGuard from './components/ProfileCompletionGuard.svelte';
-  import { categoryTheme, currentCategory, detectCategoryFromRoute } from './stores/category.js';
+  import { currentCategory, detectCategoryFromRoute } from './stores/category.js';
   import { location } from 'svelte-spa-router';
   import { resetPageMeta } from './lib/meta.js';
   
@@ -103,6 +103,7 @@
   import GenNews from './routes/GenNews.svelte';
   import GenTV from './routes/GenTV.svelte';
   import Referrals from './routes/Referrals.svelte';
+  import LegacyReferralRedirect from './routes/LegacyReferralRedirect.svelte';
   import CommunityPoaps from './routes/CommunityPoaps.svelte';
   import PoapDetail from './routes/PoapDetail.svelte';
   import PoapClaim from './routes/PoapClaim.svelte';
@@ -114,6 +115,8 @@
   import HowItWorks from './routes/HowItWorks.svelte';
   import StartupRequestDetail from './routes/StartupRequestDetail.svelte';
   import ContributionPreview from './routes/ContributionPreview.svelte';
+  import ProjectDetail from './routes/ProjectDetail.svelte';
+  import ProjectPageEditor from './routes/ProjectPageEditor.svelte';
   import GlobalDashboard from './components/GlobalDashboard.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
 
@@ -130,10 +133,11 @@
     '/leaderboard': Leaderboard,
     '/participants': Validators,
     '/referrals': Referrals,
-    '/community': ReferralProgram,
+    '/community': Dashboard,
     '/community/contributions': Contributions,
     '/community/all-contributions': AllContributions,
-    '/community/referrals': Referrals,
+    '/community/referrals': LegacyReferralRedirect,
+    '/community/leaderboard': Leaderboard,
     '/community/poaps': CommunityPoaps,
     '/community/poaps/recover': PoapRecovery,
     '/community/poaps/:slug': PoapDetail,
@@ -150,6 +154,8 @@
     '/builders/leaderboard': Leaderboard,
 
     '/builders/resources': Resources,
+    '/builders/projects/:slug/edit': ProjectPageEditor,
+    '/builders/projects/:slug': ProjectDetail,
     '/builders/startup-requests/:id': StartupRequestDetail,
     
     // Validators routes
@@ -377,7 +383,7 @@
   }
 </script>
 
-<div class="h-screen flex flex-col {$categoryTheme.bg} transition-colors duration-300">
+<div class="h-screen flex flex-col bg-white">
   <Navbar {toggleSidebar} {sidebarOpen} />
   <div class="flex-1 flex overflow-hidden">
     <Sidebar bind:isOpen={sidebarOpen} bind:collapsed={sidebarCollapsed} />

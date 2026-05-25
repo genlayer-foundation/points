@@ -31,6 +31,7 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
                          StewardSubmissionSerializer, StewardSubmissionReviewSerializer,
+                         StewardAcceptedSubmissionUpdateSerializer,
                          SubmissionNoteSerializer, SubmissionProposeSerializer,
                          MissionSerializer, StartupRequestListSerializer, StartupRequestDetailSerializer,
                          FeaturedContentSerializer, AlertSerializer)
@@ -39,6 +40,13 @@ from .permissions import IsSteward, steward_has_permission, steward_permitted_ty
 from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from ethereum_auth.authentication import EthereumAuthentication
+
+METRICS_POINTS_EXCLUDED_TYPE_SLUGS = [
+    'builder-welcome',
+    'builder',
+    'community-link-x',
+    'community-link-discord',
+]
 
 
 class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
@@ -300,6 +308,13 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         submittable_only = self.request.query_params.get('submittable_only')
         if submittable_only and submittable_only.lower() == 'true':
             queryset = queryset.filter(contribution_type__is_submittable=True)
+
+        public_explorer_only = self.request.query_params.get('public_explorer_only')
+        if public_explorer_only and public_explorer_only.lower() == 'true':
+            queryset = queryset.filter(
+                Q(contribution_type__is_submittable=True) |
+                Q(contribution_type__show_in_contributions=True)
+            )
 
         return queryset
 
@@ -999,6 +1014,8 @@ class StewardSubmissionFilterSet(FilterSet):
     exclude_username = CharFilter(method='filter_exclude_username')
     assigned_to = CharFilter(method='filter_assigned_to')
     exclude_assigned_to = CharFilter(method='filter_exclude_assigned_to')
+    reviewed_by = CharFilter(method='filter_reviewed_by')
+    exclude_reviewed_by = CharFilter(method='filter_exclude_reviewed_by')
     exclude_contribution_type = NumberFilter(method='filter_exclude_contribution_type')
     exclude_content = CharFilter(method='filter_exclude_content')
     include_content = CharFilter(method='filter_include_content')
@@ -1082,6 +1099,18 @@ class StewardSubmissionFilterSet(FilterSet):
             return queryset.exclude(assigned_to__isnull=True)
         elif value:
             return queryset.exclude(assigned_to_id=value)
+        return queryset
+
+    def filter_reviewed_by(self, queryset, name, value):
+        """Filter by steward who took the review action."""
+        if value:
+            return queryset.filter(reviewed_by_id=value)
+        return queryset
+
+    def filter_exclude_reviewed_by(self, queryset, name, value):
+        """Exclude submissions reviewed by a specific steward."""
+        if value:
+            return queryset.exclude(reviewed_by_id=value)
         return queryset
 
     def filter_exclude_contribution_type(self, queryset, name, value):
@@ -1289,12 +1318,19 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'reviewed_by',
             'assigned_to',
             'converted_contribution',
+            'converted_contribution__user',
+            'converted_contribution__contribution_type',
+            'converted_contribution__contribution_type__category',
+            'converted_contribution__mission',
             'mission',
             'proposed_by',
             'proposed_contribution_type',
             'proposed_user',
             'proposed_template',
-        ).prefetch_related('evidence_items').annotate(
+        ).prefetch_related(
+            'evidence_items',
+            'converted_contribution__highlights',
+        ).annotate(
             internal_notes_count=Coalesce(
                 Subquery(notes_count, output_field=IntegerField()),
                 Value(0),
@@ -1447,6 +1483,70 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK
         )
 
+    @action(detail=True, methods=['post'], url_path='update-accepted')
+    @transaction.atomic
+    def update_accepted(self, request, pk=None):
+        """Correct points or add/update/remove a highlight for an accepted submission."""
+        submission = self.get_object()
+        contribution = submission.converted_contribution
+
+        if submission.state != 'accepted' or not contribution:
+            return Response(
+                {'detail': 'Only accepted submissions with a created contribution can be updated.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not steward_has_permission(request.user, submission.contribution_type_id, 'accept'):
+            return Response(
+                {'detail': 'You do not have permission to update accepted submissions of this contribution type.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = StewardAcceptedSubmissionUpdateSerializer(
+            data=request.data,
+            context={'contribution_type': contribution.contribution_type}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        points = serializer.validated_data['points']
+        contribution.points = points
+        multiplier = float(contribution.multiplier_at_creation or 1)
+        contribution.frozen_global_points = round(points * multiplier)
+        contribution.save(update_fields=['points', 'frozen_global_points', 'updated_at'])
+
+        if serializer.validated_data.get('create_highlight'):
+            highlight = ContributionHighlight.objects.filter(contribution=contribution).first()
+            if highlight:
+                highlight.title = serializer.validated_data['highlight_title']
+                highlight.description = serializer.validated_data['highlight_description']
+                highlight.save(update_fields=['title', 'description', 'updated_at'])
+            else:
+                ContributionHighlight.objects.create(
+                    contribution=contribution,
+                    title=serializer.validated_data['highlight_title'],
+                    description=serializer.validated_data['highlight_description']
+                )
+        elif serializer.validated_data.get('remove_highlight'):
+            ContributionHighlight.objects.filter(contribution=contribution).delete()
+
+        SubmissionNote.objects.create(
+            submitted_contribution=submission,
+            user=request.user,
+            message=f"Updated accepted contribution: **{points} points**",
+            is_proposal=False,
+            data={
+                'action': 'update_accepted',
+                'points': points,
+                'create_highlight': serializer.validated_data.get('create_highlight', False),
+                'remove_highlight': serializer.validated_data.get('remove_highlight', False),
+            },
+        )
+
+        return Response(
+            self.get_serializer(submission).data,
+            status=status.HTTP_200_OK
+        )
+
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
         """Get statistics for steward dashboard."""
@@ -1522,7 +1622,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         - accepted: Submissions accepted
         - rejected: Submissions rejected
         - more_info_requested: Submissions requesting more info
-        - points_awarded: Total points from accepted contributions
+        - points_awarded: Total points from accepted contributions, excluding
+          onboarding and social-linking awards
 
         The `totals` block also includes `pending_review`: submissions created
         in the date range that are still in the pending state, respecting the
@@ -1643,6 +1744,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             created_at__date__gte=start_date,
             created_at__date__lte=end_date,
             source_submission__isnull=False  # Only from submissions
+        ).exclude(
+            contribution_type__slug__in=METRICS_POINTS_EXCLUDED_TYPE_SLUGS
         )
 
         # Apply category/type filters to points query if specified
@@ -2114,12 +2217,15 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Detail lookups must be able to resolve expired missions so historical
         # submissions/contributions can keep their mission identity.
-        if self.action != 'retrieve' and not include_inactive:
+        if self.action != 'retrieve':
             active_q = self._active_mission_q()
-            if is_active is None or is_active.lower() in ['1', 'true', 'yes']:
+            if is_active is not None:
+                if is_active.lower() in ['1', 'true', 'yes']:
+                    queryset = queryset.filter(active_q)
+                elif is_active.lower() in ['0', 'false', 'no']:
+                    queryset = queryset.exclude(active_q)
+            elif not include_inactive:
                 queryset = queryset.filter(active_q)
-            elif is_active.lower() in ['0', 'false', 'no']:
-                queryset = queryset.exclude(active_q)
 
         # Filter by contribution type if specified
         contribution_type = self.request.query_params.get('contribution_type', None)
@@ -2188,6 +2294,25 @@ class FeaturedContentViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = FeaturedContentSerializer
     permission_classes = [permissions.AllowAny]
     pagination_class = None
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        placement = request.query_params.get('placement')
+
+        if placement:
+            valid_placements = {choice[0] for choice in FeaturedContent.HERO_PLACEMENT_CHOICES}
+            if placement not in valid_placements - {FeaturedContent.HERO_PLACEMENT_ALL}:
+                return Response(
+                    {'detail': f"Invalid placement '{placement}'."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            queryset = [
+                item for item in queryset
+                if item.shows_in_placement(placement)
+            ]
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def get_queryset(self):
         include_inactive = (

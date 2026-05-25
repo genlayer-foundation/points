@@ -5,7 +5,7 @@ from utils.models import BaseModel
 
 class Creator(BaseModel):
     """
-    Creator profile - for users who focus on referrals.
+    Community profile for users participating in community activities.
     One-to-one relationship with User.
     """
     user = models.OneToOneField(

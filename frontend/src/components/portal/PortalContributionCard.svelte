@@ -2,7 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
 
-  let { contribution, category = null, height = 180 } = $props();
+  let { contribution, category = null, height = 180, pathPrefix = '/contribution' } = $props();
 
   function getCategoryColors(cat) {
     const map = {
@@ -67,7 +67,7 @@
 
   function handleCardClick(event) {
     if (event.target.closest('button') || event.target.closest('a')) return;
-    if (realId) push(`/contribution/${realId}`);
+    if (realId) push(`${pathPrefix}/${realId}`);
   }
 
   function handleKeydown(event) {

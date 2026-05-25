@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import Avatar from '../components/Avatar.svelte';
-  import Icon from '../components/Icons.svelte';
   import { leaderboardAPI } from '../lib/api';
 
   const PAGE_SIZE = 50;
@@ -23,7 +22,7 @@
       error = null;
       offset = 0;
 
-      const response = await leaderboardAPI.getCommunity({ limit: PAGE_SIZE, offset: 0 });
+      const response = await leaderboardAPI.getLeaderboard({ type: 'community', limit: PAGE_SIZE, offset: 0 });
       const data = response.data;
 
       communityMembers = data.results || [];
@@ -40,7 +39,7 @@
   async function loadMore() {
     try {
       loadingMore = true;
-      const response = await leaderboardAPI.getCommunity({ limit: PAGE_SIZE, offset });
+      const response = await leaderboardAPI.getLeaderboard({ type: 'community', limit: PAGE_SIZE, offset });
       const data = response.data;
       const newResults = data.results || [];
 
@@ -97,7 +96,7 @@
             </svg>
           </div>
           <h3 class="text-lg font-semibold text-gray-900 mb-2">No Community Members Yet</h3>
-          <p class="text-gray-600">Be the first to earn referral points by inviting people to the GenLayer ecosystem!</p>
+          <p class="text-gray-600">Be the first to earn community points through community contributions.</p>
         </div>
       {:else}
         <div class="bg-white shadow overflow-hidden rounded-lg">
@@ -112,7 +111,7 @@
                     Participant
                   </th>
                   <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Referral Points
+                    Community Points
                   </th>
                 </tr>
               </thead>
@@ -143,17 +142,7 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                       <div class="flex items-center justify-center gap-2">
-                        <span class="text-lg font-bold text-gray-900">{member.total_points}</span>
-                        <div class="flex items-center gap-2">
-                          <div class="flex items-center text-xs text-orange-600" title="Builder Referral Points">
-                            <Icon name="builder" size="xs" className="mr-0.5" />
-                            {member.referral_builder_points}
-                          </div>
-                          <div class="flex items-center text-xs text-sky-600" title="Validator Referral Points">
-                            <Icon name="validator" size="xs" className="mr-0.5" />
-                            {member.referral_validator_points}
-                          </div>
-                        </div>
+                        <span class="text-lg font-bold text-gray-900">{member.community_points ?? member.total_points}</span>
                       </div>
                     </td>
                   </tr>

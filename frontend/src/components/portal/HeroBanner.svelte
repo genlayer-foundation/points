@@ -11,7 +11,37 @@
   let loading = $state(true);
 
   let hero = $derived(heroes.length > 0 ? heroes[currentIndex] : null);
-  let isValidator = $derived(category === 'validator');
+  let placement = $derived(showNewsLink ? 'overview' : category);
+  let showDashboardFallback = $derived(!showNewsLink && !loading && !hero);
+  let fallbackGradient = $derived(
+    category === 'validator'
+      ? 'linear-gradient(135deg, #1f56f2 0%, #4f76f6 48%, #b8c7ff 100%)'
+      : category === 'community'
+        ? 'linear-gradient(135deg, #6f35d7 0%, #7f52e1 48%, #d6c3ff 100%)'
+        : 'linear-gradient(135deg, #d96816 0%, #ee8521 48%, #ffd1a3 100%)'
+  );
+  let loadingGradient = $derived(showNewsLink ? 'linear-gradient(to right, #c4bfe8, #eae9f3)' : fallbackGradient);
+  let fallbackEyebrow = $derived(
+    category === 'validator' ? 'Validator Dashboard' : category === 'community' ? 'Community Dashboard' : 'Builder Dashboard'
+  );
+  let fallbackTitle = $derived(
+    category === 'validator' ? 'Join Validator Journey' : category === 'community' ? 'Community Journey' : 'Builder Journey'
+  );
+  let fallbackDescription = $derived(
+    category === 'validator'
+      ? 'Track validator progress, waitlist activity, and network participation across the GenLayer ecosystem.'
+      : category === 'community'
+        ? 'Follow community contributions, active members, and the latest progress across GenLayer.'
+        : 'Discover builder activity, featured contributions, and the teams shaping GenLayer.'
+  );
+  let fallbackActionLabel = $derived(category === 'validator' ? 'Join the waitlist' : 'View contributions');
+  let fallbackActionPath = $derived(
+    category === 'validator'
+      ? '/validators/waitlist/join'
+      : category === 'community'
+        ? '/community/all-contributions'
+        : '/builders/all-contributions'
+  );
 
   function startAutoAdvance() {
     stopAutoAdvance();
@@ -30,13 +60,8 @@
   }
 
   onMount(async () => {
-    if (isValidator) {
-      // Validator uses a static banner, no API fetch needed
-      loading = false;
-      return;
-    }
     try {
-      const response = await featuredAPI.getHero();
+      const response = await featuredAPI.getHero({ placement });
       if (response.data && response.data.length > 0) {
         heroes = response.data;
         startAutoAdvance();
@@ -52,16 +77,18 @@
     stopAutoAdvance();
   });
 
-  let bgImage = $derived(hero?.hero_image_url || '/assets/hero-bg.png');
   let projectLink = $derived(hero?.link || hero?.url || '#');
 </script>
 
-{#if isValidator}
-  <!-- Validator static banner -->
+{#if showDashboardFallback}
+  <!-- Dashboard fallback banner -->
   <div
     class="relative overflow-hidden rounded-[8px] p-4 pt-10 md:p-5 flex items-start md:items-end h-[480px] md:h-[300px]"
-    style="background: url('/assets/validator-hero-bg.svg') center/cover no-repeat;"
+    style="background: {fallbackGradient};"
   >
+    <div class="absolute inset-0 opacity-25" style="background-image: linear-gradient(rgba(255,255,255,0.22) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.18) 1px, transparent 1px); background-size: 44px 44px;"></div>
+    <div class="absolute inset-0" style="background: linear-gradient(to right, rgba(0,0,0,0.18), rgba(0,0,0,0.04));"></div>
+
     <!-- Card overlay — frosted glass -->
     <div
       class="relative z-10 rounded-[24px] p-4 flex flex-col gap-4 w-full md:w-[386px] backdrop-blur-[10px]"
@@ -69,23 +96,23 @@
     >
       <div class="flex flex-col">
         <div class="flex items-center gap-1 h-4">
-          <span class="text-white/60 text-xs font-medium leading-none" style="letter-spacing: 0.24px;">GenLayer</span>
+          <span class="text-white/70 text-xs font-medium leading-none">{fallbackEyebrow}</span>
           <img src="/assets/icons/verified-badge-fill.svg" alt="Verified" class="w-4 h-4 flex-shrink-0">
         </div>
-        <h2 class="font-display text-[32px] font-medium text-white leading-[48px] whitespace-nowrap h-[48px]" style="letter-spacing: -1.28px;">
-          Join Validator Journey
+        <h2 class="font-display text-[32px] font-medium text-white leading-[38px] line-clamp-1 h-[38px] overflow-hidden">
+          {fallbackTitle}
         </h2>
         <p class="text-white/80 text-sm line-clamp-3 h-[60px] overflow-hidden" style="letter-spacing: 0.28px;">
-          The Validator Journey tracks participants who have joined the waitlist and are working towards becoming active validators on the GenLayer network.
+          {fallbackDescription}
         </p>
       </div>
 
       <div class="h-10">
         <button
-          onclick={() => push('/validators/waitlist/join')}
+          onclick={() => push(fallbackActionPath)}
           class="inline-flex h-10 px-4 bg-white rounded-[20px] items-center gap-2 hover:bg-white/90 transition-colors"
         >
-          <span class="text-black text-sm font-medium" style="letter-spacing: 0.28px;">Join the waitlist</span>
+          <span class="text-black text-sm font-medium" style="letter-spacing: 0.28px;">{fallbackActionLabel}</span>
           <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
         </button>
       </div>
@@ -93,7 +120,7 @@
   </div>
 {:else if loading}
   <!-- Loading skeleton -->
-  <div class="relative overflow-hidden rounded-[8px] p-4 pt-10 md:p-5 flex items-start md:items-end animate-pulse h-[480px] md:h-[300px]" style="background: linear-gradient(to right, #c4bfe8, #eae9f3);">
+  <div class="relative overflow-hidden rounded-[8px] p-4 pt-10 md:p-5 flex items-start md:items-end animate-pulse h-[480px] md:h-[300px]" style="background: {loadingGradient};">
     <div class="relative z-10 rounded-[24px] p-4 flex flex-col gap-4 w-full md:w-[386px] backdrop-blur-[10px]" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25); box-shadow: inset 0 1px 1px rgba(255,255,255,0.15), 0 0 20px rgba(255,255,255,0.05);">
       <div class="flex flex-col gap-2">
         <div class="h-3 w-24 bg-white/20 rounded"></div>
@@ -105,6 +132,8 @@
   </div>
 {:else if hero}
   <div
+    role="region"
+    aria-label="Featured announcement"
     class="relative overflow-hidden rounded-[8px] p-4 pt-10 md:p-5 flex items-start md:items-end h-[480px] md:h-[300px]"
     style="background: linear-gradient(to right, #8d81e1, #eae9f3);"
     onmouseenter={stopAutoAdvance}

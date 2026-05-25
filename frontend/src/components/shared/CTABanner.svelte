@@ -41,21 +41,13 @@
     let rankLabel: string = $state("");
     let rankComputed = $state(false);
 
-    // Determine which entry type to use based on role eligibility
-    // Priority: builder (completed) > validator-waitlist > validator > community (with referrals)
+    // Determine which entry type to use based on leaderboard-backed role eligibility.
     let eligibleEntryType = $derived.by(() => {
         const p = participant;
         if (!p) return null;
         if (p.builder) return "builder";
         if (p.has_validator_waitlist && !p.validator) return "validator-waitlist";
         if (p.validator) return "validator";
-        // Community only if they have at least one referral
-        if (p.creator) {
-            const hasReferrals =
-                referralData?.total_referrals > 0 ||
-                referralData?.referrals?.length > 0;
-            if (hasReferrals) return "community";
-        }
         return null;
     });
 
@@ -63,7 +55,6 @@
         builder: "Builder",
         validator: "Validator",
         "validator-waitlist": "Validator Waitlist",
-        community: "Community",
     };
 
     // Fetch points-to-next-rank once leaderboard entries are available

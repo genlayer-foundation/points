@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
-from contributions.models import SubmittedContribution, ContributionType, Category
+from contributions.models import SubmittedContribution, ContributionType, Category, ContributionHighlight
 from stewards.models import Steward, StewardPermission
 from datetime import datetime
 from django.utils import timezone
@@ -216,6 +216,117 @@ class StewardPermissionTest(TestCase):
         self.assertTrue(self.submission.converted_contribution.highlights.exists())
         highlight = self.submission.converted_contribution.highlights.first()
         self.assertEqual(highlight.title, 'Outstanding Contribution')
+
+    def test_steward_can_update_accepted_submission_points(self):
+        """Test that stewards can correct points after accepting."""
+        self.client.force_authenticate(user=self.steward_user)
+        self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 50,
+                'contribution_type': self.contribution_type.id
+            },
+            format='json'
+        )
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/update-accepted/',
+            {'points': 80},
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.converted_contribution.points, 80)
+        self.assertEqual(response.data['contribution']['points'], 80)
+
+    def test_accepted_submission_list_includes_contribution_points(self):
+        """Accepted submissions list includes enough contribution data for steward edits."""
+        self.client.force_authenticate(user=self.steward_user)
+        self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 50,
+                'contribution_type': self.contribution_type.id
+            },
+            format='json'
+        )
+
+        response = self.client.get('/api/v1/steward-submissions/?state=accepted')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result = response.data['results'][0]
+        self.assertIsNotNone(result['contribution'])
+        self.assertEqual(result['contribution']['points'], 50)
+        self.assertIn('highlight', result['contribution'])
+
+    def test_steward_can_feature_accepted_submission(self):
+        """Test that stewards can feature a contribution after accepting."""
+        self.client.force_authenticate(user=self.steward_user)
+        self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 50,
+                'contribution_type': self.contribution_type.id
+            },
+            format='json'
+        )
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/update-accepted/',
+            {
+                'points': 50,
+                'create_highlight': True,
+                'highlight_title': 'Featured after review',
+                'highlight_description': 'Added after points were assigned'
+            },
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.submission.refresh_from_db()
+        highlight = ContributionHighlight.objects.get(
+            contribution=self.submission.converted_contribution
+        )
+        self.assertEqual(highlight.title, 'Featured after review')
+        self.assertEqual(response.data['contribution']['highlight']['title'], 'Featured after review')
+
+    def test_steward_can_remove_accepted_submission_highlight(self):
+        """Test that stewards can remove a feature after accepting."""
+        self.client.force_authenticate(user=self.steward_user)
+        self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 50,
+                'contribution_type': self.contribution_type.id,
+                'create_highlight': True,
+                'highlight_title': 'Featured after review',
+                'highlight_description': 'Added after points were assigned'
+            },
+            format='json'
+        )
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/update-accepted/',
+            {
+                'points': 50,
+                'remove_highlight': True
+            },
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.submission.refresh_from_db()
+        self.assertFalse(
+            ContributionHighlight.objects.filter(
+                contribution=self.submission.converted_contribution
+            ).exists()
+        )
+        self.assertIsNone(response.data['contribution']['highlight'])
     
     def test_points_validation(self):
         """Test that points are validated within contribution type limits."""

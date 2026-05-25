@@ -42,8 +42,8 @@
     }
 
     function referrerEarned(referral) {
-        const builder = Math.round((referral.builder_contribution_points || 0) * 0.1);
-        const validator = Math.round((referral.validator_contribution_points || 0) * 0.1);
+        const builder = Math.floor((referral.builder_contribution_points || 0) * 0.1);
+        const validator = Math.floor((referral.validator_contribution_points || 0) * 0.1);
         return builder + validator;
     }
 
@@ -308,7 +308,7 @@
                     </div>
                     {#if isOwnProfile}
                         <button
-                            onclick={() => push("/community/referrals")}
+                            onclick={() => push("/referrals")}
                             class="flex items-center gap-[4px] text-[14px] text-[#6b6b6b] hover:text-black transition-colors"
                             style="letter-spacing: 0.28px;"
                         >
@@ -372,7 +372,7 @@
                                     >
                                         <span>+{referrerEarned(referral)}</span>
                                         <span class="text-[#999] font-normal"
-                                            >GP</span
+                                            >RP</span
                                         >
                                     </div>
                                 </div>

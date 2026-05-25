@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from './config.js';
+import { attachCsrfToken } from './csrf.js';
 
 // Create axios instance with base configuration
 const api = axios.create({
@@ -13,7 +14,7 @@ const api = axios.create({
 
 // Add request interceptor to ensure credentials are always sent
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // Ensure withCredentials is always true
     config.withCredentials = true;
     
@@ -22,7 +23,7 @@ api.interceptors.request.use(
       delete config.headers['Content-Type'];
     }
     
-    return config;
+    return attachCsrfToken(config);
   },
   (error) => {
     return Promise.reject(error);
@@ -104,7 +105,20 @@ export const submissionsAPI = {
 
 // API endpoints for leaderboard
 export const leaderboardAPI = {
-  getLeaderboard: (params) => api.get('/leaderboard/', { params }),
+  getLeaderboard: (params = {}) => {
+    const { type, category, ...restParams } = params;
+    const leaderboardType = type || category;
+
+    if (leaderboardType === 'community') {
+      return api.get('/leaderboard/community/', { params: restParams });
+    }
+
+    if (leaderboardType) {
+      return api.get('/leaderboard/', { params: { type: leaderboardType, ...restParams } });
+    }
+
+    return api.get('/leaderboard/', { params: restParams });
+  },
   getLeaderboardByType: (type, order = 'asc', additionalParams = {}) =>
     api.get('/leaderboard/', { params: { type, order, ...additionalParams } }),
   getLeaderboardEntry: (address) => api.get(`/leaderboard/?user_address=${address}`),
@@ -116,8 +130,9 @@ export const leaderboardAPI = {
   getWaitlistTop: (limit = 10) => api.get('/leaderboard/validator-waitlist/top/', { params: { limit } }),
   getMonthlyLeaderboardByType: (type, limit = 10) =>
     api.get('/leaderboard/monthly/', { params: { type, limit } }),
-  getCommunity: (params = {}) => api.get('/leaderboard/community/', { params }),
-  getCommunityContributors: (params = {}) => api.get('/leaderboard/community-contributors/', { params }),
+  getCommunity: (params = {}) => leaderboardAPI.getLeaderboard({ type: 'community', ...params }),
+  getCommunityContributors: (params = {}) => leaderboardAPI.getLeaderboard({ type: 'community', ...params }),
+  getReferrals: (params = {}) => api.get('/leaderboard/referrals/', { params }),
   getTrending: (limit = 10) => api.get('/leaderboard/trending/', { params: { limit } }),
   getTypes: () => api.get('/leaderboard/types/'),
   recalculateAll: () => api.post('/leaderboard/recalculate/')
@@ -198,6 +213,13 @@ export const stewardAPI = {
   // Review a submission (accept, reject, or request more info)
   reviewSubmission: (id, data) => api.post(`/steward-submissions/${id}/review/`, data),
 
+  /**
+   * Correct points or feature an already accepted submission.
+   * @param {string | number} id
+   * @param {{ points: number, create_highlight?: boolean, remove_highlight?: boolean, highlight_title?: string, highlight_description?: string }} data
+   */
+  updateAcceptedSubmission: (id, data) => api.post(`/steward-submissions/${id}/update-accepted/`, data),
+
   // Get all users for reassignment dropdown
   getUsers: () => api.get('/steward-submissions/users/'),
 
@@ -270,10 +292,24 @@ export const updateUserProfile = async (data) => {
 // Featured content API
 export const featuredAPI = {
   getFeatured: (params) => api.get('/featured/', { params }),
-  getHero: () => api.get('/featured/', { params: { type: 'hero' } }),
-  getBuilds: () => api.get('/featured/', { params: { type: 'build' } }),
+  getHero: (params = {}) => api.get('/featured/', { params: { type: 'hero', ...params } }),
   getCommunity: () => api.get('/featured/', { params: { type: 'community' } }),
   getValidatorsStewards: () => api.get('/featured/', { params: { type: 'validator_steward' } }),
+};
+
+// Project profile API
+export const projectsAPI = {
+  list: () => api.get('/projects/'),
+  /** @param {string} slug */
+  get: (slug) => api.get(`/projects/${slug}/`),
+  /** @param {string} slug @param {Record<string, any>} data */
+  updateProfile: (slug, data) => api.patch(`/projects/${slug}/profile/`, data),
+  /** @param {string} slug @param {FormData} formData */
+  uploadImage: (slug, formData) => api.post(`/projects/${slug}/upload-image/`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
 };
 
 // Alerts API

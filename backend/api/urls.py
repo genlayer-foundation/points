@@ -4,6 +4,7 @@ from users.views import UserViewSet
 from contributions.views import ContributionTypeViewSet, ContributionViewSet, EvidenceViewSet, SubmittedContributionViewSet, StewardSubmissionViewSet, MissionViewSet, StartupRequestViewSet, FeaturedContentViewSet, AlertViewSet
 from leaderboard.views import GlobalLeaderboardMultiplierViewSet, LeaderboardViewSet
 from partners.views import PartnerViewSet
+from projects.views import ProjectViewSet
 from gen_tv.views import StreamCategoryViewSet, StreamViewSet
 from poaps.views import PoapDropViewSet
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
@@ -22,6 +23,7 @@ router.register(r'steward-submissions', StewardSubmissionViewSet, basename='stew
 router.register(r'missions', MissionViewSet, basename='mission')
 router.register(r'startup-requests', StartupRequestViewSet, basename='startup-request')
 router.register(r'featured', FeaturedContentViewSet, basename='featured')
+router.register(r'projects', ProjectViewSet, basename='project')
 router.register(r'alerts', AlertViewSet, basename='alert')
 router.register(r'partners', PartnerViewSet, basename='partner')
 router.register(r'gen-tv/streams', StreamViewSet, basename='stream')

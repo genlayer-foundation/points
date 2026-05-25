@@ -93,6 +93,8 @@ def calculate_waitlist_points(user):
                 user_id__in=eligible_ids,
                 contribution_type__category__slug='builder',
                 contribution_date__lte=grad_contrib.contribution_date
+            ).exclude(
+                contribution_type__slug__in=REFERRAL_EXCLUDED_SLUGS
             ).aggregate(Sum('frozen_global_points'))['frozen_global_points__sum'] or 0) * 0.1)
 
             validator_referral = int((Contribution.objects.filter(

@@ -126,9 +126,9 @@
   $effect(() => {
     setPageMeta({
       title: 'Referral Program',
-      description: 'Invite Builders, Validators, and Community members to GenLayer. Earn 10% of all points from their successful contributions — forever, with no cap.',
+      description: 'Invite builders and validators to GenLayer. Earn 10% of eligible builder and validator contribution points — forever, with no cap.',
       image: 'https://portal.genlayer.foundation/assets/referral_og_image.png',
-      url: 'https://portal.genlayer.foundation/#/community',
+      url: 'https://portal.genlayer.foundation/#/referral-program',
     });
     return () => resetPageMeta();
   });
@@ -184,9 +184,9 @@
 
   function handleGetReferral() {
     if ($authState.isAuthenticated) {
-      push('/community/referrals');
+      push('/referrals');
     } else {
-      sessionStorage.setItem('redirectAfterLogin', '/community/referrals');
+      sessionStorage.setItem('redirectAfterLogin', '/referrals');
       const authButton = document.querySelector('[data-auth-button]');
       if (authButton) authButton.click();
     }
@@ -209,10 +209,10 @@
         Referral Program
       </h1>
       <p class="text-[20px] md:text-[32px] font-medium font-display leading-tight mb-4" style="letter-spacing: -0.64px;">
-        Invite Builders, Validators & Community members
+        Invite Builders & Validators
       </p>
       <p class="text-[15px] md:text-[17px] text-[#656567] mb-8 max-w-xl">
-        Earn 10% of the points of their successful contributions
+        Earn 10% of eligible builder and validator contribution points
       </p>
       <button
         onclick={handleGetReferral}
@@ -449,15 +449,15 @@
             <div class="flex flex-col gap-[12px]">
               <h3 class="text-[24px] font-medium font-display leading-[40px] text-black" style="letter-spacing: -0.48px;">Community</h3>
               <p class="text-[14px] text-black leading-[21px]" style="letter-spacing: 0.28px;">
-                Create content, spread the word, and bring new contributors through referrals and outreach.
+                Create content, spread the word, and earn community points separately from referrals.
               </p>
             </div>
             <button
-              onclick={handleGetReferral}
+              onclick={() => push('/community')}
               class="flex gap-[8px] items-center justify-center h-[40px] px-[16px] rounded-[20px] w-full transition-colors hover:opacity-90"
               style="background-color: #131214;"
             >
-              <span class="text-[14px] font-medium text-white leading-[21px]" style="letter-spacing: 0.28px;">Invite Community</span>
+              <span class="text-[14px] font-medium text-white leading-[21px]" style="letter-spacing: 0.28px;">View Community</span>
               <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="w-4 h-4" />
             </button>
           </div>

@@ -2,6 +2,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { Chart, registerables } from 'chart.js';
   import api from '../lib/api.js';
+  import CategoryIcon from '../components/portal/CategoryIcon.svelte';
 
   Chart.register(...registerables);
 
@@ -114,6 +115,8 @@
   const COMMUNITY_CATEGORY_SLUG = 'community';
   const COMMUNITY_CATEGORY_SLUGS = ['community', 'creator'];
   const COMMUNITY_PAGE_SIZE = 10;
+  const SUBMISSION_CATEGORY_ORDER = ['builder', 'validator', 'community'];
+  const SUBMISSION_DEFAULT_CATEGORIES = ['builder', 'validator', 'community'];
 
   const ONCHAIN_KPI_DEFS = [
     { label: 'Decisions',           range: 'Last 7 days', primaryKey: 'decisions7d',         secondaryKey: 'decisionsAllTime',         compact: true  },
@@ -198,6 +201,7 @@
     start_date: '',
     totals: {}
   });
+  let submissionsByCategory = $state({});
   let contributionTypes = $state([]);
   let communityContributions = $state([]);
   let communityContributionsCount = $state(0);
@@ -248,17 +252,7 @@
     { id: 'community', label: 'Community', dot: 'bg-purple-500' }
   ];
 
-  let availableCategories = $derived.by(() =>
-    Array.from(
-      new Set(
-        contributionTypes
-          .map((type) => type.category)
-          .filter(Boolean)
-      )
-    ).sort((left, right) =>
-      getCategoryLabel(left).localeCompare(getCategoryLabel(right))
-    )
-  );
+  let availableCategories = $derived.by(() => getSubmissionCategories());
 
   let filteredContributionTypes = $derived.by(() => {
     const baseTypes = contributionTypes.filter((type) => type.is_submittable);
@@ -285,13 +279,29 @@
     Math.max(1, Math.ceil(communityContributionsCount / COMMUNITY_PAGE_SIZE))
   );
 
-  let submissionsSummary = $derived.by(() => {
-    const totals = submissionsData.totals || {};
+  let submissionsSummary = $derived.by(() =>
+    buildSubmissionsSummary(submissionsData.totals || {})
+  );
+
+  let showSubmissionCategoryBreakdown = $derived(
+    !appliedSubmissionFilters.category && !appliedSubmissionFilters.contributionType
+  );
+
+  let submissionCategoryBreakdown = $derived.by(() =>
+    getSubmissionCategories().map((category) => ({
+      category,
+      label: getCategoryLabel(category),
+      summary: buildSubmissionsSummary(submissionsByCategory[category]?.totals || {})
+    }))
+  );
+
+  function buildSubmissionsSummary(totals = {}) {
     const ingress = Number(totals.ingress || 0);
     const accepted = Number(totals.accepted || 0);
+    const rejected = Number(totals.rejected || 0);
     const moreInfoRequested = Number(totals.more_info_requested || 0);
     const pointsAwarded = Number(totals.points_awarded || 0);
-    const reviewed = accepted + moreInfoRequested;
+    const reviewed = accepted + rejected + moreInfoRequested;
     // Pending review comes from the backend: submissions created in the
     // selected range that are still in pending state. We can't derive it from
     // ingress - reviewed because ingress is bucketed by created_at and reviews
@@ -306,9 +316,10 @@
       moreInfoRequested,
       pendingReview,
       pointsAwarded,
+      rejected,
       reviewed
     };
-  });
+  }
 
   let selectedContributionTypeLabel = $derived.by(() =>
     getContributionTypeLabel(selectedContributionType)
@@ -338,7 +349,7 @@
 
       const [participantsResponse, typesResponse] = await Promise.all([
         api.get('/metrics/participants-growth/'),
-        api.get('/contribution-types/', { params: { page_size: 100 } })
+        api.get('/contribution-types/', { params: { page_size: 1000 } })
       ]);
 
       participantsData = participantsResponse.data.data || [];
@@ -454,7 +465,7 @@
     }
   }
 
-  async function fetchSubmissionsData({ syncDates = false } = {}) {
+  function buildSubmissionMetricsParams({ category = selectedCategory } = {}) {
     const params = {
       group_by: submissionGroupBy
     };
@@ -467,13 +478,37 @@
       params.end_date = submissionEndDate;
     }
 
-    if (selectedCategory) {
-      params.category = selectedCategory;
+    if (category) {
+      params.category = category;
     }
 
     if (selectedContributionType) {
       params.contribution_type = selectedContributionType;
     }
+
+    return params;
+  }
+
+  async function fetchSubmissionCategorySummaries() {
+    if (selectedCategory || selectedContributionType) {
+      submissionsByCategory = {};
+      return;
+    }
+
+    const categories = getSubmissionCategories();
+    const responses = await Promise.all(
+      categories.map((category) =>
+        api.get('/steward-submissions/daily-metrics/', {
+          params: buildSubmissionMetricsParams({ category })
+        }).then((response) => [category, response.data || { data: [], totals: {} }])
+      )
+    );
+
+    submissionsByCategory = Object.fromEntries(responses);
+  }
+
+  async function fetchSubmissionsData({ syncDates = false } = {}) {
+    const params = buildSubmissionMetricsParams();
 
     const submissionsResponse = await api.get('/steward-submissions/daily-metrics/', {
       params
@@ -488,6 +523,8 @@
       submissionStartDate = submissionsData.start_date || '';
       submissionEndDate = submissionsData.end_date || '';
     }
+
+    await fetchSubmissionCategorySummaries();
 
     appliedSubmissionFilters = {
       category: selectedCategory,
@@ -609,6 +646,86 @@
 
         return left.name.localeCompare(right.name);
       });
+  }
+
+  function sortCategories(categories) {
+    return [...categories].sort((left, right) => {
+      const leftIndex = SUBMISSION_CATEGORY_ORDER.indexOf(getCanonicalCategory(left));
+      const rightIndex = SUBMISSION_CATEGORY_ORDER.indexOf(getCanonicalCategory(right));
+
+      if (leftIndex !== -1 || rightIndex !== -1) {
+        return (leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex) -
+          (rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex);
+      }
+
+      return getCategoryLabel(left).localeCompare(getCategoryLabel(right));
+    });
+  }
+
+  function getSubmissionCategories() {
+    const typeCategories = new Set(
+      contributionTypes
+        .map((type) => type.category)
+        .filter(Boolean)
+    );
+    const categories = new Set(SUBMISSION_DEFAULT_CATEGORIES.filter((category) => category !== 'community'));
+    const communityCategory = typeCategories.has('community')
+      ? 'community'
+      : typeCategories.has('creator')
+        ? 'creator'
+        : 'community';
+
+    categories.add(communityCategory);
+
+    for (const category of typeCategories) {
+      if (!COMMUNITY_CATEGORY_SLUGS.includes(category)) {
+        categories.add(category);
+      }
+    }
+
+    return sortCategories(categories);
+  }
+
+  function getCanonicalCategory(category) {
+    return COMMUNITY_CATEGORY_SLUGS.includes(category) ? 'community' : category;
+  }
+
+  function getMetricValue(summary, metric) {
+    if (metric === 'ingress') return summary.ingress;
+    if (metric === 'reviewed') return summary.reviewed;
+    if (metric === 'pendingReview') return summary.pendingReview;
+    if (metric === 'acceptanceRate') return summary.acceptanceRate;
+    if (metric === 'pointsAwarded') return summary.pointsAwarded;
+    return 0;
+  }
+
+  function formatMetricValue(summary, metric) {
+    const value = getMetricValue(summary, metric);
+    return metric === 'acceptanceRate' ? formatPercent(value) : formatNumber(value);
+  }
+
+  function getMetricDetail(summary, metric) {
+    if (metric === 'ingress') {
+      return 'Submissions created in the selected range.';
+    }
+
+    if (metric === 'reviewed') {
+      return 'All reviewed outcomes combined.';
+    }
+
+    if (metric === 'pendingReview') {
+      return 'Submissions in this range still awaiting a decision.';
+    }
+
+    if (metric === 'acceptanceRate') {
+      return `${formatNumber(summary.accepted)} accepted of ${formatNumber(summary.reviewed)} reviewed.`;
+    }
+
+    if (metric === 'pointsAwarded') {
+      return `Avg. ${formatNumber(summary.avgPointsPerAccepted)} per accepted.`;
+    }
+
+    return '';
   }
 
   function destroyCharts() {
@@ -991,6 +1108,7 @@
                 const point = submissionsData.data[items[0]?.dataIndex];
                 const reviewed =
                   Number(point?.accepted || 0) +
+                  Number(point?.rejected || 0) +
                   Number(point?.more_info_requested || 0);
 
                 return `Reviewed decisions: ${formatNumber(reviewed)}`;
@@ -1513,6 +1631,35 @@
       </div>
     {/snippet}
 
+    {#snippet submissionMetricCard(title, metric, surface, textClass)}
+      <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {surface} p-5">
+        <p class="text-sm font-medium text-slate-500">{title}</p>
+
+        {#if showSubmissionCategoryBreakdown}
+          <div class="mt-4 space-y-2">
+            {#each submissionCategoryBreakdown as item (item.category)}
+              <div class="flex min-h-[44px] items-center justify-between gap-3 rounded-2xl border border-white/80 bg-white/75 px-3 py-2 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+                <div class="flex min-w-0 items-center gap-2.5">
+                  <CategoryIcon category={getCanonicalCategory(item.category)} mode="hexagon" size={24} light={true} />
+                  <span class="truncate text-sm font-medium text-slate-600">{item.label}</span>
+                </div>
+                <span class="shrink-0 text-lg font-semibold {textClass}">
+                  {formatMetricValue(item.summary, metric)}
+                </span>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <p class="mt-3 text-3xl font-semibold {textClass}">
+            {formatMetricValue(submissionsSummary, metric)}
+          </p>
+          <p class="mt-2 text-xs leading-5 text-slate-500">
+            {getMetricDetail(submissionsSummary, metric)}
+          </p>
+        {/if}
+      </div>
+    {/snippet}
+
     <div>
       <div class="min-w-0">
 
@@ -1987,47 +2134,11 @@
             <div class="h-[124px] animate-pulse rounded-[24px] border border-slate-200 bg-slate-50"></div>
           {/each}
         {:else}
-          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.ingress.surface} p-5">
-            <p class="text-sm font-medium text-slate-500">New submissions</p>
-            <p class="mt-3 text-3xl font-semibold {reviewPalette.ingress.text}">
-              {formatNumber(submissionsSummary.ingress)}
-            </p>
-            <p class="mt-2 text-xs leading-5 text-slate-500">Submissions created in the selected range.</p>
-          </div>
-
-          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50/40 p-5">
-            <p class="text-sm font-medium text-slate-500">Reviewed</p>
-            <p class="mt-3 text-3xl font-semibold text-slate-900">{formatNumber(submissionsSummary.reviewed)}</p>
-            <p class="mt-2 text-xs leading-5 text-slate-500">Accepted and more-info combined.</p>
-          </div>
-
-          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.pending.surface} p-5">
-            <p class="text-sm font-medium text-slate-500">Pending review</p>
-            <p class="mt-3 text-3xl font-semibold {reviewPalette.pending.text}">
-              {formatNumber(submissionsSummary.pendingReview)}
-            </p>
-            <p class="mt-2 text-xs leading-5 text-slate-500">Submissions in this range still awaiting a decision.</p>
-          </div>
-
-          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.accepted.surface} p-5">
-            <p class="text-sm font-medium text-slate-500">Acceptance rate</p>
-            <p class="mt-3 text-3xl font-semibold {reviewPalette.accepted.text}">
-              {formatPercent(submissionsSummary.acceptanceRate)}
-            </p>
-            <p class="mt-2 text-xs leading-5 text-slate-500">
-              {formatNumber(submissionsSummary.accepted)} accepted of {formatNumber(submissionsSummary.reviewed)} reviewed.
-            </p>
-          </div>
-
-          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {reviewPalette.points.surface} p-5">
-            <p class="text-sm font-medium text-slate-500">Points awarded</p>
-            <p class="mt-3 text-3xl font-semibold {reviewPalette.points.text}">
-              {formatNumber(submissionsSummary.pointsAwarded)}
-            </p>
-            <p class="mt-2 text-xs leading-5 text-slate-500">
-              Avg. {formatNumber(submissionsSummary.avgPointsPerAccepted)} per accepted.
-            </p>
-          </div>
+          {@render submissionMetricCard('New submissions', 'ingress', reviewPalette.ingress.surface, reviewPalette.ingress.text)}
+          {@render submissionMetricCard('Reviewed', 'reviewed', 'from-slate-50 via-white to-slate-50/40', 'text-slate-900')}
+          {@render submissionMetricCard('Pending review', 'pendingReview', reviewPalette.pending.surface, reviewPalette.pending.text)}
+          {@render submissionMetricCard('Acceptance rate', 'acceptanceRate', reviewPalette.accepted.surface, reviewPalette.accepted.text)}
+          {@render submissionMetricCard('Points awarded', 'pointsAwarded', reviewPalette.points.surface, reviewPalette.points.text)}
         {/if}
       </div>
 

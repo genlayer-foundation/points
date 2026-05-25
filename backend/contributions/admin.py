@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django import forms
 from django.core.management import call_command
 from django.contrib import messages
 from django.http import HttpResponseRedirect, JsonResponse
@@ -30,6 +31,27 @@ from utils.admin_mixins import CloudinaryUploadMixin
 User = get_user_model()
 
 NON_CAPACITY_STATES = ['rejected', 'canceled']
+
+
+class FeaturedContentAdminForm(forms.ModelForm):
+    hero_placements = forms.MultipleChoiceField(
+        choices=FeaturedContent.HERO_PLACEMENT_CHOICES,
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text=(
+            "For hero banners only. Select 'All hero surfaces' or choose one "
+            "or more specific surfaces."
+        ),
+    )
+
+    class Meta:
+        model = FeaturedContent
+        fields = '__all__'
+
+    def clean_hero_placements(self):
+        return FeaturedContent.normalize_hero_placements(
+            self.cleaned_data.get('hero_placements', [])
+        )
 
 
 def active_submission_count_subquery(fk_name):
@@ -851,6 +873,7 @@ class StartupRequestAdmin(admin.ModelAdmin):
 
 @admin.register(FeaturedContent)
 class FeaturedContentAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
+    form = FeaturedContentAdminForm
     cloudinary_upload_fields = {
         'hero_image_url': {
             'public_id_field': 'hero_image_public_id',
@@ -870,7 +893,7 @@ class FeaturedContentAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
         },
     }
 
-    list_display = ('title', 'content_type', 'user', 'status', 'order', 'created_at')
+    list_display = ('title', 'content_type', 'display_hero_placements', 'user', 'status', 'order', 'created_at')
     list_filter = ('content_type', 'status', 'created_at')
     search_fields = ('title', 'description', 'user__name', 'user__address')
     list_editable = ('order', 'status')
@@ -882,7 +905,7 @@ class FeaturedContentAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            'fields': ('content_type', 'title', 'author', 'description', 'status', 'order')
+            'fields': ('content_type', 'title', 'author', 'description', 'hero_placements', 'status', 'order')
         }),
         ('Relations', {
             'fields': ('user', 'contribution')
@@ -897,6 +920,12 @@ class FeaturedContentAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    @admin.display(description='Hero placements')
+    def display_hero_placements(self, obj):
+        labels = dict(FeaturedContent.HERO_PLACEMENT_CHOICES)
+        placements = obj.hero_placements or []
+        return ', '.join(labels.get(placement, placement) for placement in placements) or '-'
 
 
 @admin.register(Alert)

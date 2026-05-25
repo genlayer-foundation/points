@@ -106,7 +106,7 @@
       return leaderboardAPI.getLeaderboard(params);
     }
 
-    return leaderboardAPI.getLeaderboardByType(category, 'asc', params);
+    return leaderboardAPI.getLeaderboard({ type: category, order: 'asc', ...params });
   }
 
   async function fetchLeaderboard(page = 1, { reset = false } = {}) {
@@ -119,17 +119,24 @@
       pageLoading = !shouldShowFullLoader;
       error = null;
 
-      const tableOffset = (activeSearch ? 0 : PODIUM_SIZE) + ((page - 1) * PAGE_SIZE);
-      const [podiumResponse, tableResponse] = await Promise.all([
-        fetchEntries(category, { limit: PODIUM_SIZE, offset: 0 }),
-        fetchEntries(category, { limit: REQUEST_SIZE, offset: tableOffset }),
-      ]);
+      const podiumResponse = await fetchEntries(category, { limit: PODIUM_SIZE, offset: 0 });
 
       if (requestId !== requestSequence) return;
       if (category !== ($currentCategory || 'global')) return;
 
-      const tableData = tableResponse.data || [];
-      podiumEntries = podiumResponse.data || [];
+      const podiumData = podiumResponse.data?.results || podiumResponse.data || [];
+      const availableForPodium = podiumResponse.data?.count ?? podiumData.length;
+      const tableOffset = activeSearch || availableForPodium < PODIUM_SIZE
+        ? ((page - 1) * PAGE_SIZE)
+        : PODIUM_SIZE + ((page - 1) * PAGE_SIZE);
+
+      const tableResponse = await fetchEntries(category, { limit: REQUEST_SIZE, offset: tableOffset });
+
+      if (requestId !== requestSequence) return;
+      if (category !== ($currentCategory || 'global')) return;
+
+      const tableData = tableResponse.data?.results || tableResponse.data || [];
+      podiumEntries = podiumData;
       leaderboard = tableData.slice(0, PAGE_SIZE);
       currentPage = page;
       hasNextPage = tableData.length > PAGE_SIZE;

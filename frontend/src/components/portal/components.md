@@ -87,7 +87,7 @@ Horizontal scrolling list of trending contributor cards.
 
 **File**: `FeaturedBuilds.svelte`
 
-Grid of featured project cards (placeholder, needs API).
+Grid of project cards loaded from the public projects API.
 
 ---
 
@@ -110,7 +110,7 @@ Three side-by-side top-5 leaderboard columns.
 
 - Columns: Builders, Validators, Community
 - Category-colored point values
-- Data source: `leaderboardAPI.getBuilders()`, `.getValidators()`, `.getCommunity()`
+- Data source: `leaderboardAPI.getLeaderboard()` with `type` set to `builder`, `validator`, or `community`
 
 ---
 

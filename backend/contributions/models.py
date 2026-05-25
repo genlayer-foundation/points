@@ -14,6 +14,10 @@ from tally.middleware.logging_utils import get_app_logger
 logger = get_app_logger('contributions')
 
 
+def default_featured_hero_placements():
+    return ['overview', 'builder', 'community']
+
+
 class Category(BaseModel):
     """
     Defines a user category (Validator, Builder, Steward).
@@ -931,6 +935,7 @@ class FeaturedContent(BaseModel):
     """
     CONTENT_TYPE_CHOICES = [
         ('hero', 'Hero Banner'),
+        # Legacy portal builds are kept for compatibility; new project profiles live in projects.Project.
         ('build', 'Featured Build'),
         ('community', 'Featured Community'),
         ('validator_steward', 'Featured Validator/Steward'),
@@ -938,6 +943,14 @@ class FeaturedContent(BaseModel):
     STATUS_CHOICES = [
         ('active', 'Active'),
         ('idle', 'Idle'),
+    ]
+    HERO_PLACEMENT_ALL = 'all'
+    HERO_PLACEMENT_CHOICES = [
+        (HERO_PLACEMENT_ALL, 'All hero surfaces'),
+        ('overview', 'Overview'),
+        ('builder', 'Builder dashboard'),
+        ('validator', 'Validator dashboard'),
+        ('community', 'Community dashboard'),
     ]
     content_type = models.CharField(max_length=20, choices=CONTENT_TYPE_CHOICES)
     title = models.CharField(max_length=200)
@@ -960,6 +973,14 @@ class FeaturedContent(BaseModel):
     user_profile_image_url = models.URLField(max_length=500, blank=True, help_text='Cloudinary URL for user profile image')
     user_profile_image_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for user profile image')
     url = models.URLField(max_length=500, blank=True)
+    hero_placements = models.JSONField(
+        default=default_featured_hero_placements,
+        blank=True,
+        help_text=(
+            "Hero banner placements. Use 'all' to show everywhere, or select "
+            "specific surfaces such as overview, builder, validator, and community."
+        )
+    )
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
     order = models.PositiveIntegerField(default=0)
 
@@ -973,6 +994,36 @@ class FeaturedContent(BaseModel):
         if self.contribution_id:
             return f"/badge/{self.contribution_id}"
         return self.url or None
+
+    @classmethod
+    def normalize_hero_placements(cls, placements):
+        if not isinstance(placements, list):
+            return []
+        valid = {choice[0] for choice in cls.HERO_PLACEMENT_CHOICES}
+        normalized = []
+        for placement in placements:
+            if placement in valid and placement not in normalized:
+                normalized.append(placement)
+        if cls.HERO_PLACEMENT_ALL in normalized:
+            return [cls.HERO_PLACEMENT_ALL]
+        return normalized
+
+    def clean(self):
+        super().clean()
+        if not isinstance(self.hero_placements, list):
+            raise ValidationError({'hero_placements': 'Hero placements must be a list.'})
+
+        valid = {choice[0] for choice in self.HERO_PLACEMENT_CHOICES}
+        invalid = [placement for placement in self.hero_placements if placement not in valid]
+        if invalid:
+            raise ValidationError({
+                'hero_placements': f"Invalid hero placement value(s): {', '.join(invalid)}"
+            })
+        self.hero_placements = self.normalize_hero_placements(self.hero_placements)
+
+    def shows_in_placement(self, placement):
+        placements = self.normalize_hero_placements(self.hero_placements)
+        return self.HERO_PLACEMENT_ALL in placements or placement in placements
 
     @classmethod
     def get_active_by_type(cls, content_type, limit=10):

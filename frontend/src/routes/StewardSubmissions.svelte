@@ -31,6 +31,8 @@
   let searchQuery = $state('');
   let stewardsList = $state([]);
   let assigningSubmissions = $state(new Set());  // Track which submissions are being assigned
+  let acceptedEdits = $state({});
+  let updatingAccepted = $state(new Set());
 
   // Review states
   let processingSubmissions = $state(new Set());
@@ -277,7 +279,11 @@
             highlight_description: ''
           };
         }
+        if (sub.state === 'accepted' && sub.contribution && !acceptedEdits[sub.id]) {
+          acceptedEdits[sub.id] = getAcceptedEditData(sub);
+        }
       });
+      acceptedEdits = { ...acceptedEdits };
 
       loadVisibleNotes(loadedSubmissions, requestId);
     } catch (err) {
@@ -442,6 +448,13 @@
         const idx = submissions.findIndex(s => s.id === submissionId);
         if (idx !== -1) {
           submissions[idx] = updatedSub;
+          if (updatedSub.state === 'accepted' && updatedSub.contribution) {
+            acceptedEdits[submissionId] = getAcceptedEditData(updatedSub);
+            acceptedEdits = { ...acceptedEdits };
+          } else if (acceptedEdits[submissionId]) {
+            delete acceptedEdits[submissionId];
+            acceptedEdits = { ...acceptedEdits };
+          }
           submissions = [...submissions];
         }
         // Reload notes since review creates a CRM note
@@ -455,6 +468,76 @@
     } finally {
       processingSubmissions.delete(submissionId);
       processingSubmissions = new Set(processingSubmissions);
+    }
+  }
+
+  function getAcceptedEditData(submission) {
+    const highlight = submission.contribution?.highlight;
+    return {
+      points: submission.contribution?.points ?? 0,
+      highlight_title: highlight?.title || '',
+      highlight_description: highlight?.description || ''
+    };
+  }
+
+  function canEditAcceptedSubmission(submission) {
+    return permissionsMap[submission.contribution_type]?.includes('accept');
+  }
+
+  function handleAcceptedEditChange(submissionId, field, value) {
+    if (!acceptedEdits[submissionId]) return;
+
+    acceptedEdits[submissionId] = {
+      ...acceptedEdits[submissionId],
+      [field]: value
+    };
+    acceptedEdits = { ...acceptedEdits };
+  }
+
+  async function handleAcceptedUpdate(submissionId) {
+    const data = acceptedEdits[submissionId];
+    if (!data) return;
+
+    const highlightTitle = data.highlight_title?.trim() || '';
+    const highlightDescription = data.highlight_description?.trim() || '';
+    const createHighlight = Boolean(highlightTitle || highlightDescription);
+    const points = Number(data.points);
+
+    if (!Number.isFinite(points) || !Number.isInteger(points)) {
+      showError('Please enter a valid whole-number point value');
+      return;
+    }
+
+    if (createHighlight && (!highlightTitle || !highlightDescription)) {
+      showError('Feature title and description are both required');
+      return;
+    }
+
+    updatingAccepted.add(submissionId);
+    updatingAccepted = new Set(updatingAccepted);
+
+    try {
+      const response = await stewardAPI.updateAcceptedSubmission(submissionId, {
+        points,
+        create_highlight: createHighlight,
+        remove_highlight: Boolean(submissions.find(s => s.id === submissionId)?.contribution?.highlight && !createHighlight),
+        highlight_title: highlightTitle,
+        highlight_description: highlightDescription
+      });
+
+      const idx = submissions.findIndex(s => s.id === submissionId);
+      if (idx !== -1) {
+        submissions[idx] = response.data;
+        acceptedEdits[submissionId] = getAcceptedEditData(response.data);
+        submissions = [...submissions];
+        acceptedEdits = { ...acceptedEdits };
+      }
+      showSuccess('Accepted post updated');
+    } catch (err) {
+      showError('Failed to update accepted post: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      updatingAccepted.delete(submissionId);
+      updatingAccepted = new Set(updatingAccepted);
     }
   }
 
@@ -617,7 +700,7 @@
           {templates}
           {missions}
           onSearch={handleSearchChange}
-          placeholder="type:blog-post -mission:name has:appeal is:resubmitted..."
+          placeholder="type:blog-post reviewed:me -mission:name has:appeal..."
         />
       </div>
     </div>
@@ -794,6 +877,11 @@
             onToggleInteresting={handleToggleInteresting}
             onRequestNotes={fetchNotesForCopy}
             onRequestUsers={ensureUsersLoaded}
+            acceptedEdit={acceptedEdits[submission.id] || null}
+            canEditAccepted={Boolean(submission.state === 'accepted' && submission.contribution && acceptedEdits[submission.id] && canEditAcceptedSubmission(submission))}
+            acceptedUpdating={updatingAccepted.has(submission.id)}
+            onAcceptedEditChange={handleAcceptedEditChange}
+            onAcceptedUpdate={handleAcceptedUpdate}
           />
         </div>
       {/each}

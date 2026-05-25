@@ -119,7 +119,7 @@
                   <CategoryIcon category="community" mode="hexagon" size={32} />
                   <div class="badge-tooltip">
                     <span class="badge-tooltip-title">Community</span>
-                    <span class="badge-tooltip-desc">Growing the community through referrals</span>
+                    <span class="badge-tooltip-desc">Contributing to the GenLayer community</span>
                   </div>
                 </div>
               {/if}
