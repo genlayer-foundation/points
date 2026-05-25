@@ -82,3 +82,15 @@ class Project(BaseModel):
         if self.slug:
             return f"/builders/projects/{self.slug}"
         return self.url or None
+
+    def can_be_edited_by(self, user):
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_superuser:
+            return True
+        if self.user_id == user.id:
+            return True
+        prefetched = getattr(self, '_prefetched_objects_cache', {})
+        if 'participants' in prefetched:
+            return any(participant.id == user.id for participant in prefetched['participants'])
+        return self.participants.filter(id=user.id).exists()

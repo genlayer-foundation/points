@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from contributions.models import Category, Contribution, ContributionType, FeaturedContent
 from projects.models import Project
+from stewards.models import Steward
 from users.models import User
 
 
@@ -105,6 +106,85 @@ class ProjectAPITest(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+    def test_project_participant_can_update_project_profile(self):
+        project = self.create_project()
+        participant = User.objects.create_user(
+            email='participant-editor@example.com',
+            password='pass',
+            address='0x0000000000000000000000000000000000000005',
+            name='Participant Editor',
+        )
+        project.participants.add(participant)
+        self.client.force_login(participant)
+
+        response = self.client.patch(
+            f'/api/v1/projects/{project.slug}/profile/',
+            data={'description': 'Participant update.'},
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        project.refresh_from_db()
+        self.assertEqual(project.description, 'Participant update.')
+
+    def test_staff_user_cannot_update_project_profile_without_project_access(self):
+        project = self.create_project()
+        staff_user = User.objects.create_user(
+            email='staff@example.com',
+            password='pass',
+            address='0x0000000000000000000000000000000000000006',
+            name='Staff User',
+            is_staff=True,
+        )
+        self.client.force_login(staff_user)
+
+        response = self.client.patch(
+            f'/api/v1/projects/{project.slug}/profile/',
+            data={'description': 'Staff update.'},
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_steward_cannot_update_project_profile_without_project_access(self):
+        project = self.create_project()
+        steward_user = User.objects.create_user(
+            email='steward@example.com',
+            password='pass',
+            address='0x0000000000000000000000000000000000000007',
+            name='Steward User',
+        )
+        Steward.objects.create(user=steward_user)
+        self.client.force_login(steward_user)
+
+        response = self.client.patch(
+            f'/api/v1/projects/{project.slug}/profile/',
+            data={'description': 'Steward update.'},
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_superuser_can_update_project_profile(self):
+        project = self.create_project()
+        superuser = User.objects.create_superuser(
+            email='admin@example.com',
+            password='pass',
+            address='0x0000000000000000000000000000000000000008',
+            name='Admin User',
+        )
+        self.client.force_login(superuser)
+
+        response = self.client.patch(
+            f'/api/v1/projects/{project.slug}/profile/',
+            data={'description': 'Admin update.'},
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        project.refresh_from_db()
+        self.assertEqual(project.description, 'Admin update.')
 
     def test_project_owner_can_update_profile_fields_and_participants(self):
         project = self.create_project()
