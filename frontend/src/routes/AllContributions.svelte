@@ -72,12 +72,13 @@
   let contributionsError = $state(null);
 
   // Catalogs (for filter dropdowns)
-  let allTypes = $state([]); // submittable types only
+  let allTypes = $state([]); // public explorer types
   let allMissions = $state([]);
   let typesLoading = $state(false);
 
-  // Cached names for filter chips when URL targets a non-submittable type
+  // Cached names for filter chips when URL targets a type/mission outside the loaded catalog
   let activeTypeName = $state('');
+  let activeTypeIsPublic = $state(null);
   let activeMissionName = $state('');
   let participantDetails = $state(null);
 
@@ -87,23 +88,39 @@
   let typesForCategory = $derived(
     category === 'all' ? allTypes : allTypes.filter(t => t.category === category)
   );
-  // Surface the URL-applied type as a synthetic option when it's not in the submittable list
+  // Surface the URL-applied type as a synthetic option when it's not in the public list
   let typesForDropdown = $derived.by(() => {
     if (!typeId) return typesForCategory;
     if (typesForCategory.some(t => String(t.id) === String(typeId))) return typesForCategory;
-    if (!activeTypeName) return typesForCategory;
-    return [{ id: typeId, name: activeTypeName }, ...typesForCategory];
+    return [{ id: typeId, name: activeTypeName || 'Selected type' }, ...typesForCategory];
   });
-  let missionsForType = $derived(
-    typeId ? allMissions.filter(m => String(m.contribution_type) === String(typeId)) : []
-  );
+  let missionsForType = $derived.by(() => {
+    if (!typeId) return [];
+    const filtered = allMissions.filter(m => String(m.contribution_type) === String(typeId));
+    if (
+      missionId &&
+      !filtered.some(m => String(m.id) === String(missionId)) &&
+      activeMissionName
+    ) {
+      return [{ id: missionId, name: activeMissionName, contribution_type: typeId }, ...filtered];
+    }
+    return filtered;
+  });
 
   let hasActiveFilters = $derived(
-    category !== routeCategory || !!typeId || !!missionId || !!participantQuery || sortBy !== '-contribution_date'
+    category !== routeCategory ||
+    !!typeId ||
+    !!missionId ||
+    !!participantQuery ||
+    sortBy !== '-contribution_date'
   );
 
   function looksLikeAddress(s) {
     return s && s.trim().toLowerCase().startsWith('0x');
+  }
+
+  function isPublicContributionType(type) {
+    return type?.is_submittable === true || type?.show_in_contributions === true;
   }
 
   // === Search syntax ===
@@ -174,14 +191,13 @@
   }
 
   // === Single helper: reset paging, sync URL, refetch ===
-  function resetAndLoad() {
+  async function resetAndLoad() {
     highlightsPage = 1;
     allPage = 1;
     updateUrl();
+    await Promise.all([resolveTypeName(), resolveMissionName()]);
     loadHighlights();
     loadAllContributions();
-    resolveTypeName();
-    resolveMissionName();
   }
 
   // === Filter actions ===
@@ -191,6 +207,7 @@
     typeId = '';
     missionId = '';
     activeTypeName = '';
+    activeTypeIsPublic = null;
     activeMissionName = '';
     resetAndLoad();
   }
@@ -202,6 +219,7 @@
   function onTypeChange() {
     missionId = '';
     activeTypeName = '';
+    activeTypeIsPublic = null;
     activeMissionName = '';
     resetAndLoad();
   }
@@ -231,6 +249,7 @@
     participantQuery = '';
     sortBy = '-contribution_date';
     activeTypeName = '';
+    activeTypeIsPublic = null;
     activeMissionName = '';
     participantDetails = null;
     searchInput = '';
@@ -240,6 +259,7 @@
     typeId = '';
     missionId = '';
     activeTypeName = '';
+    activeTypeIsPublic = null;
     activeMissionName = '';
     resetAndLoad();
   }
@@ -270,15 +290,13 @@
   }
 
   // === Loaders ===
-  // Set of submittable type IDs (string-keyed for easy lookup); used to filter
-  // out non-submittable contributions client-side from the highlights endpoint
+  // Set of public explorer type IDs (string-keyed for easy lookup); used to filter
+  // out private/system contributions client-side from the highlights endpoint
   // (which only honors `category` server-side).
-  let submittableTypeIds = $derived(new Set(allTypes.map(t => String(t.id))));
+  let publicTypeIds = $derived(new Set(allTypes.map(t => String(t.id))));
 
   function buildBaseParams() {
-    // Always restrict to submittable contribution types — non-submittable types
-    // (badges, journey rewards) are not user-facing in the explorer.
-    const params = { submittable_only: 'true' };
+    const params = { public_explorer_only: 'true' };
     if (category !== 'all') params.category = category;
     if (typeId) params.contribution_type = typeId;
     if (missionId) params.mission = missionId;
@@ -308,11 +326,16 @@
   function filterHighlightsClientSide(items) {
     const q = participantQuery?.trim().toLowerCase() || '';
     const isAddress = looksLikeAddress(q);
-    // Only enforce the submittable filter once the catalog has loaded; otherwise
+    // Only enforce the public-type filter once the catalog has loaded; otherwise
     // we'd briefly render an empty list while `allTypes` is still empty.
-    const enforceSubmittable = submittableTypeIds.size > 0;
+    const selectedTypeIsPublic = !typeId ||
+      publicTypeIds.has(String(typeId)) ||
+      activeTypeIsPublic === true;
+    const selectedTypeIsHidden = typeId && activeTypeIsPublic === false;
+    const enforcePublicTypes = publicTypeIds.size > 0;
     return items.filter(h => {
-      if (enforceSubmittable && !submittableTypeIds.has(String(h.contribution_type_id))) return false;
+      if (selectedTypeIsHidden || !selectedTypeIsPublic) return false;
+      if (enforcePublicTypes && !publicTypeIds.has(String(h.contribution_type_id))) return false;
       if (typeId && String(h.contribution_type_id) !== String(typeId)) return false;
       if (missionId && String(h.mission_id ?? h.mission?.id ?? '') !== String(missionId)) return false;
       if (!q) return true;
@@ -394,18 +417,22 @@
   async function resolveTypeName() {
     if (!typeId) {
       activeTypeName = '';
+      activeTypeIsPublic = null;
       return;
     }
     const fromList = allTypes.find(t => String(t.id) === String(typeId));
     if (fromList) {
       activeTypeName = fromList.name;
+      activeTypeIsPublic = true;
       return;
     }
     try {
       const res = await contributionsAPI.getContributionType(typeId);
       activeTypeName = res.data?.name || '';
+      activeTypeIsPublic = isPublicContributionType(res.data);
     } catch {
       activeTypeName = '';
+      activeTypeIsPublic = false;
     }
   }
 
@@ -444,10 +471,12 @@
     typesLoading = true;
     try {
       const [types, missions] = await Promise.all([
-        getContributionTypes({ is_submittable: 'true' }),
-        getMissions(missionId ? { include_inactive: true } : { is_active: true }),
+        getContributionTypes(),
+        getMissions({ include_inactive: true, page_size: 100 }),
       ]);
-      allTypes = Array.isArray(types) ? [...types].sort((a, b) => a.name.localeCompare(b.name)) : [];
+      allTypes = Array.isArray(types)
+        ? types.filter(isPublicContributionType).sort((a, b) => a.name.localeCompare(b.name))
+        : [];
       allMissions = Array.isArray(missions) ? missions : [];
     } catch {
       allTypes = [];
@@ -508,14 +537,12 @@
   let isMounted = $state(false);
   let lastHash = $state('');
 
-  function handleHashChange() {
+  async function handleHashChange() {
     if (!isMounted) return;
     if (window.location.hash === lastHash) return;
     lastHash = window.location.hash;
     parseUrlParams();
-    loadParticipantDetails();
-    resolveTypeName();
-    resolveMissionName();
+    await Promise.all([loadParticipantDetails(), resolveTypeName(), resolveMissionName()]);
     loadHighlights();
     loadAllContributions();
   }
