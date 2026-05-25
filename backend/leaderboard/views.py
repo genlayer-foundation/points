@@ -8,7 +8,15 @@ from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ra
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
 from contributions.models import Category, Contribution
 
-JOURNEY_AUTO_AWARD_SLUGS = ['builder-welcome', 'builder', 'validator-waitlist', 'validator']
+ONBOARDING_CONTRIBUTION_TYPE_SLUGS = [
+    'builder-welcome',
+    'builder',
+    'validator-waitlist',
+    'validator',
+    'community-link-x',
+    'community-link-discord',
+]
+JOURNEY_AUTO_AWARD_SLUGS = ONBOARDING_CONTRIBUTION_TYPE_SLUGS
 
 
 class GlobalLeaderboardMultiplierViewSet(viewsets.ReadOnlyModelViewSet):
@@ -219,14 +227,16 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         now = timezone.localtime(timezone.now())
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
+        monthly_query = Contribution.objects.filter(
+            user__visible=True,
+            contribution_type__category__slug=leaderboard_type,
+            contribution_date__gte=month_start,
+        )
+        if leaderboard_type != 'community':
+            monthly_query = monthly_query.filter(user__leaderboard_entries__type=leaderboard_type)
+
         monthly_totals = (
-            Contribution.objects
-            .filter(
-                user__visible=True,
-                user__leaderboard_entries__type=leaderboard_type,
-                contribution_type__category__slug=leaderboard_type,
-                contribution_date__gte=month_start,
-            )
+            monthly_query
             .exclude(contribution_type__slug__in=JOURNEY_AUTO_AWARD_SLUGS)
             .values('user_id')
             .annotate(total_points=Sum('frozen_global_points'))
@@ -291,7 +301,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                     user__visible=True,
                     contribution_type__category__slug=category
                 ).exclude(
-                    contribution_type__slug__in=['builder-welcome', 'builder', 'validator-waitlist', 'validator']
+                    contribution_type__slug__in=ONBOARDING_CONTRIBUTION_TYPE_SLUGS
                 )
                 contribution_count = category_contributions.count()
                 new_contributions_count = category_contributions.filter(
@@ -305,10 +315,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 new_points_count = category_contributions.filter(
                     created_at__gte=last_month
                 ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
-                if category == 'community':
-                    participant_count = category_contributions.values('user_id').distinct().count()
-                else:
-                    participant_count = leaderboard_entries.count()
+                participant_count = category_contributions.values('user_id').distinct().count()
             else:
                 contribution_count = 0
                 new_contributions_count = 0
@@ -334,14 +341,12 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 new_validators_count = 0
         else:
             # Global stats
-            participant_count = User.objects.filter(
-                contributions__isnull=False,
-                visible=True
-            ).distinct().count()
-
-            all_contributions = Contribution.objects.exclude(
-                contribution_type__slug__in=['builder-welcome', 'builder', 'validator-waitlist', 'validator']
+            all_contributions = Contribution.objects.filter(
+                user__visible=True
+            ).exclude(
+                contribution_type__slug__in=ONBOARDING_CONTRIBUTION_TYPE_SLUGS
             )
+            participant_count = all_contributions.values('user_id').distinct().count()
             contribution_count = all_contributions.count()
             new_contributions_count = all_contributions.filter(
                 created_at__gte=last_month
@@ -363,57 +368,36 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 type='validator', user__created_at__gte=last_month
             ).count()
 
-        # Category-specific counts (always included)
-        # Builders count only users with a Builder profile AND at least one
-        # accepted contribution that isn't the journey auto-award (`builder-welcome`
-        # or `builder`). When the request is scoped to ?type=builder we further
-        # require the qualifying contribution to live in the `builder` category
-        # so the builder dashboard reflects active builder *work*, not generic
-        # platform activity (waitlist joins, social-account links, etc.). The
-        # generic call (no type) keeps the broader definition for landing-page
-        # / metrics-overview consumers.
-        from builders.models import Builder
-        builder_user_ids = Builder.objects.filter(
-            user__visible=True
-        ).values_list('user_id', flat=True)
-        builder_contribs = (
-            Contribution.objects
-            .filter(user_id__in=builder_user_ids)
-            .exclude(contribution_type__slug__in=['builder-welcome', 'builder'])
-        )
-        if leaderboard_type == 'builder':
-            builder_contribs = builder_contribs.filter(
-                contribution_type__category__slug='builder'
-            )
-        builder_count = builder_contribs.values('user_id').distinct().count()
-
-        # Validators follow the same rule: a Validator profile + at least one
-        # accepted contribution that isn't the waitlist or auto-award. When
-        # scoped to ?type=validator, also require the contribution to live in
-        # the `validator` category so the validator dashboard reflects real
-        # validator work.
-        from validators.models import Validator
-        validator_user_ids = Validator.objects.filter(
-            user__visible=True
-        ).values_list('user_id', flat=True)
-        validator_contribs = (
-            Contribution.objects
-            .filter(user_id__in=validator_user_ids)
-            .exclude(contribution_type__slug__in=['validator-waitlist', 'validator'])
-        )
-        if leaderboard_type == 'validator':
-            validator_contribs = validator_contribs.filter(
-                contribution_type__category__slug='validator'
-            )
-        validator_count = validator_contribs.values('user_id').distinct().count()
-
-        community_member_count = Contribution.objects.filter(
+        builder_contribs = Contribution.objects.filter(
             user__visible=True,
-            contribution_type__category__slug='community'
+            contribution_type__category__slug='builder',
+        ).exclude(
+            contribution_type__slug__in=ONBOARDING_CONTRIBUTION_TYPE_SLUGS
+        )
+        builder_count = builder_contribs.values('user_id').distinct().count()
+        new_builders_count = builder_contribs.filter(
+            created_at__gte=last_month
         ).values('user_id').distinct().count()
-        new_community_members_count = Contribution.objects.filter(
+
+        validator_contribs = Contribution.objects.filter(
+            user__visible=True,
+            contribution_type__category__slug='validator',
+        ).exclude(
+            contribution_type__slug__in=ONBOARDING_CONTRIBUTION_TYPE_SLUGS
+        )
+        validator_count = validator_contribs.values('user_id').distinct().count()
+        new_validators_count = validator_contribs.filter(
+            created_at__gte=last_month
+        ).values('user_id').distinct().count()
+
+        community_contribs = Contribution.objects.filter(
             user__visible=True,
             contribution_type__category__slug='community',
+        ).exclude(
+            contribution_type__slug__in=ONBOARDING_CONTRIBUTION_TYPE_SLUGS
+        )
+        community_member_count = community_contribs.values('user_id').distinct().count()
+        new_community_members_count = community_contribs.filter(
             created_at__gte=last_month
         ).values('user_id').distinct().count()
 
@@ -637,6 +621,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         community_contributions = Contribution.objects.filter(
             user__visible=True,
             contribution_type__category__slug='community',
+        ).exclude(
+            contribution_type__slug__in=ONBOARDING_CONTRIBUTION_TYPE_SLUGS
         )
 
         search = request.query_params.get('search', '').strip()

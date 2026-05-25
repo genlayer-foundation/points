@@ -545,7 +545,7 @@
         ordering: communitySortBy,
         page: communityPage,
         page_size: COMMUNITY_PAGE_SIZE,
-        submittable_only: 'true'
+        exclude_onboarding: 'true'
       };
 
       if (communityContributionType) {

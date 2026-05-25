@@ -6,9 +6,12 @@ from contributions.models import (
     Category,
     Contribution,
     ContributionType,
+    Mission,
     SubmittedContribution,
 )
-from leaderboard.models import ReferralPoints
+from creators.models import Creator
+from leaderboard.models import GlobalLeaderboardMultiplier, ReferralPoints
+from poaps.models import PoapClaim, PoapDrop
 from users.models import User
 
 
@@ -32,6 +35,15 @@ class LeaderboardStatsTest(TestCase):
             name='Builder Submission',
             slug='builder-submission',
             category=self.builder_category
+        )
+        self.community_link_x_type, _ = ContributionType.objects.get_or_create(
+            slug='community-link-x',
+            defaults={
+                'name': 'Community Link X',
+                'category': self.community_category,
+                'min_points': 0,
+                'max_points': 100,
+            },
         )
 
     def _create_user(self, email, address, visible=True):
@@ -124,3 +136,92 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['community_member_count'], 2)
         self.assertEqual(response.data['creator_count'], 2)
+        self.assertEqual(response.data['builder_count'], 1)
+
+    def test_poap_claim_grants_role_but_does_not_count_as_member_metric(self):
+        poap_user = self._create_user(
+            'poap@example.com',
+            '0x0000000000000000000000000000000000000007'
+        )
+        drop = PoapDrop.objects.create(
+            title='Community Call',
+            slug='community-call',
+            event_start_at=timezone.now(),
+            status=PoapDrop.STATUS_ACTIVE,
+        )
+
+        PoapClaim.objects.create(
+            drop=drop,
+            user=poap_user,
+            claim_method=PoapClaim.CLAIM_ADMIN,
+        )
+
+        response = self.client.get('/api/v1/leaderboard/stats/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['community_member_count'], 0)
+        self.assertTrue(Creator.objects.filter(user=poap_user).exists())
+
+    def test_community_social_link_contributions_do_not_count_as_members_or_activity(self):
+        social_user = self._create_user(
+            'social@example.com',
+            '0x0000000000000000000000000000000000000009'
+        )
+        Contribution.objects.create(
+            user=social_user,
+            contribution_type=self.community_link_x_type,
+            points=20,
+            frozen_global_points=20,
+            contribution_date=timezone.now()
+        )
+
+        response = self.client.get('/api/v1/leaderboard/stats/', {'type': 'community'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['community_member_count'], 0)
+        self.assertEqual(response.data['participant_count'], 0)
+        self.assertEqual(response.data['contribution_count'], 0)
+
+    def test_mission_backed_non_submittable_community_contribution_is_reflected(self):
+        contributor = self._create_user(
+            'mission-community@example.com',
+            '0x0000000000000000000000000000000000000008'
+        )
+        mission_type = ContributionType.objects.create(
+            name='Community Mission Host',
+            slug='community-mission-host',
+            category=self.community_category,
+            min_points=1,
+            max_points=100,
+            is_submittable=False,
+        )
+        GlobalLeaderboardMultiplier.objects.create(
+            contribution_type=mission_type,
+            multiplier_value=1,
+            valid_from=timezone.now() - timezone.timedelta(days=30),
+        )
+        mission = Mission.objects.create(
+            name='Community Mission',
+            description='Mission-backed community work',
+            contribution_type=mission_type,
+        )
+
+        contribution = Contribution.objects.create(
+            user=contributor,
+            contribution_type=mission_type,
+            mission=mission,
+            points=25,
+            contribution_date=timezone.now(),
+        )
+
+        stats_response = self.client.get('/api/v1/leaderboard/stats/', {'type': 'community'})
+        monthly_response = self.client.get('/api/v1/leaderboard/monthly/', {'type': 'community'})
+
+        self.assertEqual(stats_response.status_code, 200)
+        self.assertEqual(stats_response.data['community_member_count'], 1)
+        self.assertEqual(stats_response.data['contribution_count'], 1)
+        self.assertTrue(Creator.objects.filter(user=contributor).exists())
+
+        self.assertEqual(monthly_response.status_code, 200)
+        self.assertEqual(monthly_response.data[0]['user'], contributor.id)
+        self.assertEqual(monthly_response.data[0]['total_points'], contribution.frozen_global_points)
