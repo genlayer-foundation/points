@@ -1169,7 +1169,7 @@
                       type="number"
                       min="0"
                       value={acceptedEdit.points}
-                      oninput={(event) => onAcceptedEditChange?.(submission.id, 'points', event.currentTarget.value)}
+                      oninput={(event) => onAcceptedEditChange?.(submission.id, 'points', event.currentTarget.value === '' ? '' : event.currentTarget.valueAsNumber)}
                       disabled={acceptedUpdating}
                       class="h-10 w-28 rounded-md border border-gray-300 px-3 text-sm font-semibold text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
                     />

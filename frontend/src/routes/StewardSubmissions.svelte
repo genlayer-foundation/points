@@ -501,10 +501,10 @@
     const highlightTitle = data.highlight_title?.trim() || '';
     const highlightDescription = data.highlight_description?.trim() || '';
     const createHighlight = Boolean(highlightTitle || highlightDescription);
-    const points = parseInt(data.points);
+    const points = Number(data.points);
 
-    if (Number.isNaN(points)) {
-      showError('Please enter a valid point value');
+    if (!Number.isFinite(points) || !Number.isInteger(points)) {
+      showError('Please enter a valid whole-number point value');
       return;
     }
 
@@ -520,6 +520,7 @@
       const response = await stewardAPI.updateAcceptedSubmission(submissionId, {
         points,
         create_highlight: createHighlight,
+        remove_highlight: Boolean(submissions.find(s => s.id === submissionId)?.contribution?.highlight && !createHighlight),
         highlight_title: highlightTitle,
         highlight_description: highlightDescription
       });

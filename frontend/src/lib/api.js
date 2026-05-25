@@ -216,7 +216,7 @@ export const stewardAPI = {
   /**
    * Correct points or feature an already accepted submission.
    * @param {string | number} id
-   * @param {{ points: number, create_highlight?: boolean, highlight_title?: string, highlight_description?: string }} data
+   * @param {{ points: number, create_highlight?: boolean, remove_highlight?: boolean, highlight_title?: string, highlight_description?: string }} data
    */
   updateAcceptedSubmission: (id, data) => api.post(`/steward-submissions/${id}/update-accepted/`, data),
 
