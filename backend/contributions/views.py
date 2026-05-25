@@ -44,6 +44,8 @@ from ethereum_auth.authentication import EthereumAuthentication
 METRICS_POINTS_EXCLUDED_TYPE_SLUGS = [
     'builder-welcome',
     'builder',
+    'validator-waitlist',
+    'validator',
     'community-link-x',
     'community-link-discord',
 ]
@@ -302,9 +304,14 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                 contribution_type__slug__in=['builder-welcome', 'validator-waitlist']
             )
 
-        # Optionally restrict to contributions whose type is submittable.
-        # Used by the public contributions explorer to hide system-generated
-        # contributions (badges, journey rewards) from non-submittable types.
+        # Optionally remove journey/social-link onboarding records so dashboard
+        # contribution lists match member metrics.
+        exclude_onboarding = self.request.query_params.get('exclude_onboarding')
+        if exclude_onboarding and exclude_onboarding.lower() == 'true':
+            queryset = queryset.exclude(
+                contribution_type__slug__in=METRICS_POINTS_EXCLUDED_TYPE_SLUGS
+            )
+
         submittable_only = self.request.query_params.get('submittable_only')
         if submittable_only and submittable_only.lower() == 'true':
             queryset = queryset.filter(contribution_type__is_submittable=True)

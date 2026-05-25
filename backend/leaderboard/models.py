@@ -403,6 +403,14 @@ def update_leaderboard_on_contribution(sender, instance, created, **kwargs):
         logger.debug(f"Contribution saved: {instance.points} points × {instance.multiplier_at_creation} = "
                      f"{instance.frozen_global_points} global points")
 
+    if (
+        instance.contribution_type
+        and instance.contribution_type.category
+        and instance.contribution_type.category.slug == 'community'
+    ):
+        from creators.utils import ensure_creator_status
+        ensure_creator_status(instance.user)
+
     # Update the user's leaderboard entries
     update_user_leaderboard_entries(instance.user)
 
