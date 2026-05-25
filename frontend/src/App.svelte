@@ -92,6 +92,7 @@
   import LoaderShowcase from './routes/LoaderShowcase.svelte';
   import StewardDashboard from './routes/StewardDashboard.svelte';
   import StewardSubmissions from './routes/StewardSubmissions.svelte';
+  import StewardDiscordXP from './routes/StewardDiscordXP.svelte';
   import StewardManageUsers from './routes/StewardManageUsers.svelte';
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
@@ -186,6 +187,7 @@
     // Steward routes
     '/stewards': StewardDashboard,
     '/stewards/submissions': StewardSubmissions,
+    '/stewards/discord-xp': StewardDiscordXP,
     '/stewards/manage-users': StewardManageUsers,
 
     // Legal routes

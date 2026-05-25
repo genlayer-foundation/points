@@ -21,7 +21,23 @@ from django.db.models.functions import Coalesce
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from datetime import datetime
-from .models import Category, ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert, BlocklistedURL, EvidenceURLType
+from .models import (
+    Category,
+    ContributionType,
+    Contribution,
+    SubmittedContribution,
+    Evidence,
+    ContributionHighlight,
+    Mission,
+    StartupRequest,
+    SubmissionNote,
+    FeaturedContent,
+    Alert,
+    BlocklistedURL,
+    EvidenceURLType,
+    ContributionDiscordXPState,
+    DiscordXPDistributionEvent,
+)
 from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
 from social_connections.models import DiscordRole
@@ -72,6 +88,19 @@ class ContributionTypeListFilter(admin.SimpleListFilter):
         if self.value():
             return queryset.filter(contribution_type_id=self.value())
         return queryset
+
+
+class ReadOnlyAdminMixin:
+    actions = None
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_readonly_fields(self, request, obj=None):
+        return [field.name for field in self.model._meta.fields]
 
 
 @admin.register(Category)
@@ -480,6 +509,142 @@ class ContributionAdmin(admin.ModelAdmin):
     
     class Media:
         js = ('admin/js/contribution_type_dynamic.js',)
+
+
+@admin.register(ContributionDiscordXPState)
+class ContributionDiscordXPStateAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
+    list_display = (
+        'contribution_link',
+        'contributor',
+        'discord_username',
+        'contribution_type',
+        'community_points',
+        'awarded_amount',
+        'pending_amount_display',
+        'status',
+        'last_copied_at',
+        'distributed_at',
+    )
+    list_filter = (
+        'status',
+        'contribution__contribution_type__category',
+        'contribution__contribution_type',
+        'last_copied_at',
+        'distributed_at',
+    )
+    search_fields = (
+        'contribution__id',
+        'contribution__title',
+        'contribution__notes',
+        'contribution__user__name',
+        'contribution__user__email',
+        'contribution__user__address',
+        'contribution__user__discordconnection__platform_username',
+        'contribution__user__discordconnection__guild_nick',
+        'contribution__contribution_type__name',
+    )
+    ordering = ('-contribution__created_at',)
+    show_facets = admin.ShowFacets.NEVER
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related(
+            'contribution',
+            'contribution__user',
+            'contribution__user__discordconnection',
+            'contribution__contribution_type',
+            'contribution__contribution_type__category',
+        )
+
+    def contribution_link(self, obj):
+        url = reverse('admin:contributions_contribution_change', args=[obj.contribution_id])
+        return format_html('<a href="{}">#{}</a>', url, obj.contribution_id)
+    contribution_link.short_description = 'Contribution'
+    contribution_link.admin_order_field = 'contribution_id'
+
+    def contributor(self, obj):
+        user = obj.contribution.user
+        return user.name or user.email or user.address
+    contributor.admin_order_field = 'contribution__user__name'
+
+    def discord_username(self, obj):
+        connection = getattr(obj.contribution.user, 'discordconnection', None)
+        if not connection:
+            return '-'
+        return connection.guild_nick or connection.platform_username or '-'
+    discord_username.short_description = 'Discord'
+
+    def contribution_type(self, obj):
+        return obj.contribution.contribution_type
+    contribution_type.admin_order_field = 'contribution__contribution_type'
+
+    def community_points(self, obj):
+        return obj.contribution.frozen_global_points
+    community_points.admin_order_field = 'contribution__frozen_global_points'
+
+    def pending_amount_display(self, obj):
+        return obj.pending_amount
+    pending_amount_display.short_description = 'Pending'
+
+
+@admin.register(DiscordXPDistributionEvent)
+class DiscordXPDistributionEventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
+    list_display = (
+        'created_at',
+        'action',
+        'contribution_link',
+        'contributor',
+        'discord_username',
+        'amount',
+        'actor',
+    )
+    list_filter = (
+        'action',
+        'created_at',
+        'state__contribution__contribution_type__category',
+        'state__contribution__contribution_type',
+    )
+    search_fields = (
+        'state__contribution__id',
+        'state__contribution__title',
+        'state__contribution__user__name',
+        'state__contribution__user__email',
+        'state__contribution__user__address',
+        'state__contribution__user__discordconnection__platform_username',
+        'state__contribution__user__discordconnection__guild_nick',
+        'actor__name',
+        'actor__email',
+    )
+    ordering = ('-created_at',)
+    show_facets = admin.ShowFacets.NEVER
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related(
+            'state',
+            'state__contribution',
+            'state__contribution__user',
+            'state__contribution__user__discordconnection',
+            'state__contribution__contribution_type',
+            'actor',
+        )
+
+    def contribution_link(self, obj):
+        contribution_id = obj.state.contribution_id
+        url = reverse('admin:contributions_contribution_change', args=[contribution_id])
+        return format_html('<a href="{}">#{}</a>', url, contribution_id)
+    contribution_link.short_description = 'Contribution'
+    contribution_link.admin_order_field = 'state__contribution_id'
+
+    def contributor(self, obj):
+        user = obj.state.contribution.user
+        return user.name or user.email or user.address
+    contributor.admin_order_field = 'state__contribution__user__name'
+
+    def discord_username(self, obj):
+        connection = getattr(obj.state.contribution.user, 'discordconnection', None)
+        if not connection:
+            return '-'
+        return connection.guild_nick or connection.platform_username or '-'
+    discord_username.short_description = 'Discord'
 
 
 class SubmissionNoteInline(admin.TabularInline):

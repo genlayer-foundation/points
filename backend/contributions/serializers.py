@@ -1,6 +1,11 @@
 from django.db import models, transaction
 from rest_framework import serializers
-from .models import ContributionType, Contribution, SubmittedContribution, Evidence, ContributionHighlight, Mission, StartupRequest, SubmissionNote, FeaturedContent, Alert, EvidenceURLType
+from .models import (
+    ContributionType, Contribution, SubmittedContribution, Evidence,
+    ContributionHighlight, Mission, StartupRequest, SubmissionNote,
+    FeaturedContent, Alert, EvidenceURLType, ContributionDiscordXPState,
+    DiscordXPDistributionEvent,
+)
 from users.serializers import UserSerializer, LightUserSerializer
 from users.models import User
 from stewards.models import ReviewTemplate
@@ -298,6 +303,87 @@ class ContributionSerializer(serializers.ModelSerializer):
                 ret['mission'] = MissionSerializer(instance.mission, context=self.context).data
 
         return ret
+
+
+class DiscordXPDistributionEventSerializer(serializers.ModelSerializer):
+    actor = LightUserSerializer(read_only=True)
+
+    class Meta:
+        model = DiscordXPDistributionEvent
+        fields = [
+            'id', 'amount', 'action', 'actor',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+
+class ContributionDiscordXPStateSerializer(serializers.ModelSerializer):
+    contributor = serializers.SerializerMethodField()
+    discord = serializers.SerializerMethodField()
+    contribution_type = serializers.SerializerMethodField()
+    contribution_title = serializers.CharField(source='contribution.title', read_only=True)
+    contribution_notes = serializers.CharField(source='contribution.notes', read_only=True)
+    contribution_date = serializers.DateTimeField(source='contribution.contribution_date', read_only=True)
+    contribution_created_at = serializers.DateTimeField(source='contribution.created_at', read_only=True)
+    community_points = serializers.IntegerField(source='contribution.frozen_global_points', read_only=True)
+    frozen_global_points = serializers.IntegerField(source='contribution.frozen_global_points', read_only=True)
+    pending_amount = serializers.SerializerMethodField()
+    command = serializers.SerializerMethodField()
+    distributed_by = LightUserSerializer(read_only=True)
+    last_copied_by = LightUserSerializer(read_only=True)
+    latest_event = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ContributionDiscordXPState
+        fields = [
+            'id', 'contribution', 'status', 'awarded_amount',
+            'community_points', 'frozen_global_points', 'pending_amount', 'command',
+            'distributed_at', 'distributed_by',
+            'last_copied_at', 'last_copied_by',
+            'contributor', 'discord', 'contribution_type',
+            'contribution_title', 'contribution_notes', 'contribution_date',
+            'contribution_created_at', 'latest_event', 'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
+
+    def get_contributor(self, obj):
+        return LightUserSerializer(obj.contribution.user).data
+
+    def get_discord(self, obj):
+        connection = getattr(obj.contribution.user, 'discordconnection', None)
+        if not connection:
+            return None
+
+        return {
+            'platform_username': connection.platform_username,
+            'guild_nick': connection.guild_nick,
+            'guild_member': connection.guild_member,
+            'avatar_url': connection.avatar_url,
+        }
+
+    def get_contribution_type(self, obj):
+        return LightContributionTypeSerializer(obj.contribution.contribution_type).data
+
+    def get_pending_amount(self, obj):
+        annotated = getattr(obj, 'pending_xp', None)
+        if annotated is not None:
+            return annotated
+        return obj.pending_amount
+
+    def get_command(self, obj):
+        return obj.command
+
+    def get_latest_event(self, obj):
+        events = list(getattr(obj, 'latest_events', []))
+        if not events:
+            events = list(getattr(obj, '_prefetched_objects_cache', {}).get('events', []))
+        if events:
+            return DiscordXPDistributionEventSerializer(events[0]).data
+        latest = obj.events.order_by('-created_at').first()
+        if not latest:
+            return None
+        return DiscordXPDistributionEventSerializer(latest).data
 
 
 class SubmittedEvidenceSerializer(serializers.ModelSerializer):
