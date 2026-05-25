@@ -120,10 +120,16 @@
       error = null;
       notice = null;
       const projectResponse = await projectsAPI.get(slug);
-      project = projectResponse.data;
+      const loadedProject = projectResponse.data;
+      if (!loadedProject?.can_edit) {
+        project = null;
+        error = 'You do not have permission to edit this project.';
+        return;
+      }
+      project = loadedProject;
       selectedParticipants = getProjectParticipantsForEditing(project);
       selectedContributions = [...(project.related_contributions || [])];
-      hydrateForm(projectResponse.data);
+      hydrateForm(loadedProject);
     } catch (err) {
       const requestError = /** @type {{ response?: { data?: { detail?: string } }, message?: string }} */ (err);
       error = requestError.response?.data?.detail || requestError.message || 'Failed to load project editor';
