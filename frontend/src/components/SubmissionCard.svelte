@@ -7,6 +7,7 @@
   import Link from '../lib/components/Link.svelte';
   import Avatar from './Avatar.svelte';
   import Badge from './Badge.svelte';
+  import Icons from './Icons.svelte';
   import { parseMarkdown } from '../lib/markdownLoader.js';
   import { showSuccess, showError } from '../lib/toastStore';
 
@@ -33,7 +34,12 @@
     onToggleInteresting = null,
     onRequestNotes = null,
     onRequestUsers = null,
-    onAppeal = null
+    onAppeal = null,
+    acceptedEdit = null,
+    canEditAccepted = false,
+    acceptedUpdating = false,
+    onAcceptedEditChange = null,
+    onAcceptedUpdate = null
   } = $props();
 
   let togglingInteresting = $state(false);
@@ -1126,6 +1132,106 @@
             submission={submission}
             showExpand={true}
           />
+
+          {#if showReviewForm && canEditAccepted && acceptedEdit}
+            <div class="overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
+              <div class="border-b border-emerald-100 bg-emerald-50/80 px-4 py-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                        <Icons name="points" size="sm" />
+                      </span>
+                      <h4 class="text-sm font-semibold text-gray-900">Accepted contribution settings</h4>
+                    </div>
+                    <p class="mt-1 text-xs text-emerald-800">
+                      Currently saved: {submission.contribution.frozen_global_points ?? submission.contribution.points ?? 0} pts
+                    </p>
+                  </div>
+
+                  {#if submission.contribution.highlight}
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-medium text-yellow-800">
+                      <Icons name="star" size="xs" />
+                      Featured
+                    </span>
+                  {/if}
+                </div>
+              </div>
+
+              <div class="space-y-4 p-4">
+                <div>
+                  <label for="accepted-points-{submission.id}" class="mb-1.5 block text-sm font-medium text-gray-800">
+                    Awarded points
+                  </label>
+                  <div class="flex items-center gap-3">
+                    <input
+                      id="accepted-points-{submission.id}"
+                      type="number"
+                      min="0"
+                      value={acceptedEdit.points}
+                      oninput={(event) => onAcceptedEditChange?.(submission.id, 'points', event.currentTarget.value)}
+                      disabled={acceptedUpdating}
+                      class="h-10 w-28 rounded-md border border-gray-300 px-3 text-sm font-semibold text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                    />
+                    <span class="text-sm text-gray-500">points after save</span>
+                  </div>
+                </div>
+
+                <div class="rounded-md border border-yellow-200 bg-yellow-50/70 p-3">
+                  <div class="mb-3 flex items-center gap-2">
+                    <Icons name="star" size="sm" className="text-yellow-600" />
+                    <h5 class="text-sm font-semibold text-yellow-950">Featured highlight</h5>
+                  </div>
+                  <p class="mb-3 text-xs text-yellow-900">
+                    Fill both fields to feature this contribution. Clear both fields to remove the feature.
+                  </p>
+
+                  <div class="space-y-3">
+                    <div>
+                      <label for="accepted-highlight-title-{submission.id}" class="mb-1 block text-xs font-medium uppercase text-yellow-900">
+                        Title
+                      </label>
+                      <input
+                        id="accepted-highlight-title-{submission.id}"
+                        type="text"
+                        value={acceptedEdit.highlight_title}
+                        oninput={(event) => onAcceptedEditChange?.(submission.id, 'highlight_title', event.currentTarget.value)}
+                        disabled={acceptedUpdating}
+                        placeholder="Feature title"
+                        class="w-full rounded-md border border-yellow-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 disabled:opacity-50"
+                      />
+                    </div>
+
+                    <div>
+                      <label for="accepted-highlight-description-{submission.id}" class="mb-1 block text-xs font-medium uppercase text-yellow-900">
+                        Description
+                      </label>
+                      <textarea
+                        id="accepted-highlight-description-{submission.id}"
+                        value={acceptedEdit.highlight_description}
+                        oninput={(event) => onAcceptedEditChange?.(submission.id, 'highlight_description', event.currentTarget.value)}
+                        disabled={acceptedUpdating}
+                        placeholder="Add the feature description"
+                        rows="3"
+                        class="w-full resize-y rounded-md border border-yellow-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 disabled:opacity-50"
+                      ></textarea>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex justify-end">
+                  <button
+                    type="button"
+                    onclick={() => onAcceptedUpdate?.(submission.id)}
+                    disabled={acceptedUpdating}
+                    class="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {acceptedUpdating ? 'Saving...' : 'Save accepted changes'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/if}
         {:else if submission.state === 'rejected'}
           {#if submission.staff_reply}
             <div class="border border-red-200 rounded-lg p-4 bg-red-50">

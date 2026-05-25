@@ -484,6 +484,16 @@
     return permissionsMap[submission.contribution_type]?.includes('accept');
   }
 
+  function handleAcceptedEditChange(submissionId, field, value) {
+    if (!acceptedEdits[submissionId]) return;
+
+    acceptedEdits[submissionId] = {
+      ...acceptedEdits[submissionId],
+      [field]: value
+    };
+    acceptedEdits = { ...acceptedEdits };
+  }
+
   async function handleAcceptedUpdate(submissionId) {
     const data = acceptedEdits[submissionId];
     if (!data) return;
@@ -844,64 +854,6 @@
             </div>
           {/if}
 
-          {#if submission.state === 'accepted' && submission.contribution && acceptedEdits[submission.id] && canEditAcceptedSubmission(submission)}
-            <div class="mb-2 rounded-lg border border-green-200 bg-white px-4 py-3 shadow-sm">
-              <div class="grid grid-cols-1 gap-3 lg:grid-cols-[180px_1fr_auto] lg:items-end">
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">
-                    Awarded points
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    bind:value={acceptedEdits[submission.id].points}
-                    disabled={updatingAccepted.has(submission.id)}
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
-                  />
-                  <p class="text-xs text-gray-500 mt-1">
-                    Final: {submission.contribution.frozen_global_points ?? submission.contribution.points ?? 0} pts
-                  </p>
-                </div>
-
-                <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                      Feature title
-                    </label>
-                    <input
-                      type="text"
-                      bind:value={acceptedEdits[submission.id].highlight_title}
-                      disabled={updatingAccepted.has(submission.id)}
-                      placeholder="Optional"
-                      class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 disabled:opacity-50"
-                    />
-                  </div>
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                      Feature description
-                    </label>
-                    <input
-                      type="text"
-                      bind:value={acceptedEdits[submission.id].highlight_description}
-                      disabled={updatingAccepted.has(submission.id)}
-                      placeholder="Optional"
-                      class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 disabled:opacity-50"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onclick={() => handleAcceptedUpdate(submission.id)}
-                  disabled={updatingAccepted.has(submission.id)}
-                  class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {updatingAccepted.has(submission.id) ? 'Saving...' : 'Save changes'}
-                </button>
-              </div>
-            </div>
-          {/if}
-
           <SubmissionCard
             {submission}
             showReviewForm={true}
@@ -924,6 +876,11 @@
             onToggleInteresting={handleToggleInteresting}
             onRequestNotes={fetchNotesForCopy}
             onRequestUsers={ensureUsersLoaded}
+            acceptedEdit={acceptedEdits[submission.id] || null}
+            canEditAccepted={Boolean(submission.state === 'accepted' && submission.contribution && acceptedEdits[submission.id] && canEditAcceptedSubmission(submission))}
+            acceptedUpdating={updatingAccepted.has(submission.id)}
+            onAcceptedEditChange={handleAcceptedEditChange}
+            onAcceptedUpdate={handleAcceptedUpdate}
           />
         </div>
       {/each}
