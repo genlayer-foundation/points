@@ -8,6 +8,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare, salted_hmac
+from social_connections.models import DiscordConnection
 
 from .models import PoapClaim, PoapDistribution, PoapDrop, PoapMintLink
 
@@ -26,6 +27,10 @@ class InvalidClaimError(PoapClaimError):
 
 class ClaimClosedError(PoapClaimError):
     status_code = 400
+
+
+class MissingDiscordConnectionError(PoapClaimError):
+    status_code = 403
 
 
 def normalize_secret(value):
@@ -77,6 +82,13 @@ def validate_distribution(distribution):
         raise ClaimClosedError('This distribution is not currently open.')
 
 
+def validate_discord_connection(user):
+    if not DiscordConnection.objects.filter(user_id=user.pk).exists():
+        raise MissingDiscordConnectionError(
+            'You must link your Discord account to claim this POAP.'
+        )
+
+
 def _create_claim(*, drop, user, distribution, mint_link=None, method=None):
     if PoapClaim.objects.filter(drop=drop, user=user).exists():
         raise AlreadyClaimedError('You already claimed this POAP.')
@@ -106,6 +118,7 @@ def _create_claim(*, drop, user, distribution, mint_link=None, method=None):
 def claim_with_secret(*, drop_slug, user, secret):
     if not user or not user.is_authenticated:
         raise InvalidClaimError('Authentication is required.')
+    validate_discord_connection(user)
 
     candidate_hash = hash_secret(secret)
     with transaction.atomic():
@@ -149,6 +162,7 @@ def claim_with_mint_link(*, token, user):
         raise InvalidClaimError('Authentication is required.')
     if not token:
         raise InvalidClaimError('Mint link token is missing.')
+    validate_discord_connection(user)
 
     token_digest = hash_token(token)
     with transaction.atomic():

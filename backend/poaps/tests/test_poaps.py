@@ -17,6 +17,7 @@ from ethereum_auth.models import Nonce
 from poaps.admin import PoapDistributionAdminForm, PoapDropAdminForm
 from poaps.models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch
 from poaps.services import generate_mint_links, hash_secret
+from social_connections.models import DiscordConnection
 
 User = get_user_model()
 
@@ -47,6 +48,16 @@ class PoapAPITest(TestCase):
             artwork_url='https://example.com/poap.png',
             event_start_at=timezone.now(),
             status=PoapDrop.STATUS_ACTIVE,
+        )
+        self._link_discord(self.user, 'discord-user')
+        self._link_discord(self.other_user, 'discord-other')
+
+    def _link_discord(self, user, platform_user_id):
+        return DiscordConnection.objects.create(
+            user=user,
+            platform_user_id=platform_user_id,
+            platform_username=platform_user_id,
+            linked_at=timezone.now(),
         )
 
     def _secret_distribution(self, secret='friend-scientist-natural', **kwargs):
@@ -113,6 +124,23 @@ class PoapAPITest(TestCase):
         self.assertTrue(PoapClaim.objects.filter(drop=self.drop, user=self.user).exists())
         distribution.refresh_from_db()
         self.assertEqual(distribution.claimed_count, 1)
+
+    def test_secret_claim_requires_discord_connection(self):
+        distribution = self._secret_distribution()
+        DiscordConnection.objects.filter(user=self.user).delete()
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/ama-session/claim-secret/',
+            {'secret': 'friend-scientist-natural'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn('link your Discord', response.data['error'])
+        self.assertFalse(PoapClaim.objects.filter(drop=self.drop, user=self.user).exists())
+        distribution.refresh_from_db()
+        self.assertEqual(distribution.claimed_count, 0)
 
     def test_secret_claim_rejects_invalid_secret(self):
         self._secret_distribution()
@@ -185,6 +213,26 @@ class PoapAPITest(TestCase):
             response.data['error'],
             'Mint link token was not found. Check that the full Claim URL was copied from the admin.',
         )
+
+    def test_mint_link_claim_requires_discord_connection(self):
+        distribution = PoapDistribution.objects.create(
+            drop=self.drop,
+            method=PoapDistribution.METHOD_MINT_LINK,
+            active=True,
+        )
+        [(link, token)] = generate_mint_links(distribution=distribution, count=1)
+        DiscordConnection.objects.filter(user=self.user).delete()
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn('link your Discord', response.data['error'])
+        self.assertFalse(PoapClaim.objects.filter(drop=self.drop, user=self.user).exists())
+        link.refresh_from_db()
+        distribution.refresh_from_db()
+        self.assertEqual(link.used_count, 0)
+        self.assertEqual(distribution.claimed_count, 0)
 
     def test_mint_link_claim_reports_inactive_distribution(self):
         distribution = PoapDistribution.objects.create(
