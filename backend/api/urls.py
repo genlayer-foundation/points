@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from users.views import UserViewSet
-from contributions.views import ContributionTypeViewSet, ContributionViewSet, EvidenceViewSet, SubmittedContributionViewSet, StewardSubmissionViewSet, MissionViewSet, StartupRequestViewSet, FeaturedContentViewSet, AlertViewSet
+from contributions.views import ContributionTypeViewSet, ContributionViewSet, EvidenceViewSet, SubmittedContributionViewSet, StewardSubmissionViewSet, StewardDiscordXPViewSet, MissionViewSet, StartupRequestViewSet, FeaturedContentViewSet, AlertViewSet
 from leaderboard.views import GlobalLeaderboardMultiplierViewSet, LeaderboardViewSet
 from partners.views import PartnerViewSet
 from projects.views import ProjectViewSet
@@ -20,6 +20,7 @@ router.register(r'multipliers', GlobalLeaderboardMultiplierViewSet)
 router.register(r'leaderboard', LeaderboardViewSet)
 router.register(r'submissions', SubmittedContributionViewSet, basename='submission')
 router.register(r'steward-submissions', StewardSubmissionViewSet, basename='steward-submission')
+router.register(r'steward-discord-xp', StewardDiscordXPViewSet, basename='steward-discord-xp')
 router.register(r'missions', MissionViewSet, basename='mission')
 router.register(r'startup-requests', StartupRequestViewSet, basename='startup-request')
 router.register(r'featured', FeaturedContentViewSet, basename='featured')

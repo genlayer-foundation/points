@@ -14,19 +14,25 @@ from django.db.models import (
     IntegerField,
     Max,
     OuterRef,
+    Prefetch,
     Q,
     Subquery,
     Sum,
     Value,
 )
 from django.db.models.functions import TruncDate, TruncWeek, TruncMonth
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Greatest
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.generic import ListView
 from django.utils.decorators import method_decorator
-from .models import ContributionType, Contribution, Evidence, SubmittedContribution, SubmissionNote, ContributionHighlight, Mission, StartupRequest, FeaturedContent, Alert
+from .models import (
+    ContributionType, Contribution, Evidence, SubmittedContribution,
+    SubmissionNote, ContributionHighlight, Mission, StartupRequest,
+    FeaturedContent, Alert, ContributionDiscordXPState,
+    DiscordXPDistributionEvent, sync_discord_xp_state_for_contribution,
+)
 from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
@@ -34,12 +40,14 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          StewardAcceptedSubmissionUpdateSerializer,
                          SubmissionNoteSerializer, SubmissionProposeSerializer,
                          MissionSerializer, StartupRequestListSerializer, StartupRequestDetailSerializer,
-                         FeaturedContentSerializer, AlertSerializer)
+                         FeaturedContentSerializer, AlertSerializer,
+                         ContributionDiscordXPStateSerializer)
 from .forms import SubmissionReviewForm
 from .permissions import IsSteward, steward_has_permission, steward_permitted_type_ids
 from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from ethereum_auth.authentication import EthereumAuthentication
+import requests
 
 METRICS_POINTS_EXCLUDED_TYPE_SLUGS = [
     'builder-welcome',
@@ -1271,6 +1279,364 @@ class StewardSubmissionFilterSet(FilterSet):
     class Meta:
         model = SubmittedContribution
         fields = ['state', 'contribution_type', 'user']
+
+
+class StewardDiscordXPFilterSet(FilterSet):
+    """Server-side filtering for steward Discord XP tracking."""
+    status = CharFilter(method='filter_status')
+    contribution_type = NumberFilter(method='filter_contribution_type')
+    exclude_contribution_type = NumberFilter(method='filter_exclude_contribution_type')
+    username_search = CharFilter(method='filter_username')
+    search = CharFilter(method='filter_search')
+    include_content = CharFilter(method='filter_include_content')
+    exclude_content = CharFilter(method='filter_exclude_content')
+
+    def _normalize_status(self, value):
+        status_value = (value or '').strip().lower().replace('-', '_')
+        allowed = {
+            ContributionDiscordXPState.STATUS_PENDING,
+            ContributionDiscordXPState.STATUS_DISTRIBUTED,
+            ContributionDiscordXPState.STATUS_NEEDS_REVIEW,
+        }
+        return status_value if status_value in allowed else None
+
+    def _content_query(self, term):
+        has_matching_evidence = Evidence.objects.filter(
+            contribution_id=OuterRef('contribution_id')
+        ).filter(
+            Q(url__icontains=term) | Q(description__icontains=term)
+        )
+        return (
+            Q(contribution__title__icontains=term) |
+            Q(contribution__notes__icontains=term) |
+            Q(contribution__contribution_type__name__icontains=term) |
+            Q(contribution__contribution_type__slug__icontains=term) |
+            Exists(has_matching_evidence)
+        )
+
+    def filter_status(self, queryset, name, value):
+        status_value = self._normalize_status(value)
+        if status_value:
+            return queryset.filter(status=status_value)
+        return queryset
+
+    def filter_contribution_type(self, queryset, name, value):
+        if value:
+            return queryset.filter(contribution__contribution_type_id=value)
+        return queryset
+
+    def filter_exclude_contribution_type(self, queryset, name, value):
+        if value:
+            return queryset.exclude(contribution__contribution_type_id=value)
+        return queryset
+
+    def filter_username(self, queryset, name, value):
+        if value:
+            return queryset.filter(
+                Q(contribution__user__name__icontains=value) |
+                Q(contribution__user__email__icontains=value) |
+                Q(contribution__user__address__icontains=value) |
+                Q(contribution__user__discord_handle__icontains=value) |
+                Q(contribution__user__discordconnection__platform_username__icontains=value) |
+                Q(contribution__user__discordconnection__guild_nick__icontains=value)
+            )
+        return queryset
+
+    def filter_search(self, queryset, name, value):
+        if value:
+            return queryset.filter(
+                self._content_query(value) |
+                Q(contribution__user__name__icontains=value) |
+                Q(contribution__user__email__icontains=value) |
+                Q(contribution__user__address__icontains=value) |
+                Q(contribution__user__discord_handle__icontains=value) |
+                Q(contribution__user__discordconnection__platform_username__icontains=value) |
+                Q(contribution__user__discordconnection__guild_nick__icontains=value)
+            )
+        return queryset
+
+    def filter_include_content(self, queryset, name, value):
+        if value:
+            for term in value.split(','):
+                term = term.strip()
+                if term:
+                    queryset = queryset.filter(self._content_query(term))
+        return queryset
+
+    def filter_exclude_content(self, queryset, name, value):
+        if value:
+            for term in value.split(','):
+                term = term.strip()
+                if term:
+                    queryset = queryset.exclude(self._content_query(term))
+        return queryset
+
+    class Meta:
+        model = ContributionDiscordXPState
+        fields = ['status', 'contribution_type']
+
+
+class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Steward endpoint for community contribution Discord XP tracking and awards.
+    """
+    serializer_class = ContributionDiscordXPStateSerializer
+    authentication_classes = [EthereumAuthentication]
+    permission_classes = [IsSteward]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_class = StewardDiscordXPFilterSet
+    lookup_field = 'contribution_id'
+    lookup_url_kwarg = 'contribution_id'
+    ordering_fields = [
+        'contribution__created_at',
+        'contribution__contribution_date',
+        'contribution__frozen_global_points',
+        'pending_xp',
+        'distributed_at',
+    ]
+    ordering = ['-contribution__created_at']
+
+    def get_queryset(self):
+        queryset = ContributionDiscordXPState.objects.filter(
+            contribution__contribution_type__category__slug='community',
+        ).filter(
+            Q(contribution__frozen_global_points__gt=0) |
+            Q(awarded_amount__gt=0)
+        )
+
+        if self.request.user and self.request.user.is_authenticated and hasattr(self.request.user, 'steward'):
+            permitted_ids = steward_permitted_type_ids(self.request.user, actions=['accept'])
+            if permitted_ids:
+                queryset = queryset.filter(contribution__contribution_type_id__in=permitted_ids)
+            else:
+                queryset = queryset.none()
+
+        latest_events = DiscordXPDistributionEvent.objects.select_related(
+            'actor',
+        ).order_by('-created_at')
+
+        return queryset.select_related(
+            'contribution',
+            'contribution__user',
+            'contribution__user__discordconnection',
+            'contribution__contribution_type',
+            'contribution__contribution_type__category',
+            'distributed_by',
+            'last_copied_by',
+        ).prefetch_related(
+            Prefetch('events', queryset=latest_events[:1], to_attr='latest_events'),
+        ).annotate(
+            pending_xp=Greatest(
+                F('contribution__frozen_global_points') - F('awarded_amount'),
+                Value(0),
+                output_field=IntegerField(),
+            )
+        )
+
+    def _get_locked_state(self, contribution_id):
+        state = self.get_queryset().select_for_update(of=('self',)).get(
+            contribution_id=contribution_id,
+        )
+        contribution = state.contribution
+
+        if not steward_has_permission(self.request.user, contribution.contribution_type_id, 'accept'):
+            return None, Response(
+                {'detail': 'You do not have permission to manage XP for this contribution type.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        sync_discord_xp_state_for_contribution(contribution)
+        state = ContributionDiscordXPState.objects.select_for_update(of=('self',)).select_related(
+            'contribution',
+            'contribution__user',
+            'contribution__user__discordconnection',
+            'contribution__contribution_type',
+            'contribution__contribution_type__category',
+            'distributed_by',
+            'last_copied_by',
+        ).get(pk=state.pk)
+        state.refresh_status_from_contribution(save=True)
+        return state, None
+
+    def _record_event(self, state, action, amount):
+        return DiscordXPDistributionEvent.objects.create(
+            state=state,
+            actor=self.request.user,
+            amount=max(int(amount or 0), 0),
+            action=action,
+        )
+
+    def _refresh_discord_connection(self, connection):
+        from social_connections.oauth_service import DiscordOAuthService
+
+        try:
+            refreshed_connection, _ = DiscordOAuthService().refresh_connection_username(connection)
+        except ValueError as e:
+            error_code = str(e)
+            if error_code == 'account_mismatch':
+                return None, Response(
+                    {'detail': 'Discord account mismatch. The contributor must reconnect Discord before XP can be copied.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            if error_code in (
+                'missing_access_token',
+                'invalid_access_token',
+                'missing_refresh_token',
+                'invalid_refresh_token',
+                'refresh_not_supported',
+                'no_access_token',
+            ):
+                return None, Response(
+                    {'detail': 'Discord authorization is no longer valid. The contributor must reconnect Discord before XP can be copied.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            return None, Response(
+                {'detail': 'Failed to refresh Discord username before copying XP.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except requests.RequestException:
+            return None, Response(
+                {'detail': 'Failed to reach Discord while refreshing the contributor username. Please try again.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return refreshed_connection, None
+
+    @action(detail=True, methods=['post'], url_path='record-copy')
+    def record_copy(self, request, contribution_id=None):
+        try:
+            with transaction.atomic():
+                state, response = self._get_locked_state(contribution_id)
+                if response:
+                    return response
+
+                if state.status == ContributionDiscordXPState.STATUS_NEEDS_REVIEW:
+                    return Response(
+                        {
+                            'detail': 'This contribution has more XP marked distributed than its current community points.',
+                            'state': self.get_serializer(state).data,
+                        },
+                        status=status.HTTP_409_CONFLICT,
+                    )
+
+                discord_connection = getattr(state.contribution.user, 'discordconnection', None)
+                if not discord_connection:
+                    return Response(
+                        {'detail': 'This contributor does not have a linked Discord account.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                if state.pending_amount <= 0:
+                    return Response(
+                        {'detail': 'This contribution has no pending XP to copy.', 'state': self.get_serializer(state).data},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+
+                discord_connection, response = self._refresh_discord_connection(discord_connection)
+                if response:
+                    return response
+                state.contribution.user._state.fields_cache.pop('discordconnection', None)
+
+                now = timezone.now()
+                state.last_copied_at = now
+                state.last_copied_by = request.user
+                state.save(update_fields=[
+                    'last_copied_at',
+                    'last_copied_by',
+                    'updated_at',
+                ])
+                self._record_event(
+                    state,
+                    DiscordXPDistributionEvent.ACTION_COPIED,
+                    state.pending_amount,
+                )
+                return Response(self.get_serializer(state).data)
+        except ContributionDiscordXPState.DoesNotExist:
+            return self._not_found_or_non_community(contribution_id)
+
+    @action(detail=True, methods=['post'], url_path='mark-distributed')
+    def mark_distributed(self, request, contribution_id=None):
+        try:
+            with transaction.atomic():
+                state, response = self._get_locked_state(contribution_id)
+                if response:
+                    return response
+
+                if state.status == ContributionDiscordXPState.STATUS_NEEDS_REVIEW:
+                    return Response(
+                        {
+                            'detail': 'Unset this contribution before marking it distributed again.',
+                            'state': self.get_serializer(state).data,
+                        },
+                        status=status.HTTP_409_CONFLICT,
+                    )
+
+                pending_amount = state.pending_amount
+                if pending_amount <= 0:
+                    return Response(self.get_serializer(state).data)
+
+                now = timezone.now()
+                state.awarded_amount = int(state.awarded_amount or 0) + pending_amount
+                state.distributed_at = now
+                state.distributed_by = request.user
+                state.refresh_status_from_contribution(save=False)
+                state.save(update_fields=[
+                    'awarded_amount',
+                    'distributed_at',
+                    'distributed_by',
+                    'status',
+                    'updated_at',
+                ])
+                self._record_event(
+                    state,
+                    DiscordXPDistributionEvent.ACTION_DISTRIBUTED,
+                    pending_amount,
+                )
+                return Response(self.get_serializer(state).data)
+        except ContributionDiscordXPState.DoesNotExist:
+            return self._not_found_or_non_community(contribution_id)
+
+    @action(detail=True, methods=['post'], url_path='unset-distributed')
+    def unset_distributed(self, request, contribution_id=None):
+        try:
+            with transaction.atomic():
+                state, response = self._get_locked_state(contribution_id)
+                if response:
+                    return response
+
+                previous_amount = int(state.awarded_amount or 0)
+                state.awarded_amount = 0
+                state.status = ContributionDiscordXPState.STATUS_PENDING
+                state.distributed_at = None
+                state.distributed_by = None
+                state.save(update_fields=[
+                    'awarded_amount',
+                    'status',
+                    'distributed_at',
+                    'distributed_by',
+                    'updated_at',
+                ])
+                self._record_event(
+                    state,
+                    DiscordXPDistributionEvent.ACTION_UNSET,
+                    previous_amount,
+                )
+                return Response(self.get_serializer(state).data)
+        except ContributionDiscordXPState.DoesNotExist:
+            return self._not_found_or_non_community(contribution_id)
+
+    def _not_found_or_non_community(self, contribution_id):
+        if Contribution.objects.filter(pk=contribution_id).exclude(
+            contribution_type__category__slug='community',
+        ).exists():
+            return Response(
+                {'detail': 'Discord XP can only be managed for community contributions.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {'detail': 'Community contribution XP state not found.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
 
 
 class StewardSubmissionViewSet(viewsets.ModelViewSet):

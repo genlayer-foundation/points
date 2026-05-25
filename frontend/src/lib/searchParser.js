@@ -158,9 +158,7 @@ export function parseSearch(query) {
     else if (NUMERIC_TAGS.includes(tag)) {
       const num = parseInt(value, 10);
       if (!isNaN(num)) {
-        if (tag === 'min-contributions') {
-          filters.minContributions = num;
-        }
+        filters.minContributions = num;
       }
     }
   }

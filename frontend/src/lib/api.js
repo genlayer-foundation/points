@@ -207,6 +207,16 @@ export const stewardAPI = {
   // Get all submissions for review
   getSubmissions: (params = {}) => api.get('/steward-submissions/', { params }),
 
+  // Get community contribution Discord XP states
+  getDiscordXP: (params = {}) => api.get('/steward-discord-xp/', { params }),
+
+  // Record that a steward copied the manual Discord XP command
+  recordDiscordXPCopy: (contributionId) => api.post(`/steward-discord-xp/${contributionId}/record-copy/`),
+
+  // Mark or unset manual Discord XP distribution
+  markDiscordXPDistributed: (contributionId) => api.post(`/steward-discord-xp/${contributionId}/mark-distributed/`),
+  unsetDiscordXPDistributed: (contributionId) => api.post(`/steward-discord-xp/${contributionId}/unset-distributed/`),
+
   // Get a single submission
   getSubmission: (id) => api.get(`/steward-submissions/${id}/`),
 
