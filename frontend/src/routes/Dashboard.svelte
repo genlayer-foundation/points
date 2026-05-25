@@ -129,7 +129,7 @@
 
     if (cat === 'community') {
       promises.push(
-        contributionsAPI.getContributions({ limit: 20, category: cat }).then(res => {
+        contributionsAPI.getContributions({ limit: 20, category: cat, exclude_onboarding: 'true' }).then(res => {
           const contributions = res.data?.results ?? res.data ?? [];
           recentContributions = contributions.slice(0, 5);
 
@@ -168,7 +168,7 @@
           waitlistLoading = false;
         }).catch(() => { waitlistLoading = false; }),
 
-        contributionsAPI.getContributions({ limit: 5, category: cat }).then(res => {
+        contributionsAPI.getContributions({ limit: 5, category: cat, exclude_onboarding: 'true' }).then(res => {
           recentContributions = res.data?.results ?? res.data ?? [];
           recentLoading = false;
         }).catch(() => { recentLoading = false; })
