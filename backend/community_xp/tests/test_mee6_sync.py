@@ -392,6 +392,13 @@ class Mee6SyncTest(TestCase):
         self.assertEqual(breakdown['discord_xp'], 77)
         self.assertEqual(breakdown['total_points'], 77)
 
+    def test_zero_xp_migration_does_not_create_creator_profile(self):
+        self.link_discord(self.user, discord_id='zero-discord')
+
+        self.fetch_and_apply_mee6_run([mee6_player('zero-discord', 0)])
+
+        self.assertFalse(Creator.objects.filter(user=self.user).exists())
+
     def test_discord_connection_serializer_exposes_mee6_level_and_rank(self):
         connection = self.link_discord(self.user, discord_id='discord-1')
         self.fetch_and_apply_mee6_run([mee6_player('discord-1', 100, rank=7)])

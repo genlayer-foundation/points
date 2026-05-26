@@ -6,7 +6,7 @@
     import { authState } from "../../lib/auth.js";
     import CategoryIcon from "../portal/CategoryIcon.svelte";
 
-    let { variant = "dark", participant = null, referralData = null } = $props();
+    let { variant = "dark", participant = null, referralData = null, topRole = null } = $props();
 
     // For light variant without participant, derive auth state from stores
     let storeValue = $state({ user: null });
@@ -40,14 +40,37 @@
     let isTopRank = $state(false);
     let rankLabel: string = $state("");
     let rankComputed = $state(false);
+    let rankComputationKey: string | null = $state(null);
 
-    // Determine which entry type to use based on leaderboard-backed role eligibility.
+    function getRankableEntryType(roleKey: string | null, p: any) {
+        if (!roleKey || !p) return null;
+        if (roleKey === "builder") return p.builder ? "builder" : null;
+        if (roleKey === "validator") {
+            if (p.has_validator_waitlist && !p.validator) return "validator-waitlist";
+            if (p.validator) return "validator";
+        }
+        if (roleKey === "community") return p.creator ? "community" : null;
+        return null;
+    }
+
+    // Determine which entry type to use from the same top-role logic used by the profile header.
     let eligibleEntryType = $derived.by(() => {
         const p = participant;
         if (!p) return null;
+
+        const badges = topRole?.badges || [];
+        for (const badge of badges) {
+            const entryType = getRankableEntryType(badge?.key || badge?.category, p);
+            if (entryType) return entryType;
+        }
+
+        const categoryEntryType = getRankableEntryType(topRole?.category, p);
+        if (categoryEntryType) return categoryEntryType;
+
         if (p.builder) return "builder";
         if (p.has_validator_waitlist && !p.validator) return "validator-waitlist";
         if (p.validator) return "validator";
+        if (p.creator) return "community";
         return null;
     });
 
@@ -55,40 +78,63 @@
         builder: "Builder",
         validator: "Validator",
         "validator-waitlist": "Validator Waitlist",
+        community: "Community",
     };
 
     // Fetch points-to-next-rank once leaderboard entries are available
     $effect(() => {
-        if (
-            participant?.address &&
-            participant?.leaderboard_entries?.length > 0 &&
-            eligibleEntryType &&
-            !rankComputed
-        ) {
-            computePointsToNextRank();
+        const key = `${participant?.address || ""}:${eligibleEntryType || ""}`;
+        const hasLeaderboardEntries = (participant?.leaderboard_entries?.length || 0) > 0;
+        if (!participant?.address || !eligibleEntryType || key === rankComputationKey) {
+            return;
         }
+        if (eligibleEntryType !== "community" && !hasLeaderboardEntries) {
+            return;
+        }
+
+        rankComputationKey = key;
+        pointsToNextRank = null;
+        nextRank = null;
+        isTopRank = false;
+        rankLabel = "";
+        rankComputed = false;
+        computePointsToNextRank(key);
     });
 
-    async function computePointsToNextRank() {
-        if (rankComputed) return;
+    async function computePointsToNextRank(key: string) {
         try {
             const entries = participant.leaderboard_entries || [];
-            const targetEntry = entries.find(
-                (e) => e.type === eligibleEntryType && e.rank && e.rank > 0,
-            );
+            let userRank: number | null = null;
+            let userPoints = 0;
+            rankLabel = roleLabelMap[eligibleEntryType] || "Overall";
 
-            if (!targetEntry) {
-                rankComputed = true;
+            if (eligibleEntryType === "community") {
+                const userRankRes = await leaderboardAPI.getLeaderboard({
+                    type: "community",
+                    user_address: participant.address,
+                    limit: 1,
+                });
+                userRank = userRankRes.data?.user_rank || null;
+                userPoints = userRankRes.data?.user_total_points || 0;
+            } else {
+                const targetEntry = entries.find(
+                    (e) => e.type === eligibleEntryType && e.rank && e.rank > 0,
+                );
+
+                if (!targetEntry) {
+                    return;
+                }
+
+                userRank = targetEntry.rank;
+                userPoints = targetEntry.total_points || 0;
+            }
+
+            if (!userRank) {
                 return;
             }
 
-            const userRank = targetEntry.rank;
-            const userPoints = targetEntry.total_points || 0;
-            rankLabel = roleLabelMap[eligibleEntryType] || "Overall";
-
             if (userRank <= 1) {
                 isTopRank = true;
-                rankComputed = true;
                 return;
             }
 
@@ -101,7 +147,7 @@
                 offset: Math.max(0, userRank - 1 - fetchLimit),
                 limit: fetchLimit,
             });
-            const results = res.data?.results || res.data || [];
+            const results = Array.isArray(res.data) ? res.data : res.data?.results || [];
             // Walk from the rank closest to the user upward until we find a
             // user with strictly more points.
             let targetUser = null;
@@ -122,7 +168,9 @@
         } catch (err) {
             // Silently fail - banner will show without rank info
         } finally {
-            rankComputed = true;
+            if (rankComputationKey === key) {
+                rankComputed = true;
+            }
         }
     }
 

@@ -189,6 +189,76 @@ def build_effective_community_scores(user_ids=None, guild_id=None, visible_only=
     return scores
 
 
+def get_community_member_user_ids(user_ids=None, guild_id=None, visible_only=True, since=None):
+    from creators.models import Creator
+    from poaps.models import PoapClaim
+
+    score_map = build_effective_community_scores(
+        user_ids=user_ids,
+        guild_id=guild_id,
+        visible_only=visible_only,
+    )
+    score_member_user_ids = {
+        user_id
+        for user_id, score in score_map.items()
+        if (score['total_points'] or 0) > 0
+    }
+    member_user_ids = set(score_member_user_ids if since is None else [])
+
+    contribution_filters = {
+        'contribution_type__category__slug': 'community',
+        'contribution_type__is_submittable': True,
+    }
+    poap_filters = {
+        'user__isnull': False,
+    }
+    if visible_only:
+        contribution_filters['user__visible'] = True
+        poap_filters['user__visible'] = True
+    if user_ids is not None:
+        contribution_filters['user_id__in'] = user_ids
+        poap_filters['user_id__in'] = user_ids
+    if since is not None:
+        contribution_filters['created_at__gte'] = since
+        poap_filters['created_at__gte'] = since
+        recent_effective_contributions = _community_contributions(user_ids=user_ids)
+        if visible_only:
+            recent_effective_contributions = recent_effective_contributions.filter(user__visible=True)
+        member_user_ids.update(
+            recent_effective_contributions
+            .filter(created_at__gte=since)
+            .values_list('user_id', flat=True)
+            .distinct()
+        )
+        creator_filters = {
+            'user_id__in': score_member_user_ids,
+            'created_at__gte': since,
+        }
+        if visible_only:
+            creator_filters['user__visible'] = True
+        member_user_ids.update(
+            Creator.objects
+            .filter(**creator_filters)
+            .values_list('user_id', flat=True)
+            .distinct()
+        )
+
+    member_user_ids.update(
+        Contribution.objects
+        .filter(**contribution_filters)
+        .values_list('user_id', flat=True)
+        .distinct()
+    )
+    member_user_ids.update(
+        PoapClaim.objects
+        .filter(**poap_filters)
+        .values_list('user_id', flat=True)
+        .distinct()
+    )
+
+    return member_user_ids
+
+
 def get_effective_community_points(user, guild_id=None):
     scores = build_effective_community_scores(
         user_ids=[user.id],

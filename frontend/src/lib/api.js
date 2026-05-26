@@ -119,8 +119,12 @@ export const leaderboardAPI = {
 
     return api.get('/leaderboard/', { params: restParams });
   },
-  getLeaderboardByType: (type, order = 'asc', additionalParams = {}) =>
-    api.get('/leaderboard/', { params: { type, order, ...additionalParams } }),
+  getLeaderboardByType: (type, order = 'asc', additionalParams = {}) => {
+    if (type === 'community') {
+      return api.get('/leaderboard/community/', { params: { order, ...additionalParams } });
+    }
+    return api.get('/leaderboard/', { params: { type, order, ...additionalParams } });
+  },
   getLeaderboardEntry: (address) => api.get(`/leaderboard/?user_address=${address}`),
   getMultipliers: () => api.get('/multipliers/'),
   getActiveMultipliers: () => api.get('/multipliers/active/'),

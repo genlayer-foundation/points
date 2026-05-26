@@ -442,6 +442,7 @@ def apply_sync_run(run, applied_by=None):
     discord_ids = [snapshot.discord_id for snapshot in snapshots]
     connections_by_discord_id = _connection_map(discord_ids)
     matched_user_ids = set()
+    creator_user_ids = set()
     current_rows = []
 
     for snapshot in snapshots:
@@ -450,6 +451,8 @@ def apply_sync_run(run, applied_by=None):
         matched_at = now if matched_user else None
         if matched_user:
             matched_user_ids.add(matched_user.id)
+            if snapshot.xp > 0:
+                creator_user_ids.add(matched_user.id)
 
         current_rows.append(Mee6CurrentXP(
             guild_id=snapshot.guild_id,
@@ -472,7 +475,7 @@ def apply_sync_run(run, applied_by=None):
     with transaction.atomic():
         Mee6CurrentXP.objects.filter(guild_id=run.guild_id).delete()
         Mee6CurrentXP.objects.bulk_create(current_rows, batch_size=1000)
-        creator_profiles_created = _auto_create_creator_profiles(matched_user_ids)
+        creator_profiles_created = _auto_create_creator_profiles(creator_user_ids)
 
         run.matched_players = len(matched_user_ids)
         run.unmatched_players = len(snapshots) - len(matched_user_ids)
@@ -559,7 +562,7 @@ def match_current_xp_for_connection(connection, guild_id=None, create_creator=Tr
         current.matched_at = timezone.now()
         current.save(update_fields=['matched_user', 'matched_at', 'updated_at'])
 
-        if create_creator:
+        if create_creator and current.xp > 0:
             Creator.objects.get_or_create(user=connection.user)
 
     return current

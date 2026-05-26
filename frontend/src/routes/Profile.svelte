@@ -847,6 +847,7 @@
         <RankingsWidget
           {participant}
           {isOwnProfile}
+          {topRole}
           {builderStats}
           {validatorStats}
           {communityStats}
@@ -1009,7 +1010,7 @@
       {/if}
 
       <div class="w-auto -mx-3 -mb-3">
-        <CTABanner variant="dark" {participant} {referralData} />
+        <CTABanner variant="dark" {participant} {referralData} {topRole} />
       </div>
     {/if}
   {:else}
