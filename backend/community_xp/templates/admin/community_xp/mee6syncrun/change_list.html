@@ -1,0 +1,13 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+  {% if can_fetch_new_snapshot %}
+    <li>
+      <form action="{% url 'admin:community_xp_mee6syncrun_fetch_new_snapshot' %}" method="post">
+        {% csrf_token %}
+        <button type="submit" class="addlink">Fetch new MEE6 XP snapshot</button>
+      </form>
+    </li>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}
