@@ -75,14 +75,11 @@ class Mee6PlayerSnapshotAdmin(admin.ModelAdmin):
         'discord_id',
         'xp',
         'level',
-        'matched_user',
     )
     list_filter = ('guild_id', 'run__status')
     search_fields = (
         'discord_id',
         'username',
-        'matched_user__email',
-        'matched_user__address',
     )
     readonly_fields = ('created_at', 'updated_at')
 

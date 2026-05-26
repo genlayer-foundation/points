@@ -270,7 +270,7 @@ class Mee6SyncTest(TestCase):
         run = self.fetch_mee6_run([mee6_player('unmatched-discord', 77)])
 
         snapshot = Mee6PlayerSnapshot.objects.get(discord_id='unmatched-discord')
-        self.assertIsNone(snapshot.matched_user)
+        self.assertEqual(snapshot.xp, 77)
         self.assertFalse(Mee6CurrentXP.objects.filter(discord_id='unmatched-discord').exists())
 
         apply_sync_run(run)

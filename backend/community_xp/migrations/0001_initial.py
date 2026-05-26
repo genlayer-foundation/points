@@ -69,8 +69,6 @@ class Migration(migrations.Migration):
                 ('message_count', models.PositiveIntegerField(default=0)),
                 ('detailed_xp', models.JSONField(blank=True, default=list)),
                 ('raw_player', models.JSONField(blank=True, default=dict)),
-                ('matched_at', models.DateTimeField(blank=True, null=True)),
-                ('matched_user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='mee6_player_snapshots', to=settings.AUTH_USER_MODEL)),
                 ('run', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='player_snapshots', to='community_xp.mee6syncrun')),
             ],
             options={
@@ -120,10 +118,6 @@ class Migration(migrations.Migration):
         migrations.AddIndex(
             model_name='mee6playersnapshot',
             index=models.Index(fields=['run', 'rank'], name='community_x_run_id_4608f5_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='mee6playersnapshot',
-            index=models.Index(fields=['matched_user'], name='community_x_matched_5af9af_idx'),
         ),
         migrations.AddIndex(
             model_name='mee6currentxp',

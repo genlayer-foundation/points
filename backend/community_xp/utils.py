@@ -2,7 +2,6 @@ from django.db.models import Count, F, IntegerField, Sum, Value
 from django.db.models.functions import Greatest
 
 from contributions.models import Contribution, ContributionDiscordXPState
-from social_connections.models import DiscordConnection
 
 from .constants import COMMUNITY_XP_EXCLUDED_TYPE_SLUGS
 from .models import Mee6CurrentXP, Mee6SyncRun
@@ -86,27 +85,14 @@ def _current_xp_by_user(users_by_id, guild_id):
     if not users_by_id:
         return {}
 
-    connections = (
-        DiscordConnection.objects
-        .filter(user_id__in=users_by_id.keys())
-        .exclude(platform_user_id='')
-        .select_related('user')
-    )
-    user_by_discord_id = {
-        str(connection.platform_user_id): connection.user_id
-        for connection in connections
-    }
-    if not user_by_discord_id:
-        return {}
-
     current_rows = Mee6CurrentXP.objects.filter(
         guild_id=guild_id,
-        discord_id__in=user_by_discord_id.keys(),
+        matched_user_id__in=users_by_id.keys(),
     )
 
     result = {}
     for current in current_rows:
-        user_id = user_by_discord_id.get(str(current.discord_id))
+        user_id = current.matched_user_id
         if not user_id:
             continue
         existing = result.get(user_id)
@@ -174,7 +160,6 @@ def build_effective_community_scores(user_ids=None, guild_id=None, visible_only=
             'tracked_portal_points_all_time': all_time_points,
             'total_points': total_points,
             'has_discord_xp_snapshot': current_xp is not None,
-            'latest_sync_completed_at': latest_sync.completed_at if latest_sync else None,
             'latest_applied_sync_completed_at': latest_sync.completed_at if latest_sync else None,
             'latest_applied_at': latest_sync.applied_at if latest_sync else None,
             'community_contribution_count': all_time_count,
@@ -197,7 +182,6 @@ def get_effective_community_points(user, guild_id=None):
         'tracked_portal_points_all_time': 0,
         'total_points': 0,
         'has_discord_xp_snapshot': False,
-        'latest_sync_completed_at': None,
         'latest_applied_sync_completed_at': None,
         'latest_applied_at': None,
         'community_contribution_count': 0,

@@ -65,14 +65,6 @@ class Mee6PlayerSnapshot(BaseModel):
     message_count = models.PositiveIntegerField(default=0)
     detailed_xp = models.JSONField(default=list, blank=True)
     raw_player = models.JSONField(default=dict, blank=True)
-    matched_user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='mee6_player_snapshots',
-    )
-    matched_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['run', 'rank']
@@ -80,7 +72,6 @@ class Mee6PlayerSnapshot(BaseModel):
         indexes = [
             models.Index(fields=['guild_id', 'discord_id']),
             models.Index(fields=['run', 'rank']),
-            models.Index(fields=['matched_user']),
         ]
 
     def __str__(self):

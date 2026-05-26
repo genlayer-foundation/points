@@ -321,16 +321,13 @@ def store_fetch_result(run, fetch_result):
     now = timezone.now()
     discord_ids = [player.discord_id for player in fetch_result.players]
     connections_by_discord_id = _connection_map(discord_ids)
-    matched_user_ids = set()
+    matched_user_ids = {
+        connection.user_id
+        for connection in connections_by_discord_id.values()
+    }
     snapshots = []
 
     for player in fetch_result.players:
-        connection = connections_by_discord_id.get(player.discord_id)
-        matched_user = connection.user if connection else None
-        matched_at = now if matched_user else None
-        if matched_user:
-            matched_user_ids.add(matched_user.id)
-
         snapshots.append(Mee6PlayerSnapshot(
             run=run,
             guild_id=fetch_result.guild_id,
@@ -344,8 +341,6 @@ def store_fetch_result(run, fetch_result):
             message_count=player.message_count,
             detailed_xp=player.detailed_xp,
             raw_player=player.raw_player,
-            matched_user=matched_user,
-            matched_at=matched_at,
         ))
 
     with transaction.atomic():

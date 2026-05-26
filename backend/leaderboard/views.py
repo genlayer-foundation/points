@@ -527,7 +527,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 'pending_portal_points': community_xp_breakdown['pending_portal_points'],
                 'tracked_portal_points_all_time': community_xp_breakdown['tracked_portal_points_all_time'],
                 'has_discord_xp_snapshot': community_xp_breakdown['has_discord_xp_snapshot'],
-                'latest_sync_completed_at': community_xp_breakdown['latest_sync_completed_at'],
                 'latest_applied_sync_completed_at': community_xp_breakdown['latest_applied_sync_completed_at'],
                 'latest_applied_at': community_xp_breakdown['latest_applied_at'],
             })
