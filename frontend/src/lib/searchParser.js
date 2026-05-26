@@ -23,6 +23,14 @@
 const SINGLE_VALUE_TAGS = ['status', 'type', 'category', 'from', 'assigned', 'reviewed', 'sort', 'confidence', 'template', 'proposal', 'mission'];
 const MULTI_VALUE_TAGS = ['exclude', 'include', 'has', 'no', 'is', 'not'];
 const NUMERIC_TAGS = ['min-contributions'];
+const NEGATED_MULTI_VALUE_TAGS = {
+  exclude: 'include',
+  include: 'exclude',
+  has: 'no',
+  no: 'has',
+  is: 'not',
+  not: 'is'
+};
 
 /**
  * Tokenize the search query, respecting quoted strings.
@@ -130,10 +138,12 @@ export function parseSearch(query) {
   }
 
   const tokens = tokenize(query);
+  let negateNext = false;
 
   for (const token of tokens) {
     // Handle "NOT tag:value" as two tokens
     if (token.toUpperCase() === 'NOT') {
+      negateNext = true;
       continue; // Will be handled with next token
     }
 
@@ -141,10 +151,13 @@ export function parseSearch(query) {
     if (!parsed) {
       // Untagged text — collect as free-text search terms
       filters.freeText.push(token);
+      negateNext = false;
       continue;
     }
 
-    const { tag, value, negated } = parsed;
+    const { tag, value } = parsed;
+    const negated = parsed.negated || negateNext;
+    negateNext = false;
 
     // Handle single-value tags
     if (SINGLE_VALUE_TAGS.includes(tag)) {
@@ -152,7 +165,8 @@ export function parseSearch(query) {
     }
     // Handle multi-value tags
     else if (MULTI_VALUE_TAGS.includes(tag)) {
-      filters[tag].push(value);
+      const targetTag = negated ? NEGATED_MULTI_VALUE_TAGS[tag] : tag;
+      filters[targetTag].push(value);
     }
     // Handle numeric tags
     else if (NUMERIC_TAGS.includes(tag)) {
