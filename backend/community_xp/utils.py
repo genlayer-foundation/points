@@ -1,4 +1,4 @@
-from django.db.models import Count, F, IntegerField, Sum, Value
+from django.db.models import Case, Count, F, IntegerField, Sum, Value, When
 from django.db.models.functions import Greatest
 
 from contributions.models import Contribution, ContributionDiscordXPState
@@ -57,17 +57,35 @@ def _discord_xp_states(user_ids=None):
     return queryset
 
 
-def _aggregate_pending_portal_points(user_ids=None):
+def _aggregate_pending_portal_points(user_ids=None, baseline_completed_at=None):
     pending_expr = Greatest(
         F('contribution__frozen_global_points') - F('awarded_amount'),
         Value(0),
         output_field=IntegerField(),
     )
+    if baseline_completed_at is None:
+        effective_pending_expr = F('contribution__frozen_global_points')
+    else:
+        effective_pending_expr = Case(
+            When(
+                status=ContributionDiscordXPState.STATUS_DISTRIBUTED,
+                distributed_at__lte=baseline_completed_at,
+                then=Value(0),
+            ),
+            When(
+                status=ContributionDiscordXPState.STATUS_DISTRIBUTED,
+                distributed_at__gt=baseline_completed_at,
+                then=F('contribution__frozen_global_points'),
+            ),
+            default=pending_expr,
+            output_field=IntegerField(),
+        )
+
     return {
         row['contribution__user_id']: row['pending_total'] or 0
         for row in _discord_xp_states(user_ids=user_ids)
             .values('contribution__user_id')
-            .annotate(pending_total=Sum(pending_expr))
+            .annotate(pending_total=Sum(effective_pending_expr))
     }
 
 
@@ -122,9 +140,12 @@ def build_effective_community_scores(user_ids=None, guild_id=None, visible_only=
         )
     }
 
-    latest_sync = get_latest_applied_sync(guild_id)
     all_time = _aggregate_community_points(user_ids=users_by_id.keys())
-    pending_portal_points_by_user = _aggregate_pending_portal_points(user_ids=users_by_id.keys())
+    latest_sync = get_latest_applied_sync(guild_id)
+    pending_portal_points_by_user = _aggregate_pending_portal_points(
+        user_ids=users_by_id.keys(),
+        baseline_completed_at=latest_sync.completed_at if latest_sync else None,
+    )
     for user_id, missing_state_points in _aggregate_missing_state_portal_points(
         user_ids=users_by_id.keys()
     ).items():

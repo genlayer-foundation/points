@@ -1,5 +1,8 @@
 from django.contrib import admin
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
+from django.shortcuts import redirect
+from django.urls import path
 
 from .models import (
     Mee6CurrentXP,
@@ -7,12 +10,13 @@ from .models import (
     Mee6SyncLock,
     Mee6SyncRun,
 )
-from .services import Mee6SyncError, apply_sync_run
+from .services import Mee6SyncAlreadyRunning, Mee6SyncError, apply_sync_run, run_mee6_sync
 
 
 @admin.register(Mee6SyncRun)
 class Mee6SyncRunAdmin(admin.ModelAdmin):
-    actions = ('apply_as_active_baseline',)
+    actions = ('fetch_new_snapshot', 'apply_as_active_baseline')
+    change_list_template = 'admin/community_xp/mee6syncrun/change_list.html'
     list_display = (
         'id',
         'guild_id',
@@ -37,8 +41,81 @@ class Mee6SyncRunAdmin(admin.ModelAdmin):
         'applied_by',
     )
 
+    def get_urls(self):
+        return [
+            path(
+                'fetch-new-snapshot/',
+                self.admin_site.admin_view(self.fetch_new_snapshot_view),
+                name='community_xp_mee6syncrun_fetch_new_snapshot',
+            ),
+        ] + super().get_urls()
+
+    def fetch_new_snapshot_view(self, request):
+        if not self.has_add_permission(request):
+            raise PermissionDenied
+        if request.method == 'POST':
+            self._fetch_new_snapshot(request)
+        return redirect('..')
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['can_fetch_new_snapshot'] = self.has_add_permission(request)
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def _fetch_new_snapshot(self, request, guild_id=None, page_size=None):
+        try:
+            result = run_mee6_sync(
+                guild_id=guild_id,
+                page_size=page_size,
+            )
+        except Mee6SyncAlreadyRunning as exc:
+            elapsed = f" for {exc.elapsed_seconds:.0f}s" if exc.elapsed_seconds is not None else ''
+            self.message_user(
+                request,
+                f'MEE6 XP sync already running{elapsed}.',
+                level=messages.ERROR,
+            )
+            return
+        except Mee6SyncError as exc:
+            self.message_user(request, str(exc), level=messages.ERROR)
+            return
+
+        self.message_user(
+            request,
+            (
+                f"Fetched MEE6 sync #{result['run_id']}: "
+                f"{result['players_fetched']} players, "
+                f"{result['matched_players']} matched, "
+                f"{result['unmatched_players']} unmatched, "
+                f"{result['pages_fetched']} pages. "
+                "Apply it to update active community XP."
+            ),
+            level=messages.SUCCESS,
+        )
+
+    @admin.action(description='Fetch new MEE6 XP snapshot using selected run settings')
+    def fetch_new_snapshot(self, request, queryset):
+        if not self.has_add_permission(request) or not self.has_change_permission(request):
+            raise PermissionDenied
+        if queryset.count() != 1:
+            self.message_user(
+                request,
+                'Select exactly one MEE6 sync run to reuse its guild and page size.',
+                level=messages.ERROR,
+            )
+            return
+
+        source_run = queryset.first()
+        self._fetch_new_snapshot(
+            request,
+            guild_id=source_run.guild_id,
+            page_size=source_run.page_size,
+        )
+
     @admin.action(description='Apply selected MEE6 run as active community XP baseline')
     def apply_as_active_baseline(self, request, queryset):
+        if not self.has_change_permission(request):
+            raise PermissionDenied
         if queryset.count() != 1:
             self.message_user(
                 request,

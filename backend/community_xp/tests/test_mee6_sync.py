@@ -1,8 +1,12 @@
 from datetime import timedelta
+from unittest.mock import Mock, patch
 
-from django.test import TestCase, override_settings
+from django.contrib.admin.sites import AdminSite
+from django.core.exceptions import PermissionDenied
+from django.test import RequestFactory, TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
+from community_xp.admin import Mee6SyncRunAdmin
 from community_xp.models import (
     Mee6CurrentXP,
     Mee6PlayerSnapshot,
@@ -112,6 +116,7 @@ class Mee6SyncTest(TestCase):
             address='0x0000000000000000000000000000000000000001',
             name='User One',
         )
+        self.request_factory = RequestFactory()
 
     def add_community_contribution(self, user, points):
         return Contribution.objects.create(
@@ -159,6 +164,93 @@ class Mee6SyncTest(TestCase):
         apply_sync_run(run)
         run.refresh_from_db()
         return run
+
+    def test_admin_action_fetches_new_snapshot_from_selected_run_settings(self):
+        source_run = Mee6SyncRun.objects.create(
+            guild_id='guild-2',
+            page_size=500,
+            status=Mee6SyncRun.STATUS_SUCCESS,
+        )
+        request = Mock(user=self.user)
+        model_admin = Mee6SyncRunAdmin(Mee6SyncRun, AdminSite())
+        model_admin.has_add_permission = Mock(return_value=True)
+        model_admin.has_change_permission = Mock(return_value=True)
+        model_admin.message_user = Mock()
+
+        with patch('community_xp.admin.run_mee6_sync') as run_mee6_sync_mock:
+            run_mee6_sync_mock.return_value = {
+                'run_id': 123,
+                'players_fetched': 10,
+                'matched_players': 7,
+                'unmatched_players': 3,
+                'pages_fetched': 1,
+            }
+            model_admin.fetch_new_snapshot(
+                request,
+                Mee6SyncRun.objects.filter(pk=source_run.pk),
+            )
+
+        run_mee6_sync_mock.assert_called_once_with(
+            guild_id='guild-2',
+            page_size=500,
+        )
+        self.assertIn('Fetched MEE6 sync #123', model_admin.message_user.call_args.args[1])
+
+    def test_admin_fetch_button_fetches_new_snapshot_with_default_settings(self):
+        request = self.request_factory.post('/admin/community_xp/mee6syncrun/fetch-new-snapshot/')
+        request.user = self.user
+        model_admin = Mee6SyncRunAdmin(Mee6SyncRun, AdminSite())
+        model_admin.has_add_permission = Mock(return_value=True)
+        model_admin.message_user = Mock()
+
+        with patch('community_xp.admin.run_mee6_sync') as run_mee6_sync_mock:
+            run_mee6_sync_mock.return_value = {
+                'run_id': 124,
+                'players_fetched': 11,
+                'matched_players': 8,
+                'unmatched_players': 3,
+                'pages_fetched': 2,
+            }
+            response = model_admin.fetch_new_snapshot_view(request)
+
+        run_mee6_sync_mock.assert_called_once_with(
+            guild_id=None,
+            page_size=None,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('Fetched MEE6 sync #124', model_admin.message_user.call_args.args[1])
+
+    def test_admin_fetch_button_requires_add_permission(self):
+        request = self.request_factory.post('/admin/community_xp/mee6syncrun/fetch-new-snapshot/')
+        request.user = self.user
+        model_admin = Mee6SyncRunAdmin(Mee6SyncRun, AdminSite())
+        model_admin.has_add_permission = Mock(return_value=False)
+
+        with patch('community_xp.admin.run_mee6_sync') as run_mee6_sync_mock:
+            with self.assertRaises(PermissionDenied):
+                model_admin.fetch_new_snapshot_view(request)
+
+        run_mee6_sync_mock.assert_not_called()
+
+    def test_admin_selected_run_fetch_requires_add_and_change_permission(self):
+        source_run = Mee6SyncRun.objects.create(
+            guild_id='guild-2',
+            page_size=500,
+            status=Mee6SyncRun.STATUS_SUCCESS,
+        )
+        request = Mock(user=self.user)
+        model_admin = Mee6SyncRunAdmin(Mee6SyncRun, AdminSite())
+        model_admin.has_add_permission = Mock(return_value=True)
+        model_admin.has_change_permission = Mock(return_value=False)
+
+        with patch('community_xp.admin.run_mee6_sync') as run_mee6_sync_mock:
+            with self.assertRaises(PermissionDenied):
+                model_admin.fetch_new_snapshot(
+                    request,
+                    Mee6SyncRun.objects.filter(pk=source_run.pk),
+                )
+
+        run_mee6_sync_mock.assert_not_called()
 
     def test_pre_sync_uses_all_portal_community_points(self):
         self.add_community_contribution(self.user, 40)
@@ -235,7 +327,7 @@ class Mee6SyncTest(TestCase):
         self.assertEqual(breakdown['total_points'], 150)
         self.assertTrue(Creator.objects.filter(user=self.user).exists())
 
-    def test_distributed_points_stop_counting_until_next_mee6_baseline(self):
+    def test_post_baseline_distributed_points_count_until_next_mee6_baseline(self):
         self.link_discord(self.user)
         first_contribution = self.add_community_contribution(self.user, 40)
         self.mark_discord_xp_distributed(first_contribution)
@@ -249,13 +341,13 @@ class Mee6SyncTest(TestCase):
 
         self.mark_discord_xp_distributed(second_contribution)
         distributed_not_yet_synced = get_effective_community_points(self.user)
-        self.assertEqual(distributed_not_yet_synced['total_points'], 100)
-        self.assertEqual(distributed_not_yet_synced['pending_portal_points'], 0)
+        self.assertEqual(distributed_not_yet_synced['total_points'], 110)
+        self.assertEqual(distributed_not_yet_synced['pending_portal_points'], 10)
 
         second_run = self.fetch_mee6_run([mee6_player('discord-1', 150)])
         fetched_but_not_applied = get_effective_community_points(self.user)
         self.assertEqual(fetched_but_not_applied['discord_xp'], 100)
-        self.assertEqual(fetched_but_not_applied['total_points'], 100)
+        self.assertEqual(fetched_but_not_applied['total_points'], 110)
 
         apply_sync_run(second_run)
         second_breakdown = get_effective_community_points(self.user)
