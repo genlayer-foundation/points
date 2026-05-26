@@ -15,6 +15,7 @@ from leaderboard.models import GlobalLeaderboardMultiplier, ReferralPoints
 from poaps.models import PoapClaim, PoapDrop
 from social_connections.models import DiscordConnection
 from users.models import User
+from validators.models import Validator
 
 
 class LeaderboardStatsTest(TestCase):
@@ -38,6 +39,15 @@ class LeaderboardStatsTest(TestCase):
             slug='builder-submission',
             category=self.builder_category
         )
+        self.validator_category, _ = Category.objects.get_or_create(
+            slug='validator',
+            defaults={'name': 'Validator'}
+        )
+        self.validator_type = ContributionType.objects.create(
+            name='Validator Uptime',
+            slug='validator-uptime',
+            category=self.validator_category
+        )
         self.community_link_x_type, _ = ContributionType.objects.get_or_create(
             slug='community-link-x',
             defaults={
@@ -56,6 +66,13 @@ class LeaderboardStatsTest(TestCase):
         )
         GlobalLeaderboardMultiplier.objects.get_or_create(
             contribution_type=self.builder_type,
+            defaults={
+                'multiplier_value': 1,
+                'valid_from': timezone.now() - timezone.timedelta(days=30),
+            },
+        )
+        GlobalLeaderboardMultiplier.objects.get_or_create(
+            contribution_type=self.validator_type,
             defaults={
                 'multiplier_value': 1,
                 'valid_from': timezone.now() - timezone.timedelta(days=30),
@@ -194,6 +211,59 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['community_member_count'], 2)
         self.assertEqual(response.data['creator_count'], 2)
         self.assertEqual(response.data['builder_count'], 1)
+
+    def test_validator_count_uses_visible_validator_table_rows(self):
+        validator_user = self._create_user(
+            'validator@example.com',
+            '0x0000000000000000000000000000000000000012'
+        )
+        validator_activity_only_user = self._create_user(
+            'validator-activity@example.com',
+            '0x0000000000000000000000000000000000000013'
+        )
+        hidden_validator_user = self._create_user(
+            'hidden-validator@example.com',
+            '0x0000000000000000000000000000000000000014',
+            visible=False
+        )
+
+        Validator.objects.create(user=validator_user)
+        Validator.objects.create(user=hidden_validator_user)
+
+        Contribution.objects.bulk_create([
+            Contribution(
+                user=validator_user,
+                contribution_type=self.validator_type,
+                points=10,
+                frozen_global_points=10,
+                contribution_date=timezone.now()
+            ),
+            Contribution(
+                user=validator_activity_only_user,
+                contribution_type=self.validator_type,
+                points=10,
+                frozen_global_points=10,
+                contribution_date=timezone.now()
+            ),
+            Contribution(
+                user=hidden_validator_user,
+                contribution_type=self.validator_type,
+                points=10,
+                frozen_global_points=10,
+                contribution_date=timezone.now()
+            ),
+        ])
+
+        global_response = self.client.get('/api/v1/leaderboard/stats/')
+        validator_response = self.client.get('/api/v1/leaderboard/stats/', {'type': 'validator'})
+
+        self.assertEqual(global_response.status_code, 200)
+        self.assertEqual(global_response.data['validator_count'], 1)
+        self.assertEqual(global_response.data['new_validators_count'], 1)
+
+        self.assertEqual(validator_response.status_code, 200)
+        self.assertEqual(validator_response.data['validator_count'], 1)
+        self.assertEqual(validator_response.data['participant_count'], 1)
 
     def test_poap_claim_grants_role_but_does_not_count_as_member_metric(self):
         poap_user = self._create_user(
