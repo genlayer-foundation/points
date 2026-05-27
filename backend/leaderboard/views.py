@@ -276,12 +276,16 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         """
         from django.db.models import Sum
         from contributions.models import Contribution
+        from validators.models import Validator
 
         leaderboard_type = request.query_params.get('type')
 
         now = timezone.now()
         last_month = now - timezone.timedelta(days=30)
         effective_community_summary = None
+
+        def get_validators():
+            return Validator.objects.filter(user__visible=True)
 
         def get_effective_community_summary():
             nonlocal effective_community_summary
@@ -339,6 +343,11 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                     community_summary = get_effective_community_summary()
                     total_points = community_summary['total_points']
                     participant_count = community_summary['member_count']
+                elif leaderboard_type == 'validator':
+                    total_points = category_contributions.aggregate(
+                        total=Sum('frozen_global_points')
+                    )['total'] or 0
+                    participant_count = get_validators().count()
                 else:
                     total_points = category_contributions.aggregate(
                         total=Sum('frozen_global_points')
@@ -365,8 +374,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 new_validators_count = 0
             elif leaderboard_type == 'validator':
                 new_builders_count = 0
-                new_validators_count = LeaderboardEntry.objects.filter(
-                    type='validator', user__created_at__gte=last_month
+                new_validators_count = get_validators().filter(
+                    created_at__gte=last_month
                 ).count()
             else:
                 new_builders_count = 0
@@ -425,16 +434,11 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             created_at__gte=last_month
         ).values('user_id').distinct().count()
 
-        validator_contribs = Contribution.objects.filter(
-            user__visible=True,
-            contribution_type__category__slug='validator',
-        ).exclude(
-            contribution_type__slug__in=ONBOARDING_CONTRIBUTION_TYPE_SLUGS
-        )
-        validator_count = validator_contribs.values('user_id').distinct().count()
-        new_validators_count = validator_contribs.filter(
+        validators = get_validators()
+        validator_count = validators.count()
+        new_validators_count = validators.filter(
             created_at__gte=last_month
-        ).values('user_id').distinct().count()
+        ).count()
 
         community_contribs = Contribution.objects.filter(
             user__visible=True,
