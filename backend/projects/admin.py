@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.urls import reverse
+from django.utils.html import format_html, format_html_join
 
 from utils.admin_mixins import CloudinaryUploadMixin
 
@@ -31,7 +33,7 @@ class ProjectAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
     search_fields = ('title', 'slug', 'description', 'details', 'user__name', 'user__address')
     list_editable = ('order', 'status')
     raw_id_fields = ('user',)
-    filter_horizontal = ('participants', 'related_contributions')
+    autocomplete_fields = ('participants', 'related_contributions')
     prepopulated_fields = {'slug': ('title',)}
     readonly_fields = (
         'created_at',
@@ -40,6 +42,8 @@ class ProjectAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
         'hero_image_tablet_public_id',
         'hero_image_mobile_public_id',
         'user_profile_image_public_id',
+        'selected_participants',
+        'selected_related_contributions',
     )
     ordering = ('order', '-created_at')
 
@@ -48,7 +52,13 @@ class ProjectAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
             'fields': ('title', 'slug', 'author', 'description', 'status', 'order'),
         }),
         ('Relations', {
-            'fields': ('user', 'participants', 'related_contributions'),
+            'fields': (
+                'user',
+                'participants',
+                'selected_participants',
+                'related_contributions',
+                'selected_related_contributions',
+            ),
         }),
         ('Project Detail', {
             'fields': (
@@ -75,3 +85,57 @@ class ProjectAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
             'classes': ('collapse',),
         }),
     )
+
+    @admin.display(description='Selected participants')
+    def selected_participants(self, obj):
+        if not obj or not obj.pk:
+            return 'Save the project before reviewing selected participants.'
+
+        participants = obj.participants.order_by('name', 'email', 'id')
+        if not participants.exists():
+            return 'No participants selected.'
+
+        rows = (
+            (
+                reverse('admin:users_user_change', args=[participant.pk]),
+                participant.name or participant.email or participant.address or f'User {participant.pk}',
+                participant.email or participant.address or '',
+            )
+            for participant in participants
+        )
+        return format_html(
+            '<ul style="margin: 0; padding-left: 18px;">{}</ul>',
+            format_html_join('', '<li><a href="{}">{}</a> <span style="color: #666;">{}</span></li>', rows),
+        )
+
+    @admin.display(description='Selected related contributions')
+    def selected_related_contributions(self, obj):
+        if not obj or not obj.pk:
+            return 'Save the project before reviewing selected related contributions.'
+
+        contributions = obj.related_contributions.select_related('user', 'contribution_type').order_by(
+            'user__name',
+            'user__email',
+            '-contribution_date',
+            '-created_at',
+        )
+        if not contributions.exists():
+            return 'No related contributions selected.'
+
+        rows = (
+            (
+                reverse('admin:contributions_contribution_change', args=[contribution.pk]),
+                contribution.title or f'Contribution {contribution.pk}',
+                contribution.user.name or contribution.user.email or contribution.user.address,
+                contribution.contribution_type.name,
+            )
+            for contribution in contributions
+        )
+        return format_html(
+            '<ul style="margin: 0; padding-left: 18px;">{}</ul>',
+            format_html_join(
+                '',
+                '<li><a href="{}">{}</a> <span style="color: #666;">by {} - {}</span></li>',
+                rows,
+            ),
+        )
