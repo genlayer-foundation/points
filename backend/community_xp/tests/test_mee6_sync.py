@@ -263,7 +263,7 @@ class Mee6SyncTest(TestCase):
         self.assertEqual(breakdown['discord_xp'], 0)
         self.assertFalse(breakdown['has_discord_xp_snapshot'])
 
-    def test_onboarding_link_rewards_stay_auditable_but_do_not_count(self):
+    def test_onboarding_link_rewards_are_auditable_and_count_as_points(self):
         link_contribution = self.add_discord_link_contribution(self.user)
         self.add_community_contribution(self.user, 40)
 
@@ -271,10 +271,10 @@ class Mee6SyncTest(TestCase):
 
         self.assertTrue(ContributionDiscordXPState.objects.filter(contribution=link_contribution).exists())
         self.assertEqual(Contribution.objects.count(), 2)
-        self.assertEqual(breakdown['total_points'], 40)
-        self.assertEqual(breakdown['tracked_portal_points_all_time'], 40)
-        self.assertEqual(breakdown['pending_portal_points'], 40)
-        self.assertEqual(breakdown['community_contribution_count'], 1)
+        self.assertEqual(breakdown['total_points'], 60)
+        self.assertEqual(breakdown['tracked_portal_points_all_time'], 60)
+        self.assertEqual(breakdown['pending_portal_points'], 60)
+        self.assertEqual(breakdown['community_contribution_count'], 2)
 
     def test_pending_onboarding_link_reward_does_not_block_baseline_apply(self):
         self.link_discord(self.user)
@@ -290,9 +290,9 @@ class Mee6SyncTest(TestCase):
         self.assertEqual(link_contribution.discord_xp_state.status, ContributionDiscordXPState.STATUS_PENDING)
         self.assertEqual(post_baseline_link_contribution.discord_xp_state.status, ContributionDiscordXPState.STATUS_PENDING)
         self.assertEqual(breakdown['discord_xp'], 100)
-        self.assertEqual(breakdown['pending_portal_points'], 0)
-        self.assertEqual(breakdown['tracked_portal_points_all_time'], 0)
-        self.assertEqual(breakdown['total_points'], 100)
+        self.assertEqual(breakdown['pending_portal_points'], 40)
+        self.assertEqual(breakdown['tracked_portal_points_all_time'], 40)
+        self.assertEqual(breakdown['total_points'], 140)
 
     def test_sync_preserves_contributions_and_counts_mee6_plus_pending_portal_points(self):
         self.link_discord(self.user)

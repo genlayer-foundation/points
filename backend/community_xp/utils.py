@@ -1,9 +1,22 @@
-from django.db.models import Case, Count, F, IntegerField, Sum, Value, When
-from django.db.models.functions import Greatest
+from django.db.models import (
+    BooleanField,
+    Case,
+    Count,
+    DateTimeField,
+    F,
+    IntegerField,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
+from django.db.models.functions import Coalesce, Greatest, Lower
 
 from contributions.models import Contribution, ContributionDiscordXPState
 
-from .constants import COMMUNITY_XP_EXCLUDED_TYPE_SLUGS
+from .constants import COMMUNITY_MEMBER_EXCLUDED_TYPE_SLUGS, COMMUNITY_XP_EXCLUDED_TYPE_SLUGS
 from .models import Mee6CurrentXP, Mee6SyncRun
 from .services import get_default_guild_id
 
@@ -28,6 +41,17 @@ def _community_contributions(user_ids=None):
         contribution_type__category__slug='community',
     ).exclude(
         contribution_type__slug__in=COMMUNITY_XP_EXCLUDED_TYPE_SLUGS,
+    )
+    if user_ids is not None:
+        queryset = queryset.filter(user_id__in=user_ids)
+    return queryset
+
+
+def _community_member_contributions(user_ids=None):
+    queryset = Contribution.objects.filter(
+        contribution_type__category__slug='community',
+    ).exclude(
+        contribution_type__slug__in=COMMUNITY_MEMBER_EXCLUDED_TYPE_SLUGS,
     )
     if user_ids is not None:
         queryset = queryset.filter(user_id__in=user_ids)
@@ -119,7 +143,39 @@ def _current_xp_by_user(users_by_id, guild_id):
     return result
 
 
-def build_effective_community_scores(user_ids=None, guild_id=None, visible_only=True):
+def _community_points_case(baseline_completed_at=None):
+    if baseline_completed_at is None:
+        return F('frozen_global_points')
+
+    pending_expr = Greatest(
+        F('frozen_global_points') - F('discord_xp_state__awarded_amount'),
+        Value(0),
+        output_field=IntegerField(),
+    )
+    return Case(
+        When(discord_xp_state__isnull=True, then=F('frozen_global_points')),
+        When(
+            discord_xp_state__status=ContributionDiscordXPState.STATUS_DISTRIBUTED,
+            discord_xp_state__distributed_at__lte=baseline_completed_at,
+            then=Value(0),
+        ),
+        When(
+            discord_xp_state__status=ContributionDiscordXPState.STATUS_DISTRIBUTED,
+            discord_xp_state__distributed_at__gt=baseline_completed_at,
+            then=F('frozen_global_points'),
+        ),
+        default=pending_expr,
+        output_field=IntegerField(),
+    )
+
+
+def build_effective_community_scores_queryset(user_ids=None, guild_id=None, visible_only=True):
+    """
+    Return users annotated with the same effective community score fields as
+    build_effective_community_scores(), without materializing the full ranking.
+    Effective points are MEE6 current XP plus portal points not covered by the
+    applied MEE6 baseline.
+    """
     from users.models import User
 
     guild_id = str(guild_id or get_default_guild_id())
@@ -129,61 +185,129 @@ def build_effective_community_scores(user_ids=None, guild_id=None, visible_only=
     if user_ids is not None:
         user_queryset = user_queryset.filter(id__in=user_ids)
 
-    users_by_id = {
-        user.id: user
-        for user in user_queryset.only(
-            'id',
-            'name',
-            'address',
-            'profile_image_url',
-            'visible',
-        )
-    }
-
-    all_time = _aggregate_community_points(user_ids=users_by_id.keys())
     latest_sync = get_latest_applied_sync(guild_id)
-    pending_portal_points_by_user = _aggregate_pending_portal_points(
-        user_ids=users_by_id.keys(),
-        baseline_completed_at=latest_sync.completed_at if latest_sync else None,
-    )
-    for user_id, missing_state_points in _aggregate_missing_state_portal_points(
-        user_ids=users_by_id.keys()
-    ).items():
-        pending_portal_points_by_user[user_id] = (
-            pending_portal_points_by_user.get(user_id, 0) + missing_state_points
-        )
-    current_xp_by_user = _current_xp_by_user(users_by_id, guild_id)
 
-    candidate_user_ids = set(users_by_id.keys() if user_ids is not None else [])
-    candidate_user_ids.update(all_time.keys())
-    candidate_user_ids.update(pending_portal_points_by_user.keys())
-    candidate_user_ids.update(current_xp_by_user.keys())
+    current_xp_queryset = (
+        Mee6CurrentXP.objects
+        .filter(guild_id=guild_id, matched_user_id=OuterRef('pk'))
+        .order_by('-xp', 'id')
+    )
+    community_contributions = (
+        Contribution.objects
+        .filter(
+            user_id=OuterRef('pk'),
+            contribution_type__category__slug='community',
+        )
+        .exclude(contribution_type__slug__in=COMMUNITY_XP_EXCLUDED_TYPE_SLUGS)
+        .values('user_id')
+    )
+    pending_points_queryset = (
+        community_contributions
+        .annotate(pending_total=Sum(_community_points_case(
+            latest_sync.completed_at if latest_sync else None
+        )))
+        .values('pending_total')[:1]
+    )
+    all_time_points_queryset = (
+        community_contributions
+        .annotate(total=Sum('frozen_global_points'))
+        .values('total')[:1]
+    )
+    contribution_count_queryset = (
+        community_contributions
+        .annotate(count=Count('id'))
+        .values('count')[:1]
+    )
+
+    return (
+        user_queryset
+        .only('id', 'name', 'address', 'profile_image_url', 'visible')
+        .annotate(
+            discord_xp=Coalesce(
+                Subquery(current_xp_queryset.values('xp')[:1], output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            discord_xp_synced_at=Subquery(
+                current_xp_queryset.values('synced_at')[:1],
+                output_field=DateTimeField(),
+            ),
+            current_xp_row_id=Subquery(
+                current_xp_queryset.values('id')[:1],
+                output_field=IntegerField(),
+            ),
+            pending_portal_points=Coalesce(
+                Subquery(pending_points_queryset, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            tracked_portal_points_all_time=Coalesce(
+                Subquery(all_time_points_queryset, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            community_contribution_count=Coalesce(
+                Subquery(contribution_count_queryset, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            latest_applied_sync_completed_at=Value(
+                latest_sync.completed_at if latest_sync else None,
+                output_field=DateTimeField(),
+            ),
+            latest_applied_at=Value(
+                latest_sync.applied_at if latest_sync else None,
+                output_field=DateTimeField(),
+            ),
+        )
+        .annotate(
+            total_points=F('discord_xp') + F('pending_portal_points'),
+            has_discord_xp_snapshot=Case(
+                When(current_xp_row_id__isnull=False, then=Value(True)),
+                default=Value(False),
+                output_field=BooleanField(),
+            ),
+            community_sort_name=Lower(Coalesce('name', Value(''))),
+        )
+    )
+
+
+def effective_community_ranking_queryset(user_ids=None, guild_id=None, visible_only=True):
+    return (
+        build_effective_community_scores_queryset(
+            user_ids=user_ids,
+            guild_id=guild_id,
+            visible_only=visible_only,
+        )
+        .filter(total_points__gt=0)
+        .order_by('-total_points', 'community_sort_name', 'id')
+    )
+
+
+def build_effective_community_scores(user_ids=None, guild_id=None, visible_only=True):
+    scores_queryset = build_effective_community_scores_queryset(
+        user_ids=user_ids,
+        guild_id=guild_id,
+        visible_only=visible_only,
+    )
+    if user_ids is None:
+        scores_queryset = scores_queryset.filter(
+            Q(total_points__gt=0) | Q(community_contribution_count__gt=0)
+        )
 
     scores = {}
-    for user_id in candidate_user_ids:
-        user = users_by_id.get(user_id)
-        if not user:
-            continue
-
-        all_time_points = all_time.get(user_id, {}).get('total', 0)
-        all_time_count = all_time.get(user_id, {}).get('count', 0)
-        pending_portal_points = pending_portal_points_by_user.get(user_id, 0)
-        current_xp = current_xp_by_user.get(user_id)
-        discord_xp = current_xp.xp if current_xp else 0
-
-        total_points = discord_xp + pending_portal_points
-
-        scores[user_id] = {
+    for user in scores_queryset:
+        scores[user.id] = {
             'user': user,
-            'discord_xp': discord_xp,
-            'discord_xp_synced_at': current_xp.synced_at if current_xp else None,
-            'pending_portal_points': pending_portal_points,
-            'tracked_portal_points_all_time': all_time_points,
-            'total_points': total_points,
-            'has_discord_xp_snapshot': current_xp is not None,
-            'latest_applied_sync_completed_at': latest_sync.completed_at if latest_sync else None,
-            'latest_applied_at': latest_sync.applied_at if latest_sync else None,
-            'community_contribution_count': all_time_count,
+            'discord_xp': user.discord_xp,
+            'discord_xp_synced_at': user.discord_xp_synced_at,
+            'pending_portal_points': user.pending_portal_points,
+            'tracked_portal_points_all_time': user.tracked_portal_points_all_time,
+            'total_points': user.total_points,
+            'has_discord_xp_snapshot': user.has_discord_xp_snapshot,
+            'latest_applied_sync_completed_at': user.latest_applied_sync_completed_at,
+            'latest_applied_at': user.latest_applied_at,
+            'community_contribution_count': user.community_contribution_count,
         }
 
     return scores
@@ -193,16 +317,24 @@ def get_community_member_user_ids(user_ids=None, guild_id=None, visible_only=Tru
     from creators.models import Creator
     from poaps.models import PoapClaim
 
-    score_map = build_effective_community_scores(
+    score_queryset = effective_community_ranking_queryset(
         user_ids=user_ids,
         guild_id=guild_id,
         visible_only=visible_only,
     )
-    score_member_user_ids = {
-        user_id
-        for user_id, score in score_map.items()
-        if (score['total_points'] or 0) > 0
-    }
+    score_member_user_ids = set(
+        score_queryset
+        .filter(discord_xp__gt=0)
+        .values_list('id', flat=True)
+    )
+    member_contributions = _community_member_contributions(user_ids=user_ids)
+    if visible_only:
+        member_contributions = member_contributions.filter(user__visible=True)
+    score_member_user_ids.update(
+        member_contributions
+        .values_list('user_id', flat=True)
+        .distinct()
+    )
     member_user_ids = set(score_member_user_ids if since is None else [])
 
     contribution_filters = {

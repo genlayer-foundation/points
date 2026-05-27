@@ -148,6 +148,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             return self.community(request)
 
         queryset = self.filter_queryset(self.get_queryset())
+        include_count = request.query_params.get('include_count') in ('1', 'true', 'True', 'yes')
+        total_count = queryset.count() if include_count else None
 
         # Parse offset and limit
         offset = 0
@@ -171,6 +173,11 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = list(queryset[offset:])
 
         serializer = self.get_serializer(queryset, many=True)
+        if include_count:
+            return Response({
+                'count': total_count,
+                'results': serializer.data,
+            })
         return Response(serializer.data)
 
     def get_serializer_context(self):
@@ -291,19 +298,17 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             nonlocal effective_community_summary
             if effective_community_summary is None:
                 from community_xp.utils import (
-                    build_effective_community_scores,
+                    effective_community_ranking_queryset,
                     get_community_member_user_ids,
                 )
 
-                entries = [
-                    score
-                    for score in build_effective_community_scores(visible_only=True).values()
-                    if (score['total_points'] or 0) > 0
-                ]
+                score_queryset = effective_community_ranking_queryset(visible_only=True)
                 effective_community_summary = {
                     'member_user_ids': get_community_member_user_ids(visible_only=True),
-                    'total_points': sum(score['total_points'] or 0 for score in entries),
-                    'user_ids': {score['user'].id for score in entries},
+                    'total_points': score_queryset.aggregate(
+                        total=Sum('total_points')
+                    )['total'] or 0,
+                    'user_ids': set(score_queryset.values_list('id', flat=True)),
                 }
                 effective_community_summary['member_count'] = len(
                     effective_community_summary['member_user_ids']
@@ -679,7 +684,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         Supports limit/offset pagination and user_address lookup.
         """
         from users.serializers import LightUserSerializer
-        from community_xp.utils import build_effective_community_scores
+        from community_xp.utils import effective_community_ranking_queryset
 
         try:
             limit = int(request.query_params.get('limit', 20))
@@ -692,68 +697,86 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         except (ValueError, TypeError):
             offset = 0
 
-        score_map = build_effective_community_scores(visible_only=True)
-        entries = [
-            score
-            for score in score_map.values()
-            if (score['total_points'] or 0) > 0
-        ]
+        entries = effective_community_ranking_queryset(visible_only=True)
 
         search = request.query_params.get('search', '').strip().lower()
         if search:
-            entries = [
-                score
-                for score in entries
-                if search in (score['user'].name or '').lower()
-                or search in (score['user'].address or '').lower()
-            ]
-
-        entries.sort(
-            key=lambda score: (
-                -(score['total_points'] or 0),
-                (score['user'].name or '').lower(),
-                score['user'].id,
+            entries = entries.filter(
+                Q(name__icontains=search) |
+                Q(address__icontains=search)
             )
-        )
 
-        count = len(entries)
+        count = entries.count()
         user_address = request.query_params.get('user_address')
         user_rank = None
         user_total_points = None
 
-        if user_address:
-            user_address = user_address.lower()
-            for rank, score in enumerate(entries, start=1):
-                if (score['user'].address or '').lower() == user_address:
-                    user_rank = rank
-                    user_total_points = score['total_points'] or 0
-                    break
-
-        page = entries[offset:offset + limit]
-
-        results = []
-        for index, score in enumerate(page, start=offset + 1):
-            user = score['user']
-
+        def serialize_community_user(user, rank):
             user_data = LightUserSerializer(user).data
-            total_points = score['total_points'] or 0
-            results.append({
+            total_points = user.total_points or 0
+            return {
                 **user_data,
                 'user_details': user_data,
                 'user_address': user.address,
                 'user_name': user.name,
                 'community_points': total_points,
                 'total_points': total_points,
-                'contribution_count': score['community_contribution_count'] or 0,
-                'discord_xp': score['discord_xp'],
-                'discord_xp_synced_at': score['discord_xp_synced_at'],
-                'pending_portal_points': score['pending_portal_points'],
-                'tracked_portal_points_all_time': score['tracked_portal_points_all_time'],
-                'has_discord_xp_snapshot': score['has_discord_xp_snapshot'],
-                'latest_applied_sync_completed_at': score['latest_applied_sync_completed_at'],
-                'latest_applied_at': score['latest_applied_at'],
-                'rank': index,
+                'contribution_count': user.community_contribution_count or 0,
+                'discord_xp': user.discord_xp,
+                'discord_xp_synced_at': user.discord_xp_synced_at,
+                'pending_portal_points': user.pending_portal_points,
+                'tracked_portal_points_all_time': user.tracked_portal_points_all_time,
+                'has_discord_xp_snapshot': user.has_discord_xp_snapshot,
+                'latest_applied_sync_completed_at': user.latest_applied_sync_completed_at,
+                'latest_applied_at': user.latest_applied_at,
+                'rank': rank,
+            }
+
+        if user_address:
+            user_entry = entries.filter(address__iexact=user_address).first()
+            if user_entry:
+                user_total_points = user_entry.total_points or 0
+                user_sort_name = user_entry.community_sort_name or ''
+                user_rank = entries.filter(
+                    Q(total_points__gt=user_total_points) |
+                    Q(
+                        total_points=user_total_points,
+                        community_sort_name__lt=user_sort_name,
+                    ) |
+                    Q(
+                        total_points=user_total_points,
+                        community_sort_name=user_sort_name,
+                        id__lt=user_entry.id,
+                    )
+                ).count() + 1
+
+        if request.query_params.get('profile_context') in ('1', 'true', 'True', 'yes'):
+            top_user = entries.first()
+            top_entry = serialize_community_user(top_user, 1) if top_user else None
+            context_results = []
+
+            if user_rank:
+                context_offset = max(user_rank - 2, 0)
+                context_page = entries[context_offset:context_offset + 3]
+                context_results = [
+                    serialize_community_user(user, rank)
+                    for rank, user in enumerate(context_page, start=context_offset + 1)
+                ]
+
+            return Response({
+                'total_community': count,
+                'count': count,
+                'top_entry': top_entry,
+                'context_results': context_results,
+                'user_rank': user_rank,
+                'user_total_points': user_total_points,
             })
+
+        page = entries[offset:offset + limit]
+
+        results = []
+        for index, user in enumerate(page, start=offset + 1):
+            results.append(serialize_community_user(user, index))
 
         response_data = {
             'total_community': count,
