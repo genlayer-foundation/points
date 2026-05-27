@@ -1,9 +1,13 @@
 from datetime import timedelta
 
+from django.contrib.admin.sites import AdminSite
+from django.contrib.admin.widgets import AutocompleteSelectMultiple, FilteredSelectMultiple
+from django.test import RequestFactory
 from django.test import TestCase
 from django.utils import timezone
 
 from contributions.models import Category, Contribution, ContributionType, FeaturedContent
+from projects.admin import ProjectAdmin
 from projects.models import Project
 from stewards.models import Steward
 from users.models import User
@@ -278,3 +282,29 @@ class ProjectAPITest(TestCase):
         response = self.client.get(f'/api/v1/projects/{project.slug}/')
 
         self.assertEqual(response.status_code, 404)
+
+
+class ProjectAdminTest(TestCase):
+    def test_project_relations_use_autocomplete_widgets(self):
+        admin_user = User.objects.create_superuser(
+            email='admin@example.com',
+            password='pass',
+            address='0x0000000000000000000000000000000000000009',
+            name='Admin User',
+        )
+        request = RequestFactory().get('/admin/projects/project/add/')
+        request.user = admin_user
+
+        project_admin = ProjectAdmin(Project, AdminSite())
+        form = project_admin.get_form(request)
+        readonly_fields = project_admin.get_readonly_fields(request)
+
+        participants_widget = form.base_fields['participants'].widget.widget
+        contributions_widget = form.base_fields['related_contributions'].widget.widget
+
+        self.assertIsInstance(participants_widget, AutocompleteSelectMultiple)
+        self.assertIsInstance(contributions_widget, AutocompleteSelectMultiple)
+        self.assertNotIsInstance(participants_widget, FilteredSelectMultiple)
+        self.assertNotIsInstance(contributions_widget, FilteredSelectMultiple)
+        self.assertIn('selected_participants', readonly_fields)
+        self.assertIn('selected_related_contributions', readonly_fields)

@@ -34,4 +34,4 @@ RUN chmod +x startup.sh
 EXPOSE 8000
 
 # Run startup script
-CMD ["./startup.sh", "gunicorn", "--bind", "0.0.0.0:8000", "--timeout", "180", "--workers", "2", "tally.wsgi:application"]
+CMD ["./startup.sh", "gunicorn", "--bind", "0.0.0.0:8000", "--timeout", "180", "--workers", "2", "--access-logfile", "-", "--error-logfile", "-", "--capture-output", "--log-level", "info", "tally.wsgi:application"]
