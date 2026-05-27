@@ -144,6 +144,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Override to apply offset and limit after filtering/ordering.
         """
+        if request.query_params.get('type') == 'community':
+            return self.community(request)
+
         queryset = self.filter_queryset(self.get_queryset())
 
         # Parse offset and limit
@@ -287,7 +290,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         def get_effective_community_summary():
             nonlocal effective_community_summary
             if effective_community_summary is None:
-                from community_xp.utils import build_effective_community_scores
+                from community_xp.utils import (
+                    build_effective_community_scores,
+                    get_community_member_user_ids,
+                )
 
                 entries = [
                     score
@@ -295,10 +301,13 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                     if (score['total_points'] or 0) > 0
                 ]
                 effective_community_summary = {
-                    'member_count': len(entries),
+                    'member_user_ids': get_community_member_user_ids(visible_only=True),
                     'total_points': sum(score['total_points'] or 0 for score in entries),
                     'user_ids': {score['user'].id for score in entries},
                 }
+                effective_community_summary['member_count'] = len(
+                    effective_community_summary['member_user_ids']
+                )
             return effective_community_summary
 
         if leaderboard_type:
@@ -387,7 +396,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 .values_list('user_id', flat=True)
                 .distinct()
             )
-            participant_user_ids.update(community_summary['user_ids'])
+            participant_user_ids.update(community_summary['member_user_ids'])
             participant_count = len(participant_user_ids)
             contribution_count = all_contributions.count()
             new_contributions_count = all_contributions.filter(
@@ -439,9 +448,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         )
         community_summary = get_effective_community_summary()
         community_member_count = community_summary['member_count']
-        new_community_members_count = community_contribs.filter(
-            created_at__gte=last_month
-        ).values('user_id').distinct().count()
+        from community_xp.utils import get_community_member_user_ids
+        new_community_members_count = len(
+            get_community_member_user_ids(visible_only=True, since=last_month)
+        )
 
         return Response({
             'participant_count': participant_count,

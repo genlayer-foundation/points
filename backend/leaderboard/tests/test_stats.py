@@ -212,6 +212,31 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['creator_count'], 2)
         self.assertEqual(response.data['builder_count'], 1)
 
+    def test_poap_claim_grants_role_and_counts_as_member_metric(self):
+        poap_user = self._create_user(
+            'poap@example.com',
+            '0x0000000000000000000000000000000000000007'
+        )
+        drop = PoapDrop.objects.create(
+            title='Community Call',
+            slug='community-call',
+            event_start_at=timezone.now(),
+            status=PoapDrop.STATUS_ACTIVE,
+        )
+
+        PoapClaim.objects.create(
+            drop=drop,
+            user=poap_user,
+            claim_method=PoapClaim.CLAIM_ADMIN,
+        )
+
+        response = self.client.get('/api/v1/leaderboard/stats/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['community_member_count'], 1)
+        self.assertEqual(response.data['creator_count'], 1)
+        self.assertTrue(Creator.objects.filter(user=poap_user).exists())
+
     def test_validator_count_uses_visible_validator_table_rows(self):
         validator_user = self._create_user(
             'validator@example.com',
@@ -264,30 +289,6 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(validator_response.status_code, 200)
         self.assertEqual(validator_response.data['validator_count'], 1)
         self.assertEqual(validator_response.data['participant_count'], 1)
-
-    def test_poap_claim_grants_role_but_does_not_count_as_member_metric(self):
-        poap_user = self._create_user(
-            'poap@example.com',
-            '0x0000000000000000000000000000000000000007'
-        )
-        drop = PoapDrop.objects.create(
-            title='Community Call',
-            slug='community-call',
-            event_start_at=timezone.now(),
-            status=PoapDrop.STATUS_ACTIVE,
-        )
-
-        PoapClaim.objects.create(
-            drop=drop,
-            user=poap_user,
-            claim_method=PoapClaim.CLAIM_ADMIN,
-        )
-
-        response = self.client.get('/api/v1/leaderboard/stats/')
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['community_member_count'], 0)
-        self.assertTrue(Creator.objects.filter(user=poap_user).exists())
 
     def test_community_social_link_contributions_do_not_count_as_members_or_activity(self):
         social_user = self._create_user(
@@ -342,6 +343,50 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(global_response.data['participant_count'], 2)
         self.assertEqual(global_response.data['community_member_count'], 2)
 
+    def test_recent_mee6_sync_does_not_count_existing_member_as_new(self):
+        mee6_user = self._create_user(
+            'existing-mee6@example.com',
+            '0x0000000000000000000000000000000000000014'
+        )
+        self._create_current_mee6_xp(mee6_user, 'discord-existing-mee6', 100)
+        creator = Creator.objects.create(user=mee6_user)
+        Creator.objects.filter(pk=creator.pk).update(
+            created_at=timezone.now() - timezone.timedelta(days=60)
+        )
+
+        response = self.client.get('/api/v1/leaderboard/stats/', {'type': 'community'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['community_member_count'], 1)
+        self.assertEqual(response.data['new_community_members_count'], 0)
+
+    def test_generic_community_leaderboard_uses_effective_mee6_points(self):
+        mee6_user = self._create_user(
+            'generic-mee6@example.com',
+            '0x0000000000000000000000000000000000000012'
+        )
+        portal_user = self._create_user(
+            'generic-portal@example.com',
+            '0x0000000000000000000000000000000000000013'
+        )
+        self._create_current_mee6_xp(mee6_user, 'discord-generic-mee6', 100)
+        Contribution.objects.create(
+            user=portal_user,
+            contribution_type=self.community_type,
+            points=80,
+            frozen_global_points=80,
+            contribution_date=timezone.now()
+        )
+
+        response = self.client.get('/api/v1/leaderboard/', {'type': 'community'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 2)
+        self.assertEqual(response.data['results'][0]['user_address'], mee6_user.address)
+        self.assertEqual(response.data['results'][0]['total_points'], 100)
+        self.assertEqual(response.data['results'][1]['user_address'], portal_user.address)
+        self.assertEqual(response.data['results'][1]['total_points'], 80)
+
     def test_mission_backed_non_submittable_community_contribution_is_reflected(self):
         contributor = self._create_user(
             'mission-community@example.com',
@@ -379,6 +424,7 @@ class LeaderboardStatsTest(TestCase):
 
         self.assertEqual(stats_response.status_code, 200)
         self.assertEqual(stats_response.data['community_member_count'], 1)
+        self.assertEqual(stats_response.data['new_community_members_count'], 1)
         self.assertEqual(stats_response.data['contribution_count'], 1)
         self.assertTrue(Creator.objects.filter(user=contributor).exists())
 
