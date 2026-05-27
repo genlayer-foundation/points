@@ -15,6 +15,7 @@
     } = $props();
 
     let communityRank: number | null = $state(null);
+    let communityRankLoaded = $state(false);
     const DEFAULT_TAB_ORDER = ["Builders", "Validators", "Community"];
 
     // Role checks
@@ -185,6 +186,7 @@
                 );
                 if (participant?.address !== requestedAddress) return;
                 communityRank = communityContext?.user_rank || null;
+                communityRankLoaded = true;
                 activeList = buildCommunityProfileList(communityContext);
                 return;
             }
@@ -291,12 +293,17 @@
 
         loadedCommunityRankForAddress = addr;
         communityRank = null;
+        communityRankLoaded = false;
         fetchCommunityProfileContext(addr)
             .then((data: any) => {
                 if (participant?.address !== addr) return;
                 communityRank = data?.user_rank || null;
             })
-            .catch(() => {});
+            .catch(() => {})
+            .finally(() => {
+                if (participant?.address !== addr) return;
+                communityRankLoaded = true;
+            });
     });
 
     function switchTab(t: string) {
@@ -701,7 +708,7 @@
                     <div
                         class="ranking-context-card flex items-center justify-between bg-[#fcfcfc] rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
                     >
-                        {#if communityRank === null && userCommunityPoints > 0}
+                        {#if !communityRankLoaded && userCommunityPoints > 0}
                             <div class="flex items-center gap-4 animate-pulse">
                                 <div
                                     class="w-[48px] h-[48px] rounded-full bg-gray-200"
