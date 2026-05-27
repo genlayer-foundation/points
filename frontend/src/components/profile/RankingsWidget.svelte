@@ -93,6 +93,75 @@
     let loading = $state(true);
     let error: string | null = $state(null);
     let activeList: any[] = $state([]);
+    let communityContextCache = new Map<string, any>();
+    let communityContextPromises = new Map<string, Promise<any>>();
+
+    function getEntryRank(entry: any, fallback: number) {
+        return entry?.rank || entry?._displayRank || fallback;
+    }
+
+    function withDisplayRank(entry: any, fallback: number) {
+        return {
+            ...entry,
+            _displayRank: getEntryRank(entry, fallback),
+        };
+    }
+
+    async function fetchCommunityProfileContext(address: string) {
+        if (communityContextCache.has(address)) {
+            return communityContextCache.get(address);
+        }
+        if (communityContextPromises.has(address)) {
+            return communityContextPromises.get(address);
+        }
+
+        const requestAddress = address;
+        const promise = (leaderboardAPI as any)
+            .getLeaderboard({
+                type: "community",
+                user_address: requestAddress,
+                profile_context: true,
+            })
+            .then((res: any) => {
+                const data = res.data || {};
+                communityContextCache.set(requestAddress, data);
+                return data;
+            })
+            .finally(() => {
+                communityContextPromises.delete(requestAddress);
+            });
+
+        communityContextPromises.set(requestAddress, promise);
+        return promise;
+    }
+
+    function buildCommunityProfileList(data: any) {
+        const topEntry = data?.top_entry;
+        const contextRows = data?.context_results || [];
+        const rows: any[] = [];
+
+        if (topEntry) {
+            rows.push(withDisplayRank(topEntry, 1));
+        }
+
+        const contextWithoutTop = contextRows.filter((row: any) => {
+            const rowRank = getEntryRank(row, 0);
+            return rowRank !== 1;
+        });
+
+        if (topEntry && contextWithoutTop.length > 0) {
+            const firstContextRank = getEntryRank(contextWithoutTop[0], 0);
+            if (firstContextRank > 2) {
+                rows.push({ isEllipsis: true });
+            }
+        }
+
+        for (const row of contextWithoutTop) {
+            rows.push(withDisplayRank(row, getEntryRank(row, rows.length + 1)));
+        }
+
+        return rows;
+    }
 
     async function loadTabLeaderboard(tab: string) {
         loading = true;
@@ -108,6 +177,17 @@
                     : "validator";
             } else if (tab === "Community") apiType = "community";
             else apiType = "builder";
+
+            if (apiType === "community" && participant?.address) {
+                const requestedAddress = participant.address;
+                const communityContext = await fetchCommunityProfileContext(
+                    requestedAddress,
+                );
+                if (participant?.address !== requestedAddress) return;
+                communityRank = communityContext?.user_rank || null;
+                activeList = buildCommunityProfileList(communityContext);
+                return;
+            }
 
             const topRes = await leaderboardAPI.getLeaderboard({
                 type: apiType,
@@ -211,16 +291,10 @@
 
         loadedCommunityRankForAddress = addr;
         communityRank = null;
-        (leaderboardAPI as any)
-            .getLeaderboard({
-                type: "community",
-                limit: 1,
-                user_address: addr,
-            })
-            .then((res: any) => {
-                if (res.data?.user_rank) {
-                    communityRank = res.data.user_rank;
-                }
+        fetchCommunityProfileContext(addr)
+            .then((data: any) => {
+                if (participant?.address !== addr) return;
+                communityRank = data?.user_rank || null;
             })
             .catch(() => {});
     });
@@ -627,7 +701,7 @@
                     <div
                         class="ranking-context-card flex items-center justify-between bg-[#fcfcfc] rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
                     >
-                        {#if !participant?.leaderboard_entries}
+                        {#if communityRank === null && userCommunityPoints > 0}
                             <div class="flex items-center gap-4 animate-pulse">
                                 <div
                                     class="w-[48px] h-[48px] rounded-full bg-gray-200"

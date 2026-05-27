@@ -21,6 +21,7 @@
   let currentPage = $state(1);
   let pendingPage = $state(null);
   let hasNextPage = $state(false);
+  let totalCount = $state(0);
   let activeCategory = $state(null);
   let searchTimer;
   let requestSequence = 0;
@@ -85,19 +86,21 @@
   let tableEntries = $derived(leaderboard);
   let isSearching = $derived(searchQuery.trim().length > 0 || activeSearch.length > 0);
   let selectedPage = $derived(pendingPage || currentPage);
+  let filteredTableEntries = $derived(tableEntries);
+  let effectivePodiumCount = $derived(!isSearching && totalCount >= PODIUM_SIZE ? PODIUM_SIZE : 0);
+  let tableItemCount = $derived(Math.max(totalCount - effectivePodiumCount, 0));
+  let totalPages = $derived(Math.max(1, Math.ceil(tableItemCount / PAGE_SIZE)));
   let paginationPages = $derived((() => {
-    const pages = new Set([1, selectedPage]);
-    const start = Math.max(2, currentPage - 2);
-    const end = currentPage + (hasNextPage ? 1 : 0);
+    const pages = new Set([1, selectedPage, totalPages]);
+    const start = Math.max(2, selectedPage - 1);
+    const end = Math.min(totalPages - 1, selectedPage + 1);
 
     for (let page = start; page <= end; page += 1) {
       pages.add(page);
     }
 
-    return [...pages].filter(page => page >= 1).sort((a, b) => a - b);
+    return [...pages].filter(page => page >= 1 && page <= totalPages).sort((a, b) => a - b);
   })());
-
-  let filteredTableEntries = $derived(tableEntries);
 
   function fetchEntries(category, options) {
     const params = activeSearch ? { ...options, search: activeSearch } : options;
@@ -107,6 +110,14 @@
     }
 
     return leaderboardAPI.getLeaderboard({ type: category, order: 'asc', ...params });
+  }
+
+  function extractEntries(data) {
+    return Array.isArray(data) ? data : (data?.results ?? []);
+  }
+
+  function extractCount(data, fallback = 0) {
+    return typeof data?.count === 'number' ? data.count : fallback;
   }
 
   async function fetchLeaderboard(page = 1, { reset = false } = {}) {
@@ -119,27 +130,32 @@
       pageLoading = !shouldShowFullLoader;
       error = null;
 
-      const podiumResponse = await fetchEntries(category, { limit: PODIUM_SIZE, offset: 0 });
+      const podiumResponse = await fetchEntries(category, { limit: PODIUM_SIZE, offset: 0, include_count: true });
 
       if (requestId !== requestSequence) return;
       if (category !== ($currentCategory || 'global')) return;
 
-      const podiumData = podiumResponse.data?.results || podiumResponse.data || [];
-      const availableForPodium = podiumResponse.data?.count ?? podiumData.length;
+      const podiumData = extractEntries(podiumResponse.data);
+      const availableForPodium = extractCount(podiumResponse.data, podiumData.length);
       const tableOffset = activeSearch || availableForPodium < PODIUM_SIZE
         ? ((page - 1) * PAGE_SIZE)
         : PODIUM_SIZE + ((page - 1) * PAGE_SIZE);
 
-      const tableResponse = await fetchEntries(category, { limit: REQUEST_SIZE, offset: tableOffset });
+      const tableResponse = await fetchEntries(category, { limit: REQUEST_SIZE, offset: tableOffset, include_count: true });
 
       if (requestId !== requestSequence) return;
       if (category !== ($currentCategory || 'global')) return;
 
-      const tableData = tableResponse.data?.results || tableResponse.data || [];
+      const tableData = extractEntries(tableResponse.data);
+      const responseCount = extractCount(tableResponse.data, availableForPodium);
+      const podiumCount = !activeSearch && responseCount >= PODIUM_SIZE ? PODIUM_SIZE : 0;
+      const computedTablePages = Math.max(1, Math.ceil(Math.max(responseCount - podiumCount, 0) / PAGE_SIZE));
+
       podiumEntries = podiumData;
       leaderboard = tableData.slice(0, PAGE_SIZE);
-      currentPage = page;
-      hasNextPage = tableData.length > PAGE_SIZE;
+      totalCount = responseCount;
+      currentPage = Math.min(page, computedTablePages);
+      hasNextPage = currentPage < computedTablePages;
     } catch (err) {
       if (requestId !== requestSequence) return;
       error = err.message || 'Failed to load leaderboard';
@@ -153,9 +169,10 @@
   }
 
   function goToPage(page) {
-    if (page === currentPage || page < 1 || loading || pageLoading) return;
-    pendingPage = page;
-    fetchLeaderboard(page);
+    const targetPage = Math.min(Math.max(page, 1), totalPages);
+    if (targetPage === currentPage || loading || pageLoading) return;
+    pendingPage = targetPage;
+    fetchLeaderboard(targetPage);
   }
 
   // Re-fetch when category changes
@@ -296,8 +313,16 @@
           </section>
         </div>
 
-        {#if currentPage > 1 || hasNextPage}
-          <div class="mt-6 flex flex-wrap items-center justify-center gap-2">
+        {#if totalPages > 1}
+          <div class="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
+            <div class="flex flex-wrap items-center justify-center gap-2">
+            <button
+              onclick={() => goToPage(1)}
+              disabled={currentPage === 1 || loading || pageLoading}
+              class="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-4 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] disabled:translate-y-0 disabled:opacity-45 disabled:shadow-none"
+            >
+              First
+            </button>
             <button
               onclick={() => goToPage(currentPage - 1)}
               disabled={currentPage === 1 || loading || pageLoading}
@@ -306,11 +331,10 @@
               Previous
             </button>
 
-            {#if paginationPages[1] && paginationPages[1] > 2}
-              <span class="inline-flex min-h-11 min-w-11 items-center justify-center text-[13px] font-semibold text-[#7b8798]">...</span>
-            {/if}
-
-            {#each paginationPages as page}
+            {#each paginationPages as page, index}
+              {#if index > 0 && page - paginationPages[index - 1] > 1}
+                <span class="inline-flex min-h-11 min-w-11 items-center justify-center text-[13px] font-semibold text-[#7b8798]">...</span>
+              {/if}
               <button
                 onclick={() => goToPage(page)}
                 disabled={page === selectedPage || loading || pageLoading}
@@ -328,11 +352,22 @@
 
             <button
               onclick={() => goToPage(currentPage + 1)}
-              disabled={!hasNextPage || loading || pageLoading}
+              disabled={currentPage >= totalPages || loading || pageLoading}
               class="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-4 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] disabled:translate-y-0 disabled:opacity-45 disabled:shadow-none"
             >
               Next
             </button>
+            <button
+              onclick={() => goToPage(totalPages)}
+              disabled={currentPage >= totalPages || loading || pageLoading}
+              class="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-4 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] disabled:translate-y-0 disabled:opacity-45 disabled:shadow-none"
+            >
+              Last
+            </button>
+            </div>
+            <div class="text-[12px] font-medium text-[#6b7280]">
+              Page {currentPage} of {totalPages}
+            </div>
           </div>
         {/if}
       {/if}
