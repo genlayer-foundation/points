@@ -1,7 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db.models.signals import pre_save
+from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.utils import timezone
 from utils.models import BaseModel
@@ -302,6 +302,189 @@ def validate_multiplier_at_creation(sender, instance, **kwargs):
             logger.warning("Fixing corrupted multiplier_at_creation value")
             instance.multiplier_at_creation = 1.0
             instance.frozen_global_points = instance.points
+
+
+def is_community_contribution(contribution):
+    """Return whether a contribution belongs to the community category."""
+    contribution_type = getattr(contribution, 'contribution_type', None)
+    category = getattr(contribution_type, 'category', None)
+    return bool(category and category.slug == 'community')
+
+
+class ContributionDiscordXPState(BaseModel):
+    """
+    Per-contribution Discord XP distribution state for community contributions.
+    This intentionally tracks contribution rows, not user aggregates, so each
+    portal award has a clear manual Discord distribution status and audit trail.
+    """
+    STATUS_PENDING = 'pending'
+    STATUS_DISTRIBUTED = 'distributed'
+    STATUS_NEEDS_REVIEW = 'needs_review'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_DISTRIBUTED, 'Distributed'),
+        (STATUS_NEEDS_REVIEW, 'Needs review'),
+    ]
+
+    contribution = models.OneToOneField(
+        Contribution,
+        on_delete=models.CASCADE,
+        related_name='discord_xp_state',
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+    awarded_amount = models.PositiveIntegerField(default=0)
+    distributed_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    distributed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='discord_xp_states_distributed',
+    )
+    last_copied_at = models.DateTimeField(null=True, blank=True)
+    last_copied_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='discord_xp_states_copied',
+    )
+
+    class Meta:
+        ordering = ['-contribution__created_at']
+        indexes = [
+            models.Index(fields=['status', 'distributed_at'], name='contrib_xp_status_dist_idx'),
+        ]
+
+    @property
+    def target_amount(self):
+        return int(self.contribution.frozen_global_points or 0)
+
+    @property
+    def pending_amount(self):
+        return max(self.target_amount - int(self.awarded_amount or 0), 0)
+
+    @property
+    def command(self):
+        amount = self.pending_amount
+        connection = getattr(self.contribution.user, 'discordconnection', None)
+        username = getattr(connection, 'platform_username', '') if connection else ''
+        if not username or amount <= 0:
+            return ''
+        username = username.lstrip('@')
+        return f"/give-xp member:@{username} amount:{amount}"
+
+    def clean(self):
+        super().clean()
+        if self.contribution_id and not is_community_contribution(self.contribution):
+            raise ValidationError('Discord XP state can only be created for community contributions.')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def refresh_status_from_contribution(self, save=True):
+        """
+        Reconcile state against the current frozen portal points.
+        Point reductions below manually-distributed XP are not auto-correctable
+        in Discord, so they move to needs_review for steward visibility.
+        """
+        target = self.target_amount
+        awarded = int(self.awarded_amount or 0)
+        next_status = self.status
+
+        if awarded > target:
+            next_status = self.STATUS_NEEDS_REVIEW
+        elif awarded == target:
+            next_status = self.STATUS_DISTRIBUTED
+        elif self.status != self.STATUS_NEEDS_REVIEW:
+            next_status = self.STATUS_PENDING
+
+        if next_status != self.status:
+            self.status = next_status
+            if save:
+                self.save(update_fields=['status', 'updated_at'])
+
+        return self.status
+
+    def __str__(self):
+        return f"Discord XP for contribution {self.contribution_id}: {self.status}"
+
+
+class DiscordXPDistributionEvent(BaseModel):
+    """Audit row for manual Discord XP command copy/distribution actions."""
+    ACTION_COPIED = 'copied'
+    ACTION_DISTRIBUTED = 'distributed'
+    ACTION_UNSET = 'unset'
+
+    ACTION_CHOICES = [
+        (ACTION_COPIED, 'Copied command'),
+        (ACTION_DISTRIBUTED, 'Marked distributed'),
+        (ACTION_UNSET, 'Unset distributed'),
+    ]
+
+    state = models.ForeignKey(
+        ContributionDiscordXPState,
+        on_delete=models.CASCADE,
+        related_name='events',
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='discord_xp_distribution_events_made',
+    )
+    amount = models.PositiveIntegerField()
+    action = models.CharField(
+        max_length=20,
+        choices=ACTION_CHOICES,
+        db_index=True,
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['action', 'created_at'], name='xp_event_action_created_idx'),
+            models.Index(fields=['state', 'created_at'], name='xp_event_state_created_idx'),
+        ]
+
+    def __str__(self):
+        return f"Discord XP event {self.id} for contribution {self.state.contribution_id}: {self.action}"
+
+
+def sync_discord_xp_state_for_contribution(contribution):
+    """
+    Ensure only community contributions have Discord XP state.
+    Non-community states are deleted defensively if a contribution changes type.
+    """
+    if not contribution.pk:
+        return None
+
+    if not is_community_contribution(contribution):
+        ContributionDiscordXPState.objects.filter(contribution=contribution).delete()
+        return None
+
+    state, _ = ContributionDiscordXPState.objects.get_or_create(
+        contribution=contribution,
+        defaults={
+            'status': ContributionDiscordXPState.STATUS_PENDING,
+            'awarded_amount': 0,
+        },
+    )
+    state.refresh_status_from_contribution(save=True)
+    return state
+
+
+@receiver(post_save, sender=Contribution)
+def sync_contribution_discord_xp_state(sender, instance, **kwargs):
+    sync_discord_xp_state_for_contribution(instance)
 
 
 class SubmittedContribution(BaseModel):

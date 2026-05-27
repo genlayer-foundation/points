@@ -2,8 +2,10 @@
   import { params, push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import { authState } from '../lib/auth.js';
+  import { userStore } from '../lib/userStore.js';
   import { poapsAPI } from '../lib/api.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
+  import SocialLink from '../components/SocialLink.svelte';
   import PoapBadgeImage from '../components/poaps/PoapBadgeImage.svelte';
   import { getCategoryGradientStyle } from '../lib/categoryPresentation.js';
 
@@ -28,6 +30,8 @@
   let activeClaimDistributions = $derived((poap?.distributions || []).filter(distributionIsOpen));
   let hasSecretClaim = $derived(canClaim && activeClaimDistributions.some((distribution) => distribution.method === 'secret'));
   let hasMintLinkClaim = $derived(canClaim && activeClaimDistributions.some((distribution) => distribution.method === 'mint_link'));
+  let discordConnection = $derived($userStore.user?.discord_connection || null);
+  let hasDiscordConnection = $derived(Boolean(discordConnection));
   let collectorCount = $derived(poap?.claimed_count ?? claimsCount ?? 0);
   let statusLabel = $derived(poap?.status === 'active' ? 'Live' : poap?.status === 'draft' ? 'Draft' : 'Archived');
   let statusClass = $derived(
@@ -70,8 +74,15 @@
   }
 
   /** @param {any} err */
+  function isDiscordLinkError(err) {
+    return err?.response?.status === 403
+      && String(err?.response?.data?.error || '').toLowerCase().includes('discord');
+  }
+
+  /** @param {any} err */
   function isAuthError(err) {
     const statusCode = err?.response?.status;
+    if (isDiscordLinkError(err)) return false;
     return statusCode === 401 || statusCode === 403;
   }
 
@@ -81,6 +92,11 @@
       const authButton = document.querySelector('[data-auth-button]');
       if (authButton instanceof HTMLElement) authButton.click();
     }, 0);
+  }
+
+  /** @param {any} updatedUser */
+  function handleDiscordLinked(updatedUser) {
+    if (updatedUser) userStore.setUser(updatedUser);
   }
 
   async function loadPoap() {
@@ -155,6 +171,12 @@
       loadClaims(1);
     }
   });
+
+  $effect(() => {
+    if ($authState.isAuthenticated && !$userStore.user && !$userStore.loading) {
+      userStore.loadUser().catch(() => {});
+    }
+  });
 </script>
 
 <div class="relative -mx-3 -my-3 min-h-[calc(100vh-64px)] overflow-hidden bg-white px-3 py-8 sm:px-5 sm:py-10 md:px-8 md:py-12">
@@ -213,7 +235,17 @@
               </div>
             {/if}
 
-            {#if hasSecretClaim}
+            {#if hasSecretClaim && !hasDiscordConnection}
+              <div class="poap-claim-tool poap-discord-tool">
+                <SocialLink
+                  platform="discord"
+                  platformLabel="Discord"
+                  connection={discordConnection}
+                  initiateUrl="/api/auth/discord/"
+                  onLinked={handleDiscordLinked}
+                />
+              </div>
+            {:else if hasSecretClaim}
               <div class="poap-claim-tool poap-secret-tool">
                 <div class="poap-secret-fields">
                   <input

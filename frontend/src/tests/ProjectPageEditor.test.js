@@ -73,6 +73,18 @@ describe('ProjectPageEditor', () => {
     expect(screen.queryByLabelText('Callout text')).toBeNull();
   });
 
+  it('does not render the editor when the project is not editable by the user', async () => {
+    getProjectMock.mockResolvedValueOnce({ data: { ...project, can_edit: false } });
+
+    renderWithEffects(ProjectPageEditor, { props: { params: { slug: 'buildersclaw' } } });
+
+    await waitForApiCall(projectsAPI.get, 'buildersclaw');
+
+    expect(screen.getByText('Project editor unavailable')).toBeDefined();
+    expect(screen.getByText('You do not have permission to edit this project.')).toBeDefined();
+    expect(screen.queryByRole('button', { name: /save changes/i })).toBeNull();
+  });
+
   it('saves profile fields directly', async () => {
     renderWithEffects(ProjectPageEditor, { props: { params: { slug: 'buildersclaw' } } });
 

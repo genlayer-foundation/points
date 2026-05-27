@@ -37,6 +37,28 @@ class DiscordConnectionSerializer(serializers.ModelSerializer):
     avatar_url = serializers.SerializerMethodField()
     roles = serializers.SerializerMethodField()
     next_manual_role_sync_at = serializers.SerializerMethodField()
+    mee6_xp = serializers.SerializerMethodField()
+    mee6_level = serializers.SerializerMethodField()
+    mee6_rank = serializers.SerializerMethodField()
+    mee6_synced_at = serializers.SerializerMethodField()
+
+    def _get_mee6_current_xp(self, obj):
+        if hasattr(obj, '_mee6_current_xp_cache'):
+            return obj._mee6_current_xp_cache
+
+        from community_xp.models import Mee6CurrentXP
+        from community_xp.services import get_default_guild_id
+
+        current = (
+            Mee6CurrentXP.objects
+            .filter(
+                guild_id=get_default_guild_id(),
+                discord_id=obj.platform_user_id,
+            )
+            .first()
+        )
+        obj._mee6_current_xp_cache = current
+        return current
 
     def get_avatar_url(self, obj):
         return obj.avatar_url
@@ -51,6 +73,22 @@ class DiscordConnectionSerializer(serializers.ModelSerializer):
             return None
         return next_allowed_at
 
+    def get_mee6_xp(self, obj):
+        current = self._get_mee6_current_xp(obj)
+        return current.xp if current else None
+
+    def get_mee6_level(self, obj):
+        current = self._get_mee6_current_xp(obj)
+        return current.level if current else None
+
+    def get_mee6_rank(self, obj):
+        current = self._get_mee6_current_xp(obj)
+        return current.rank if current else None
+
+    def get_mee6_synced_at(self, obj):
+        current = self._get_mee6_current_xp(obj)
+        return current.synced_at if current else None
+
     class Meta:
         model = DiscordConnection
         fields = [
@@ -58,5 +96,6 @@ class DiscordConnectionSerializer(serializers.ModelSerializer):
             'avatar_url', 'roles', 'roles_synced_at', 'roles_sync_error',
             'roles_manual_synced_at', 'next_manual_role_sync_at',
             'guild_joined_at', 'guild_nick',
+            'mee6_xp', 'mee6_level', 'mee6_rank', 'mee6_synced_at',
         ]
         read_only_fields = fields

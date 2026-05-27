@@ -9,10 +9,13 @@ from contributions.models import (
     Mission,
     SubmittedContribution,
 )
+from community_xp.models import Mee6CurrentXP, Mee6SyncRun
 from creators.models import Creator
 from leaderboard.models import GlobalLeaderboardMultiplier, ReferralPoints
 from poaps.models import PoapClaim, PoapDrop
+from social_connections.models import DiscordConnection
 from users.models import User
+from validators.models import Validator
 
 
 class LeaderboardStatsTest(TestCase):
@@ -36,6 +39,15 @@ class LeaderboardStatsTest(TestCase):
             slug='builder-submission',
             category=self.builder_category
         )
+        self.validator_category, _ = Category.objects.get_or_create(
+            slug='validator',
+            defaults={'name': 'Validator'}
+        )
+        self.validator_type = ContributionType.objects.create(
+            name='Validator Uptime',
+            slug='validator-uptime',
+            category=self.validator_category
+        )
         self.community_link_x_type, _ = ContributionType.objects.get_or_create(
             slug='community-link-x',
             defaults={
@@ -45,6 +57,34 @@ class LeaderboardStatsTest(TestCase):
                 'max_points': 100,
             },
         )
+        GlobalLeaderboardMultiplier.objects.get_or_create(
+            contribution_type=self.community_type,
+            defaults={
+                'multiplier_value': 1,
+                'valid_from': timezone.now() - timezone.timedelta(days=30),
+            },
+        )
+        GlobalLeaderboardMultiplier.objects.get_or_create(
+            contribution_type=self.builder_type,
+            defaults={
+                'multiplier_value': 1,
+                'valid_from': timezone.now() - timezone.timedelta(days=30),
+            },
+        )
+        GlobalLeaderboardMultiplier.objects.get_or_create(
+            contribution_type=self.validator_type,
+            defaults={
+                'multiplier_value': 1,
+                'valid_from': timezone.now() - timezone.timedelta(days=30),
+            },
+        )
+        GlobalLeaderboardMultiplier.objects.get_or_create(
+            contribution_type=self.community_link_x_type,
+            defaults={
+                'multiplier_value': 1,
+                'valid_from': timezone.now() - timezone.timedelta(days=30),
+            },
+        )
 
     def _create_user(self, email, address, visible=True):
         return User.objects.create_user(
@@ -52,6 +92,40 @@ class LeaderboardStatsTest(TestCase):
             password='pass',
             address=address,
             visible=visible
+        )
+
+    def _create_current_mee6_xp(self, user, discord_id, xp):
+        now = timezone.now()
+        run = Mee6SyncRun.objects.create(
+            guild_id='1237055789441487021',
+            guild_name='GenLayer',
+            status=Mee6SyncRun.STATUS_SUCCESS,
+            page_size=1000,
+            pages_fetched=1,
+            players_fetched=1,
+            matched_players=1,
+            unmatched_players=0,
+            completed_at=now,
+            applied_at=now,
+        )
+        DiscordConnection.objects.create(
+            user=user,
+            platform_user_id=discord_id,
+            platform_username=f'discord-{discord_id}',
+            linked_at=now,
+        )
+        return Mee6CurrentXP.objects.create(
+            guild_id=run.guild_id,
+            discord_id=discord_id,
+            username=f'discord-{discord_id}',
+            rank=1,
+            xp=xp,
+            level=4,
+            message_count=12,
+            sync_run=run,
+            matched_user=user,
+            matched_at=now,
+            synced_at=now,
         )
 
     def test_community_member_count_uses_accepted_community_contributions(self):
@@ -138,7 +212,7 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['creator_count'], 2)
         self.assertEqual(response.data['builder_count'], 1)
 
-    def test_poap_claim_grants_role_but_does_not_count_as_member_metric(self):
+    def test_poap_claim_grants_role_and_counts_as_member_metric(self):
         poap_user = self._create_user(
             'poap@example.com',
             '0x0000000000000000000000000000000000000007'
@@ -159,8 +233,62 @@ class LeaderboardStatsTest(TestCase):
         response = self.client.get('/api/v1/leaderboard/stats/')
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['community_member_count'], 0)
+        self.assertEqual(response.data['community_member_count'], 1)
+        self.assertEqual(response.data['creator_count'], 1)
         self.assertTrue(Creator.objects.filter(user=poap_user).exists())
+
+    def test_validator_count_uses_visible_validator_table_rows(self):
+        validator_user = self._create_user(
+            'validator@example.com',
+            '0x0000000000000000000000000000000000000012'
+        )
+        validator_activity_only_user = self._create_user(
+            'validator-activity@example.com',
+            '0x0000000000000000000000000000000000000013'
+        )
+        hidden_validator_user = self._create_user(
+            'hidden-validator@example.com',
+            '0x0000000000000000000000000000000000000014',
+            visible=False
+        )
+
+        Validator.objects.create(user=validator_user)
+        Validator.objects.create(user=hidden_validator_user)
+
+        Contribution.objects.bulk_create([
+            Contribution(
+                user=validator_user,
+                contribution_type=self.validator_type,
+                points=10,
+                frozen_global_points=10,
+                contribution_date=timezone.now()
+            ),
+            Contribution(
+                user=validator_activity_only_user,
+                contribution_type=self.validator_type,
+                points=10,
+                frozen_global_points=10,
+                contribution_date=timezone.now()
+            ),
+            Contribution(
+                user=hidden_validator_user,
+                contribution_type=self.validator_type,
+                points=10,
+                frozen_global_points=10,
+                contribution_date=timezone.now()
+            ),
+        ])
+
+        global_response = self.client.get('/api/v1/leaderboard/stats/')
+        validator_response = self.client.get('/api/v1/leaderboard/stats/', {'type': 'validator'})
+
+        self.assertEqual(global_response.status_code, 200)
+        self.assertEqual(global_response.data['validator_count'], 1)
+        self.assertEqual(global_response.data['new_validators_count'], 1)
+
+        self.assertEqual(validator_response.status_code, 200)
+        self.assertEqual(validator_response.data['validator_count'], 1)
+        self.assertEqual(validator_response.data['participant_count'], 1)
 
     def test_community_social_link_contributions_do_not_count_as_members_or_activity(self):
         social_user = self._create_user(
@@ -181,6 +309,83 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['community_member_count'], 0)
         self.assertEqual(response.data['participant_count'], 0)
         self.assertEqual(response.data['contribution_count'], 0)
+
+    def test_community_stats_use_effective_mee6_points_and_members(self):
+        mee6_only_user = self._create_user(
+            'mee6-only@example.com',
+            '0x0000000000000000000000000000000000000010'
+        )
+        pending_portal_user = self._create_user(
+            'pending-portal@example.com',
+            '0x0000000000000000000000000000000000000011'
+        )
+        self._create_current_mee6_xp(mee6_only_user, 'discord-mee6-only', 100)
+        Contribution.objects.create(
+            user=pending_portal_user,
+            contribution_type=self.community_type,
+            points=80,
+            frozen_global_points=80,
+            contribution_date=timezone.now()
+        )
+
+        community_response = self.client.get('/api/v1/leaderboard/stats/', {'type': 'community'})
+        global_response = self.client.get('/api/v1/leaderboard/stats/')
+
+        self.assertEqual(community_response.status_code, 200)
+        self.assertEqual(community_response.data['total_points'], 180)
+        self.assertEqual(community_response.data['participant_count'], 2)
+        self.assertEqual(community_response.data['community_member_count'], 2)
+        self.assertEqual(community_response.data['creator_count'], 2)
+        self.assertEqual(community_response.data['contribution_count'], 1)
+
+        self.assertEqual(global_response.status_code, 200)
+        self.assertEqual(global_response.data['total_points'], 180)
+        self.assertEqual(global_response.data['participant_count'], 2)
+        self.assertEqual(global_response.data['community_member_count'], 2)
+
+    def test_recent_mee6_sync_does_not_count_existing_member_as_new(self):
+        mee6_user = self._create_user(
+            'existing-mee6@example.com',
+            '0x0000000000000000000000000000000000000014'
+        )
+        self._create_current_mee6_xp(mee6_user, 'discord-existing-mee6', 100)
+        creator = Creator.objects.create(user=mee6_user)
+        Creator.objects.filter(pk=creator.pk).update(
+            created_at=timezone.now() - timezone.timedelta(days=60)
+        )
+
+        response = self.client.get('/api/v1/leaderboard/stats/', {'type': 'community'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['community_member_count'], 1)
+        self.assertEqual(response.data['new_community_members_count'], 0)
+
+    def test_generic_community_leaderboard_uses_effective_mee6_points(self):
+        mee6_user = self._create_user(
+            'generic-mee6@example.com',
+            '0x0000000000000000000000000000000000000012'
+        )
+        portal_user = self._create_user(
+            'generic-portal@example.com',
+            '0x0000000000000000000000000000000000000013'
+        )
+        self._create_current_mee6_xp(mee6_user, 'discord-generic-mee6', 100)
+        Contribution.objects.create(
+            user=portal_user,
+            contribution_type=self.community_type,
+            points=80,
+            frozen_global_points=80,
+            contribution_date=timezone.now()
+        )
+
+        response = self.client.get('/api/v1/leaderboard/', {'type': 'community'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 2)
+        self.assertEqual(response.data['results'][0]['user_address'], mee6_user.address)
+        self.assertEqual(response.data['results'][0]['total_points'], 100)
+        self.assertEqual(response.data['results'][1]['user_address'], portal_user.address)
+        self.assertEqual(response.data['results'][1]['total_points'], 80)
 
     def test_mission_backed_non_submittable_community_contribution_is_reflected(self):
         contributor = self._create_user(
@@ -219,6 +424,7 @@ class LeaderboardStatsTest(TestCase):
 
         self.assertEqual(stats_response.status_code, 200)
         self.assertEqual(stats_response.data['community_member_count'], 1)
+        self.assertEqual(stats_response.data['new_community_members_count'], 1)
         self.assertEqual(stats_response.data['contribution_count'], 1)
         self.assertTrue(Creator.objects.filter(user=contributor).exists())
 

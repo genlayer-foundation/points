@@ -2,8 +2,10 @@
   import { onMount } from 'svelte';
   import { params, push } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
+  import { userStore } from '../lib/userStore.js';
   import { poapsAPI } from '../lib/api.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
+  import SocialLink from '../components/SocialLink.svelte';
   import PoapBadgeImage from '../components/poaps/PoapBadgeImage.svelte';
 
   let status = $state('idle');
@@ -14,6 +16,10 @@
 
   let routeToken = $derived($params?.token || '');
   let token = $derived(routeToken || tokenFromUrl());
+  let requiresDiscordLink = $derived(
+    status === 'error' && message.toLowerCase().includes('discord')
+  );
+  let discordConnection = $derived($userStore.user?.discord_connection || null);
 
   function tokenFromUrl() {
     if (typeof window === 'undefined') return '';
@@ -28,8 +34,15 @@
   }
 
   /** @param {any} err */
+  function isDiscordLinkError(err) {
+    return err?.response?.status === 403
+      && String(err?.response?.data?.error || '').toLowerCase().includes('discord');
+  }
+
+  /** @param {any} err */
   function isAuthError(err) {
     const statusCode = err?.response?.status;
+    if (isDiscordLinkError(err)) return false;
     return statusCode === 401 || statusCode === 403;
   }
 
@@ -88,6 +101,18 @@
     }
   }
 
+  /** @param {any} updatedUser */
+  function handleDiscordLinked(updatedUser) {
+    if (updatedUser) userStore.setUser(updatedUser);
+    if (!token) return;
+    attempted = false;
+    status = 'claiming';
+    message = 'Claiming your POAP...';
+    window.setTimeout(() => {
+      claim();
+    }, 0);
+  }
+
   onMount(() => {
     if (!$authState.isAuthenticated) {
       status = 'auth';
@@ -104,8 +129,15 @@
     }
   });
 
+  $effect(() => {
+    if ($authState.isAuthenticated && !$userStore.user && !$userStore.loading) {
+      userStore.loadUser().catch(() => {});
+    }
+  });
+
   function heading() {
     if (status === 'claimed') return 'POAP claimed';
+    if (requiresDiscordLink) return 'Link Discord';
     if (status === 'error') return 'Mint link not available';
     if (status === 'auth') return 'Connect wallet';
     return 'Claim POAP';
@@ -113,6 +145,7 @@
 
   function statusText() {
     if (status === 'claimed') return 'Claimed';
+    if (requiresDiscordLink) return 'Discord required';
     if (status === 'error') return 'Unavailable';
     if (status === 'claiming') return 'Claiming';
     if (status === 'auth') return 'Wallet required';
@@ -140,6 +173,16 @@
           <button class="poap-primary-action" onclick={requestLogin}>Connect wallet</button>
         {:else if status === 'claimed' && drop?.slug}
           <button class="poap-primary-action" onclick={() => push(`/community/poaps/${drop.slug}`)}>View POAP</button>
+        {:else if requiresDiscordLink}
+          <div class="poap-discord-gate">
+            <SocialLink
+              platform="discord"
+              platformLabel="Discord"
+              connection={discordConnection}
+              initiateUrl="/api/auth/discord/"
+              onLinked={handleDiscordLinked}
+            />
+          </div>
         {:else if status === 'error'}
           <button class="poap-secondary-action" onclick={() => push('/community/poaps')}>Browse POAPs</button>
         {/if}
@@ -247,6 +290,10 @@
     flex-wrap: wrap;
     gap: 10px;
     margin-top: 22px;
+  }
+
+  .poap-discord-gate {
+    width: min(100%, 260px);
   }
 
   .poap-primary-action,

@@ -228,10 +228,18 @@
     if (platform !== 'discord') return [];
     return [...(connection?.roles || [])].sort((a, b) => (b.position || 0) - (a.position || 0) || String(a.name).localeCompare(String(b.name)));
   });
+  let hasDiscordRank = $derived(platform === 'discord' && connection?.mee6_rank !== null && connection?.mee6_rank !== undefined);
+  let hasDiscordLevel = $derived(platform === 'discord' && connection?.mee6_level !== null && connection?.mee6_level !== undefined);
+  let hasDiscordLeaderboardStats = $derived(hasDiscordRank || hasDiscordLevel);
   let compactTitle = $derived.by(() => {
     if (platform !== 'discord' || !connection) return undefined;
-    if (discordRoles.length === 0) return 'Discord roles not synced yet';
-    return `Discord roles: ${discordRoles.map((role) => role.name).join(', ')}`;
+    const stats = [];
+    if (hasDiscordLevel) stats.push(`level ${formatNumber(connection.mee6_level)}`);
+    if (hasDiscordRank) stats.push(`rank #${formatNumber(connection.mee6_rank)}`);
+    const roles = discordRoles.length > 0
+      ? `Discord roles: ${discordRoles.map((role) => role.name).join(', ')}`
+      : 'Discord roles not synced yet';
+    return stats.length ? `Discord ${stats.join(', ')}. ${roles}` : roles;
   });
 
   function getDiscordRoleColor(role) {
@@ -239,6 +247,12 @@
       return role.color_hex;
     }
     return '#b5bac1';
+  }
+
+  function formatNumber(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return value;
+    return new Intl.NumberFormat().format(number);
   }
 
   const refreshHandlers = {
@@ -358,7 +372,8 @@
         <span class="social-pill-name">{connection.platform_username}</span>
       </a>
     {:else}
-      <div
+      <button
+        type="button"
         class="social-pill"
         class:discord-role-tooltip-wrap={platform === 'discord'}
         style="--brand-color: {config.color};"
@@ -368,6 +383,22 @@
         <span class="social-pill-name">{connection.platform_username}</span>
         {#if platform === 'discord'}
           <div class="discord-role-tooltip">
+            {#if hasDiscordLeaderboardStats}
+              <div class="discord-xp-summary">
+                {#if hasDiscordLevel}
+                  <div class="discord-xp-stat">
+                    <span class="discord-xp-label">Level</span>
+                    <span class="discord-xp-value">{formatNumber(connection.mee6_level)}</span>
+                  </div>
+                {/if}
+                {#if hasDiscordRank}
+                  <div class="discord-xp-stat">
+                    <span class="discord-xp-label">Rank</span>
+                    <span class="discord-xp-value">#{formatNumber(connection.mee6_rank)}</span>
+                  </div>
+                {/if}
+              </div>
+            {/if}
             <span class="discord-role-heading">Roles</span>
             {#if discordRoles.length > 0}
               <div class="discord-role-list">
@@ -383,7 +414,7 @@
             {/if}
           </div>
         {/if}
-      </div>
+      </button>
     {/if}
   {:else}
     <button
@@ -675,6 +706,38 @@
     font-size: 14px;
     font-weight: 650;
     line-height: 1.1;
+  }
+
+  .discord-xp-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .discord-xp-stat {
+    min-width: 0;
+    border: 1px solid #393943;
+    border-radius: 8px;
+    background: rgba(88, 101, 242, 0.16);
+    padding: 9px 10px;
+  }
+
+  .discord-xp-label {
+    display: block;
+    color: #b5bac1;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .discord-xp-value {
+    display: block;
+    margin-top: 5px;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1;
   }
 
   .discord-role-list {

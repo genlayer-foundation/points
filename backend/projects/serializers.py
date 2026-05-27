@@ -76,9 +76,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
     def get_can_edit(self, obj):
         request = self.context.get('request')
         user = getattr(request, 'user', None)
-        if not user or not user.is_authenticated:
-            return False
-        return user.is_staff or obj.user_id == user.id
+        return obj.can_be_edited_by(user)
 
 
 class ProjectDetailSerializer(ProjectListSerializer):

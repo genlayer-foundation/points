@@ -144,6 +144,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Override to apply offset and limit after filtering/ordering.
         """
+        if request.query_params.get('type') == 'community':
+            return self.community(request)
+
         queryset = self.filter_queryset(self.get_queryset())
 
         # Parse offset and limit
@@ -271,14 +274,41 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         Get statistics for the dashboard.
         Supports optional 'type' parameter for category-specific stats.
         """
-        from django.db.models import Sum, Count
+        from django.db.models import Sum
         from contributions.models import Contribution
-        from users.models import User
+        from validators.models import Validator
 
         leaderboard_type = request.query_params.get('type')
 
         now = timezone.now()
         last_month = now - timezone.timedelta(days=30)
+        effective_community_summary = None
+
+        def get_validators():
+            return Validator.objects.filter(user__visible=True)
+
+        def get_effective_community_summary():
+            nonlocal effective_community_summary
+            if effective_community_summary is None:
+                from community_xp.utils import (
+                    build_effective_community_scores,
+                    get_community_member_user_ids,
+                )
+
+                entries = [
+                    score
+                    for score in build_effective_community_scores(visible_only=True).values()
+                    if (score['total_points'] or 0) > 0
+                ]
+                effective_community_summary = {
+                    'member_user_ids': get_community_member_user_ids(visible_only=True),
+                    'total_points': sum(score['total_points'] or 0 for score in entries),
+                    'user_ids': {score['user'].id for score in entries},
+                }
+                effective_community_summary['member_count'] = len(
+                    effective_community_summary['member_user_ids']
+                )
+            return effective_community_summary
 
         if leaderboard_type:
             # Category-specific stats
@@ -307,15 +337,26 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 new_contributions_count = category_contributions.filter(
                     created_at__gte=last_month
                 ).count()
-                # Total points and new points exclude welcome/waitlist auto-awards
-                # so the dashboard reflects real contribution activity, not journey starts.
-                total_points = category_contributions.aggregate(
-                    total=Sum('frozen_global_points')
-                )['total'] or 0
+                # Raw contribution counts stay audit/activity metrics. Community
+                # displayed score is MEE6 baseline + pending portal XP state.
+                if leaderboard_type == 'community':
+                    community_summary = get_effective_community_summary()
+                    total_points = community_summary['total_points']
+                    participant_count = community_summary['member_count']
+                elif leaderboard_type == 'validator':
+                    total_points = category_contributions.aggregate(
+                        total=Sum('frozen_global_points')
+                    )['total'] or 0
+                    participant_count = get_validators().count()
+                else:
+                    total_points = category_contributions.aggregate(
+                        total=Sum('frozen_global_points')
+                    )['total'] or 0
+                    participant_count = category_contributions.values('user_id').distinct().count()
+
                 new_points_count = category_contributions.filter(
                     created_at__gte=last_month
                 ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
-                participant_count = category_contributions.values('user_id').distinct().count()
             else:
                 contribution_count = 0
                 new_contributions_count = 0
@@ -333,8 +374,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 new_validators_count = 0
             elif leaderboard_type == 'validator':
                 new_builders_count = 0
-                new_validators_count = LeaderboardEntry.objects.filter(
-                    type='validator', user__created_at__gte=last_month
+                new_validators_count = get_validators().filter(
+                    created_at__gte=last_month
                 ).count()
             else:
                 new_builders_count = 0
@@ -346,16 +387,30 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             ).exclude(
                 contribution_type__slug__in=ONBOARDING_CONTRIBUTION_TYPE_SLUGS
             )
-            participant_count = all_contributions.values('user_id').distinct().count()
+            non_community_contributions = all_contributions.exclude(
+                contribution_type__category__slug='community'
+            )
+            community_summary = get_effective_community_summary()
+            participant_user_ids = set(
+                non_community_contributions
+                .values_list('user_id', flat=True)
+                .distinct()
+            )
+            participant_user_ids.update(community_summary['member_user_ids'])
+            participant_count = len(participant_user_ids)
             contribution_count = all_contributions.count()
             new_contributions_count = all_contributions.filter(
                 created_at__gte=last_month
             ).count()
 
-            # Total / new points also exclude welcome/waitlist auto-awards.
-            total_points = all_contributions.aggregate(
-                total=Sum('frozen_global_points')
-            )['total'] or 0
+            # Global displayed score uses raw non-community points plus the
+            # effective community score, so raw community rows are not counted
+            # again after they have been passed to Discord XP.
+            total_points = (
+                non_community_contributions.aggregate(
+                    total=Sum('frozen_global_points')
+                )['total'] or 0
+            ) + community_summary['total_points']
 
             new_points_count = all_contributions.filter(
                 created_at__gte=last_month
@@ -379,16 +434,11 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             created_at__gte=last_month
         ).values('user_id').distinct().count()
 
-        validator_contribs = Contribution.objects.filter(
-            user__visible=True,
-            contribution_type__category__slug='validator',
-        ).exclude(
-            contribution_type__slug__in=ONBOARDING_CONTRIBUTION_TYPE_SLUGS
-        )
-        validator_count = validator_contribs.values('user_id').distinct().count()
-        new_validators_count = validator_contribs.filter(
+        validators = get_validators()
+        validator_count = validators.count()
+        new_validators_count = validators.filter(
             created_at__gte=last_month
-        ).values('user_id').distinct().count()
+        ).count()
 
         community_contribs = Contribution.objects.filter(
             user__visible=True,
@@ -396,10 +446,12 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         ).exclude(
             contribution_type__slug__in=ONBOARDING_CONTRIBUTION_TYPE_SLUGS
         )
-        community_member_count = community_contribs.values('user_id').distinct().count()
-        new_community_members_count = community_contribs.filter(
-            created_at__gte=last_month
-        ).values('user_id').distinct().count()
+        community_summary = get_effective_community_summary()
+        community_member_count = community_summary['member_count']
+        from community_xp.utils import get_community_member_user_ids
+        new_community_members_count = len(
+            get_community_member_user_ids(visible_only=True, since=last_month)
+        )
 
         return Response({
             'participant_count': participant_count,
@@ -431,10 +483,18 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         if category:
             contributions = contributions.filter(contribution_type__category__slug=category)
         
-        # Get user's total points
-        total_points = contributions.aggregate(
+        # Get user's raw portal contribution points. For community, these remain
+        # the audit trail while displayed points use MEE6 as the weekly baseline.
+        raw_total_points = contributions.aggregate(
             total=Sum('frozen_global_points')
         )['total'] or 0
+        total_points = raw_total_points
+
+        community_xp_breakdown = None
+        if category == 'community':
+            from community_xp.utils import get_effective_community_points
+            community_xp_breakdown = get_effective_community_points(user)
+            total_points = community_xp_breakdown['total_points']
         
         # Get user's contribution count
         contribution_count = contributions.count()
@@ -455,7 +515,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         ).order_by('-total_points')
         
         for type_data in types_data:
-            percentage = (type_data['total_points'] / total_points * 100) if total_points > 0 else 0
+            percentage_base = raw_total_points if category == 'community' else total_points
+            percentage = (type_data['total_points'] / percentage_base * 100) if percentage_base > 0 else 0
             contribution_types.append({
                 'id': type_data['contribution_type__id'],
                 'name': type_data['contribution_type__name'],
@@ -466,12 +527,25 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 'percentage': percentage,
             })
         
-        return {
+        result = {
             'totalContributions': contribution_count,
             'totalPoints': total_points,
             'averagePoints': avg_points,
             'contributionTypes': contribution_types,
         }
+
+        if community_xp_breakdown:
+            result.update({
+                'discord_xp': community_xp_breakdown['discord_xp'],
+                'discord_xp_synced_at': community_xp_breakdown['discord_xp_synced_at'],
+                'pending_portal_points': community_xp_breakdown['pending_portal_points'],
+                'tracked_portal_points_all_time': community_xp_breakdown['tracked_portal_points_all_time'],
+                'has_discord_xp_snapshot': community_xp_breakdown['has_discord_xp_snapshot'],
+                'latest_applied_sync_completed_at': community_xp_breakdown['latest_applied_sync_completed_at'],
+                'latest_applied_at': community_xp_breakdown['latest_applied_at'],
+            })
+
+        return result
         
     @action(detail=False, methods=['get'], url_path='user/(?P<user_id>[^/.]+)')
     def user_stats(self, request, user_id=None):
@@ -601,11 +675,11 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     def community(self, request):
         """
         Get community statistics and paginated community members.
-        Returns users sorted by actual community contribution points.
+        Returns users sorted by effective community points.
         Supports limit/offset pagination and user_address lookup.
         """
-        from users.models import User
         from users.serializers import LightUserSerializer
+        from community_xp.utils import build_effective_community_scores
 
         try:
             limit = int(request.query_params.get('limit', 20))
@@ -618,57 +692,51 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         except (ValueError, TypeError):
             offset = 0
 
-        community_contributions = Contribution.objects.filter(
-            user__visible=True,
-            contribution_type__category__slug='community',
-        ).exclude(
-            contribution_type__slug__in=ONBOARDING_CONTRIBUTION_TYPE_SLUGS
-        )
+        score_map = build_effective_community_scores(visible_only=True)
+        entries = [
+            score
+            for score in score_map.values()
+            if (score['total_points'] or 0) > 0
+        ]
 
-        search = request.query_params.get('search', '').strip()
+        search = request.query_params.get('search', '').strip().lower()
         if search:
-            community_contributions = community_contributions.filter(
-                Q(user__name__icontains=search) |
-                Q(user__address__icontains=search)
-            )
+            entries = [
+                score
+                for score in entries
+                if search in (score['user'].name or '').lower()
+                or search in (score['user'].address or '').lower()
+            ]
 
-        community_totals = (
-            community_contributions.values('user_id')
-            .annotate(
-                total_points=Sum('frozen_global_points'),
-                contribution_count=Count('id'),
+        entries.sort(
+            key=lambda score: (
+                -(score['total_points'] or 0),
+                (score['user'].name or '').lower(),
+                score['user'].id,
             )
-            .filter(total_points__gt=0)
-            .order_by('-total_points', 'user__name')
         )
 
-        count = community_totals.count()
+        count = len(entries)
         user_address = request.query_params.get('user_address')
         user_rank = None
         user_total_points = None
 
         if user_address:
-            user_entry = community_totals.filter(user__address__iexact=user_address).first()
-            if user_entry:
-                user_total_points = user_entry['total_points'] or 0
-                if user_total_points > 0:
-                    user_rank = community_totals.filter(total_points__gt=user_total_points).count() + 1
+            user_address = user_address.lower()
+            for rank, score in enumerate(entries, start=1):
+                if (score['user'].address or '').lower() == user_address:
+                    user_rank = rank
+                    user_total_points = score['total_points'] or 0
+                    break
 
-        page = list(community_totals[offset:offset + limit])
-        users_by_id = {
-            user.id: user
-            for user in User.objects.filter(id__in=[entry['user_id'] for entry in page])
-                .select_related('validator', 'builder', 'steward', 'creator')
-        }
+        page = entries[offset:offset + limit]
 
         results = []
-        for index, entry in enumerate(page, start=offset + 1):
-            user = users_by_id.get(entry['user_id'])
-            if not user:
-                continue
+        for index, score in enumerate(page, start=offset + 1):
+            user = score['user']
 
             user_data = LightUserSerializer(user).data
-            total_points = entry['total_points'] or 0
+            total_points = score['total_points'] or 0
             results.append({
                 **user_data,
                 'user_details': user_data,
@@ -676,7 +744,14 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 'user_name': user.name,
                 'community_points': total_points,
                 'total_points': total_points,
-                'contribution_count': entry['contribution_count'] or 0,
+                'contribution_count': score['community_contribution_count'] or 0,
+                'discord_xp': score['discord_xp'],
+                'discord_xp_synced_at': score['discord_xp_synced_at'],
+                'pending_portal_points': score['pending_portal_points'],
+                'tracked_portal_points_all_time': score['tracked_portal_points_all_time'],
+                'has_discord_xp_snapshot': score['has_discord_xp_snapshot'],
+                'latest_applied_sync_completed_at': score['latest_applied_sync_completed_at'],
+                'latest_applied_at': score['latest_applied_at'],
                 'rank': index,
             })
 

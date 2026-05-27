@@ -1,10 +1,52 @@
 <script>
   import { push, location } from 'svelte-spa-router';
+  import { onMount } from 'svelte';
   import { currentCategory, categoryTheme } from '../stores/category.js';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
+  import { contributionsAPI } from '../lib/api.js';
+  import { stewardPermissions } from '../lib/stewardPermissions.js';
 
   let { isOpen = $bindable(false), collapsed = $bindable(false) } = $props();
+  let stewardPermissionMap = $state({});
+  let communityContributionTypes = $state([]);
+  let stewardNavPermissionsLoaded = $state(false);
+
+  let canAccessDiscordXP = $derived(
+    communityContributionTypes.some(type =>
+      (stewardPermissionMap[String(type.id)] || []).includes('accept')
+    )
+  );
+
+  async function loadStewardNavigationPermissions() {
+    try {
+      await stewardPermissions.load();
+      const response = await contributionsAPI.getContributionTypes({
+        page_size: 100,
+        category: 'community',
+      });
+      communityContributionTypes = response.data.results || response.data || [];
+    } catch (err) {
+      communityContributionTypes = [];
+    }
+  }
+
+  onMount(() => {
+    const unsubscribe = stewardPermissions.subscribe(value => {
+      stewardPermissionMap = value || {};
+    });
+    return unsubscribe;
+  });
+
+  $effect(() => {
+    if ($userStore.user?.steward && !stewardNavPermissionsLoaded) {
+      stewardNavPermissionsLoaded = true;
+      loadStewardNavigationPermissions();
+    } else if (!$userStore.user?.steward) {
+      stewardNavPermissionsLoaded = false;
+      communityContributionTypes = [];
+    }
+  });
 
   // Track previous location to detect route changes
   let previousLocation = $state($location);
@@ -370,6 +412,17 @@
             >
               Contribution Submissions
             </a>
+            {#if canAccessDiscordXP}
+              <a
+                href="/stewards/discord-xp"
+                onclick={(e) => { e.preventDefault(); navigate('/stewards/discord-xp'); }}
+                class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                  isActive('/stewards/discord-xp') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
+                }"
+              >
+                Discord XP
+              </a>
+            {/if}
             <a
               href="/stewards/manage-users"
               onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}
@@ -763,6 +816,17 @@
           >
             Contribution Submissions
           </a>
+          {#if canAccessDiscordXP}
+            <a
+              href="/stewards/discord-xp"
+              onclick={(e) => { e.preventDefault(); navigate('/stewards/discord-xp'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/stewards/discord-xp') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Discord XP
+            </a>
+          {/if}
           <a
             href="/stewards/manage-users"
             onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}

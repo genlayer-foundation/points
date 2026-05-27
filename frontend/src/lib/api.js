@@ -119,8 +119,12 @@ export const leaderboardAPI = {
 
     return api.get('/leaderboard/', { params: restParams });
   },
-  getLeaderboardByType: (type, order = 'asc', additionalParams = {}) =>
-    api.get('/leaderboard/', { params: { type, order, ...additionalParams } }),
+  getLeaderboardByType: (type, order = 'asc', additionalParams = {}) => {
+    if (type === 'community') {
+      return api.get('/leaderboard/community/', { params: { order, ...additionalParams } });
+    }
+    return api.get('/leaderboard/', { params: { type, order, ...additionalParams } });
+  },
   getLeaderboardEntry: (address) => api.get(`/leaderboard/?user_address=${address}`),
   getMultipliers: () => api.get('/multipliers/'),
   getActiveMultipliers: () => api.get('/multipliers/active/'),
@@ -206,6 +210,16 @@ export const socialAPI = {
 export const stewardAPI = {
   // Get all submissions for review
   getSubmissions: (params = {}) => api.get('/steward-submissions/', { params }),
+
+  // Get community contribution Discord XP states
+  getDiscordXP: (params = {}) => api.get('/steward-discord-xp/', { params }),
+
+  // Record that a steward copied the manual Discord XP command
+  recordDiscordXPCopy: (contributionId) => api.post(`/steward-discord-xp/${contributionId}/record-copy/`),
+
+  // Mark or unset manual Discord XP distribution
+  markDiscordXPDistributed: (contributionId) => api.post(`/steward-discord-xp/${contributionId}/mark-distributed/`),
+  unsetDiscordXPDistributed: (contributionId) => api.post(`/steward-discord-xp/${contributionId}/unset-distributed/`),
 
   // Get a single submission
   getSubmission: (id) => api.get(`/steward-submissions/${id}/`),

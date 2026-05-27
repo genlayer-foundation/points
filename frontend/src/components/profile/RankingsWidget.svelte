@@ -7,6 +7,7 @@
     let {
         participant = null,
         isOwnProfile = false,
+        topRole = null,
         builderStats = null,
         validatorStats = null,
         communityStats = null,
@@ -14,6 +15,7 @@
     } = $props();
 
     let communityRank: number | null = $state(null);
+    const DEFAULT_TAB_ORDER = ["Builders", "Validators", "Community"];
 
     // Role checks
     let isBuilder = $derived(!!participant?.builder);
@@ -25,22 +27,65 @@
         participant?.has_validator_waitlist && !participant?.validator,
     );
 
-    // Only show tabs for roles the user actually has
+    function getTabForRoleKey(roleKey: string) {
+        if (roleKey === "builder") return "Builders";
+        if (roleKey === "validator") return "Validators";
+        if (roleKey === "community") return "Community";
+        return null;
+    }
+
+    let topRoleTabs = $derived.by(() => {
+        const tabs: string[] = [];
+        const badges = topRole?.badges || [];
+
+        for (const badge of badges) {
+            const tab = getTabForRoleKey(badge?.key || badge?.category);
+            if (tab && !tabs.includes(tab)) tabs.push(tab);
+        }
+
+        const categoryTab = getTabForRoleKey(topRole?.category);
+        if (categoryTab && !tabs.includes(categoryTab)) {
+            tabs.push(categoryTab);
+        }
+
+        return tabs;
+    });
+
+    // Only show tabs for roles the user actually has, ordered by top role first.
     let availableTabs = $derived.by(() => {
-        const tabs = [];
+        const tabs: string[] = [];
         if (isBuilder) tabs.push("Builders");
         if (isValidator) tabs.push("Validators");
-        return tabs;
+        if (isCreator) tabs.push("Community");
+
+        const preferred = topRoleTabs.filter((tab) => tabs.includes(tab));
+        const remaining = DEFAULT_TAB_ORDER.filter(
+            (tab) => tabs.includes(tab) && !preferred.includes(tab),
+        );
+
+        return [...preferred, ...remaining];
     });
 
     let hasAnyRankableRole = $derived(isBuilder || isValidator || isCreator);
 
     let activeTab: string | null = $state(null);
+    let activeTabAddress: string | null = $state(null);
+    let userSelectedTab = $state(false);
 
     // Set initial tab when available tabs change
     $effect(() => {
         const tabs = availableTabs;
+        const addr = participant?.address || null;
+        if (addr !== activeTabAddress) {
+            activeTabAddress = addr;
+            userSelectedTab = false;
+            activeTab = tabs[0] || null;
+            return;
+        }
+
         if (tabs.length > 0 && (!activeTab || !tabs.includes(activeTab))) {
+            activeTab = tabs[0];
+        } else if (tabs.length > 0 && !userSelectedTab && activeTab !== tabs[0]) {
             activeTab = tabs[0];
         }
     });
@@ -61,7 +106,8 @@
                 apiType = isValidatorWaitlist
                     ? "validator-waitlist"
                     : "validator";
-            } else apiType = "builder";
+            } else if (tab === "Community") apiType = "community";
+            else apiType = "builder";
 
             const topRes = await leaderboardAPI.getLeaderboard({
                 type: apiType,
@@ -90,9 +136,14 @@
                         type: apiType,
                         user_address: participant.address,
                     });
-                    const userEntries =
-                        userEntryRes.data?.results || userEntryRes.data || [];
-                    if (userEntries.length > 0) {
+                    if (apiType === "community") {
+                        userRank = userEntryRes.data?.user_rank || null;
+                    }
+
+                    const userEntries = Array.isArray(userEntryRes.data)
+                        ? userEntryRes.data
+                        : userEntryRes.data?.results || [];
+                    if (!userRank && userEntries.length > 0) {
                         userRank = userEntries[0].rank;
                     }
                 } catch {}
@@ -139,37 +190,44 @@
         }
     }
 
-    let initializedForAddress = $state(null);
+    let loadedLeaderboardKey: string | null = $state(null);
+    let loadedCommunityRankForAddress: string | null = $state(null);
 
     $effect(() => {
         const addr = participant?.address;
-        if (!addr || addr === initializedForAddress || !hasAnyRankableRole)
-            return;
-        initializedForAddress = addr;
+        if (!addr || !hasAnyRankableRole || !activeTab) return;
 
-        if (activeTab) {
+        const key = `${addr}:${activeTab}`;
+        if (key !== loadedLeaderboardKey) {
+            loadedLeaderboardKey = key;
             loadTabLeaderboard(activeTab);
         }
+    });
 
-        // Fetch community rank only if user is a creator
-        if (isCreator) {
-            (leaderboardAPI as any)
-                .getLeaderboard({
-                    type: "community",
-                    limit: 1,
-                    user_address: addr,
-                })
-                .then((res: any) => {
-                    if (res.data?.user_rank) {
-                        communityRank = res.data.user_rank;
-                    }
-                })
-                .catch(() => {});
-        }
+    $effect(() => {
+        const addr = participant?.address;
+        if (!addr || !isCreator || addr === loadedCommunityRankForAddress)
+            return;
+
+        loadedCommunityRankForAddress = addr;
+        communityRank = null;
+        (leaderboardAPI as any)
+            .getLeaderboard({
+                type: "community",
+                limit: 1,
+                user_address: addr,
+            })
+            .then((res: any) => {
+                if (res.data?.user_rank) {
+                    communityRank = res.data.user_rank;
+                }
+            })
+            .catch(() => {});
     });
 
     function switchTab(t: string) {
         if (t !== activeTab) {
+            userSelectedTab = true;
             activeTab = t;
             loadTabLeaderboard(t);
         }
@@ -390,7 +448,8 @@
                                             </svg>
                                             <span>
                                                 {formatPoints(
-                                                    row.points ||
+                                                    row.community_points ||
+                                                        row.points ||
                                                         row.total_points ||
                                                         0,
                                                 )}

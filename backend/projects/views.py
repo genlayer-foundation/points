@@ -42,11 +42,8 @@ class ProjectViewSet(viewsets.ReadOnlyModelViewSet):
         return ProjectListSerializer
 
     def ensure_project_editor(self, project):
-        user = self.request.user
-        if not user or not user.is_authenticated:
-            raise PermissionDenied('Authentication is required.')
-        if not user.is_staff and project.user_id != user.id:
-            raise PermissionDenied('You can only edit projects assigned to your account.')
+        if not project.can_be_edited_by(self.request.user):
+            raise PermissionDenied('You can only edit projects you own or participate in.')
 
     @action(detail=True, methods=['patch'], url_path='profile', permission_classes=[permissions.IsAuthenticated])
     def profile(self, request, slug=None):

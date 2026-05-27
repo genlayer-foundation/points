@@ -35,11 +35,11 @@
       let response;
       if (categoryToUse === 'global') {
         response = await leaderboardAPI.getLeaderboard({ limit });
-        leaderboard = response.data || [];
+        leaderboard = extractEntries(response.data);
       } else {
         // Use type-specific endpoint with limit for efficiency
         response = await leaderboardAPI.getLeaderboardByType(categoryToUse, 'asc', { limit });
-        leaderboard = response.data || [];
+        leaderboard = extractEntries(response.data);
       }
 
       // Backend should return limited results, but slice as fallback
@@ -51,6 +51,10 @@
       error = err.message || 'Failed to load leaderboard';
       internalLoading = false;
     }
+  }
+
+  function extractEntries(data) {
+    return Array.isArray(data) ? data : (data?.results ?? []);
   }
 
   // If entries are provided as prop, use them instead of fetching

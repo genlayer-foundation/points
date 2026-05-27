@@ -81,6 +81,7 @@ INSTALLED_APPS = [
     'partners',
     'gen_tv',
     'social_connections',
+    'community_xp.apps.CommunityXpConfig',
     'poaps.apps.PoapsConfig',
 ]
 
