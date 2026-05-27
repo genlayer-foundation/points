@@ -234,7 +234,7 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS": "$SSM_PREFIX/prod/discord_role_submission_sync_grace_seconds",
           "DISCORD_REDIRECT_URI": "$SSM_PREFIX/prod/discord_redirect_uri"
         },
-        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
+        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 --access-logfile - --error-logfile - --capture-output --log-level info tally.wsgi:application"
       },
       "ImageRepositoryType": "ECR"
     },
@@ -335,7 +335,7 @@ else
           "DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS": "$SSM_PREFIX/prod/discord_role_submission_sync_grace_seconds",
           "DISCORD_REDIRECT_URI": "$SSM_PREFIX/prod/discord_redirect_uri"
         },
-        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
+        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 --access-logfile - --error-logfile - --capture-output --log-level info tally.wsgi:application"
       },
       "ImageRepositoryType": "ECR"
     },

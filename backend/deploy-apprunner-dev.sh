@@ -95,7 +95,7 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "TWITTER_REDIRECT_URI": "$SSM_PREFIX/$SSM_ENV/twitter_redirect_uri",
           "DISCORD_REDIRECT_URI": "$SSM_PREFIX/$SSM_ENV/discord_redirect_uri"
         },
-        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
+        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 --access-logfile - --error-logfile - --capture-output --log-level info tally.wsgi:application"
       },
       "ImageRepositoryType": "ECR"
     },
@@ -271,7 +271,7 @@ EOF
           "TWITTER_REDIRECT_URI": "$SSM_PREFIX/$SSM_ENV/twitter_redirect_uri",
           "DISCORD_REDIRECT_URI": "$SSM_PREFIX/$SSM_ENV/discord_redirect_uri"
         },
-        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 tally.wsgi:application"
+        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 --access-logfile - --error-logfile - --capture-output --log-level info tally.wsgi:application"
       },
       "ImageRepositoryType": "ECR"
     },
