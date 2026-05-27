@@ -309,6 +309,7 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['community_member_count'], 0)
         self.assertEqual(response.data['participant_count'], 0)
         self.assertEqual(response.data['contribution_count'], 0)
+        self.assertEqual(response.data['total_points'], 20)
 
     def test_community_stats_use_effective_mee6_points_and_members(self):
         mee6_only_user = self._create_user(
