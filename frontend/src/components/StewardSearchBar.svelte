@@ -30,6 +30,7 @@
     { name: 'from', description: 'Search by user name/email/address', values: () => [] },
     { name: 'assigned', description: 'Filter by assignment', values: () => ['me', 'unassigned', ...stewardsList.map(s => s.name || s.address?.slice(0, 10))] },
     { name: 'reviewed', description: 'Filter by steward who reviewed', values: () => ['me', ...stewardsList.map(s => s.name || s.address?.slice(0, 10))] },
+    { name: 'proposed-by', description: 'Filter by proposal creator', values: () => ['ai', 'me', 'none', ...stewardsList.map(s => s.name || s.address?.slice(0, 10))] },
     { name: 'exclude', description: 'Exclude submissions containing text', values: () => ['medium.com'] },
     { name: 'include', description: 'Only show submissions containing text', values: () => [] },
     { name: 'has', description: 'Filter by presence', values: () => ['url', 'evidence', 'proposal', 'appeal'] },
@@ -237,6 +238,7 @@
           <div class="help-row"><code>from:username</code><span>Search by user name/email/address</span></div>
           <div class="help-row"><code>assigned:me</code><span>Filter by assignment (me, unassigned, name)</span></div>
           <div class="help-row"><code>reviewed:me</code><span>Filter by steward who accepted/rejected it</span></div>
+          <div class="help-row"><code>proposed-by:ai</code><span>Only active proposals from the AI reviewer</span></div>
           <div class="help-row"><code>exclude:medium.com</code><span>Exclude submissions containing text</span></div>
           <div class="help-row"><code>include:genlayer</code><span>Only show submissions containing text</span></div>
           <div class="help-row"><code>has:url</code><span>Only submissions with URLs</span></div>
@@ -256,11 +258,13 @@
         <div class="help-section">
           <div class="help-subtitle">Negation</div>
           <div class="help-row"><code>-type:blog-post</code><span>Exclude contribution type</span></div>
+          <div class="help-row"><code>-proposed-by:ai</code><span>Exclude active AI proposals</span></div>
           <div class="help-row"><code>-mission:name</code><span>Exclude a mission while keeping other matches</span></div>
         </div>
         <div class="help-section">
           <div class="help-subtitle">Examples</div>
           <div class="help-example">assigned:me exclude:medium.com has:url</div>
+          <div class="help-example">has:proposal proposed-by:ai confidence:low</div>
           <div class="help-example">status:accepted reviewed:alice</div>
           <div class="help-example">from:alice -type:referral min-contributions:2</div>
           <div class="help-example">type:bug-report -mission:wallet-login is:resubmitted</div>

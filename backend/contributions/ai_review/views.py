@@ -45,6 +45,8 @@ class AIReviewFilterSet(FilterSet):
     exclude_username = CharFilter(method='filter_exclude_username')
     assigned_to = CharFilter(method='filter_assigned_to')
     exclude_assigned_to = CharFilter(method='filter_exclude_assigned_to')
+    proposed_by = CharFilter(method='filter_proposed_by')
+    exclude_proposed_by = CharFilter(method='filter_exclude_proposed_by')
     include_content = CharFilter(method='filter_include_content')
     exclude_content = CharFilter(method='filter_exclude_content')
     exclude_empty_evidence = BooleanFilter(method='filter_exclude_empty_evidence')
@@ -111,6 +113,55 @@ class AIReviewFilterSet(FilterSet):
             return queryset.exclude(assigned_to__isnull=True)
         if value:
             return queryset.exclude(assigned_to_id=value)
+        return queryset
+
+    def _proposed_by_condition(self, value):
+        if value in ('none', 'null', 'unproposed'):
+            return Q(proposed_by__isnull=True)
+        if value == 'ai':
+            return Q(proposed_by__email=AI_STEWARD_EMAIL)
+        return Q(proposed_by_id=value)
+
+    def _is_reviewed_history_request(self):
+        parser_context = getattr(self.request, 'parser_context', {}) if self.request else {}
+        view = parser_context.get('view')
+        return getattr(view, 'action', None) == 'reviewed'
+
+    def _historical_proposal_note_exists(self, value):
+        notes = SubmissionNote.objects.filter(
+            submitted_contribution=OuterRef('pk'),
+            is_proposal=True,
+        )
+        if value == 'ai':
+            notes = notes.filter(user__email=AI_STEWARD_EMAIL)
+        else:
+            notes = notes.filter(user_id=value)
+        return Exists(notes)
+
+    def filter_proposed_by(self, queryset, name, value):
+        if value:
+            if self._is_reviewed_history_request():
+                if value in ('none', 'null', 'unproposed'):
+                    notes = SubmissionNote.objects.filter(
+                        submitted_contribution=OuterRef('pk'),
+                        is_proposal=True,
+                    )
+                    return queryset.filter(~Exists(notes))
+                return queryset.filter(self._historical_proposal_note_exists(value))
+            return queryset.filter(self._proposed_by_condition(value))
+        return queryset
+
+    def filter_exclude_proposed_by(self, queryset, name, value):
+        if value:
+            if self._is_reviewed_history_request():
+                if value in ('none', 'null', 'unproposed'):
+                    notes = SubmissionNote.objects.filter(
+                        submitted_contribution=OuterRef('pk'),
+                        is_proposal=True,
+                    )
+                    return queryset.exclude(~Exists(notes))
+                return queryset.exclude(self._historical_proposal_note_exists(value))
+            return queryset.exclude(self._proposed_by_condition(value))
         return queryset
 
     def filter_search(self, queryset, name, value):
@@ -416,11 +467,23 @@ class AIReviewViewSet(
         )
 
         is_update = request.method == 'PUT'
+        ai_user = self._get_ai_user()
+        if ai_user is None:
+            return Response(
+                {'error': 'AI steward user not found. Run migrations.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         if is_update and submission.proposed_action is None:
             return Response(
                 {'error': 'This submission has no proposal to update.'},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if is_update and submission.proposed_by_id != ai_user.id:
+            return Response(
+                {'error': 'Only AI-created proposals can be updated through this endpoint.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         if not is_update and submission.proposed_action is not None:
@@ -431,13 +494,6 @@ class AIReviewViewSet(
 
         serializer = AIReviewProposeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        ai_user = self._get_ai_user()
-        if ai_user is None:
-            return Response(
-                {'error': 'AI steward user not found. Run migrations.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
 
         return self._validate_and_apply_proposal(
             submission, serializer.validated_data, ai_user, is_update=is_update,
@@ -456,6 +512,7 @@ class AIReviewViewSet(
             SubmittedContribution.objects.filter(
                 state='pending',
                 proposed_action__isnull=False,
+                proposed_by__email=AI_STEWARD_EMAIL,
             )
             .select_related(
                 'contribution_type',

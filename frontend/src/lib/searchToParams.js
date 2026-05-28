@@ -137,6 +137,38 @@ export function searchToParams(parsed, options = {}) {
     }
   }
 
+  // proposed-by → proposed_by (the steward/agent who created the active proposal)
+  if (filters['proposed-by']) {
+    const val = filters['proposed-by'].value.toLowerCase();
+    let proposedByValue = null;
+
+    if (val === 'ai') {
+      proposedByValue = 'ai';
+    } else if (val === 'me' && currentUserId) {
+      proposedByValue = currentUserId;
+    } else if (val === 'none' || val === 'unproposed') {
+      proposedByValue = 'none';
+    } else {
+      const steward = stewardsList.find(s =>
+        String(s.user_id) === filters['proposed-by'].value ||
+        s.name?.toLowerCase().includes(val) ||
+        s.user_name?.toLowerCase().includes(val) ||
+        s.address?.toLowerCase().includes(val)
+      );
+      if (steward) {
+        proposedByValue = steward.user_id;
+      }
+    }
+
+    if (proposedByValue) {
+      if (filters['proposed-by'].negated) {
+        params.exclude_proposed_by = proposedByValue;
+      } else {
+        params.proposed_by = proposedByValue;
+      }
+    }
+  }
+
   // exclude → exclude_content (comma-separated for multiple values)
   if (filters.exclude && filters.exclude.length > 0) {
     params.exclude_content = filters.exclude.join(',');

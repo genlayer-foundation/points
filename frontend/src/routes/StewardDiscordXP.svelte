@@ -241,11 +241,8 @@
 
     try {
       const response = await stewardAPI.markDiscordXPDistributed(row.contribution);
-      updateRow(response.data);
+      await applyServerRow(response.data);
       showSuccess('Marked as distributed');
-      if (statusFilter !== 'all' && response.data.status !== statusFilter) {
-        await loadXP();
-      }
     } catch (err) {
       showError(err.response?.data?.detail || 'Failed to mark distributed');
     } finally {
@@ -262,11 +259,8 @@
 
     try {
       const response = await stewardAPI.unsetDiscordXPDistributed(row.contribution);
-      updateRow(response.data);
+      await applyServerRow(response.data);
       showSuccess('Distribution flag unset');
-      if (statusFilter !== 'all' && response.data.status !== statusFilter) {
-        await loadXP();
-      }
     } catch (err) {
       showError(err.response?.data?.detail || 'Failed to unset distribution flag');
     } finally {
@@ -277,6 +271,28 @@
 
   function updateRow(nextRow) {
     rows = rows.map(row => row.contribution === nextRow.contribution ? nextRow : row);
+  }
+
+  function rowMatchesActiveStatus(row) {
+    return statusFilter === 'all' || row.status === statusFilter;
+  }
+
+  async function applyServerRow(nextRow) {
+    const existing = rows.find(row => row.contribution === nextRow.contribution);
+    if (!existing) return;
+
+    if (rowMatchesActiveStatus(nextRow)) {
+      updateRow(nextRow);
+      return;
+    }
+
+    rows = rows.filter(row => row.contribution !== nextRow.contribution);
+    totalCount = Math.max(0, totalCount - 1);
+
+    if (rows.length === 0 && totalCount > 0) {
+      currentPage = Math.min(currentPage, Math.max(1, Math.ceil(totalCount / pageSize)));
+      await loadXP();
+    }
   }
 
   function formatDate(value) {
