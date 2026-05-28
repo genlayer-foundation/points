@@ -46,4 +46,10 @@ describe("steward search negation", () => {
       include_content: "genlayer",
     });
   });
+
+  it("maps proposal creator filters", () => {
+    expect(paramsFor("proposed-by:ai")).toEqual({ proposed_by: "ai" });
+    expect(paramsFor("-proposed-by:ai")).toEqual({ exclude_proposed_by: "ai" });
+    expect(paramsFor("proposed-by:none")).toEqual({ proposed_by: "none" });
+  });
 });

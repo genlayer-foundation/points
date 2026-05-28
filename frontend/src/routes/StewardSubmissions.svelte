@@ -242,8 +242,9 @@
         missions
       });
 
-      // Add status from dropdown (overrides search query if present)
-      if (stateFilter) {
+      // The dropdown is the default status filter. Only a positive search
+      // status overrides it; negated statuses are additive exclusions.
+      if (stateFilter && (!parsed.filters.status || parsed.filters.status.negated)) {
         params.state = stateFilter;
       }
 
@@ -700,7 +701,7 @@
           {templates}
           {missions}
           onSearch={handleSearchChange}
-          placeholder="type:blog-post reviewed:me -mission:name has:appeal..."
+          placeholder="type:blog-post reviewed:me proposed-by:ai has:proposal..."
         />
       </div>
     </div>
