@@ -346,6 +346,7 @@ const routes = {
   '/validators/highlights': AllContributions,
   '/validators/leaderboard': Leaderboard,
   '/validators/participants': Validators,
+  '/validators/wall-of-shame': WallOfShame,
   '/validators/waitlist': Waitlist,
   '/validators/waitlist/participants': WaitlistParticipants,
   '/validators/waitlist/join': ValidatorWaitlist,
@@ -404,6 +405,7 @@ const routes = {
   - `creatorAPI` - Community/creator membership (joinAsCreator)
   - `partnersAPI` - Ecosystem partners directory (`list`, `get(slug)`)
   - `genTvAPI` - Gen TV streams (`list`, `get(slug)`)
+  - `validatorsAPI.getWallOfShame(params)` - Public Wall of Shame list for active validators with Grafana metrics/logs status badges (renders in `routes/WallOfShame.svelte`)
 
 ### Authentication (`src/lib/auth.js`)
 - **Auth Store**: Svelte store `authState`
