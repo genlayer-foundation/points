@@ -7,6 +7,7 @@
  * - from:username
  * - assigned:me|unassigned|steward-name
  * - reviewed:me|steward-name
+ * - proposed-by:ai|me|none|steward-name
  * - exclude:text (multiple allowed)
  * - include:text (multiple allowed)
  * - has:url|evidence|proposal|appeal
@@ -20,7 +21,7 @@
  * Quoted values: tag:"value with spaces"
  */
 
-const SINGLE_VALUE_TAGS = ['status', 'type', 'category', 'from', 'assigned', 'reviewed', 'sort', 'confidence', 'template', 'proposal', 'mission'];
+const SINGLE_VALUE_TAGS = ['status', 'type', 'category', 'from', 'assigned', 'reviewed', 'proposed-by', 'sort', 'confidence', 'template', 'proposal', 'mission'];
 const MULTI_VALUE_TAGS = ['exclude', 'include', 'has', 'no', 'is', 'not'];
 const NUMERIC_TAGS = ['min-contributions'];
 const NEGATED_MULTI_VALUE_TAGS = {
@@ -122,6 +123,7 @@ export function parseSearch(query) {
     from: null,
     assigned: null,
     reviewed: null,
+    'proposed-by': null,
     exclude: [],
     include: [],
     has: [],

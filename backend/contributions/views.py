@@ -58,6 +58,8 @@ METRICS_POINTS_EXCLUDED_TYPE_SLUGS = [
     'community-link-discord',
 ]
 
+AI_STEWARD_EMAIL = 'genlayer-steward@genlayer.foundation'
+
 
 class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -1031,6 +1033,8 @@ class StewardSubmissionFilterSet(FilterSet):
     exclude_assigned_to = CharFilter(method='filter_exclude_assigned_to')
     reviewed_by = CharFilter(method='filter_reviewed_by')
     exclude_reviewed_by = CharFilter(method='filter_exclude_reviewed_by')
+    proposed_by = CharFilter(method='filter_proposed_by')
+    exclude_proposed_by = CharFilter(method='filter_exclude_proposed_by')
     exclude_contribution_type = NumberFilter(method='filter_exclude_contribution_type')
     exclude_content = CharFilter(method='filter_exclude_content')
     include_content = CharFilter(method='filter_include_content')
@@ -1126,6 +1130,25 @@ class StewardSubmissionFilterSet(FilterSet):
         """Exclude submissions reviewed by a specific steward."""
         if value:
             return queryset.exclude(reviewed_by_id=value)
+        return queryset
+
+    def _proposed_by_condition(self, value):
+        if value in ('none', 'null', 'unproposed'):
+            return Q(proposed_by__isnull=True)
+        if value == 'ai':
+            return Q(proposed_by__email=AI_STEWARD_EMAIL)
+        return Q(proposed_by_id=value)
+
+    def filter_proposed_by(self, queryset, name, value):
+        """Filter by steward or agent who created the active proposal."""
+        if value:
+            return queryset.filter(self._proposed_by_condition(value))
+        return queryset
+
+    def filter_exclude_proposed_by(self, queryset, name, value):
+        """Exclude active proposals created by a specific steward or agent."""
+        if value:
+            return queryset.exclude(self._proposed_by_condition(value))
         return queryset
 
     def filter_exclude_contribution_type(self, queryset, name, value):
