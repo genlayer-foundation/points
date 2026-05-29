@@ -5,6 +5,7 @@ on:
     branches: [ dev ]
     paths: 
       - 'backend/**'
+      - '.github/workflows/deploy-backend-dev.yml'
   workflow_dispatch: # Allow manual triggering
 
 env:
@@ -30,6 +31,22 @@ jobs:
       with:
         role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
         aws-region: ${{ env.AWS_REGION }}
+
+    - name: Sync Grafana API token to SSM
+      env:
+        GRAFANA_API_TOKEN: ${{ secrets.GRAFANA_API_TOKEN }}
+      run: |
+        if [ -z "$GRAFANA_API_TOKEN" ]; then
+          echo "::notice::GRAFANA_API_TOKEN secret is not set; leaving existing SSM parameter unchanged"
+          exit 0
+        fi
+
+        aws ssm put-parameter \
+          --name "${{ env.SSM_PREFIX }}/${{ env.SSM_ENV }}/grafana_api_token" \
+          --value "$GRAFANA_API_TOKEN" \
+          --type SecureString \
+          --overwrite \
+          --region "${{ env.AWS_REGION }}"
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
