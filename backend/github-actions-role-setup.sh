@@ -109,6 +109,15 @@ cat > github-actions-policy.json << EOF
                 "sts:GetCallerIdentity"
             ],
             "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ssm:PutParameter"
+            ],
+            "Resource": [
+                "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter/tally-backend/dev/grafana_api_token"
+            ]
         }
     ]
 }
