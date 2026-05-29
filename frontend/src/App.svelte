@@ -97,6 +97,7 @@
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
   import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
+  import WallOfShame from './routes/WallOfShame.svelte';
 
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
@@ -165,6 +166,7 @@
     '/validators/all-contributions': AllContributions,
     '/validators/leaderboard': Leaderboard,
     '/validators/participants': Validators,
+    '/validators/wall-of-shame': WallOfShame,
     '/validators/waitlist': Waitlist,
     '/validators/waitlist/participants': WaitlistParticipants,
     '/validators/waitlist/join': ValidatorWaitlist,

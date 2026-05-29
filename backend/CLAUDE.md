@@ -116,14 +116,18 @@ backend/
 
 ### Validators
 - **Models**: `validators/models.py`
-  - ValidatorWallet - Synced validator wallet metadata per network
+  - ValidatorWallet - Synced validator wallet metadata per network. Now also stores Wall of Shame observability state: `metrics_status`, `logs_status` (both `on` / `shame` / `unknown`), and `last_grafana_check_at`.
   - ValidatorWalletStatusSnapshot - Daily wallet status snapshots for uptime lookback
   - SyncLock - Database-backed sync coordination row with owner token for cross-worker locking
+- **Services**: `validators/grafana_service.py`
+  - GrafanaValidatorStatusService - Polls Grafana Cloud (`/api/ds/query`) Prometheus + Loki datasources and updates `ValidatorWallet.metrics_status` / `logs_status` for `status='active'` wallets, per network. Used by the Wall of Shame cron.
 - **Views**: `validators/views.py`
   - `/api/v1/validators/` - Validator profile CRUD for authenticated users
   - `/api/v1/validators/me/` - GET/PATCH current validator profile
   - `/api/v1/validators/wallets/` - Read-only validator wallet listing
-  - `/api/v1/validators/wallets/sync/` - POST cron-protected background sync trigger with DB-backed lock
+  - `/api/v1/validators/wallets/sync/` - POST cron-protected background sync trigger with DB-backed lock (on-chain validator sync)
+  - `/api/v1/validators/wallets/sync-grafana/` - POST cron-protected background sync trigger for Grafana observability cross-check (separate SyncLock row `grafana_status_sync` so it can run alongside the on-chain sync)
+  - `/api/v1/validators/wallets/wall-of-shame/` - Public read-only endpoint listing active validator wallets with `metrics_status` / `logs_status`. SHAME rows sort first. Cached 60s. Optional `?network=asimov|bradbury` filter.
 
 ### Partners (Ecosystem Partners)
 - **Models**: `partners/models.py`
@@ -251,6 +255,10 @@ GET    /api/v1/leaderboard/user_stats/by-address/{address}/
 GET    /api/v1/multipliers/
 GET    /api/v1/multiplier-periods/
 
+# Validators - Wall of Shame
+POST   /api/v1/validators/wallets/sync-grafana/    (cron-protected, X-Cron-Token, background)
+GET    /api/v1/validators/wallets/wall-of-shame/   (public, cached 60s, ?network= filter)
+
 # Steward Submissions (public metrics)
 GET    /api/v1/steward-submissions/stats/           (public - aggregate stats)
 GET    /api/v1/steward-submissions/daily-metrics/   (public - time-series data)
@@ -286,6 +294,12 @@ Located in `.env` file:
 - `ALLOWED_HOSTS` - Allowed host headers
 - `RECAPTCHA_PUBLIC_KEY` - Google reCAPTCHA site key (required - use test key from .env.example for development)
 - `RECAPTCHA_PRIVATE_KEY` - Google reCAPTCHA secret key (required - use test key from .env.example for development)
+- `CRON_SYNC_TOKEN` - Cron-protected endpoint auth (used by `sync` and `sync-grafana`)
+- `GRAFANA_BASE_URL` - Grafana Cloud base URL (default `https://genlayerfoundation.grafana.net`)
+- `GRAFANA_API_TOKEN` - Grafana service-account bearer token (required for Wall of Shame). Store in AWS SSM (`/tally/{env}/grafana_api_token`) for production.
+- `GRAFANA_PROM_DS_UID` - Prometheus datasource UID (default `grafanacloud-prom`)
+- `GRAFANA_LOKI_DS_UID` - Loki datasource UID (default `grafanacloud-logs`)
+- `GRAFANA_ASIMOV_LABEL` / `GRAFANA_BRADBURY_LABEL` - Override the `network` label values Grafana queries use per testnet (defaults: `asimov-phase5`, `bradbury-phase1`)
 
 **AWS Deployment:** For production deployments on AWS App Runner, all environment variables must be stored in AWS Systems Manager (SSM) Parameter Store. See `aws-deployment-guide.md` for setup instructions.
 

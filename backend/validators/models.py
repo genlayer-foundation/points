@@ -23,6 +23,12 @@ class ValidatorWallet(BaseModel):
         ('bradbury', 'Bradbury'),
     ]
 
+    GRAFANA_STATUS_CHOICES = [
+        ('on', 'On'),
+        ('shame', 'Shame'),
+        ('unknown', 'Unknown'),
+    ]
+
     address = models.CharField(max_length=42, db_index=True)
     network = models.CharField(max_length=20, choices=NETWORK_CHOICES, default='asimov', db_index=True)
     operator = models.ForeignKey(
@@ -44,6 +50,18 @@ class ValidatorWallet(BaseModel):
     # Stake info from validatorView()
     v_stake = models.CharField(max_length=78, blank=True)  # Self stake
     d_stake = models.CharField(max_length=78, blank=True)  # Delegated stake
+
+    # Grafana observability status (Wall of Shame). Synced by a 5-min cron that
+    # mirrors the GenLayer Foundation Grafana dashboard: 'on' if the node
+    # reported in the last 5 min, 'shame' if it didn't, 'unknown' before the
+    # first sync or when Grafana itself is unreachable.
+    metrics_status = models.CharField(
+        max_length=10, choices=GRAFANA_STATUS_CHOICES, default='unknown', db_index=True
+    )
+    logs_status = models.CharField(
+        max_length=10, choices=GRAFANA_STATUS_CHOICES, default='unknown', db_index=True
+    )
+    last_grafana_check_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']

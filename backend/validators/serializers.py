@@ -57,6 +57,51 @@ class LightValidatorWalletSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class WallOfShameSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the public Wall of Shame endpoint.
+    Surfaces the Grafana observability status alongside enough operator
+    identity for the page to render the same identity surface as
+    /validators/participants.
+    """
+    operator_user = serializers.SerializerMethodField()
+    explorer_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ValidatorWallet
+        fields = [
+            'id',
+            'address',
+            'network',
+            'status',
+            'moniker',
+            'logo_uri',
+            'operator_address',
+            'operator_user',
+            'explorer_url',
+            'metrics_status',
+            'logs_status',
+            'last_grafana_check_at',
+        ]
+        read_only_fields = fields
+
+    def get_operator_user(self, obj):
+        if obj.operator and obj.operator.user:
+            user = obj.operator.user
+            return {
+                'id': user.id,
+                'name': user.name,
+                'address': user.address,
+                'profile_image_url': user.profile_image_url,
+                'visible': user.visible,
+            }
+        return None
+
+    def get_explorer_url(self, obj):
+        network_config = settings.TESTNET_NETWORKS.get(obj.network, {})
+        return network_config.get('explorer_url', '')
+
+
 class ValidatorWithWalletsSerializer(serializers.Serializer):
     """
     Serializer that combines Validator data with their validator wallets.

@@ -10,10 +10,16 @@ from django.db.models import Min, Q, Count
 from django.db import IntegrityError, transaction
 from django.conf import settings
 from django.utils import timezone
+from django.core.cache import cache
 from .models import SyncLock, Validator, ValidatorWallet
-from .serializers import ValidatorWalletSerializer, LightValidatorWalletSerializer
+from .serializers import (
+    ValidatorWalletSerializer,
+    LightValidatorWalletSerializer,
+    WallOfShameSerializer,
+)
 from .permissions import IsCronToken
 from .genlayer_validators_service import GenLayerValidatorsService
+from .grafana_service import GrafanaValidatorStatusService
 from users.models import User
 from users.serializers import ValidatorSerializer, UserSerializer
 from contributions.models import Contribution, ContributionType
@@ -232,8 +238,10 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ValidatorWalletSerializer
     permission_classes = [AllowAny]
     SYNC_LOCK_NAME = 'validator_sync'
+    GRAFANA_SYNC_LOCK_NAME = 'grafana_status_sync'
     SYNC_LOCK_STALE_AFTER_SECONDS = 1800
     SYNC_LOCK_HEARTBEAT_INTERVAL_SECONDS = 60
+    WALL_OF_SHAME_CACHE_TTL_SECONDS = 60
 
     def get_queryset(self):
         """
@@ -261,23 +269,25 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset
 
     @classmethod
-    def _ensure_sync_lock_row(cls):
+    def _ensure_sync_lock_row(cls, lock_name=None):
+        name = lock_name or cls.SYNC_LOCK_NAME
         try:
-            SyncLock.objects.get_or_create(name=cls.SYNC_LOCK_NAME)
+            SyncLock.objects.get_or_create(name=name)
         except IntegrityError:
             # Another request created the singleton row first.
             pass
 
     @classmethod
-    def _acquire_sync_lock(cls):
-        cls._ensure_sync_lock_row()
+    def _acquire_sync_lock(cls, lock_name=None):
+        name = lock_name or cls.SYNC_LOCK_NAME
+        cls._ensure_sync_lock_row(lock_name=name)
 
         with transaction.atomic():
             now = timezone.now()
             lock_row = (
                 SyncLock.objects
                 .select_for_update()
-                .get(name=cls.SYNC_LOCK_NAME)
+                .get(name=name)
             )
 
             is_running = (
@@ -292,8 +302,8 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
                     return None, secs
 
                 logger.warning(
-                    "Stale sync lock detected (%ss since last heartbeat), force-reclaiming",
-                    f"{secs:.0f}",
+                    "Stale sync lock '%s' detected (%ss since last heartbeat), force-reclaiming",
+                    name, f"{secs:.0f}",
                 )
 
             lock_token = uuid.uuid4().hex
@@ -306,26 +316,28 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         return lock_token, None
 
     @classmethod
-    def _refresh_sync_lock(cls, lock_token):
+    def _refresh_sync_lock(cls, lock_token, lock_name=None):
+        name = lock_name or cls.SYNC_LOCK_NAME
         refreshed = (
             SyncLock.objects
-            .filter(name=cls.SYNC_LOCK_NAME, owner_token=lock_token)
+            .filter(name=name, owner_token=lock_token)
             .update(heartbeat_at=timezone.now())
         )
         if not refreshed:
-            logger.warning("Skipped sync lock heartbeat because ownership changed")
+            logger.warning("Skipped sync lock '%s' heartbeat because ownership changed", name)
         return bool(refreshed)
 
     @classmethod
-    def _release_sync_lock(cls, lock_token):
+    def _release_sync_lock(cls, lock_token, lock_name=None):
+        name = lock_name or cls.SYNC_LOCK_NAME
         now = timezone.now()
         released = (
             SyncLock.objects
-            .filter(name=cls.SYNC_LOCK_NAME, owner_token=lock_token)
+            .filter(name=name, owner_token=lock_token)
             .update(owner_token=None, heartbeat_at=now, released_at=now)
         )
         if not released:
-            logger.warning("Skipped sync lock release because ownership changed")
+            logger.warning("Skipped sync lock '%s' release because ownership changed", name)
 
     def list(self, request, *args, **kwargs):
         """
@@ -505,3 +517,175 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
                     'explorer_url': config.get('explorer_url', ''),
                 })
         return Response(networks)
+
+    @action(
+        detail=False, methods=['post'],
+        url_path='sync-grafana',
+        permission_classes=[IsCronToken], authentication_classes=[],
+    )
+    def sync_grafana(self, request):
+        """
+        Cross-check active validator wallets against Grafana Cloud
+        (Prometheus + Loki) and update metrics_status / logs_status.
+        Protected by X-Cron-Token. Runs in a background thread under a
+        separate SyncLock so it can run alongside the on-chain validator sync.
+        """
+        import threading
+        import time
+
+        lock_name = self.GRAFANA_SYNC_LOCK_NAME
+        lock_token, elapsed_seconds = self._acquire_sync_lock(lock_name=lock_name)
+        if lock_token is None:
+            lock_row = SyncLock.objects.filter(name=lock_name).only('acquired_at').first()
+            elapsed = ''
+            if lock_row and lock_row.acquired_at:
+                runtime_seconds = (timezone.now() - lock_row.acquired_at).total_seconds()
+                elapsed = f' (running for {runtime_seconds:.0f}s)'
+            logger.warning(
+                f"Grafana sync skipped: another sync is already in progress{elapsed}"
+            )
+            return Response({
+                'success': False,
+                'message': f'Sync already in progress{elapsed}',
+            }, status=status.HTTP_409_CONFLICT)
+
+        logger.info("Grafana sync request accepted, starting background thread")
+        heartbeat_stop = threading.Event()
+
+        def _heartbeat():
+            from django.db import connection
+            try:
+                while not heartbeat_stop.wait(self.SYNC_LOCK_HEARTBEAT_INTERVAL_SECONDS):
+                    try:
+                        if not self._refresh_sync_lock(lock_token, lock_name=lock_name):
+                            return
+                    except Exception:
+                        logger.error("Failed to refresh Grafana sync lock", exc_info=True)
+                        return
+            finally:
+                connection.close()
+
+        def _run_sync():
+            from django.db import connection
+            start = time.time()
+            try:
+                stats = GrafanaValidatorStatusService.sync_all_networks()
+                duration = time.time() - start
+                logger.info(f"Background Grafana sync completed in {duration:.1f}s: {stats}")
+                # Invalidate cached wall-of-shame responses so next read returns fresh data
+                self._invalidate_wall_of_shame_cache()
+            except Exception as e:
+                duration = time.time() - start
+                logger.error(
+                    f"Background Grafana sync failed after {duration:.1f}s: {e}",
+                    exc_info=True,
+                )
+            finally:
+                heartbeat_stop.set()
+                heartbeat_thread.join(timeout=1)
+                try:
+                    self._release_sync_lock(lock_token, lock_name=lock_name)
+                except Exception:
+                    logger.error("Failed to release Grafana sync lock", exc_info=True)
+                connection.close()
+
+        heartbeat_thread = threading.Thread(target=_heartbeat, daemon=True)
+        thread = threading.Thread(target=_run_sync, daemon=True)
+        try:
+            heartbeat_thread.start()
+            thread.start()
+        except Exception:
+            heartbeat_stop.set()
+            self._release_sync_lock(lock_token, lock_name=lock_name)
+            raise
+
+        return Response({
+            'success': True,
+            'message': 'Grafana sync started in background',
+        }, status=status.HTTP_202_ACCEPTED)
+
+    @classmethod
+    def _wall_of_shame_cache_key(cls, network):
+        return f'wall_of_shame:{network or "all"}'
+
+    @classmethod
+    def _invalidate_wall_of_shame_cache(cls):
+        cache.delete(cls._wall_of_shame_cache_key('all'))
+        for network in settings.TESTNET_NETWORKS.keys():
+            cache.delete(cls._wall_of_shame_cache_key(network))
+
+    @action(detail=False, methods=['get'], url_path='wall-of-shame')
+    def wall_of_shame(self, request):
+        """
+        Public Wall of Shame: all active validator wallets with their latest
+        Grafana metrics/logs status. Sorted with SHAME rows first, then by
+        moniker. Cached for 60s. Optional ?network=asimov|bradbury filter.
+        """
+        network = request.query_params.get('network', '').strip().lower() or None
+        if network and network not in settings.TESTNET_NETWORKS:
+            return Response(
+                {'error': f"Unknown network '{network}'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cache_key = self._wall_of_shame_cache_key(network)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
+        queryset = (
+            ValidatorWallet.objects
+            .select_related('operator', 'operator__user')
+            .filter(status='active')
+        )
+        if network:
+            queryset = queryset.filter(network=network)
+
+        # SHAME rows first (metrics_status='shame' OR logs_status='shame'),
+        # then alphabetical by moniker (case-insensitive), then by address as a stable tiebreaker.
+        from django.db.models import Case, IntegerField, Value, When
+        from django.db.models.functions import Lower
+
+        queryset = queryset.annotate(
+            shame_priority=Case(
+                When(metrics_status='shame', then=Value(0)),
+                When(logs_status='shame', then=Value(0)),
+                When(metrics_status='unknown', then=Value(1)),
+                When(logs_status='unknown', then=Value(1)),
+                default=Value(2),
+                output_field=IntegerField(),
+            ),
+            moniker_lower=Lower('moniker'),
+        ).order_by('shame_priority', 'moniker_lower', 'address')
+
+        # Pick the latest Grafana check timestamp across all returned rows so
+        # the UI can show staleness of the data itself (not per-validator).
+        wallets = list(queryset)
+        last_check = max(
+            (w.last_grafana_check_at for w in wallets if w.last_grafana_check_at is not None),
+            default=None,
+        )
+
+        serializer = WallOfShameSerializer(wallets, many=True)
+        on_count = sum(
+            1 for w in wallets
+            if w.metrics_status == 'on' and w.logs_status == 'on'
+        )
+        shame_count = sum(
+            1 for w in wallets
+            if w.metrics_status == 'shame' or w.logs_status == 'shame'
+        )
+
+        payload = {
+            'wallets': serializer.data,
+            'stats': {
+                'total': len(wallets),
+                'on': on_count,
+                'shame': shame_count,
+                'unknown': len(wallets) - on_count - shame_count,
+            },
+            'last_grafana_check_at': last_check,
+            'network': network or 'all',
+        }
+        cache.set(cache_key, payload, self.WALL_OF_SHAME_CACHE_TTL_SECONDS)
+        return Response(payload)
