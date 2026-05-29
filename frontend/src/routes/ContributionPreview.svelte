@@ -4,7 +4,9 @@
   import { format } from 'date-fns';
   import { contributionsAPI } from '../lib/api.js';
   import { parseMarkdown } from '../lib/markdownLoader.js';
+  import { getSingleXPostEvidence } from '../lib/xPost.js';
   import Avatar from '../components/Avatar.svelte';
+  import TweetEmbed from '../components/TweetEmbed.svelte';
 
   let { params = {} } = $props();
 
@@ -34,6 +36,7 @@
   let colors = $derived(categoryConfig[category] || categoryConfig.global);
   let isHighlighted = $derived(!!contribution?.highlight);
   let typeName = $derived(contribution?.contribution_type_details?.name || contribution?.contribution_type_name || 'Contribution');
+  let xPostEvidence = $derived(getSingleXPostEvidence(contribution?.evidence_items));
 
   // Get the user's role label
   let userRole = $derived.by(() => {
@@ -269,24 +272,31 @@
           {#if urlEvidence.length > 0}
             <div class="mb-[24px]">
               <h2 class="text-[20px] font-semibold text-black mb-[16px]" style="letter-spacing: 0.4px;">Showcase</h2>
-              <div class="flex flex-col gap-[8px]">
-                {#each urlEvidence as evidence}
-                  <a
-                    href={evidence.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="flex items-center justify-between px-[17px] py-[12px] bg-white rounded-[8px] hover:shadow-sm transition-shadow"
-                    style="border: 1px solid #f0f0f0;"
-                  >
-                    <span class="text-[14px] font-medium text-black truncate" style="letter-spacing: 0.28px;">
-                      {evidence.description || evidence.url}
-                    </span>
-                    <svg class="w-4 h-4 flex-shrink-0 ml-[12px]" style="color: #ababab;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 17L17 7M17 7H7M17 7V17"/>
-                    </svg>
-                  </a>
-                {/each}
-              </div>
+              {#if xPostEvidence}
+                <TweetEmbed
+                  url={xPostEvidence.url}
+                  description={xPostEvidence.evidence.description}
+                />
+              {:else}
+                <div class="flex flex-col gap-[8px]">
+                  {#each urlEvidence as evidence}
+                    <a
+                      href={evidence.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="flex items-center justify-between px-[17px] py-[12px] bg-white rounded-[8px] hover:shadow-sm transition-shadow"
+                      style="border: 1px solid #f0f0f0;"
+                    >
+                      <span class="text-[14px] font-medium text-black truncate" style="letter-spacing: 0.28px;">
+                        {evidence.description || evidence.url}
+                      </span>
+                      <svg class="w-4 h-4 flex-shrink-0 ml-[12px]" style="color: #ababab;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 17L17 7M17 7H7M17 7V17"/>
+                      </svg>
+                    </a>
+                  {/each}
+                </div>
+              {/if}
             </div>
           {/if}
         {/if}
