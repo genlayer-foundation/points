@@ -93,8 +93,7 @@
       try {
         const response = await usersAPI.searchUsers(query);
         const data = response.data?.results || response.data || [];
-        const selectedIds = new Set(selectedParticipants.map((user) => user.id));
-        participantResults = data.filter((user) => !selectedIds.has(user.id)).slice(0, 8);
+        participantResults = data.filter((user) => !hasMatchingParticipant(selectedParticipants, user)).slice(0, 8);
       } catch (err) {
         participantResults = [];
         participantSearchError = 'Could not search users right now.';
@@ -107,7 +106,7 @@
   });
 
   $effect(() => {
-    const key = selectedParticipants.map((user) => user.address || user.id).filter(Boolean).join('|');
+    const key = selectedParticipants.map((user) => getParticipantKeys(user).join(',')).filter(Boolean).join('|');
     if (key === contributionLoadKey) return;
     contributionLoadKey = key;
     loadParticipantContributions();
@@ -185,11 +184,10 @@
   }
 
   async function loadParticipantContributions() {
-    const participantsWithAddress = selectedParticipants.filter((user) => user.address);
-    const selectedParticipantKeys = new Set(selectedParticipants.map(getParticipantKey));
+    const participantsWithAddress = selectedParticipants.filter(getParticipantAddress);
     selectedContributions = selectedContributions.filter((contribution) => {
       const user = getContributionUser(contribution);
-      return selectedParticipantKeys.has(getParticipantKey(user));
+      return hasMatchingParticipant(selectedParticipants, user);
     });
 
     if (!participantsWithAddress.length) {
@@ -207,7 +205,7 @@
       const responses = await Promise.all(
         participantsWithAddress.map((user) =>
           contributionsAPI.getContributions({
-            user_address: user.address,
+            user_address: getParticipantAddress(user),
             page_size: 100,
             ordering: '-frozen_global_points',
           })
@@ -255,7 +253,7 @@
         hero_image_url_tablet: profileForm.hero_image_url_tablet.trim(),
         hero_image_url_mobile: profileForm.hero_image_url_mobile.trim(),
         user_profile_image_url: profileForm.user_profile_image_url.trim(),
-        participant_ids: selectedParticipants.map((user) => user.id).filter(Boolean),
+        participant_ids: getSelectedParticipantIds(),
         related_contribution_ids: selectedContributions.map((contribution) => contribution.id).filter(Boolean),
       });
       project = profileResponse.data;
@@ -295,21 +293,20 @@
 
   /** @param {any} user */
   function addParticipant(user) {
-    if (!user?.id || selectedParticipants.some((participant) => participant.id === user.id)) return;
+    if (!getParticipantId(user) || hasMatchingParticipant(selectedParticipants, user)) return;
     selectedParticipants = [...selectedParticipants, user];
     participantSearch = '';
     participantResults = [];
   }
 
-  /** @param {number} userId */
-  function removeParticipant(userId) {
-    const removed = selectedParticipants.find((user) => user.id === userId);
-    selectedParticipants = selectedParticipants.filter((user) => user.id !== userId);
+  /** @param {any} participantToRemove */
+  function removeParticipant(participantToRemove) {
+    const removed = selectedParticipants.find((user) => isSameParticipant(user, participantToRemove));
+    selectedParticipants = selectedParticipants.filter((user) => !isSameParticipant(user, participantToRemove));
     if (removed) {
-      const removedKey = getParticipantKey(removed);
       selectedContributions = selectedContributions.filter((contribution) => {
         const user = getContributionUser(contribution);
-        return getParticipantKey(user) !== removedKey;
+        return !isSameParticipant(user, removed);
       });
     }
   }
@@ -350,9 +347,13 @@
       ...(projectData?.participants || []),
       ...(projectData?.related_contributions || []).map(getContributionUser),
     ]) {
-      const key = getParticipantKey(participant);
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
+      const keys = getParticipantKeys(participant);
+      if (!keys.length) continue;
+      if (keys.some((key) => seen.has(key))) {
+        keys.forEach((key) => seen.add(key));
+        continue;
+      }
+      keys.forEach((key) => seen.add(key));
       people.push(participant);
     }
     return people;
@@ -473,8 +474,9 @@
   }
 
   function getParticipantName(user) {
-    if (user?.name) return user.name;
-    if (user?.address) return `${user.address.slice(0, 6)}...${user.address.slice(-4)}`;
+    if (user?.name || user?.user_name) return user.name || user.user_name;
+    const address = getParticipantAddress(user);
+    if (address) return `${address.slice(0, 6)}...${address.slice(-4)}`;
     return 'Portal user';
   }
 
@@ -482,8 +484,57 @@
     return contribution?.user_details || contribution?.user || {};
   }
 
-  function getParticipantKey(user) {
-    return String(user?.id || user?.address || user?.name || '');
+  function getParticipantId(user) {
+    if (typeof user === 'number') return user;
+    if (typeof user === 'string' && /^\d+$/.test(user)) return Number(user);
+    const id = user?.id ?? user?.user_id;
+    if (typeof id === 'number') return id;
+    if (typeof id === 'string' && /^\d+$/.test(id)) return Number(id);
+    return null;
+  }
+
+  function getParticipantAddress(user) {
+    return String(user?.address || user?.user_address || '').trim();
+  }
+
+  function getParticipantKeys(user) {
+    if (!user && user !== 0) return [];
+    const keys = [];
+    const id = getParticipantId(user);
+    if (id) keys.push(`id:${id}`);
+
+    const address = getParticipantAddress(user).toLowerCase();
+    if (address) keys.push(`address:${address}`);
+
+    const email = String(user?.email || '').trim().toLowerCase();
+    if (email) keys.push(`email:${email}`);
+
+    if (!keys.length) {
+      const fallback = typeof user === 'string' || typeof user === 'number' ? user : user?.name || user?.user_name;
+      const name = normalizeTitle(fallback);
+      if (name) keys.push(`name:${name}`);
+    }
+    return keys;
+  }
+
+  function isSameParticipant(left, right) {
+    const leftKeys = new Set(getParticipantKeys(left));
+    return getParticipantKeys(right).some((key) => leftKeys.has(key));
+  }
+
+  function hasMatchingParticipant(participants, user) {
+    return participants.some((participant) => isSameParticipant(participant, user));
+  }
+
+  function getSelectedParticipantIds() {
+    const seen = new Set();
+    return selectedParticipants
+      .map(getParticipantId)
+      .filter((id) => {
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
   }
 
   function getContributionTitle(contribution) {
@@ -758,7 +809,7 @@
                       >
                         <span class="min-w-0">
                           <span class="block truncate text-[13px] font-semibold text-black">{getParticipantName(user)}</span>
-                          <span class="block truncate text-[12px] text-[#667085]">{user.address || user.email || 'Portal user'}</span>
+                          <span class="block truncate text-[12px] text-[#667085]">{getParticipantAddress(user) || user.email || 'Portal user'}</span>
                         </span>
                         <span class="shrink-0 text-[12px] font-semibold text-[#ee8521]">Add</span>
                       </button>
@@ -772,7 +823,7 @@
                   {#each selectedParticipants as user}
                     <span class="inline-flex max-w-full items-center gap-2 rounded-full border border-[#f1bd82] bg-white px-2.5 py-1.5 text-[12px] font-semibold text-black">
                       <span class="max-w-[170px] truncate">{getParticipantName(user)}</span>
-                      <button type="button" onclick={() => removeParticipant(user.id)} class="text-[#98a2b3] transition hover:text-rose-600" aria-label={`Remove ${getParticipantName(user)}`}>x</button>
+                      <button type="button" onclick={() => removeParticipant(user)} class="text-[#98a2b3] transition hover:text-rose-600" aria-label={`Remove ${getParticipantName(user)}`}>x</button>
                     </span>
                   {/each}
                 </div>
