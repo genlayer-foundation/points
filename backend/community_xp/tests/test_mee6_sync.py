@@ -550,3 +550,65 @@ class Mee6SyncTest(TestCase):
 
         with self.assertRaises(Mee6SyncError):
             apply_sync_run(older_run)
+
+    @override_settings(CRON_SYNC_TOKEN='test-cron-token')
+    def test_cron_endpoint_requires_token(self):
+        response = self.api_client.post('/api/v1/community-xp/mee6/sync-and-apply/')
+
+        self.assertEqual(response.status_code, 403)
+
+    @override_settings(CRON_SYNC_TOKEN='test-cron-token')
+    @patch('community_xp.views.threading.Thread')
+    def test_cron_endpoint_starts_background_fetch_and_apply(self, thread_mock):
+        thread_instance = Mock()
+        thread_mock.return_value = thread_instance
+
+        response = self.api_client.post(
+            '/api/v1/community-xp/mee6/sync-and-apply/',
+            HTTP_X_CRON_TOKEN='test-cron-token',
+        )
+
+        self.assertEqual(response.status_code, 202)
+        thread_mock.assert_called_once()
+        thread_instance.start.assert_called_once()
+        _, kwargs = thread_mock.call_args
+        self.assertTrue(kwargs['daemon'])
+        self.assertEqual(kwargs['kwargs']['guild_id'], None)
+        self.assertEqual(kwargs['kwargs']['page_size'], None)
+        self.assertTrue(kwargs['kwargs']['owner_token'])
+
+    @patch('community_xp.views.apply_sync_run')
+    @patch('community_xp.views.run_mee6_sync')
+    def test_fetch_and_apply_helper_applies_fetched_snapshot(self, run_mee6_sync_mock, apply_sync_run_mock):
+        from community_xp.views import _run_mee6_fetch_and_apply
+
+        run = Mee6SyncRun.objects.create(
+            guild_id='guild-1',
+            page_size=1000,
+            status=Mee6SyncRun.STATUS_SUCCESS,
+            completed_at=timezone.now(),
+        )
+        run_mee6_sync_mock.return_value = {
+            'run_id': run.id,
+            'players_fetched': 1,
+            'matched_players': 1,
+            'unmatched_players': 0,
+            'pages_fetched': 1,
+        }
+        apply_sync_run_mock.return_value = {
+            'run_id': run.id,
+            'players_applied': 1,
+            'matched_players': 1,
+            'unmatched_players': 0,
+        }
+
+        fetch_result, apply_result = _run_mee6_fetch_and_apply()
+
+        self.assertEqual(fetch_result['run_id'], run.pk)
+        self.assertEqual(apply_result['run_id'], run.pk)
+        run_mee6_sync_mock.assert_called_once_with(
+            guild_id=None,
+            page_size=None,
+            use_lock=False,
+        )
+        self.assertEqual(apply_sync_run_mock.call_args.args[0].pk, run.pk)
