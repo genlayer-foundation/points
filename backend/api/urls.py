@@ -52,6 +52,9 @@ urlpatterns = [
     path('metrics/participants-growth/', ParticipantsGrowthView.as_view(), name='participants-growth'),
     path('metrics/testnet-kpis/', TestnetMetricsView.as_view(), name='testnet-kpis'),
 
+    # Cron-triggered community XP maintenance
+    path('community-xp/', include('community_xp.urls')),
+
     # AI review agent endpoints
     path('ai-review/', include('contributions.ai_review.urls')),
 ]
