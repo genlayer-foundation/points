@@ -65,7 +65,10 @@ class PublicUserListSerializer(serializers.ModelSerializer):
             return False
 
     def get_validator(self, obj):
-        return self._has_related(obj, 'validator')
+        try:
+            return LightValidatorSerializer(obj.validator).data
+        except Exception:
+            return None
 
     def get_builder(self, obj):
         return self._has_related(obj, 'builder')
@@ -84,12 +87,18 @@ class LightValidatorSerializer(serializers.Serializer):
     """
     node_version_asimov = serializers.CharField(read_only=True)
     node_version_bradbury = serializers.CharField(read_only=True)
+    node_version = serializers.SerializerMethodField()
     matches_target_asimov = serializers.SerializerMethodField()
     matches_target_bradbury = serializers.SerializerMethodField()
+    matches_target = serializers.SerializerMethodField()
     target_version_asimov = serializers.SerializerMethodField()
     target_version_bradbury = serializers.SerializerMethodField()
+    target_version = serializers.SerializerMethodField()
     active_validators_count = serializers.SerializerMethodField()
     total_validators_count = serializers.SerializerMethodField()
+
+    def get_node_version(self, obj):
+        return obj.node_version_asimov
 
     def get_matches_target_asimov(self, obj):
         from contributions.node_upgrade.models import TargetNodeVersion
@@ -105,6 +114,9 @@ class LightValidatorSerializer(serializers.Serializer):
             return obj.version_matches_or_higher(target.version, node_version=obj.node_version_bradbury)
         return False
 
+    def get_matches_target(self, obj):
+        return self.get_matches_target_asimov(obj)
+
     def get_target_version_asimov(self, obj):
         from contributions.node_upgrade.models import TargetNodeVersion
         target = TargetNodeVersion.get_active(network='asimov')
@@ -114,6 +126,9 @@ class LightValidatorSerializer(serializers.Serializer):
         from contributions.node_upgrade.models import TargetNodeVersion
         target = TargetNodeVersion.get_active(network='bradbury')
         return target.version if target else None
+
+    def get_target_version(self, obj):
+        return self.get_target_version_asimov(obj)
 
     def get_active_validators_count(self, obj):
         """Get count of active validator wallets for this operator."""
