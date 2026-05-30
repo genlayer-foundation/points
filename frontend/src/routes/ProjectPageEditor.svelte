@@ -506,9 +506,6 @@
     const address = getParticipantAddress(user).toLowerCase();
     if (address) keys.push(`address:${address}`);
 
-    const email = String(user?.email || '').trim().toLowerCase();
-    if (email) keys.push(`email:${email}`);
-
     if (!keys.length) {
       const fallback = typeof user === 'string' || typeof user === 'number' ? user : user?.name || user?.user_name;
       const name = normalizeTitle(fallback);
@@ -793,7 +790,7 @@
                   bind:value={participantSearch}
                   type="search"
                   class="h-10 w-full rounded-[8px] border border-[#dfe3eb] bg-white px-3 text-[14px] text-black outline-none transition placeholder:text-[#98a2b3] focus:border-[#ee8521] focus:ring-4 focus:ring-[#ee8521]/10"
-                  placeholder="Search participants by name, email, or address"
+                  placeholder="Search participants by name or address"
                 />
                 {#if participantSearching}
                   <p class="mt-2 text-[12px] text-[#667085]">Searching users...</p>
@@ -809,7 +806,7 @@
                       >
                         <span class="min-w-0">
                           <span class="block truncate text-[13px] font-semibold text-black">{getParticipantName(user)}</span>
-                          <span class="block truncate text-[12px] text-[#667085]">{getParticipantAddress(user) || user.email || 'Portal user'}</span>
+                          <span class="block truncate text-[12px] text-[#667085]">{getParticipantAddress(user) || 'Portal user'}</span>
                         </span>
                         <span class="shrink-0 text-[12px] font-semibold text-[#ee8521]">Add</span>
                       </button>

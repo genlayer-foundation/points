@@ -531,6 +531,7 @@ class UserSerializer(serializers.ModelSerializer):
     referred_by_info = serializers.SerializerMethodField()
     total_referrals = serializers.SerializerMethodField()
     referral_details = serializers.SerializerMethodField()
+    referral_code = serializers.SerializerMethodField()
 
     # Working groups
     working_groups = serializers.SerializerMethodField()
@@ -543,6 +544,9 @@ class UserSerializer(serializers.ModelSerializer):
     # Backward-compat computed fields for github
     github_username = serializers.SerializerMethodField()
     github_linked_at = serializers.SerializerMethodField()
+    is_email_verified = serializers.SerializerMethodField()
+    is_banned = serializers.SerializerMethodField()
+    ban_reason = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -668,13 +672,51 @@ class UserSerializer(serializers.ModelSerializer):
         except ContributionType.DoesNotExist:
             return False
 
+    def _can_view_private_user_data(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        return bool(
+            user
+            and user.is_authenticated
+            and (getattr(user, 'id', None) == obj.id or user.is_staff)
+        )
+
+    def _can_view_private_email(self, obj):
+        return self._can_view_private_user_data(obj)
+
     def get_email(self, obj):
         """
-        Return email only if it's verified, otherwise return empty string.
-        This prevents exposing auto-generated emails.
+        Return authentication email only to the account owner.
+
+        Public portal responses intentionally keep this field blank so verified
+        emails cannot be scraped from profile, leaderboard, or contribution JSON.
         """
-        if obj.is_email_verified:
+        if self._can_view_private_email(obj) and obj.is_email_verified:
             return obj.email
+        return ''
+
+    def get_is_email_verified(self, obj):
+        """Expose email verification state only to the account owner."""
+        if self._can_view_private_email(obj):
+            return obj.is_email_verified
+        return False
+
+    def get_is_banned(self, obj):
+        """Expose moderation status only to the account owner or staff."""
+        if self._can_view_private_user_data(obj):
+            return obj.is_banned
+        return False
+
+    def get_ban_reason(self, obj):
+        """Expose moderation reason only to the account owner or staff."""
+        if self._can_view_private_user_data(obj):
+            return obj.ban_reason
+        return ''
+
+    def get_referral_code(self, obj):
+        """Expose referral code only to the account owner or staff."""
+        if self._can_view_private_user_data(obj):
+            return obj.referral_code
         return ''
     
     def get_referred_by_info(self, obj):
@@ -682,6 +724,9 @@ class UserSerializer(serializers.ModelSerializer):
         Get information about who referred this user.
         Returns None if user was not referred.
         """
+        if not self._can_view_private_user_data(obj):
+            return None
+
         if obj.referred_by:
             return {
                 'id': obj.referred_by.id,
@@ -695,11 +740,16 @@ class UserSerializer(serializers.ModelSerializer):
         """
         Get the total number of users referred by this user.
         """
+        if not self._can_view_private_user_data(obj):
+            return 0
         return User.objects.filter(referred_by=obj).count()
 
     def get_referral_details(self, obj):
         """Referral breakdown. Only included when include_referral_details=True."""
-        if not self.context.get('include_referral_details', False):
+        if (
+            not self.context.get('include_referral_details', False)
+            or not self._can_view_private_user_data(obj)
+        ):
             return None
         from leaderboard.models import get_referral_breakdown
         return get_referral_breakdown(obj)
@@ -732,16 +782,25 @@ class UserSerializer(serializers.ModelSerializer):
             return None
 
     def get_github_connection(self, obj):
-        from social_connections.serializers import GitHubConnectionSerializer
-        return self._get_social_connection(obj, 'githubconnection', GitHubConnectionSerializer)
+        if self._can_view_private_user_data(obj):
+            from social_connections.serializers import GitHubConnectionSerializer
+            return self._get_social_connection(obj, 'githubconnection', GitHubConnectionSerializer)
+        from social_connections.serializers import PublicGitHubConnectionSerializer
+        return self._get_social_connection(obj, 'githubconnection', PublicGitHubConnectionSerializer)
 
     def get_twitter_connection(self, obj):
-        from social_connections.serializers import TwitterConnectionSerializer
-        return self._get_social_connection(obj, 'twitterconnection', TwitterConnectionSerializer)
+        if self._can_view_private_user_data(obj):
+            from social_connections.serializers import TwitterConnectionSerializer
+            return self._get_social_connection(obj, 'twitterconnection', TwitterConnectionSerializer)
+        from social_connections.serializers import PublicTwitterConnectionSerializer
+        return self._get_social_connection(obj, 'twitterconnection', PublicTwitterConnectionSerializer)
 
     def get_discord_connection(self, obj):
-        from social_connections.serializers import DiscordConnectionSerializer
-        return self._get_social_connection(obj, 'discordconnection', DiscordConnectionSerializer)
+        if self._can_view_private_user_data(obj):
+            from social_connections.serializers import DiscordConnectionSerializer
+            return self._get_social_connection(obj, 'discordconnection', DiscordConnectionSerializer)
+        from social_connections.serializers import PublicDiscordConnectionSerializer
+        return self._get_social_connection(obj, 'discordconnection', PublicDiscordConnectionSerializer)
 
     def get_github_username(self, obj):
         """Backward compat: read from GitHubConnection if available."""
@@ -752,6 +811,8 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_github_linked_at(self, obj):
         """Backward compat: read from GitHubConnection if available."""
+        if not self._can_view_private_user_data(obj):
+            return None
         try:
             return obj.githubconnection.linked_at
         except Exception:
