@@ -61,7 +61,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = LeaderboardEntrySerializer
     permission_classes = [permissions.AllowAny]  # Allow access without authentication
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['user__email', 'user__name', 'user__address']
+    search_fields = ['user__name', 'user__address']
     ordering_fields = ['rank', 'total_points', 'updated_at']
     ordering = ['rank']
     pagination_class = None  # Disable pagination to return all entries

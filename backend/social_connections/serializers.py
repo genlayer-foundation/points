@@ -11,11 +11,25 @@ class GitHubConnectionSerializer(serializers.ModelSerializer):
         read_only_fields = ['platform_username', 'linked_at']
 
 
+class PublicGitHubConnectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GitHubConnection
+        fields = ['platform_username']
+        read_only_fields = fields
+
+
 class TwitterConnectionSerializer(serializers.ModelSerializer):
     class Meta:
         model = TwitterConnection
         fields = ['platform_username', 'linked_at']
         read_only_fields = ['platform_username', 'linked_at']
+
+
+class PublicTwitterConnectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TwitterConnection
+        fields = ['platform_username']
+        read_only_fields = fields
 
 
 class DiscordRoleSerializer(serializers.ModelSerializer):
@@ -98,4 +112,11 @@ class DiscordConnectionSerializer(serializers.ModelSerializer):
             'guild_joined_at', 'guild_nick',
             'mee6_xp', 'mee6_level', 'mee6_rank', 'mee6_synced_at',
         ]
+        read_only_fields = fields
+
+
+class PublicDiscordConnectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DiscordConnection
+        fields = ['platform_username']
         read_only_fields = fields

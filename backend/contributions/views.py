@@ -264,7 +264,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.AllowAny]  # Allow read-only access without authentication
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['user', 'contribution_type', 'mission']
-    search_fields = ['notes', 'user__email', 'user__name', 'contribution_type__name']
+    search_fields = ['notes', 'user__name', 'user__address', 'contribution_type__name']
     ordering_fields = ['contribution_date', 'created_at', 'points', 'frozen_global_points']
     ordering = ['-contribution_date']
     

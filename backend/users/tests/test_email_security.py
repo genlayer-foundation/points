@@ -1,17 +1,20 @@
 """
-Tests for email security - ensuring unverified emails are never exposed in API.
+Tests for email security - authentication emails are only exposed to the owner.
 """
 from django.test import TestCase
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+from leaderboard.models import LeaderboardEntry
+from social_connections.models import DiscordConnection, DiscordRole, GitHubConnection, TwitterConnection
 
 User = get_user_model()
 
 
 class EmailSecurityTests(TestCase):
-    """Test that unverified emails are never exposed in any API endpoint."""
+    """Test that authentication emails are not exposed in public API payloads."""
     
     def setUp(self):
         """Set up test client and users."""
@@ -43,6 +46,48 @@ class EmailSecurityTests(TestCase):
             address='0x789',
             is_email_verified=True
         )
+
+        self.verified_user.is_banned = True
+        self.verified_user.ban_reason = 'private moderation note'
+        self.verified_user.referred_by = self.other_user
+        self.verified_user.save(update_fields=['is_banned', 'ban_reason', 'referred_by'])
+
+        GitHubConnection.objects.create(
+            user=self.verified_user,
+            platform_user_id='gh-1',
+            platform_username='verified-gh',
+            access_token='encrypted-gh-access-token',
+            refresh_token='encrypted-gh-refresh-token',
+            linked_at=timezone.now(),
+        )
+        TwitterConnection.objects.create(
+            user=self.verified_user,
+            platform_user_id='tw-1',
+            platform_username='verified-x',
+            access_token='encrypted-x-access-token',
+            refresh_token='encrypted-x-refresh-token',
+            linked_at=timezone.now(),
+        )
+        discord = DiscordConnection.objects.create(
+            user=self.verified_user,
+            platform_user_id='dc-1',
+            platform_username='verified-discord',
+            access_token='encrypted-discord-access-token',
+            refresh_token='encrypted-discord-refresh-token',
+            linked_at=timezone.now(),
+            guild_member=True,
+            guild_checked_at=timezone.now(),
+            roles_sync_error='private sync error',
+            roles_manual_synced_at=timezone.now(),
+            guild_joined_at=timezone.now(),
+            guild_nick='private nickname',
+        )
+        role = DiscordRole.objects.create(
+            guild_id='guild-1',
+            role_id='role-1',
+            name='Private Role',
+        )
+        discord.current_roles.add(role)
     
     def authenticate(self, user):
         """Authenticate the client with the given user."""
@@ -86,15 +131,85 @@ class EmailSecurityTests(TestCase):
         self.assertEqual(response.data['email'], '')  # Should still be empty
         self.assertFalse(response.data['is_email_verified'])
     
-    def test_verified_email_shown_in_public_profile(self):
-        """Test that verified email is shown in public profile endpoint."""
+    def test_verified_email_not_shown_in_public_profile(self):
+        """Test that verified email is not exposed in public profile endpoint."""
         # No authentication - public access
         
         # Test /api/v1/users/by-address/{address}/
         response = self.client.get(f'/api/v1/users/by-address/{self.verified_user.address}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['email'], '')
+        self.assertFalse(response.data['is_email_verified'])
+        self.assertFalse(response.data['is_banned'])
+        self.assertEqual(response.data['ban_reason'], '')
+        self.assertEqual(response.data['referral_code'], '')
+        self.assertIsNone(response.data['referred_by_info'])
+        self.assertEqual(response.data['total_referrals'], 0)
+        self.assertIsNone(response.data['referral_details'])
+
+        # Also test when authenticated as another user
+        self.authenticate(self.other_user)
+        response = self.client.get(f'/api/v1/users/by-address/{self.verified_user.address}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['email'], '')
+        self.assertFalse(response.data['is_email_verified'])
+        self.assertFalse(response.data['is_banned'])
+        self.assertEqual(response.data['ban_reason'], '')
+        self.assertEqual(response.data['referral_code'], '')
+        self.assertIsNone(response.data['referred_by_info'])
+        self.assertEqual(response.data['total_referrals'], 0)
+        self.assertIsNone(response.data['referral_details'])
+
+    def test_public_profile_only_exposes_public_social_identifiers(self):
+        """Test that public profiles do not expose social credentials or internals."""
+        response = self.client.get(f'/api/v1/users/by-address/{self.verified_user.address}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(response.data['github_connection'], {'platform_username': 'verified-gh'})
+        self.assertEqual(response.data['twitter_connection'], {'platform_username': 'verified-x'})
+        self.assertEqual(response.data['discord_connection'], {'platform_username': 'verified-discord'})
+
+        serialized = str(response.data)
+        for private_value in [
+            'encrypted-gh-access-token',
+            'encrypted-gh-refresh-token',
+            'encrypted-x-access-token',
+            'encrypted-x-refresh-token',
+            'encrypted-discord-access-token',
+            'encrypted-discord-refresh-token',
+            'private sync error',
+            'private nickname',
+            'Private Role',
+            'guild_member',
+            'roles_sync_error',
+            'access_token',
+            'refresh_token',
+        ]:
+            self.assertNotIn(private_value, serialized)
+
+    def test_verified_email_shown_on_own_public_profile_when_authenticated(self):
+        """Test that a user can see their own email on any profile endpoint."""
+        self.authenticate(self.verified_user)
+
+        response = self.client.get(f'/api/v1/users/by-address/{self.verified_user.address}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['email'], 'verified@example.com')
         self.assertTrue(response.data['is_email_verified'])
+        self.assertTrue(response.data['is_banned'])
+        self.assertEqual(response.data['ban_reason'], 'private moderation note')
+        self.verified_user.refresh_from_db()
+        self.assertEqual(response.data['referral_code'], self.verified_user.referral_code)
+        self.assertIsNotNone(response.data['referred_by_info'])
+        self.assertEqual(response.data['github_connection']['platform_username'], 'verified-gh')
+        self.assertEqual(response.data['twitter_connection']['platform_username'], 'verified-x')
+        self.assertEqual(response.data['discord_connection']['platform_username'], 'verified-discord')
+        self.assertIn('roles', response.data['discord_connection'])
+
+        serialized = str(response.data)
+        self.assertNotIn('encrypted-gh-access-token', serialized)
+        self.assertNotIn('encrypted-x-access-token', serialized)
+        self.assertNotIn('encrypted-discord-access-token', serialized)
+        self.assertNotIn('refresh_token', serialized)
     
     def test_email_becomes_visible_after_verification(self):
         """Test that email becomes visible once it's verified."""
@@ -110,19 +225,19 @@ class EmailSecurityTests(TestCase):
         })
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
-        # Now email should be visible
+        # Now email should be visible to the owner
         response = self.client.get('/api/v1/users/me/')
         self.assertEqual(response.data['email'], 'newemail@example.com')
         self.assertTrue(response.data['is_email_verified'])
         
-        # Also check public endpoint
+        # Public endpoint should still not expose it to anonymous clients
         self.client.credentials()  # Clear authentication
         response = self.client.get(f'/api/v1/users/by-address/{self.unverified_user.address}/')
-        self.assertEqual(response.data['email'], 'newemail@example.com')
-        self.assertTrue(response.data['is_email_verified'])
+        self.assertEqual(response.data['email'], '')
+        self.assertFalse(response.data['is_email_verified'])
     
     def test_no_email_field_leakage_in_list_view(self):
-        """Test that unverified emails are not exposed in user list view."""
+        """Test that auth emails are not exposed in user list view."""
         # Test /api/v1/users/ list endpoint
         response = self.client.get('/api/v1/users/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -142,10 +257,50 @@ class EmailSecurityTests(TestCase):
         self.assertEqual(unverified_user_data['email'], '')
         self.assertFalse(unverified_user_data['is_email_verified'])
         
-        # Check verified user shows email
+        # Check verified user also hides email in public lists
         self.assertIsNotNone(verified_user_data)
-        self.assertEqual(verified_user_data['email'], 'verified@example.com')
-        self.assertTrue(verified_user_data['is_email_verified'])
+        self.assertEqual(verified_user_data['email'], '')
+        self.assertFalse(verified_user_data['is_email_verified'])
+
+    def test_public_search_does_not_match_auth_email(self):
+        """Test that public user search cannot use auth email as a lookup key."""
+        response = self.client.get('/api/v1/users/search/', {'q': 'verified@example.com'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_staff_search_can_match_auth_email(self):
+        """Test that staff search can still use auth email for moderation workflows."""
+        staff = User.objects.create_user(
+            email='staff@example.com',
+            password='testpass123',
+            name='Staff User',
+            address='0x999',
+            is_staff=True,
+        )
+        self.authenticate(staff)
+
+        response = self.client.get('/api/v1/users/search/', {'q': 'verified@example.com'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['address'], self.verified_user.address)
+
+    def test_leaderboard_search_does_not_match_auth_email(self):
+        """Test that leaderboard search cannot use auth email as a lookup key."""
+        LeaderboardEntry.objects.create(
+            user=self.verified_user,
+            type='validator',
+            total_points=100,
+            rank=1,
+        )
+
+        response = self.client.get('/api/v1/leaderboard/', {'search': 'verified@example.com'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+        response = self.client.get('/api/v1/leaderboard/', {'search': 'Verified User'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['user_details']['address'], self.verified_user.address)
     
     def test_image_upload_response_security(self):
         """Test that image upload responses don't expose unverified emails."""

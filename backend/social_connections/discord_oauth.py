@@ -290,7 +290,7 @@ def sync_my_discord_roles(request):
             'cooldown_active': True,
             'next_allowed_at': next_allowed_at,
             'discord_connection': DiscordConnectionSerializer(connection).data,
-            'user': UserSerializer(request.user).data,
+            'user': UserSerializer(request.user, context={'request': request}).data,
         }, status=status.HTTP_200_OK)
 
     try:
@@ -323,7 +323,7 @@ def sync_my_discord_roles(request):
         'is_member': result.is_member,
         'next_allowed_at': manual_refresh_next_allowed_at(connection),
         'discord_connection': DiscordConnectionSerializer(connection).data,
-        'user': UserSerializer(request.user).data,
+        'user': UserSerializer(request.user, context={'request': request}).data,
     }, status=status.HTTP_200_OK)
 
 
