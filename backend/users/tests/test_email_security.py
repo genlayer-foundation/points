@@ -47,6 +47,15 @@ class EmailSecurityTests(TestCase):
             is_email_verified=True
         )
 
+        self.hidden_user = User.objects.create_user(
+            email='hidden@example.com',
+            password='testpass123',
+            name='Hidden User',
+            address='0xabc',
+            is_email_verified=True,
+            visible=False,
+        )
+
         self.verified_user.is_banned = True
         self.verified_user.ban_reason = 'private moderation note'
         self.verified_user.referred_by = self.other_user
@@ -121,15 +130,15 @@ class EmailSecurityTests(TestCase):
         # Test /api/v1/users/by-address/{address}/
         response = self.client.get(f'/api/v1/users/by-address/{self.unverified_user.address}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['email'], '')  # Should be empty string
-        self.assertFalse(response.data['is_email_verified'])
+        self.assertNotIn('email', response.data)
+        self.assertNotIn('is_email_verified', response.data)
         
         # Also test when authenticated as another user
         self.authenticate(self.other_user)
         response = self.client.get(f'/api/v1/users/by-address/{self.unverified_user.address}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['email'], '')  # Should still be empty
-        self.assertFalse(response.data['is_email_verified'])
+        self.assertNotIn('email', response.data)
+        self.assertNotIn('is_email_verified', response.data)
     
     def test_verified_email_not_shown_in_public_profile(self):
         """Test that verified email is not exposed in public profile endpoint."""
@@ -138,27 +147,39 @@ class EmailSecurityTests(TestCase):
         # Test /api/v1/users/by-address/{address}/
         response = self.client.get(f'/api/v1/users/by-address/{self.verified_user.address}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['email'], '')
-        self.assertFalse(response.data['is_email_verified'])
-        self.assertFalse(response.data['is_banned'])
-        self.assertEqual(response.data['ban_reason'], '')
-        self.assertEqual(response.data['referral_code'], '')
-        self.assertIsNone(response.data['referred_by_info'])
-        self.assertEqual(response.data['total_referrals'], 0)
-        self.assertIsNone(response.data['referral_details'])
+        for field in [
+            'id',
+            'visible',
+            'email',
+            'is_email_verified',
+            'is_banned',
+            'ban_reason',
+            'referral_code',
+            'referred_by_info',
+            'total_referrals',
+            'referral_details',
+            'github_linked_at',
+        ]:
+            self.assertNotIn(field, response.data)
 
         # Also test when authenticated as another user
         self.authenticate(self.other_user)
         response = self.client.get(f'/api/v1/users/by-address/{self.verified_user.address}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['email'], '')
-        self.assertFalse(response.data['is_email_verified'])
-        self.assertFalse(response.data['is_banned'])
-        self.assertEqual(response.data['ban_reason'], '')
-        self.assertEqual(response.data['referral_code'], '')
-        self.assertIsNone(response.data['referred_by_info'])
-        self.assertEqual(response.data['total_referrals'], 0)
-        self.assertIsNone(response.data['referral_details'])
+        for field in [
+            'id',
+            'visible',
+            'email',
+            'is_email_verified',
+            'is_banned',
+            'ban_reason',
+            'referral_code',
+            'referred_by_info',
+            'total_referrals',
+            'referral_details',
+            'github_linked_at',
+        ]:
+            self.assertNotIn(field, response.data)
 
     def test_public_profile_only_exposes_public_social_identifiers(self):
         """Test that public profiles do not expose social credentials or internals."""
@@ -233,8 +254,8 @@ class EmailSecurityTests(TestCase):
         # Public endpoint should still not expose it to anonymous clients
         self.client.credentials()  # Clear authentication
         response = self.client.get(f'/api/v1/users/by-address/{self.unverified_user.address}/')
-        self.assertEqual(response.data['email'], '')
-        self.assertFalse(response.data['is_email_verified'])
+        self.assertNotIn('email', response.data)
+        self.assertNotIn('is_email_verified', response.data)
     
     def test_no_email_field_leakage_in_list_view(self):
         """Test that auth emails are not exposed in user list view."""
@@ -252,15 +273,46 @@ class EmailSecurityTests(TestCase):
             elif user_data['address'] == self.verified_user.address:
                 verified_user_data = user_data
         
-        # Check unverified user has empty email
+        # Check list entries expose only the minimal public directory shape
         self.assertIsNotNone(unverified_user_data)
-        self.assertEqual(unverified_user_data['email'], '')
-        self.assertFalse(unverified_user_data['is_email_verified'])
-        
-        # Check verified user also hides email in public lists
         self.assertIsNotNone(verified_user_data)
-        self.assertEqual(verified_user_data['email'], '')
-        self.assertFalse(verified_user_data['is_email_verified'])
+        self.assertEqual(
+            set(unverified_user_data.keys()),
+            {
+                'name',
+                'address',
+                'profile_image_url',
+                'created_at',
+                'validator',
+                'builder',
+                'steward',
+                'creator',
+            },
+        )
+        for user_data in [unverified_user_data, verified_user_data]:
+            self.assertNotIn('email', user_data)
+            self.assertNotIn('is_email_verified', user_data)
+            self.assertNotIn('is_banned', user_data)
+            self.assertNotIn('ban_reason', user_data)
+            self.assertNotIn('referral_code', user_data)
+            self.assertNotIn('github_connection', user_data)
+            self.assertNotIn('twitter_connection', user_data)
+            self.assertNotIn('discord_connection', user_data)
+
+    def test_hidden_users_are_not_publicly_enumerable(self):
+        """Test that hidden users are excluded from public list and profile endpoints."""
+        response = self.client.get('/api/v1/users/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        addresses = [user_data['address'] for user_data in response.data['results']]
+        self.assertNotIn(self.hidden_user.address, addresses)
+
+        response = self.client.get(f'/api/v1/users/by-address/{self.hidden_user.address}/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        self.authenticate(self.hidden_user)
+        response = self.client.get('/api/v1/users/me/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['email'], 'hidden@example.com')
 
     def test_public_search_does_not_match_auth_email(self):
         """Test that public user search cannot use auth email as a lookup key."""
