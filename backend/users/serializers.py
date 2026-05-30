@@ -30,6 +30,53 @@ class LightUserSerializer(serializers.Serializer):
     visible = serializers.BooleanField(read_only=True)
 
 
+class PublicUserListSerializer(serializers.ModelSerializer):
+    """
+    Minimal directory entry for public user lists.
+
+    Keep this intentionally small because /users/ is a high-scrape-risk
+    endpoint. Rich profile/account state belongs on explicit profile endpoints
+    or authenticated owner/staff responses.
+    """
+    validator = serializers.SerializerMethodField()
+    builder = serializers.SerializerMethodField()
+    steward = serializers.SerializerMethodField()
+    creator = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'name',
+            'address',
+            'profile_image_url',
+            'created_at',
+            'validator',
+            'builder',
+            'steward',
+            'creator',
+        ]
+        read_only_fields = fields
+
+    def _has_related(self, obj, related_name):
+        try:
+            getattr(obj, related_name)
+            return True
+        except Exception:
+            return False
+
+    def get_validator(self, obj):
+        return self._has_related(obj, 'validator')
+
+    def get_builder(self, obj):
+        return self._has_related(obj, 'builder')
+
+    def get_steward(self, obj):
+        return self._has_related(obj, 'steward')
+
+    def get_creator(self, obj):
+        return self._has_related(obj, 'creator')
+
+
 class LightValidatorSerializer(serializers.Serializer):
     """
     Minimal validator serializer without expensive stat calculations.
@@ -817,6 +864,27 @@ class UserSerializer(serializers.ModelSerializer):
             return obj.githubconnection.linked_at
         except Exception:
             return obj.github_linked_at
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        if not self._can_view_private_user_data(instance):
+            for field in [
+                'id',
+                'visible',
+                'email',
+                'is_email_verified',
+                'is_banned',
+                'ban_reason',
+                'github_linked_at',
+                'referral_code',
+                'referred_by_info',
+                'total_referrals',
+                'referral_details',
+            ]:
+                data.pop(field, None)
+
+        return data
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
