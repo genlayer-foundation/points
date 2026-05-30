@@ -7,8 +7,10 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+from contributions.node_upgrade.models import TargetNodeVersion
 from leaderboard.models import LeaderboardEntry
 from social_connections.models import DiscordConnection, DiscordRole, GitHubConnection, TwitterConnection
+from validators.models import Validator
 
 User = get_user_model()
 
@@ -54,6 +56,24 @@ class EmailSecurityTests(TestCase):
             address='0xabc',
             is_email_verified=True,
             visible=False,
+        )
+
+        TargetNodeVersion.objects.create(
+            version='1.2.0',
+            network='asimov',
+            target_date=timezone.now(),
+            is_active=True,
+        )
+        TargetNodeVersion.objects.create(
+            version='2.0.0',
+            network='bradbury',
+            target_date=timezone.now(),
+            is_active=True,
+        )
+        Validator.objects.create(
+            user=self.verified_user,
+            node_version_asimov='1.2.3',
+            node_version_bradbury='1.9.0',
         )
 
         self.verified_user.is_banned = True
@@ -298,6 +318,24 @@ class EmailSecurityTests(TestCase):
             self.assertNotIn('github_connection', user_data)
             self.assertNotIn('twitter_connection', user_data)
             self.assertNotIn('discord_connection', user_data)
+
+        self.assertIsNone(unverified_user_data['validator'])
+        self.assertEqual(
+            verified_user_data['validator'],
+            {
+                'node_version_asimov': '1.2.3',
+                'node_version_bradbury': '1.9.0',
+                'node_version': '1.2.3',
+                'matches_target_asimov': True,
+                'matches_target_bradbury': False,
+                'matches_target': True,
+                'target_version_asimov': '1.2.0',
+                'target_version_bradbury': '2.0.0',
+                'target_version': '1.2.0',
+                'active_validators_count': 0,
+                'total_validators_count': 0,
+            },
+        )
 
     def test_hidden_users_are_not_publicly_enumerable(self):
         """Test that hidden users are excluded from public list and profile endpoints."""
