@@ -1,0 +1,40 @@
+name: Sync Discord XP
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sync-discord-xp
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment: cron-job
+    timeout-minutes: 15
+    steps:
+      - name: Trigger Discord XP fetch and portal migration
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Cron-Token: ${{ secrets.CRON_SYNC_TOKEN }}" \
+            "${{ secrets.API_BASE_URL }}/api/v1/community-xp/mee6/sync-and-apply/")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "Response: $body"
+          echo "HTTP Code: $http_code"
+
+          if [ "$http_code" = "200" ] || [ "$http_code" = "202" ]; then
+            echo "Discord XP sync and portal migration accepted"
+          elif [ "$http_code" = "409" ]; then
+            echo "Discord XP sync already in progress, skipping (not a failure)"
+          else
+            echo "Discord XP sync failed with status $http_code"
+            exit 1
+          fi

@@ -273,6 +273,55 @@ describe('ProjectPageEditor', () => {
     });
   });
 
+  it('removes an existing participant and their related submissions when saving', async () => {
+    getProjectMock.mockResolvedValueOnce({
+      data: {
+        ...project,
+        participants: [
+          {
+            id: 9,
+            name: 'Project Participant',
+            address: '0x0000000000000000000000000000000000000009',
+            profile_image_url: '',
+          },
+        ],
+        related_contributions: [
+          {
+            id: 42,
+            title: 'Built the project interface',
+            points: 20,
+            frozen_global_points: 42,
+            contribution_date: '2026-05-01T12:00:00Z',
+            user: {
+              name: 'Project Participant',
+              address: '0x0000000000000000000000000000000000000009',
+              profile_image_url: '',
+            },
+            contribution_type: {
+              name: 'Project Submission',
+            },
+          },
+        ],
+      },
+    });
+
+    renderWithEffects(ProjectPageEditor, { props: { params: { slug: 'buildersclaw' } } });
+
+    await waitForApiCall(projectsAPI.get, 'buildersclaw');
+    await fireEvent.click(screen.getAllByLabelText(/Remove Project Participant/i)[0]);
+    await fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(updateProfileMock).toHaveBeenCalledWith(
+        'buildersclaw',
+        expect.objectContaining({
+          participant_ids: [],
+          related_contribution_ids: [],
+        })
+      );
+    });
+  });
+
   it('preserves owner related submissions even when the owner was not explicitly in participants', async () => {
     getProjectMock.mockResolvedValueOnce({
       data: {

@@ -398,6 +398,17 @@ if DEBUG and RECAPTCHA_PUBLIC_KEY == '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI':
 # Cron job authentication token for validator sync endpoint
 CRON_SYNC_TOKEN = os.environ.get('CRON_SYNC_TOKEN', '')
 
+# Grafana Cloud (Wall of Shame): observability cross-check for active validators
+GRAFANA_BASE_URL = os.environ.get('GRAFANA_BASE_URL', 'https://genlayerfoundation.grafana.net')
+GRAFANA_API_TOKEN = os.environ.get('GRAFANA_API_TOKEN', '')
+GRAFANA_PROM_DS_UID = os.environ.get('GRAFANA_PROM_DS_UID', 'grafanacloud-prom')
+GRAFANA_LOKI_DS_UID = os.environ.get('GRAFANA_LOKI_DS_UID', 'grafanacloud-logs')
+# Map our internal network keys to the `network` label used in Grafana queries.
+GRAFANA_NETWORK_LABELS = {
+    'asimov': os.environ.get('GRAFANA_ASIMOV_LABEL', 'asimov-phase5'),
+    'bradbury': os.environ.get('GRAFANA_BRADBURY_LABEL', 'bradbury-phase1'),
+}
+
 # AI review agent authentication token for automated submission review
 AI_REVIEW_API_KEY = os.environ.get('AI_REVIEW_API_KEY', '')
 

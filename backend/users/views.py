@@ -3,13 +3,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.db.models import Sum, Q
 from .models import BanAppeal, User
 from .serializers import (
     BanAppealSerializer, UserSerializer, UserCreateSerializer,
-    UserProfileUpdateSerializer,
+    UserProfileUpdateSerializer, PublicUserListSerializer,
 )
 from .cloudinary_service import CloudinaryService
 from .genlayer_service import GenLayerDeploymentService
@@ -38,6 +39,30 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
     lookup_field = 'address'  # Change default lookup field from 'pk' to 'address'
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['date_joined', 'created_at']
+
+    def _can_view_user(self, user):
+        request_user = self.request.user
+        return bool(
+            user.visible
+            or (
+                request_user.is_authenticated
+                and (request_user.id == user.id or request_user.is_staff)
+            )
+        )
+
+    def get_queryset(self):
+        """
+        Public user collections should only include visible profiles.
+        Staff can still inspect all users; users access their own hidden profile
+        through /users/me/ rather than through the public directory.
+        """
+        queryset = User.objects.all()
+        request_user = self.request.user
+
+        if request_user.is_authenticated and request_user.is_staff:
+            return queryset
+
+        return queryset.filter(visible=True)
     
     def get_object(self):
         """
@@ -47,9 +72,8 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         lookup_value = self.kwargs[self.lookup_field]  # Gets address from URL
         obj = get_object_or_404(User, address__iexact=lookup_value)  # Case-insensitive
         
-        # If the user is accessing their own profile, allow it
-        if self.request.user.is_authenticated and obj.id == self.request.user.id:
-            return obj
+        if not self._can_view_user(obj):
+            raise Http404
         return obj
         
     def get_serializer_context(self):
@@ -76,6 +100,10 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
             User.objects.select_related('validator', 'builder', 'steward', 'creator'),
             address__iexact=address
         )
+
+        if not self._can_view_user(user):
+            raise Http404
+
         # Override context for by_address to include full details
         context = self.get_serializer_context()
         context['use_light_serializers'] = False
@@ -118,6 +146,8 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return UserCreateSerializer
+        if self.action == 'list':
+            return PublicUserListSerializer
         return UserSerializer
         
     @action(detail=False, methods=['get', 'patch'], permission_classes=[permissions.IsAuthenticated])
@@ -843,21 +873,25 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def search(self, request):
-        """Search users by name, address, email, or social handles."""
+        """Search visible users by public identifiers."""
         query = request.query_params.get('q', '').strip()
 
         if len(query) < 2:
             return Response([])
 
-        users = User.objects.filter(
+        search_query = (
             Q(name__icontains=query) |
             Q(address__icontains=query) |
-            Q(email__icontains=query) |
             Q(twitter_handle__icontains=query) |
             Q(discord_handle__icontains=query) |
             Q(telegram_handle__icontains=query) |
             Q(githubconnection__platform_username__icontains=query)
-        ).filter(visible=True)[:10]
+        )
+
+        if request.user.is_authenticated and request.user.is_staff:
+            search_query |= Q(email__icontains=query)
+
+        users = User.objects.filter(search_query).filter(visible=True)[:10]
 
         return Response([
             {

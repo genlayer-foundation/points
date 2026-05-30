@@ -287,6 +287,15 @@ def release_sync_lock(owner_token):
     ).update(owner_token=None, heartbeat_at=now, released_at=now)
 
 
+def refresh_sync_lock(owner_token):
+    if not owner_token:
+        return False
+    return bool(Mee6SyncLock.objects.filter(
+        name=LOCK_NAME,
+        owner_token=owner_token,
+    ).update(heartbeat_at=timezone.now()))
+
+
 def _connection_map(discord_ids):
     connections = (
         DiscordConnection.objects
