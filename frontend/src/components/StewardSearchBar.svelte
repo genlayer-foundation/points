@@ -27,7 +27,7 @@
     },
     { name: 'type', description: 'Filter by contribution type', values: () => contributionTypes.map(t => t.name.toLowerCase().replace(/\s+/g, '-')) },
     { name: 'category', description: 'Filter by category', values: () => [...new Set(contributionTypes.map(t => t.category).filter(Boolean))] },
-    { name: 'from', description: 'Search by user name/email/address', values: () => [] },
+    { name: 'from', description: 'Search by user name or address', values: () => [] },
     { name: 'assigned', description: 'Filter by assignment', values: () => ['me', 'unassigned', ...stewardsList.map(s => s.name || s.address?.slice(0, 10))] },
     { name: 'reviewed', description: 'Filter by steward who reviewed', values: () => ['me', ...stewardsList.map(s => s.name || s.address?.slice(0, 10))] },
     { name: 'proposed-by', description: 'Filter by proposal creator', values: () => ['ai', 'me', 'none', ...stewardsList.map(s => s.name || s.address?.slice(0, 10))] },
@@ -235,7 +235,7 @@
           <div class="help-row"><code>type:blog-post</code><span>Filter by contribution type</span></div>
           <div class="help-row"><code>status:canceled</code><span>Filter by review status</span></div>
           <div class="help-row"><code>category:builder</code><span>Filter by category (builder, validator)</span></div>
-          <div class="help-row"><code>from:username</code><span>Search by user name/email/address</span></div>
+          <div class="help-row"><code>from:username</code><span>Search by user name or address</span></div>
           <div class="help-row"><code>assigned:me</code><span>Filter by assignment (me, unassigned, name)</span></div>
           <div class="help-row"><code>reviewed:me</code><span>Filter by steward who accepted/rejected it</span></div>
           <div class="help-row"><code>proposed-by:ai</code><span>Only active proposals from the AI reviewer</span></div>
