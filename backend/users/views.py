@@ -888,9 +888,6 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
             Q(githubconnection__platform_username__icontains=query)
         )
 
-        if request.user.is_authenticated and request.user.is_staff:
-            search_query |= Q(email__icontains=query)
-
         users = User.objects.filter(search_query).filter(visible=True)[:10]
 
         return Response([

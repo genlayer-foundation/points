@@ -18,7 +18,7 @@
 
   const TAGS = [
     { name: 'type', description: 'Filter by community contribution type', values: () => contributionTypes.map(t => t.slug || t.name.toLowerCase().replace(/\s+/g, '-')) },
-    { name: 'from', description: 'Search by name, email, wallet, or Discord username', values: () => [] },
+    { name: 'from', description: 'Search by name, wallet, or Discord username', values: () => [] },
     { name: 'include', description: 'Only show contributions containing text', values: () => [] },
     { name: 'exclude', description: 'Exclude contributions containing text', values: () => [] },
     { name: 'sort', description: 'Sort order', values: () => ['created', '-created', 'date', '-date', 'points', '-points', 'distributed', '-distributed'] }

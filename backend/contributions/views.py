@@ -1056,7 +1056,7 @@ class StewardSubmissionFilterSet(FilterSet):
     resubmitted_more_info = BooleanFilter(method='filter_resubmitted_more_info')
 
     def filter_search(self, queryset, name, value):
-        """General search across user name/email/address, notes, and evidence URLs."""
+        """General search across user name/address, notes, and evidence URLs."""
         if value:
             has_matching_evidence = Evidence.objects.filter(
                 submitted_contribution=OuterRef('pk')
@@ -1065,7 +1065,6 @@ class StewardSubmissionFilterSet(FilterSet):
             )
             return queryset.filter(
                 Q(user__name__icontains=value) |
-                Q(user__email__icontains=value) |
                 Q(user__address__icontains=value) |
                 Q(notes__icontains=value) |
                 Exists(has_matching_evidence)
@@ -1085,11 +1084,10 @@ class StewardSubmissionFilterSet(FilterSet):
         return queryset
 
     def filter_username(self, queryset, name, value):
-        """Filter by submitter name, email, or address (case-insensitive partial match)."""
+        """Filter by submitter name or address (case-insensitive partial match)."""
         if value:
             return queryset.filter(
                 Q(user__name__icontains=value) |
-                Q(user__email__icontains=value) |
                 Q(user__address__icontains=value)
             )
         return queryset
@@ -1099,7 +1097,6 @@ class StewardSubmissionFilterSet(FilterSet):
         if value:
             return queryset.exclude(
                 Q(user__name__icontains=value) |
-                Q(user__email__icontains=value) |
                 Q(user__address__icontains=value)
             )
         return queryset
@@ -1357,7 +1354,6 @@ class StewardDiscordXPFilterSet(FilterSet):
         if value:
             return queryset.filter(
                 Q(contribution__user__name__icontains=value) |
-                Q(contribution__user__email__icontains=value) |
                 Q(contribution__user__address__icontains=value) |
                 Q(contribution__user__discord_handle__icontains=value) |
                 Q(contribution__user__discordconnection__platform_username__icontains=value) |
@@ -1370,7 +1366,6 @@ class StewardDiscordXPFilterSet(FilterSet):
             return queryset.filter(
                 self._content_query(value) |
                 Q(contribution__user__name__icontains=value) |
-                Q(contribution__user__email__icontains=value) |
                 Q(contribution__user__address__icontains=value) |
                 Q(contribution__user__discord_handle__icontains=value) |
                 Q(contribution__user__discordconnection__platform_username__icontains=value) |

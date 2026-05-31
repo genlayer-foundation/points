@@ -358,8 +358,8 @@ class EmailSecurityTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [])
 
-    def test_staff_search_can_match_auth_email(self):
-        """Test that staff search can still use auth email for moderation workflows."""
+    def test_staff_search_does_not_match_auth_email(self):
+        """Test that portal user search cannot use auth email even for staff."""
         staff = User.objects.create_user(
             email='staff@example.com',
             password='testpass123',
@@ -371,8 +371,7 @@ class EmailSecurityTests(TestCase):
 
         response = self.client.get('/api/v1/users/search/', {'q': 'verified@example.com'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['address'], self.verified_user.address)
+        self.assertEqual(response.data, [])
 
     def test_leaderboard_search_does_not_match_auth_email(self):
         """Test that leaderboard search cannot use auth email as a lookup key."""
