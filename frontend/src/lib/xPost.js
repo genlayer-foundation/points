@@ -4,10 +4,15 @@ const X_POST_HOSTS = new Set([
   'mobile.twitter.com',
 ]);
 
+/** @param {string} hostname */
 function normalizeHost(hostname) {
   return hostname.toLowerCase().replace(/^www\./, '');
 }
 
+/**
+ * @param {unknown} value
+ * @returns {{ id: string, username: string, url: string } | null}
+ */
 export function getXPostUrl(value) {
   if (!value || typeof value !== 'string') return null;
 
@@ -41,20 +46,7 @@ export function getXPostUrl(value) {
   }
 }
 
+/** @param {unknown} value */
 export function isXPostUrl(value) {
   return Boolean(getXPostUrl(value));
-}
-
-export function getSingleXPostEvidence(evidenceItems = []) {
-  const items = Array.isArray(evidenceItems) ? evidenceItems : [];
-  const urlEvidence = items.filter((item) => item?.url);
-  if (urlEvidence.length !== 1) return null;
-
-  const post = getXPostUrl(urlEvidence[0].url);
-  if (!post) return null;
-
-  return {
-    ...post,
-    evidence: urlEvidence[0],
-  };
 }

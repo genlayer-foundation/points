@@ -1,8 +1,26 @@
 <script>
   import { getXPostUrl } from '../lib/xPost.js';
 
-  let { url, description = '', compact = false } = $props();
+  /**
+   * @type {{
+   *   url: string,
+   *   description?: string,
+   *   compact?: boolean,
+   *   showFallback?: boolean,
+   *   onLoad?: (() => void) | null,
+   *   onError?: (() => void) | null
+   * }}
+   */
+  let {
+    url,
+    description = '',
+    compact = false,
+    showFallback = true,
+    onLoad = null,
+    onError = null
+  } = $props();
 
+  /** @type {HTMLDivElement | null} */
   let container = $state(null);
   let loaded = $state(false);
   let failed = $state(false);
@@ -10,10 +28,17 @@
   let post = $derived(getXPostUrl(url));
   let embedUrl = $derived(post?.url || url);
 
+  /** @type {Promise<any> | null} */
   let widgetsPromise = null;
 
+  function getTwitterWidgets() {
+    return /** @type {any} */ (window).twttr;
+  }
+
+  /** @returns {Promise<any>} */
   function waitForWidgets() {
-    if (window.twttr?.widgets) return Promise.resolve(window.twttr);
+    const twttr = getTwitterWidgets();
+    if (twttr?.widgets) return Promise.resolve(twttr);
     if (widgetsPromise) return widgetsPromise;
 
     widgetsPromise = new Promise((resolve, reject) => {
@@ -29,9 +54,10 @@
 
       const startedAt = Date.now();
       const interval = window.setInterval(() => {
-        if (window.twttr?.widgets) {
+        const twttr = getTwitterWidgets();
+        if (twttr?.widgets) {
           window.clearInterval(interval);
-          resolve(window.twttr);
+          resolve(twttr);
         } else if (Date.now() - startedAt > 10000) {
           window.clearInterval(interval);
           reject(new Error('Timed out loading X embed script'));
@@ -43,6 +69,7 @@
   }
 
   function buildBlockquote() {
+    if (!container) return;
     container.innerHTML = '';
 
     const blockquote = document.createElement('blockquote');
@@ -69,14 +96,20 @@
     waitForWidgets()
       .then((twttr) => twttr.widgets.load(container))
       .then(() => {
-        if (cancelled) return;
+        if (cancelled || !container) return;
         loaded = Boolean(container.querySelector('iframe'));
         failed = !loaded;
+        if (loaded) {
+          onLoad?.();
+        } else {
+          onError?.();
+        }
       })
       .catch(() => {
         if (cancelled) return;
         failed = true;
         loaded = false;
+        onError?.();
       });
 
     return () => {
@@ -102,7 +135,7 @@
 
   <div bind:this={container} class="tweet-container" class:tweet-container-hidden={!loaded || failed}></div>
 
-  {#if failed}
+  {#if failed && showFallback}
     <a href={embedUrl} target="_blank" rel="noopener noreferrer" class="tweet-fallback">
       <span>{description || 'View post on X'}</span>
       <svg class="tweet-fallback-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

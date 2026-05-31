@@ -8,10 +8,9 @@
   import Avatar from './Avatar.svelte';
   import Badge from './Badge.svelte';
   import Icons from './Icons.svelte';
-  import TweetEmbed from './TweetEmbed.svelte';
+  import EvidenceUrlCard from './EvidenceUrlCard.svelte';
   import { parseMarkdown } from '../lib/markdownLoader.js';
   import { showSuccess, showError } from '../lib/toastStore';
-  import { getSingleXPostEvidence } from '../lib/xPost.js';
 
   let {
     submission,
@@ -53,9 +52,11 @@
   let canCopyReviewContext = $derived(
     showReviewForm && !isOwnSubmission && submission.state === 'pending'
   );
-  let xPostEvidence = $derived(getSingleXPostEvidence(submission.evidence_items));
   let textOnlyEvidence = $derived(
     (submission.evidence_items || []).filter(evidence => !evidence?.url && evidence?.description)
+  );
+  let urlEvidence = $derived(
+    (submission.evidence_items || []).filter(evidence => evidence?.url)
   );
 
   function formatContextDate(dateString) {
@@ -726,35 +727,18 @@
         {#if submission.evidence_items?.length > 0}
           <div>
             <h4 class="text-sm font-medium text-gray-700">Evidence</h4>
-            {#if xPostEvidence}
-              <div class="mt-2">
-                <TweetEmbed
-                  url={xPostEvidence.url}
-                  description={xPostEvidence.evidence.description}
-                  compact={true}
-                />
-                {#if textOnlyEvidence.length > 0}
-                  <ul class="mt-2 space-y-1">
-                    {#each textOnlyEvidence as evidence}
-                      <li class="text-sm text-gray-600">
-                        • {evidence.description}
-                      </li>
-                    {/each}
-                  </ul>
-                {/if}
+            {#if urlEvidence.length > 0}
+              <div class="mt-2 flex flex-col gap-2">
+                {#each urlEvidence as evidence}
+                  <EvidenceUrlCard {evidence} compact={true} />
+                {/each}
               </div>
-            {:else}
-              <ul class="mt-1 space-y-1">
-                {#each submission.evidence_items as evidence}
+            {/if}
+            {#if textOnlyEvidence.length > 0}
+              <ul class="mt-2 space-y-1">
+                {#each textOnlyEvidence as evidence}
                   <li class="text-sm text-gray-600">
-                    {#if evidence.description}
-                      • {evidence.description}
-                    {/if}
-                    {#if evidence.url}
-                      <a href={evidence.url} target="_blank" rel="noopener noreferrer" class="text-primary-600 underline ml-1">
-                        View URL
-                      </a>
-                    {/if}
+                    • {evidence.description}
                   </li>
                 {/each}
               </ul>
