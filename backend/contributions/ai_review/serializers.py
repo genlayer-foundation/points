@@ -62,8 +62,17 @@ class LightAIReviewSubmissionSerializer(serializers.ModelSerializer):
         return obj.proposed_action is not None
 
 
+class AIReviewNoteSerializer(serializers.ModelSerializer):
+    """Serializer for internal notes on AI review submissions."""
+
+    class Meta:
+        model = SubmissionNote
+        fields = ['message', 'is_proposal', 'data', 'created_at']
+        read_only_fields = fields
+
+
 class AIReviewSubmissionSerializer(serializers.ModelSerializer):
-    """Full serializer for detail views — includes evidence and user history."""
+    """Full serializer for detail views — includes evidence, notes, and user history."""
 
     contribution_type_name = serializers.CharField(
         source='contribution_type.name', read_only=True,
@@ -79,6 +88,7 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
         source='contribution_type.max_points', read_only=True,
     )
     evidence_items = AIReviewEvidenceSerializer(many=True, read_only=True)
+    internal_notes = AIReviewNoteSerializer(many=True, read_only=True)
     mission = AIReviewMissionSerializer(read_only=True)
     user_history = serializers.SerializerMethodField()
     has_proposal = serializers.SerializerMethodField()
@@ -102,6 +112,7 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
             'has_appeal',
             'appeal_reason',
             'evidence_items',
+            'internal_notes',
             'user_history',
             'has_proposal',
             'proposed_action',
@@ -140,15 +151,6 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
         if obj.proposed_by:
             return obj.proposed_by.name or str(obj.proposed_by.id)
         return None
-
-
-class AIReviewNoteSerializer(serializers.ModelSerializer):
-    """Serializer for internal notes on reviewed submissions."""
-
-    class Meta:
-        model = SubmissionNote
-        fields = ['message', 'is_proposal', 'data', 'created_at']
-        read_only_fields = fields
 
 
 class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):

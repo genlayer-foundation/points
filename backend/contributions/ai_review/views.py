@@ -347,6 +347,10 @@ class AIReviewViewSet(
         # retrieve allows accessing proposed ones too (needed for PUT /propose/).
         if self.action == 'list':
             qs = qs.filter(proposed_action__isnull=True)
+        prefetches = ['evidence_items']
+        if self.action != 'list':
+            prefetches.append('internal_notes')
+
         return (
             qs.select_related(
                 'contribution_type',
@@ -356,7 +360,7 @@ class AIReviewViewSet(
                 'assigned_to',
                 'proposed_by',
             )
-            .prefetch_related('evidence_items')
+            .prefetch_related(*prefetches)
         )
 
     def filter_queryset(self, queryset):
