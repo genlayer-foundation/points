@@ -37,7 +37,7 @@ Every request needs:
 | Endpoint | Method | Purpose | Default Scope |
 |---|---:|---|---|
 | `/api/v1/ai-review/` | GET | Find new submissions to evaluate | Pending, unproposed, non-appealed unless `has_appeal` is sent |
-| `/api/v1/ai-review/{id}/` | GET | Full submission detail | One pending submission |
+| `/api/v1/ai-review/{id}/` | GET | Full submission detail, including `internal_notes` | One pending submission |
 | `/api/v1/ai-review/{id}/propose/` | POST | Create AI proposal | Fails if an active proposal already exists |
 | `/api/v1/ai-review/{id}/propose/` | PUT | Update AI-created proposal | Fails if no proposal exists or proposal is human-created |
 | `/api/v1/ai-review/proposed/` | GET | List active AI proposals | Pending submissions proposed by AI |
@@ -49,7 +49,7 @@ and `/ai-review/reviewed/` only for calibration.
 ## Workflow
 
 1. Fetch candidates from `/api/v1/ai-review/`.
-2. Fetch detail for one candidate with `/api/v1/ai-review/{id}/`.
+2. Fetch detail for one candidate with `/api/v1/ai-review/{id}/` and inspect `internal_notes`.
 3. Decide `accept`, `reject`, or `more_info`.
 4. POST a proposal to `/api/v1/ai-review/{id}/propose/`.
 5. Continue pagination with `page` and `page_size`.
@@ -94,6 +94,13 @@ curl -s -X PUT \
 | `proposed_staff_reply` | `reject`, `more_info`; optional for `accept` | User-visible text |
 | `reasoning` | Optional | Internal text |
 | `confidence` | Optional | `high`, `medium`, `low`; defaults to `medium` |
+
+## Internal Notes
+
+- Pending submission details from `/api/v1/ai-review/{id}/` include `internal_notes`.
+- Reviewed calibration submissions from `/api/v1/ai-review/reviewed/` also include `internal_notes`.
+- Each note includes `message`, `is_proposal`, `data`, and `created_at`.
+- Treat `internal_notes` as internal context only. Do not copy private reasoning or CRM notes into `proposed_staff_reply`.
 
 ## Filters
 
