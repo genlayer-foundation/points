@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
@@ -811,6 +812,147 @@ class PoapAPITest(TestCase):
         self.assertEqual(PoapClaim.objects.filter(drop=drop).count(), 2)
         self.assertTrue(PoapClaim.objects.filter(drop=drop, legacy_wallet_address=first_wallet).exists())
         self.assertTrue(PoapClaim.objects.filter(drop=drop, legacy_wallet_address=second_wallet).exists())
+
+    def test_poap_archive_import_accepts_claim_only_zip_for_existing_artwork(self):
+        existing_drop = PoapDrop.objects.create(
+            title='Existing Legacy Drop',
+            slug='existing-legacy-drop',
+            artwork_url='https://example.com/existing-poap.png',
+            event_start_at=timezone.now(),
+            status=PoapDrop.STATUS_ARCHIVED,
+            legacy_poap_id='654',
+        )
+        wallet = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+        matched_user = User.objects.create_user(
+            email='claim-only@example.com',
+            password='pass123',
+            address=wallet,
+        )
+        csv_data = (
+            'ens,email_address,ethereum_address\n'
+            f'claim.eth,,{wallet}\n'
+            ',email-only@example.com,\n'
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive_path = f'{temp_dir}/poaps.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.writestr(
+                    'poap.data/POAP_drop_654_collectors_2026-03-25_Existing Legacy Drop.csv',
+                    csv_data,
+                )
+
+            call_command('import_poap_archive', archive_path, verbosity=0)
+            call_command('import_poap_archive', archive_path, verbosity=0)
+
+        existing_drop.refresh_from_db()
+        self.assertEqual(existing_drop.artwork_url, 'https://example.com/existing-poap.png')
+        self.assertTrue(PoapClaim.objects.filter(drop=existing_drop, user=matched_user).exists())
+        self.assertTrue(PoapClaim.objects.filter(
+            drop=existing_drop,
+            user__isnull=True,
+            legacy_email='email-only@example.com',
+        ).exists())
+        self.assertEqual(PoapClaim.objects.filter(drop=existing_drop).count(), 2)
+
+    @patch('users.cloudinary_service.CloudinaryService.upload_image')
+    def test_poap_archive_import_links_rows_for_previously_recovered_wallet(self, upload_image):
+        upload_image.return_value = {
+            'url': 'https://res.cloudinary.com/demo/image/upload/tally/poaps/poap-655.webp',
+            'public_id': 'tally/poaps/poap_655',
+        }
+        recovered_wallet = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+        PoapClaim.objects.create(
+            drop=self.drop,
+            user=self.user,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+            source=PoapClaim.SOURCE_LEGACY_IMPORT,
+            legacy_wallet_address=recovered_wallet,
+        )
+        csv_data = (
+            'ens,email_address,ethereum_address\n'
+            f'recovered.eth,,{recovered_wallet}\n'
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive_path = f'{temp_dir}/poaps.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.writestr(
+                    'poap.data/POAP_drop_655_collectors_2026-03-25_Recovered Wallet Drop.csv',
+                    csv_data,
+                )
+                archive.writestr(
+                    'poap.data/poap_images/ID 655_Recovered Wallet Drop.webp',
+                    b'fake-webp',
+                )
+
+            call_command(
+                'import_poap_archive',
+                archive_path,
+                '--upload-artwork',
+                verbosity=0,
+            )
+            call_command(
+                'import_poap_archive',
+                archive_path,
+                '--upload-artwork',
+                verbosity=0,
+            )
+
+        drop = PoapDrop.objects.get(legacy_poap_id='655')
+        self.assertTrue(PoapClaim.objects.filter(
+            drop=drop,
+            user=self.user,
+            legacy_wallet_address=recovered_wallet,
+        ).exists())
+        self.assertEqual(PoapClaim.objects.filter(drop=drop).count(), 1)
+
+    def test_poap_archive_import_rejects_claim_only_zip_for_new_drop(self):
+        csv_data = (
+            'ens,email_address,ethereum_address\n'
+            ',email-only@example.com,\n'
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive_path = f'{temp_dir}/poaps.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.writestr(
+                    'poap.data/POAP_drop_987_collectors_2026-03-25_New Drop.csv',
+                    csv_data,
+                )
+
+            with self.assertRaisesMessage(
+                CommandError,
+                'POAP 987 has no image in the archive and no existing artwork.',
+            ):
+                call_command('import_poap_archive', archive_path, '--dry-run', verbosity=0)
+
+    def test_poap_archive_import_requires_upload_artwork_for_new_drop_before_batch(self):
+        csv_data = (
+            'ens,email_address,ethereum_address\n'
+            ',email-only@example.com,\n'
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive_path = f'{temp_dir}/poaps.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.writestr(
+                    'poap.data/POAP_drop_988_collectors_2026-03-25_New Drop With Image.csv',
+                    csv_data,
+                )
+                archive.writestr(
+                    'poap.data/poap_images/ID 988_New Drop With Image.webp',
+                    b'fake-webp',
+                )
+
+            with self.assertRaisesMessage(
+                CommandError,
+                'Images are mandatory for new POAP drops. Pass --upload-artwork to upload badge images to Cloudinary.',
+            ):
+                call_command('import_poap_archive', archive_path, verbosity=0)
+
+        self.assertFalse(PoapImportBatch.objects.exists())
+        self.assertFalse(PoapDrop.objects.filter(legacy_poap_id='988').exists())
 
     @patch('users.cloudinary_service.CloudinaryService.upload_image')
     def test_poap_archive_import_skips_bad_rows_without_rolling_back_drop(self, upload_image):
