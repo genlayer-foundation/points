@@ -1,5 +1,4 @@
 <script>
-  import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { contributionsAPI, statsAPI, leaderboardAPI, validatorsAPI, buildersAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
@@ -35,6 +34,10 @@
   let recentSlider = $state(null);
   let canRecentLeft = $state(false);
   let canRecentRight = $state(false);
+  let dashboardRequestSequence = 0;
+  let activeLoadedCategory = $state(null);
+
+  const COMMUNITY_SOCIAL_LINK_SLUGS = new Set(['community-link-x', 'community-link-discord']);
 
   let category = $derived($currentCategory);
   let isBuilder = $derived(category === 'builder');
@@ -104,16 +107,50 @@
     ];
   }
 
-  onMount(async () => {
-    const cat = $currentCategory;
+  function getContributionTypeSlug(contribution) {
+    return contribution?.contribution_type_details?.slug || contribution?.contribution_type_slug || contribution?.contribution_type?.slug || '';
+  }
+
+  function isCommunitySocialLinkContribution(contribution) {
+    return COMMUNITY_SOCIAL_LINK_SLUGS.has(getContributionTypeSlug(contribution));
+  }
+
+  function filterRecentContributions(contributions, cat) {
+    if (cat !== 'community') return contributions;
+    return contributions.filter((contribution) => !isCommunitySocialLinkContribution(contribution));
+  }
+
+  function resetDashboardState() {
+    statsData = [];
+    leaderboardEntries = [];
+    newestMembers = [];
+    waitlistEntries = [];
+    trendingEntries = [];
+    recentContributions = [];
+    statsLoading = true;
+    leaderboardLoading = true;
+    membersLoading = true;
+    waitlistLoading = true;
+    trendingLoading = true;
+    recentLoading = true;
+    canRecentLeft = false;
+    canRecentRight = false;
+  }
+
+  async function fetchDashboardData(cat) {
+    const requestId = ++dashboardRequestSequence;
+    resetDashboardState();
 
     // All fetches in parallel
     const promises = [
       // Stats
       statsAPI.getDashboardStats(cat).then(res => {
+        if (requestId !== dashboardRequestSequence) return;
         statsData = mapStats(res.data, cat);
         statsLoading = false;
-      }).catch(() => { statsLoading = false; }),
+      }).catch(() => {
+        if (requestId === dashboardRequestSequence) statsLoading = false;
+      }),
 
       // Top contributors. Validator dashboard is intentionally all-time;
       // builder and community dashboards use current-month contribution totals.
@@ -121,16 +158,20 @@
           ? leaderboardAPI.getLeaderboard({ type: 'validator', order: 'asc', limit: 5 })
           : leaderboardAPI.getMonthlyLeaderboardByType(cat, 5)
       ).then(res => {
+        if (requestId !== dashboardRequestSequence) return;
         leaderboardEntries = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
         leaderboardLoading = false;
-      }).catch(() => { leaderboardLoading = false; }),
+      }).catch(() => {
+        if (requestId === dashboardRequestSequence) leaderboardLoading = false;
+      }),
 
     ];
 
     if (cat === 'community') {
       promises.push(
         contributionsAPI.getContributions({ limit: 20, category: cat, exclude_onboarding: 'true' }).then(res => {
-          const contributions = res.data?.results ?? res.data ?? [];
+          if (requestId !== dashboardRequestSequence) return;
+          const contributions = filterRecentContributions(res.data?.results ?? res.data ?? [], cat);
           recentContributions = contributions.slice(0, 5);
 
           const seen = new Set();
@@ -144,8 +185,10 @@
           membersLoading = false;
           recentLoading = false;
         }).catch(() => {
-          membersLoading = false;
-          recentLoading = false;
+          if (requestId === dashboardRequestSequence) {
+            membersLoading = false;
+            recentLoading = false;
+          }
         })
       );
     } else {
@@ -154,9 +197,12 @@
           ? buildersAPI.getNewestBuilders(10)
           : validatorsAPI.getNewestValidators(10)
         ).then(res => {
+          if (requestId !== dashboardRequestSequence) return;
           newestMembers = res.data?.results ?? res.data ?? [];
           membersLoading = false;
-        }).catch(() => { membersLoading = false; })
+        }).catch(() => {
+          if (requestId === dashboardRequestSequence) membersLoading = false;
+        })
       );
     }
 
@@ -164,14 +210,20 @@
     if (cat === 'validator') {
       promises.push(
         leaderboardAPI.getWaitlistTop(5).then(res => {
+          if (requestId !== dashboardRequestSequence) return;
           waitlistEntries = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
           waitlistLoading = false;
-        }).catch(() => { waitlistLoading = false; }),
+        }).catch(() => {
+          if (requestId === dashboardRequestSequence) waitlistLoading = false;
+        }),
 
         contributionsAPI.getContributions({ limit: 5, category: cat, exclude_onboarding: 'true' }).then(res => {
+          if (requestId !== dashboardRequestSequence) return;
           recentContributions = res.data?.results ?? res.data ?? [];
           recentLoading = false;
-        }).catch(() => { recentLoading = false; })
+        }).catch(() => {
+          if (requestId === dashboardRequestSequence) recentLoading = false;
+        })
       );
     }
 
@@ -179,13 +231,23 @@
     if (cat === 'builder') {
       promises.push(
         leaderboardAPI.getTrending(10).then(res => {
+          if (requestId !== dashboardRequestSequence) return;
           trendingEntries = res.data || [];
           trendingLoading = false;
-        }).catch(() => { trendingLoading = false; })
+        }).catch(() => {
+          if (requestId === dashboardRequestSequence) trendingLoading = false;
+        })
       );
     }
 
     await Promise.allSettled(promises);
+  }
+
+  $effect(() => {
+    const cat = $currentCategory;
+    if (!cat || cat === activeLoadedCategory) return;
+    activeLoadedCategory = cat;
+    fetchDashboardData(cat);
   });
 
   // Helper: format date for recent contributions
