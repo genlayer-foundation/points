@@ -298,6 +298,45 @@ class TestAIReviewAPI(APITestCase):
     def setUp(self):
         self.fixtures = _create_test_fixtures()
 
+    def test_ai_review_detail_returns_internal_notes_for_pending_submission(self):
+        submission = self.fixtures['submission']
+        SubmissionNote.objects.create(
+            submitted_contribution=submission,
+            user=self.fixtures['steward_user'],
+            message='Prior steward context for the AI reviewer.',
+            data={'source': 'crm'},
+        )
+
+        response = self.client.get(
+            f'/api/v1/ai-review/{submission.id}/',
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data['internal_notes']), 1)
+        self.assertEqual(
+            response.data['internal_notes'][0]['message'],
+            'Prior steward context for the AI reviewer.',
+        )
+        self.assertFalse(response.data['internal_notes'][0]['is_proposal'])
+        self.assertEqual(response.data['internal_notes'][0]['data'], {'source': 'crm'})
+
+    def test_ai_review_list_does_not_include_internal_notes(self):
+        submission = self.fixtures['submission']
+        SubmissionNote.objects.create(
+            submitted_contribution=submission,
+            user=self.fixtures['steward_user'],
+            message='List endpoint should stay compact.',
+        )
+
+        response = self.client.get(
+            '/api/v1/ai-review/',
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('internal_notes', response.data['results'][0])
+
     def test_ai_propose_endpoint_stores_structured_note_data(self):
         submission = self.fixtures['submission']
 

@@ -1,3 +1,4 @@
+import io
 import tempfile
 import zipfile
 from unittest.mock import patch
@@ -855,6 +856,39 @@ class PoapAPITest(TestCase):
         ).exists())
         self.assertEqual(PoapClaim.objects.filter(drop=existing_drop).count(), 2)
 
+    def test_poap_archive_import_claim_only_dedupes_duplicate_wallet_rows(self):
+        existing_drop = PoapDrop.objects.create(
+            title='Duplicate Wallet Drop',
+            slug='duplicate-wallet-drop',
+            artwork_url='https://example.com/duplicate-wallet-poap.png',
+            event_start_at=timezone.now(),
+            status=PoapDrop.STATUS_ARCHIVED,
+            legacy_poap_id='656',
+        )
+        wallet = '0xcccccccccccccccccccccccccccccccccccccccc'
+        csv_data = (
+            'ens,email_address,ethereum_address\n'
+            f'claim.eth,,{wallet.upper()}\n'
+            f'claim.eth,,{wallet.lower()}\n'
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive_path = f'{temp_dir}/poaps.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.writestr(
+                    'poap.data/POAP_drop_656_collectors_2026-03-25_Duplicate Wallet Drop.csv',
+                    csv_data,
+                )
+
+            call_command('import_poap_archive', archive_path, verbosity=0)
+            call_command('import_poap_archive', archive_path, verbosity=0)
+
+        self.assertEqual(PoapClaim.objects.filter(drop=existing_drop).count(), 1)
+        self.assertTrue(PoapClaim.objects.filter(
+            drop=existing_drop,
+            legacy_wallet_address=wallet.upper(),
+        ).exists())
+
     @patch('users.cloudinary_service.CloudinaryService.upload_image')
     def test_poap_archive_import_links_rows_for_previously_recovered_wallet(self, upload_image):
         upload_image.return_value = {
@@ -906,6 +940,46 @@ class PoapAPITest(TestCase):
             legacy_wallet_address=recovered_wallet,
         ).exists())
         self.assertEqual(PoapClaim.objects.filter(drop=drop).count(), 1)
+
+    def test_poap_archive_import_claim_only_links_previously_recovered_wallet(self):
+        recovered_wallet = '0xdddddddddddddddddddddddddddddddddddddddd'
+        PoapClaim.objects.create(
+            drop=self.drop,
+            user=self.user,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+            source=PoapClaim.SOURCE_LEGACY_IMPORT,
+            legacy_wallet_address=recovered_wallet,
+        )
+        existing_drop = PoapDrop.objects.create(
+            title='Claim Only Recovered Wallet Drop',
+            slug='claim-only-recovered-wallet-drop',
+            artwork_url='https://example.com/recovered-wallet-poap.png',
+            event_start_at=timezone.now(),
+            status=PoapDrop.STATUS_ARCHIVED,
+            legacy_poap_id='657',
+        )
+        csv_data = (
+            'ens,email_address,ethereum_address\n'
+            f'recovered.eth,,{recovered_wallet}\n'
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive_path = f'{temp_dir}/poaps.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.writestr(
+                    'poap.data/POAP_drop_657_collectors_2026-03-25_Claim Only Recovered Wallet Drop.csv',
+                    csv_data,
+                )
+
+            call_command('import_poap_archive', archive_path, verbosity=0)
+            call_command('import_poap_archive', archive_path, verbosity=0)
+
+        self.assertEqual(PoapClaim.objects.filter(drop=existing_drop).count(), 1)
+        self.assertTrue(PoapClaim.objects.filter(
+            drop=existing_drop,
+            user=self.user,
+            legacy_wallet_address=recovered_wallet,
+        ).exists())
 
     def test_poap_archive_import_rejects_claim_only_zip_for_new_drop(self):
         csv_data = (
@@ -995,3 +1069,146 @@ class PoapAPITest(TestCase):
         self.assertEqual(batch.imported_count, 1)
         self.assertEqual(batch.unmatched_count, 1)
         self.assertEqual(batch.error_count, 1)
+
+    @patch('users.cloudinary_service.CloudinaryService.upload_image')
+    def test_poap_archive_import_skips_rows_without_identity_keys(self, upload_image):
+        upload_image.return_value = {
+            'url': 'https://res.cloudinary.com/demo/image/upload/tally/poaps/poap-790.webp',
+            'public_id': 'tally/poaps/poap_790',
+        }
+        csv_data = (
+            'ens,email_address,ethereum_address\n'
+            'nameless.eth,,\n'
+            ',valid@example.com,\n'
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive_path = f'{temp_dir}/poaps.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.writestr(
+                    'poap.data/POAP_drop_790_collectors_2026-03-25 - Missing Identity.csv',
+                    csv_data,
+                )
+                archive.writestr(
+                    'poap.data/poap_images/ID 790_Missing Identity.webp',
+                    b'fake-webp',
+                )
+
+            call_command(
+                'import_poap_archive',
+                archive_path,
+                '--upload-artwork',
+                verbosity=0,
+            )
+
+        drop = PoapDrop.objects.get(legacy_poap_id='790')
+        batch = PoapImportBatch.objects.get(file_name=archive_path)
+        self.assertEqual(PoapClaim.objects.filter(drop=drop).count(), 1)
+        self.assertTrue(PoapClaim.objects.filter(drop=drop, legacy_email='valid@example.com').exists())
+        self.assertEqual(batch.total_rows, 2)
+        self.assertEqual(batch.imported_count, 1)
+        self.assertEqual(batch.unmatched_count, 1)
+        self.assertEqual(batch.error_count, 1)
+        self.assertIn('row has no wallet, email, or external id', batch.errors[0]['error'])
+
+    def test_poap_archive_import_dry_run_reports_rows_without_identity_keys(self):
+        PoapDrop.objects.create(
+            title='Dry Run Missing Identity',
+            slug='dry-run-missing-identity',
+            artwork_url='https://example.com/dry-run-poap.png',
+            event_start_at=timezone.now(),
+            status=PoapDrop.STATUS_ARCHIVED,
+            legacy_poap_id='791',
+        )
+        csv_data = (
+            'ens,email_address,ethereum_address\n'
+            'nameless.eth,,\n'
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive_path = f'{temp_dir}/poaps.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.writestr(
+                    'poap.data/POAP_drop_791_collectors_2026-03-25 - Dry Run Missing Identity.csv',
+                    csv_data,
+                )
+
+            with self.assertRaisesMessage(
+                CommandError,
+                'Dry run found 1 invalid collector row(s): 791 row 2: row has no wallet, email, or external id',
+            ):
+                call_command('import_poap_archive', archive_path, '--dry-run', verbosity=0)
+
+    def test_poap_archive_import_dry_run_reports_claim_counts(self):
+        existing_drop = PoapDrop.objects.create(
+            title='Dry Run Counts',
+            slug='dry-run-counts',
+            artwork_url='https://example.com/dry-run-counts-poap.png',
+            event_start_at=timezone.now(),
+            status=PoapDrop.STATUS_ARCHIVED,
+            legacy_poap_id='792',
+        )
+        new_matched_wallet = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+        existing_user_wallet = '0xffffffffffffffffffffffffffffffffffffffff'
+        attach_wallet = '0xabababababababababababababababababababab'
+        duplicate_unmatched_wallet = '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
+        new_matched_user = User.objects.create_user(
+            email='new-matched@example.com',
+            password='pass123',
+            address=new_matched_wallet,
+        )
+        existing_user = User.objects.create_user(
+            email='existing-claim@example.com',
+            password='pass123',
+            address=existing_user_wallet,
+        )
+        attach_user = User.objects.create_user(
+            email='attach-wallet@example.com',
+            password='pass123',
+            address=attach_wallet,
+        )
+        PoapClaim.objects.create(
+            drop=existing_drop,
+            user=existing_user,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+            source=PoapClaim.SOURCE_LEGACY_IMPORT,
+            legacy_wallet_address=existing_user_wallet,
+        )
+        PoapClaim.objects.create(
+            drop=existing_drop,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+            source=PoapClaim.SOURCE_LEGACY_IMPORT,
+            legacy_wallet_address=attach_wallet,
+        )
+        PoapClaim.objects.create(
+            drop=existing_drop,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+            source=PoapClaim.SOURCE_LEGACY_IMPORT,
+            legacy_email='existing-unmatched@example.com',
+        )
+        csv_data = (
+            'ens,email_address,ethereum_address\n'
+            f',,{new_matched_user.address}\n'
+            f',,{existing_user.address}\n'
+            f',,{attach_user.address}\n'
+            ',existing-unmatched@example.com,\n'
+            f',,{duplicate_unmatched_wallet}\n'
+            f',,{duplicate_unmatched_wallet.upper()}\n'
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive_path = f'{temp_dir}/poaps.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.writestr(
+                    'poap.data/POAP_drop_792_collectors_2026-03-25 - Dry Run Counts.csv',
+                    csv_data,
+                )
+
+            output = io.StringIO()
+            call_command('import_poap_archive', archive_path, '--dry-run', stdout=output, verbosity=0)
+
+        report = output.getvalue()
+        self.assertIn('[dry-run totals] drops=1, rows=6, valid=6, invalid=0', report)
+        self.assertIn('would_create=2 (matched=1, unmatched=1)', report)
+        self.assertIn('would_attach_existing_unmatched=1', report)
+        self.assertIn('duplicates=3 (existing_user=1, existing_unmatched=1, in_file=1)', report)
