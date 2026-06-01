@@ -28,6 +28,29 @@ class ArchiveDrop:
     image_path: str
 
 
+@dataclass
+class DryRunDropStats:
+    legacy_id: str
+    title: str
+    total_rows: int = 0
+    valid_rows: int = 0
+    invalid_rows: int = 0
+    would_create_claims: int = 0
+    would_create_matched_claims: int = 0
+    would_create_unmatched_claims: int = 0
+    would_update_unmatched_to_user: int = 0
+    duplicate_existing_user_claims: int = 0
+    duplicate_existing_unmatched_claims: int = 0
+    duplicate_rows_in_file: int = 0
+    matched_wallet_rows: int = 0
+    unmatched_rows: int = 0
+    errors: list = None
+
+    def __post_init__(self):
+        if self.errors is None:
+            self.errors = []
+
+
 class Command(BaseCommand):
     help = 'Import a full POAP archive zip with collector exports and mandatory badge images.'
 
@@ -131,9 +154,26 @@ class Command(BaseCommand):
             self._validate_archive_artwork_sources(drops, options, existing_drops_by_id)
 
             if options['dry_run']:
-                total_rows = 0
+                dry_run_stats = []
                 for drop in drops:
-                    total_rows += len(self._read_rows(archive, drop.data_path))
+                    rows = self._read_rows(archive, drop.data_path)
+                    existing_drop = existing_drops_by_id.get(drop.legacy_id)
+                    dry_run_stats.append(self._dry_run_drop_stats(drop, rows, existing_drop))
+
+                total_rows = sum(stats.total_rows for stats in dry_run_stats)
+                row_errors = [
+                    error
+                    for stats in dry_run_stats
+                    for error in stats.errors
+                ]
+                self._write_dry_run_report(dry_run_stats)
+                if row_errors:
+                    preview = '; '.join(row_errors[:5])
+                    remaining = len(row_errors) - 5
+                    suffix = f' and {remaining} more' if remaining > 0 else ''
+                    raise CommandError(
+                        f'Dry run found {len(row_errors)} invalid collector row(s): {preview}{suffix}'
+                    )
                 self.stdout.write(self.style.SUCCESS(
                     f'Dry run passed: {len(drops)} drops, {total_rows} collector row(s), '
                     'all selected drops have importable artwork.'
@@ -362,6 +402,9 @@ class Command(BaseCommand):
 
     def _claim_entry_errors(self, entry):
         errors = []
+        if not (entry['wallet_key'] or entry['external_id'] or entry['email_key']):
+            errors.append('row has no wallet, email, or external id')
+
         field_map = [
             ('wallet', 'legacy_wallet_address'),
             ('email', 'legacy_email'),
@@ -373,6 +416,139 @@ class Command(BaseCommand):
             if value and max_length and len(value) > max_length:
                 errors.append(f'{model_field} exceeds max length {max_length}')
         return errors
+
+    def _dry_run_drop_stats(self, drop_entry, rows, existing_drop):
+        stats = DryRunDropStats(
+            legacy_id=drop_entry.legacy_id,
+            title=drop_entry.title,
+            total_rows=len(rows),
+        )
+        entries = []
+        for row_number, row in enumerate(rows, start=2):
+            entry = self._claim_entry(drop_entry, row, row_number)
+            entry_errors = self._claim_entry_errors(entry)
+            if entry_errors:
+                stats.invalid_rows += 1
+                for error in entry_errors:
+                    stats.errors.append(f'{drop_entry.legacy_id} row {row_number}: {error}')
+                continue
+            entries.append(entry)
+
+        stats.valid_rows = len(entries)
+        if not entries:
+            return stats
+
+        drop = existing_drop or self._existing_drop_for_legacy_id(drop_entry.legacy_id)
+        user_by_wallet = self._users_by_wallet(entries)
+        user_by_wallet.update(self._users_by_previously_linked_wallet(entries, user_by_wallet))
+        existing_user_ids = set(
+            PoapClaim.objects
+            .filter(drop=drop, user_id__in=[user.id for user in user_by_wallet.values()])
+            .values_list('user_id', flat=True)
+        )
+        unmatched_by_wallet, unmatched_by_external, unmatched_by_email = self._unmatched_claim_maps(drop)
+
+        simulated_unmatched_by_wallet = dict(unmatched_by_wallet)
+        simulated_unmatched_by_external = dict(unmatched_by_external)
+        simulated_unmatched_by_email = dict(unmatched_by_email)
+        planned_unmatched_claim = object()
+        planned_user_ids = set()
+
+        for entry in entries:
+            user = user_by_wallet.get(entry['wallet_key'])
+            if user:
+                stats.matched_wallet_rows += 1
+                if user.id in existing_user_ids:
+                    if user.id in planned_user_ids:
+                        stats.duplicate_rows_in_file += 1
+                    else:
+                        stats.duplicate_existing_user_claims += 1
+                    continue
+
+                if entry['wallet_key'] in simulated_unmatched_by_wallet:
+                    stats.would_update_unmatched_to_user += 1
+                else:
+                    stats.would_create_claims += 1
+                    stats.would_create_matched_claims += 1
+
+                existing_user_ids.add(user.id)
+                planned_user_ids.add(user.id)
+                continue
+
+            stats.unmatched_rows += 1
+            if self._entry_has_unmatched_claim(
+                entry,
+                simulated_unmatched_by_wallet,
+                simulated_unmatched_by_external,
+                simulated_unmatched_by_email,
+            ):
+                if (
+                    entry['wallet_key'] and simulated_unmatched_by_wallet.get(entry['wallet_key']) is planned_unmatched_claim
+                ) or (
+                    entry['external_id'] and simulated_unmatched_by_external.get(entry['external_id']) is planned_unmatched_claim
+                ) or (
+                    entry['email_key'] and simulated_unmatched_by_email.get(entry['email_key']) is planned_unmatched_claim
+                ):
+                    stats.duplicate_rows_in_file += 1
+                else:
+                    stats.duplicate_existing_unmatched_claims += 1
+                continue
+
+            stats.would_create_claims += 1
+            stats.would_create_unmatched_claims += 1
+            self._remember_unmatched_claim(
+                entry,
+                planned_unmatched_claim,
+                simulated_unmatched_by_wallet,
+                simulated_unmatched_by_external,
+                simulated_unmatched_by_email,
+            )
+
+        return stats
+
+    def _write_dry_run_report(self, dry_run_stats):
+        totals = DryRunDropStats(legacy_id='total', title='Total')
+        for stats in dry_run_stats:
+            for field in [
+                'total_rows',
+                'valid_rows',
+                'invalid_rows',
+                'would_create_claims',
+                'would_create_matched_claims',
+                'would_create_unmatched_claims',
+                'would_update_unmatched_to_user',
+                'duplicate_existing_user_claims',
+                'duplicate_existing_unmatched_claims',
+                'duplicate_rows_in_file',
+                'matched_wallet_rows',
+                'unmatched_rows',
+            ]:
+                setattr(totals, field, getattr(totals, field) + getattr(stats, field))
+
+            self.stdout.write(
+                '[dry-run] '
+                f'{stats.legacy_id} {stats.title}: '
+                f'rows={stats.total_rows}, valid={stats.valid_rows}, invalid={stats.invalid_rows}, '
+                f'would_create={stats.would_create_claims} '
+                f'(matched={stats.would_create_matched_claims}, unmatched={stats.would_create_unmatched_claims}), '
+                f'would_attach_existing_unmatched={stats.would_update_unmatched_to_user}, '
+                f'duplicates={stats.duplicate_existing_user_claims + stats.duplicate_existing_unmatched_claims + stats.duplicate_rows_in_file} '
+                f'(existing_user={stats.duplicate_existing_user_claims}, '
+                f'existing_unmatched={stats.duplicate_existing_unmatched_claims}, '
+                f'in_file={stats.duplicate_rows_in_file})'
+            )
+
+        self.stdout.write(self.style.SUCCESS(
+            '[dry-run totals] '
+            f'drops={len(dry_run_stats)}, rows={totals.total_rows}, valid={totals.valid_rows}, '
+            f'invalid={totals.invalid_rows}, would_create={totals.would_create_claims} '
+            f'(matched={totals.would_create_matched_claims}, unmatched={totals.would_create_unmatched_claims}), '
+            f'would_attach_existing_unmatched={totals.would_update_unmatched_to_user}, '
+            f'duplicates={totals.duplicate_existing_user_claims + totals.duplicate_existing_unmatched_claims + totals.duplicate_rows_in_file} '
+            f'(existing_user={totals.duplicate_existing_user_claims}, '
+            f'existing_unmatched={totals.duplicate_existing_unmatched_claims}, '
+            f'in_file={totals.duplicate_rows_in_file})'
+        ))
 
     def _claim_from_entry(self, batch, drop, entry, user=None):
         return PoapClaim(
