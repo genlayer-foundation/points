@@ -108,11 +108,6 @@ class Command(BaseCommand):
         if not archive_path.exists():
             raise CommandError(f'Archive does not exist: {archive_path}')
 
-        if not options['dry_run'] and not options['upload_artwork']:
-            raise CommandError(
-                'Images are mandatory. Pass --upload-artwork to upload badge images to Cloudinary.'
-            )
-
         try:
             archive = zipfile.ZipFile(archive_path)
         except zipfile.BadZipFile as exc:
@@ -120,7 +115,6 @@ class Command(BaseCommand):
 
         with archive:
             drops, duplicate_data_paths, image_only_ids = self._collect_drops(archive)
-            missing_images = [drop for drop in drops if not drop.image_path]
 
             self.stdout.write(f'Found {len(drops)} distinct POAP drops.')
             if duplicate_data_paths:
@@ -133,17 +127,16 @@ class Command(BaseCommand):
                     f'Found {len(image_only_ids)} image(s) without a matching collector export.'
                 ))
 
-            if missing_images:
-                missing = ', '.join(f'{drop.legacy_id} ({drop.data_path})' for drop in missing_images[:10])
-                raise CommandError(
-                    f'Every POAP export must have an image. Missing {len(missing_images)} image(s): {missing}'
-                )
+            existing_drops_by_id = self._existing_drops_by_legacy_id(drops)
+            self._validate_archive_artwork_sources(drops, options, existing_drops_by_id)
 
             if options['dry_run']:
-                total_rows = sum(len(self._read_rows(archive, drop.data_path)) for drop in drops)
+                total_rows = 0
+                for drop in drops:
+                    total_rows += len(self._read_rows(archive, drop.data_path))
                 self.stdout.write(self.style.SUCCESS(
                     f'Dry run passed: {len(drops)} drops, {total_rows} collector row(s), '
-                    'all selected drops have images.'
+                    'all selected drops have importable artwork.'
                 ))
                 return
 
@@ -159,7 +152,7 @@ class Command(BaseCommand):
                     f'[{index}/{len(drops)}] Importing POAP {drop_entry.legacy_id}: {drop_entry.title}'
                 )
                 try:
-                    existing_drop = self._existing_drop_for_legacy_id(drop_entry.legacy_id)
+                    existing_drop = existing_drops_by_id.get(drop_entry.legacy_id)
                     rows = self._read_rows(archive, drop_entry.data_path)
                     artwork = self._prepare_artwork(archive, drop_entry, options, existing_drop=existing_drop)
                     drop = self._upsert_drop(
@@ -263,6 +256,7 @@ class Command(BaseCommand):
         entries = valid_entries
 
         user_by_wallet = self._users_by_wallet(entries)
+        user_by_wallet.update(self._users_by_previously_linked_wallet(entries, user_by_wallet))
         existing_user_ids = set(
             PoapClaim.objects
             .filter(drop=drop, user_id__in=[user.id for user in user_by_wallet.values()])
@@ -410,6 +404,38 @@ class Command(BaseCommand):
         )
         return {user.address.lower(): user for user in users if user.address}
 
+    def _users_by_previously_linked_wallet(self, entries, existing_user_by_wallet):
+        wallet_keys = sorted(
+            {
+                entry['wallet_key']
+                for entry in entries
+                if entry['wallet_key'] and entry['wallet_key'] not in existing_user_by_wallet
+            }
+        )
+        if not wallet_keys:
+            return {}
+
+        user_ids_by_wallet = {}
+        claims = (
+            PoapClaim.objects
+            .filter(user__isnull=False)
+            .exclude(legacy_wallet_address='')
+            .annotate(wallet_key=Lower('legacy_wallet_address'))
+            .filter(wallet_key__in=wallet_keys)
+            .select_related('user')
+            .only('legacy_wallet_address', 'user__id', 'user__address')
+            .order_by('legacy_wallet_address', 'user_id')
+        )
+        for claim in claims:
+            wallet_key = claim.legacy_wallet_address.lower()
+            user_ids_by_wallet.setdefault(wallet_key, {})[claim.user_id] = claim.user
+
+        return {
+            wallet_key: next(iter(users.values()))
+            for wallet_key, users in user_ids_by_wallet.items()
+            if len(users) == 1
+        }
+
     def _unmatched_claim_maps(self, drop):
         unmatched_by_wallet = {}
         unmatched_by_external = {}
@@ -470,12 +496,13 @@ class Command(BaseCommand):
         return drop
 
     def _prepare_artwork(self, archive, drop_entry, options, existing_drop=None):
-        if existing_drop and existing_drop.artwork_url and existing_drop.artwork_public_id:
+        if self._drop_has_existing_artwork(existing_drop):
             return {
                 'artwork_url': existing_drop.artwork_url,
                 'artwork_public_id': existing_drop.artwork_public_id,
             }
 
+        self._validate_artwork_source(drop_entry, options, existing_drop=existing_drop)
         image_data = archive.read(drop_entry.image_path)
         suffix = PurePosixPath(drop_entry.image_path).suffix.lower() or '.webp'
         filename = f'poap-{drop_entry.legacy_id}{suffix}'
@@ -486,6 +513,23 @@ class Command(BaseCommand):
             drop_entry=drop_entry,
             folder=options['cloudinary_folder'],
         )
+
+    def _validate_artwork_source(self, drop_entry, options, existing_drop=None):
+        if self._drop_has_existing_artwork(existing_drop):
+            return
+
+        if not drop_entry.image_path:
+            raise CommandError(
+                f'POAP {drop_entry.legacy_id} has no image in the archive and no existing artwork.'
+            )
+
+        if not options['dry_run'] and not options['upload_artwork']:
+            raise CommandError(
+                'Images are mandatory for new POAP drops. Pass --upload-artwork to upload badge images to Cloudinary.'
+            )
+
+    def _drop_has_existing_artwork(self, drop):
+        return bool(drop and (drop.artwork_url or drop.artwork_public_id))
 
     def _upload_artwork(self, image_data, *, filename, drop_entry, folder):
         try:
@@ -515,6 +559,20 @@ class Command(BaseCommand):
                 'Fix the duplicates before running the import.'
             )
         return existing[0] if existing else None
+
+    def _existing_drops_by_legacy_id(self, drops):
+        return {
+            drop.legacy_id: self._existing_drop_for_legacy_id(drop.legacy_id)
+            for drop in drops
+        }
+
+    def _validate_archive_artwork_sources(self, drops, options, existing_drops_by_id):
+        for drop in drops:
+            self._validate_artwork_source(
+                drop,
+                options,
+                existing_drop=existing_drops_by_id.get(drop.legacy_id),
+            )
 
     def _read_rows(self, archive, path):
         data = archive.read(path)

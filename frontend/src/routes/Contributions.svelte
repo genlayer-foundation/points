@@ -9,6 +9,7 @@
   import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
 
   const RECENT_LIMIT = 5;
+  const COMMUNITY_SOCIAL_LINK_SLUGS = new Set(['community-link-x', 'community-link-discord']);
 
   /** @type {Record<string, { title: string, recentTitle: string, description: string, icon: string, iconClass: string, accentColor: string }>} */
   const categoryConfig = {
@@ -72,6 +73,19 @@
   );
   let recentCardCategory = $derived(activeCategory === 'global' ? null : activeCategory);
 
+  function getContributionTypeSlug(contribution) {
+    return contribution?.contribution_type_details?.slug || contribution?.contribution_type_slug || contribution?.contribution_type?.slug || '';
+  }
+
+  function isCommunitySocialLinkContribution(contribution) {
+    return COMMUNITY_SOCIAL_LINK_SLUGS.has(getContributionTypeSlug(contribution));
+  }
+
+  function filterRecentContributions(contributions, category) {
+    if (category !== 'community') return contributions;
+    return contributions.filter((contribution) => !isCommunitySocialLinkContribution(contribution));
+  }
+
   /**
    * @param {string} category
    */
@@ -84,7 +98,7 @@
 
       /** @type {Record<string, string | number>} */
       const params = {
-        limit: RECENT_LIMIT,
+        limit: category === 'community' ? RECENT_LIMIT * 4 : RECENT_LIMIT,
         ordering: '-created_at',
       };
 
@@ -92,9 +106,13 @@
         params.category = category;
       }
 
+      if (category === 'community') {
+        params.exclude_onboarding = 'true';
+      }
+
       const response = await contributionsAPI.getContributions(params);
       if (requestId !== recentRequestSequence) return;
-      recentContributions = response.data?.results || [];
+      recentContributions = filterRecentContributions(response.data?.results || [], category).slice(0, RECENT_LIMIT);
     } catch (err) {
       if (requestId !== recentRequestSequence) return;
       recentError = err instanceof Error ? err.message : 'Failed to load recent contributions';
