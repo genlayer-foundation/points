@@ -37,8 +37,11 @@ def restore_validator_waitlist_points(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
+        ('builders', '0001_initial'),
         ('contributions', '0050_evidence_url_types'),
         ('leaderboard', '0014_add_referral_points_model'),
+        ('users', '0014_add_referral_system'),
+        ('validators', '0001_initial'),
     ]
 
     operations = [

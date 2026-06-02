@@ -82,6 +82,9 @@ class WallOfShameSerializer(serializers.ModelSerializer):
             'metrics_status',
             'logs_status',
             'last_grafana_check_at',
+            'metrics_shame_started_at',
+            'logs_shame_started_at',
+            'version_shame_started_at',
         ]
         read_only_fields = fields
 
