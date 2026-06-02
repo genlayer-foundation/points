@@ -7,12 +7,16 @@ panel-1 query B output. The endpoint tests cover sort order, network
 filtering, cache invalidation, and operator identity surfacing.
 """
 
+from datetime import timedelta
 from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.core.cache import cache
+from django.utils import timezone
 from rest_framework.test import APIClient
 
-from validators.models import ValidatorWallet
+from contributions.node_upgrade.models import TargetNodeVersion
+from users.models import User
+from validators.models import Validator, ValidatorWallet
 from validators.grafana_service import GrafanaValidatorStatusService
 
 
@@ -352,3 +356,129 @@ class WallOfShameEndpointTests(TestCase):
         self.assertEqual(stats['total'], 3)
         self.assertEqual(stats['on'], 1)        # alpha-ok only
         self.assertEqual(stats['shame'], 2)     # zelda-shame + mid-asimov
+
+    def test_grouped_validator_reasons_across_networks(self):
+        user = User.objects.create_user(
+            email='grouped@example.com',
+            password='password',
+            name='Grouped Operator',
+            address='0xgroupedoperator0000000000000000000000000'[:42],
+        )
+        validator = Validator.objects.create(
+            user=user,
+            node_version_asimov='2.0.0',
+            node_version_bradbury='2.0.0',
+        )
+        ValidatorWallet.objects.create(
+            address='0xgroupedasimov0000000000000000000000000000'[:42],
+            network='asimov',
+            operator=validator,
+            operator_address=user.address,
+            status='active',
+            moniker='grouped-asimov',
+            metrics_status='shame',
+            logs_status='on',
+        )
+        ValidatorWallet.objects.create(
+            address='0xgroupedbradbury00000000000000000000000000'[:42],
+            network='bradbury',
+            operator=validator,
+            operator_address=user.address,
+            status='active',
+            moniker='grouped-bradbury',
+            metrics_status='on',
+            logs_status='shame',
+        )
+
+        response = self.client.get('/api/v1/validators/wallets/wall-of-shame/')
+        grouped = next(
+            item for item in response.data['validators']
+            if item['operator_user'] and item['operator_user']['id'] == user.id
+        )
+
+        self.assertEqual(grouped['status'], 'shame')
+        self.assertEqual(len(grouped['networks']), 2)
+        self.assertEqual(
+            {(reason['network'], reason['type']) for reason in grouped['shame_reasons']},
+            {('asimov', 'metrics'), ('bradbury', 'logs')},
+        )
+
+    def test_outdated_version_is_warning_during_grace_period(self):
+        TargetNodeVersion.objects.create(
+            version='2.0.0',
+            network='asimov',
+            target_date=timezone.now() - timedelta(days=2),
+            is_active=True,
+        )
+        user = User.objects.create_user(
+            email='grace@example.com',
+            password='password',
+            name='Grace Operator',
+            address='0xgraceoperator00000000000000000000000000'[:42],
+        )
+        validator = Validator.objects.create(user=user, node_version_asimov='1.0.0')
+        wallet = ValidatorWallet.objects.create(
+            address='0xgracewallet0000000000000000000000000000'[:42],
+            network='asimov',
+            operator=validator,
+            operator_address=user.address,
+            status='active',
+            moniker='grace-asimov',
+            metrics_status='on',
+            logs_status='on',
+        )
+
+        response = self.client.get('/api/v1/validators/wallets/wall-of-shame/')
+        grouped = next(
+            item for item in response.data['validators']
+            if item['operator_user'] and item['operator_user']['id'] == user.id
+        )
+        reason = grouped['shame_reasons'][0]
+
+        self.assertEqual(grouped['status'], 'warning')
+        self.assertEqual(reason['type'], 'version')
+        self.assertEqual(reason['status'], 'warning')
+        wallet.refresh_from_db()
+        self.assertIsNone(wallet.version_shame_started_at)
+
+    def test_outdated_version_becomes_persisted_shame_after_grace_period(self):
+        target = TargetNodeVersion.objects.create(
+            version='2.0.0',
+            network='asimov',
+            target_date=timezone.now() - timedelta(days=5),
+            is_active=True,
+        )
+        user = User.objects.create_user(
+            email='outdated@example.com',
+            password='password',
+            name='Outdated Operator',
+            address='0xoutdatedoperator000000000000000000000000'[:42],
+        )
+        validator = Validator.objects.create(user=user, node_version_asimov='1.0.0')
+        wallet = ValidatorWallet.objects.create(
+            address='0xoutdatedwallet00000000000000000000000000'[:42],
+            network='asimov',
+            operator=validator,
+            operator_address=user.address,
+            status='active',
+            moniker='outdated-asimov',
+            metrics_status='on',
+            logs_status='on',
+        )
+
+        response = self.client.get('/api/v1/validators/wallets/wall-of-shame/')
+        grouped = next(
+            item for item in response.data['validators']
+            if item['operator_user'] and item['operator_user']['id'] == user.id
+        )
+        reason = grouped['shame_reasons'][0]
+
+        self.assertEqual(grouped['status'], 'shame')
+        self.assertEqual(reason['type'], 'version')
+        self.assertEqual(reason['status'], 'shame')
+        self.assertGreaterEqual(reason['days_in_shame'], 1)
+        wallet.refresh_from_db()
+        self.assertEqual(
+            wallet.version_shame_started_at.replace(microsecond=0),
+            (target.target_date + timedelta(days=3)).replace(microsecond=0),
+        )

@@ -171,7 +171,14 @@ class GrafanaValidatorStatusService:
         wallets = list(
             ValidatorWallet.objects
             .filter(network=network, status='active')
-            .only('id', 'address')
+            .only(
+                'id',
+                'address',
+                'metrics_status',
+                'logs_status',
+                'metrics_shame_started_at',
+                'logs_shame_started_at',
+            )
         )
 
         if not wallets:
@@ -188,8 +195,23 @@ class GrafanaValidatorStatusService:
             vname = name_by_addr.get(addr_lower)
             logs_ok = bool(vname and log_counts.get(vname, 0) > 0)
 
-            wallet.metrics_status = 'on' if metrics_ok else 'shame'
-            wallet.logs_status = 'on' if logs_ok else 'shame'
+            metrics_status = 'on' if metrics_ok else 'shame'
+            logs_status = 'on' if logs_ok else 'shame'
+
+            if metrics_status == 'shame':
+                if wallet.metrics_status != 'shame' or not wallet.metrics_shame_started_at:
+                    wallet.metrics_shame_started_at = now
+            else:
+                wallet.metrics_shame_started_at = None
+
+            if logs_status == 'shame':
+                if wallet.logs_status != 'shame' or not wallet.logs_shame_started_at:
+                    wallet.logs_shame_started_at = now
+            else:
+                wallet.logs_shame_started_at = None
+
+            wallet.metrics_status = metrics_status
+            wallet.logs_status = logs_status
             wallet.last_grafana_check_at = now
 
             if metrics_ok and logs_ok:
@@ -199,7 +221,13 @@ class GrafanaValidatorStatusService:
 
         ValidatorWallet.objects.bulk_update(
             wallets,
-            ['metrics_status', 'logs_status', 'last_grafana_check_at'],
+            [
+                'metrics_status',
+                'logs_status',
+                'last_grafana_check_at',
+                'metrics_shame_started_at',
+                'logs_shame_started_at',
+            ],
         )
 
         logger.info(
