@@ -12,6 +12,12 @@ class ContributionTypeIsSubmittableTest(TestCase):
     def setUp(self):
         """Set up test data."""
         self.client = APIClient()
+        self.user = User.objects.create_user(
+            email='contribution-type-viewer@example.com',
+            password='password123',
+            address='0x0000000000000000000000000000000000000001',
+        )
+        self.client.force_authenticate(user=self.user)
         
         # Get or create test categories to avoid conflicts
         self.validator_category, _ = Category.objects.get_or_create(
@@ -62,6 +68,16 @@ class ContributionTypeIsSubmittableTest(TestCase):
         )
         
         self.api_url = reverse('contributiontype-list')
+
+    def test_contribution_types_require_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(self.api_url)
+
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+        )
     
     def test_is_submittable_field_default_value(self):
         """Test that is_submittable defaults to True."""
@@ -94,7 +110,10 @@ class ContributionTypeIsSubmittableTest(TestCase):
     
     def test_filter_by_is_submittable_false(self):
         """Test filtering contribution types where is_submittable=false."""
-        response = self.client.get(self.api_url, {'is_submittable': 'false'})
+        response = self.client.get(self.api_url, {
+            'category': 'test-validator',
+            'is_submittable': 'false',
+        })
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
@@ -237,6 +256,7 @@ class StewardModeTest(TestCase):
             address='0x1234567890123456789012345678901234567890',
             is_staff=True
         )
+        self.client.force_authenticate(user=self.steward_user)
         
         self.api_url = reverse('contributiontype-list')
     

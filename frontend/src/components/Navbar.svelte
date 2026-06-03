@@ -57,7 +57,9 @@
 
     <!-- Right: Actions -->
     <div class="hidden md:flex items-center gap-2">
-      <SearchBar />
+      {#if $authState.isAuthenticated}
+        <SearchBar />
+      {/if}
       <button
         onclick={handleSubmitContribution}
         class={submitButtonBaseClass}

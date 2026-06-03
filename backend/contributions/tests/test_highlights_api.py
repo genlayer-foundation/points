@@ -15,6 +15,12 @@ User = get_user_model()
 class ContributionHighlightsAPITest(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.viewer = User.objects.create_user(
+            email='highlights-viewer@test.com',
+            address='0x9999999999999999999999999999999999999999',
+            password='testpass123',
+        )
+        self.client.force_authenticate(user=self.viewer)
         self.category = Category.objects.create(
             name='Highlights Test',
             slug='highlights-test',
@@ -52,6 +58,16 @@ class ContributionHighlightsAPITest(TestCase):
                 title=f'Highlight {index}',
                 description='Highlighted contribution',
             )
+
+    def test_highlights_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get('/api/v1/contributions/highlights/')
+
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+        )
 
     def test_highlights_default_limit_is_kept_for_summary_views(self):
         response = self.client.get('/api/v1/contributions/highlights/')

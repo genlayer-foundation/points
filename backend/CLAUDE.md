@@ -220,19 +220,19 @@ GET    /api/auth/verify/
 POST   /api/auth/logout/
 
 # Users
-GET    /api/v1/users/
+GET    /api/v1/users/           (requires auth)
 GET    /api/v1/users/me/           (requires auth)
 PATCH  /api/v1/users/me/           (requires auth, only name)
-GET    /api/v1/users/{address}/
-GET    /api/v1/users/by-address/{address}/
-GET    /api/v1/users/validators/
+GET    /api/v1/users/{address}/    (requires auth)
+GET    /api/v1/users/by-address/{address}/ (requires auth)
+GET    /api/v1/users/validators/   (requires auth)
 POST   /api/v1/users/link_x_account/       (requires auth, awards 20 pts for linking X)
 POST   /api/v1/users/link_discord_account/  (requires auth, awards 20 pts for linking Discord)
 
 # Contributions
-GET    /api/v1/contributions/
+GET    /api/v1/contributions/      (requires auth)
 POST   /api/v1/contributions/      (requires auth)
-GET    /api/v1/contributions/{id}/
+GET    /api/v1/contributions/{id}/ (requires auth)
 PATCH  /api/v1/contributions/{id}/ (requires auth)
 DELETE /api/v1/contributions/{id}/ (requires auth)
 
@@ -242,26 +242,26 @@ POST   /api/v1/submissions/{id}/appeal/         (requires auth, owner-only, one 
 POST   /api/v1/submissions/{id}/add-evidence/   (requires auth, owner-only)
 
 # Contribution Types
-GET    /api/v1/contribution-types/
-GET    /api/v1/contribution-types/{id}/
-GET    /api/v1/contribution-types/statistics/
+GET    /api/v1/contribution-types/            (requires auth)
+GET    /api/v1/contribution-types/{id}/       (requires auth)
+GET    /api/v1/contribution-types/statistics/ (requires auth)
 
 # Leaderboard
-GET    /api/v1/leaderboard/
-GET    /api/v1/leaderboard/stats/
-GET    /api/v1/leaderboard/user_stats/by-address/{address}/
+GET    /api/v1/leaderboard/                             (requires auth)
+GET    /api/v1/leaderboard/stats/                       (requires auth)
+GET    /api/v1/leaderboard/user_stats/by-address/{address}/ (requires auth)
 
 # Multipliers
-GET    /api/v1/multipliers/
+GET    /api/v1/multipliers/        (requires auth)
 GET    /api/v1/multiplier-periods/
 
 # Validators - Wall of Shame
 POST   /api/v1/validators/wallets/sync-grafana/    (cron-protected, X-Cron-Token, background)
 GET    /api/v1/validators/wallets/wall-of-shame/   (public, cached 60s, ?network= filter)
 
-# Steward Submissions (public metrics)
-GET    /api/v1/steward-submissions/stats/           (public - aggregate stats)
-GET    /api/v1/steward-submissions/daily-metrics/   (public - time-series data)
+# Steward Submissions
+GET    /api/v1/steward-submissions/stats/           (requires steward)
+GET    /api/v1/steward-submissions/daily-metrics/   (requires steward)
 
 # AI Review Agent
 GET    /api/v1/ai-review/

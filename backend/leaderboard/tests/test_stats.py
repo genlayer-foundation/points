@@ -21,6 +21,12 @@ from validators.models import Validator
 class LeaderboardStatsTest(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.viewer = User.objects.create_user(
+            email='leaderboard-viewer@example.com',
+            password='pass',
+            address='0xffffffffffffffffffffffffffffffffffffffff',
+        )
+        self.client.force_authenticate(user=self.viewer)
         self.community_category, _ = Category.objects.get_or_create(
             slug='community',
             defaults={'name': 'Community'}
@@ -127,6 +133,13 @@ class LeaderboardStatsTest(TestCase):
             matched_at=now,
             synced_at=now,
         )
+
+    def test_leaderboard_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get('/api/v1/leaderboard/')
+
+        self.assertIn(response.status_code, [401, 403])
 
     def test_community_member_count_uses_accepted_community_contributions(self):
         now = timezone.now()
