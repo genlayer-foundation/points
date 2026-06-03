@@ -308,6 +308,18 @@ class PoapAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertLessEqual(len(profile_queries), 6)
 
+    def test_profile_poaps_are_public(self):
+        PoapClaim.objects.create(
+            drop=self.drop,
+            user=self.user,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+        )
+
+        response = self.client.get(f'/api/v1/users/by-address/{self.user.address}/poaps/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['results'][0]['drop']['slug'], self.drop.slug)
+
     def test_list_reports_claimability_from_distribution_and_capacity(self):
         live_drop = PoapDrop.objects.create(
             title='Live Drop',

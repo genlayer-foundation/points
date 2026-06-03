@@ -8,17 +8,22 @@
   import PortalHighlights from '../components/portal/PortalHighlights.svelte';
   import NewestMembers from '../components/portal/NewestMembers.svelte';
   import MiniLeaderboard from '../components/portal/MiniLeaderboard.svelte';
+  import { authState } from '../lib/auth.js';
 </script>
 
 <div class="space-y-8 max-w-full overflow-x-hidden md:overflow-x-visible">
   <HeroBanner showNewsLink={true} />
-  <LiveStats />
-  <TrendingContributors />
+  {#if $authState.isAuthenticated}
+    <LiveStats />
+    <TrendingContributors />
+  {/if}
   <FeaturedBuilds />
   <HackathonWinnersSlider />
-  <PortalHighlights />
-  <NewestMembers />
-  <MiniLeaderboard />
+  {#if $authState.isAuthenticated}
+    <PortalHighlights />
+    <NewestMembers />
+    <MiniLeaderboard />
+  {/if}
 </div>
 
 <!-- CTA Footer — full-width, flush to bottom, background bleeds over content above -->

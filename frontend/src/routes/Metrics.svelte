@@ -2,6 +2,8 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { Chart, registerables } from 'chart.js';
   import api from '../lib/api.js';
+  import { authState } from '../lib/auth.js';
+  import { userStore } from '../lib/userStore.js';
   import CategoryIcon from '../components/portal/CategoryIcon.svelte';
 
   Chart.register(...registerables);
@@ -347,18 +349,30 @@
       pageError = null;
       submissionError = null;
 
-      const [participantsResponse, typesResponse] = await Promise.all([
-        api.get('/metrics/participants-growth/'),
-        api.get('/contribution-types/', { params: { page_size: 1000 } })
-      ]);
+      const participantsResponse = await api.get('/metrics/participants-growth/');
 
       participantsData = participantsResponse.data.data || [];
-      contributionTypes = normalizeContributionTypes(
-        typesResponse.data.results || typesResponse.data || []
-      );
 
-      await fetchSubmissionsData({ syncDates: true });
-      await fetchCommunityContributions();
+      if ($authState.isAuthenticated) {
+        if (!$userStore.user) {
+          try {
+            await userStore.loadUser();
+          } catch (err) {
+            // Keep public metrics usable even if the authenticated user payload is unavailable.
+          }
+        }
+
+        const typesResponse = await api.get('/contribution-types/', { params: { page_size: 1000 } });
+        contributionTypes = normalizeContributionTypes(
+          typesResponse.data.results || typesResponse.data || []
+        );
+
+        if ($userStore.user?.steward) {
+          await fetchSubmissionsData({ syncDates: true });
+        }
+
+        await fetchCommunityContributions();
+      }
 
       loading = false;
       await tick();
@@ -1670,6 +1684,7 @@
       </div>
 
       <div class="space-y-4">
+        {#if $authState.isAuthenticated}
         <div class="rounded-[24px] border border-slate-200 bg-slate-50/60 p-5 sm:p-6">
           <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div class="flex flex-wrap items-center gap-3">
@@ -1934,6 +1949,7 @@
             </div>
           {/if}
         </div>
+        {/if}
       </div>
     </section>
 
@@ -2025,6 +2041,7 @@
       </div>
     </section>
 
+    {#if $userStore.user?.steward}
     <section class:hidden={activeTab !== 'portal'} class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] lg:p-8">
       <div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
@@ -2218,6 +2235,7 @@
         </div>
       </div>
     </section>
+    {/if}
 
       </div>
     </div>
