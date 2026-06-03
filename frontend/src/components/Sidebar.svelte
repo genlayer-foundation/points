@@ -182,7 +182,7 @@
         {#if !collapsed && getActiveSection() === 'global'}
           <div class="pl-5">
             <a
-              href="/testnets"
+              href="#/testnets"
               onclick={(e) => { e.preventDefault(); navigate('/testnets'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/testnets') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
@@ -191,7 +191,7 @@
               Testnets
             </a>
             <a
-              href="/metrics"
+              href="#/metrics"
               onclick={(e) => { e.preventDefault(); navigate('/metrics'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/metrics') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
@@ -235,7 +235,7 @@
         {#if !collapsed && getActiveSection() === 'builder'}
           <div class="pl-5">
             <a
-              href="/builders/contributions"
+              href="#/builders/contributions"
               onclick={(e) => { e.preventDefault(); navigate('/builders/contributions'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/builders/contributions') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
@@ -244,7 +244,7 @@
               Contributions
             </a>
             <a
-              href="/builders/leaderboard"
+              href="#/builders/leaderboard"
               onclick={(e) => { e.preventDefault(); navigate('/builders/leaderboard'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/builders/leaderboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
@@ -253,7 +253,7 @@
               Leaderboard
             </a>
             <a
-              href="/builders/resources"
+              href="#/builders/resources"
               onclick={(e) => { e.preventDefault(); navigate('/builders/resources'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
@@ -288,7 +288,7 @@
         {#if !collapsed && getActiveSection() === 'validator'}
           <div class="pl-5">
             <a
-              href="/validators/contributions"
+              href="#/validators/contributions"
               onclick={(e) => { e.preventDefault(); navigate('/validators/contributions'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/validators/contributions') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
@@ -297,7 +297,7 @@
               Contributions
             </a>
             <a
-              href="/validators/leaderboard"
+              href="#/validators/leaderboard"
               onclick={(e) => { e.preventDefault(); navigate('/validators/leaderboard'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/validators/leaderboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
@@ -306,7 +306,7 @@
               Leaderboard
             </a>
             <a
-              href="/validators/participants"
+              href="#/validators/participants"
               onclick={(e) => { e.preventDefault(); navigate('/validators/participants'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/validators/participants') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
@@ -315,7 +315,7 @@
               Participants
             </a>
             <a
-              href="/validators/wall-of-shame"
+              href="#/validators/wall-of-shame"
               onclick={(e) => { e.preventDefault(); navigate('/validators/wall-of-shame'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/validators/wall-of-shame') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
@@ -324,7 +324,7 @@
               Wall of Shame
             </a>
             <a
-              href="/validators/waitlist"
+              href="#/validators/waitlist"
               onclick={(e) => { e.preventDefault(); navigate('/validators/waitlist'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/validators/waitlist') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
@@ -359,7 +359,7 @@
         {#if !collapsed && getActiveSection() === 'community'}
           <div class="pl-5">
             <a
-              href="/community/contributions"
+              href="#/community/contributions"
               onclick={(e) => { e.preventDefault(); navigate('/community/contributions'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/community/contributions') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
@@ -368,7 +368,7 @@
               Contributions
             </a>
             <a
-              href="/community/leaderboard"
+              href="#/community/leaderboard"
               onclick={(e) => { e.preventDefault(); navigate('/community/leaderboard'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
@@ -377,7 +377,7 @@
               Leaderboard
             </a>
             <a
-              href="/community/poaps"
+              href="#/community/poaps"
               onclick={(e) => { e.preventDefault(); navigate('/community/poaps'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/community/poaps') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
@@ -413,7 +413,7 @@
         {#if !collapsed && getActiveSection() === 'steward' && $userStore.user?.steward}
           <div class="pl-5">
             <a
-              href="/stewards/submissions"
+              href="#/stewards/submissions"
               onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/stewards/submissions') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
@@ -423,7 +423,7 @@
             </a>
             {#if canAccessDiscordXP}
               <a
-                href="/stewards/discord-xp"
+                href="#/stewards/discord-xp"
                 onclick={(e) => { e.preventDefault(); navigate('/stewards/discord-xp'); }}
                 class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                   isActive('/stewards/discord-xp') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
@@ -433,7 +433,7 @@
               </a>
             {/if}
             <a
-              href="/stewards/manage-users"
+              href="#/stewards/manage-users"
               onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/stewards/manage-users') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
@@ -628,7 +628,7 @@
       {#if getActiveSection() === 'global'}
         <div class="pl-5">
           <a
-            href="/testnets"
+            href="#/testnets"
             onclick={(e) => { e.preventDefault(); navigate('/testnets'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/testnets') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
@@ -637,7 +637,7 @@
             Testnets
           </a>
           <a
-            href="/metrics"
+            href="#/metrics"
             onclick={(e) => { e.preventDefault(); navigate('/metrics'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/metrics') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
@@ -670,7 +670,7 @@
       {#if getActiveSection() === 'builder'}
         <div class="pl-5">
           <a
-            href="/builders/contributions"
+            href="#/builders/contributions"
             onclick={(e) => { e.preventDefault(); navigate('/builders/contributions'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/builders/contributions') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
@@ -679,7 +679,7 @@
             Contributions
           </a>
           <a
-            href="/builders/leaderboard"
+            href="#/builders/leaderboard"
             onclick={(e) => { e.preventDefault(); navigate('/builders/leaderboard'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/builders/leaderboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
@@ -688,7 +688,7 @@
             Leaderboard
           </a>
           <a
-            href="/builders/resources"
+            href="#/builders/resources"
             onclick={(e) => { e.preventDefault(); navigate('/builders/resources'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
@@ -716,7 +716,7 @@
       {#if getActiveSection() === 'validator'}
         <div class="pl-5">
           <a
-            href="/validators/contributions"
+            href="#/validators/contributions"
             onclick={(e) => { e.preventDefault(); navigate('/validators/contributions'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/validators/contributions') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
@@ -725,7 +725,7 @@
             Contributions
           </a>
           <a
-            href="/validators/leaderboard"
+            href="#/validators/leaderboard"
             onclick={(e) => { e.preventDefault(); navigate('/validators/leaderboard'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/validators/leaderboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
@@ -734,7 +734,7 @@
             Leaderboard
           </a>
           <a
-            href="/validators/participants"
+            href="#/validators/participants"
             onclick={(e) => { e.preventDefault(); navigate('/validators/participants'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/validators/participants') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
@@ -743,7 +743,7 @@
             Participants
           </a>
           <a
-            href="/validators/waitlist"
+            href="#/validators/waitlist"
             onclick={(e) => { e.preventDefault(); navigate('/validators/waitlist'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/validators/waitlist') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
@@ -771,7 +771,7 @@
       {#if getActiveSection() === 'community'}
         <div class="pl-5">
           <a
-            href="/community/contributions"
+            href="#/community/contributions"
             onclick={(e) => { e.preventDefault(); navigate('/community/contributions'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/community/contributions') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
@@ -780,7 +780,7 @@
             Contributions
           </a>
           <a
-            href="/community/leaderboard"
+            href="#/community/leaderboard"
             onclick={(e) => { e.preventDefault(); navigate('/community/leaderboard'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
@@ -789,7 +789,7 @@
             Leaderboard
           </a>
           <a
-            href="/community/poaps"
+            href="#/community/poaps"
             onclick={(e) => { e.preventDefault(); navigate('/community/poaps'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/community/poaps') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
@@ -817,7 +817,7 @@
       {#if getActiveSection() === 'steward' && $userStore.user?.steward}
         <div class="pl-5">
           <a
-            href="/stewards/submissions"
+            href="#/stewards/submissions"
             onclick={(e) => { e.preventDefault(); navigate('/stewards/submissions'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/stewards/submissions') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
@@ -827,7 +827,7 @@
           </a>
           {#if canAccessDiscordXP}
             <a
-              href="/stewards/discord-xp"
+              href="#/stewards/discord-xp"
               onclick={(e) => { e.preventDefault(); navigate('/stewards/discord-xp'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/stewards/discord-xp') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
@@ -837,7 +837,7 @@
             </a>
           {/if}
           <a
-            href="/stewards/manage-users"
+            href="#/stewards/manage-users"
             onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/stewards/manage-users') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
