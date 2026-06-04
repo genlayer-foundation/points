@@ -287,6 +287,11 @@ SESSION_COOKIE_AGE = 86400 * 14  # 14 days in seconds
 SESSION_COOKIE_DOMAIN = None  # Allow cookies on localhost
 SESSION_SAVE_EVERY_REQUEST = True  # Save session on every request to extend expiry
 
+# Only send the session/CSRF cookies over HTTPS in production. In DEBUG the
+# dev server runs over plain HTTP, so keep these off locally.
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+
 # Dynamic session cookie name based on port to prevent conflicts in multi-port development
 # This allows running multiple instances on different ports without session conflicts
 import sys

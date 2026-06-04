@@ -2,6 +2,7 @@ import secrets
 import string
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import status
@@ -170,8 +171,10 @@ def login(request):
         })
         
     except Exception as e:
+        logger.exception("Authentication failed")
+        error_detail = f'Authentication failed: {str(e)}' if settings.DEBUG else 'Authentication failed.'
         return Response(
-            {'error': f'Authentication failed: {str(e)}'},
+            {'error': error_detail},
             status=status.HTTP_400_BAD_REQUEST
         )
 

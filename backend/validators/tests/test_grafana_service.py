@@ -403,6 +403,46 @@ class WallOfShameEndpointTests(TestCase):
             {('asimov', 'metrics'), ('bradbury', 'logs')},
         )
 
+    def test_hidden_operator_identity_is_not_exposed(self):
+        """A hidden (visible=False) operator must not have their profile
+        identity surfaced on the public Wall of Shame, but the validator wallet
+        itself should still appear (falling back to the on-chain address)."""
+        user = User.objects.create_user(
+            email='hidden-operator@example.com',
+            password='password',
+            name='Hidden Operator',
+            address='0xhiddenoperator00000000000000000000000000'[:42],
+            visible=False,
+        )
+        validator = Validator.objects.create(user=user)
+        wallet = ValidatorWallet.objects.create(
+            address='0xhiddenwallet0000000000000000000000000000'[:42],
+            network='asimov',
+            operator=validator,
+            operator_address=user.address,
+            status='active',
+            moniker='hidden-asimov',
+            metrics_status='shame',
+            logs_status='on',
+        )
+
+        response = self.client.get('/api/v1/validators/wallets/wall-of-shame/')
+
+        # operator_user must be withheld in both payloads for the hidden user.
+        for entry in response.data['wallets']:
+            if entry['address'] == wallet.address:
+                self.assertIsNone(entry['operator_user'])
+
+        group = next(
+            item for item in response.data['validators']
+            if item['operator_address'] == user.address
+        )
+        self.assertIsNone(group['operator_user'])
+        # The validator still appears (so a misbehaving node isn't hidden),
+        # identified only by its on-chain operator address.
+        self.assertEqual(group['status'], 'shame')
+        self.assertEqual(group['operator_address'], user.address)
+
     def test_outdated_version_is_warning_during_grace_period(self):
         TargetNodeVersion.objects.create(
             version='2.0.0',

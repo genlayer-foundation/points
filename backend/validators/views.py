@@ -624,7 +624,7 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
 
     @staticmethod
     def _operator_user_payload(wallet):
-        if wallet.operator and wallet.operator.user:
+        if wallet.operator and wallet.operator.user and wallet.operator.user.visible:
             user = wallet.operator.user
             return {
                 'id': user.id,
