@@ -326,7 +326,6 @@ class UserPoapMixin:
         detail=False,
         methods=['get'],
         url_path='by-address/(?P<address>[^/.]+)/poaps',
-        permission_classes=[permissions.AllowAny],
     )
     def poaps(self, request, address=None):
         from django.shortcuts import get_object_or_404
