@@ -1169,6 +1169,12 @@ class FeaturedContent(BaseModel):
 
     class Meta:
         ordering = ['order', '-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['content_type', 'title'],
+                name='unique_featured_content_type_title',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.get_content_type_display()}: {self.title}"

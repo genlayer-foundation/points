@@ -308,13 +308,21 @@ class PoapAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertLessEqual(len(profile_queries), 6)
 
-    def test_profile_poaps_are_public(self):
+    def test_profile_poaps_require_authentication(self):
         PoapClaim.objects.create(
             drop=self.drop,
             user=self.user,
             claim_method=PoapClaim.CLAIM_LEGACY,
         )
 
+        response = self.client.get(f'/api/v1/users/by-address/{self.user.address}/poaps/')
+
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+        )
+
+        self.client.force_authenticate(user=self.user)
         response = self.client.get(f'/api/v1/users/by-address/{self.user.address}/poaps/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
