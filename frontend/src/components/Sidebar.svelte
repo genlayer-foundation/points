@@ -315,6 +315,15 @@
               Participants
             </a>
             <a
+              href="/validators/wall-of-shame"
+              onclick={(e) => { e.preventDefault(); navigate('/validators/wall-of-shame'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/validators/wall-of-shame') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Wall of Shame
+            </a>
+            <a
               href="/validators/waitlist"
               onclick={(e) => { e.preventDefault(); navigate('/validators/waitlist'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
@@ -732,6 +741,15 @@
             }"
           >
             Participants
+          </a>
+          <a
+            href="/validators/wall-of-shame"
+            onclick={(e) => { e.preventDefault(); navigate('/validators/wall-of-shame'); }}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              isActive('/validators/wall-of-shame') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+            }"
+          >
+            Wall of Shame
           </a>
           <a
             href="/validators/waitlist"

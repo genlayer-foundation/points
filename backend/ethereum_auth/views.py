@@ -2,6 +2,7 @@ import secrets
 import string
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import status
@@ -160,7 +161,6 @@ def login(request):
             'address': ethereum_address,
             'user_id': user.id,
             'created': created,
-            'session_key': request.session.session_key,  # For debugging
             'referral_code': user.referral_code,
             'referred_by': {
                 'id': user.referred_by.id,
@@ -171,8 +171,10 @@ def login(request):
         })
         
     except Exception as e:
+        logger.exception("Authentication failed")
+        error_detail = f'Authentication failed: {str(e)}' if settings.DEBUG else 'Authentication failed.'
         return Response(
-            {'error': f'Authentication failed: {str(e)}'},
+            {'error': error_detail},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -192,8 +194,7 @@ def verify_auth(request):
             return Response({
                 'authenticated': True,
                 'address': ethereum_address,
-                'user_id': user.id,
-                'session_key': request.session.session_key  # For debugging
+                'user_id': user.id
             })
         except User.DoesNotExist:
             pass

@@ -67,7 +67,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = ContributionType.objects.all()
     serializer_class = ContributionTypeSerializer
-    permission_classes = [permissions.AllowAny]  # Allow read-only access without authentication
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
@@ -118,7 +118,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             'required_discord_roles',
         ).order_by('category__name', 'name', 'id')
 
-    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def statistics(self, request):
         """
         Get aggregated statistics for each contribution type.
@@ -163,7 +163,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             
         return Response(list(types_with_stats))
     
-    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def top_contributors(self, request, pk=None):
         """
         Get top 10 contributors for a specific contribution type.
@@ -202,7 +202,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response(result)
     
-    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def recent_contributions(self, request, pk=None):
         """
         Get the last 10 contributions for a specific contribution type.
@@ -229,7 +229,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = ContributionSerializer(recent_contributions, many=True, context=context)
         return Response(serializer.data)
     
-    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def highlights(self, request, pk=None):
         """
         Get active highlights for a specific contribution type.
@@ -261,7 +261,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = Contribution.objects.all().order_by('-contribution_date')
     serializer_class = ContributionSerializer
-    permission_classes = [permissions.AllowAny]  # Allow read-only access without authentication
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['user', 'contribution_type', 'mission']
     search_fields = ['notes', 'user__name', 'user__address', 'contribution_type__name']
@@ -346,7 +346,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         context['use_light_serializers'] = self.action == 'list'
         return context
     
-    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def highlights(self, request):
         """
         Get all active highlights across all contribution types.
@@ -459,7 +459,7 @@ class EvidenceViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = Evidence.objects.all().order_by('-created_at')
     serializer_class = EvidenceSerializer
-    permission_classes = [permissions.AllowAny]  # Allow read-only access without authentication
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['contribution', 'contribution__user']
     search_fields = ['description', 'url']
@@ -1672,10 +1672,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         """
         Instantiates and returns the list of permissions that this view requires.
-        Stats and daily_metrics endpoints are public, all others require steward permission.
+        Steward review data, including aggregate stats, requires steward permission.
         """
-        if self.action in ['stats', 'daily_metrics']:
-            return [permissions.AllowAny()]
         return super().get_permissions()
 
     def get_queryset(self):

@@ -62,6 +62,9 @@ class ValidatorWallet(BaseModel):
         max_length=10, choices=GRAFANA_STATUS_CHOICES, default='unknown', db_index=True
     )
     last_grafana_check_at = models.DateTimeField(null=True, blank=True)
+    metrics_shame_started_at = models.DateTimeField(null=True, blank=True)
+    logs_shame_started_at = models.DateTimeField(null=True, blank=True)
+    version_shame_started_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']

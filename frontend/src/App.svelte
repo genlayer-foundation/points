@@ -10,6 +10,7 @@
   import { currentCategory, detectCategoryFromRoute } from './stores/category.js';
   import { location } from 'svelte-spa-router';
   import { resetPageMeta } from './lib/meta.js';
+  import { authState, verifyAuth } from './lib/auth.js';
   
   // Early OAuth result detection — runs before routes mount.
   // Backend redirects here with ?oauth_platform=X&oauth_verified=true/false&oauth_error=...
@@ -97,6 +98,7 @@
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
   import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
+  import WallOfShame from './routes/WallOfShame.svelte';
 
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
@@ -121,61 +123,92 @@
   import GlobalDashboard from './components/GlobalDashboard.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
 
+  async function requireAuthForRoute({ location, querystring }) {
+    const state = authState.get();
+    const isAuthenticated = state.isAuthenticated || await verifyAuth();
+
+    if (isAuthenticated) {
+      return true;
+    }
+
+    sessionStorage.setItem(
+      'redirectAfterLogin',
+      `${location || '/'}${querystring ? `?${querystring}` : ''}`
+    );
+
+    push('/');
+
+    setTimeout(() => {
+      const authButton = document.querySelector('[data-auth-button]');
+      if (authButton) {
+        authButton.click();
+      }
+    }, 0);
+
+    return false;
+  }
+
+  const protectedRoute = (component) => wrap({
+    component,
+    conditions: [requireAuthForRoute],
+  });
+
   // Define routes
   const routes = {
 
     // Global/Testnet Asimov routes
     // Overview and Testnet Asimov routes
     '/': Overview,
-    '/testnets': GlobalDashboard,
+    '/testnets': protectedRoute(GlobalDashboard),
     '/how-it-works': HowItWorks,
-    '/contributions': Contributions,
-    '/all-contributions': AllContributions,
-    '/leaderboard': Leaderboard,
+    '/contributions': protectedRoute(Contributions),
+    '/all-contributions': protectedRoute(AllContributions),
+    '/leaderboard': protectedRoute(Leaderboard),
     '/participants': Validators,
-    '/referrals': Referrals,
-    '/community': Dashboard,
-    '/community/contributions': Contributions,
-    '/community/all-contributions': AllContributions,
+    '/referrals': protectedRoute(Referrals),
+    '/community': protectedRoute(Dashboard),
+    '/community/contributions': protectedRoute(Contributions),
+    '/community/all-contributions': protectedRoute(AllContributions),
     '/community/referrals': LegacyReferralRedirect,
-    '/community/leaderboard': Leaderboard,
+    '/community/leaderboard': protectedRoute(Leaderboard),
     '/community/poaps': CommunityPoaps,
     '/community/poaps/recover': PoapRecovery,
     '/community/poaps/:slug': PoapDetail,
-    '/community/contribution/:id': ContributionPreview,
+    '/community/contribution/:id': protectedRoute(ContributionPreview),
     '/claim/poap/:token': PoapClaim,
     '/hackathon': Hackathon,
     '/hackathon-winners': HackathonWinners,
     '/referral-program': ReferralProgram,
 
     // Builders routes
-    '/builders': Dashboard,
-    '/builders/contributions': Contributions,
-    '/builders/all-contributions': AllContributions,
-    '/builders/leaderboard': Leaderboard,
+    '/builders': protectedRoute(Dashboard),
+    '/builders/contributions': protectedRoute(Contributions),
+    '/builders/all-contributions': protectedRoute(AllContributions),
+    '/builders/leaderboard': protectedRoute(Leaderboard),
 
     '/builders/resources': Resources,
-    '/builders/projects/:slug/edit': ProjectPageEditor,
+    '/builders/projects/:slug/edit': protectedRoute(ProjectPageEditor),
     '/builders/projects/:slug': ProjectDetail,
     '/builders/startup-requests/:id': StartupRequestDetail,
     
     // Validators routes
-    '/validators': Dashboard,
-    '/validators/contributions': Contributions,
-    '/validators/all-contributions': AllContributions,
-    '/validators/leaderboard': Leaderboard,
+    '/validators': protectedRoute(Dashboard),
+    '/validators/contributions': protectedRoute(Contributions),
+    '/validators/all-contributions': protectedRoute(AllContributions),
+    '/validators/leaderboard': protectedRoute(Leaderboard),
     '/validators/participants': Validators,
-    '/validators/waitlist': Waitlist,
-    '/validators/waitlist/participants': WaitlistParticipants,
+    '/validators/wall-of-shame': WallOfShame,
+    '/validators/waitlist': protectedRoute(Waitlist),
+    '/validators/waitlist/participants': protectedRoute(WaitlistParticipants),
     '/validators/waitlist/join': ValidatorWaitlist,
     
     // Shared routes
-    '/participant/:address': Profile,
-    '/contribution/:id': ContributionPreview,
-    '/builders/contribution/:id': ContributionPreview,
-    '/validators/contribution/:id': ContributionPreview,
-    '/contribution-type/:id': ContributionTypeDetail,
-    '/mission/:id': MissionDetail,
+    '/participant/:address': protectedRoute(Profile),
+    '/contribution/:id': protectedRoute(ContributionPreview),
+    '/builders/contribution/:id': protectedRoute(ContributionPreview),
+    '/validators/contribution/:id': protectedRoute(ContributionPreview),
+    '/contribution-type/:id': protectedRoute(ContributionTypeDetail),
+    '/mission/:id': protectedRoute(MissionDetail),
     '/badge/:id': BadgeDetail,
     '/submit-contribution': SubmitContribution,
     '/my-submissions': MySubmissions,

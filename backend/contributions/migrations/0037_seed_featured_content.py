@@ -1,69 +1,105 @@
 from django.db import migrations
 
 
+def get_seed_user(User, email, fallback_email, name, address):
+    user = User.objects.filter(email=email).first()
+    if user:
+        return user
+
+    user, _ = User.objects.get_or_create(
+        email=fallback_email,
+        defaults={
+            'name': name,
+            'username': name,
+            'address': address,
+        },
+    )
+    return user
+
+
 def seed_featured_content(apps, schema_editor):
     User = apps.get_model('users', 'User')
     FeaturedContent = apps.get_model('contributions', 'FeaturedContent')
 
-    albert = User.objects.get(email='albert@genlayer.foundation')  # cognocracy
-    ivan = User.objects.get(email='ivan@genlayer.foundation')      # raskovsky
+    albert = get_seed_user(
+        User,
+        email='albert@genlayer.foundation',
+        fallback_email='cognocracy@seed.genlayer.com',
+        name='cognocracy',
+        address='0x00000000000000000000000000000000000000a1',
+    )
+    ivan = get_seed_user(
+        User,
+        email='ivan@genlayer.foundation',
+        fallback_email='raskovsky@seed.genlayer.com',
+        name='raskovsky',
+        address='0x00000000000000000000000000000000000000a2',
+    )
 
-    FeaturedContent.objects.create(
+    FeaturedContent.objects.update_or_create(
         content_type='hero',
         title='Argue.fun Launch',
-        description='Deploy intelligent contracts, run validators, and earn GenLayer Points on the latest testnet.',
-        subtitle='cognocracy',
-        user=albert,
-        hero_image_url='https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117991/tally/featured_1_hero_1772117989.png',
-        hero_image_public_id='tally/featured_1_hero_1772117989',
-        url='',
-        is_active=True,
-        order=0,
+        defaults={
+            'description': 'Deploy intelligent contracts, run validators, and earn GenLayer Points on the latest testnet.',
+            'subtitle': 'cognocracy',
+            'user': albert,
+            'hero_image_url': 'https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117991/tally/featured_1_hero_1772117989.png',
+            'hero_image_public_id': 'tally/featured_1_hero_1772117989',
+            'url': '',
+            'is_active': True,
+            'order': 0,
+        },
     )
 
-    FeaturedContent.objects.create(
+    FeaturedContent.objects.update_or_create(
         content_type='build',
         title='Argue.fun',
-        description='',
-        subtitle='',
-        user=albert,
-        hero_image_url='https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117992/tally/featured_2_hero_1772117992.png',
-        hero_image_public_id='tally/featured_2_hero_1772117992',
-        user_profile_image_url='https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117994/tally/featured_2_avatar_1772117993.png',
-        user_profile_image_public_id='tally/featured_2_avatar_1772117993',
-        url='',
-        is_active=True,
-        order=0,
+        defaults={
+            'description': '',
+            'subtitle': '',
+            'user': albert,
+            'hero_image_url': 'https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117992/tally/featured_2_hero_1772117992.png',
+            'hero_image_public_id': 'tally/featured_2_hero_1772117992',
+            'user_profile_image_url': 'https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117994/tally/featured_2_avatar_1772117993.png',
+            'user_profile_image_public_id': 'tally/featured_2_avatar_1772117993',
+            'url': '',
+            'is_active': True,
+            'order': 0,
+        },
     )
 
-    FeaturedContent.objects.create(
+    FeaturedContent.objects.update_or_create(
         content_type='build',
         title='Internet Court',
-        description='',
-        subtitle='',
-        user=ivan,
-        hero_image_url='https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117994/tally/featured_3_hero_1772117994.png',
-        hero_image_public_id='tally/featured_3_hero_1772117994',
-        user_profile_image_url='https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117995/tally/featured_3_avatar_1772117995.png',
-        user_profile_image_public_id='tally/featured_3_avatar_1772117995',
-        url='',
-        is_active=True,
-        order=1,
+        defaults={
+            'description': '',
+            'subtitle': '',
+            'user': ivan,
+            'hero_image_url': 'https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117994/tally/featured_3_hero_1772117994.png',
+            'hero_image_public_id': 'tally/featured_3_hero_1772117994',
+            'user_profile_image_url': 'https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117995/tally/featured_3_avatar_1772117995.png',
+            'user_profile_image_public_id': 'tally/featured_3_avatar_1772117995',
+            'url': '',
+            'is_active': True,
+            'order': 1,
+        },
     )
 
-    FeaturedContent.objects.create(
+    FeaturedContent.objects.update_or_create(
         content_type='build',
         title='Rally',
-        description='',
-        subtitle='',
-        user=ivan,
-        hero_image_url='https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117996/tally/featured_4_hero_1772117995.png',
-        hero_image_public_id='tally/featured_4_hero_1772117995',
-        user_profile_image_url='https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117996/tally/featured_4_avatar_1772117996.png',
-        user_profile_image_public_id='tally/featured_4_avatar_1772117996',
-        url='',
-        is_active=True,
-        order=2,
+        defaults={
+            'description': '',
+            'subtitle': '',
+            'user': ivan,
+            'hero_image_url': 'https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117996/tally/featured_4_hero_1772117995.png',
+            'hero_image_public_id': 'tally/featured_4_hero_1772117995',
+            'user_profile_image_url': 'https://res.cloudinary.com/dfqmoeawa/image/upload/v1772117996/tally/featured_4_avatar_1772117996.png',
+            'user_profile_image_public_id': 'tally/featured_4_avatar_1772117996',
+            'url': '',
+            'is_active': True,
+            'order': 2,
+        },
     )
 
 

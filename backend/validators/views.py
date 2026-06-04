@@ -1,6 +1,7 @@
 import logging
 import re
 import uuid
+from datetime import timedelta
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -242,6 +243,7 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
     SYNC_LOCK_STALE_AFTER_SECONDS = 1800
     SYNC_LOCK_HEARTBEAT_INTERVAL_SECONDS = 60
     WALL_OF_SHAME_CACHE_TTL_SECONDS = 60
+    VERSION_SHAME_GRACE_DAYS = 3
 
     def get_queryset(self):
         """
@@ -614,12 +616,270 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         for network in settings.TESTNET_NETWORKS.keys():
             cache.delete(cls._wall_of_shame_cache_key(network))
 
+    @staticmethod
+    def _days_since(started_at, now):
+        if not started_at:
+            return None
+        return max(0, (now - started_at).days)
+
+    @staticmethod
+    def _operator_user_payload(wallet):
+        if wallet.operator and wallet.operator.user and wallet.operator.user.visible:
+            user = wallet.operator.user
+            return {
+                'id': user.id,
+                'name': user.name,
+                'address': user.address,
+                'profile_image_url': user.profile_image_url,
+                'visible': user.visible,
+            }
+        return None
+
+    @classmethod
+    def _version_context(cls, wallet, target, now):
+        field_name = f'node_version_{wallet.network}'
+        node_version = getattr(wallet.operator, field_name, None) if wallet.operator else None
+        target_version = target.version if target else None
+        target_date = target.target_date if target else None
+
+        context = {
+            'status': 'unknown' if not target else 'on',
+            'node_version': node_version,
+            'target_version': target_version,
+            'target_date': target_date,
+            'target_elapsed_days': None,
+            'grace_days': cls.VERSION_SHAME_GRACE_DAYS,
+            'grace_days_remaining': None,
+            'shame_started_at': None,
+        }
+        if not target or not target_date or target_date > now:
+            return context
+
+        context['target_elapsed_days'] = max(0, (now - target_date).days)
+        matches_target = bool(
+            wallet.operator
+            and node_version
+            and wallet.operator.version_matches_or_higher(target.version, node_version=node_version)
+        )
+        if matches_target:
+            context['status'] = 'on'
+            return context
+
+        if context['target_elapsed_days'] <= cls.VERSION_SHAME_GRACE_DAYS:
+            context['status'] = 'warning'
+            context['grace_days_remaining'] = max(
+                0,
+                cls.VERSION_SHAME_GRACE_DAYS - context['target_elapsed_days'],
+            )
+            return context
+
+        context['status'] = 'shame'
+        context['shame_started_at'] = target_date + timedelta(days=cls.VERSION_SHAME_GRACE_DAYS)
+        return context
+
+    @classmethod
+    def _sync_shame_started_at(cls, wallets, targets, now):
+        changed = []
+        for wallet in wallets:
+            update_wallet = False
+
+            if wallet.metrics_status == 'shame':
+                if not wallet.metrics_shame_started_at:
+                    wallet.metrics_shame_started_at = now
+                    update_wallet = True
+            elif wallet.metrics_shame_started_at:
+                wallet.metrics_shame_started_at = None
+                update_wallet = True
+
+            if wallet.logs_status == 'shame':
+                if not wallet.logs_shame_started_at:
+                    wallet.logs_shame_started_at = now
+                    update_wallet = True
+            elif wallet.logs_shame_started_at:
+                wallet.logs_shame_started_at = None
+                update_wallet = True
+
+            version_context = cls._version_context(wallet, targets.get(wallet.network), now)
+            desired_version_started_at = (
+                version_context['shame_started_at']
+                if version_context['status'] == 'shame'
+                else None
+            )
+            if desired_version_started_at:
+                if (
+                    not wallet.version_shame_started_at
+                    or wallet.version_shame_started_at < desired_version_started_at
+                ):
+                    wallet.version_shame_started_at = desired_version_started_at
+                    update_wallet = True
+            elif wallet.version_shame_started_at:
+                wallet.version_shame_started_at = None
+                update_wallet = True
+
+            if update_wallet:
+                changed.append(wallet)
+
+        if changed:
+            ValidatorWallet.objects.bulk_update(
+                changed,
+                [
+                    'metrics_shame_started_at',
+                    'logs_shame_started_at',
+                    'version_shame_started_at',
+                ],
+            )
+
+    @classmethod
+    def _reason(cls, reason_type, label, started_at, now, reason_status='shame', **extra):
+        return {
+            'type': reason_type,
+            'label': label,
+            'status': reason_status,
+            'started_at': started_at,
+            'days_in_shame': cls._days_since(started_at, now),
+            **extra,
+        }
+
+    @classmethod
+    def _wallet_reasons(cls, wallet, target, now):
+        reasons = []
+        if wallet.metrics_status == 'shame':
+            reasons.append(cls._reason(
+                'metrics',
+                'no metrics',
+                wallet.metrics_shame_started_at,
+                now,
+            ))
+        if wallet.logs_status == 'shame':
+            reasons.append(cls._reason(
+                'logs',
+                'no logs',
+                wallet.logs_shame_started_at,
+                now,
+            ))
+
+        version_context = cls._version_context(wallet, target, now)
+        if version_context['status'] in ('warning', 'shame'):
+            started_at = (
+                wallet.version_shame_started_at
+                if version_context['status'] == 'shame'
+                else None
+            )
+            reasons.append(cls._reason(
+                'version',
+                'outdated version',
+                started_at,
+                now,
+                reason_status=version_context['status'],
+                node_version=version_context['node_version'],
+                target_version=version_context['target_version'],
+                target_elapsed_days=version_context['target_elapsed_days'],
+                grace_days_remaining=version_context['grace_days_remaining'],
+            ))
+        return reasons
+
+    @classmethod
+    def _build_validator_groups(cls, wallets, targets, now):
+        groups = {}
+
+        for wallet in wallets:
+            operator_key = (
+                f'validator:{wallet.operator_id}'
+                if wallet.operator_id
+                else f'operator:{(wallet.operator_address or "").lower()}'
+            )
+            operator_user = cls._operator_user_payload(wallet)
+            group = groups.setdefault(operator_key, {
+                'id': operator_key,
+                'operator_address': wallet.operator_address,
+                'operator_user': operator_user,
+                'name': (
+                    (operator_user or {}).get('name')
+                    or wallet.moniker
+                    or wallet.operator_address
+                ),
+                'logo_uri': wallet.logo_uri,
+                'networks': [],
+                'shame_reasons': [],
+                'status': 'on',
+            })
+            if not group['logo_uri'] and wallet.logo_uri:
+                group['logo_uri'] = wallet.logo_uri
+            if not group['operator_user'] and operator_user:
+                group['operator_user'] = operator_user
+
+            target = targets.get(wallet.network)
+            version_context = cls._version_context(wallet, target, now)
+            reasons = cls._wallet_reasons(wallet, target, now)
+            has_unknown = wallet.metrics_status == 'unknown' or wallet.logs_status == 'unknown'
+            network_status = 'on'
+            if any(reason['status'] == 'shame' for reason in reasons):
+                network_status = 'shame'
+            elif any(reason['status'] == 'warning' for reason in reasons):
+                network_status = 'warning'
+            elif has_unknown:
+                network_status = 'unknown'
+
+            for reason in reasons:
+                group['shame_reasons'].append({
+                    'network': wallet.network,
+                    **reason,
+                })
+
+            group['networks'].append({
+                'network': wallet.network,
+                'wallet_id': wallet.id,
+                'address': wallet.address,
+                'moniker': wallet.moniker,
+                'logo_uri': wallet.logo_uri,
+                'metrics_status': wallet.metrics_status,
+                'logs_status': wallet.logs_status,
+                'version_status': version_context['status'],
+                'node_version': version_context['node_version'],
+                'target_version': version_context['target_version'],
+                'status': network_status,
+                'reasons': reasons,
+            })
+
+        priority = {'shame': 0, 'warning': 1, 'unknown': 2, 'on': 3}
+        network_order = {
+            network: index for index, network in enumerate(settings.TESTNET_NETWORKS.keys())
+        }
+
+        for group in groups.values():
+            statuses = [network['status'] for network in group['networks']]
+            if 'shame' in statuses:
+                group['status'] = 'shame'
+            elif 'warning' in statuses:
+                group['status'] = 'warning'
+            elif 'unknown' in statuses:
+                group['status'] = 'unknown'
+            else:
+                group['status'] = 'on'
+            group['networks'].sort(key=lambda item: network_order.get(item['network'], 99))
+            group['shame_reasons'].sort(
+                key=lambda item: (
+                    network_order.get(item['network'], 99),
+                    priority.get(item['status'], 99),
+                    item['label'],
+                )
+            )
+
+        return sorted(
+            groups.values(),
+            key=lambda group: (
+                priority.get(group['status'], 99),
+                (group['name'] or '').lower(),
+                group['operator_address'] or '',
+            )
+        )
+
     @action(detail=False, methods=['get'], url_path='wall-of-shame')
     def wall_of_shame(self, request):
         """
-        Public Wall of Shame: all active validator wallets with their latest
-        Grafana metrics/logs status. Sorted with SHAME rows first, then by
-        moniker. Cached for 60s. Optional ?network=asimov|bradbury filter.
+        Public Wall of Shame: active validators grouped by operator with their
+        latest per-network metrics/logs/version reasons. Cached for 60s.
+        Optional ?network=asimov|bradbury filter.
         """
         network = request.query_params.get('network', '').strip().lower() or None
         if network and network not in settings.TESTNET_NETWORKS:
@@ -641,8 +901,7 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         if network:
             queryset = queryset.filter(network=network)
 
-        # SHAME rows first (metrics_status='shame' OR logs_status='shame'),
-        # then alphabetical by moniker (case-insensitive), then by address as a stable tiebreaker.
+        # Keep wallet ordering stable for the compatibility `wallets` payload.
         from django.db.models import Case, IntegerField, Value, When
         from django.db.models.functions import Lower
 
@@ -661,28 +920,36 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         # Pick the latest Grafana check timestamp across all returned rows so
         # the UI can show staleness of the data itself (not per-validator).
         wallets = list(queryset)
+        now = timezone.now()
+
+        from contributions.node_upgrade.models import TargetNodeVersion
+        targets = {
+            network_name: TargetNodeVersion.get_active(network=network_name)
+            for network_name in settings.TESTNET_NETWORKS.keys()
+        }
+        self._sync_shame_started_at(wallets, targets, now)
+
         last_check = max(
             (w.last_grafana_check_at for w in wallets if w.last_grafana_check_at is not None),
             default=None,
         )
 
         serializer = WallOfShameSerializer(wallets, many=True)
-        on_count = sum(
-            1 for w in wallets
-            if w.metrics_status == 'on' and w.logs_status == 'on'
-        )
-        shame_count = sum(
-            1 for w in wallets
-            if w.metrics_status == 'shame' or w.logs_status == 'shame'
-        )
+        validators = self._build_validator_groups(wallets, targets, now)
+        on_count = sum(1 for validator in validators if validator['status'] == 'on')
+        shame_count = sum(1 for validator in validators if validator['status'] == 'shame')
+        warning_count = sum(1 for validator in validators if validator['status'] == 'warning')
+        unknown_count = sum(1 for validator in validators if validator['status'] == 'unknown')
 
         payload = {
             'wallets': serializer.data,
+            'validators': validators,
             'stats': {
-                'total': len(wallets),
+                'total': len(validators),
                 'on': on_count,
                 'shame': shame_count,
-                'unknown': len(wallets) - on_count - shame_count,
+                'warning': warning_count,
+                'unknown': unknown_count,
             },
             'last_grafana_check_at': last_check,
             'network': network or 'all',

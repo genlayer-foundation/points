@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.test import APIClient
 
 from builders.models import Builder
@@ -13,39 +14,70 @@ from validators.models import Validator
 class ParticipantsGrowthViewTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.validator_category = Category.objects.create(
-            name='Validator',
-            slug='validator'
+        self.authenticated_user = User.objects.create_user(
+            email='metrics@example.com',
+            password='pass',
+            address='0x9999999999999999999999999999999999999999',
         )
-        self.builder_category = Category.objects.create(
-            name='Builder',
-            slug='builder'
-        )
-        self.waitlist_type = ContributionType.objects.create(
-            name='Validator Waitlist',
-            slug='validator-waitlist',
-            category=self.validator_category
-        )
-        self.builder_welcome_type = ContributionType.objects.create(
-            name='Builder Welcome',
-            slug='builder-welcome',
-            category=self.builder_category
-        )
-        self.builder_real_type = ContributionType.objects.create(
-            name='Builder Submission',
-            slug='builder-submission',
-            category=self.builder_category
-        )
-        self.validator_real_type = ContributionType.objects.create(
-            name='Uptime',
-            slug='uptime',
-            category=self.validator_category
-        )
-        self.validator_graduation_type = ContributionType.objects.create(
-            name='Validator',
+        self.client.force_authenticate(user=self.authenticated_user)
+        self.validator_category, _ = Category.objects.get_or_create(
             slug='validator',
-            category=self.validator_category
+            defaults={'name': 'Validator'},
         )
+        self.builder_category, _ = Category.objects.get_or_create(
+            slug='builder',
+            defaults={'name': 'Builder'},
+        )
+        self.waitlist_type, _ = ContributionType.objects.get_or_create(
+            slug='validator-waitlist',
+            defaults={
+                'name': 'Validator Waitlist',
+                'category': self.validator_category,
+            },
+        )
+        self.builder_welcome_type, _ = ContributionType.objects.get_or_create(
+            slug='builder-welcome',
+            defaults={
+                'name': 'Builder Welcome',
+                'category': self.builder_category,
+            },
+        )
+        self.builder_real_type, _ = ContributionType.objects.get_or_create(
+            slug='builder-submission',
+            defaults={
+                'name': 'Builder Submission',
+                'category': self.builder_category,
+            },
+        )
+        self.validator_real_type, _ = ContributionType.objects.get_or_create(
+            slug='uptime',
+            defaults={
+                'name': 'Uptime',
+                'category': self.validator_category,
+            },
+        )
+        self.validator_graduation_type, _ = ContributionType.objects.get_or_create(
+            slug='validator',
+            defaults={
+                'name': 'Validator',
+                'category': self.validator_category,
+            },
+        )
+
+    def test_participants_growth_allows_public_metrics_page(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get('/api/v1/metrics/participants-growth/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('data', response.data)
+
+    def test_testnet_metrics_allows_public_metrics_page(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get('/api/v1/metrics/testnet-kpis/?network=unknown')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def _create_user(self, email, address):
         return User.objects.create_user(
