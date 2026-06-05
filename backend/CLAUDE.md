@@ -288,12 +288,15 @@ GET    /api/v1/gen-tv/streams/{slug}/      (public, stream detail)
 ```
 
 ### Leaderboard monthly date ranges
+
 `GET /api/v1/leaderboard/monthly/` returns ranked users by contribution totals for `type` (for example `community` or `builder`) and optional `limit`. Without `start_date`, it defaults to the current calendar month beginning on day 1; with `start_date` and/or `end_date`, it filters contributions by `contribution_date` date in the provided inclusive range. Dates must be `YYYY-MM-DD`, and `start_date` must be before or equal to `end_date`; invalid dates return `400`.
 
 Example:
+
 `GET /api/v1/leaderboard/monthly/?type=community&limit=5&start_date=2026-05-07&end_date=2026-06-05`
 
 Example response:
+
 ```json
 [
   {
