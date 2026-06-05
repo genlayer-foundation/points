@@ -261,8 +261,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             date_filters['contribution_date__date__gte'] = start_date
         else:
             now = timezone.localtime(timezone.now())
-            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            date_filters['contribution_date__gte'] = month_start
+            month_start = now.replace(day=1).date()
+            date_filters['contribution_date__date__gte'] = month_start
         if end_date:
             date_filters['contribution_date__date__lte'] = end_date
 

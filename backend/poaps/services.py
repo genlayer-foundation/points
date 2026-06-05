@@ -27,6 +27,8 @@ class InvalidClaimError(PoapClaimError):
 
 class ClaimClosedError(PoapClaimError):
     status_code = 400
+    CLAIM_NOT_OPEN = 'This POAP is not open for claiming yet.'
+    CLAIM_WINDOW_ENDED = 'This POAP claim window has ended.'
 
 
 class MissingDiscordConnectionError(PoapClaimError):
@@ -73,9 +75,9 @@ def validate_drop_capacity(drop):
         raise ClaimClosedError('This POAP is not open for claiming.')
     now = timezone.now()
     if drop.event_start_at and now < drop.event_start_at:
-        raise ClaimClosedError('This POAP is not open for claiming yet.')
+        raise ClaimClosedError(ClaimClosedError.CLAIM_NOT_OPEN)
     if drop.event_end_at and now > drop.event_end_at:
-        raise ClaimClosedError('This POAP claim window has ended.')
+        raise ClaimClosedError(ClaimClosedError.CLAIM_WINDOW_ENDED)
     if drop.max_claims is not None:
         claimed = PoapClaim.objects.filter(drop=drop, user__isnull=False).count()
         if claimed >= drop.max_claims:
