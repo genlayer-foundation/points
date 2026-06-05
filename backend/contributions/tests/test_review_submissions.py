@@ -356,8 +356,8 @@ class RuleDuplicateEvidenceUrlTest(Tier1RuleTestBase):
         self.assertIsNotNone(result)
         self.assertIn('accepted contribution', result[1])
 
-    def test_skip_pending_rejects_when_older_duplicate_exists(self):
-        """Targeted runs should still reject against an older duplicate."""
+    def test_skip_pending_ignores_older_pending_duplicate(self):
+        """Targeted runs should ignore pending submission duplicates."""
         older_sub = self._create_submission(notes='Older submission')
         self._add_evidence(older_sub, url='https://example.com/post')
 
@@ -369,6 +369,30 @@ class RuleDuplicateEvidenceUrlTest(Tier1RuleTestBase):
         url_lookup, accepted_urls = self._build_lookup()
         created_at_lookup = {
             older_sub.id: older_sub.created_at,
+            newer_sub.id: newer_sub.created_at,
+        }
+        result = rule_duplicate_evidence_url(
+            newer_sub, [ev], url_lookup, accepted_urls, skip_pending=True,
+            submitted_created_at=created_at_lookup,
+        )
+        self.assertIsNone(result)
+
+    def test_skip_pending_still_rejects_accepted_submitted_duplicate(self):
+        """Targeted runs still reject against accepted submitted duplicates."""
+        accepted_sub = self._create_submission(
+            notes='Accepted submission',
+            state='accepted',
+        )
+        self._add_evidence(accepted_sub, url='https://example.com/post')
+
+        newer_sub = self._create_submission(
+            user=self.other_user, notes='Newer submission',
+        )
+        ev = self._add_evidence(newer_sub, url='https://example.com/post')
+
+        url_lookup, accepted_urls = self._build_lookup()
+        created_at_lookup = {
+            accepted_sub.id: accepted_sub.created_at,
             newer_sub.id: newer_sub.created_at,
         }
         result = rule_duplicate_evidence_url(
@@ -724,9 +748,32 @@ class SubmissionIdDuplicateDeterminismTest(Tier1RuleTestBase):
             action='reject',
         )
 
-    def test_submission_id_rejects_newer_duplicate(self):
+    def test_submission_id_ignores_pending_duplicate(self):
         older_sub = self._create_submission(notes='Older submission')
         self._add_evidence(older_sub, url='https://example.com/post')
+
+        newer_sub = self._create_submission(
+            user=self.other_user, notes='Newer submission',
+        )
+        self._add_evidence(newer_sub, url='https://example.com/post')
+
+        out = StringIO()
+        call_command(
+            'review_submissions',
+            '--submission-id', str(newer_sub.id),
+            '--batch-size', '0',
+            stdout=out,
+        )
+
+        newer_sub.refresh_from_db()
+        self.assertEqual(newer_sub.state, 'pending')
+
+    def test_submission_id_rejects_accepted_submitted_duplicate(self):
+        accepted_sub = self._create_submission(
+            notes='Accepted submission',
+            state='accepted',
+        )
+        self._add_evidence(accepted_sub, url='https://example.com/post')
 
         newer_sub = self._create_submission(
             user=self.other_user, notes='Newer submission',

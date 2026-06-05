@@ -25,4 +25,24 @@ describe('parseMarkdown', () => {
     expect(html).not.toContain('javascript:');
     expect(html).not.toContain('<iframe');
   });
+
+  it('strips additional dangerous tags, handlers, and data URLs', () => {
+    const html = parseMarkdown(`
+<img src="data:text/html,<script>alert('xss')</script>" onload="alert('xss')">
+<p onmouseover="alert('xss')">hover</p>
+<object data="https://example.com/payload"></object>
+<embed src="https://example.com/payload">
+<form action="https://example.com"><input name="token"></form>
+<svg onload="alert('xss')"><circle></circle></svg>
+`);
+
+    expect(html).not.toContain('data:text/html');
+    expect(html).not.toContain('onload');
+    expect(html).not.toContain('onmouseover');
+    expect(html).not.toContain('<object');
+    expect(html).not.toContain('<embed');
+    expect(html).not.toContain('<form');
+    expect(html).not.toContain('<input');
+    expect(html).not.toContain('<svg');
+  });
 });

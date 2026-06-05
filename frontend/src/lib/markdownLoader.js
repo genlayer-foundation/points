@@ -2,22 +2,37 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
 const SANITIZE_CONFIG = {
-  USE_PROFILES: { html: true },
-  FORBID_TAGS: [
-    'script',
-    'style',
-    'iframe',
-    'object',
-    'embed',
-    'form',
-    'input',
-    'button',
-    'textarea',
-    'select',
-    'option',
-    'meta',
-    'link'
+  ALLOWED_TAGS: [
+    'a',
+    'blockquote',
+    'br',
+    'code',
+    'del',
+    'em',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'hr',
+    'img',
+    'li',
+    'ol',
+    'p',
+    'pre',
+    'strong',
+    'table',
+    'tbody',
+    'td',
+    'th',
+    'thead',
+    'tr',
+    'ul'
   ],
+  ALLOWED_ATTR: ['alt', 'href', 'id', 'src', 'title'],
+  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|#|\/(?!\/))/i,
+  ALLOW_DATA_ATTR: false,
   FORBID_ATTR: ['style']
 };
 

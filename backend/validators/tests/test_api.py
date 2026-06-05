@@ -47,6 +47,15 @@ class ValidatorAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertFalse(Validator.objects.filter(user=self.user).exists())
 
+    def test_patch_validator_profile_rejects_unsupported_keys(self):
+        """PATCH /me rejects arbitrary keys and does not create a profile."""
+        response = self.client.patch('/api/v1/validators/me/', {
+            'unsupported_field': 'x',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Validator.objects.filter(user=self.user).exists())
+
     def test_regular_user_cannot_mutate_arbitrary_validator_profile(self):
         """Ordinary users cannot mutate validator profiles through object routes."""
         other_user = User.objects.create_user(

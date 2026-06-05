@@ -132,7 +132,8 @@ def rule_duplicate_evidence_url(submission, evidence_items,
     before comparison to prevent cosmetic variants from bypassing the check.
 
     Args:
-        Pending submission duplicates only count when the duplicate is older.
+        Pending submission duplicates only count when the duplicate is older,
+        unless skip_pending is set for a targeted command run.
         Accepted contribution duplicates always count.
     """
     urls_with_evidence = [(e, _normalize_url(e.url))
@@ -183,6 +184,14 @@ def _check_single_url_duplicate(submission, evidence, normalized,
         )
     # Check pending/accepted submitted contributions (exclude self)
     others = (url_to_sub_ids.get(normalized) or set()) - {submission.id}
+    if skip_pending and others:
+        pending_states = {'pending', 'more_info_needed'}
+        others = set(
+            SubmittedContribution.objects
+            .filter(id__in=others)
+            .exclude(state__in=pending_states)
+            .values_list('id', flat=True)
+        )
     if not others:
         return None
 
