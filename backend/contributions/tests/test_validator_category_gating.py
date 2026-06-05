@@ -4,7 +4,8 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework import status
 
-from contributions.models import Contribution, ContributionType, Category
+from contributions.models import Contribution, ContributionType, Category, SubmittedContribution
+from leaderboard.models import GlobalLeaderboardMultiplier
 from validators.models import Validator
 
 User = get_user_model()
@@ -41,6 +42,69 @@ class ValidatorCategorySubmitGatingTest(TestCase):
                 'max_points': 100,
             },
         )
+        self.builder_category, _ = Category.objects.get_or_create(
+            slug='builder',
+            defaults={'name': 'Builder', 'description': 'Builder contributions'},
+        )
+        self.builder_type, _ = ContributionType.objects.get_or_create(
+            slug='builder-only-test',
+            defaults={
+                'name': 'Builder Only Test',
+                'description': 'Builder restricted test type',
+                'category': self.builder_category,
+                'min_points': 10,
+                'max_points': 100,
+            },
+        )
+        self.community_category, _ = Category.objects.get_or_create(
+            slug='community',
+            defaults={'name': 'Community', 'description': 'Community contributions'},
+        )
+        self.community_type, _ = ContributionType.objects.get_or_create(
+            slug='community-test',
+            defaults={
+                'name': 'Community Test',
+                'description': 'Unrestricted test type',
+                'category': self.community_category,
+                'min_points': 1,
+                'max_points': 10,
+            },
+        )
+        self.capacity_limited_type, _ = ContributionType.objects.get_or_create(
+            slug='capacity-limited-test',
+            defaults={
+                'name': 'Capacity Limited Test',
+                'description': 'Capacity-limited unrestricted test type',
+                'category': self.community_category,
+                'min_points': 1,
+                'max_points': 10,
+                'max_submissions': 1,
+            },
+        )
+        self.mission_only_type, _ = ContributionType.objects.get_or_create(
+            slug='mission-only-test',
+            defaults={
+                'name': 'Mission Only Test',
+                'description': 'Mission-only test type',
+                'category': self.community_category,
+                'min_points': 1,
+                'max_points': 10,
+                'is_submittable': False,
+            },
+        )
+        for contribution_type in [
+            self.waitlist_type,
+            self.node_running_type,
+            self.builder_type,
+            self.community_type,
+            self.capacity_limited_type,
+            self.mission_only_type,
+        ]:
+            GlobalLeaderboardMultiplier.objects.create(
+                contribution_type=contribution_type,
+                multiplier_value=1,
+                valid_from=timezone.now() - timezone.timedelta(days=1),
+            )
 
         self.waitlist_user = User.objects.create_user(
             email='waitlist@test.com',
@@ -97,3 +161,76 @@ class ValidatorCategorySubmitGatingTest(TestCase):
         response = self._post_submission(self.validator_user, self.node_running_type)
         # May be 201 or 400 depending on recaptcha config, but must not be 403
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def _pending_submission(self, user=None):
+        return SubmittedContribution.objects.create(
+            user=user or self.plain_user,
+            contribution_type=self.community_type,
+            contribution_date=timezone.now(),
+            notes='Original unrestricted submission',
+            state='pending',
+        )
+
+    def test_plain_user_cannot_edit_submission_into_validator_type(self):
+        submission = self._pending_submission()
+        self.client.force_authenticate(user=self.plain_user)
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'contribution_type': self.node_running_type.id},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        submission.refresh_from_db()
+        self.assertEqual(submission.contribution_type, self.community_type)
+
+    def test_plain_user_cannot_edit_submission_into_builder_type(self):
+        submission = self._pending_submission()
+        self.client.force_authenticate(user=self.plain_user)
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'contribution_type': self.builder_type.id},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        submission.refresh_from_db()
+        self.assertEqual(submission.contribution_type, self.community_type)
+
+    def test_plain_user_cannot_edit_submission_into_mission_only_type(self):
+        submission = self._pending_submission()
+        self.client.force_authenticate(user=self.plain_user)
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'contribution_type': self.mission_only_type.id},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        submission.refresh_from_db()
+        self.assertEqual(submission.contribution_type, self.community_type)
+
+    def test_user_can_edit_submission_when_unchanged_type_is_full(self):
+        submission = SubmittedContribution.objects.create(
+            user=self.plain_user,
+            contribution_type=self.capacity_limited_type,
+            contribution_date=timezone.now(),
+            notes='Original notes',
+            state='pending',
+        )
+        self.assertTrue(self.capacity_limited_type.is_full())
+        self.client.force_authenticate(user=self.plain_user)
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'notes': 'Updated notes'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        self.assertEqual(submission.notes, 'Updated notes')
+        self.assertEqual(submission.contribution_type, self.capacity_limited_type)

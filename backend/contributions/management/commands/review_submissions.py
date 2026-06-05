@@ -132,8 +132,9 @@ def rule_duplicate_evidence_url(submission, evidence_items,
     before comparison to prevent cosmetic variants from bypassing the check.
 
     Args:
-        skip_pending: If True, only reject when an older submitted duplicate
-            already exists. This keeps `--submission-id` runs deterministic.
+        Pending submission duplicates only count when the duplicate is older,
+        unless skip_pending is set for a targeted command run.
+        Accepted contribution duplicates always count.
     """
     urls_with_evidence = [(e, _normalize_url(e.url))
                           for e in evidence_items if e.url]
@@ -183,18 +184,32 @@ def _check_single_url_duplicate(submission, evidence, normalized,
         )
     # Check pending/accepted submitted contributions (exclude self)
     others = (url_to_sub_ids.get(normalized) or set()) - {submission.id}
+    if skip_pending and others:
+        pending_states = {'pending', 'more_info_needed'}
+        others = set(
+            SubmittedContribution.objects
+            .filter(id__in=others)
+            .exclude(state__in=pending_states)
+            .values_list('id', flat=True)
+        )
     if not others:
         return None
 
-    if not skip_pending:
-        return (
-            'Reject: Duplicate Submission',
-            f'Tier 1 auto-reject: Evidence URL already exists in another '
-            f'submission: {evidence.url[:100]}',
-        )
-
     submission_key = (submission.created_at, str(submission.id))
     created_at_lookup = submitted_created_at or {}
+    missing_created_at_ids = [
+        other_id for other_id in others
+        if other_id not in created_at_lookup
+    ]
+    if missing_created_at_ids:
+        created_at_lookup = {
+            **created_at_lookup,
+            **dict(
+                SubmittedContribution.objects
+                .filter(id__in=missing_created_at_ids)
+                .values_list('id', 'created_at')
+            ),
+        }
     if any(
         (
             created_at_lookup.get(other_id, submission.created_at),
@@ -367,6 +382,8 @@ class Command(BaseCommand):
         # URLs from pending/accepted submitted contributions.
         # Evidence whose url_type allows duplicates is excluded so those
         # URLs never participate in duplicate detection.
+        from contributions.url_utils import detect_url_type
+
         submitted = (
             Evidence.objects
             .filter(
@@ -375,27 +392,39 @@ class Command(BaseCommand):
                 ],
                 url__gt='',
             )
-            .exclude(url_type__allow_duplicate=True)
             .values_list(
                 'url',
                 'submitted_contribution_id',
                 'submitted_contribution__created_at',
+                'url_type__allow_duplicate',
             )
         )
         url_to_sub_ids = defaultdict(set)
         submitted_created_at = {}
-        for url, sub_id, created_at in submitted:
+        for url, sub_id, created_at, allow_duplicate in submitted:
+            if allow_duplicate:
+                continue
+            if allow_duplicate is None:
+                detected = detect_url_type(url)
+                if detected and detected.allow_duplicate:
+                    continue
             url_to_sub_ids[_normalize_url(url)].add(sub_id)
             submitted_created_at.setdefault(sub_id, created_at)
 
         # URLs from converted/accepted contributions
-        accepted_urls = set(
-            _normalize_url(url) for url in
+        accepted_urls = set()
+        for url, allow_duplicate in (
             Evidence.objects
             .filter(contribution__isnull=False, url__gt='')
-            .exclude(url_type__allow_duplicate=True)
-            .values_list('url', flat=True)
-        )
+            .values_list('url', 'url_type__allow_duplicate')
+        ):
+            if allow_duplicate:
+                continue
+            if allow_duplicate is None:
+                detected = detect_url_type(url)
+                if detected and detected.allow_duplicate:
+                    continue
+            accepted_urls.add(_normalize_url(url))
 
         return url_to_sub_ids, accepted_urls, submitted_created_at
 

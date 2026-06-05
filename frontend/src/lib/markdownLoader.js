@@ -1,4 +1,40 @@
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
+const SANITIZE_CONFIG = {
+  ALLOWED_TAGS: [
+    'a',
+    'blockquote',
+    'br',
+    'code',
+    'del',
+    'em',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'hr',
+    'img',
+    'li',
+    'ol',
+    'p',
+    'pre',
+    'strong',
+    'table',
+    'tbody',
+    'td',
+    'th',
+    'thead',
+    'tr',
+    'ul'
+  ],
+  ALLOWED_ATTR: ['alt', 'href', 'id', 'src', 'title'],
+  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|#|\/(?!\/))/i,
+  ALLOW_DATA_ATTR: false,
+  FORBID_ATTR: ['style']
+};
 
 // Configure marked with minimal settings for legal documents
 marked.setOptions({
@@ -6,7 +42,6 @@ marked.setOptions({
   gfm: true,              // Enable GitHub Flavored Markdown
   headerIds: true,        // Add IDs to headings for anchor links
   mangle: false,          // Don't mangle header IDs
-  sanitize: false,        // Allow raw HTML (we trust our own content)
   pedantic: false,        // Don't be overly strict
   smartLists: true,       // Use smarter list behavior
   smartypants: false      // Don't use smart quotes (keep original)
@@ -28,7 +63,7 @@ export function parseMarkdown(markdownContent) {
       return '<div class="text-red-600"><h3>Content Error</h3><p>No markdown content provided to parse</p></div>';
     }
 
-    return marked(markdownContent);
+    return DOMPurify.sanitize(marked.parse(markdownContent), SANITIZE_CONFIG);
   } catch (error) {
     return `<div class="text-red-600"><h3>Parse Error</h3><p>Failed to parse markdown content: ${error.message}</p></div>`;
   }

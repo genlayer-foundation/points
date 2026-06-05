@@ -356,8 +356,8 @@ class RuleDuplicateEvidenceUrlTest(Tier1RuleTestBase):
         self.assertIsNotNone(result)
         self.assertIn('accepted contribution', result[1])
 
-    def test_skip_pending_rejects_when_older_duplicate_exists(self):
-        """Targeted runs should still reject against an older duplicate."""
+    def test_skip_pending_ignores_older_pending_duplicate(self):
+        """Targeted runs should ignore pending submission duplicates."""
         older_sub = self._create_submission(notes='Older submission')
         self._add_evidence(older_sub, url='https://example.com/post')
 
@@ -369,6 +369,30 @@ class RuleDuplicateEvidenceUrlTest(Tier1RuleTestBase):
         url_lookup, accepted_urls = self._build_lookup()
         created_at_lookup = {
             older_sub.id: older_sub.created_at,
+            newer_sub.id: newer_sub.created_at,
+        }
+        result = rule_duplicate_evidence_url(
+            newer_sub, [ev], url_lookup, accepted_urls, skip_pending=True,
+            submitted_created_at=created_at_lookup,
+        )
+        self.assertIsNone(result)
+
+    def test_skip_pending_still_rejects_accepted_submitted_duplicate(self):
+        """Targeted runs still reject against accepted submitted duplicates."""
+        accepted_sub = self._create_submission(
+            notes='Accepted submission',
+            state='accepted',
+        )
+        self._add_evidence(accepted_sub, url='https://example.com/post')
+
+        newer_sub = self._create_submission(
+            user=self.other_user, notes='Newer submission',
+        )
+        ev = self._add_evidence(newer_sub, url='https://example.com/post')
+
+        url_lookup, accepted_urls = self._build_lookup()
+        created_at_lookup = {
+            accepted_sub.id: accepted_sub.created_at,
             newer_sub.id: newer_sub.created_at,
         }
         result = rule_duplicate_evidence_url(
@@ -399,36 +423,41 @@ class RuleDuplicateEvidenceUrlTest(Tier1RuleTestBase):
         )
         self.assertIsNone(result)
 
-    def test_lookup_update_prevents_mutual_rejection(self):
-        """After rejecting submission A, its URL should be removed from the
-        lookup so submission B (sharing the same URL) is not also rejected."""
-        from contributions.management.commands.review_submissions import Command
-
-        sub_a = self._create_submission(notes='First submission')
-        ev_a = self._add_evidence(sub_a, url='https://example.com/shared')
-
-        sub_b = self._create_submission(
-            user=self.other_user, notes='Second submission',
+    def test_newer_duplicate_plus_unique_url_does_not_reject_older_original(self):
+        """A newer duplicate must not cause the older original to fail."""
+        original = self._create_submission(notes='Original submission')
+        original_shared = self._add_evidence(
+            original,
+            url='https://example.com/shared',
         )
-        ev_b = self._add_evidence(sub_b, url='https://example.com/shared')
+        original_unique = self._add_evidence(
+            original,
+            url='https://example.com/original-unique',
+        )
+
+        newer = self._create_submission(
+            user=self.other_user,
+            notes='Newer duplicate',
+        )
+        newer_shared = self._add_evidence(newer, url='https://example.com/shared')
 
         url_lookup, accepted_urls = self._build_lookup()
 
-        # A sees B in the lookup → would be rejected
-        result_a = rule_duplicate_evidence_url(
-            sub_a, [ev_a], url_lookup, accepted_urls,
+        original_result = rule_duplicate_evidence_url(
+            original,
+            [original_shared, original_unique],
+            url_lookup,
+            accepted_urls,
         )
-        self.assertIsNotNone(result_a)
-
-        # Simulate the command removing A from lookup after rejection
-        cmd = Command()
-        cmd._remove_from_url_lookup(sub_a, [ev_a], url_lookup)
-
-        # Now B should NOT see A anymore → passes
-        result_b = rule_duplicate_evidence_url(
-            sub_b, [ev_b], url_lookup, accepted_urls,
+        newer_result = rule_duplicate_evidence_url(
+            newer,
+            [newer_shared],
+            url_lookup,
+            accepted_urls,
         )
-        self.assertIsNone(result_b)
+
+        self.assertIsNone(original_result)
+        self.assertIsNotNone(newer_result)
 
 
 class RuleDuplicateUrlNormalizationTest(Tier1RuleTestBase):
@@ -496,7 +525,7 @@ class RuleDuplicateUrlNormalizationTest(Tier1RuleTestBase):
     def test_normalize_url_helper(self):
         """_normalize_url strips query, fragment, and trailing slash."""
         self.assertEqual(
-            _normalize_url('https://example.com/post?a=1'),
+            _normalize_url('https://example.com/post?utm_source=x'),
             'https://example.com/post',
         )
         self.assertEqual(
@@ -508,7 +537,7 @@ class RuleDuplicateUrlNormalizationTest(Tier1RuleTestBase):
             'https://example.com/post',
         )
         self.assertEqual(
-            _normalize_url('https://example.com/post/?a=1#sec'),
+            _normalize_url('https://example.com/post/?utm_source=x#sec'),
             'https://example.com/post',
         )
 
@@ -719,9 +748,32 @@ class SubmissionIdDuplicateDeterminismTest(Tier1RuleTestBase):
             action='reject',
         )
 
-    def test_submission_id_rejects_newer_duplicate(self):
+    def test_submission_id_ignores_pending_duplicate(self):
         older_sub = self._create_submission(notes='Older submission')
         self._add_evidence(older_sub, url='https://example.com/post')
+
+        newer_sub = self._create_submission(
+            user=self.other_user, notes='Newer submission',
+        )
+        self._add_evidence(newer_sub, url='https://example.com/post')
+
+        out = StringIO()
+        call_command(
+            'review_submissions',
+            '--submission-id', str(newer_sub.id),
+            '--batch-size', '0',
+            stdout=out,
+        )
+
+        newer_sub.refresh_from_db()
+        self.assertEqual(newer_sub.state, 'pending')
+
+    def test_submission_id_rejects_accepted_submitted_duplicate(self):
+        accepted_sub = self._create_submission(
+            notes='Accepted submission',
+            state='accepted',
+        )
+        self._add_evidence(accepted_sub, url='https://example.com/post')
 
         newer_sub = self._create_submission(
             user=self.other_user, notes='Newer submission',
@@ -866,8 +918,36 @@ class RuleDuplicateUrlAllowDuplicateTest(Tier1RuleTestBase):
     def setUp(self):
         super().setUp()
         from contributions.models import EvidenceURLType
-        EvidenceURLType.objects.filter(slug='github-repo').update(
-            allow_duplicate=True,
+        EvidenceURLType.objects.update_or_create(
+            slug='github-repo',
+            defaults={
+                'name': 'GitHub Repository',
+                'description': 'A GitHub repository',
+                'url_patterns': [
+                    r'^https?://github\.com/[^/]+/[^/]+/?$',
+                    r'^https?://github\.com/[^/]+/[^/]+/?#',
+                ],
+                'is_generic': False,
+                'order': 2,
+                'handle_extract_pattern': r'github\.com/(?P<handle>[^/]+)/',
+                'ownership_social_account': 'github',
+                'allow_duplicate': True,
+            },
+        )
+        EvidenceURLType.objects.update_or_create(
+            slug='github-pr',
+            defaults={
+                'name': 'GitHub Pull Request',
+                'description': 'A pull request on GitHub',
+                'url_patterns': [
+                    r'^https?://github\.com/[^/]+/[^/]+/pull/\d+',
+                ],
+                'is_generic': False,
+                'order': 4,
+                'handle_extract_pattern': '',
+                'ownership_social_account': '',
+                'allow_duplicate': False,
+            },
         )
 
     def _build_lookup(self):
