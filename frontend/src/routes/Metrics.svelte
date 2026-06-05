@@ -328,6 +328,9 @@
   );
 
   onMount(() => {
+    const mainEl = document.querySelector('main');
+    mainEl?.classList.add('metrics-scroll-container');
+
     fetchMetricsData();
     fetchStudioMetrics();
     fetchRepoMetrics();
@@ -335,6 +338,7 @@
     fetchTestnetMetrics('bradbury');
 
     return () => {
+      mainEl?.classList.remove('metrics-scroll-container');
       destroyCharts();
     };
   });
@@ -2240,3 +2244,10 @@
       </div>
     </div>
 </div>
+
+<style>
+  :global(main.metrics-scroll-container) {
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+</style>

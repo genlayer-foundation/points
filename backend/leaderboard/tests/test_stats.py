@@ -445,3 +445,46 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(monthly_response.status_code, 200)
         self.assertEqual(monthly_response.data[0]['user'], contributor.id)
         self.assertEqual(monthly_response.data[0]['total_points'], contribution.frozen_global_points)
+
+    def test_monthly_leaderboard_accepts_explicit_date_range(self):
+        contributor = self._create_user(
+            'rolling-community@example.com',
+            '0x0000000000000000000000000000000000000009'
+        )
+        now = timezone.localtime(timezone.now())
+        previous_month_date = (
+            now.replace(day=1, hour=12, minute=0, second=0, microsecond=0)
+            - timezone.timedelta(days=1)
+        )
+        rolling_type = ContributionType.objects.create(
+            name='Rolling Community Post',
+            slug='rolling-community-post',
+            category=self.community_category,
+            min_points=1,
+            max_points=100,
+        )
+        GlobalLeaderboardMultiplier.objects.create(
+            contribution_type=rolling_type,
+            multiplier_value=1,
+            valid_from=previous_month_date - timezone.timedelta(days=1),
+        )
+
+        contribution = Contribution.objects.create(
+            user=contributor,
+            contribution_type=rolling_type,
+            points=40,
+            contribution_date=previous_month_date,
+        )
+
+        default_response = self.client.get('/api/v1/leaderboard/monthly/', {'type': 'community'})
+        ranged_response = self.client.get('/api/v1/leaderboard/monthly/', {
+            'type': 'community',
+            'start_date': previous_month_date.date().isoformat(),
+            'end_date': now.date().isoformat(),
+        })
+
+        self.assertEqual(default_response.status_code, 200)
+        self.assertEqual(default_response.data, [])
+        self.assertEqual(ranged_response.status_code, 200)
+        self.assertEqual(ranged_response.data[0]['user'], contributor.id)
+        self.assertEqual(ranged_response.data[0]['total_points'], contribution.frozen_global_points)

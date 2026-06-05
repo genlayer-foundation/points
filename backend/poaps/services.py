@@ -71,6 +71,11 @@ def decrypt_token(ciphertext):
 def validate_drop_capacity(drop):
     if drop.status != PoapDrop.STATUS_ACTIVE:
         raise ClaimClosedError('This POAP is not open for claiming.')
+    now = timezone.now()
+    if drop.event_start_at and now < drop.event_start_at:
+        raise ClaimClosedError('This POAP is not open for claiming yet.')
+    if drop.event_end_at and now > drop.event_end_at:
+        raise ClaimClosedError('This POAP claim window has ended.')
     if drop.max_claims is not None:
         claimed = PoapClaim.objects.filter(drop=drop, user__isnull=False).count()
         if claimed >= drop.max_claims:
