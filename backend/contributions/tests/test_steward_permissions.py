@@ -111,9 +111,9 @@ class StewardPermissionTest(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
-        # Stats is a public endpoint by view design.
+        # Steward stats require steward permission.
         response = self.client.get('/api/v1/steward-submissions/stats/')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
     
     def test_regular_user_cannot_access_steward_endpoints(self):
         """Test that regular users cannot access steward endpoints."""
@@ -131,9 +131,9 @@ class StewardPermissionTest(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
-        # Stats is a public endpoint by view design.
+        # Steward stats require steward permission.
         response = self.client.get('/api/v1/steward-submissions/stats/')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
     
     def test_steward_can_access_steward_endpoints(self):
         """Test that stewards can access steward endpoints."""

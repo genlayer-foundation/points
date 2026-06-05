@@ -2,7 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { validatorsAPI } from '../lib/api';
   import Avatar from '../components/Avatar.svelte';
-  import { showSuccess } from '../lib/toastStore';
+  import { showSuccess, showError } from '../lib/toastStore';
 
   /**
    * @typedef {Object} ShameReason
@@ -278,9 +278,13 @@
                       <span class="text-gray-500 font-mono text-sm">{truncateAddress(validator.operator_address)}</span>
                     {/if}
                     <button
-                      onclick={() => {
-                        navigator.clipboard.writeText(validator.operator_address || '');
-                        showSuccess('Address copied to clipboard!');
+                      onclick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(validator.operator_address || '');
+                          showSuccess('Address copied to clipboard!');
+                        } catch {
+                          showError('Failed to copy address to clipboard.');
+                        }
                       }}
                       aria-label="Copy operator address"
                       title="Copy operator address"

@@ -25,6 +25,7 @@ class PublicExplorerFiltersTest(TestCase):
             address='0x0000000000000000000000000000000000000001',
             password='testpass123',
         )
+        self.client.force_authenticate(user=self.user)
 
         self.submittable_type = self._create_type(
             'Submittable Explorer Type',
@@ -101,6 +102,19 @@ class PublicExplorerFiltersTest(TestCase):
     def _result_ids(self, response):
         data = response.json()
         return {item['id'] for item in data['results']}
+
+    def test_contributions_require_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get('/api/v1/contributions/', {
+            'category': self.category.slug,
+            'public_explorer_only': 'true',
+        })
+
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+        )
 
     def test_public_explorer_includes_public_non_submittable_types(self):
         response = self.client.get('/api/v1/contributions/', {

@@ -181,8 +181,10 @@ def login(request):
         })
         
     except Exception as e:
+        logger.exception("Authentication failed")
+        error_detail = f'Authentication failed: {str(e)}' if settings.DEBUG else 'Authentication failed.'
         return Response(
-            {'error': f'Authentication failed: {str(e)}'},
+            {'error': error_detail},
             status=status.HTTP_400_BAD_REQUEST
         )
 

@@ -3,7 +3,7 @@ import logging
 import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import permissions, status
 from django.core.cache import cache
 from django.db.models import Count, Q, Min
 from django.utils import timezone
@@ -19,7 +19,6 @@ class ActiveValidatorsView(APIView):
     Get active validators based on their first uptime contribution.
     Returns data points showing validator activation over time with continuous dates.
     """
-    
     def get(self, request):
         from django.db.models.functions import TruncDate
         from datetime import date, timedelta
@@ -91,7 +90,6 @@ class ContributionTypesStatsView(APIView):
     """
     Get time series data showing how many contribution types have been assigned on each date.
     """
-
     def get(self, request):
         from django.db.models.functions import TruncDate
         from datetime import date, timedelta
@@ -169,6 +167,7 @@ class ParticipantsGrowthView(APIView):
     require `user.visible=True`, matching the Dashboard `/leaderboard/stats/`
     definitions so the time series and the live counts agree.
     """
+    permission_classes = [permissions.AllowAny]
 
     EXCLUDED_BUILDER_SLUGS = ('builder-welcome', 'builder')
 
@@ -307,6 +306,7 @@ class TestnetMetricsView(APIView):
     explorer hosts don't serve CORS headers, so we proxy from Django and
     cache the aggregate KPIs for a short window.
     """
+    permission_classes = [permissions.AllowAny]
 
     EXPLORER_BASE_URLS = {
         'asimov': 'https://explorer-asimov.genlayer.com',

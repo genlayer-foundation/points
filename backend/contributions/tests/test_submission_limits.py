@@ -266,6 +266,7 @@ class SubmissionLimitTest(TestCase):
         self.contribution_type.max_submissions = 2
         self.contribution_type.save(update_fields=['max_submissions'])
         self._create_submission(state='pending')
+        self.client.force_authenticate(user=self.user)
 
         response = self.client.get(
             f'/api/v1/contribution-types/{self.contribution_type.id}/'

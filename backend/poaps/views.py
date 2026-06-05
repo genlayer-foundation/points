@@ -357,7 +357,11 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class UserPoapMixin:
-    @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)/poaps')
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='by-address/(?P<address>[^/.]+)/poaps',
+    )
     def poaps(self, request, address=None):
         from django.shortcuts import get_object_or_404
         from users.models import User

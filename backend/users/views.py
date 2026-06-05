@@ -35,7 +35,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
     """
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [permissions.AllowAny]  # Allow read-only access without authentication
+    permission_classes = [permissions.IsAuthenticated]
     lookup_field = 'address'  # Change default lookup field from 'pk' to 'address'
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['date_joined', 'created_at']
@@ -871,7 +871,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         from leaderboard.models import get_referral_breakdown
         return Response(get_referral_breakdown(request.user))
 
-    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def search(self, request):
         """Search visible users by public identifiers."""
         query = request.query_params.get('q', '').strip()

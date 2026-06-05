@@ -2,6 +2,14 @@ from django.db import migrations
 
 
 def ensure_project_participants_table(apps, schema_editor):
+    """
+    Defensive idempotent safeguard for Project.participants.
+
+    0001_initial defines the ManyToManyField; this migration only inspects the
+    through_model table and creates it if it is missing. Any missing table should
+    be investigated through migration history/state rather than treating
+    0001_initial as incomplete.
+    """
     Project = apps.get_model('projects', 'Project')
     through_model = Project.participants.through
     table_name = through_model._meta.db_table
