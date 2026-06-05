@@ -22,7 +22,7 @@ services:
       - DATABASE_URL=postgresql://tally_user:tally_password@db:5432/tally_db
       - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
       - FRONTEND_URL=http://localhost:5173
-      - SIWE_DOMAIN=localhost
+      - SIWE_DOMAIN=localhost:5173
       - CSRF_TRUSTED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
     depends_on:
       - db

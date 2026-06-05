@@ -2,21 +2,24 @@ import secrets
 import string
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
-from eth_account.messages import encode_defunct
-from eth_account import Account
+from siwe import SiweMessage, VerificationError
 
 from .models import Nonce
 from .authentication import CsrfExemptSessionAuthentication
+from .siwe_utils import get_expected_siwe_domain, get_expected_siwe_uri, normalize_origin
 from tally.middleware.logging_utils import get_app_logger
 
 User = get_user_model()
 logger = get_app_logger('auth')
+LOGIN_STATEMENT = 'Sign in with Ethereum to GenLayer Testnet Contributions'
 
 
 def generate_nonce(length=32):
@@ -31,20 +34,27 @@ def get_nonce(request):
     """
     Generate a new nonce for SIWE authentication.
     """
-    # Generate a random nonce
+    purpose = request.query_params.get('purpose', Nonce.PURPOSE_LOGIN)
+    valid_purposes = {choice[0] for choice in Nonce.PURPOSE_CHOICES}
+    if purpose not in valid_purposes:
+        return Response(
+            {'error': 'Invalid nonce purpose.'},
+            status=status.HTTP_400_BAD_REQUEST,
+    )
+
     nonce_value = generate_nonce()
-    
-    # Set expiration time (e.g., 5 minutes from now)
-    expires_at = timezone.now() + timedelta(minutes=5)
+    expiry_minutes = settings.ETHEREUM_AUTH.get('NONCE_EXPIRY_MINUTES', 5)
+    expires_at = timezone.now() + timedelta(minutes=expiry_minutes)
     
     # Create and save the nonce
     nonce = Nonce.objects.create(
         value=nonce_value,
+        purpose=purpose,
         expires_at=expires_at
     )
     
     # Return the nonce to the client
-    return Response({'nonce': nonce_value})
+    return Response({'nonce': nonce_value, 'purpose': purpose})
 
 
 @api_view(['POST'])
@@ -66,58 +76,59 @@ def login(request):
         )
     
     try:
-        # Extract the nonce and address from the message directly
-        # Parse the message format which should be:
-        # domain wants you to sign in with your Ethereum account:
-        # 0x123...
-        # 
-        # Sign in with Ethereum to Tally
-        # 
-        # URI: http://...
-        # Version: 1
-        # Chain ID: 1
-        # Nonce: abc123
-        # Issued At: 2023-...
-
-        message_lines = message.strip().split('\n')
-        ethereum_address = message_lines[1].lower()
-        
-        # Find the nonce line and extract the value
-        nonce_line = next((line for line in message_lines if line.startswith('Nonce:')), None)
-        if not nonce_line:
-            return Response(
-                {'error': 'Invalid message format: No nonce found.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        nonce_value = nonce_line.split(':', 1)[1].strip()
-        
-        # Verify the nonce
         try:
-            nonce = Nonce.objects.get(value=nonce_value)
+            siwe_message = SiweMessage.from_message(message)
+        except Exception:
+            return Response(
+                {'error': 'Invalid SIWE message.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if siwe_message.statement != LOGIN_STATEMENT:
+            return Response(
+                {'error': 'Invalid SIWE statement.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if normalize_origin(str(siwe_message.uri)) != get_expected_siwe_uri():
+            return Response(
+                {'error': 'Invalid SIWE URI.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            try:
+                nonce = Nonce.objects.select_for_update().get(
+                    value=siwe_message.nonce,
+                    purpose=Nonce.PURPOSE_LOGIN,
+                )
+            except Nonce.DoesNotExist:
+                return Response(
+                    {'error': 'Invalid nonce.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             if not nonce.is_valid():
                 return Response(
                     {'error': 'Invalid or expired nonce.'},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
-        except Nonce.DoesNotExist:
-            return Response(
-                {'error': 'Invalid nonce.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Verify the signature using eth_account
-        message_hash = encode_defunct(text=message)
-        recovered_address = Account.recover_message(message_hash, signature=signature)
 
-        if recovered_address.lower() != ethereum_address:
-            return Response(
-                {'error': 'Invalid signature: address mismatch'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Mark the nonce as used
-        nonce.mark_as_used()
+            try:
+                siwe_message.verify(
+                    signature,
+                    domain=get_expected_siwe_domain(),
+                    nonce=siwe_message.nonce,
+                )
+            except VerificationError:
+                return Response(
+                    {'error': 'Invalid SIWE signature.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            nonce.mark_as_used()
+
+        ethereum_address = siwe_message.address.lower()
         
         # Get or create the user
         user, created = User.objects.get_or_create(

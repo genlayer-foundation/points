@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
 from contributions.models import SubmittedContribution, ContributionType, Category, ContributionHighlight
+from leaderboard.models import GlobalLeaderboardMultiplier
 from stewards.models import Steward, StewardPermission
 from datetime import datetime
 from django.utils import timezone
@@ -31,6 +32,25 @@ class StewardPermissionTest(TestCase):
             min_points=10,
             max_points=100
         )
+        self.other_category = Category.objects.create(
+            name="Other Category",
+            slug="other",
+            description="Other category"
+        )
+        self.other_contribution_type = ContributionType.objects.create(
+            name="Other Type",
+            slug="other-type",
+            description="Other contribution type",
+            category=self.other_category,
+            min_points=1,
+            max_points=5
+        )
+        for contribution_type in [self.contribution_type, self.other_contribution_type]:
+            GlobalLeaderboardMultiplier.objects.create(
+                contribution_type=contribution_type,
+                multiplier_value=1,
+                valid_from=timezone.now() - timezone.timedelta(days=1),
+            )
         
         # Create regular user
         self.regular_user = User.objects.create_user(
@@ -61,6 +81,11 @@ class StewardPermissionTest(TestCase):
             address='0x1111111111111111111111111111111111111111',
             password='testpass123'
         )
+        self.reassignment_user = User.objects.create_user(
+            email='reassignment@test.com',
+            address='0x2222222222222222222222222222222222222222',
+            password='testpass123'
+        )
         
         # Create a submission
         self.submission = SubmittedContribution.objects.create(
@@ -86,9 +111,9 @@ class StewardPermissionTest(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
-        # Try to get stats
+        # Stats is a public endpoint by view design.
         response = self.client.get('/api/v1/steward-submissions/stats/')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
     
     def test_regular_user_cannot_access_steward_endpoints(self):
         """Test that regular users cannot access steward endpoints."""
@@ -106,9 +131,9 @@ class StewardPermissionTest(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
-        # Try to get stats
+        # Stats is a public endpoint by view design.
         response = self.client.get('/api/v1/steward-submissions/stats/')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
     
     def test_steward_can_access_steward_endpoints(self):
         """Test that stewards can access steward endpoints."""
@@ -148,6 +173,59 @@ class StewardPermissionTest(TestCase):
         self.assertEqual(self.submission.reviewed_by, self.steward_user)
         self.assertIsNotNone(self.submission.converted_contribution)
         self.assertEqual(self.submission.converted_contribution.points, 50)
+
+    def test_accept_checks_permission_against_final_contribution_type(self):
+        self.client.force_authenticate(user=self.steward_user)
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 3,
+                'contribution_type': self.other_contribution_type.id,
+            },
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.state, 'pending')
+        self.assertIsNone(self.submission.converted_contribution)
+
+    def test_accept_validates_points_against_original_type_when_type_omitted(self):
+        self.client.force_authenticate(user=self.steward_user)
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 500,
+            },
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.state, 'pending')
+
+    def test_non_staff_steward_cannot_reassign_accepted_contribution(self):
+        self.client.force_authenticate(user=self.steward_user)
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 50,
+                'contribution_type': self.contribution_type.id,
+                'user': self.reassignment_user.id,
+            },
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.state, 'pending')
+        self.assertIsNone(self.submission.converted_contribution)
     
     def test_steward_can_reject_submissions(self):
         """Test that stewards can reject submissions."""

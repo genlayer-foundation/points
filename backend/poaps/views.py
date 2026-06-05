@@ -12,6 +12,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from ethereum_auth.models import Nonce
+from ethereum_auth.siwe_utils import get_expected_siwe_domain, get_expected_siwe_uri, normalize_origin
 
 from .models import PoapClaim, PoapDistribution, PoapDrop
 from .serializers import (
@@ -29,6 +30,11 @@ from .services import (
 )
 
 User = get_user_model()
+RECOVERY_STATEMENT = (
+    'This signature only proves ownership of this wallet for attaching legacy '
+    'POAPs to your current portal account. It will not sign you into the portal '
+    'or change your account.'
+)
 
 
 def extract_message_field(message, field_name):
@@ -45,6 +51,14 @@ def extract_nonce(message):
 
 def is_ethereum_address(value):
     return bool(re.fullmatch(r'0x[a-fA-F0-9]{40}', value or ''))
+
+
+def expected_recovery_domain():
+    return get_expected_siwe_domain()
+
+
+def expected_recovery_uri():
+    return get_expected_siwe_uri()
 
 
 def open_distribution_queryset(at_time=None):
@@ -216,16 +230,34 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
             )
         if not is_ethereum_address(wallet_address):
             return Response({'error': 'Invalid wallet address.'}, status=status.HTTP_400_BAD_REQUEST)
-        if 'GenLayer POAP recovery' not in message or 'will not sign you into the portal' not in message:
+
+        message_lines = message.splitlines()
+        expected_first_line = (
+            f'{expected_recovery_domain()} wants you to verify a wallet for '
+            'GenLayer POAP recovery:'
+        )
+        if len(message_lines) < 10 or message_lines[0] != expected_first_line:
             return Response(
                 {'error': 'Invalid recovery message.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if wallet_address not in message.lower():
+        if normalize_wallet_address(message_lines[1]) != wallet_address:
             return Response(
                 {'error': 'Recovery message does not include the wallet being verified.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if message_lines[3] != RECOVERY_STATEMENT:
+            return Response(
+                {'error': 'Invalid recovery message.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if normalize_origin(extract_message_field(message, 'URI')) != expected_recovery_uri():
+            return Response({'error': 'Invalid recovery URI.'}, status=status.HTTP_400_BAD_REQUEST)
+        if extract_message_field(message, 'Version') != '1':
+            return Response({'error': 'Invalid recovery message version.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not extract_message_field(message, 'Chain ID').isdigit():
+            return Response({'error': 'Invalid recovery chain ID.'}, status=status.HTTP_400_BAD_REQUEST)
 
         portal_account = normalize_wallet_address(extract_message_field(message, 'Portal Account'))
         if portal_account != normalize_wallet_address(request.user.address):
@@ -240,7 +272,10 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
 
         with transaction.atomic():
             try:
-                nonce = Nonce.objects.select_for_update().get(value=nonce_value)
+                nonce = Nonce.objects.select_for_update().get(
+                    value=nonce_value,
+                    purpose=Nonce.PURPOSE_POAP_RECOVERY,
+                )
             except Nonce.DoesNotExist:
                 return Response({'error': 'Invalid nonce.'}, status=status.HTTP_400_BAD_REQUEST)
 

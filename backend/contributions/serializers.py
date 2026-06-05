@@ -690,7 +690,8 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
         evidence_items_data = self.initial_data.get('evidence_items', None)
         evidence_items_validated = None
         if evidence_items_data is not None:
-            user = self.context['request'].user
+            request = self.context.get('request')
+            user = request.user if request else instance.user
             contribution_type = (
                 validated_data.get('contribution_type')
                 or instance.contribution_type
@@ -893,20 +894,36 @@ class StewardSubmissionReviewSerializer(serializers.Serializer):
     def validate(self, data):
         """Validate the review action and required fields."""
         action = data.get('action')
+        submission = self.context.get('submission')
+        request = self.context.get('request')
         
         if action == 'accept':
-            if not data.get('points'):
+            if 'points' not in data or data.get('points') is None:
                 raise serializers.ValidationError({
                     'points': 'Points are required when accepting a submission.'
                 })
             
             # Validate points are within contribution type limits
             contribution_type = data.get('contribution_type')
+            if not contribution_type and submission:
+                contribution_type = submission.contribution_type
             if contribution_type:
                 points = data.get('points')
                 if points < contribution_type.min_points or points > contribution_type.max_points:
                     raise serializers.ValidationError({
                         'points': f'Points must be between {contribution_type.min_points} and {contribution_type.max_points} for {contribution_type.name}.'
+                    })
+
+            if submission and data.get('user') and data['user'] != submission.user:
+                reviewer_is_staff = bool(
+                    request
+                    and request.user
+                    and request.user.is_authenticated
+                    and (request.user.is_staff or request.user.is_superuser)
+                )
+                if not reviewer_is_staff:
+                    raise serializers.ValidationError({
+                        'user': 'Only staff users can reassign accepted contributions.'
                     })
             
             # Validate highlight fields if creating highlight

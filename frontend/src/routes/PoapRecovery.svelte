@@ -141,7 +141,7 @@ Issued At: ${new Date().toISOString()}`;
       const provider = window.ethereum;
       const address = await requestRecoveryWallet(provider);
       verifiedAddress = address;
-      const nonce = await getNonce();
+      const nonce = await getNonce('poap_recovery');
       const chainId = await getChainId(provider);
       const message = buildRecoveryMessage(address, nonce, chainId);
       const ethersProvider = new ethers.BrowserProvider(provider);

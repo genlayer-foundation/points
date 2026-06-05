@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError, connection, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from eth_account import Account
@@ -24,6 +24,13 @@ from social_connections.models import DiscordConnection
 User = get_user_model()
 
 
+@override_settings(
+    ETHEREUM_AUTH={
+        'SIWE_DOMAIN': 'localhost',
+        'NONCE_EXPIRY_MINUTES': 5,
+    },
+    FRONTEND_URL='http://localhost:5173',
+)
 class PoapAPITest(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -72,14 +79,21 @@ class PoapAPITest(TestCase):
         defaults.update(kwargs)
         return PoapDistribution.objects.create(**defaults)
 
-    def _recovery_payload(self, account, portal_user=None, nonce_value='recover-nonce'):
+    def _recovery_payload(
+        self,
+        account,
+        portal_user=None,
+        nonce_value='recover-nonce',
+        nonce_purpose=Nonce.PURPOSE_POAP_RECOVERY,
+    ):
         portal_user = portal_user or self.user
         Nonce.objects.create(
             value=nonce_value,
+            purpose=nonce_purpose,
             expires_at=timezone.now() + timezone.timedelta(minutes=5),
         )
         message = (
-            f'localhost wants you to verify a wallet for GenLayer POAP recovery:\n'
+            f'localhost:5173 wants you to verify a wallet for GenLayer POAP recovery:\n'
             f'{account.address}\n\n'
             'This signature only proves ownership of this wallet for attaching legacy POAPs '
             'to your current portal account. It will not sign you into the portal or change your account.\n\n'
@@ -457,15 +471,66 @@ class PoapAPITest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_verify_wallet_rejects_login_purpose_nonce(self):
+        account = Account.create()
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/verify-wallet/',
+            self._recovery_payload(
+                account,
+                nonce_value='login-purpose-recovery-nonce',
+                nonce_purpose=Nonce.PURPOSE_LOGIN,
+            ),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Nonce.objects.get(value='login-purpose-recovery-nonce').used)
+
+    def test_verify_wallet_rejects_login_message_shape(self):
+        account = Account.create()
+        nonce = Nonce.objects.create(
+            value='login-message-nonce',
+            purpose=Nonce.PURPOSE_LOGIN,
+            expires_at=timezone.now() + timezone.timedelta(minutes=5),
+        )
+        message = (
+            'localhost:5173 wants you to sign in with your Ethereum account:\n'
+            f'{account.address}\n\n'
+            'Sign in with Ethereum to GenLayer Testnet Contributions\n\n'
+            'URI: http://localhost:5173\n'
+            'Version: 1\n'
+            'Chain ID: 1\n'
+            f'Nonce: {nonce.value}\n'
+            f'Issued At: {timezone.now().isoformat()}'
+        )
+        payload = {
+            'address': account.address,
+            'message': message,
+            'signature': Account.sign_message(
+                encode_defunct(text=message),
+                private_key=account.key,
+            ).signature.hex(),
+        }
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post('/api/v1/poaps/verify-wallet/', payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        nonce.refresh_from_db()
+        self.assertFalse(nonce.used)
+
     def test_verify_wallet_rejects_expired_nonce(self):
         account = Account.create()
         nonce_value = 'expired-recovery-nonce'
         Nonce.objects.create(
             value=nonce_value,
+            purpose=Nonce.PURPOSE_POAP_RECOVERY,
             expires_at=timezone.now() - timezone.timedelta(minutes=1),
         )
         message = (
-            f'localhost wants you to verify a wallet for GenLayer POAP recovery:\n'
+            f'localhost:5173 wants you to verify a wallet for GenLayer POAP recovery:\n'
             f'{account.address}\n\n'
             'This signature only proves ownership of this wallet for attaching legacy POAPs '
             'to your current portal account. It will not sign you into the portal or change your account.\n\n'

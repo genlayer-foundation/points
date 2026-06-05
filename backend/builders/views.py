@@ -14,6 +14,45 @@ class BuilderViewSet(viewsets.ModelViewSet):
     serializer_class = BuilderSerializer
     permission_classes = [IsAuthenticated]
 
+    def _is_staff_mutation(self, request):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and (request.user.is_staff or request.user.is_superuser)
+        )
+
+    def _deny_non_staff_mutation(self, request):
+        if self._is_staff_mutation(request):
+            return None
+        return Response(
+            {'detail': 'Only staff users can mutate builder profiles.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    def create(self, request, *args, **kwargs):
+        denied = self._deny_non_staff_mutation(request)
+        if denied is not None:
+            return denied
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        denied = self._deny_non_staff_mutation(request)
+        if denied is not None:
+            return denied
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        denied = self._deny_non_staff_mutation(request)
+        if denied is not None:
+            return denied
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        denied = self._deny_non_staff_mutation(request)
+        if denied is not None:
+            return denied
+        return super().destroy(request, *args, **kwargs)
+
     def get_permissions(self):
         """
         Allow read-only access without authentication for public endpoints.
@@ -39,7 +78,13 @@ class BuilderViewSet(viewsets.ModelViewSet):
                 )
 
         elif request.method == 'PATCH':
-            builder, created = Builder.objects.get_or_create(user=request.user)
+            try:
+                builder = Builder.objects.get(user=request.user)
+            except Builder.DoesNotExist:
+                return Response(
+                    {'detail': 'Builder profile not found for current user.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
             serializer = self.get_serializer(builder, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
