@@ -33,13 +33,15 @@
   let discordConnection = $derived($userStore.user?.discord_connection || null);
   let hasDiscordConnection = $derived(Boolean(discordConnection));
   let collectorCount = $derived(poap?.claimed_count ?? claimsCount ?? 0);
-  let statusLabel = $derived(poap?.status === 'active' ? 'Live' : poap?.status === 'draft' ? 'Draft' : 'Archived');
+  let statusLabel = $derived(getPoapStatusLabel(poap));
   let statusClass = $derived(
-    poap?.status === 'active'
+    poap?.claim_state === 'live'
       ? 'border-[#d8f0df] bg-[#f2fbf5] text-[#167b48]'
-      : poap?.status === 'draft'
+      : poap?.claim_state === 'draft' || poap?.claim_state === 'upcoming'
         ? 'border-[#e6e6e6] bg-[#fafafa] text-[#6b6b6b]'
-        : 'border-[#e7e0f8] bg-[#f4ecfd] text-[#7f52e1]'
+        : poap?.claim_state === 'ended' || poap?.claim_state === 'archived'
+          ? 'border-[#e7e0f8] bg-[#f4ecfd] text-[#7f52e1]'
+          : 'border-[#fff0cf] bg-[#fffbeb] text-[#98690c]'
   );
   let loadedSlug = $state('');
 
@@ -59,6 +61,18 @@
   /** @param {number | null | undefined} value */
   function formatNumber(value) {
     return new Intl.NumberFormat('en-US').format(Number(value || 0));
+  }
+
+  /** @param {any} value */
+  function getPoapStatusLabel(value) {
+    if (value?.claim_state === 'live') return 'Live';
+    if (value?.claim_state === 'upcoming') return 'Upcoming';
+    if (value?.claim_state === 'ended') return 'Ended';
+    if (value?.claim_state === 'full') return 'Full';
+    if (value?.claim_state === 'draft') return 'Draft';
+    if (value?.claim_state === 'archived') return 'Archived';
+    if (value?.claim_state === 'claimed') return 'Claimed';
+    return value?.status === 'active' ? 'Unavailable' : value?.status === 'draft' ? 'Draft' : 'Archived';
   }
 
   /** @param {any} distribution */
