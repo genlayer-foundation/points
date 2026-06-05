@@ -748,7 +748,9 @@ class Evidence(BaseModel):
 
     def save(self, *args, **kwargs):
         if self.url:
-            from .url_utils import normalize_url
+            from .url_utils import detect_url_type, normalize_url
+            if self.url_type_id is None:
+                self.url_type = detect_url_type(self.url)
             self.normalized_url = normalize_url(self.url)
         else:
             self.normalized_url = ''

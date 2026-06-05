@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import serializers
 
 from users.serializers import LightUserSerializer
@@ -46,6 +47,11 @@ class PoapDropListSerializer(serializers.ModelSerializer):
             return 'draft'
         if obj.status == PoapDrop.STATUS_ARCHIVED:
             return 'archived'
+        now = timezone.now()
+        if obj.event_start_at and now < obj.event_start_at:
+            return 'upcoming'
+        if obj.event_end_at and now > obj.event_end_at:
+            return 'ended'
         if not self._drop_has_capacity(obj):
             return 'full'
         if not self._has_open_distribution(obj):
@@ -54,7 +60,7 @@ class PoapDropListSerializer(serializers.ModelSerializer):
 
     def _can_claim(self, obj):
         return (
-            obj.status == PoapDrop.STATUS_ACTIVE
+            obj.is_open()
             and not self.get_has_claimed(obj)
             and self._drop_has_capacity(obj)
             and self._has_open_distribution(obj)

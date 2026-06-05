@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ranks, recalculate_all_leaderboards, LEADERBOARD_CONFIG
@@ -216,7 +217,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def monthly(self, request):
         """
-        Get top contributors for the current month, starting on day 1.
+        Get top contributors for the current month, or an explicit date range.
         """
         from users.models import User
         from users.serializers import LightUserSerializer
@@ -234,13 +235,41 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         except (TypeError, ValueError):
             limit = 10
 
-        now = timezone.localtime(timezone.now())
-        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        start_date_param = request.query_params.get('start_date')
+        end_date_param = request.query_params.get('end_date')
+        start_date = parse_date(start_date_param) if start_date_param else None
+        end_date = parse_date(end_date_param) if end_date_param else None
+
+        if start_date_param and not start_date:
+            return Response(
+                {'detail': 'Invalid start_date. Expected YYYY-MM-DD.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if end_date_param and not end_date:
+            return Response(
+                {'detail': 'Invalid end_date. Expected YYYY-MM-DD.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if start_date and end_date and start_date > end_date:
+            return Response(
+                {'detail': 'start_date must be before or equal to end_date.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        date_filters = {}
+        if start_date:
+            date_filters['contribution_date__date__gte'] = start_date
+        else:
+            now = timezone.localtime(timezone.now())
+            month_start = now.replace(day=1).date()
+            date_filters['contribution_date__date__gte'] = month_start
+        if end_date:
+            date_filters['contribution_date__date__lte'] = end_date
 
         monthly_query = Contribution.objects.filter(
             user__visible=True,
             contribution_type__category__slug=leaderboard_type,
-            contribution_date__gte=month_start,
+            **date_filters,
         )
         if leaderboard_type != 'community':
             monthly_query = monthly_query.filter(user__leaderboard_entries__type=leaderboard_type)

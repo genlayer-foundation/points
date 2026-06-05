@@ -51,19 +51,19 @@
   let leaderboardTitle = $derived(isCommunity ? 'Top Community Contributors' : 'Top Contributors');
   let leaderboardSubtitle = $derived(
     isCommunity
-      ? 'This month community contributions'
+      ? 'Community contributions from the last 30 days'
       : isValidator
         ? 'All-time validator contributors'
-        : 'This month curated builds'
+        : 'Curated builds from the last 30 days'
   );
   let leaderboardPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/leaderboard' : '/validators/leaderboard');
-  let podiumTitle = $derived(isValidator ? 'All-time Podium' : "This month's Podium");
+  let podiumTitle = $derived(isValidator ? 'All-time Podium' : 'Last 30 Days Podium');
   let podiumSubtitle = $derived(
     isCommunity
-      ? "Who's contributing most to the community this month?"
+      ? "Who's contributing most to the community over the last 30 days?"
       : isValidator
         ? "Who's contributed most to GenLayer?"
-        : "Who's contributing more to GenLayer this month?"
+        : "Who's contributing more to GenLayer over the last 30 days?"
   );
   let newestTitle = $derived(isBuilder ? 'Newest Builders' : isCommunity ? 'Newest Community Contributors' : 'Newest Validators');
   let newestPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/all-contributions' : '/validators/participants');
@@ -120,6 +120,24 @@
     return contributions.filter((contribution) => !isCommunitySocialLinkContribution(contribution));
   }
 
+  function formatDateParam(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function getLast30DaysParams() {
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+    startDate.setDate(startDate.getDate() - 29);
+
+    return {
+      start_date: formatDateParam(startDate),
+      end_date: formatDateParam(endDate),
+    };
+  }
+
   function resetDashboardState() {
     statsData = [];
     leaderboardEntries = [];
@@ -153,10 +171,10 @@
       }),
 
       // Top contributors. Validator dashboard is intentionally all-time;
-      // builder and community dashboards use current-month contribution totals.
+      // builder and community dashboards use rolling 30-day contribution totals.
       (cat === 'validator'
           ? leaderboardAPI.getLeaderboard({ type: 'validator', order: 'asc', limit: 5 })
-          : leaderboardAPI.getMonthlyLeaderboardByType(cat, 5)
+          : leaderboardAPI.getMonthlyLeaderboardByType(cat, 5, getLast30DaysParams())
       ).then(res => {
         if (requestId !== dashboardRequestSequence) return;
         leaderboardEntries = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);

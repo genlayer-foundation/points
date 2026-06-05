@@ -54,6 +54,16 @@ class PoapDrop(BaseModel):
     def __str__(self):
         return self.title
 
+    def is_open(self, at_time=None):
+        at_time = at_time or timezone.now()
+        if self.status != self.STATUS_ACTIVE:
+            return False
+        if self.event_start_at and at_time < self.event_start_at:
+            return False
+        if self.event_end_at and at_time > self.event_end_at:
+            return False
+        return True
+
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = self._generate_unique_slug()

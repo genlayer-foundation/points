@@ -44,6 +44,7 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          ContributionDiscordXPStateSerializer)
 from .forms import SubmissionReviewForm
 from .permissions import IsSteward, steward_has_permission, steward_permitted_type_ids
+from .url_utils import normalize_url
 from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from ethereum_auth.authentication import EthereumAuthentication
@@ -683,6 +684,65 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             )
 
         return None
+
+    def _validate_submission_contribution_type(
+        self,
+        user,
+        contribution_type,
+        mission=None,
+        skip_capacity_check=False,
+    ):
+        """Validate role, category, and requirement gates for submissions."""
+        if mission and contribution_type.id != mission.contribution_type_id:
+            return Response(
+                {'error': 'Mission submissions must use the mission contribution type.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not contribution_type.is_submittable and mission is None:
+            return Response(
+                {'error': 'This contribution type cannot be submitted directly. Submit through one of its active missions.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not skip_capacity_check and contribution_type.is_full():
+            return Response(
+                {'error': 'This contribution type has reached its submission limit.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if contribution_type.category:
+            if contribution_type.category.slug == 'builder' and not hasattr(user, 'builder'):
+                return Response(
+                    {'error': 'You must complete the Builder Welcome journey before submitting builder contributions.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            if contribution_type.category.slug == 'validator' and not hasattr(user, 'validator'):
+                return Response(
+                    {'error': 'Only validators can submit validator contributions. Join the Validator Waitlist to be considered for selection.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        if contribution_type.required_social_accounts:
+            connection_map = {
+                'twitter': ('twitterconnection', 'X (Twitter)'),
+                'discord': ('discordconnection', 'Discord'),
+                'github': ('githubconnection', 'GitHub'),
+            }
+            missing = []
+            for account in contribution_type.required_social_accounts:
+                relation, label = connection_map.get(account, (None, account))
+                if relation and not hasattr(user, relation):
+                    missing.append(label)
+            if missing:
+                return Response(
+                    {'error': f'You must link your {", ".join(missing)} account(s) to submit this type of contribution.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        discord_role_error = self._validate_required_discord_roles(user, contribution_type)
+        if discord_role_error is not None:
+            return discord_role_error
+
+        return None
     
     def create(self, request, *args, **kwargs):
         """Create a new submission with optional mission tracking."""
@@ -743,48 +803,13 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                     .prefetch_related('required_discord_roles')
                     .get(id=contribution_type_id)
                 )
-                # Non-submittable types can only be submitted through an active mission
-                if not contribution_type.is_submittable and not mission_id:
-                    return Response(
-                        {'error': 'This contribution type cannot be submitted directly. Submit through one of its active missions.'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                if contribution_type.is_full():
-                    return Response(
-                        {'error': 'This contribution type has reached its submission limit.'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                if contribution_type.category:
-                    if contribution_type.category.slug == 'builder' and not hasattr(request.user, 'builder'):
-                        return Response(
-                            {'error': 'You must complete the Builder Welcome journey before submitting builder contributions.'},
-                            status=status.HTTP_403_FORBIDDEN
-                        )
-                    if contribution_type.category.slug == 'validator' and not hasattr(request.user, 'validator'):
-                        return Response(
-                            {'error': 'Only validators can submit validator contributions. Join the Validator Waitlist to be considered for selection.'},
-                            status=status.HTTP_403_FORBIDDEN
-                        )
-                    # Check required social accounts for this contribution type
-                    if contribution_type.required_social_accounts:
-                        connection_map = {
-                            'twitter': ('twitterconnection', 'X (Twitter)'),
-                            'discord': ('discordconnection', 'Discord'),
-                            'github': ('githubconnection', 'GitHub'),
-                        }
-                        missing = []
-                        for account in contribution_type.required_social_accounts:
-                            relation, label = connection_map.get(account, (None, account))
-                            if relation and not hasattr(request.user, relation):
-                                missing.append(label)
-                        if missing:
-                            return Response(
-                                {'error': f'You must link your {", ".join(missing)} account(s) to submit this type of contribution.'},
-                                status=status.HTTP_403_FORBIDDEN
-                            )
-                    discord_role_error = self._validate_required_discord_roles(request.user, contribution_type)
-                    if discord_role_error is not None:
-                        return discord_role_error
+                contribution_type_error = self._validate_submission_contribution_type(
+                    request.user,
+                    contribution_type,
+                    mission,
+                )
+                if contribution_type_error is not None:
+                    return contribution_type_error
             except ContributionType.DoesNotExist:
                 pass
 
@@ -848,6 +873,19 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        if 'mission' in request.data:
+            requested_mission = request.data.get('mission')
+            current_mission = str(instance.mission_id) if instance.mission_id else None
+            if requested_mission in ('', None):
+                requested_mission = None
+            else:
+                requested_mission = str(requested_mission)
+            if requested_mission != current_mission:
+                return Response(
+                    {'error': 'Mission cannot be changed after submission.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         # Update the submission
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
@@ -856,17 +894,22 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             serializer.validated_data.get('contribution_type')
             or instance.contribution_type
         )
+        mission = serializer.validated_data.get('mission', instance.mission)
         contribution_type = (
             ContributionType.objects
+            .select_related('category')
             .prefetch_related('required_discord_roles')
             .get(id=contribution_type.id)
         )
-        discord_role_error = self._validate_required_discord_roles(
+        keeps_same_contribution_type = contribution_type.id == instance.contribution_type_id
+        contribution_type_error = self._validate_submission_contribution_type(
             request.user,
             contribution_type,
+            mission,
+            skip_capacity_check=keeps_same_contribution_type,
         )
-        if discord_role_error is not None:
-            return discord_role_error
+        if contribution_type_error is not None:
+            return contribution_type_error
 
         # Update state back to pending and track edit time
         instance.state = 'pending'
@@ -1745,10 +1788,17 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         """Review and take action on a submission."""
         submission = self.get_object()
 
-        serializer = StewardSubmissionReviewSerializer(data=request.data)
+        serializer = StewardSubmissionReviewSerializer(
+            data=request.data,
+            context={'submission': submission, 'request': request},
+        )
         serializer.is_valid(raise_exception=True)
 
         action_name = serializer.validated_data['action']
+        final_contribution_type = serializer.validated_data.get(
+            'contribution_type',
+            submission.contribution_type,
+        )
 
         # Per-action permission checks
         permission_map = {
@@ -1757,7 +1807,12 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'more_info': 'request_more_info',
         }
         required_permission = permission_map.get(action_name)
-        if required_permission and not steward_has_permission(request.user, submission.contribution_type_id, required_permission):
+        permission_contribution_type_id = (
+            final_contribution_type.id
+            if action_name == 'accept'
+            else submission.contribution_type_id
+        )
+        if required_permission and not steward_has_permission(request.user, permission_contribution_type_id, required_permission):
             return Response(
                 {'detail': f'You do not have permission to {action_name} submissions of this contribution type.'},
                 status=status.HTTP_403_FORBIDDEN
@@ -1769,7 +1824,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
 
         if action_name == 'accept':
             # Get the contribution type (use provided or keep original)
-            contribution_type = serializer.validated_data.get('contribution_type', submission.contribution_type)
+            contribution_type = final_contribution_type
 
             # Get the user for the contribution (use provided or keep original submitter)
             contribution_user = serializer.validated_data.get('user', submission.user)
@@ -1808,6 +1863,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                     url=evidence.url,
                     file=evidence.file,
                     url_type=evidence.url_type,
+                    normalized_url=normalize_url(evidence.url) if evidence.url else '',
                 )
                 for evidence in submission.evidence_items.all()
             ])
