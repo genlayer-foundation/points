@@ -356,16 +356,46 @@
   // Track which submission's proposal we've auto-filled to avoid overwriting user edits
   let lastProposalFilled = $state(null);
 
-  // Auto-fill form from proposal data when available
+  function normalizeAction(action) {
+    if (action === 'request_more_info') return 'more_info';
+    if (action === 'accept' || action === 'reject' || action === 'more_info' || action === 'propose') {
+      return action;
+    }
+    return null;
+  }
+
+  function normalizeProposedAction(action) {
+    const normalized = normalizeAction(action);
+    return normalized === 'propose' ? null : normalized;
+  }
+
+  function canUseReviewAction(action) {
+    const normalized = normalizeAction(action);
+    if (normalized === 'accept') return canAccept;
+    if (normalized === 'reject') return canReject;
+    if (normalized === 'more_info') return canRequestInfo;
+    if (normalized === 'propose') return canPropose;
+    return false;
+  }
+
+  function getDefaultAction() {
+    // Pick the first available action as default
+    if (canAccept) return 'accept';
+    if (canReject) return 'reject';
+    if (canRequestInfo) return 'more_info';
+    if (canPropose) return 'propose';
+    return 'accept';
+  }
+
+  // Auto-fill form from proposal data when available. Wait until this card has
+  // permissions so proposal-only stewards do not get pinned to the accept view.
   $effect(() => {
-    if (submission?.has_proposal && lastProposalFilled !== submission.id) {
+    if (submission?.has_proposal && hasAnyAction && lastProposalFilled !== submission.id) {
       lastProposalFilled = submission.id;
 
-      const action = submission.proposed_action || 'accept';
+      const action = normalizeProposedAction(submission.proposed_action) || 'accept';
 
-      if ((action === 'accept' && canAccept) ||
-          (action === 'reject' && canReject) ||
-          (action === 'more_info' && canRequestInfo)) {
+      if (canUseReviewAction(action)) {
         reviewAction = action;
       } else if (canPropose) {
         reviewAction = 'propose';
@@ -393,19 +423,16 @@
   });
 
   $effect(() => {
+    if (hasAnyAction && !canUseReviewAction(reviewAction)) {
+      reviewAction = getDefaultAction();
+    }
+  });
+
+  $effect(() => {
     if (submission?.rubric_review && lastProposalFilled !== submission.id) {
       applyRubricReview(submission.rubric_review);
     }
   });
-
-  function getDefaultAction() {
-    // Pick the first available action as default
-    if (canAccept) return 'accept';
-    if (canReject) return 'reject';
-    if (canRequestInfo) return 'more_info';
-    if (canPropose) return 'propose';
-    return 'accept';
-  }
 
   // Sync selected contribution type with the ContributionSelection component
   $effect(() => {
