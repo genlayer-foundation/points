@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
-from contributions.models import SubmittedContribution, ContributionType, Category, ContributionHighlight
+from contributions.models import SubmittedContribution, ContributionType, Category, Contribution, ContributionHighlight
 from leaderboard.models import GlobalLeaderboardMultiplier
 from stewards.models import Steward, StewardPermission
 from datetime import datetime
@@ -158,12 +158,21 @@ class StewardPermissionTest(TestCase):
             contribution_type=self.contribution_type,
             action='propose'
         )
+        accepted_contribution = Contribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            points=50,
+        )
         accepted_submission = SubmittedContribution.objects.create(
             user=self.regular_user,
             contribution_type=self.contribution_type,
             contribution_date=timezone.now(),
             notes="Already accepted",
-            state='accepted'
+            state='accepted',
+            reviewed_by=self.steward_user,
+            reviewed_at=timezone.now(),
+            converted_contribution=accepted_contribution,
         )
         other_pending_submission = SubmittedContribution.objects.create(
             user=self.regular_user,
@@ -187,6 +196,20 @@ class StewardPermissionTest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['results'], [])
+
+        response = self.client.get('/api/v1/steward-submissions/stats/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['pending_count'], 1)
+        self.assertEqual(response.data['total_reviewed'], 0)
+        self.assertEqual(response.data['total_accepted'], 0)
+
+        response = self.client.get('/api/v1/steward-submissions/daily-metrics/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['totals']['pending_review'], 1)
+        self.assertEqual(response.data['totals']['accepted'], 0)
+        self.assertEqual(response.data['totals']['points_awarded'], 0)
     
     def test_steward_can_review_submissions(self):
         """Test that stewards can review submissions."""
