@@ -198,6 +198,22 @@ class PoapAPITest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_secret_claim_enforces_drop_event_window(self):
+        self.drop.event_start_at = timezone.now() + timezone.timedelta(hours=1)
+        self.drop.save(update_fields=['event_start_at', 'updated_at'])
+        self._secret_distribution()
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/ama-session/claim-secret/',
+            {'secret': 'friend-scientist-natural'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'This POAP is not open for claiming yet.')
+        self.assertFalse(PoapClaim.objects.filter(drop=self.drop, user=self.user).exists())
+
     def test_mint_link_single_use(self):
         distribution = PoapDistribution.objects.create(
             drop=self.drop,
@@ -373,6 +389,31 @@ class PoapAPITest(TestCase):
             user=self.other_user,
             claim_method=PoapClaim.CLAIM_SECRET,
         )
+        upcoming_drop = PoapDrop.objects.create(
+            title='Upcoming Drop',
+            slug='upcoming-drop',
+            event_start_at=timezone.now() + timezone.timedelta(hours=1),
+            status=PoapDrop.STATUS_ACTIVE,
+        )
+        PoapDistribution.objects.create(
+            drop=upcoming_drop,
+            method=PoapDistribution.METHOD_SECRET,
+            active=True,
+            secret_hash=hash_secret('upcoming'),
+        )
+        ended_drop = PoapDrop.objects.create(
+            title='Ended Drop',
+            slug='ended-drop',
+            event_start_at=timezone.now() - timezone.timedelta(days=2),
+            event_end_at=timezone.now() - timezone.timedelta(hours=1),
+            status=PoapDrop.STATUS_ACTIVE,
+        )
+        PoapDistribution.objects.create(
+            drop=ended_drop,
+            method=PoapDistribution.METHOD_SECRET,
+            active=True,
+            secret_hash=hash_secret('ended'),
+        )
 
         response = self.client.get('/api/v1/poaps/?page_size=20')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -382,6 +423,10 @@ class PoapAPITest(TestCase):
         self.assertEqual(by_slug['live-drop']['claim_state'], 'live')
         self.assertFalse(by_slug['full-drop']['can_claim'])
         self.assertEqual(by_slug['full-drop']['claim_state'], 'full')
+        self.assertFalse(by_slug['upcoming-drop']['can_claim'])
+        self.assertEqual(by_slug['upcoming-drop']['claim_state'], 'upcoming')
+        self.assertFalse(by_slug['ended-drop']['can_claim'])
+        self.assertEqual(by_slug['ended-drop']['claim_state'], 'ended')
         self.assertFalse(by_slug['ama-session']['can_claim'])
         self.assertEqual(by_slug['ama-session']['claim_state'], 'unavailable')
 
