@@ -1,0 +1,97 @@
+import { describe, expect, it } from 'vitest';
+import {
+  buildRubricReviewPayload,
+  defaultRubricSections,
+  hydrateRubricState,
+  isProjectReviewFlow,
+  validateRubricReviewState
+} from '../lib/rubricReview.js';
+
+function validState(overrides = {}) {
+  const sections = defaultRubricSections();
+  for (const key of Object.keys(sections)) {
+    sections[key] = {
+      score: 2,
+      reason: `${key} reason`
+    };
+  }
+  return {
+    gateFailures: [],
+    sections,
+    extras: ['live_deployment'],
+    overallReason: 'Overall reason',
+    ...overrides
+  };
+}
+
+describe('rubricReview helpers', () => {
+  it('detects Project review flow only', () => {
+    expect(isProjectReviewFlow('builder_project')).toBe(true);
+    expect(isProjectReviewFlow('standard')).toBe(false);
+  });
+
+  it('builds a full rubric payload for passing gate reviews', () => {
+    const payload = buildRubricReviewPayload(validState());
+
+    expect(payload.gate_failures).toEqual([]);
+    expect(payload.sections.genlayer_fit).toEqual({
+      score: 2,
+      reason: 'genlayer_fit reason'
+    });
+    expect(payload.extras).toEqual(['live_deployment']);
+    expect(payload.overall_reason).toBe('Overall reason');
+  });
+
+  it('builds a gate-failure payload without section scores', () => {
+    const payload = buildRubricReviewPayload(validState({
+      gateFailures: ['repo_does_not_build']
+    }));
+
+    expect(payload.gate_failures).toEqual(['repo_does_not_build']);
+    expect(payload.sections).toEqual({});
+  });
+
+  it('rejects gate failures with non-reject actions', () => {
+    const error = validateRubricReviewState(
+      validState({ gateFailures: ['repo_does_not_build'] }),
+      'accept'
+    );
+
+    expect(error).toContain('Gate failures');
+  });
+
+  it('allows blank section reasons when the gate passes', () => {
+    const state = validState();
+    state.sections.engineering.reason = '';
+
+    const error = validateRubricReviewState(state, 'accept');
+
+    expect(error).toBeNull();
+  });
+
+  it('requires an overall reason', () => {
+    const error = validateRubricReviewState(
+      validState({ overallReason: '   ' }),
+      'accept'
+    );
+
+    expect(error).toBe('Add an overall rubric reason before submitting the proposal.');
+  });
+
+  it('hydrates existing review data into editable state', () => {
+    const state = hydrateRubricState({
+      gate_failures: [],
+      sections: {
+        genlayer_fit: { score: 4, reason: 'Strong fit' }
+      },
+      extras: ['demo_video'],
+      overall_reason: 'Existing proposal'
+    });
+
+    expect(state.sections.genlayer_fit.score).toBe(4);
+    expect(state.sections.genlayer_fit.reason).toBe('Strong fit');
+    expect(state.sections.contract_quality.score).toBe(0);
+    expect(state.extras).toEqual(['demo_video']);
+    expect(state.overallReason).toBe('Existing proposal');
+  });
+});

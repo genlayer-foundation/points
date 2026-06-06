@@ -31,8 +31,10 @@ from .models import (
     ContributionType, Contribution, Evidence, SubmittedContribution,
     SubmissionNote, ContributionHighlight, Mission, StartupRequest,
     FeaturedContent, Alert, ContributionDiscordXPState,
-    DiscordXPDistributionEvent, sync_discord_xp_state_for_contribution,
+    DiscordXPDistributionEvent, ProjectMilestoneReview,
+    sync_discord_xp_state_for_contribution,
 )
+from .rubric_review import rubric_summary_text, uses_project_rubric
 from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
@@ -1759,6 +1761,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'proposed_contribution_type',
             'proposed_user',
             'proposed_template',
+            'project_milestone_review',
+            'project_milestone_review__proposer',
         ).prefetch_related(
             'evidence_items',
             'converted_contribution__highlights',
@@ -2451,7 +2455,10 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        serializer = SubmissionProposeSerializer(data=request.data)
+        serializer = SubmissionProposeSerializer(
+            data=request.data,
+            context={'submission': submission},
+        )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
@@ -2474,21 +2481,42 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
 
         submission.save()
 
+        rubric_review = data.get('rubric_review')
+        rubric_record = None
+        if rubric_review and uses_project_rubric(submission.contribution_type):
+            rubric_record, _ = ProjectMilestoneReview.objects.update_or_create(
+                submitted_contribution=submission,
+                defaults={
+                    'proposer': request.user,
+                    'review_flow': submission.contribution_type.review_flow,
+                    'action': data['proposed_action'],
+                    'confidence': data.get('confidence'),
+                    'gate_failures': rubric_review['gate_failures'],
+                    'sections': rubric_review['sections'],
+                    'extras': rubric_review['extras'],
+                    'overall_reason': rubric_review['overall_reason'],
+                },
+            )
+
         # Create CRM note recording the proposal
         from .models import SubmissionNote
         proposer_name = request.user.name or request.user.address[:10] + '...'
         action_str = data['proposed_action']
-        pts_str = f" with **{data.get('proposed_points', '')} points**" if action_str == 'accept' else ''
+        proposed_points = data.get('proposed_points')
+        pts_str = f" with **{proposed_points} points**" if action_str == 'accept' and proposed_points is not None else ''
         ct_name = data.get('proposed_contribution_type')
         ct_str = f" ({ct_name.name})" if ct_name else ''
         user_obj = data.get('proposed_user')
         user_str = f", assigned to {user_obj.name or user_obj.address[:10]}" if user_obj else ''
         reply_str = f". Reply: '{data.get('proposed_staff_reply', '')[:100]}'" if data.get('proposed_staff_reply') else ''
+        rubric_str = ''
+        if rubric_review:
+            rubric_str = f"\n\n{rubric_summary_text(rubric_review)}"
 
         SubmissionNote.objects.create(
             submitted_contribution=submission,
             user=request.user,
-            message=f"Proposed: **{action_str}**{pts_str}{ct_str}{user_str}{reply_str} by {proposer_name}",
+            message=f"Proposed: **{action_str}**{pts_str}{ct_str}{user_str}{reply_str} by {proposer_name}{rubric_str}",
             is_proposal=True,
             data={
                 'action': data['proposed_action'],
@@ -2496,6 +2524,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 'staff_reply': data.get('proposed_staff_reply', ''),
                 'template_id': template.id if template else None,
                 'confidence': data.get('confidence'),
+                'rubric_review_id': rubric_record.id if rubric_record else None,
             },
         )
 

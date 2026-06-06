@@ -11,6 +11,16 @@
   import EvidenceUrlCard from './EvidenceUrlCard.svelte';
   import { parseMarkdown } from '../lib/markdownLoader.js';
   import { showSuccess, showError } from '../lib/toastStore';
+  import {
+    RUBRIC_EXTRAS,
+    RUBRIC_GATE_FAILURES,
+    RUBRIC_SECTIONS,
+    buildRubricReviewPayload,
+    defaultRubricSections,
+    hydrateRubricState,
+    isProjectReviewFlow,
+    validateRubricReviewState
+  } from '../lib/rubricReview.js';
 
   let {
     submission,
@@ -40,7 +50,8 @@
     canEditAccepted = false,
     acceptedUpdating = false,
     onAcceptedEditChange = null,
-    onAcceptedUpdate = null
+    onAcceptedUpdate = null,
+    enableRubricReview = false
   } = $props();
 
   let togglingInteresting = $state(false);
@@ -48,10 +59,26 @@
   let appealReason = $state('');
   let submittingAppeal = $state(false);
   let showUserPicker = $state(false);
+  /** @type {string[]} */
+  let rubricGateFailures = $state([]);
+  let rubricSections = $state(defaultRubricSections());
+  /** @type {string[]} */
+  let rubricExtras = $state([]);
+  let rubricOverallReason = $state('');
 
   let canCopyReviewContext = $derived(
     showReviewForm && !isOwnSubmission && submission.state === 'pending'
   );
+  let isProjectReview = $derived(
+    enableRubricReview && isProjectReviewFlow(submission.contribution_type_details?.review_flow)
+  );
+  let rubricState = $derived({
+    gateFailures: rubricGateFailures,
+    sections: rubricSections,
+    extras: rubricExtras,
+    overallReason: rubricOverallReason
+  });
+  let hasRubricGateFailures = $derived(rubricGateFailures.length > 0);
   let textOnlyEvidence = $derived(
     (submission.evidence_items || []).filter(evidence => !evidence?.url && evidence?.description)
   );
@@ -112,6 +139,38 @@
       .join('\n');
   }
 
+  function formatRubricForContext() {
+    const review = submission.rubric_review;
+    if (!review) {
+      return isProjectReview
+        ? 'Required for Project proposals. No active rubric proposal yet.'
+        : 'Not applicable';
+    }
+
+    const gateFailures = review.gate_failures?.length
+      ? review.gate_failures.join(', ')
+      : 'None';
+    const sectionLines = RUBRIC_SECTIONS
+      .map(section => {
+        const value = review.sections?.[section.key];
+        if (!value) return `- ${section.label}: not scored`;
+        return `- ${section.label}: ${value.score}/5 - ${value.reason || 'No reason provided'}`;
+      })
+      .join('\n');
+    const extras = review.extras?.length ? review.extras.join(', ') : 'None';
+
+    return [
+      `- Review flow: ${review.review_flow || submission.contribution_type_details?.review_flow || 'standard'}`,
+      `- Proposed action: ${review.action || 'N/A'}`,
+      `- Confidence: ${review.confidence || 'N/A'}`,
+      `- Gate failures: ${gateFailures}`,
+      'Sections:',
+      sectionLines,
+      `- Extras: ${extras}`,
+      `- Overall reason: ${textOrNone(review.overall_reason)}`
+    ].join('\n');
+  }
+
   function buildReviewContext(contextNotes = notes) {
     const type = submission.contribution_type_details || {};
     const user = submission.user_details || {};
@@ -146,6 +205,7 @@
       '## Contribution',
       `- Type: ${textOrNone(type.name || submission.contribution_type_name || getTypeName(submission.contribution_type))}`,
       `- Category: ${textOrNone(type.category)}`,
+      `- Review flow: ${textOrNone(type.review_flow)}`,
       `- Point range: ${type.min_points ?? 'N/A'}-${type.max_points ?? 'N/A'}`,
       `- Proposed points: ${textOrNone(submission.proposed_points)}`,
       `- Mission: ${textOrNone(submission.mission?.name)}`,
@@ -165,8 +225,13 @@
       '## Proposal',
       proposalLines,
       '',
+      '## Project Rubric',
+      formatRubricForContext(),
+      '',
       '## Review Task',
-      'Review whether the submission evidence supports the claimed contribution type, whether the proposed point value is appropriate, and whether more information is needed.',
+      isProjectReview
+        ? 'Use the Project rubric document and return the structured rubric_review payload.'
+        : 'Review whether the submission evidence supports the claimed contribution type, whether the proposed point value is appropriate, and whether more information is needed.',
     ].join('\n');
   }
 
@@ -320,6 +385,16 @@
 
       const type = contributionTypes.find(t => t.id === selectedType);
       selectedCategory = type?.category || submission.contribution_type_details?.category || 'validator';
+
+      if (submission.rubric_review) {
+        applyRubricReview(submission.rubric_review);
+      }
+    }
+  });
+
+  $effect(() => {
+    if (submission?.rubric_review && lastProposalFilled !== submission.id) {
+      applyRubricReview(submission.rubric_review);
     }
   });
 
@@ -436,6 +511,51 @@
     }
   }
 
+  function applyRubricReview(review) {
+    const state = hydrateRubricState(review);
+    rubricGateFailures = state.gateFailures;
+    rubricSections = state.sections;
+    rubricExtras = state.extras;
+    rubricOverallReason = state.overallReason;
+  }
+
+  function toggleRubricGate(key) {
+    if (rubricGateFailures.includes(key)) {
+      rubricGateFailures = rubricGateFailures.filter(item => item !== key);
+      return;
+    }
+    rubricGateFailures = [...rubricGateFailures, key];
+    proposedAction = 'reject';
+  }
+
+  function toggleRubricExtra(key) {
+    if (rubricExtras.includes(key)) {
+      rubricExtras = rubricExtras.filter(item => item !== key);
+      return;
+    }
+    rubricExtras = [...rubricExtras, key];
+  }
+
+  function updateRubricScore(sectionKey, score) {
+    rubricSections = {
+      ...rubricSections,
+      [sectionKey]: {
+        ...(rubricSections[sectionKey] || { reason: '' }),
+        score: Number(score)
+      }
+    };
+  }
+
+  function updateRubricReason(sectionKey, reason) {
+    rubricSections = {
+      ...rubricSections,
+      [sectionKey]: {
+        ...(rubricSections[sectionKey] || { score: 0 }),
+        reason
+      }
+    };
+  }
+
   async function handleShowUserPicker() {
     showUserPicker = true;
     if (!usersLoaded && onRequestUsers) {
@@ -475,6 +595,14 @@
 
   function handlePropose() {
     if (onPropose) {
+      if (isProjectReview) {
+        const validationError = validateRubricReviewState(rubricState, proposedAction);
+        if (validationError) {
+          showError(validationError);
+          return;
+        }
+      }
+
       const data = {
         proposed_action: proposedAction,
         proposed_staff_reply: staffReply,
@@ -483,12 +611,20 @@
 
       // Only include accept-specific fields when proposing accept
       if (proposedAction === 'accept') {
-        data.proposed_points = points;
+        if (!isProjectReview) {
+          data.proposed_points = points;
+        }
         data.proposed_contribution_type = selectedType;
         data.proposed_user = selectedUser;
-        data.proposed_create_highlight = createHighlight;
-        data.proposed_highlight_title = highlightTitle;
-        data.proposed_highlight_description = highlightDescription;
+        if (!isProjectReview) {
+          data.proposed_create_highlight = createHighlight;
+          data.proposed_highlight_title = highlightTitle;
+          data.proposed_highlight_description = highlightDescription;
+        }
+      }
+
+      if (isProjectReview) {
+        data.rubric_review = buildRubricReviewPayload(rubricState);
       }
 
       onPropose(submission.id, data);
@@ -839,10 +975,11 @@
                   <div class="space-y-3">
                     {#if reviewAction === 'propose'}
                       <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Proposed Action</label>
+                        <p class="block text-sm font-medium text-gray-700 mb-2">Proposed Action</p>
                         <div class="flex gap-2">
                           <button type="button" onclick={() => proposedAction = 'accept'}
-                            class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors {proposedAction === 'accept' ? 'bg-green-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}">
+                            disabled={hasRubricGateFailures}
+                            class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 {proposedAction === 'accept' ? 'bg-green-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}">
                             Accept
                           </button>
                           <button type="button" onclick={() => proposedAction = 'reject'}
@@ -850,18 +987,109 @@
                             Reject
                           </button>
                           <button type="button" onclick={() => proposedAction = 'more_info'}
-                            class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors {proposedAction === 'more_info' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}">
+                            disabled={hasRubricGateFailures}
+                            class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 {proposedAction === 'more_info' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}">
                             Request Info
                           </button>
                         </div>
                       </div>
                     {/if}
-                    {#if reviewAction === 'accept' || proposedAction === 'accept'}
+                    {#if reviewAction === 'propose' && isProjectReview}
+                      <div class="rounded-lg border border-slate-300 bg-slate-50">
+                        <div class="border-b border-slate-200 px-4 py-3">
+                          <h4 class="text-sm font-semibold text-slate-950">Project rubric</h4>
+                        </div>
+
+                        <div class="space-y-4 p-4">
+                          <div>
+                            <p class="mb-2 text-xs font-semibold uppercase text-slate-600">Gate failures</p>
+                            <div class="grid gap-2 sm:grid-cols-2">
+                              {#each RUBRIC_GATE_FAILURES as gate}
+                                <label class="flex min-h-10 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium transition-colors {rubricGateFailures.includes(gate.key) ? 'border-red-300 bg-red-50 text-red-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}">
+                                  <input
+                                    type="checkbox"
+                                    checked={rubricGateFailures.includes(gate.key)}
+                                    onchange={() => toggleRubricGate(gate.key)}
+                                    class="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                                  />
+                                  <span>{gate.label}</span>
+                                </label>
+                              {/each}
+                            </div>
+                          </div>
+
+                          {#if !hasRubricGateFailures}
+                            <div class="space-y-3">
+                              {#each RUBRIC_SECTIONS as section}
+                                <div class="rounded-md border border-slate-200 bg-white p-3">
+                                  <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                      <label for="rubric-score-{submission.id}-{section.key}" class="text-sm font-semibold text-slate-950">
+                                        {section.label}
+                                      </label>
+                                    </div>
+                                    <select
+                                      id="rubric-score-{submission.id}-{section.key}"
+                                      value={rubricSections[section.key]?.score ?? 0}
+                                      onchange={(event) => updateRubricScore(section.key, event.currentTarget.value)}
+                                      class="h-9 w-20 rounded-md border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-900"
+                                    >
+                                      {#each [0, 1, 2, 3, 4, 5] as scoreValue}
+                                        <option value={scoreValue}>{scoreValue}/5</option>
+                                      {/each}
+                                    </select>
+                                  </div>
+                                  <textarea
+                                    value={rubricSections[section.key]?.reason || ''}
+                                    oninput={(event) => updateRubricReason(section.key, event.currentTarget.value)}
+                                    rows="2"
+                                    aria-label="{section.label} reason optional"
+                                    placeholder="Reason (optional)"
+                                    class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                                  ></textarea>
+                                </div>
+                              {/each}
+                            </div>
+                          {/if}
+
+                          <div>
+                            <p class="mb-2 text-xs font-semibold uppercase text-slate-600">Verified extras</p>
+                            <div class="flex flex-wrap gap-2">
+                              {#each RUBRIC_EXTRAS as extra}
+                                <label class="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium transition-colors {rubricExtras.includes(extra.key) ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}">
+                                  <input
+                                    type="checkbox"
+                                    checked={rubricExtras.includes(extra.key)}
+                                    onchange={() => toggleRubricExtra(extra.key)}
+                                    class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                  />
+                                  <span>{extra.label}</span>
+                                </label>
+                              {/each}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label for="rubric-overall-{submission.id}" class="mb-1 block text-sm font-medium text-slate-800">
+                              Overall reason <span class="text-red-600">*</span>
+                            </label>
+                            <textarea
+                              id="rubric-overall-{submission.id}"
+                              bind:value={rubricOverallReason}
+                              rows="3"
+                              placeholder="Overall reason required"
+                              class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                            ></textarea>
+                          </div>
+                        </div>
+                      </div>
+                    {/if}
+                    {#if reviewAction === 'accept' || (proposedAction === 'accept' && !isProjectReview)}
                     <div class="space-y-3">
                     <div>
-                      <label class="block text-sm font-medium text-gray-700">
+                      <p class="block text-sm font-medium text-gray-700">
                         Assign Contribution To
-                      </label>
+                      </p>
                       <div class="mt-1 flex items-center gap-2">
                         <Avatar
                           user={selectedUserDetails}
@@ -898,9 +1126,9 @@
                     </div>
 
                     <div>
-                      <label class="block text-sm font-medium text-gray-700 mb-2">
+                      <p class="block text-sm font-medium text-gray-700 mb-2">
                         Contribution Type
-                      </label>
+                      </p>
                       <ContributionSelection
                         bind:selectedCategory
                         bind:selectedContributionType={selectedContributionTypeObj}
@@ -916,7 +1144,7 @@
 
                     <div class="grid grid-cols-2 gap-4">
                       <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <label for="points-input-{submission.id}" class="block text-sm font-medium text-gray-700 mb-2">
                           Points
                         </label>
                         <div class="inline-flex items-center">
@@ -928,6 +1156,7 @@
                             −
                           </button>
                           <input
+                            id="points-input-{submission.id}"
                             type="number"
                             bind:value={points}
                             class="w-12 h-8 px-1 border-y border-gray-300 text-sm text-center font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent focus:z-10"
@@ -946,9 +1175,9 @@
                       </div>
 
                       <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <p class="block text-sm font-medium text-gray-700 mb-2">
                           Final Points
-                        </label>
+                        </p>
                         <div class="text-2xl font-bold {reviewAction === 'accept' ? 'text-green-700' : 'text-amber-700'}">
                           {getFinalPoints()}
                         </div>
@@ -987,10 +1216,11 @@
                           </p>
 
                           <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <label for="highlight-title-{submission.id}" class="block text-sm font-medium text-gray-700 mb-1">
                               Feature Title <span class="text-red-500">*</span>
                             </label>
                             <input
+                              id="highlight-title-{submission.id}"
                               type="text"
                               bind:value={highlightTitle}
                               placeholder="e.g., Outstanding Bug Discovery"
@@ -999,10 +1229,11 @@
                           </div>
 
                           <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <label for="highlight-description-{submission.id}" class="block text-sm font-medium text-gray-700 mb-1">
                               Feature Description <span class="text-red-500">*</span>
                             </label>
                             <textarea
+                              id="highlight-description-{submission.id}"
                               bind:value={highlightDescription}
                               placeholder="Describe why this contribution is being highlighted..."
                               rows="3"
@@ -1016,11 +1247,12 @@
                     {/if}
 
                     <div>
-                      <label class="block text-sm font-medium text-gray-700 mb-1">
+                      <label for="proposal-note-{submission.id}" class="block text-sm font-medium text-gray-700 mb-1">
                         {reviewAction === 'propose' && proposedAction === 'reject' ? 'Rejection Reason' : reviewAction === 'propose' && proposedAction === 'more_info' ? 'Information Needed' : 'Note (optional)'}
                       </label>
                       {#if proposeContextTemplates.length > 0}
                         <select
+                          aria-label="Select proposal template"
                           value={selectedTemplateId || ''}
                           onchange={handleTemplateSelect}
                           class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
@@ -1032,6 +1264,7 @@
                         </select>
                       {/if}
                       <textarea
+                        id="proposal-note-{submission.id}"
                         bind:value={staffReply}
                         placeholder={reviewAction === 'propose' && proposedAction === 'reject' ? 'Please provide a reason for rejection...' : reviewAction === 'propose' && proposedAction === 'more_info' ? 'What additional information do you need?' : 'Add an optional note for this contribution...'}
                         rows="3"
@@ -1063,11 +1296,12 @@
                 <div class="p-4 bg-red-50">
                   <div class="space-y-3">
                     <div>
-                      <label class="block text-sm font-medium text-gray-700 mb-1">
+                      <label for="reject-reason-{submission.id}" class="block text-sm font-medium text-gray-700 mb-1">
                         Rejection Reason
                       </label>
                       {#if rejectTemplates.length > 0}
                         <select
+                          aria-label="Select rejection template"
                           value={selectedTemplateId || ''}
                           onchange={handleTemplateSelect}
                           class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
@@ -1079,6 +1313,7 @@
                         </select>
                       {/if}
                       <textarea
+                        id="reject-reason-{submission.id}"
                         bind:value={staffReply}
                         placeholder="Please provide a reason for rejection..."
                         rows="4"
@@ -1099,11 +1334,12 @@
                 <div class="p-4 bg-blue-50">
                   <div class="space-y-3">
                     <div>
-                      <label class="block text-sm font-medium text-gray-700 mb-1">
+                      <label for="more-info-reason-{submission.id}" class="block text-sm font-medium text-gray-700 mb-1">
                         Information Needed
                       </label>
                       {#if moreInfoTemplates.length > 0}
                         <select
+                          aria-label="Select more information template"
                           value={selectedTemplateId || ''}
                           onchange={handleTemplateSelect}
                           class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
@@ -1115,6 +1351,7 @@
                         </select>
                       {/if}
                       <textarea
+                        id="more-info-reason-{submission.id}"
                         bind:value={staffReply}
                         placeholder="What additional information do you need from the submitter?"
                         rows="4"

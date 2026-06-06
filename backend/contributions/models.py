@@ -72,6 +72,13 @@ class ContributionType(BaseModel):
     Represents different types of contributions that participants can make.
     Examples: Node Runner, Uptime, Asimov, Blog Post, etc.
     """
+    REVIEW_FLOW_STANDARD = 'standard'
+    REVIEW_FLOW_BUILDER_PROJECT = 'builder_project'
+    REVIEW_FLOW_CHOICES = [
+        (REVIEW_FLOW_STANDARD, 'Standard'),
+        (REVIEW_FLOW_BUILDER_PROJECT, 'Builder Project'),
+    ]
+
     name = models.CharField(max_length=100)
     slug = models.SlugField(max_length=100, unique=True, null=True, blank=True, help_text="Unique identifier for this contribution type")
     description = models.TextField(blank=True)
@@ -87,6 +94,15 @@ class ContributionType(BaseModel):
     max_points = models.PositiveIntegerField(default=100, help_text="Maximum points allowed for this contribution type")
     is_default = models.BooleanField(default=False, help_text="Include this contribution type by default when creating validators")
     is_submittable = models.BooleanField(default=True, help_text="Whether this contribution type can be submitted by users")
+    review_flow = models.CharField(
+        max_length=30,
+        choices=REVIEW_FLOW_CHOICES,
+        default=REVIEW_FLOW_STANDARD,
+        help_text=(
+            "Steward review workflow for this contribution type. "
+            "Builder Project flow requires structured rubric proposals."
+        ),
+    )
     max_submissions = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -707,6 +723,61 @@ class SubmissionNote(BaseModel):
     def __str__(self):
         prefix = "[Proposal] " if self.is_proposal else ""
         return f"{prefix}{self.user} on {self.submitted_contribution} at {self.created_at}"
+
+
+class ProjectMilestoneReview(BaseModel):
+    """
+    Latest structured Builder Project rubric proposal for a submitted
+    contribution. The existing SubmittedContribution proposed_* fields remain
+    the queue summary; this record is the detailed rubric source of truth.
+    """
+    ACTION_CHOICES = [
+        ('accept', 'Accept'),
+        ('reject', 'Reject'),
+        ('more_info', 'More Info'),
+    ]
+    CONFIDENCE_CHOICES = [
+        ('high', 'High'),
+        ('medium', 'Medium'),
+        ('low', 'Low'),
+    ]
+
+    submitted_contribution = models.OneToOneField(
+        SubmittedContribution,
+        on_delete=models.CASCADE,
+        related_name='project_milestone_review',
+    )
+    proposer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='project_milestone_reviews',
+    )
+    review_flow = models.CharField(
+        max_length=30,
+        choices=ContributionType.REVIEW_FLOW_CHOICES,
+        default=ContributionType.REVIEW_FLOW_BUILDER_PROJECT,
+    )
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    confidence = models.CharField(
+        max_length=10,
+        choices=CONFIDENCE_CHOICES,
+        null=True,
+        blank=True,
+    )
+    gate_failures = models.JSONField(default=list, blank=True)
+    sections = models.JSONField(default=dict, blank=True)
+    extras = models.JSONField(default=list, blank=True)
+    overall_reason = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        verbose_name = "Builder Project Review"
+        verbose_name_plural = "Builder Project Reviews"
+
+    def __str__(self):
+        return f"{self.submitted_contribution_id} - {self.action}"
 
 
 class Evidence(BaseModel):

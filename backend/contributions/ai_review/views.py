@@ -9,7 +9,13 @@ from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
-from contributions.models import Evidence, SubmissionNote, SubmittedContribution
+from contributions.models import (
+    Evidence,
+    ProjectMilestoneReview,
+    SubmissionNote,
+    SubmittedContribution,
+)
+from contributions.rubric_review import rubric_summary_text, uses_project_rubric
 from stewards.models import ReviewTemplate
 from users.models import User
 
@@ -359,6 +365,8 @@ class AIReviewViewSet(
                 'mission',
                 'assigned_to',
                 'proposed_by',
+                'project_milestone_review',
+                'project_milestone_review__proposer',
             )
             .prefetch_related(*prefetches)
         )
@@ -384,7 +392,7 @@ class AIReviewViewSet(
     def _validate_and_apply_proposal(self, submission, data, ai_user, is_update=False):
         """Validate proposal data and apply it to the submission."""
         # Validate points within contribution type range for accept
-        if data['proposed_action'] == 'accept' and data.get('proposed_points'):
+        if data['proposed_action'] == 'accept' and data.get('proposed_points') is not None:
             ct = submission.contribution_type
             points = data['proposed_points']
             if points < ct.min_points or points > ct.max_points:
@@ -410,13 +418,31 @@ class AIReviewViewSet(
 
         submission.save()
 
+        rubric_review = data.get('rubric_review')
+        rubric_record = None
+        if rubric_review and uses_project_rubric(submission.contribution_type):
+            rubric_record, _ = ProjectMilestoneReview.objects.update_or_create(
+                submitted_contribution=submission,
+                defaults={
+                    'proposer': ai_user,
+                    'review_flow': submission.contribution_type.review_flow,
+                    'action': data['proposed_action'],
+                    'confidence': data.get('confidence', 'medium'),
+                    'gate_failures': rubric_review['gate_failures'],
+                    'sections': rubric_review['sections'],
+                    'extras': rubric_review['extras'],
+                    'overall_reason': rubric_review['overall_reason'],
+                },
+            )
+
         # Create CRM note
         action_str = data['proposed_action']
         confidence = data.get('confidence', 'medium')
         reasoning = data.get('reasoning', '')
+        proposed_points = data.get('proposed_points')
         pts_str = (
-            f' with **{data.get("proposed_points")} points**'
-            if action_str == 'accept'
+            f' with **{proposed_points} points**'
+            if action_str == 'accept' and proposed_points is not None
             else ''
         )
         prefix = '[AI Review] Updated proposal' if is_update else '[AI Review] Proposed'
@@ -426,6 +452,8 @@ class AIReviewViewSet(
         )
         if reasoning:
             message += f'\nReasoning: {reasoning}'
+        if rubric_review:
+            message += f'\n{rubric_summary_text(rubric_review)}'
 
         SubmissionNote.objects.create(
             submitted_contribution=submission,
@@ -439,6 +467,7 @@ class AIReviewViewSet(
                 'template_id': template.id if template else None,
                 'confidence': confidence,
                 'reasoning': reasoning,
+                'rubric_review_id': rubric_record.id if rubric_record else None,
             },
         )
 
@@ -464,7 +493,11 @@ class AIReviewViewSet(
         """
         submission = get_object_or_404(
             SubmittedContribution.objects.select_related(
-                'contribution_type', 'contribution_type__category', 'user',
+                'contribution_type',
+                'contribution_type__category',
+                'user',
+                'project_milestone_review',
+                'project_milestone_review__proposer',
             ),
             pk=pk,
             state='pending',
@@ -496,7 +529,10 @@ class AIReviewViewSet(
                 status=status.HTTP_409_CONFLICT,
             )
 
-        serializer = AIReviewProposeSerializer(data=request.data)
+        serializer = AIReviewProposeSerializer(
+            data=request.data,
+            context={'submission': submission},
+        )
         serializer.is_valid(raise_exception=True)
 
         return self._validate_and_apply_proposal(
@@ -525,6 +561,8 @@ class AIReviewViewSet(
                 'mission',
                 'assigned_to',
                 'proposed_by',
+                'project_milestone_review',
+                'project_milestone_review__proposer',
             )
             .prefetch_related('evidence_items')
             .order_by('-proposed_at')
@@ -573,6 +611,8 @@ class AIReviewViewSet(
                 'contribution_type',
                 'contribution_type__category',
                 'mission',
+                'project_milestone_review',
+                'project_milestone_review__proposer',
             )
             .prefetch_related('evidence_items', 'internal_notes')
             .order_by('-reviewed_at')
