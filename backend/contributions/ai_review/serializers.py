@@ -1,6 +1,10 @@
 from rest_framework import serializers
 
-from contributions.models import Evidence, SubmissionNote, SubmittedContribution
+from contributions.models import Evidence, ProjectMilestoneReview, SubmissionNote, SubmittedContribution
+from contributions.rubric_review import (
+    normalize_rubric_review_payload,
+    uses_project_rubric,
+)
 from stewards.models import ReviewTemplate
 
 
@@ -31,6 +35,9 @@ class LightAIReviewSubmissionSerializer(serializers.ModelSerializer):
     contribution_type_name = serializers.CharField(
         source='contribution_type.name', read_only=True,
     )
+    review_flow = serializers.CharField(
+        source='contribution_type.review_flow', read_only=True,
+    )
     category_name = serializers.SerializerMethodField()
     has_proposal = serializers.SerializerMethodField()
     mission = AIReviewMissionSerializer(read_only=True)
@@ -41,6 +48,7 @@ class LightAIReviewSubmissionSerializer(serializers.ModelSerializer):
             'id',
             'contribution_type',
             'contribution_type_name',
+            'review_flow',
             'category_name',
             'title',
             'notes',
@@ -71,6 +79,24 @@ class AIReviewNoteSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class AIReviewRubricReviewSerializer(serializers.ModelSerializer):
+    proposer_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProjectMilestoneReview
+        fields = [
+            'id', 'review_flow', 'action', 'confidence', 'gate_failures',
+            'sections', 'extras', 'overall_reason', 'proposer_name',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+    def get_proposer_name(self, obj):
+        if not obj.proposer:
+            return None
+        return obj.proposer.name or str(obj.proposer.id)
+
+
 class AIReviewSubmissionSerializer(serializers.ModelSerializer):
     """Full serializer for detail views — includes evidence, notes, and user history."""
 
@@ -79,6 +105,9 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
     )
     contribution_type_slug = serializers.CharField(
         source='contribution_type.slug', read_only=True,
+    )
+    review_flow = serializers.CharField(
+        source='contribution_type.review_flow', read_only=True,
     )
     category_name = serializers.SerializerMethodField()
     min_points = serializers.IntegerField(
@@ -93,6 +122,7 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
     user_history = serializers.SerializerMethodField()
     has_proposal = serializers.SerializerMethodField()
     proposed_by_name = serializers.SerializerMethodField()
+    rubric_review = serializers.SerializerMethodField()
 
     class Meta:
         model = SubmittedContribution
@@ -101,6 +131,7 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
             'contribution_type',
             'contribution_type_name',
             'contribution_type_slug',
+            'review_flow',
             'category_name',
             'min_points',
             'max_points',
@@ -122,6 +153,7 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
             'proposed_template',
             'proposed_by_name',
             'proposed_at',
+            'rubric_review',
             'created_at',
         ]
         read_only_fields = fields
@@ -152,6 +184,13 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
             return obj.proposed_by.name or str(obj.proposed_by.id)
         return None
 
+    def get_rubric_review(self, obj):
+        try:
+            review = obj.project_milestone_review
+        except ProjectMilestoneReview.DoesNotExist:
+            return None
+        return AIReviewRubricReviewSerializer(review).data
+
 
 class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):
     """Serializer for reviewed submissions — includes review outcome and notes."""
@@ -162,10 +201,14 @@ class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):
     contribution_type_slug = serializers.CharField(
         source='contribution_type.slug', read_only=True,
     )
+    review_flow = serializers.CharField(
+        source='contribution_type.review_flow', read_only=True,
+    )
     category_name = serializers.SerializerMethodField()
     evidence_items = AIReviewEvidenceSerializer(many=True, read_only=True)
     internal_notes = AIReviewNoteSerializer(many=True, read_only=True)
     mission = AIReviewMissionSerializer(read_only=True)
+    rubric_review = serializers.SerializerMethodField()
 
     class Meta:
         model = SubmittedContribution
@@ -174,6 +217,7 @@ class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):
             'contribution_type',
             'contribution_type_name',
             'contribution_type_slug',
+            'review_flow',
             'category_name',
             'notes',
             'state',
@@ -184,6 +228,7 @@ class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):
             'reviewed_at',
             'evidence_items',
             'internal_notes',
+            'rubric_review',
             'created_at',
         ]
         read_only_fields = fields
@@ -192,6 +237,13 @@ class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):
         if obj.contribution_type and obj.contribution_type.category:
             return obj.contribution_type.category.name
         return None
+
+    def get_rubric_review(self, obj):
+        try:
+            review = obj.project_milestone_review
+        except ProjectMilestoneReview.DoesNotExist:
+            return None
+        return AIReviewRubricReviewSerializer(review).data
 
 
 class AIReviewProposeSerializer(serializers.Serializer):
@@ -211,10 +263,26 @@ class AIReviewProposeSerializer(serializers.Serializer):
     template_id = serializers.PrimaryKeyRelatedField(
         queryset=ReviewTemplate.objects.all(), required=False, allow_null=True,
     )
+    rubric_review = serializers.JSONField(required=False)
 
     def validate(self, data):
+        submission = self.context.get('submission')
         action = data['proposed_action']
-        if action == 'accept' and not data.get('proposed_points'):
+        requires_rubric = uses_project_rubric(
+            submission.contribution_type if submission else None
+        )
+
+        if requires_rubric:
+            data['rubric_review'] = normalize_rubric_review_payload(
+                data.get('rubric_review'),
+                action,
+            )
+        elif 'rubric_review' in data:
+            raise serializers.ValidationError({
+                'rubric_review': 'Rubric review is only accepted for Builder Project proposals.'
+            })
+
+        if action == 'accept' and not requires_rubric and data.get('proposed_points') is None:
             raise serializers.ValidationError(
                 {'proposed_points': 'Points are required when proposing accept.'}
             )

@@ -883,6 +883,7 @@
             acceptedUpdating={updatingAccepted.has(submission.id)}
             onAcceptedEditChange={handleAcceptedEditChange}
             onAcceptedUpdate={handleAcceptedUpdate}
+            enableRubricReview={true}
           />
         </div>
       {/each}
