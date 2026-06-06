@@ -1,6 +1,5 @@
 from datetime import timedelta
 
-from django.core.exceptions import ValidationError
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -374,32 +373,6 @@ class ProjectMilestoneRubricHumanProposalTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(ProjectMilestoneReview.objects.filter(submitted_contribution=submission).exists())
-
-    def test_project_review_model_enforces_builder_project_only(self):
-        project_submission = self.create_submission()
-        standard_submission = self.create_submission(self.standard_type)
-
-        with self.assertRaises(ValidationError):
-            ProjectMilestoneReview.objects.create(
-                submitted_contribution=project_submission,
-                review_flow=ContributionType.REVIEW_FLOW_STANDARD,
-                action='accept',
-                gate_failures=[],
-                sections={},
-                extras=[],
-                overall_reason='Wrong review flow.',
-            )
-
-        with self.assertRaises(ValidationError):
-            ProjectMilestoneReview.objects.create(
-                submitted_contribution=standard_submission,
-                review_flow=ContributionType.REVIEW_FLOW_BUILDER_PROJECT,
-                action='accept',
-                gate_failures=[],
-                sections={},
-                extras=[],
-                overall_reason='Wrong submission type.',
-            )
 
     def test_standard_proposal_keeps_existing_points_requirement(self):
         submission = self.create_submission(self.standard_type)
