@@ -1725,11 +1725,28 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         """Get submissions for steward review, filtered by steward permissions."""
         queryset = SubmittedContribution.objects.all()
 
-        # Filter by steward's permitted contribution types
+        # Filter by the steward's permitted contribution types and actions.
+        # Proposal-only stewards can inspect pending submissions they can
+        # propose on, but cannot browse completed/reworked review history.
         if self.request.user and self.request.user.is_authenticated and hasattr(self.request.user, 'steward'):
-            permitted_ids = steward_permitted_type_ids(self.request.user)
-            if permitted_ids:
-                queryset = queryset.filter(contribution_type_id__in=permitted_ids)
+            review_action_type_ids = steward_permitted_type_ids(
+                self.request.user,
+                actions=['accept', 'reject', 'request_more_info'],
+            )
+            propose_type_ids = steward_permitted_type_ids(
+                self.request.user,
+                actions=['propose'],
+            )
+            visibility_filter = Q()
+            if review_action_type_ids:
+                visibility_filter |= Q(contribution_type_id__in=review_action_type_ids)
+            if propose_type_ids:
+                visibility_filter |= Q(
+                    state='pending',
+                    contribution_type_id__in=propose_type_ids,
+                )
+            if visibility_filter:
+                queryset = queryset.filter(visibility_filter)
             else:
                 queryset = queryset.none()
 

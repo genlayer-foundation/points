@@ -149,6 +149,44 @@ class StewardPermissionTest(TestCase):
         response = self.client.get('/api/v1/steward-submissions/stats/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['pending_count'], 1)
+
+    def test_propose_only_steward_only_sees_pending_permitted_submissions(self):
+        """Proposal-only stewards cannot browse non-pending review history."""
+        StewardPermission.objects.filter(steward=self.steward).delete()
+        StewardPermission.objects.create(
+            steward=self.steward,
+            contribution_type=self.contribution_type,
+            action='propose'
+        )
+        accepted_submission = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes="Already accepted",
+            state='accepted'
+        )
+        other_pending_submission = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.other_contribution_type,
+            contribution_date=timezone.now(),
+            notes="Other type",
+            state='pending'
+        )
+
+        self.client.force_authenticate(user=self.steward_user)
+
+        response = self.client.get('/api/v1/steward-submissions/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result_ids = {str(item['id']) for item in response.data['results']}
+        self.assertEqual(result_ids, {str(self.submission.id)})
+        self.assertNotIn(str(accepted_submission.id), result_ids)
+        self.assertNotIn(str(other_pending_submission.id), result_ids)
+
+        response = self.client.get('/api/v1/steward-submissions/?state=accepted')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['results'], [])
     
     def test_steward_can_review_submissions(self):
         """Test that stewards can review submissions."""
