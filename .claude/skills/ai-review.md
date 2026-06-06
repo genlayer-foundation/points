@@ -94,6 +94,7 @@ curl -s -X PUT \
 | `proposed_staff_reply` | `reject`, `more_info`; optional for `accept` | User-visible text |
 | `reasoning` | Optional | Internal text |
 | `confidence` | Optional | `high`, `medium`, `low`; defaults to `medium` |
+| `rubric_review` | `review_flow=builder_project` | Gate failures, section scores, optional section reasons, extras, and overall reason |
 
 ## Internal Notes
 
@@ -198,6 +199,71 @@ curl -s -H "X-AI-Review-Key: $KEY" \
 - Propose `more_info` when the work might be valid but evidence is missing, broken, private, or unclear.
 - Propose `accept` only for concrete, verifiable work. Use detail `min_points` and `max_points`.
 - Use `high` confidence for obvious decisions, `medium` for likely decisions, and `low` for ambiguous decisions.
+
+## Project Rubric Reviews
+
+Submissions whose detail payload has `review_flow` set to `builder_project`
+require a structured `rubric_review` object on proposal POST/PUT requests.
+For this flow, `proposed_points` is optional because the final steward assigns
+points manually from the rubric.
+
+Gate failures force a reject proposal. If any gate failure applies, send
+`proposed_action: "reject"`, a user-visible `proposed_staff_reply`, and an
+internal `overall_reason`.
+
+Valid gate failure keys:
+
+| Key | Meaning |
+|---|---|
+| `no_real_genlayer_contract` | No real GenLayer contract, deterministic-only contract, or fake off-chain AI consensus |
+| `branding_only` | GenLayer is only branding and nothing actually calls a contract |
+| `repo_does_not_build` | Repository does not build or work |
+| `empty_fork_or_boilerplate` | Empty fork, plain fork, or renamed boilerplate example |
+
+When the gate passes, score all four sections from 0 to 5. Section reasons are
+optional; `overall_reason` is required.
+
+Required section keys:
+
+| Key | Section |
+|---|---|
+| `genlayer_fit` | GenLayer fit |
+| `contract_quality` | Contract quality |
+| `engineering` | Engineering |
+| `frontend_ux` | Frontend / UX |
+
+Optional verified extras:
+
+| Key | Extra |
+|---|---|
+| `live_deployment` | Live deployment |
+| `demo_video` | Demo video |
+| `public_post` | Public post |
+
+Example passing Project proposal:
+
+```bash
+curl -s -X POST \
+  -H "X-AI-Review-Key: $KEY" \
+  -H "Content-Type: application/json" \
+  "$BASE_URL/api/v1/ai-review/{uuid}/propose/" \
+  -d '{
+    "proposed_action": "accept",
+    "confidence": "medium",
+    "reasoning": "The repository passes the Project gate and has enough implementation evidence.",
+    "rubric_review": {
+      "gate_failures": [],
+      "sections": {
+        "genlayer_fit": {"score": 3, "reason": "The outcome is contested and trustless adjudication adds value."},
+        "contract_quality": {"score": 2, "reason": "The contract has state and validates the meaningful result."},
+        "engineering": {"score": 2, "reason": "The repo builds and has original project structure."},
+        "frontend_ux": {"score": 1, "reason": "The UI is basic but wired to the contract."}
+      },
+      "extras": ["live_deployment"],
+      "overall_reason": "Valid Project proposal with conservative section scores."
+    }
+  }'
+```
 
 ## Error Meanings
 

@@ -31,8 +31,10 @@ from .models import (
     ContributionType, Contribution, Evidence, SubmittedContribution,
     SubmissionNote, ContributionHighlight, Mission, StartupRequest,
     FeaturedContent, Alert, ContributionDiscordXPState,
-    DiscordXPDistributionEvent, sync_discord_xp_state_for_contribution,
+    DiscordXPDistributionEvent, ProjectMilestoneReview,
+    sync_discord_xp_state_for_contribution,
 )
+from .rubric_review import rubric_summary_text, uses_project_rubric
 from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
@@ -1719,17 +1721,41 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         """
         return super().get_permissions()
 
-    def get_queryset(self):
-        """Get submissions for steward review, filtered by steward permissions."""
-        queryset = SubmittedContribution.objects.all()
-
-        # Filter by steward's permitted contribution types
+    def _visible_submission_queryset(self, queryset=None):
+        # Filter by the steward's permitted contribution types and actions.
+        # Proposal-only stewards can inspect pending submissions they can
+        # propose on, but cannot browse completed/reworked review history.
+        if queryset is None:
+            queryset = SubmittedContribution.objects.all()
         if self.request.user and self.request.user.is_authenticated and hasattr(self.request.user, 'steward'):
-            permitted_ids = steward_permitted_type_ids(self.request.user)
-            if permitted_ids:
-                queryset = queryset.filter(contribution_type_id__in=permitted_ids)
+            review_action_type_ids = steward_permitted_type_ids(
+                self.request.user,
+                actions=['accept', 'reject', 'request_more_info'],
+            )
+            propose_type_ids = steward_permitted_type_ids(
+                self.request.user,
+                actions=['propose'],
+            )
+            visibility_filter = Q()
+            if review_action_type_ids:
+                visibility_filter |= Q(contribution_type_id__in=review_action_type_ids)
+            if propose_type_ids:
+                visibility_filter |= Q(
+                    state='pending',
+                    contribution_type_id__in=propose_type_ids,
+                )
+            if visibility_filter:
+                queryset = queryset.filter(visibility_filter)
             else:
                 queryset = queryset.none()
+        else:
+            queryset = queryset.none()
+
+        return queryset
+
+    def get_queryset(self):
+        """Get submissions for steward review, filtered by steward permissions."""
+        queryset = self._visible_submission_queryset()
 
         notes_count = SubmissionNote.objects.filter(
             submitted_contribution_id=OuterRef('pk')
@@ -1759,6 +1785,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'proposed_contribution_type',
             'proposed_user',
             'proposed_template',
+            'project_milestone_review',
+            'project_milestone_review__proposer',
         ).prefetch_related(
             'evidence_items',
             'converted_contribution__highlights',
@@ -1995,50 +2023,25 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
         """Get statistics for steward dashboard."""
-        total_pending = SubmittedContribution.objects.filter(state='pending').count()
-        
-        # Stats specific to authenticated steward (if logged in)
-        if request.user and request.user.is_authenticated:
-            reviewed_qs = SubmittedContribution.objects.filter(
-                reviewed_by=request.user
-            ).exclude(state='canceled')
-            total_reviewed = reviewed_qs.count()
-            
-            # Get last review time
-            last_review = reviewed_qs.order_by('-reviewed_at').first()
-            
-            last_review_time = last_review.reviewed_at if last_review else None
-            
-            # Get acceptance rate
-            user_reviews = reviewed_qs.exclude(state='pending')
-            
-            total_decisions = user_reviews.count()
-            accepted = user_reviews.filter(state='accepted').count()
-            total_rejected = user_reviews.filter(state='rejected').count()
-            total_info_requested = user_reviews.filter(state='more_info_needed').count()
-            acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
-        else:
-            # Public stats - show overall system stats
-            total_reviewed = SubmittedContribution.objects.exclude(
-                state__in=['pending', 'canceled']
-            ).count()
-            
-            # Get last review time (system-wide)
-            last_review = SubmittedContribution.objects.exclude(
-                reviewed_at__isnull=True
-            ).exclude(state='canceled').order_by('-reviewed_at').first()
-            
-            last_review_time = last_review.reviewed_at if last_review else None
-            
-            # Get overall acceptance rate
-            all_reviews = SubmittedContribution.objects.exclude(
-                state__in=['pending', 'canceled']
-            )
-            total_decisions = all_reviews.count()
-            accepted = all_reviews.filter(state='accepted').count()
-            total_rejected = all_reviews.filter(state='rejected').count()
-            total_info_requested = all_reviews.filter(state='more_info_needed').count()
-            acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
+        visible_qs = self._visible_submission_queryset()
+        total_pending = visible_qs.filter(state='pending').count()
+
+        reviewed_qs = visible_qs.filter(reviewed_by=request.user).exclude(state='canceled')
+        total_reviewed = reviewed_qs.count()
+
+        # Get last review time
+        last_review = reviewed_qs.order_by('-reviewed_at').first()
+
+        last_review_time = last_review.reviewed_at if last_review else None
+
+        # Get acceptance rate
+        user_reviews = reviewed_qs.exclude(state='pending')
+
+        total_decisions = user_reviews.count()
+        accepted = user_reviews.filter(state='accepted').count()
+        total_rejected = user_reviews.filter(state='rejected').count()
+        total_info_requested = user_reviews.filter(state='more_info_needed').count()
+        acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
         
         return Response({
             'pending_count': total_pending,
@@ -2078,8 +2081,9 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         from django.db.models import Min, Max
         import calendar
 
-        # Build base queryset with optional filters first (needed for date detection)
-        base_qs = SubmittedContribution.objects.all()
+        # Build base queryset with steward visibility and optional filters first
+        # (needed for date detection).
+        base_qs = self._visible_submission_queryset()
 
         category = request.query_params.get('category')
         if category:
@@ -2188,7 +2192,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         points_qs = Contribution.objects.filter(
             created_at__date__gte=start_date,
             created_at__date__lte=end_date,
-            source_submission__isnull=False  # Only from submissions
+            source_submission__in=base_qs,
         ).exclude(
             contribution_type__slug__in=METRICS_POINTS_EXCLUDED_TYPE_SLUGS
         )
@@ -2451,9 +2455,17 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        serializer = SubmissionProposeSerializer(data=request.data)
+        serializer = SubmissionProposeSerializer(
+            data=request.data,
+            context={'submission': submission},
+        )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        effective_contribution_type = (
+            data.get('proposed_contribution_type')
+            or submission.contribution_type
+        )
+        requires_project_rubric = uses_project_rubric(effective_contribution_type)
 
         # Set proposed_* fields on the submission
         submission.proposed_action = data['proposed_action']
@@ -2474,21 +2486,44 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
 
         submission.save()
 
+        rubric_review = data.get('rubric_review')
+        rubric_record = None
+        if rubric_review and requires_project_rubric:
+            rubric_record, _ = ProjectMilestoneReview.objects.update_or_create(
+                submitted_contribution=submission,
+                defaults={
+                    'proposer': request.user,
+                    'review_flow': effective_contribution_type.review_flow,
+                    'action': data['proposed_action'],
+                    'confidence': data.get('confidence'),
+                    'gate_failures': rubric_review['gate_failures'],
+                    'sections': rubric_review['sections'],
+                    'extras': rubric_review['extras'],
+                    'overall_reason': rubric_review['overall_reason'],
+                },
+            )
+        elif not requires_project_rubric:
+            ProjectMilestoneReview.objects.filter(submitted_contribution=submission).delete()
+
         # Create CRM note recording the proposal
         from .models import SubmissionNote
         proposer_name = request.user.name or request.user.address[:10] + '...'
         action_str = data['proposed_action']
-        pts_str = f" with **{data.get('proposed_points', '')} points**" if action_str == 'accept' else ''
+        proposed_points = data.get('proposed_points')
+        pts_str = f" with **{proposed_points} points**" if action_str == 'accept' and proposed_points is not None else ''
         ct_name = data.get('proposed_contribution_type')
         ct_str = f" ({ct_name.name})" if ct_name else ''
         user_obj = data.get('proposed_user')
         user_str = f", assigned to {user_obj.name or user_obj.address[:10]}" if user_obj else ''
         reply_str = f". Reply: '{data.get('proposed_staff_reply', '')[:100]}'" if data.get('proposed_staff_reply') else ''
+        rubric_str = ''
+        if rubric_review:
+            rubric_str = f"\n\n{rubric_summary_text(rubric_review)}"
 
         SubmissionNote.objects.create(
             submitted_contribution=submission,
             user=request.user,
-            message=f"Proposed: **{action_str}**{pts_str}{ct_str}{user_str}{reply_str} by {proposer_name}",
+            message=f"Proposed: **{action_str}**{pts_str}{ct_str}{user_str}{reply_str} by {proposer_name}{rubric_str}",
             is_proposal=True,
             data={
                 'action': data['proposed_action'],
@@ -2496,6 +2531,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 'staff_reply': data.get('proposed_staff_reply', ''),
                 'template_id': template.id if template else None,
                 'confidence': data.get('confidence'),
+                'rubric_review_id': rubric_record.id if rubric_record else None,
             },
         )
 

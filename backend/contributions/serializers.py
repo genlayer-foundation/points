@@ -4,7 +4,11 @@ from .models import (
     ContributionType, Contribution, SubmittedContribution, Evidence,
     ContributionHighlight, Mission, StartupRequest, SubmissionNote,
     FeaturedContent, Alert, EvidenceURLType, ContributionDiscordXPState,
-    DiscordXPDistributionEvent,
+    DiscordXPDistributionEvent, ProjectMilestoneReview,
+)
+from .rubric_review import (
+    normalize_rubric_review_payload,
+    uses_project_rubric,
 )
 from users.serializers import UserSerializer, LightUserSerializer
 from users.models import User
@@ -54,6 +58,7 @@ class LightContributionTypeSerializer(serializers.Serializer):
     min_points = serializers.IntegerField(read_only=True)
     max_points = serializers.IntegerField(read_only=True)
     max_submissions = serializers.IntegerField(read_only=True)
+    review_flow = serializers.CharField(read_only=True)
     # Include category slug only, not the full category object
     category = serializers.SerializerMethodField()
 
@@ -141,7 +146,7 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
         model = ContributionType
         fields = [
             'id', 'name', 'slug', 'description', 'category', 'min_points', 'max_points',
-            'current_multiplier', 'is_submittable', 'max_submissions',
+            'current_multiplier', 'is_submittable', 'review_flow', 'max_submissions',
             'submission_count', 'submissions_remaining', 'is_full',
             'show_in_contributions', 'examples',
             'required_social_accounts', 'required_discord_roles',
@@ -993,6 +998,24 @@ class SubmissionNoteSerializer(serializers.ModelSerializer):
         return obj.user.name or obj.user.address[:10] + '...'
 
 
+class ProjectMilestoneReviewSerializer(serializers.ModelSerializer):
+    proposer_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProjectMilestoneReview
+        fields = [
+            'id', 'review_flow', 'action', 'confidence', 'gate_failures',
+            'sections', 'extras', 'overall_reason', 'proposer',
+            'proposer_name', 'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+    def get_proposer_name(self, obj):
+        if not obj.proposer:
+            return None
+        return obj.proposer.name or obj.proposer.address[:10] + '...'
+
+
 class SubmissionProposeSerializer(serializers.Serializer):
     """Serializer for steward proposal actions on submissions."""
     proposed_action = serializers.ChoiceField(choices=['accept', 'reject', 'more_info'])
@@ -1020,22 +1043,47 @@ class SubmissionProposeSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
     )
+    rubric_review = serializers.JSONField(required=False)
 
     def validate(self, data):
+        submission = self.context.get('submission')
         action = data.get('proposed_action')
-        if action == 'accept':
-            if not data.get('proposed_points'):
+        current_contribution_type = submission.contribution_type if submission else None
+        effective_contribution_type = (
+            data.get('proposed_contribution_type')
+            or current_contribution_type
+        )
+        current_requires_rubric = uses_project_rubric(current_contribution_type)
+        requires_rubric = uses_project_rubric(effective_contribution_type)
+
+        if requires_rubric:
+            data['rubric_review'] = normalize_rubric_review_payload(
+                data.get('rubric_review'),
+                action,
+            )
+        elif 'rubric_review' in data:
+            if current_requires_rubric:
+                data.pop('rubric_review', None)
+            else:
                 raise serializers.ValidationError({
-                    'proposed_points': 'Points are required when proposing acceptance.'
+                    'rubric_review': 'Rubric review is only accepted for Builder Project proposals.'
                 })
-            ct = data.get('proposed_contribution_type')
-            if ct:
-                pts = data['proposed_points']
-                if pts < ct.min_points or pts > ct.max_points:
+
+        if action == 'accept':
+            proposed_points = data.get('proposed_points')
+            if proposed_points is None:
+                if not requires_rubric:
+                    raise serializers.ValidationError({
+                        'proposed_points': 'Points are required when proposing acceptance.'
+                    })
+            else:
+                ct = effective_contribution_type
+                pts = proposed_points
+                if ct and (pts < ct.min_points or pts > ct.max_points):
                     raise serializers.ValidationError({
                         'proposed_points': f'Points must be between {ct.min_points} and {ct.max_points} for {ct.name}.'
                     })
-            if data.get('proposed_create_highlight'):
+            if data.get('proposed_create_highlight') and not requires_rubric:
                 if not data.get('proposed_highlight_title'):
                     raise serializers.ValidationError({
                         'proposed_highlight_title': 'Title is required when proposing a highlight.'
@@ -1070,6 +1118,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
     has_proposal = serializers.SerializerMethodField()
     proposed_template_name = serializers.SerializerMethodField()
     notes_count = serializers.SerializerMethodField()
+    rubric_review = serializers.SerializerMethodField()
 
     class Meta:
         model = SubmittedContribution
@@ -1083,6 +1132,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                   'proposed_highlight_title', 'proposed_highlight_description',
                   'proposed_by', 'proposed_at', 'proposed_by_details', 'has_proposal',
                   'proposed_confidence', 'proposed_template', 'proposed_template_name',
+                  'rubric_review',
                   'notes_count', 'is_interesting',
                   'has_appeal', 'appeal_reason',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution',
@@ -1211,6 +1261,13 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
         if obj.proposed_template:
             return obj.proposed_template.label
         return None
+
+    def get_rubric_review(self, obj):
+        try:
+            review = obj.project_milestone_review
+        except ProjectMilestoneReview.DoesNotExist:
+            return None
+        return ProjectMilestoneReviewSerializer(review).data
 
     def get_notes_count(self, obj):
         if hasattr(obj, 'internal_notes_count'):

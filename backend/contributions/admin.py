@@ -36,6 +36,7 @@ from .models import (
     Alert,
     BlocklistedURL,
     EvidenceURLType,
+    ProjectMilestoneReview,
     ContributionDiscordXPState,
     DiscordXPDistributionEvent,
 )
@@ -142,16 +143,16 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
 @admin.register(ContributionType)
 class ContributionTypeAdmin(admin.ModelAdmin):
     list_display = (
-        'name', 'category', 'is_default', 'is_submittable',
+        'name', 'category', 'review_flow', 'is_default', 'is_submittable',
         'get_submission_usage', 'show_in_contributions',
         'get_current_multiplier', 'min_points', 'max_points',
         'description', 'created_at',
     )
     list_display_links = ('get_current_multiplier',)
-    list_editable = ('name', 'is_default', 'is_submittable', 'show_in_contributions', 'description')
+    list_editable = ('name', 'review_flow', 'is_default', 'is_submittable', 'show_in_contributions', 'description')
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at')
-    list_filter = ('category', 'is_default', 'is_submittable', 'show_in_contributions')
+    list_filter = ('category', 'review_flow', 'is_default', 'is_submittable', 'show_in_contributions')
     # Auto-fill slug from name on the edit page
     prepopulated_fields = { 'slug': ('name',) }
     filter_horizontal = (
@@ -210,6 +211,34 @@ class GlobalLeaderboardMultiplierAdmin(admin.ModelAdmin):
     list_filter = (ContributionTypeListFilter, 'valid_from')
     search_fields = ('contribution_type__name', 'description', 'notes')
     readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(ProjectMilestoneReview)
+class ProjectMilestoneReviewAdmin(admin.ModelAdmin):
+    list_select_related = (
+        'submitted_contribution__user',
+        'submitted_contribution__contribution_type',
+        'submitted_contribution__proposed_contribution_type',
+        'proposer',
+    )
+    list_display = (
+        'submitted_contribution',
+        'review_flow',
+        'action',
+        'confidence',
+        'proposer',
+        'updated_at',
+    )
+    list_filter = ('review_flow', 'action', 'confidence')
+    search_fields = (
+        'submitted_contribution__title',
+        'submitted_contribution__user__email',
+        'submitted_contribution__user__address',
+        'proposer__email',
+        'proposer__address',
+    )
+    readonly_fields = ('created_at', 'updated_at')
+    raw_id_fields = ('submitted_contribution', 'proposer')
 
 
 class ContributionHighlightInline(admin.TabularInline):
