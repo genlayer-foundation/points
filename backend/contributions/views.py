@@ -1721,17 +1721,41 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         """
         return super().get_permissions()
 
-    def get_queryset(self):
-        """Get submissions for steward review, filtered by steward permissions."""
-        queryset = SubmittedContribution.objects.all()
-
-        # Filter by steward's permitted contribution types
+    def _visible_submission_queryset(self, queryset=None):
+        # Filter by the steward's permitted contribution types and actions.
+        # Proposal-only stewards can inspect pending submissions they can
+        # propose on, but cannot browse completed/reworked review history.
+        if queryset is None:
+            queryset = SubmittedContribution.objects.all()
         if self.request.user and self.request.user.is_authenticated and hasattr(self.request.user, 'steward'):
-            permitted_ids = steward_permitted_type_ids(self.request.user)
-            if permitted_ids:
-                queryset = queryset.filter(contribution_type_id__in=permitted_ids)
+            review_action_type_ids = steward_permitted_type_ids(
+                self.request.user,
+                actions=['accept', 'reject', 'request_more_info'],
+            )
+            propose_type_ids = steward_permitted_type_ids(
+                self.request.user,
+                actions=['propose'],
+            )
+            visibility_filter = Q()
+            if review_action_type_ids:
+                visibility_filter |= Q(contribution_type_id__in=review_action_type_ids)
+            if propose_type_ids:
+                visibility_filter |= Q(
+                    state='pending',
+                    contribution_type_id__in=propose_type_ids,
+                )
+            if visibility_filter:
+                queryset = queryset.filter(visibility_filter)
             else:
                 queryset = queryset.none()
+        else:
+            queryset = queryset.none()
+
+        return queryset
+
+    def get_queryset(self):
+        """Get submissions for steward review, filtered by steward permissions."""
+        queryset = self._visible_submission_queryset()
 
         notes_count = SubmissionNote.objects.filter(
             submitted_contribution_id=OuterRef('pk')
@@ -1999,50 +2023,25 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
         """Get statistics for steward dashboard."""
-        total_pending = SubmittedContribution.objects.filter(state='pending').count()
-        
-        # Stats specific to authenticated steward (if logged in)
-        if request.user and request.user.is_authenticated:
-            reviewed_qs = SubmittedContribution.objects.filter(
-                reviewed_by=request.user
-            ).exclude(state='canceled')
-            total_reviewed = reviewed_qs.count()
-            
-            # Get last review time
-            last_review = reviewed_qs.order_by('-reviewed_at').first()
-            
-            last_review_time = last_review.reviewed_at if last_review else None
-            
-            # Get acceptance rate
-            user_reviews = reviewed_qs.exclude(state='pending')
-            
-            total_decisions = user_reviews.count()
-            accepted = user_reviews.filter(state='accepted').count()
-            total_rejected = user_reviews.filter(state='rejected').count()
-            total_info_requested = user_reviews.filter(state='more_info_needed').count()
-            acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
-        else:
-            # Public stats - show overall system stats
-            total_reviewed = SubmittedContribution.objects.exclude(
-                state__in=['pending', 'canceled']
-            ).count()
-            
-            # Get last review time (system-wide)
-            last_review = SubmittedContribution.objects.exclude(
-                reviewed_at__isnull=True
-            ).exclude(state='canceled').order_by('-reviewed_at').first()
-            
-            last_review_time = last_review.reviewed_at if last_review else None
-            
-            # Get overall acceptance rate
-            all_reviews = SubmittedContribution.objects.exclude(
-                state__in=['pending', 'canceled']
-            )
-            total_decisions = all_reviews.count()
-            accepted = all_reviews.filter(state='accepted').count()
-            total_rejected = all_reviews.filter(state='rejected').count()
-            total_info_requested = all_reviews.filter(state='more_info_needed').count()
-            acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
+        visible_qs = self._visible_submission_queryset()
+        total_pending = visible_qs.filter(state='pending').count()
+
+        reviewed_qs = visible_qs.filter(reviewed_by=request.user).exclude(state='canceled')
+        total_reviewed = reviewed_qs.count()
+
+        # Get last review time
+        last_review = reviewed_qs.order_by('-reviewed_at').first()
+
+        last_review_time = last_review.reviewed_at if last_review else None
+
+        # Get acceptance rate
+        user_reviews = reviewed_qs.exclude(state='pending')
+
+        total_decisions = user_reviews.count()
+        accepted = user_reviews.filter(state='accepted').count()
+        total_rejected = user_reviews.filter(state='rejected').count()
+        total_info_requested = user_reviews.filter(state='more_info_needed').count()
+        acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
         
         return Response({
             'pending_count': total_pending,
@@ -2082,8 +2081,9 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         from django.db.models import Min, Max
         import calendar
 
-        # Build base queryset with optional filters first (needed for date detection)
-        base_qs = SubmittedContribution.objects.all()
+        # Build base queryset with steward visibility and optional filters first
+        # (needed for date detection).
+        base_qs = self._visible_submission_queryset()
 
         category = request.query_params.get('category')
         if category:
@@ -2192,7 +2192,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         points_qs = Contribution.objects.filter(
             created_at__date__gte=start_date,
             created_at__date__lte=end_date,
-            source_submission__isnull=False  # Only from submissions
+            source_submission__in=base_qs,
         ).exclude(
             contribution_type__slug__in=METRICS_POINTS_EXCLUDED_TYPE_SLUGS
         )
