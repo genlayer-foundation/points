@@ -1048,9 +1048,13 @@ class SubmissionProposeSerializer(serializers.Serializer):
     def validate(self, data):
         submission = self.context.get('submission')
         action = data.get('proposed_action')
-        requires_rubric = uses_project_rubric(
-            submission.contribution_type if submission else None
+        current_contribution_type = submission.contribution_type if submission else None
+        effective_contribution_type = (
+            data.get('proposed_contribution_type')
+            or current_contribution_type
         )
+        current_requires_rubric = uses_project_rubric(current_contribution_type)
+        requires_rubric = uses_project_rubric(effective_contribution_type)
 
         if requires_rubric:
             data['rubric_review'] = normalize_rubric_review_payload(
@@ -1058,9 +1062,12 @@ class SubmissionProposeSerializer(serializers.Serializer):
                 action,
             )
         elif 'rubric_review' in data:
-            raise serializers.ValidationError({
-                'rubric_review': 'Rubric review is only accepted for Builder Project proposals.'
-            })
+            if current_requires_rubric:
+                data.pop('rubric_review', None)
+            else:
+                raise serializers.ValidationError({
+                    'rubric_review': 'Rubric review is only accepted for Builder Project proposals.'
+                })
 
         if action == 'accept':
             proposed_points = data.get('proposed_points')
@@ -1070,11 +1077,9 @@ class SubmissionProposeSerializer(serializers.Serializer):
                         'proposed_points': 'Points are required when proposing acceptance.'
                     })
             else:
-                ct = data.get('proposed_contribution_type')
-                if not ct and submission:
-                    ct = submission.contribution_type
+                ct = effective_contribution_type
                 pts = proposed_points
-                if pts < ct.min_points or pts > ct.max_points:
+                if ct and (pts < ct.min_points or pts > ct.max_points):
                     raise serializers.ValidationError({
                         'proposed_points': f'Points must be between {ct.min_points} and {ct.max_points} for {ct.name}.'
                     })

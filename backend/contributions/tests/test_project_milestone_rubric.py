@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.core.exceptions import ValidationError
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -288,6 +289,117 @@ class ProjectMilestoneRubricHumanProposalTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn('overall_reason', response.data)
+
+    def test_project_proposal_rejects_fractional_scores(self):
+        submission = self.create_submission()
+
+        for invalid_score in [4.9, '4.9']:
+            payload = rubric_payload()
+            payload['sections']['genlayer_fit']['score'] = invalid_score
+
+            with self.subTest(invalid_score=invalid_score):
+                response = self.client.post(
+                    f'/api/v1/steward-submissions/{submission.id}/propose/',
+                    data={
+                        'proposed_action': 'accept',
+                        'proposed_contribution_type': self.project_type.id,
+                        'proposed_user': self.submitter.id,
+                        'rubric_review': payload,
+                    },
+                    content_type='application/json',
+                )
+
+                self.assertEqual(response.status_code, 400)
+                self.assertIn('sections', response.data)
+
+        self.assertFalse(ProjectMilestoneReview.objects.filter(submitted_contribution=submission).exists())
+
+    def test_standard_submission_reclassified_to_project_requires_and_stores_rubric(self):
+        submission = self.create_submission(self.standard_type)
+
+        missing_rubric_response = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/propose/',
+            data={
+                'proposed_action': 'accept',
+                'proposed_contribution_type': self.project_type.id,
+                'proposed_user': self.submitter.id,
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(missing_rubric_response.status_code, 400)
+        self.assertIn('rubric_review', missing_rubric_response.data)
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/propose/',
+            data={
+                'proposed_action': 'accept',
+                'proposed_contribution_type': self.project_type.id,
+                'proposed_user': self.submitter.id,
+                'rubric_review': rubric_payload(),
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        review = ProjectMilestoneReview.objects.get(submitted_contribution=submission)
+        self.assertEqual(review.review_flow, ContributionType.REVIEW_FLOW_BUILDER_PROJECT)
+        self.assertEqual(review.sections['genlayer_fit']['score'], 3)
+
+    def test_project_submission_reclassified_to_standard_clears_existing_rubric(self):
+        submission = self.create_submission()
+        self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/propose/',
+            data={
+                'proposed_action': 'accept',
+                'proposed_contribution_type': self.project_type.id,
+                'proposed_user': self.submitter.id,
+                'rubric_review': rubric_payload(),
+            },
+            content_type='application/json',
+        )
+        self.assertTrue(ProjectMilestoneReview.objects.filter(submitted_contribution=submission).exists())
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/propose/',
+            data={
+                'proposed_action': 'accept',
+                'proposed_points': 5,
+                'proposed_contribution_type': self.standard_type.id,
+                'proposed_user': self.submitter.id,
+                'rubric_review': rubric_payload(),
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(ProjectMilestoneReview.objects.filter(submitted_contribution=submission).exists())
+
+    def test_project_review_model_enforces_builder_project_only(self):
+        project_submission = self.create_submission()
+        standard_submission = self.create_submission(self.standard_type)
+
+        with self.assertRaises(ValidationError):
+            ProjectMilestoneReview.objects.create(
+                submitted_contribution=project_submission,
+                review_flow=ContributionType.REVIEW_FLOW_STANDARD,
+                action='accept',
+                gate_failures=[],
+                sections={},
+                extras=[],
+                overall_reason='Wrong review flow.',
+            )
+
+        with self.assertRaises(ValidationError):
+            ProjectMilestoneReview.objects.create(
+                submitted_contribution=standard_submission,
+                review_flow=ContributionType.REVIEW_FLOW_BUILDER_PROJECT,
+                action='accept',
+                gate_failures=[],
+                sections={},
+                extras=[],
+                overall_reason='Wrong submission type.',
+            )
 
     def test_standard_proposal_keeps_existing_points_requirement(self):
         submission = self.create_submission(self.standard_type)

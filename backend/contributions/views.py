@@ -2461,6 +2461,11 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        effective_contribution_type = (
+            data.get('proposed_contribution_type')
+            or submission.contribution_type
+        )
+        requires_project_rubric = uses_project_rubric(effective_contribution_type)
 
         # Set proposed_* fields on the submission
         submission.proposed_action = data['proposed_action']
@@ -2483,12 +2488,12 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
 
         rubric_review = data.get('rubric_review')
         rubric_record = None
-        if rubric_review and uses_project_rubric(submission.contribution_type):
+        if rubric_review and requires_project_rubric:
             rubric_record, _ = ProjectMilestoneReview.objects.update_or_create(
                 submitted_contribution=submission,
                 defaults={
                     'proposer': request.user,
-                    'review_flow': submission.contribution_type.review_flow,
+                    'review_flow': effective_contribution_type.review_flow,
                     'action': data['proposed_action'],
                     'confidence': data.get('confidence'),
                     'gate_failures': rubric_review['gate_failures'],
@@ -2497,6 +2502,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                     'overall_reason': rubric_review['overall_reason'],
                 },
             )
+        elif not requires_project_rubric:
+            ProjectMilestoneReview.objects.filter(submitted_contribution=submission).delete()
 
         # Create CRM note recording the proposal
         from .models import SubmissionNote

@@ -215,6 +215,12 @@ class GlobalLeaderboardMultiplierAdmin(admin.ModelAdmin):
 
 @admin.register(ProjectMilestoneReview)
 class ProjectMilestoneReviewAdmin(admin.ModelAdmin):
+    list_select_related = (
+        'submitted_contribution__user',
+        'submitted_contribution__contribution_type',
+        'submitted_contribution__proposed_contribution_type',
+        'proposer',
+    )
     list_display = (
         'submitted_contribution',
         'review_flow',

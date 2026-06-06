@@ -78,6 +78,36 @@ describe('rubricReview helpers', () => {
     expect(error).toBe('Add an overall rubric reason before submitting the proposal.');
   });
 
+  it('rejects section scores outside 0-5', () => {
+    const tooLow = validState();
+    tooLow.sections.genlayer_fit.score = -1;
+    expect(validateRubricReviewState(tooLow, 'accept')).toContain('GenLayer fit');
+
+    const tooHigh = validState();
+    tooHigh.sections.genlayer_fit.score = 6;
+    expect(validateRubricReviewState(tooHigh, 'accept')).toContain('GenLayer fit');
+  });
+
+  it('rejects non-integer section scores', () => {
+    const fractional = validState();
+    fractional.sections.engineering.score = 2.5;
+    expect(validateRubricReviewState(fractional, 'accept')).toContain('Engineering');
+
+    const stringScore = validState();
+    stringScore.sections.engineering.score = /** @type {any} */ ('3');
+    expect(validateRubricReviewState(stringScore, 'accept')).toContain('Engineering');
+  });
+
+  it('accepts integer score boundaries', () => {
+    const state = validState();
+    state.sections.genlayer_fit.score = 0;
+    state.sections.frontend_ux.score = 5;
+
+    expect(validateRubricReviewState(state, 'accept')).toBeNull();
+    expect(buildRubricReviewPayload(state).sections.genlayer_fit.score).toBe(0);
+    expect(buildRubricReviewPayload(state).sections.frontend_ux.score).toBe(5);
+  });
+
   it('hydrates existing review data into editable state', () => {
     const state = hydrateRubricState({
       gate_failures: [],

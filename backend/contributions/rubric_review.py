@@ -1,3 +1,6 @@
+import decimal
+from numbers import Integral
+
 from rest_framework import serializers
 
 from .models import ContributionType
@@ -61,17 +64,37 @@ def _unique_valid_list(values, valid_keys, field_name):
     return normalized
 
 
+def _score_error(section_key, message='Score must be a number from 0 to 5.'):
+    return serializers.ValidationError({
+        'sections': {section_key: message}
+    })
+
+
 def _normalize_score(value, section_key):
     if isinstance(value, bool):
-        raise serializers.ValidationError({
-            'sections': {section_key: 'Score must be a number from 0 to 5.'}
-        })
-    try:
+        raise _score_error(section_key)
+
+    if isinstance(value, Integral):
         score = int(value)
-    except (TypeError, ValueError):
+    elif isinstance(value, str):
+        stripped = value.strip()
+        digits = stripped[1:] if stripped.startswith('-') else stripped
+        if not digits.isdigit():
+            raise _score_error(section_key)
+        score = int(stripped)
+    elif isinstance(value, float):
+        if not value.is_integer():
+            raise _score_error(section_key)
+        score = int(value)
+    elif isinstance(value, decimal.Decimal):
+        if not value.is_finite() or value != value.to_integral_value():
+            raise _score_error(section_key)
+        score = int(value)
+    else:
         raise serializers.ValidationError({
             'sections': {section_key: 'Score must be a number from 0 to 5.'}
         })
+
     if score < 0 or score > 5:
         raise serializers.ValidationError({
             'sections': {section_key: 'Score must be between 0 and 5.'}

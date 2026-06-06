@@ -128,7 +128,7 @@ export function buildRubricReviewPayload(state) {
   for (const section of RUBRIC_SECTIONS) {
     const value = state.sections?.[section.key] || { score: 0, reason: '' };
     sections[section.key] = {
-      score: Number(value.score),
+      score: value.score,
       reason: (value.reason || '').trim()
     };
   }

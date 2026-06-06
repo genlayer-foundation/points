@@ -741,6 +741,9 @@ class ProjectMilestoneReview(BaseModel):
         ('medium', 'Medium'),
         ('low', 'Low'),
     ]
+    REVIEW_FLOW_CHOICES = [
+        (ContributionType.REVIEW_FLOW_BUILDER_PROJECT, 'Builder Project'),
+    ]
 
     submitted_contribution = models.OneToOneField(
         SubmittedContribution,
@@ -756,8 +759,9 @@ class ProjectMilestoneReview(BaseModel):
     )
     review_flow = models.CharField(
         max_length=30,
-        choices=ContributionType.REVIEW_FLOW_CHOICES,
+        choices=REVIEW_FLOW_CHOICES,
         default=ContributionType.REVIEW_FLOW_BUILDER_PROJECT,
+        editable=False,
     )
     action = models.CharField(max_length=20, choices=ACTION_CHOICES)
     confidence = models.CharField(
@@ -775,9 +779,42 @@ class ProjectMilestoneReview(BaseModel):
         ordering = ['-updated_at']
         verbose_name = "Builder Project Review"
         verbose_name_plural = "Builder Project Reviews"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(review_flow=ContributionType.REVIEW_FLOW_BUILDER_PROJECT),
+                name='project_milestone_review_builder_flow',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.submitted_contribution_id} - {self.action}"
+
+    def clean(self):
+        super().clean()
+        if self.review_flow != ContributionType.REVIEW_FLOW_BUILDER_PROJECT:
+            raise ValidationError({
+                'review_flow': 'Project reviews must use the builder_project review flow.'
+            })
+        if self.submitted_contribution_id:
+            contribution_types = [
+                self.submitted_contribution.contribution_type,
+                self.submitted_contribution.proposed_contribution_type,
+            ]
+            has_builder_project_type = any(
+                contribution_type
+                and contribution_type.review_flow == ContributionType.REVIEW_FLOW_BUILDER_PROJECT
+                for contribution_type in contribution_types
+            )
+            if not has_builder_project_type:
+                raise ValidationError({
+                    'submitted_contribution': (
+                        'Project reviews are only valid for Builder Project submissions or proposals.'
+                    )
+                })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 class Evidence(BaseModel):
