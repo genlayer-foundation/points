@@ -7,6 +7,25 @@ function paramsFor(query) {
 }
 
 describe("steward search negation", () => {
+  it("maps URL searches without dropping colon-like tokens", () => {
+    expect(paramsFor("include:https://x.com/user/status/123?s=20")).toEqual({
+      include_content: "https://x.com/user/status/123?s=20",
+    });
+    expect(paramsFor("include: https://x.com/user/status/123?s=20")).toEqual({
+      include_content: "https://x.com/user/status/123?s=20",
+    });
+    expect(paramsFor("https://x.com/user/status/123?s=20")).toEqual({
+      search: "https://x.com/user/status/123?s=20",
+    });
+  });
+
+  it("maps reviewed and points sort aliases", () => {
+    expect(paramsFor("sort:-reviewed")).toEqual({ ordering: "-reviewed_at" });
+    expect(paramsFor("sort:-points")).toEqual({
+      ordering: "-converted_contribution__frozen_global_points",
+    });
+  });
+
   it("normalizes negated presence filters to absence filters", () => {
     const { filters } = parseSearch("-has:proposal -has:url -has:appeal");
 

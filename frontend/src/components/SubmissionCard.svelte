@@ -79,6 +79,17 @@
     overallReason: rubricOverallReason
   });
   let hasRubricGateFailures = $derived(rubricGateFailures.length > 0);
+  let activeRubricAction = $derived(
+    reviewAction === 'propose'
+      ? proposedAction
+      : normalizeAction(reviewAction) || normalizeProposedAction(submission.proposed_action)
+  );
+  let isProposalRubric = $derived(reviewAction === 'propose');
+  let showProjectRubric = $derived(
+    isProjectReview && (reviewAction === 'accept' || reviewAction === 'reject' || reviewAction === 'propose')
+  );
+  let proposalNoticeTone = $derived(getRubricTone(normalizeProposedAction(submission.proposed_action), true));
+  let rubricTone = $derived(getRubricTone(activeRubricAction, isProposalRubric));
   let textOnlyEvidence = $derived(
     (submission.evidence_items || []).filter(evidence => !evidence?.url && evidence?.description)
   );
@@ -347,6 +358,8 @@
   let highlightTitle = $state(reviewData?.highlight_title || '');
   let highlightDescription = $state(reviewData?.highlight_description || '');
   let selectedTemplateId = $state(null);
+  let autoSelectedGateKey = $state(null);
+  let autoSelectedGateTemplateText = $state('');
 
   // For ContributionSelection component
   let selectedCategory = $state(submission.contribution_type_details?.category || 'validator');
@@ -367,6 +380,78 @@
   function normalizeProposedAction(action) {
     const normalized = normalizeAction(action);
     return normalized === 'propose' ? null : normalized;
+  }
+
+  function getRubricTone(action, isProposal = true) {
+    const noun = isProposal ? 'proposal' : 'evaluation';
+    switch (action) {
+      case 'accept':
+        return {
+          label: `Accept ${noun}`,
+          shortLabel: 'Accept',
+          description: isProposal
+            ? 'This rubric supports accepting the project contribution.'
+            : 'Score the project before accepting. Criterion reasons are not needed for a final decision.',
+          border: 'border-emerald-300',
+          container: 'bg-emerald-50',
+          header: 'border-emerald-200 bg-emerald-100/70',
+          title: 'text-emerald-950',
+          body: 'text-emerald-800',
+          pill: 'bg-emerald-600 text-white',
+          focus: 'focus:border-emerald-500 focus:ring-emerald-400',
+          button: 'bg-emerald-600 hover:bg-emerald-700'
+        };
+      case 'reject':
+        return {
+          label: `Reject ${noun}`,
+          shortLabel: 'Reject',
+          description: hasRubricGateFailures
+            ? `One or more gate failures require this to stay a reject ${noun}.`
+            : isProposal
+              ? 'This rubric supports rejecting the project contribution.'
+              : 'Score the project before rejecting, or select a gate failure to use its rejection template.',
+          border: 'border-red-300',
+          container: 'bg-red-50',
+          header: 'border-red-200 bg-red-100/70',
+          title: 'text-red-950',
+          body: 'text-red-800',
+          pill: 'bg-red-600 text-white',
+          focus: 'focus:border-red-500 focus:ring-red-400',
+          button: 'bg-red-600 hover:bg-red-700'
+        };
+      case 'more_info':
+        return {
+          label: isProposal ? 'Request-info proposal' : 'Request-info evaluation',
+          shortLabel: 'Request info',
+          description: isProposal
+            ? 'This rubric supports asking the contributor for more evidence or clarification.'
+            : 'Use this when the project cannot be evaluated from the current evidence.',
+          border: 'border-blue-300',
+          container: 'bg-blue-50',
+          header: 'border-blue-200 bg-blue-100/70',
+          title: 'text-blue-950',
+          body: 'text-blue-800',
+          pill: 'bg-blue-600 text-white',
+          focus: 'focus:border-blue-500 focus:ring-blue-400',
+          button: 'bg-blue-600 hover:bg-blue-700'
+        };
+      default:
+        return {
+          label: isProposal ? 'Proposal' : 'Evaluation',
+          shortLabel: isProposal ? 'Proposal' : 'Evaluation',
+          description: isProposal
+            ? 'Choose the proposed action before submitting the rubric.'
+            : 'Choose the final decision before using the rubric.',
+          border: 'border-amber-300',
+          container: 'bg-amber-50',
+          header: 'border-amber-200 bg-amber-100/70',
+          title: 'text-amber-950',
+          body: 'text-amber-800',
+          pill: 'bg-amber-600 text-white',
+          focus: 'focus:border-amber-500 focus:ring-amber-400',
+          button: 'bg-amber-600 hover:bg-amber-700'
+        };
+    }
   }
 
   function canUseReviewAction(action) {
@@ -431,6 +516,12 @@
   $effect(() => {
     if (submission?.rubric_review && lastProposalFilled !== submission.id) {
       applyRubricReview(submission.rubric_review);
+    }
+  });
+
+  $effect(() => {
+    if (hasRubricGateFailures && proposedAction !== 'reject') {
+      proposedAction = 'reject';
     }
   });
 
@@ -525,16 +616,49 @@
     return type?.name || 'Contribution';
   }
 
+  function getGateFailure(key) {
+    return RUBRIC_GATE_FAILURES.find(gate => gate.key === key) || null;
+  }
+
+  function getGateFailureTemplate(key) {
+    const gate = getGateFailure(key);
+    if (!gate?.templateLabel) return null;
+    return rejectTemplates.find(template => template.label === gate.templateLabel) || null;
+  }
+
+  function applyTemplate(template) {
+    staffReply = template.text;
+    selectedTemplateId = template.id;
+  }
+
+  function applyGateFailureTemplate(key) {
+    const template = getGateFailureTemplate(key);
+    if (!template) return;
+    applyTemplate(template);
+    autoSelectedGateKey = key;
+    autoSelectedGateTemplateText = template.text;
+  }
+
+  function clearAutoGateTemplateIfUnchanged() {
+    if (autoSelectedGateTemplateText && staffReply === autoSelectedGateTemplateText) {
+      staffReply = '';
+      selectedTemplateId = null;
+    }
+    autoSelectedGateKey = null;
+    autoSelectedGateTemplateText = '';
+  }
+
   function handleTemplateSelect(event) {
     const templateId = event.target.value;
+    autoSelectedGateKey = null;
+    autoSelectedGateTemplateText = '';
     if (!templateId) {
       selectedTemplateId = null;
       return;
     }
     const template = templates.find(t => String(t.id) === templateId);
     if (template) {
-      staffReply = template.text;
-      selectedTemplateId = template.id;
+      applyTemplate(template);
     }
   }
 
@@ -548,11 +672,24 @@
 
   function toggleRubricGate(key) {
     if (rubricGateFailures.includes(key)) {
-      rubricGateFailures = rubricGateFailures.filter(item => item !== key);
+      const remainingGateFailures = rubricGateFailures.filter(item => item !== key);
+      rubricGateFailures = remainingGateFailures;
+      if (autoSelectedGateKey === key) {
+        if (remainingGateFailures.length > 0 && staffReply === autoSelectedGateTemplateText) {
+          applyGateFailureTemplate(remainingGateFailures[0]);
+        } else {
+          clearAutoGateTemplateIfUnchanged();
+        }
+      }
       return;
     }
     rubricGateFailures = [...rubricGateFailures, key];
-    proposedAction = 'reject';
+    applyGateFailureTemplate(key);
+    if (reviewAction === 'propose') {
+      proposedAction = 'reject';
+    } else if (canReject) {
+      reviewAction = 'reject';
+    }
   }
 
   function toggleRubricExtra(key) {
@@ -592,6 +729,11 @@
 
   function handleReview() {
     if (onReview) {
+      if (isProjectReview && reviewAction === 'accept' && hasRubricGateFailures) {
+        showError('Clear all gate failures before accepting this project.');
+        return;
+      }
+
       const data = {
         action: reviewAction,
         user: selectedUser,
@@ -713,6 +855,122 @@
       {/if}
     {/each}
   {/if}
+{/snippet}
+
+{#snippet projectRubric()}
+  <div class="rounded-lg border {rubricTone.border} {rubricTone.container}">
+    <div class="border-b px-4 py-3 {rubricTone.header}">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h4 class="text-sm font-semibold {rubricTone.title}">Project rubric</h4>
+          <p class="mt-1 text-xs {rubricTone.body}">
+            {rubricTone.description}
+          </p>
+        </div>
+        <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold {rubricTone.pill}">
+          {rubricTone.label}
+        </span>
+      </div>
+    </div>
+
+    <div class="space-y-4 p-4">
+      {#if hasRubricGateFailures}
+        <div class="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-800">
+          {isProposalRubric
+            ? 'Gate failures force a reject proposal. Clear all gate failures to propose accept or request info.'
+            : 'Gate failure selected. The action is set to reject and the matching rejection template is selected.'}
+        </div>
+      {/if}
+
+      <div>
+        <p class="mb-2 text-xs font-semibold uppercase text-slate-600">Gate failures</p>
+        <div class="grid gap-2 sm:grid-cols-2">
+          {#each RUBRIC_GATE_FAILURES as gate}
+            <label class="flex min-h-10 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium transition-colors {rubricGateFailures.includes(gate.key) ? 'border-red-300 bg-red-50 text-red-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}">
+              <input
+                type="checkbox"
+                checked={rubricGateFailures.includes(gate.key)}
+                onchange={() => toggleRubricGate(gate.key)}
+                class="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+              />
+              <span>{gate.label}</span>
+            </label>
+          {/each}
+        </div>
+      </div>
+
+      {#if !hasRubricGateFailures}
+        <div class="space-y-3">
+          {#each RUBRIC_SECTIONS as section}
+            <div class="rounded-md border border-slate-200 bg-white p-3">
+              <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <label for="rubric-score-{submission.id}-{section.key}" class="text-sm font-semibold text-slate-950">
+                    {section.label}
+                  </label>
+                  {#if !isProposalRubric}
+                    <p class="mt-1 text-xs text-slate-500">{section.help}</p>
+                  {/if}
+                </div>
+                <select
+                  id="rubric-score-{submission.id}-{section.key}"
+                  value={rubricSections[section.key]?.score ?? 0}
+                  onchange={(event) => updateRubricScore(section.key, event.currentTarget.value)}
+                  class="h-9 w-20 rounded-md border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-900"
+                >
+                  {#each [0, 1, 2, 3, 4, 5] as scoreValue}
+                    <option value={scoreValue}>{scoreValue}/5</option>
+                  {/each}
+                </select>
+              </div>
+              {#if isProposalRubric}
+                <textarea
+                  value={rubricSections[section.key]?.reason || ''}
+                  oninput={(event) => updateRubricReason(section.key, event.currentTarget.value)}
+                  rows="2"
+                  aria-label="{section.label} reason optional"
+                  placeholder="Reason (optional)"
+                  class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 {rubricTone.focus}"
+                ></textarea>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
+
+      <div>
+        <p class="mb-2 text-xs font-semibold uppercase text-slate-600">Verified extras</p>
+        <div class="flex flex-wrap gap-2">
+          {#each RUBRIC_EXTRAS as extra}
+            <label class="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium transition-colors {rubricExtras.includes(extra.key) ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}">
+              <input
+                type="checkbox"
+                checked={rubricExtras.includes(extra.key)}
+                onchange={() => toggleRubricExtra(extra.key)}
+                class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span>{extra.label}</span>
+            </label>
+          {/each}
+        </div>
+      </div>
+
+      {#if isProposalRubric}
+        <div>
+          <label for="rubric-overall-{submission.id}" class="mb-1 block text-sm font-medium text-slate-800">
+            Overall reason <span class="text-red-600">*</span>
+          </label>
+          <textarea
+            id="rubric-overall-{submission.id}"
+            bind:value={rubricOverallReason}
+            rows="3"
+            placeholder="Overall reason required"
+            class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 {rubricTone.focus}"
+          ></textarea>
+        </div>
+      {/if}
+    </div>
+  </div>
 {/snippet}
 
 <div class="bg-white shadow-lg rounded-lg border-l-4 {getStateBorderClass(submission.state)}">
@@ -939,18 +1197,28 @@
         {:else if showReviewForm && (submission.state === 'pending' || submission.state === 'more_info_needed')}
           <!-- Proposal Notice -->
           {#if submission.has_proposal}
-            <div class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              <div class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span class="text-sm text-amber-800">
-                  Proposed by <span class="font-medium">{submission.proposed_by_details?.name || 'a steward'}</span>
-                  {#if submission.proposed_at}
-                    on {formatDate(submission.proposed_at)}
-                  {/if}
+            <div class="{proposalNoticeTone.container} border {proposalNoticeTone.border} rounded-lg px-3 py-2">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4 {proposalNoticeTone.body} flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span class="text-sm {proposalNoticeTone.body}">
+                    Proposed by <span class="font-medium">{submission.proposed_by_details?.name || 'a steward'}</span>
+                    {#if submission.proposed_at}
+                      on {formatDate(submission.proposed_at)}
+                    {/if}
+                  </span>
+                </div>
+                <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold {proposalNoticeTone.pill}">
+                  {proposalNoticeTone.label}
                 </span>
               </div>
+              {#if isProjectReview && submission.rubric_review}
+                <p class="mt-2 text-xs {proposalNoticeTone.body}">
+                  Builder project rubric saved for this {proposalNoticeTone.shortLabel.toLowerCase()} proposal.
+                </p>
+              {/if}
             </div>
           {/if}
 
@@ -961,8 +1229,10 @@
                 {#if canAccept}
                   <button
                     type="button"
+                    disabled={isProjectReview && hasRubricGateFailures}
+                    title={isProjectReview && hasRubricGateFailures ? 'Clear all gate failures before accepting.' : undefined}
                     onclick={() => reviewAction = 'accept'}
-                    class="flex-1 px-3 py-2.5 text-sm font-medium transition-colors {reviewAction === 'accept' ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'} border-r border-gray-200"
+                    class="flex-1 px-3 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 {reviewAction === 'accept' ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'} border-r border-gray-200"
                   >
                     Accept
                   </button>
@@ -1021,95 +1291,8 @@
                         </div>
                       </div>
                     {/if}
-                    {#if reviewAction === 'propose' && isProjectReview}
-                      <div class="rounded-lg border border-slate-300 bg-slate-50">
-                        <div class="border-b border-slate-200 px-4 py-3">
-                          <h4 class="text-sm font-semibold text-slate-950">Project rubric</h4>
-                        </div>
-
-                        <div class="space-y-4 p-4">
-                          <div>
-                            <p class="mb-2 text-xs font-semibold uppercase text-slate-600">Gate failures</p>
-                            <div class="grid gap-2 sm:grid-cols-2">
-                              {#each RUBRIC_GATE_FAILURES as gate}
-                                <label class="flex min-h-10 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium transition-colors {rubricGateFailures.includes(gate.key) ? 'border-red-300 bg-red-50 text-red-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}">
-                                  <input
-                                    type="checkbox"
-                                    checked={rubricGateFailures.includes(gate.key)}
-                                    onchange={() => toggleRubricGate(gate.key)}
-                                    class="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
-                                  />
-                                  <span>{gate.label}</span>
-                                </label>
-                              {/each}
-                            </div>
-                          </div>
-
-                          {#if !hasRubricGateFailures}
-                            <div class="space-y-3">
-                              {#each RUBRIC_SECTIONS as section}
-                                <div class="rounded-md border border-slate-200 bg-white p-3">
-                                  <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                    <div>
-                                      <label for="rubric-score-{submission.id}-{section.key}" class="text-sm font-semibold text-slate-950">
-                                        {section.label}
-                                      </label>
-                                    </div>
-                                    <select
-                                      id="rubric-score-{submission.id}-{section.key}"
-                                      value={rubricSections[section.key]?.score ?? 0}
-                                      onchange={(event) => updateRubricScore(section.key, event.currentTarget.value)}
-                                      class="h-9 w-20 rounded-md border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-900"
-                                    >
-                                      {#each [0, 1, 2, 3, 4, 5] as scoreValue}
-                                        <option value={scoreValue}>{scoreValue}/5</option>
-                                      {/each}
-                                    </select>
-                                  </div>
-                                  <textarea
-                                    value={rubricSections[section.key]?.reason || ''}
-                                    oninput={(event) => updateRubricReason(section.key, event.currentTarget.value)}
-                                    rows="2"
-                                    aria-label="{section.label} reason optional"
-                                    placeholder="Reason (optional)"
-                                    class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400"
-                                  ></textarea>
-                                </div>
-                              {/each}
-                            </div>
-                          {/if}
-
-                          <div>
-                            <p class="mb-2 text-xs font-semibold uppercase text-slate-600">Verified extras</p>
-                            <div class="flex flex-wrap gap-2">
-                              {#each RUBRIC_EXTRAS as extra}
-                                <label class="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium transition-colors {rubricExtras.includes(extra.key) ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}">
-                                  <input
-                                    type="checkbox"
-                                    checked={rubricExtras.includes(extra.key)}
-                                    onchange={() => toggleRubricExtra(extra.key)}
-                                    class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                                  />
-                                  <span>{extra.label}</span>
-                                </label>
-                              {/each}
-                            </div>
-                          </div>
-
-                          <div>
-                            <label for="rubric-overall-{submission.id}" class="mb-1 block text-sm font-medium text-slate-800">
-                              Overall reason <span class="text-red-600">*</span>
-                            </label>
-                            <textarea
-                              id="rubric-overall-{submission.id}"
-                              bind:value={rubricOverallReason}
-                              rows="3"
-                              placeholder="Overall reason required"
-                              class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400"
-                            ></textarea>
-                          </div>
-                        </div>
-                      </div>
+                    {#if showProjectRubric}
+                      {@render projectRubric()}
                     {/if}
                     {#if reviewAction === 'accept' || (proposedAction === 'accept' && !isProjectReview)}
                     <div class="space-y-3">
@@ -1312,9 +1495,9 @@
                       <button
                         onclick={handlePropose}
                         disabled={isProcessing}
-                        class="w-full px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                        class="w-full px-4 py-2 {isProjectReview ? rubricTone.button : 'bg-amber-600 hover:bg-amber-700'} text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
                       >
-                        {isProcessing ? 'Processing...' : 'Submit Proposal'}
+                        {isProcessing ? 'Processing...' : isProjectReview ? `Submit ${rubricTone.shortLabel} Proposal` : 'Submit Proposal'}
                       </button>
                     {/if}
                   </div>
@@ -1322,6 +1505,10 @@
               {:else if reviewAction === 'reject'}
                 <div class="p-4 bg-red-50">
                   <div class="space-y-3">
+                    {#if showProjectRubric}
+                      {@render projectRubric()}
+                    {/if}
+
                     <div>
                       <label for="reject-reason-{submission.id}" class="block text-sm font-medium text-gray-700 mb-1">
                         Rejection Reason

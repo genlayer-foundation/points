@@ -725,7 +725,7 @@
           {templates}
           {missions}
           onSearch={handleSearchChange}
-          placeholder="type:blog-post reviewed:me proposed-by:ai has:proposal..."
+          placeholder="Search URL or text, or type sort:-reviewed..."
         />
       </div>
     </div>
