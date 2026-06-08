@@ -93,6 +93,14 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['event_start_at', 'created_at', 'title']
     ordering = ['-event_start_at']
 
+    def get_throttles(self):
+        self.throttle_scope = (
+            'poap_claim_secret'
+            if getattr(self, 'action', None) == 'claim_secret'
+            else None
+        )
+        return super().get_throttles()
+
     def get_serializer_class(self):
         if self.action == 'retrieve':
             return PoapDropDetailSerializer
@@ -182,7 +190,12 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
             return self.get_paginated_response(serializer.data)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'], url_path='claim-secret', permission_classes=[permissions.IsAuthenticated])
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='claim-secret',
+        permission_classes=[permissions.IsAuthenticated],
+    )
     def claim_secret(self, request, slug=None):
         try:
             claim = claim_with_secret(

@@ -204,6 +204,12 @@ REST_FRAMEWORK = {
         'django_filters.rest_framework.DjangoFilterBackend',
     ],
     'DEFAULT_PAGINATION_CLASS': 'utils.pagination.SafePageNumberPagination',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'poap_claim_secret': '10/minute',
+    },
     'PAGE_SIZE': 10,
 }
 
@@ -285,7 +291,7 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'  # 'None' if using cross-site cookies, but requires HTTPS
 SESSION_COOKIE_AGE = 86400 * 14  # 14 days in seconds
 SESSION_COOKIE_DOMAIN = None  # Allow cookies on localhost
-SESSION_SAVE_EVERY_REQUEST = True  # Save session on every request to extend expiry
+SESSION_SAVE_EVERY_REQUEST = False  # Avoid writing unchanged sessions on every authenticated request
 
 # Only send the session/CSRF cookies over HTTPS in production. In DEBUG the
 # dev server runs over plain HTTP, so keep these off locally.

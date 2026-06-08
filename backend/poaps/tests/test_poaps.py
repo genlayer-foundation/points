@@ -4,6 +4,7 @@ import zipfile
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError, connection, transaction
@@ -33,6 +34,7 @@ User = get_user_model()
 )
 class PoapAPITest(TestCase):
     def setUp(self):
+        cache.clear()
         self.client = APIClient()
         self.user = User.objects.create_user(
             email='user@example.com',
@@ -170,6 +172,26 @@ class PoapAPITest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(PoapClaim.objects.exists())
+
+    def test_secret_claim_is_rate_limited(self):
+        self._secret_distribution()
+        self.client.force_authenticate(user=self.user)
+
+        for _ in range(10):
+            response = self.client.post(
+                '/api/v1/poaps/ama-session/claim-secret/',
+                {'secret': 'wrong'},
+                format='json',
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.post(
+            '/api/v1/poaps/ama-session/claim-secret/',
+            {'secret': 'wrong'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
     def test_secret_claim_enforces_duplicate(self):
         self._secret_distribution()

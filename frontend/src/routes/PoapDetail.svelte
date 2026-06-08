@@ -20,6 +20,8 @@
   let claimPage = $state(1);
   let secret = $state('');
   let claiming = $state(false);
+  let collectorsOpen = $state(false);
+  let claimsLoaded = $state(false);
 
   const CLAIM_PAGE_SIZE = 10;
   const poapGradientStyle = getCategoryGradientStyle('community', '#7f52e1');
@@ -130,21 +132,43 @@
 
   /** @param {number} [page] */
   async function loadClaims(page = claimPage) {
-    if (!slug) return;
+    const requestedSlug = slug;
+    if (!requestedSlug) return;
     claimsLoading = true;
     claimPage = page;
     try {
-      const response = await poapsAPI.getClaims(slug, {
+      const response = await poapsAPI.getClaims(requestedSlug, {
         page,
         page_size: CLAIM_PAGE_SIZE,
       });
+      if (requestedSlug !== slug) return;
       claims = response.data?.results || response.data || [];
       claimsCount = response.data?.count ?? claims.length;
     } catch {
+      if (requestedSlug !== slug) return;
       claims = [];
       claimsCount = 0;
     } finally {
-      claimsLoading = false;
+      if (requestedSlug === slug) {
+        claimsLoaded = true;
+        claimsLoading = false;
+      }
+    }
+  }
+
+  function resetClaims() {
+    claims = [];
+    claimsCount = 0;
+    claimPage = 1;
+    collectorsOpen = false;
+    claimsLoaded = false;
+    claimsLoading = false;
+  }
+
+  async function toggleCollectors() {
+    collectorsOpen = !collectorsOpen;
+    if (collectorsOpen && !claimsLoaded && !claimsLoading) {
+      await loadClaims(1);
     }
   }
 
@@ -162,7 +186,10 @@
       await poapsAPI.claimSecret(slug, secret);
       showSuccess('POAP claimed.');
       secret = '';
-      await Promise.all([loadPoap(), loadClaims(1)]);
+      await Promise.all([
+        loadPoap(),
+        claimsLoaded ? loadClaims(1) : Promise.resolve(),
+      ]);
     } catch (err) {
       const requestError = /** @type {any} */ (err);
       if (isAuthError(requestError)) {
@@ -172,7 +199,6 @@
         return;
       }
       showError(requestError.response?.data?.error || 'Unable to claim this POAP.');
-      await Promise.all([loadPoap(), loadClaims(1)]);
     } finally {
       claiming = false;
     }
@@ -181,8 +207,8 @@
   $effect(() => {
     if (slug && slug !== loadedSlug) {
       loadedSlug = slug;
+      resetClaims();
       loadPoap();
-      loadClaims(1);
     }
   });
 
@@ -286,14 +312,19 @@
       </section>
 
       <section class="poap-collectors-card">
-        <div class="poap-collectors-header">
+        <button type="button" class="poap-collectors-header" aria-expanded={collectorsOpen} onclick={toggleCollectors}>
           <h2>
             <span class="poap-collectors-number">{formatNumber(collectorCount)}</span>
             <span>Collector{collectorCount === 1 ? '' : 's'}</span>
           </h2>
-        </div>
+          <svg class:open={collectorsOpen} class="poap-collectors-chevron h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
 
-        {#if claimsLoading}
+        {#if !collectorsOpen}
+          <div class="poap-empty-collectors">Open collectors to view recent claims.</div>
+        {:else if claimsLoading}
           <div class="space-y-2">
             {#each Array(5) as _}
               <div class="h-14 rounded-[8px] bg-[#f5f5f5] animate-pulse"></div>
@@ -531,9 +562,17 @@
   }
 
   .poap-collectors-header {
+    align-items: center;
+    background: transparent;
+    border: 0;
     border-bottom: 1px solid #f0ecff;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
     margin-bottom: 18px;
     padding-bottom: 16px;
+    text-align: left;
+    width: 100%;
   }
 
   .poap-collectors-header h2 {
@@ -546,6 +585,16 @@
     letter-spacing: 0;
     margin: 0;
     text-transform: uppercase;
+  }
+
+  .poap-collectors-chevron {
+    color: #7f52e1;
+    flex: 0 0 auto;
+    transition: transform 0.16s ease;
+  }
+
+  .poap-collectors-chevron.open {
+    transform: rotate(180deg);
   }
 
   .poap-empty-collectors {
