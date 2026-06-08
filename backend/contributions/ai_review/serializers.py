@@ -3,6 +3,7 @@ from rest_framework import serializers
 from contributions.models import Evidence, ProjectMilestoneReview, SubmissionNote, SubmittedContribution
 from contributions.rubric_review import (
     normalize_rubric_review_payload,
+    validate_template_action,
     uses_project_rubric,
 )
 from stewards.models import ReviewTemplate
@@ -268,6 +269,7 @@ class AIReviewProposeSerializer(serializers.Serializer):
     def validate(self, data):
         submission = self.context.get('submission')
         action = data['proposed_action']
+        validate_template_action(data.get('template_id'), action)
         requires_rubric = uses_project_rubric(
             submission.contribution_type if submission else None
         )
@@ -296,5 +298,5 @@ class AIReviewProposeSerializer(serializers.Serializer):
 class AIReviewTemplateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReviewTemplate
-        fields = ['id', 'label', 'text']
+        fields = ['id', 'label', 'action', 'text']
         read_only_fields = fields
