@@ -19,8 +19,6 @@ class ActiveValidatorsView(APIView):
     Get active validators based on their first uptime contribution.
     Returns data points showing validator activation over time with continuous dates.
     """
-    permission_classes = [permissions.AllowAny]
-    
     def get(self, request):
         from django.db.models.functions import TruncDate
         from datetime import date, timedelta
@@ -92,8 +90,6 @@ class ContributionTypesStatsView(APIView):
     """
     Get time series data showing how many contribution types have been assigned on each date.
     """
-    permission_classes = [permissions.AllowAny]
-
     def get(self, request):
         from django.db.models.functions import TruncDate
         from datetime import date, timedelta

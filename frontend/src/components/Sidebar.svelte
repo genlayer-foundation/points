@@ -17,6 +17,11 @@
       (stewardPermissionMap[String(type.id)] || []).includes('accept')
     )
   );
+  let canAccessManageUsers = $derived(
+    Object.values(stewardPermissionMap || {}).some(actions =>
+      (actions || []).some(action => action !== 'propose')
+    )
+  );
 
   async function loadStewardNavigationPermissions() {
     try {
@@ -432,15 +437,17 @@
                 Discord XP
               </a>
             {/if}
-            <a
-              href="#/stewards/manage-users"
-              onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-                isActive('/stewards/manage-users') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
-              }"
-            >
-              Manage Users
-            </a>
+            {#if canAccessManageUsers}
+              <a
+                href="#/stewards/manage-users"
+                onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}
+                class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                  isActive('/stewards/manage-users') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
+                }"
+              >
+                Manage Users
+              </a>
+            {/if}
           </div>
         {/if}
       </div>
@@ -743,6 +750,15 @@
             Participants
           </a>
           <a
+            href="#/validators/wall-of-shame"
+            onclick={(e) => { e.preventDefault(); navigate('/validators/wall-of-shame'); }}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              isActive('/validators/wall-of-shame') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+            }"
+          >
+            Wall of Shame
+          </a>
+          <a
             href="#/validators/waitlist"
             onclick={(e) => { e.preventDefault(); navigate('/validators/waitlist'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
@@ -836,15 +852,17 @@
               Discord XP
             </a>
           {/if}
-          <a
-            href="#/stewards/manage-users"
-            onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-              isActive('/stewards/manage-users') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
-            }"
-          >
-            Manage Users
-          </a>
+          {#if canAccessManageUsers}
+            <a
+              href="#/stewards/manage-users"
+              onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/stewards/manage-users') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Manage Users
+            </a>
+          {/if}
         </div>
       {/if}
 

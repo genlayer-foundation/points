@@ -132,8 +132,8 @@ export const leaderboardAPI = {
   getStats: () => api.get('/leaderboard/stats/'),
   getWaitlistStats: () => api.get('/leaderboard/validator-waitlist-stats/'),
   getWaitlistTop: (limit = 10) => api.get('/leaderboard/validator-waitlist/top/', { params: { limit } }),
-  getMonthlyLeaderboardByType: (type, limit = 10) =>
-    api.get('/leaderboard/monthly/', { params: { type, limit } }),
+  getMonthlyLeaderboardByType: (type, limit = 10, additionalParams = {}) =>
+    api.get('/leaderboard/monthly/', { params: { type, limit, ...additionalParams } }),
   getCommunity: (params = {}) => leaderboardAPI.getLeaderboard({ type: 'community', ...params }),
   getCommunityContributors: (params = {}) => leaderboardAPI.getLeaderboard({ type: 'community', ...params }),
   getReferrals: (params = {}) => api.get('/leaderboard/referrals/', { params }),

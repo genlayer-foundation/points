@@ -111,6 +111,7 @@ backend/
   - MultiplierPeriod - Time-based multiplier changes
 - **Views**: `leaderboard/views.py`
   - `/api/v1/leaderboard/` - Get rankings
+  - `/api/v1/leaderboard/monthly/` - Top contribution totals for the current month by default, or for an explicit `start_date`/`end_date` range
   - `/api/v1/leaderboard/stats/` - Global statistics
   - `/api/v1/leaderboard/user_stats/by-address/{address}/` - User-specific stats
 
@@ -151,6 +152,17 @@ backend/
   - `/api/v1/gen-tv/streams/` - Public read-only list with `category` filter; pagination disabled (small dataset)
   - `/api/v1/gen-tv/streams/{slug}/` - Public read-only detail by slug
 - **Admin**: `gen_tv/admin.py` - status surfaces as a read-only `computed_status` column; date_hierarchy on `starts_at`; slug prepopulated from title.
+
+### POAPs
+
+- **Models**: `poaps/models.py`
+  - PoapDrop - POAP campaign/drop with slug, artwork, event window, status, max claims, and legacy import ID.
+  - PoapDistribution - Claiming method/window/cap configuration for a drop.
+  - PoapClaim - Individual minted or imported claim records.
+- **Views**: `poaps/views.py`
+  - `/api/v1/poaps/` - Public read-only POAP drop list.
+  - `/api/v1/poaps/{slug}/` - Public read-only POAP drop detail.
+- **Admin**: `poaps/admin.py` - `PoapDropAdmin` keeps `created_by` as an autocomplete field, includes only `PoapDistributionInline` in `inlines`, and exposes claims through the read-only `claims_link` field instead of rendering `PoapClaim` rows inline. This keeps heavily claimed drops editable without exceeding Django's POST field limit. Ruff RUF012 warnings on the Django admin `inlines = [PoapDistributionInline]` list literal are intentional false positives for this standard admin pattern.
 
 ### Database & Migrations
 - **Migrations**: `{app}/migrations/`
@@ -248,6 +260,7 @@ GET    /api/v1/contribution-types/statistics/ (requires auth)
 
 # Leaderboard
 GET    /api/v1/leaderboard/                             (requires auth)
+GET    /api/v1/leaderboard/monthly/                     (requires auth, ?type=builder|community|validator, ?limit=10, optional ?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD)
 GET    /api/v1/leaderboard/stats/                       (requires auth)
 GET    /api/v1/leaderboard/user_stats/by-address/{address}/ (requires auth)
 
@@ -283,6 +296,29 @@ GET    /api/v1/projects/{slug}/            (public, project detail with metrics 
 # Gen TV
 GET    /api/v1/gen-tv/streams/             (public, supports ?category= filter)
 GET    /api/v1/gen-tv/streams/{slug}/      (public, stream detail)
+```
+
+### Leaderboard monthly date ranges
+
+`GET /api/v1/leaderboard/monthly/` returns ranked users by contribution totals for `type` (for example `community` or `builder`) and optional `limit`. Without `start_date`, it defaults to the current calendar month beginning on day 1; with `start_date` and/or `end_date`, it filters contributions by `contribution_date` date in the provided inclusive range. Dates must be `YYYY-MM-DD`, and `start_date` must be before or equal to `end_date`; invalid dates return `400`.
+
+Example:
+
+`GET /api/v1/leaderboard/monthly/?type=community&limit=5&start_date=2026-05-07&end_date=2026-06-05`
+
+Example response:
+
+```json
+[
+  {
+    "id": "monthly-community-123",
+    "user": 123,
+    "user_details": { "address": "0x...", "name": "Contributor" },
+    "type": "community",
+    "total_points": 40,
+    "rank": 1
+  }
+]
 ```
 
 ## Environment Variables

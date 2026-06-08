@@ -31,7 +31,7 @@ class ValidatorWalletSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_operator_user(self, obj):
-        if obj.operator and obj.operator.user:
+        if obj.operator and obj.operator.user and obj.operator.user.visible:
             user = obj.operator.user
             return {
                 'id': user.id,
@@ -89,7 +89,7 @@ class WallOfShameSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_operator_user(self, obj):
-        if obj.operator and obj.operator.user:
+        if obj.operator and obj.operator.user and obj.operator.user.visible:
             user = obj.operator.user
             return {
                 'id': user.id,

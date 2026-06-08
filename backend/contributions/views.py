@@ -31,8 +31,10 @@ from .models import (
     ContributionType, Contribution, Evidence, SubmittedContribution,
     SubmissionNote, ContributionHighlight, Mission, StartupRequest,
     FeaturedContent, Alert, ContributionDiscordXPState,
-    DiscordXPDistributionEvent, sync_discord_xp_state_for_contribution,
+    DiscordXPDistributionEvent, ProjectMilestoneReview,
+    sync_discord_xp_state_for_contribution,
 )
+from .rubric_review import rubric_summary_text, uses_project_rubric
 from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
@@ -44,6 +46,7 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          ContributionDiscordXPStateSerializer)
 from .forms import SubmissionReviewForm
 from .permissions import IsSteward, steward_has_permission, steward_permitted_type_ids
+from .url_utils import normalize_url
 from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from ethereum_auth.authentication import EthereumAuthentication
@@ -683,6 +686,65 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             )
 
         return None
+
+    def _validate_submission_contribution_type(
+        self,
+        user,
+        contribution_type,
+        mission=None,
+        skip_capacity_check=False,
+    ):
+        """Validate role, category, and requirement gates for submissions."""
+        if mission and contribution_type.id != mission.contribution_type_id:
+            return Response(
+                {'error': 'Mission submissions must use the mission contribution type.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not contribution_type.is_submittable and mission is None:
+            return Response(
+                {'error': 'This contribution type cannot be submitted directly. Submit through one of its active missions.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not skip_capacity_check and contribution_type.is_full():
+            return Response(
+                {'error': 'This contribution type has reached its submission limit.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if contribution_type.category:
+            if contribution_type.category.slug == 'builder' and not hasattr(user, 'builder'):
+                return Response(
+                    {'error': 'You must complete the Builder Welcome journey before submitting builder contributions.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            if contribution_type.category.slug == 'validator' and not hasattr(user, 'validator'):
+                return Response(
+                    {'error': 'Only validators can submit validator contributions. Join the Validator Waitlist to be considered for selection.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        if contribution_type.required_social_accounts:
+            connection_map = {
+                'twitter': ('twitterconnection', 'X (Twitter)'),
+                'discord': ('discordconnection', 'Discord'),
+                'github': ('githubconnection', 'GitHub'),
+            }
+            missing = []
+            for account in contribution_type.required_social_accounts:
+                relation, label = connection_map.get(account, (None, account))
+                if relation and not hasattr(user, relation):
+                    missing.append(label)
+            if missing:
+                return Response(
+                    {'error': f'You must link your {", ".join(missing)} account(s) to submit this type of contribution.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        discord_role_error = self._validate_required_discord_roles(user, contribution_type)
+        if discord_role_error is not None:
+            return discord_role_error
+
+        return None
     
     def create(self, request, *args, **kwargs):
         """Create a new submission with optional mission tracking."""
@@ -743,48 +805,13 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                     .prefetch_related('required_discord_roles')
                     .get(id=contribution_type_id)
                 )
-                # Non-submittable types can only be submitted through an active mission
-                if not contribution_type.is_submittable and not mission_id:
-                    return Response(
-                        {'error': 'This contribution type cannot be submitted directly. Submit through one of its active missions.'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                if contribution_type.is_full():
-                    return Response(
-                        {'error': 'This contribution type has reached its submission limit.'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                if contribution_type.category:
-                    if contribution_type.category.slug == 'builder' and not hasattr(request.user, 'builder'):
-                        return Response(
-                            {'error': 'You must complete the Builder Welcome journey before submitting builder contributions.'},
-                            status=status.HTTP_403_FORBIDDEN
-                        )
-                    if contribution_type.category.slug == 'validator' and not hasattr(request.user, 'validator'):
-                        return Response(
-                            {'error': 'Only validators can submit validator contributions. Join the Validator Waitlist to be considered for selection.'},
-                            status=status.HTTP_403_FORBIDDEN
-                        )
-                    # Check required social accounts for this contribution type
-                    if contribution_type.required_social_accounts:
-                        connection_map = {
-                            'twitter': ('twitterconnection', 'X (Twitter)'),
-                            'discord': ('discordconnection', 'Discord'),
-                            'github': ('githubconnection', 'GitHub'),
-                        }
-                        missing = []
-                        for account in contribution_type.required_social_accounts:
-                            relation, label = connection_map.get(account, (None, account))
-                            if relation and not hasattr(request.user, relation):
-                                missing.append(label)
-                        if missing:
-                            return Response(
-                                {'error': f'You must link your {", ".join(missing)} account(s) to submit this type of contribution.'},
-                                status=status.HTTP_403_FORBIDDEN
-                            )
-                    discord_role_error = self._validate_required_discord_roles(request.user, contribution_type)
-                    if discord_role_error is not None:
-                        return discord_role_error
+                contribution_type_error = self._validate_submission_contribution_type(
+                    request.user,
+                    contribution_type,
+                    mission,
+                )
+                if contribution_type_error is not None:
+                    return contribution_type_error
             except ContributionType.DoesNotExist:
                 pass
 
@@ -848,6 +875,19 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        if 'mission' in request.data:
+            requested_mission = request.data.get('mission')
+            current_mission = str(instance.mission_id) if instance.mission_id else None
+            if requested_mission in ('', None):
+                requested_mission = None
+            else:
+                requested_mission = str(requested_mission)
+            if requested_mission != current_mission:
+                return Response(
+                    {'error': 'Mission cannot be changed after submission.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         # Update the submission
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
@@ -856,17 +896,22 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             serializer.validated_data.get('contribution_type')
             or instance.contribution_type
         )
+        mission = serializer.validated_data.get('mission', instance.mission)
         contribution_type = (
             ContributionType.objects
+            .select_related('category')
             .prefetch_related('required_discord_roles')
             .get(id=contribution_type.id)
         )
-        discord_role_error = self._validate_required_discord_roles(
+        keeps_same_contribution_type = contribution_type.id == instance.contribution_type_id
+        contribution_type_error = self._validate_submission_contribution_type(
             request.user,
             contribution_type,
+            mission,
+            skip_capacity_check=keeps_same_contribution_type,
         )
-        if discord_role_error is not None:
-            return discord_role_error
+        if contribution_type_error is not None:
+            return contribution_type_error
 
         # Update state back to pending and track edit time
         instance.state = 'pending'
@@ -1055,19 +1100,44 @@ class StewardSubmissionFilterSet(FilterSet):
     has_appeal = BooleanFilter(field_name='has_appeal')
     resubmitted_more_info = BooleanFilter(method='filter_resubmitted_more_info')
 
+    def _normalized_url_query(self, term):
+        if '://' not in term and not term.lower().startswith('www.'):
+            return Q()
+        normalized = normalize_url(term)
+        if not normalized:
+            return Q()
+        return Q(normalized_url=normalized)
+
+    def _evidence_content_query(self, term):
+        return (
+            Q(url__icontains=term) |
+            Q(description__icontains=term) |
+            self._normalized_url_query(term)
+        )
+
+    def _content_query(self, term):
+        submitted_evidence = Evidence.objects.filter(
+            submitted_contribution=OuterRef('pk')
+        ).filter(self._evidence_content_query(term))
+        converted_evidence = Evidence.objects.filter(
+            contribution_id=OuterRef('converted_contribution_id')
+        ).filter(self._evidence_content_query(term))
+        return (
+            Q(title__icontains=term) |
+            Q(notes__icontains=term) |
+            Q(converted_contribution__title__icontains=term) |
+            Q(converted_contribution__notes__icontains=term) |
+            Exists(submitted_evidence) |
+            Exists(converted_evidence)
+        )
+
     def filter_search(self, queryset, name, value):
-        """General search across user name/address, notes, and evidence URLs."""
+        """General search across submitter, title, notes, and evidence."""
         if value:
-            has_matching_evidence = Evidence.objects.filter(
-                submitted_contribution=OuterRef('pk')
-            ).filter(
-                Q(url__icontains=value) | Q(description__icontains=value)
-            )
             return queryset.filter(
                 Q(user__name__icontains=value) |
                 Q(user__address__icontains=value) |
-                Q(notes__icontains=value) |
-                Exists(has_matching_evidence)
+                self._content_query(value)
             )
         return queryset
 
@@ -1161,37 +1231,21 @@ class StewardSubmissionFilterSet(FilterSet):
         return queryset
 
     def filter_exclude_content(self, queryset, name, value):
-        """Exclude submissions containing text in notes or evidence. Supports comma-separated values."""
+        """Exclude submissions containing text in title, notes, or evidence."""
         if value:
             for term in value.split(','):
                 term = term.strip()
                 if term:
-                    has_matching_evidence = Evidence.objects.filter(
-                        submitted_contribution=OuterRef('pk')
-                    ).filter(
-                        Q(url__icontains=term) | Q(description__icontains=term)
-                    )
-                    queryset = queryset.exclude(
-                        Exists(has_matching_evidence) |
-                        Q(notes__icontains=term)
-                    )
+                    queryset = queryset.exclude(self._content_query(term))
         return queryset
 
     def filter_include_content(self, queryset, name, value):
-        """Include ONLY submissions containing text in notes or evidence. Supports comma-separated values."""
+        """Include ONLY submissions containing text in title, notes, or evidence."""
         if value:
             for term in value.split(','):
                 term = term.strip()
                 if term:
-                    has_matching_evidence = Evidence.objects.filter(
-                        submitted_contribution=OuterRef('pk')
-                    ).filter(
-                        Q(url__icontains=term) | Q(description__icontains=term)
-                    )
-                    queryset = queryset.filter(
-                        Exists(has_matching_evidence) |
-                        Q(notes__icontains=term)
-                    )
+                    queryset = queryset.filter(self._content_query(term))
         return queryset
 
     def filter_exclude_empty_evidence(self, queryset, name, value):
@@ -1419,6 +1473,9 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
             contribution__contribution_type__category__slug='community',
         ).filter(
             Q(contribution__frozen_global_points__gt=0) |
+            Q(awarded_amount__gt=0)
+        ).filter(
+            Q(contribution__user__discordconnection__guild_member=True) |
             Q(awarded_amount__gt=0)
         )
 
@@ -1666,7 +1723,12 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsSteward]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = StewardSubmissionFilterSet
-    ordering_fields = ['created_at', 'contribution_date']
+    ordering_fields = [
+        'created_at',
+        'contribution_date',
+        'reviewed_at',
+        'converted_contribution__frozen_global_points',
+    ]
     ordering = ['-created_at']
 
     def get_permissions(self):
@@ -1676,17 +1738,41 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         """
         return super().get_permissions()
 
-    def get_queryset(self):
-        """Get submissions for steward review, filtered by steward permissions."""
-        queryset = SubmittedContribution.objects.all()
-
-        # Filter by steward's permitted contribution types
+    def _visible_submission_queryset(self, queryset=None):
+        # Filter by the steward's permitted contribution types and actions.
+        # Proposal-only stewards can inspect pending submissions they can
+        # propose on, but cannot browse completed/reworked review history.
+        if queryset is None:
+            queryset = SubmittedContribution.objects.all()
         if self.request.user and self.request.user.is_authenticated and hasattr(self.request.user, 'steward'):
-            permitted_ids = steward_permitted_type_ids(self.request.user)
-            if permitted_ids:
-                queryset = queryset.filter(contribution_type_id__in=permitted_ids)
+            review_action_type_ids = steward_permitted_type_ids(
+                self.request.user,
+                actions=['accept', 'reject', 'request_more_info'],
+            )
+            propose_type_ids = steward_permitted_type_ids(
+                self.request.user,
+                actions=['propose'],
+            )
+            visibility_filter = Q()
+            if review_action_type_ids:
+                visibility_filter |= Q(contribution_type_id__in=review_action_type_ids)
+            if propose_type_ids:
+                visibility_filter |= Q(
+                    state='pending',
+                    contribution_type_id__in=propose_type_ids,
+                )
+            if visibility_filter:
+                queryset = queryset.filter(visibility_filter)
             else:
                 queryset = queryset.none()
+        else:
+            queryset = queryset.none()
+
+        return queryset
+
+    def get_queryset(self):
+        """Get submissions for steward review, filtered by steward permissions."""
+        queryset = self._visible_submission_queryset()
 
         notes_count = SubmissionNote.objects.filter(
             submitted_contribution_id=OuterRef('pk')
@@ -1716,6 +1802,8 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'proposed_contribution_type',
             'proposed_user',
             'proposed_template',
+            'project_milestone_review',
+            'project_milestone_review__proposer',
         ).prefetch_related(
             'evidence_items',
             'converted_contribution__highlights',
@@ -1741,14 +1829,39 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         return context
     
     @action(detail=True, methods=['post'], url_path='review')
+    @transaction.atomic
     def review(self, request, pk=None):
         """Review and take action on a submission."""
-        submission = self.get_object()
+        submission = get_object_or_404(
+            self._visible_submission_queryset(
+                SubmittedContribution.objects.select_for_update(of=('self',))
+            ).select_related(
+                'user',
+                'contribution_type',
+                'contribution_type__category',
+                'mission',
+            ).prefetch_related('evidence_items'),
+            pk=pk,
+        )
+        self.check_object_permissions(request, submission)
 
-        serializer = StewardSubmissionReviewSerializer(data=request.data)
+        if submission.state not in ['pending', 'more_info_needed']:
+            return Response(
+                {'detail': 'Only pending submissions or submissions awaiting more information can be reviewed.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = StewardSubmissionReviewSerializer(
+            data=request.data,
+            context={'submission': submission, 'request': request},
+        )
         serializer.is_valid(raise_exception=True)
 
         action_name = serializer.validated_data['action']
+        final_contribution_type = serializer.validated_data.get(
+            'contribution_type',
+            submission.contribution_type,
+        )
 
         # Per-action permission checks
         permission_map = {
@@ -1757,7 +1870,12 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             'more_info': 'request_more_info',
         }
         required_permission = permission_map.get(action_name)
-        if required_permission and not steward_has_permission(request.user, submission.contribution_type_id, required_permission):
+        permission_contribution_type_id = (
+            final_contribution_type.id
+            if action_name == 'accept'
+            else submission.contribution_type_id
+        )
+        if required_permission and not steward_has_permission(request.user, permission_contribution_type_id, required_permission):
             return Response(
                 {'detail': f'You do not have permission to {action_name} submissions of this contribution type.'},
                 status=status.HTTP_403_FORBIDDEN
@@ -1769,7 +1887,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
 
         if action_name == 'accept':
             # Get the contribution type (use provided or keep original)
-            contribution_type = serializer.validated_data.get('contribution_type', submission.contribution_type)
+            contribution_type = final_contribution_type
 
             # Get the user for the contribution (use provided or keep original submitter)
             contribution_user = serializer.validated_data.get('user', submission.user)
@@ -1808,6 +1926,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                     url=evidence.url,
                     file=evidence.file,
                     url_type=evidence.url_type,
+                    normalized_url=normalize_url(evidence.url) if evidence.url else '',
                 )
                 for evidence in submission.evidence_items.all()
             ])
@@ -1848,22 +1967,50 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
 
         submission.save()
 
+        requires_project_rubric = uses_project_rubric(
+            final_contribution_type if action_name == 'accept' else submission.contribution_type
+        )
+        rubric_review = serializer.validated_data.get('rubric_review')
+        rubric_record = None
+        if rubric_review and requires_project_rubric:
+            rubric_record, _ = ProjectMilestoneReview.objects.update_or_create(
+                submitted_contribution=submission,
+                defaults={
+                    'proposer': request.user,
+                    'review_flow': (
+                        final_contribution_type
+                        if action_name == 'accept'
+                        else submission.contribution_type
+                    ).review_flow,
+                    'action': action_name,
+                    'confidence': None,
+                    'gate_failures': rubric_review['gate_failures'],
+                    'sections': rubric_review['sections'],
+                    'extras': rubric_review['extras'],
+                    'overall_reason': rubric_review['overall_reason'],
+                },
+            )
+        else:
+            ProjectMilestoneReview.objects.filter(submitted_contribution=submission).delete()
+
         # Create CRM note recording the final decision
         from .models import SubmissionNote
         reviewer_name = request.user.name or request.user.address[:10] + '...'
         pts_str = f" with **{serializer.validated_data.get('points', '')} points**" if action_name == 'accept' else ''
         reply_text = serializer.validated_data.get('staff_reply', '') or ''
         reply_str = f"\n\n> {reply_text}" if reply_text and action_name in ('reject', 'more_info') else ''
+        rubric_str = f"\n\n{rubric_summary_text(rubric_review)}" if rubric_review else ''
         SubmissionNote.objects.create(
             submitted_contribution=submission,
             user=request.user,
-            message=f"Reviewed: **{action_name}**{pts_str} by {reviewer_name}{reply_str}",
+            message=f"Reviewed: **{action_name}**{pts_str} by {reviewer_name}{reply_str}{rubric_str}",
             is_proposal=False,
             data={
                 'action': action_name,
                 'points': serializer.validated_data.get('points'),
                 'staff_reply': reply_text,
                 'template_id': serializer.validated_data['template_id'].id if serializer.validated_data.get('template_id') else None,
+                'rubric_review_id': rubric_record.id if rubric_record else None,
             },
         )
 
@@ -1939,50 +2086,25 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
         """Get statistics for steward dashboard."""
-        total_pending = SubmittedContribution.objects.filter(state='pending').count()
-        
-        # Stats specific to authenticated steward (if logged in)
-        if request.user and request.user.is_authenticated:
-            reviewed_qs = SubmittedContribution.objects.filter(
-                reviewed_by=request.user
-            ).exclude(state='canceled')
-            total_reviewed = reviewed_qs.count()
-            
-            # Get last review time
-            last_review = reviewed_qs.order_by('-reviewed_at').first()
-            
-            last_review_time = last_review.reviewed_at if last_review else None
-            
-            # Get acceptance rate
-            user_reviews = reviewed_qs.exclude(state='pending')
-            
-            total_decisions = user_reviews.count()
-            accepted = user_reviews.filter(state='accepted').count()
-            total_rejected = user_reviews.filter(state='rejected').count()
-            total_info_requested = user_reviews.filter(state='more_info_needed').count()
-            acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
-        else:
-            # Public stats - show overall system stats
-            total_reviewed = SubmittedContribution.objects.exclude(
-                state__in=['pending', 'canceled']
-            ).count()
-            
-            # Get last review time (system-wide)
-            last_review = SubmittedContribution.objects.exclude(
-                reviewed_at__isnull=True
-            ).exclude(state='canceled').order_by('-reviewed_at').first()
-            
-            last_review_time = last_review.reviewed_at if last_review else None
-            
-            # Get overall acceptance rate
-            all_reviews = SubmittedContribution.objects.exclude(
-                state__in=['pending', 'canceled']
-            )
-            total_decisions = all_reviews.count()
-            accepted = all_reviews.filter(state='accepted').count()
-            total_rejected = all_reviews.filter(state='rejected').count()
-            total_info_requested = all_reviews.filter(state='more_info_needed').count()
-            acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
+        visible_qs = self._visible_submission_queryset()
+        total_pending = visible_qs.filter(state='pending').count()
+
+        reviewed_qs = visible_qs.filter(reviewed_by=request.user).exclude(state='canceled')
+        total_reviewed = reviewed_qs.count()
+
+        # Get last review time
+        last_review = reviewed_qs.order_by('-reviewed_at').first()
+
+        last_review_time = last_review.reviewed_at if last_review else None
+
+        # Get acceptance rate
+        user_reviews = reviewed_qs.exclude(state='pending')
+
+        total_decisions = user_reviews.count()
+        accepted = user_reviews.filter(state='accepted').count()
+        total_rejected = user_reviews.filter(state='rejected').count()
+        total_info_requested = user_reviews.filter(state='more_info_needed').count()
+        acceptance_rate = (accepted / total_decisions * 100) if total_decisions > 0 else 0
         
         return Response({
             'pending_count': total_pending,
@@ -2022,8 +2144,9 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         from django.db.models import Min, Max
         import calendar
 
-        # Build base queryset with optional filters first (needed for date detection)
-        base_qs = SubmittedContribution.objects.all()
+        # Build base queryset with steward visibility and optional filters first
+        # (needed for date detection).
+        base_qs = self._visible_submission_queryset()
 
         category = request.query_params.get('category')
         if category:
@@ -2132,7 +2255,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         points_qs = Contribution.objects.filter(
             created_at__date__gte=start_date,
             created_at__date__lte=end_date,
-            source_submission__isnull=False  # Only from submissions
+            source_submission__in=base_qs,
         ).exclude(
             contribution_type__slug__in=METRICS_POINTS_EXCLUDED_TYPE_SLUGS
         )
@@ -2395,9 +2518,17 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        serializer = SubmissionProposeSerializer(data=request.data)
+        serializer = SubmissionProposeSerializer(
+            data=request.data,
+            context={'submission': submission},
+        )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        effective_contribution_type = (
+            data.get('proposed_contribution_type')
+            or submission.contribution_type
+        )
+        requires_project_rubric = uses_project_rubric(effective_contribution_type)
 
         # Set proposed_* fields on the submission
         submission.proposed_action = data['proposed_action']
@@ -2418,21 +2549,44 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
 
         submission.save()
 
+        rubric_review = data.get('rubric_review')
+        rubric_record = None
+        if rubric_review and requires_project_rubric:
+            rubric_record, _ = ProjectMilestoneReview.objects.update_or_create(
+                submitted_contribution=submission,
+                defaults={
+                    'proposer': request.user,
+                    'review_flow': effective_contribution_type.review_flow,
+                    'action': data['proposed_action'],
+                    'confidence': data.get('confidence'),
+                    'gate_failures': rubric_review['gate_failures'],
+                    'sections': rubric_review['sections'],
+                    'extras': rubric_review['extras'],
+                    'overall_reason': rubric_review['overall_reason'],
+                },
+            )
+        elif not requires_project_rubric:
+            ProjectMilestoneReview.objects.filter(submitted_contribution=submission).delete()
+
         # Create CRM note recording the proposal
         from .models import SubmissionNote
         proposer_name = request.user.name or request.user.address[:10] + '...'
         action_str = data['proposed_action']
-        pts_str = f" with **{data.get('proposed_points', '')} points**" if action_str == 'accept' else ''
+        proposed_points = data.get('proposed_points')
+        pts_str = f" with **{proposed_points} points**" if action_str == 'accept' and proposed_points is not None else ''
         ct_name = data.get('proposed_contribution_type')
         ct_str = f" ({ct_name.name})" if ct_name else ''
         user_obj = data.get('proposed_user')
         user_str = f", assigned to {user_obj.name or user_obj.address[:10]}" if user_obj else ''
         reply_str = f". Reply: '{data.get('proposed_staff_reply', '')[:100]}'" if data.get('proposed_staff_reply') else ''
+        rubric_str = ''
+        if rubric_review:
+            rubric_str = f"\n\n{rubric_summary_text(rubric_review)}"
 
         SubmissionNote.objects.create(
             submitted_contribution=submission,
             user=request.user,
-            message=f"Proposed: **{action_str}**{pts_str}{ct_str}{user_str}{reply_str} by {proposer_name}",
+            message=f"Proposed: **{action_str}**{pts_str}{ct_str}{user_str}{reply_str} by {proposer_name}{rubric_str}",
             is_proposal=True,
             data={
                 'action': data['proposed_action'],
@@ -2440,6 +2594,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 'staff_reply': data.get('proposed_staff_reply', ''),
                 'template_id': template.id if template else None,
                 'confidence': data.get('confidence'),
+                'rubric_review_id': rubric_record.id if rubric_record else None,
             },
         )
 

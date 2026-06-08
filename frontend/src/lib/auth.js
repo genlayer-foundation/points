@@ -196,11 +196,12 @@ export async function connectWallet(provider = null, walletName = 'wallet') {
 
 /**
  * Fetch a nonce from the backend
+ * @param {string} purpose - Purpose for the nonce, defaults to login
  * @returns {Promise<string>} Nonce for SIWE message
  */
-export async function getNonce() {
+export async function getNonce(purpose = 'login') {
   try {
-    const response = await authAxios.get(API_ENDPOINTS.NONCE);
+    const response = await authAxios.get(API_ENDPOINTS.NONCE, { params: { purpose } });
     return response.data.nonce;
   } catch (error) {
     // Use a specific error message for this case
@@ -283,7 +284,7 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet',
     const ethereumProvider = state.provider || provider || window.ethereum;
 
     // Get nonce from server
-    const nonce = await getNonce();
+    const nonce = await getNonce('login');
 
     // Create and sign the message with the specific provider
     const { message, signature } = await createAndSignMessage(address, nonce, ethereumProvider);

@@ -29,13 +29,17 @@ class StewardDiscordXPTest(TestCase):
         self.client = APIClient()
         now = timezone.now()
 
-        self.community_category = Category.objects.create(
-            name='Community',
+        self.community_category, _ = Category.objects.get_or_create(
             slug='community',
+            defaults={
+                'name': 'Community',
+            },
         )
-        self.builder_category = Category.objects.create(
-            name='Builder',
+        self.builder_category, _ = Category.objects.get_or_create(
             slug='builder',
+            defaults={
+                'name': 'Builder',
+            },
         )
         self.community_type = ContributionType.objects.create(
             name='Community Call',
@@ -94,14 +98,14 @@ class StewardDiscordXPTest(TestCase):
             notes=notes,
         )
 
-    def link_discord(self, user=None, username='alice_discord', platform_user_id='999'):
+    def link_discord(self, user=None, username='alice_discord', platform_user_id='999', guild_member=True):
         return DiscordConnection.objects.create(
             user=user or self.user,
             platform_user_id=platform_user_id,
             platform_username=username,
             access_token=encrypt_token('discord-access-token'),
             linked_at=timezone.now(),
-            guild_member=True,
+            guild_member=guild_member,
         )
 
     def test_community_contributions_create_xp_state_only_for_community(self):
@@ -135,12 +139,30 @@ class StewardDiscordXPTest(TestCase):
             points=0,
             title='Zero point community note',
         )
+        unconfirmed_user = User.objects.create_user(
+            email='unconfirmed@example.com',
+            address='0x4444444444444444444444444444444444444444',
+            password='testpass123',
+            name='Unconfirmed',
+        )
+        self.link_discord(
+            user=unconfirmed_user,
+            username='unconfirmed_xp',
+            platform_user_id='1000',
+            guild_member=False,
+        )
+        unconfirmed = self.create_contribution(
+            user=unconfirmed_user,
+            points=90,
+            title='Unconfirmed guild member note',
+        )
 
         response = self.client.get('/api/v1/steward-discord-xp/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 1)
         self.assertEqual(response.data['results'][0]['contribution'], contribution.id)
         self.assertNotEqual(response.data['results'][0]['contribution'], zero.id)
+        self.assertNotEqual(response.data['results'][0]['contribution'], unconfirmed.id)
 
         response = self.client.get('/api/v1/steward-discord-xp/', {'status': 'pending'})
         self.assertEqual(response.data['count'], 1)
@@ -180,6 +202,33 @@ class StewardDiscordXPTest(TestCase):
         state.refresh_from_db()
         self.assertEqual(state.status, ContributionDiscordXPState.STATUS_PENDING)
         self.assertEqual(state.awarded_amount, 0)
+
+    def test_previously_awarded_non_member_remains_visible_and_unsettable(self):
+        connection = self.link_discord(username='alice_xp')
+        contribution = self.create_contribution(points=30)
+
+        response = self.client.post(f'/api/v1/steward-discord-xp/{contribution.id}/mark-distributed/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        connection.guild_member = False
+        connection.save(update_fields=['guild_member', 'updated_at'])
+        contribution.points = 0
+        contribution.frozen_global_points = 0
+        contribution.save()
+        contribution.discord_xp_state.refresh_from_db()
+        self.assertEqual(contribution.discord_xp_state.status, ContributionDiscordXPState.STATUS_NEEDS_REVIEW)
+
+        response = self.client.get('/api/v1/steward-discord-xp/', {'status': 'needs_review'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(response.data['results'][0]['contribution'], contribution.id)
+        self.assertFalse(response.data['results'][0]['discord']['guild_member'])
+
+        response = self.client.post(f'/api/v1/steward-discord-xp/{contribution.id}/unset-distributed/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        contribution.discord_xp_state.refresh_from_db()
+        self.assertEqual(contribution.discord_xp_state.status, ContributionDiscordXPState.STATUS_PENDING)
+        self.assertEqual(contribution.discord_xp_state.awarded_amount, 0)
 
     @patch('social_connections.oauth_service.requests')
     def test_record_copy_refreshes_discord_username_and_updates_copy_state(self, mock_requests):

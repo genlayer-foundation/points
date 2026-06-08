@@ -39,17 +39,47 @@ class ValidatorAPITestCase(APITestCase):
         response = self.client.get('/api/v1/validators/me/')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_create_validator_profile(self):
-        """Test creating validator profile via PATCH"""
+    def test_patch_validator_profile_does_not_create_missing_profile(self):
+        """PATCH /me must not create a validator profile."""
         response = self.client.patch('/api/v1/validators/me/', {
             'node_version_asimov': '1.2.3'
         })
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertFalse(Validator.objects.filter(user=self.user).exists())
 
-        # Verify profile was created
-        self.assertTrue(Validator.objects.filter(user=self.user).exists())
-        validator = Validator.objects.get(user=self.user)
-        self.assertEqual(validator.node_version_asimov, '1.2.3')
+    def test_patch_validator_profile_rejects_unsupported_keys(self):
+        """PATCH /me rejects arbitrary keys and does not create a profile."""
+        response = self.client.patch('/api/v1/validators/me/', {
+            'unsupported_field': 'x',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Validator.objects.filter(user=self.user).exists())
+
+    def test_regular_user_cannot_mutate_arbitrary_validator_profile(self):
+        """Ordinary users cannot mutate validator profiles through object routes."""
+        other_user = User.objects.create_user(
+            email='other@example.com',
+            password='testpass123',
+        )
+        validator = Validator.objects.create(user=other_user)
+
+        response = self.client.patch(
+            f'/api/v1/validators/{validator.id}/',
+            {'node_version_asimov': '9.9.9'},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        validator.refresh_from_db()
+        self.assertNotEqual(validator.node_version_asimov, '9.9.9')
+
+    def test_regular_user_cannot_create_validator_profile(self):
+        response = self.client.post('/api/v1/validators/', {
+            'node_version_asimov': '1.2.3',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(Validator.objects.filter(user=self.user).exists())
 
     def test_update_validator_profile(self):
         """Test updating existing validator profile"""

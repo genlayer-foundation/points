@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Trigger Discord XP fetch and portal migration
         run: |
-          response=$(curl -s -w "\n%{http_code}" -X POST \
+          response=$(curl -sS --max-time 60 -w "\n%{http_code}" -X POST \
             -H "Content-Type: application/json" \
             -H "X-Cron-Token: ${{ secrets.CRON_SYNC_TOKEN }}" \
             "${{ secrets.API_BASE_URL }}/api/v1/community-xp/mee6/sync-and-apply/")

@@ -34,6 +34,45 @@ class ValidatorViewSet(viewsets.ModelViewSet):
     """
     queryset = Validator.objects.all()
     serializer_class = ValidatorSerializer
+
+    def _is_staff_mutation(self, request):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and (request.user.is_staff or request.user.is_superuser)
+        )
+
+    def _deny_non_staff_mutation(self, request):
+        if self._is_staff_mutation(request):
+            return None
+        return Response(
+            {'detail': 'Only staff users can mutate validator profiles.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    def create(self, request, *args, **kwargs):
+        denied = self._deny_non_staff_mutation(request)
+        if denied is not None:
+            return denied
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        denied = self._deny_non_staff_mutation(request)
+        if denied is not None:
+            return denied
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        denied = self._deny_non_staff_mutation(request)
+        if denied is not None:
+            return denied
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        denied = self._deny_non_staff_mutation(request)
+        if denied is not None:
+            return denied
+        return super().destroy(request, *args, **kwargs)
     
     def get_permissions(self):
         """
@@ -60,7 +99,23 @@ class ValidatorViewSet(viewsets.ModelViewSet):
                 )
         
         elif request.method == 'PATCH':
-            validator, created = Validator.objects.get_or_create(user=request.user)
+            unsupported_fields = set(request.data) - {
+                'node_version_asimov',
+                'node_version_bradbury',
+            }
+            if unsupported_fields:
+                return Response(
+                    {'detail': 'Only node version fields can be updated here.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                validator = Validator.objects.get(user=request.user)
+            except Validator.DoesNotExist:
+                return Response(
+                    {'detail': 'Validator profile not found for current user.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
             serializer = self.get_serializer(validator, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
@@ -624,7 +679,7 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
 
     @staticmethod
     def _operator_user_payload(wallet):
-        if wallet.operator and wallet.operator.user:
+        if wallet.operator and wallet.operator.user and wallet.operator.user.visible:
             user = wallet.operator.user
             return {
                 'id': user.id,

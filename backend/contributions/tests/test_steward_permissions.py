@@ -2,7 +2,8 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
-from contributions.models import SubmittedContribution, ContributionType, Category, ContributionHighlight
+from contributions.models import SubmittedContribution, ContributionType, Category, Contribution, ContributionHighlight
+from leaderboard.models import GlobalLeaderboardMultiplier
 from stewards.models import Steward, StewardPermission
 from datetime import datetime
 from django.utils import timezone
@@ -31,6 +32,25 @@ class StewardPermissionTest(TestCase):
             min_points=10,
             max_points=100
         )
+        self.other_category = Category.objects.create(
+            name="Other Category",
+            slug="other",
+            description="Other category"
+        )
+        self.other_contribution_type = ContributionType.objects.create(
+            name="Other Type",
+            slug="other-type",
+            description="Other contribution type",
+            category=self.other_category,
+            min_points=1,
+            max_points=5
+        )
+        for contribution_type in [self.contribution_type, self.other_contribution_type]:
+            GlobalLeaderboardMultiplier.objects.create(
+                contribution_type=contribution_type,
+                multiplier_value=1,
+                valid_from=timezone.now() - timezone.timedelta(days=1),
+            )
         
         # Create regular user
         self.regular_user = User.objects.create_user(
@@ -61,6 +81,11 @@ class StewardPermissionTest(TestCase):
             address='0x1111111111111111111111111111111111111111',
             password='testpass123'
         )
+        self.reassignment_user = User.objects.create_user(
+            email='reassignment@test.com',
+            address='0x2222222222222222222222222222222222222222',
+            password='testpass123'
+        )
         
         # Create a submission
         self.submission = SubmittedContribution.objects.create(
@@ -86,7 +111,7 @@ class StewardPermissionTest(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
-        # Try to get stats
+        # Steward stats require steward permission.
         response = self.client.get('/api/v1/steward-submissions/stats/')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
     
@@ -106,7 +131,7 @@ class StewardPermissionTest(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
-        # Try to get stats
+        # Steward stats require steward permission.
         response = self.client.get('/api/v1/steward-submissions/stats/')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
     
@@ -124,6 +149,67 @@ class StewardPermissionTest(TestCase):
         response = self.client.get('/api/v1/steward-submissions/stats/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['pending_count'], 1)
+
+    def test_propose_only_steward_only_sees_pending_permitted_submissions(self):
+        """Proposal-only stewards cannot browse non-pending review history."""
+        StewardPermission.objects.filter(steward=self.steward).delete()
+        StewardPermission.objects.create(
+            steward=self.steward,
+            contribution_type=self.contribution_type,
+            action='propose'
+        )
+        accepted_contribution = Contribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            points=50,
+        )
+        accepted_submission = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes="Already accepted",
+            state='accepted',
+            reviewed_by=self.steward_user,
+            reviewed_at=timezone.now(),
+            converted_contribution=accepted_contribution,
+        )
+        other_pending_submission = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.other_contribution_type,
+            contribution_date=timezone.now(),
+            notes="Other type",
+            state='pending'
+        )
+
+        self.client.force_authenticate(user=self.steward_user)
+
+        response = self.client.get('/api/v1/steward-submissions/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result_ids = {str(item['id']) for item in response.data['results']}
+        self.assertEqual(result_ids, {str(self.submission.id)})
+        self.assertNotIn(str(accepted_submission.id), result_ids)
+        self.assertNotIn(str(other_pending_submission.id), result_ids)
+
+        response = self.client.get('/api/v1/steward-submissions/?state=accepted')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['results'], [])
+
+        response = self.client.get('/api/v1/steward-submissions/stats/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['pending_count'], 1)
+        self.assertEqual(response.data['total_reviewed'], 0)
+        self.assertEqual(response.data['total_accepted'], 0)
+
+        response = self.client.get('/api/v1/steward-submissions/daily-metrics/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['totals']['pending_review'], 1)
+        self.assertEqual(response.data['totals']['accepted'], 0)
+        self.assertEqual(response.data['totals']['points_awarded'], 0)
     
     def test_steward_can_review_submissions(self):
         """Test that stewards can review submissions."""
@@ -148,6 +234,105 @@ class StewardPermissionTest(TestCase):
         self.assertEqual(self.submission.reviewed_by, self.steward_user)
         self.assertIsNotNone(self.submission.converted_contribution)
         self.assertEqual(self.submission.converted_contribution.points, 50)
+
+    def test_second_steward_cannot_accept_already_accepted_submission(self):
+        """A stale second accept must not create another contribution."""
+        second_steward_user = User.objects.create_user(
+            email='second-steward@test.com',
+            address='0x3333333333333333333333333333333333333333',
+            password='testpass123',
+        )
+        second_steward = Steward.objects.create(user=second_steward_user)
+        StewardPermission.objects.create(
+            steward=second_steward,
+            contribution_type=self.contribution_type,
+            action='accept',
+        )
+
+        self.client.force_authenticate(user=self.steward_user)
+        first_response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 50,
+                'contribution_type': self.contribution_type.id
+            },
+            format='json'
+        )
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.submission.refresh_from_db()
+        first_contribution_id = self.submission.converted_contribution_id
+
+        second_client = APIClient()
+        second_client.force_authenticate(user=second_steward_user)
+        second_response = second_client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 75,
+                'contribution_type': self.contribution_type.id
+            },
+            format='json'
+        )
+
+        self.assertEqual(second_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.reviewed_by, self.steward_user)
+        self.assertEqual(self.submission.converted_contribution_id, first_contribution_id)
+        self.assertEqual(Contribution.objects.count(), 1)
+
+    def test_accept_checks_permission_against_final_contribution_type(self):
+        self.client.force_authenticate(user=self.steward_user)
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 3,
+                'contribution_type': self.other_contribution_type.id,
+            },
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.state, 'pending')
+        self.assertIsNone(self.submission.converted_contribution)
+
+    def test_accept_validates_points_against_original_type_when_type_omitted(self):
+        self.client.force_authenticate(user=self.steward_user)
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 500,
+            },
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.state, 'pending')
+
+    def test_non_staff_steward_cannot_reassign_accepted_contribution(self):
+        self.client.force_authenticate(user=self.steward_user)
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 50,
+                'contribution_type': self.contribution_type.id,
+                'user': self.reassignment_user.id,
+            },
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.state, 'pending')
+        self.assertIsNone(self.submission.converted_contribution)
     
     def test_steward_can_reject_submissions(self):
         """Test that stewards can reject submissions."""
@@ -190,6 +375,32 @@ class StewardPermissionTest(TestCase):
         self.submission.refresh_from_db()
         self.assertEqual(self.submission.state, 'more_info_needed')
         self.assertEqual(self.submission.staff_reply, 'Please provide URL evidence')
+
+    def test_steward_can_accept_more_info_needed_submission(self):
+        """A submission waiting for more info remains reviewable after follow-up."""
+        self.submission.state = 'more_info_needed'
+        self.submission.reviewed_by = self.steward_user
+        self.submission.reviewed_at = timezone.now()
+        self.submission.staff_reply = 'Please provide URL evidence'
+        self.submission.last_edited_at = timezone.now() + timezone.timedelta(minutes=1)
+        self.submission.save()
+
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 50,
+                'contribution_type': self.contribution_type.id
+            },
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.state, 'accepted')
+        self.assertIsNotNone(self.submission.converted_contribution)
+        self.assertEqual(self.submission.converted_contribution.points, 50)
     
     def test_steward_can_create_highlight(self):
         """Test that stewards can create highlights when accepting."""

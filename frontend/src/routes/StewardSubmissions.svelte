@@ -42,6 +42,16 @@
   // Permissions & templates
   let permissionsMap = $state({});
   let templates = $state([]);
+  const reviewPermissionActions = ['accept', 'reject', 'request_more_info'];
+  let hasProposalPermission = $derived(
+    Object.values(permissionsMap || {}).some(actions => actions.includes('propose'))
+  );
+  let hasReviewPermission = $derived(
+    Object.values(permissionsMap || {}).some(actions =>
+      reviewPermissionActions.some(action => actions.includes(action))
+    )
+  );
+  let proposalOnlyMode = $derived(hasProposalPermission && !hasReviewPermission);
   let rejectTemplates = $derived(templates.filter(t => t.action === 'reject'));
 
   // CRM Notes state - keyed by submission ID
@@ -228,6 +238,11 @@
     clearSelection();
 
     try {
+      if (proposalOnlyMode && stateFilter !== 'pending') {
+        stateFilter = 'pending';
+        currentPage = 1;
+      }
+
       // Update URL with current filters
       updateURL();
 
@@ -246,6 +261,10 @@
       // status overrides it; negated statuses are additive exclusions.
       if (stateFilter && (!parsed.filters.status || parsed.filters.status.negated)) {
         params.state = stateFilter;
+      }
+      if (proposalOnlyMode) {
+        params.state = 'pending';
+        delete params.exclude_state;
       }
 
       params.page = currentPage;
@@ -425,6 +444,13 @@
         action: data.action,
         staff_reply: data.staff_reply
       };
+
+      if (data.template_id) {
+        apiData.template_id = data.template_id;
+      }
+      if (data.rubric_review) {
+        apiData.rubric_review = data.rubric_review;
+      }
 
       if (data.action === 'accept') {
         apiData.points = parseInt(data.points);
@@ -678,14 +704,19 @@
           id="state-filter"
           bind:value={stateFilter}
           onchange={handleFilterChange}
+          disabled={proposalOnlyMode}
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
-          <option value="">All</option>
-          <option value="pending">Pending Review</option>
-          <option value="accepted">Accepted</option>
-          <option value="rejected">Rejected</option>
-          <option value="canceled">Canceled</option>
-          <option value="more_info_needed">More Info Needed</option>
+          {#if proposalOnlyMode}
+            <option value="pending">Pending Review</option>
+          {:else}
+            <option value="">All</option>
+            <option value="pending">Pending Review</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+            <option value="canceled">Canceled</option>
+            <option value="more_info_needed">More Info Needed</option>
+          {/if}
         </select>
       </div>
 
@@ -701,7 +732,7 @@
           {templates}
           {missions}
           onSearch={handleSearchChange}
-          placeholder="type:blog-post reviewed:me proposed-by:ai has:proposal..."
+          placeholder="Search URL or text, or type sort:-reviewed..."
         />
       </div>
     </div>
@@ -883,6 +914,7 @@
             acceptedUpdating={updatingAccepted.has(submission.id)}
             onAcceptedEditChange={handleAcceptedEditChange}
             onAcceptedUpdate={handleAcceptedUpdate}
+            enableRubricReview={true}
           />
         </div>
       {/each}

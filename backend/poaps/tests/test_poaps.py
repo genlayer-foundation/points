@@ -3,12 +3,14 @@ import tempfile
 import zipfile
 from unittest.mock import patch
 
+from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError, connection, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
 from django.utils import timezone
 from eth_account import Account
 from eth_account.messages import encode_defunct
@@ -16,7 +18,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from ethereum_auth.models import Nonce
-from poaps.admin import PoapDistributionAdminForm, PoapDropAdminForm
+from poaps.admin import PoapDistributionAdminForm, PoapDropAdmin, PoapDropAdminForm
 from poaps.models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch
 from poaps.services import generate_mint_links, hash_secret
 from social_connections.models import DiscordConnection
@@ -24,6 +26,13 @@ from social_connections.models import DiscordConnection
 User = get_user_model()
 
 
+@override_settings(
+    ETHEREUM_AUTH={
+        'SIWE_DOMAIN': 'localhost',
+        'NONCE_EXPIRY_MINUTES': 5,
+    },
+    FRONTEND_URL='http://localhost:5173',
+)
 class PoapAPITest(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -72,14 +81,21 @@ class PoapAPITest(TestCase):
         defaults.update(kwargs)
         return PoapDistribution.objects.create(**defaults)
 
-    def _recovery_payload(self, account, portal_user=None, nonce_value='recover-nonce'):
+    def _recovery_payload(
+        self,
+        account,
+        portal_user=None,
+        nonce_value='recover-nonce',
+        nonce_purpose=Nonce.PURPOSE_POAP_RECOVERY,
+    ):
         portal_user = portal_user or self.user
         Nonce.objects.create(
             value=nonce_value,
+            purpose=nonce_purpose,
             expires_at=timezone.now() + timezone.timedelta(minutes=5),
         )
         message = (
-            f'localhost wants you to verify a wallet for GenLayer POAP recovery:\n'
+            f'localhost:5173 wants you to verify a wallet for GenLayer POAP recovery:\n'
             f'{account.address}\n\n'
             'This signature only proves ownership of this wallet for attaching legacy POAPs '
             'to your current portal account. It will not sign you into the portal or change your account.\n\n'
@@ -183,6 +199,22 @@ class PoapAPITest(TestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_secret_claim_enforces_drop_event_window(self):
+        self.drop.event_start_at = timezone.now() + timezone.timedelta(hours=1)
+        self.drop.save(update_fields=['event_start_at', 'updated_at'])
+        self._secret_distribution()
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/ama-session/claim-secret/',
+            {'secret': 'friend-scientist-natural'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'This POAP is not open for claiming yet.')
+        self.assertFalse(PoapClaim.objects.filter(drop=self.drop, user=self.user).exists())
 
     def test_mint_link_single_use(self):
         distribution = PoapDistribution.objects.create(
@@ -308,13 +340,21 @@ class PoapAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertLessEqual(len(profile_queries), 6)
 
-    def test_profile_poaps_are_public(self):
+    def test_profile_poaps_require_authentication(self):
         PoapClaim.objects.create(
             drop=self.drop,
             user=self.user,
             claim_method=PoapClaim.CLAIM_LEGACY,
         )
 
+        response = self.client.get(f'/api/v1/users/by-address/{self.user.address}/poaps/')
+
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+        )
+
+        self.client.force_authenticate(user=self.user)
         response = self.client.get(f'/api/v1/users/by-address/{self.user.address}/poaps/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -351,6 +391,31 @@ class PoapAPITest(TestCase):
             user=self.other_user,
             claim_method=PoapClaim.CLAIM_SECRET,
         )
+        upcoming_drop = PoapDrop.objects.create(
+            title='Upcoming Drop',
+            slug='upcoming-drop',
+            event_start_at=timezone.now() + timezone.timedelta(hours=1),
+            status=PoapDrop.STATUS_ACTIVE,
+        )
+        PoapDistribution.objects.create(
+            drop=upcoming_drop,
+            method=PoapDistribution.METHOD_SECRET,
+            active=True,
+            secret_hash=hash_secret('upcoming'),
+        )
+        ended_drop = PoapDrop.objects.create(
+            title='Ended Drop',
+            slug='ended-drop',
+            event_start_at=timezone.now() - timezone.timedelta(days=2),
+            event_end_at=timezone.now() - timezone.timedelta(hours=1),
+            status=PoapDrop.STATUS_ACTIVE,
+        )
+        PoapDistribution.objects.create(
+            drop=ended_drop,
+            method=PoapDistribution.METHOD_SECRET,
+            active=True,
+            secret_hash=hash_secret('ended'),
+        )
 
         response = self.client.get('/api/v1/poaps/?page_size=20')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -360,6 +425,10 @@ class PoapAPITest(TestCase):
         self.assertEqual(by_slug['live-drop']['claim_state'], 'live')
         self.assertFalse(by_slug['full-drop']['can_claim'])
         self.assertEqual(by_slug['full-drop']['claim_state'], 'full')
+        self.assertFalse(by_slug['upcoming-drop']['can_claim'])
+        self.assertEqual(by_slug['upcoming-drop']['claim_state'], 'upcoming')
+        self.assertFalse(by_slug['ended-drop']['can_claim'])
+        self.assertEqual(by_slug['ended-drop']['claim_state'], 'ended')
         self.assertFalse(by_slug['ama-session']['can_claim'])
         self.assertEqual(by_slug['ama-session']['claim_state'], 'unavailable')
 
@@ -469,15 +538,66 @@ class PoapAPITest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_verify_wallet_rejects_login_purpose_nonce(self):
+        account = Account.create()
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/verify-wallet/',
+            self._recovery_payload(
+                account,
+                nonce_value='login-purpose-recovery-nonce',
+                nonce_purpose=Nonce.PURPOSE_LOGIN,
+            ),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Nonce.objects.get(value='login-purpose-recovery-nonce').used)
+
+    def test_verify_wallet_rejects_login_message_shape(self):
+        account = Account.create()
+        nonce = Nonce.objects.create(
+            value='login-message-nonce',
+            purpose=Nonce.PURPOSE_LOGIN,
+            expires_at=timezone.now() + timezone.timedelta(minutes=5),
+        )
+        message = (
+            'localhost:5173 wants you to sign in with your Ethereum account:\n'
+            f'{account.address}\n\n'
+            'Sign in with Ethereum to GenLayer Testnet Contributions\n\n'
+            'URI: http://localhost:5173\n'
+            'Version: 1\n'
+            'Chain ID: 1\n'
+            f'Nonce: {nonce.value}\n'
+            f'Issued At: {timezone.now().isoformat()}'
+        )
+        payload = {
+            'address': account.address,
+            'message': message,
+            'signature': Account.sign_message(
+                encode_defunct(text=message),
+                private_key=account.key,
+            ).signature.hex(),
+        }
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post('/api/v1/poaps/verify-wallet/', payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        nonce.refresh_from_db()
+        self.assertFalse(nonce.used)
+
     def test_verify_wallet_rejects_expired_nonce(self):
         account = Account.create()
         nonce_value = 'expired-recovery-nonce'
         Nonce.objects.create(
             value=nonce_value,
+            purpose=Nonce.PURPOSE_POAP_RECOVERY,
             expires_at=timezone.now() - timezone.timedelta(minutes=1),
         )
         message = (
-            f'localhost wants you to verify a wallet for GenLayer POAP recovery:\n'
+            f'localhost:5173 wants you to verify a wallet for GenLayer POAP recovery:\n'
             f'{account.address}\n\n'
             'This signature only proves ownership of this wallet for attaching legacy POAPs '
             'to your current portal account. It will not sign you into the portal or change your account.\n\n'
@@ -605,6 +725,29 @@ class PoapAPITest(TestCase):
         )
         self.assertFalse(form.is_valid())
         self.assertIn('max_claims', form.errors)
+
+    def test_poap_drop_admin_links_to_claims_instead_of_rendering_claim_inline(self):
+        PoapClaim.objects.create(
+            drop=self.drop,
+            user=self.user,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+        )
+        model_admin = PoapDropAdmin(PoapDrop, admin.site)
+
+        self.assertEqual([inline.model for inline in model_admin.inlines], [PoapDistribution])
+        claims_link = model_admin.claims_link(self.drop)
+        self.assertIn(reverse('admin:poaps_poapclaim_changelist'), claims_link)
+        self.assertIn(f'drop__id__exact={self.drop.pk}', claims_link)
+        self.assertIn('1 claim', claims_link)
+
+        self.staff.is_superuser = True
+        self.staff.save(update_fields=['is_superuser'])
+        self.client.force_login(self.staff)
+        response = self.client.get(
+            reverse('admin:poaps_poapclaim_changelist'),
+            {'drop__id__exact': self.drop.pk},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_poap_distribution_admin_form_counts_existing_unused_links_against_distribution_capacity(self):
         distribution = PoapDistribution.objects.create(

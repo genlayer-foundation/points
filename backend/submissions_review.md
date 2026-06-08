@@ -89,6 +89,24 @@ The external AI agent accesses submissions via the `/api/v1/ai-review/` API endp
 | `/api/v1/ai-review/{id}/propose/` | POST | Submit a review proposal |
 | `/api/v1/ai-review/templates/` | GET | List review templates |
 
+### Project Rubric Proposals
+
+Builder Project contribution types can opt into a structured rubric flow with
+`ContributionType.review_flow`. When the value is `builder_project`, both human
+Steward proposals and AI Review API proposals must include `rubric_review`.
+
+The detailed rubric is stored in `ProjectMilestoneReview`, one row per
+submission, and the existing `SubmittedContribution.proposed_*` fields remain
+the active queue summary. Proposal actions still create `SubmissionNote`
+records, but notes store only a compact summary/reference and are not the
+source of truth.
+
+Rubric proposal fields:
+- Gate failures: fixed checklist, any selected gate forces `reject`.
+- Sections: `genlayer_fit`, `contract_quality`, `engineering`, `frontend_ux`, each scored 0-5 when the gate passes. Section reasons are optional.
+- Extras: fixed checklist for `live_deployment`, `demo_video`, and `public_post`.
+- Overall reason: required internal explanation for the final steward.
+
 ## Management Command Usage
 
 ```bash
