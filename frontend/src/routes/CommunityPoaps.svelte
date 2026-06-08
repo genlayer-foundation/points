@@ -18,16 +18,19 @@
   let page = $state(1);
   let hasMore = $state(false);
   let loadingMore = $state(false);
+  let latestPoapsRequestId = 0;
 
   const PAGE_SIZE = 100;
   const poapGradientStyle = getCategoryGradientStyle('community', '#7f52e1');
 
   /** @param {number} [nextPage] @param {boolean} [append] */
   async function loadPoaps(nextPage = 1, append = false) {
+    const requestId = ++latestPoapsRequestId;
     if (append) {
       loadingMore = true;
     } else {
       loading = true;
+      loadingMore = false;
       appliedSearch = search.trim();
       appliedMonthFilter = monthFilter;
       hasMore = false;
@@ -45,6 +48,7 @@
       if (nextSearch) params.search = nextSearch;
       if (nextMonthFilter) params.month = nextMonthFilter;
       const response = await poapsAPI.list(params);
+      if (requestId !== latestPoapsRequestId) return;
       const data = response.data || {};
       if (Array.isArray(data)) {
         poaps = append ? [...poaps, ...data] : data;
@@ -60,6 +64,7 @@
       page = nextPage;
       hasMore = Boolean(data.next);
     } catch (err) {
+      if (requestId !== latestPoapsRequestId) return;
       const error = /** @type {any} */ (err);
       showError(error.response?.data?.error || 'Unable to load POAPs');
       if (!append) {
@@ -69,6 +74,7 @@
         hasMore = false;
       }
     } finally {
+      if (requestId !== latestPoapsRequestId) return;
       if (append) {
         loadingMore = false;
       } else {
