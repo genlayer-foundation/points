@@ -3,12 +3,14 @@ import tempfile
 import zipfile
 from unittest.mock import patch
 
+from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError, connection, transaction
 from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
 from django.utils import timezone
 from eth_account import Account
 from eth_account.messages import encode_defunct
@@ -16,7 +18,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from ethereum_auth.models import Nonce
-from poaps.admin import PoapDistributionAdminForm, PoapDropAdminForm
+from poaps.admin import PoapDistributionAdminForm, PoapDropAdmin, PoapDropAdminForm
 from poaps.models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch
 from poaps.services import generate_mint_links, hash_secret
 from social_connections.models import DiscordConnection
@@ -723,6 +725,29 @@ class PoapAPITest(TestCase):
         )
         self.assertFalse(form.is_valid())
         self.assertIn('max_claims', form.errors)
+
+    def test_poap_drop_admin_links_to_claims_instead_of_rendering_claim_inline(self):
+        PoapClaim.objects.create(
+            drop=self.drop,
+            user=self.user,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+        )
+        model_admin = PoapDropAdmin(PoapDrop, admin.site)
+
+        self.assertEqual([inline.model for inline in model_admin.inlines], [PoapDistribution])
+        claims_link = model_admin.claims_link(self.drop)
+        self.assertIn(reverse('admin:poaps_poapclaim_changelist'), claims_link)
+        self.assertIn(f'drop__id__exact={self.drop.pk}', claims_link)
+        self.assertIn('1 claim', claims_link)
+
+        self.staff.is_superuser = True
+        self.staff.save(update_fields=['is_superuser'])
+        self.client.force_login(self.staff)
+        response = self.client.get(
+            reverse('admin:poaps_poapclaim_changelist'),
+            {'drop__id__exact': self.drop.pk},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_poap_distribution_admin_form_counts_existing_unused_links_against_distribution_capacity(self):
         distribution = PoapDistribution.objects.create(
