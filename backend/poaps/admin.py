@@ -1,4 +1,5 @@
 import csv
+from urllib.parse import urlencode
 
 from django import forms
 from django.contrib import admin
@@ -6,6 +7,8 @@ from django.contrib import messages
 from django.conf import settings
 from django.db.models import F, IntegerField, Q, Sum
 from django.http import HttpResponse
+from django.urls import reverse
+from django.utils.html import format_html
 from django.utils import timezone
 
 from utils.admin_mixins import CloudinaryUploadMixin
@@ -190,15 +193,6 @@ class PoapDistributionInline(admin.TabularInline):
     readonly_fields = ('claimed_count',)
 
 
-class PoapClaimInline(admin.TabularInline):
-    model = PoapClaim
-    extra = 0
-    fields = ('user', 'claim_method', 'source', 'claimed_at', 'legacy_wallet_address', 'legacy_email')
-    readonly_fields = ('claimed_at',)
-    autocomplete_fields = ('user',)
-    show_change_link = True
-
-
 @admin.register(PoapDrop)
 class PoapDropAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
     form = PoapDropAdminForm
@@ -213,9 +207,9 @@ class PoapDropAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
     list_filter = ('status', 'event_start_at')
     search_fields = ('title', 'description', 'slug', 'legacy_poap_id')
     prepopulated_fields = {'slug': ('title',)}
-    readonly_fields = ('created_at', 'updated_at', 'artwork_public_id')
+    readonly_fields = ('claims_link', 'created_at', 'updated_at', 'artwork_public_id')
     autocomplete_fields = ('created_by',)
-    inlines = [PoapDistributionInline, PoapClaimInline]
+    inlines = [PoapDistributionInline]
     fieldsets = (
         (None, {
             'fields': ('title', 'slug', 'description', 'status', 'created_by'),
@@ -228,7 +222,7 @@ class PoapDropAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
             'fields': ('event_start_at', 'event_end_at'),
         }),
         ('Claiming', {
-            'fields': ('max_claims',),
+            'fields': ('max_claims', 'claims_link'),
         }),
         ('Legacy import', {
             'fields': ('legacy_poap_id',),
@@ -239,6 +233,16 @@ class PoapDropAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
             'classes': ('collapse',),
         }),
     )
+
+    @admin.display(description='Claims')
+    def claims_link(self, obj):
+        if not obj.pk:
+            return 'Save this POAP before viewing claims.'
+
+        url = reverse('admin:poaps_poapclaim_changelist')
+        query = urlencode({'drop__id__exact': obj.pk})
+        count = obj.claims.count()
+        return format_html('<a href="{}?{}">{} claim(s)</a>', url, query, count)
 
 
 @admin.register(PoapDistribution)
