@@ -212,6 +212,102 @@ class ProjectMilestoneRubricHumanProposalTests(APITestCase):
         self.assertIsNotNone(note)
         self.assertNotIn('points**', note.message)
 
+    def test_direct_project_accept_stores_rubric_review(self):
+        submission = self.create_submission()
+        payload = rubric_payload(
+            sections={
+                'genlayer_fit': {'score': 4},
+                'contract_quality': {'score': 3, 'reason': ''},
+                'engineering': {'score': 3, 'reason': '   '},
+                'frontend_ux': {'score': 2},
+            },
+            extras=['live_deployment'],
+            overall_reason='',
+        )
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/review/',
+            data={
+                'action': 'accept',
+                'points': 75,
+                'contribution_type': self.project_type.id,
+                'user': self.submitter.id,
+                'rubric_review': payload,
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'accepted')
+        review = ProjectMilestoneReview.objects.get(submitted_contribution=submission)
+        self.assertEqual(review.action, 'accept')
+        self.assertIsNone(review.confidence)
+        self.assertEqual(review.gate_failures, [])
+        self.assertEqual(review.extras, ['live_deployment'])
+        self.assertEqual(review.overall_reason, '')
+        self.assertEqual(review.sections['genlayer_fit']['score'], 4)
+        self.assertEqual(review.sections['genlayer_fit']['reason'], '')
+        self.assertEqual(review.sections['engineering']['reason'], '')
+        self.assertEqual(response.data['rubric_review']['sections'], review.sections)
+
+        note = SubmissionNote.objects.filter(
+            submitted_contribution=submission,
+            is_proposal=False,
+        ).first()
+        self.assertIsNotNone(note)
+        self.assertEqual(note.data['rubric_review_id'], review.id)
+        self.assertIn('Rubric scores', note.message)
+
+    def test_direct_project_reject_stores_gate_failure_rubric_review(self):
+        submission = self.create_submission()
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/review/',
+            data={
+                'action': 'reject',
+                'staff_reply': 'The repository does not build.',
+                'rubric_review': gate_payload(),
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'rejected')
+        review = ProjectMilestoneReview.objects.get(submitted_contribution=submission)
+        self.assertEqual(review.action, 'reject')
+        self.assertEqual(review.gate_failures, ['repo_does_not_build'])
+        self.assertEqual(review.sections, {})
+        self.assertEqual(response.data['rubric_review']['gate_failures'], ['repo_does_not_build'])
+
+        note = SubmissionNote.objects.filter(
+            submitted_contribution=submission,
+            is_proposal=False,
+        ).first()
+        self.assertIsNotNone(note)
+        self.assertEqual(note.data['rubric_review_id'], review.id)
+        self.assertIn('Gate failed', note.message)
+
+    def test_direct_project_accept_rejects_gate_failure_rubric_review(self):
+        submission = self.create_submission()
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/review/',
+            data={
+                'action': 'accept',
+                'points': 75,
+                'contribution_type': self.project_type.id,
+                'user': self.submitter.id,
+                'rubric_review': gate_payload(),
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('action', response.data)
+        self.assertFalse(ProjectMilestoneReview.objects.filter(submitted_contribution=submission).exists())
+
     def test_project_reject_proposal_stores_scores_reasons_and_extras_when_gate_passes(self):
         submission = self.create_submission()
         payload = rubric_payload(

@@ -1964,22 +1964,50 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
 
         submission.save()
 
+        requires_project_rubric = uses_project_rubric(
+            final_contribution_type if action_name == 'accept' else submission.contribution_type
+        )
+        rubric_review = serializer.validated_data.get('rubric_review')
+        rubric_record = None
+        if rubric_review and requires_project_rubric:
+            rubric_record, _ = ProjectMilestoneReview.objects.update_or_create(
+                submitted_contribution=submission,
+                defaults={
+                    'proposer': request.user,
+                    'review_flow': (
+                        final_contribution_type
+                        if action_name == 'accept'
+                        else submission.contribution_type
+                    ).review_flow,
+                    'action': action_name,
+                    'confidence': None,
+                    'gate_failures': rubric_review['gate_failures'],
+                    'sections': rubric_review['sections'],
+                    'extras': rubric_review['extras'],
+                    'overall_reason': rubric_review['overall_reason'],
+                },
+            )
+        elif not requires_project_rubric:
+            ProjectMilestoneReview.objects.filter(submitted_contribution=submission).delete()
+
         # Create CRM note recording the final decision
         from .models import SubmissionNote
         reviewer_name = request.user.name or request.user.address[:10] + '...'
         pts_str = f" with **{serializer.validated_data.get('points', '')} points**" if action_name == 'accept' else ''
         reply_text = serializer.validated_data.get('staff_reply', '') or ''
         reply_str = f"\n\n> {reply_text}" if reply_text and action_name in ('reject', 'more_info') else ''
+        rubric_str = f"\n\n{rubric_summary_text(rubric_review)}" if rubric_review else ''
         SubmissionNote.objects.create(
             submitted_contribution=submission,
             user=request.user,
-            message=f"Reviewed: **{action_name}**{pts_str} by {reviewer_name}{reply_str}",
+            message=f"Reviewed: **{action_name}**{pts_str} by {reviewer_name}{reply_str}{rubric_str}",
             is_proposal=False,
             data={
                 'action': action_name,
                 'points': serializer.validated_data.get('points'),
                 'staff_reply': reply_text,
                 'template_id': serializer.validated_data['template_id'].id if serializer.validated_data.get('template_id') else None,
+                'rubric_review_id': rubric_record.id if rubric_record else None,
             },
         )
 

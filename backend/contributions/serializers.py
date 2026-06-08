@@ -895,12 +895,35 @@ class StewardSubmissionReviewSerializer(serializers.Serializer):
     template_id = serializers.PrimaryKeyRelatedField(
         queryset=ReviewTemplate.objects.all(), required=False, allow_null=True,
     )
+    rubric_review = serializers.JSONField(required=False)
     
     def validate(self, data):
         """Validate the review action and required fields."""
         action = data.get('action')
         submission = self.context.get('submission')
         request = self.context.get('request')
+        current_contribution_type = submission.contribution_type if submission else None
+        effective_contribution_type = (
+            data.get('contribution_type')
+            if action == 'accept'
+            else current_contribution_type
+        ) or current_contribution_type
+        current_requires_rubric = uses_project_rubric(current_contribution_type)
+        requires_rubric = uses_project_rubric(effective_contribution_type)
+        if 'rubric_review' in data:
+            if requires_rubric:
+                data['rubric_review'] = normalize_rubric_review_payload(
+                    data.get('rubric_review'),
+                    action,
+                    require_overall_reason=False,
+                    action_field='action',
+                )
+            elif current_requires_rubric:
+                data.pop('rubric_review', None)
+            else:
+                raise serializers.ValidationError({
+                    'rubric_review': 'Rubric review is only accepted for Builder Project reviews.'
+                })
         
         if action == 'accept':
             if 'points' not in data or data.get('points') is None:

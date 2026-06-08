@@ -445,6 +445,13 @@
         staff_reply: data.staff_reply
       };
 
+      if (data.template_id) {
+        apiData.template_id = data.template_id;
+      }
+      if (data.rubric_review) {
+        apiData.rubric_review = data.rubric_review;
+      }
+
       if (data.action === 'accept') {
         apiData.points = parseInt(data.points);
         apiData.contribution_type = data.contribution_type;

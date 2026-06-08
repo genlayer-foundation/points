@@ -102,10 +102,15 @@ def _normalize_score(value, section_key):
     return score
 
 
-def normalize_rubric_review_payload(payload, proposed_action):
+def normalize_rubric_review_payload(
+    payload,
+    proposed_action,
+    require_overall_reason=True,
+    action_field='proposed_action',
+):
     if payload is None:
         raise serializers.ValidationError({
-            'rubric_review': 'Rubric review is required for Builder Project proposals.'
+            'rubric_review': 'Rubric review is required for Builder Project reviews.'
         })
     if not isinstance(payload, dict):
         raise serializers.ValidationError({
@@ -123,7 +128,7 @@ def normalize_rubric_review_payload(payload, proposed_action):
         'extras',
     )
     overall_reason = str(payload.get('overall_reason') or '').strip()
-    if not overall_reason:
+    if require_overall_reason and not overall_reason:
         raise serializers.ValidationError({
             'overall_reason': 'Overall reason is required.'
         })
@@ -131,7 +136,7 @@ def normalize_rubric_review_payload(payload, proposed_action):
     if gate_failures:
         if proposed_action != 'reject':
             raise serializers.ValidationError({
-                'proposed_action': 'Gate failures must be submitted as reject proposals.'
+                action_field: 'Gate failures must be submitted as reject reviews.'
             })
         return {
             'gate_failures': gate_failures,

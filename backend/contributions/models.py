@@ -727,9 +727,10 @@ class SubmissionNote(BaseModel):
 
 class ProjectMilestoneReview(BaseModel):
     """
-    Latest structured Builder Project rubric proposal for a submitted
-    contribution. The existing SubmittedContribution proposed_* fields remain
-    the queue summary; this record is the detailed rubric source of truth.
+    Latest structured Builder Project rubric review for a submitted
+    contribution. This can come from a proposal or a final steward decision.
+    The existing SubmittedContribution proposed_* fields remain the queue
+    summary; this record is the detailed rubric source of truth.
     """
     ACTION_CHOICES = [
         ('accept', 'Accept'),

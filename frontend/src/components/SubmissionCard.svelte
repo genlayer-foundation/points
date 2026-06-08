@@ -745,6 +745,9 @@
         highlight_description: highlightDescription,
         template_id: selectedTemplateId
       };
+      if (isProjectReview && (reviewAction === 'accept' || reviewAction === 'reject')) {
+        data.rubric_review = buildRubricReviewPayload(rubricState);
+      }
       onReview(submission.id, data);
     }
   }

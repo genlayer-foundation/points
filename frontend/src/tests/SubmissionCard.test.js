@@ -197,6 +197,57 @@ describe('SubmissionCard', () => {
     expect(screen.queryByText('Overall reason')).toBeNull();
   });
 
+  it('submits the builder project rubric payload for direct reviews', async () => {
+    const onReview = vi.fn();
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission(),
+        showReviewForm: true,
+        onReview,
+        onPropose: vi.fn(),
+        reviewData: {
+          action: 'accept',
+          user: 9,
+          contribution_type: 7,
+          points: 10,
+          staff_reply: ''
+        },
+        permissions: {
+          7: ['accept', 'reject']
+        },
+        contributionTypes: [
+          {
+            id: 7,
+            name: 'Builder Project',
+            category: 'builder',
+            min_points: 0,
+            max_points: 100,
+            review_flow: 'builder_project'
+          }
+        ],
+        multipliers: { 7: 1 },
+        templates: [],
+        notes: [],
+        enableRubricReview: true
+      }
+    });
+
+    await fireEvent.change(screen.getByLabelText('GenLayer fit'), { target: { value: '4' } });
+    await fireEvent.click(screen.getByLabelText('Live deployment'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Accept & Create Contribution' }));
+
+    await waitFor(() => {
+      expect(onReview).toHaveBeenCalledTimes(1);
+    });
+    const payload = onReview.mock.calls[0][1].rubric_review;
+    expect(payload).toEqual(expect.objectContaining({
+      gate_failures: [],
+      extras: ['live_deployment'],
+      overall_reason: ''
+    }));
+    expect(payload.sections.genlayer_fit).toEqual({ score: 4, reason: '' });
+  });
+
   it('selects the gate rejection template when a direct reviewer chooses a gate failure', async () => {
     render(SubmissionCard, {
       props: {
