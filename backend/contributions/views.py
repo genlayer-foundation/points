@@ -2603,6 +2603,45 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK
         )
 
+    def _validate_proposal_note_update(self, request, submission, note):
+        if not note.is_proposal:
+            return Response(
+                {'detail': 'Only generated proposal notes can be edited.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if submission.state != 'pending' or not submission.proposed_action:
+            return Response(
+                {'detail': 'Proposal notes can only be edited while the proposal is pending.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if note.user_id != request.user.id or submission.proposed_by_id != request.user.id:
+            return Response(
+                {'detail': 'You can only edit your own active proposal note.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not steward_has_permission(request.user, submission.contribution_type_id, 'propose'):
+            return Response(
+                {'detail': 'You do not have permission to edit proposal notes for this contribution type.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        latest_proposal_note = (
+            submission.internal_notes
+            .filter(is_proposal=True)
+            .order_by('-created_at', '-id')
+            .first()
+        )
+        if not latest_proposal_note or latest_proposal_note.id != note.id:
+            return Response(
+                {'detail': 'Only the active generated proposal note can be edited.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return None
+
     @action(detail=True, methods=['get', 'post'], url_path='notes')
     def notes(self, request, pk=None):
         """List or create CRM notes on a submission."""
@@ -2632,6 +2671,31 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 SubmissionNoteSerializer(note).data,
                 status=status.HTTP_201_CREATED
             )
+
+    @action(detail=True, methods=['patch'], url_path=r'notes/(?P<note_id>[^/.]+)')
+    def update_note(self, request, pk=None, note_id=None):
+        """Edit the active generated proposal note for a pending proposal."""
+        submission = self.get_object()
+        note = get_object_or_404(
+            SubmissionNote,
+            pk=note_id,
+            submitted_contribution=submission,
+        )
+
+        validation_response = self._validate_proposal_note_update(request, submission, note)
+        if validation_response is not None:
+            return validation_response
+
+        message = request.data.get('message', '').strip()
+        if not message:
+            return Response(
+                {'error': 'Message is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        note.message = message
+        note.save(update_fields=['message', 'updated_at'])
+        return Response(SubmissionNoteSerializer(note).data)
 
     @action(detail=False, methods=['get'], url_path='ban-appeals')
     def ban_appeals(self, request):

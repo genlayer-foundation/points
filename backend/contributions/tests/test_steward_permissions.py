@@ -2,7 +2,14 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
-from contributions.models import SubmittedContribution, ContributionType, Category, Contribution, ContributionHighlight
+from contributions.models import (
+    SubmittedContribution,
+    ContributionType,
+    Category,
+    Contribution,
+    ContributionHighlight,
+    SubmissionNote,
+)
 from leaderboard.models import GlobalLeaderboardMultiplier
 from stewards.models import Steward, StewardPermission
 from datetime import datetime
@@ -210,6 +217,122 @@ class StewardPermissionTest(TestCase):
         self.assertEqual(response.data['totals']['pending_review'], 1)
         self.assertEqual(response.data['totals']['accepted'], 0)
         self.assertEqual(response.data['totals']['points_awarded'], 0)
+
+    def test_propose_only_steward_can_edit_active_proposal_note(self):
+        """Proposal-only stewards can correct their generated note while pending."""
+        StewardPermission.objects.filter(steward=self.steward).delete()
+        StewardPermission.objects.create(
+            steward=self.steward,
+            contribution_type=self.contribution_type,
+            action='propose'
+        )
+
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/propose/',
+            {
+                'proposed_action': 'reject',
+                'proposed_staff_reply': 'Initial rejection reason',
+            },
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        note = SubmissionNote.objects.get(
+            submitted_contribution=self.submission,
+            is_proposal=True,
+        )
+        response = self.client.patch(
+            f'/api/v1/steward-submissions/{self.submission.id}/notes/{note.id}/',
+            {'message': 'Edited generated proposal note'},
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        note.refresh_from_db()
+        self.assertEqual(note.message, 'Edited generated proposal note')
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.proposed_action, 'reject')
+
+    def test_proposal_note_cannot_be_edited_after_acceptance(self):
+        """Generated proposal notes stay locked after final review."""
+        self.submission.proposed_action = 'reject'
+        self.submission.proposed_by = self.steward_user
+        self.submission.state = 'accepted'
+        self.submission.save()
+        note = SubmissionNote.objects.create(
+            submitted_contribution=self.submission,
+            user=self.steward_user,
+            message='Proposal note',
+            is_proposal=True,
+            data={'action': 'reject'},
+        )
+
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.patch(
+            f'/api/v1/steward-submissions/{self.submission.id}/notes/{note.id}/',
+            {'message': 'Edited after acceptance'},
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        note.refresh_from_db()
+        self.assertEqual(note.message, 'Proposal note')
+
+    def test_steward_cannot_edit_non_proposal_note(self):
+        """Regular CRM notes cannot be edited via the proposal note endpoint."""
+        note = SubmissionNote.objects.create(
+            submitted_contribution=self.submission,
+            user=self.steward_user,
+            message='Regular CRM note',
+            is_proposal=False,
+        )
+
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.patch(
+            f'/api/v1/steward-submissions/{self.submission.id}/notes/{note.id}/',
+            {'message': 'Attempted edit'},
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        note.refresh_from_db()
+        self.assertEqual(note.message, 'Regular CRM note')
+
+    def test_steward_cannot_edit_another_stewards_proposal_note(self):
+        """Only the steward who owns the active proposal can edit its note."""
+        other_steward_user = User.objects.create_user(
+            email='other-steward@test.com',
+            address='0x3333333333333333333333333333333333333333',
+            password='testpass123',
+        )
+        other_steward = Steward.objects.create(user=other_steward_user)
+        StewardPermission.objects.create(
+            steward=other_steward,
+            contribution_type=self.contribution_type,
+            action='propose',
+        )
+        self.submission.proposed_action = 'reject'
+        self.submission.proposed_by = other_steward_user
+        self.submission.save()
+        note = SubmissionNote.objects.create(
+            submitted_contribution=self.submission,
+            user=other_steward_user,
+            message='Other steward proposal note',
+            is_proposal=True,
+            data={'action': 'reject'},
+        )
+
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.patch(
+            f'/api/v1/steward-submissions/{self.submission.id}/notes/{note.id}/',
+            {'message': 'Edited by wrong steward'},
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        note.refresh_from_db()
+        self.assertEqual(note.message, 'Other steward proposal note')
     
     def test_steward_can_review_submissions(self):
         """Test that stewards can review submissions."""

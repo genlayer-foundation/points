@@ -265,6 +265,14 @@ export const stewardAPI = {
   // CRM Notes
   getNotes: (id) => api.get(`/steward-submissions/${id}/notes/`),
   addNote: (id, message) => api.post(`/steward-submissions/${id}/notes/`, { message }),
+  /**
+   * Edit the active generated proposal note on a pending submission.
+   * @param {string | number} submissionId
+   * @param {string | number} noteId
+   * @param {string} message
+   */
+  updateNote: (submissionId, noteId, message) =>
+    api.patch(`/steward-submissions/${submissionId}/notes/${noteId}/`, { message }),
 
   // Working Groups
   getWorkingGroups: () => api.get('/stewards/working-groups/'),
