@@ -38,6 +38,16 @@ def uses_project_rubric(contribution_type):
     )
 
 
+def validate_template_action(template, action, field_name='template_id'):
+    if template and template.action != action:
+        raise serializers.ValidationError({
+            field_name: (
+                f'Template action "{template.action}" does not match '
+                f'proposal action "{action}".'
+            )
+        })
+
+
 def _unique_valid_list(values, valid_keys, field_name):
     if values is None:
         return []

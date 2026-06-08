@@ -13,7 +13,7 @@ from contributions.models import (
     SubmittedContribution,
 )
 from leaderboard.models import GlobalLeaderboardMultiplier
-from stewards.models import Steward, StewardPermission
+from stewards.models import ReviewTemplate, Steward, StewardPermission
 from users.models import User
 
 
@@ -682,6 +682,24 @@ class ProjectMilestoneRubricAIProposalTests(APITestCase):
         )
         return submission
 
+    def test_ai_templates_endpoint_exposes_action_for_template_selection(self):
+        template = ReviewTemplate.objects.create(
+            label='Reject: Project Does Not Build',
+            action='reject',
+            text='The submitted project does not build.',
+        )
+
+        response = self.client.get(
+            '/api/v1/ai-review/templates/',
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        template_payload = next(item for item in response.data if item['id'] == template.id)
+        self.assertEqual(template_payload['label'], 'Reject: Project Does Not Build')
+        self.assertEqual(template_payload['action'], 'reject')
+        self.assertEqual(template_payload['text'], 'The submitted project does not build.')
+
     def test_ai_project_proposal_stores_rubric_review(self):
         submission = self.create_submission()
         payload = rubric_payload(
@@ -771,6 +789,86 @@ class ProjectMilestoneRubricAIProposalTests(APITestCase):
         self.assertEqual(review.action, 'accept')
         self.assertEqual(review.confidence, 'high')
         self.assertEqual(review.gate_failures, [])
+
+    def test_ai_project_gate_failure_uses_reject_template(self):
+        submission = self.create_submission()
+        template = ReviewTemplate.objects.create(
+            label='Reject: Project Does Not Build',
+            action='reject',
+            text='The repository does not build from the submitted evidence.',
+        )
+
+        response = self.client.post(
+            f'/api/v1/ai-review/{submission.id}/propose/',
+            data={
+                'proposed_action': 'reject',
+                'proposed_staff_reply': template.text,
+                'template_id': template.id,
+                'confidence': 'high',
+                'reasoning': 'Install/build command failed while checking the repository.',
+                'rubric_review': gate_payload(),
+            },
+            content_type='application/json',
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        submission.refresh_from_db()
+        self.assertEqual(submission.proposed_action, 'reject')
+        self.assertEqual(submission.proposed_template, template)
+        review = ProjectMilestoneReview.objects.get(submitted_contribution=submission)
+        self.assertEqual(review.action, 'reject')
+        self.assertEqual(review.gate_failures, ['repo_does_not_build'])
+        self.assertEqual(review.sections, {})
+        note = SubmissionNote.objects.filter(
+            submitted_contribution=submission,
+            user=self.ai_user,
+            is_proposal=True,
+        ).first()
+        self.assertEqual(note.data['template_id'], template.id)
+        self.assertEqual(note.data['rubric_review_id'], review.id)
+
+    def test_ai_project_accept_rejects_reject_template(self):
+        submission = self.create_submission()
+        template = ReviewTemplate.objects.create(
+            label='Reject: Project Does Not Build',
+            action='reject',
+            text='The repository does not build from the submitted evidence.',
+        )
+
+        response = self.client.post(
+            f'/api/v1/ai-review/{submission.id}/propose/',
+            data={
+                'proposed_action': 'accept',
+                'template_id': template.id,
+                'confidence': 'medium',
+                'rubric_review': rubric_payload(),
+            },
+            content_type='application/json',
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('template_id', response.data)
+        self.assertFalse(ProjectMilestoneReview.objects.filter(submitted_contribution=submission).exists())
+
+    def test_ai_project_gate_failure_rejects_non_reject_action(self):
+        submission = self.create_submission()
+
+        response = self.client.post(
+            f'/api/v1/ai-review/{submission.id}/propose/',
+            data={
+                'proposed_action': 'accept',
+                'confidence': 'medium',
+                'rubric_review': gate_payload(),
+            },
+            content_type='application/json',
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('proposed_action', response.data)
+        self.assertFalse(ProjectMilestoneReview.objects.filter(submitted_contribution=submission).exists())
 
     def test_ai_standard_proposal_rejects_unexpected_rubric_payload(self):
         submission = self.create_submission(self.standard_type)
