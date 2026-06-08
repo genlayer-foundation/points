@@ -308,7 +308,16 @@
     if (!canEditActiveProposalNote) return null;
     const proposalNotes = (notes || []).filter(note => note.is_proposal);
     if (!proposalNotes.length) return null;
-    return proposalNotes[0].id;
+    const latest = [...proposalNotes].sort((a, b) => {
+      const timeDiff = new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      if (timeDiff !== 0) return timeDiff;
+
+      const aId = Number(a.id);
+      const bId = Number(b.id);
+      if (Number.isFinite(aId) && Number.isFinite(bId)) return bId - aId;
+      return String(b.id).localeCompare(String(a.id));
+    })[0];
+    return latest?.id ?? null;
   });
   let hasAnyAction = $derived(canAccept || canReject || canRequestInfo || canPropose);
 

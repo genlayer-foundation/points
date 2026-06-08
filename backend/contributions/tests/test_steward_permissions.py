@@ -279,6 +279,26 @@ class StewardPermissionTest(TestCase):
         note.refresh_from_db()
         self.assertEqual(note.message, 'Proposal note')
 
+    def test_steward_cannot_edit_non_proposal_note(self):
+        """Regular CRM notes cannot be edited via the proposal note endpoint."""
+        note = SubmissionNote.objects.create(
+            submitted_contribution=self.submission,
+            user=self.steward_user,
+            message='Regular CRM note',
+            is_proposal=False,
+        )
+
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.patch(
+            f'/api/v1/steward-submissions/{self.submission.id}/notes/{note.id}/',
+            {'message': 'Attempted edit'},
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        note.refresh_from_db()
+        self.assertEqual(note.message, 'Regular CRM note')
+
     def test_steward_cannot_edit_another_stewards_proposal_note(self):
         """Only the steward who owns the active proposal can edit its note."""
         other_steward_user = User.objects.create_user(

@@ -55,6 +55,8 @@
     try {
       await onUpdateNote(submissionId, editingNoteId, editingMessage.trim());
       cancelEdit();
+    } catch {
+      // Keep editor open on failure; parent already reports the error toast.
     } finally {
       updatingNote = false;
     }
