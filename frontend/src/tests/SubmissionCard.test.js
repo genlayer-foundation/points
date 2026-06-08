@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/svelte/svelte5';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte/svelte5';
 import { describe, expect, it, vi } from 'vitest';
 import SubmissionCard from '../components/SubmissionCard.svelte';
 
@@ -92,10 +92,274 @@ describe('SubmissionCard', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Project rubric')).toBeTruthy();
-      expect(screen.getByRole('button', { name: 'Submit Proposal' })).toBeTruthy();
+      expect(screen.getByText('Accept proposal')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Submit Accept Proposal' })).toBeTruthy();
     });
 
     expect(screen.queryByRole('button', { name: 'Accept & Create Contribution' })).toBeNull();
+  });
+
+  it('shows the builder project rubric in reject proposal state', async () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          has_proposal: true,
+          proposed_action: 'reject',
+          proposed_staff_reply: 'The repository does not build.',
+          proposed_by_details: { name: 'AI Steward' },
+          rubric_review: {
+            action: 'reject',
+            confidence: 'medium',
+            gate_failures: ['repo_does_not_build'],
+            sections: {},
+            extras: [],
+            overall_reason: 'The repository does not build.'
+          }
+        }),
+        showReviewForm: true,
+        onReview: vi.fn(),
+        onPropose: vi.fn(),
+        reviewData: {
+          action: 'accept',
+          user: 9,
+          contribution_type: 7,
+          points: 0,
+          staff_reply: ''
+        },
+        permissions: {
+          7: ['propose']
+        },
+        contributionTypes: [
+          {
+            id: 7,
+            name: 'Builder Project',
+            category: 'builder',
+            min_points: 0,
+            max_points: 100,
+            review_flow: 'builder_project'
+          }
+        ],
+        multipliers: { 7: 1 },
+        templates: [],
+        notes: [],
+        enableRubricReview: true
+      }
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Reject proposal').length).toBeGreaterThan(0);
+      expect(screen.getByText('Gate failures force a reject proposal. Clear all gate failures to propose accept or request info.')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Submit Reject Proposal' })).toBeTruthy();
+    });
+  });
+
+  it('shows the builder project rubric as a direct accept evaluation without criterion reasons', async () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission(),
+        showReviewForm: true,
+        onReview: vi.fn(),
+        onPropose: vi.fn(),
+        reviewData: {
+          action: 'accept',
+          user: 9,
+          contribution_type: 7,
+          points: 10,
+          staff_reply: ''
+        },
+        permissions: {
+          7: ['accept', 'reject']
+        },
+        contributionTypes: [
+          {
+            id: 7,
+            name: 'Builder Project',
+            category: 'builder',
+            min_points: 0,
+            max_points: 100,
+            review_flow: 'builder_project'
+          }
+        ],
+        multipliers: { 7: 1 },
+        templates: [],
+        notes: [],
+        enableRubricReview: true
+      }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Project rubric')).toBeTruthy();
+      expect(screen.getByText('Accept evaluation')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Accept & Create Contribution' })).toBeTruthy();
+    });
+
+    expect(screen.queryByLabelText('GenLayer fit reason optional')).toBeNull();
+    expect(screen.queryByText('Overall reason')).toBeNull();
+  });
+
+  it('submits the builder project rubric payload for direct reviews', async () => {
+    const onReview = vi.fn();
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission(),
+        showReviewForm: true,
+        onReview,
+        onPropose: vi.fn(),
+        reviewData: {
+          action: 'accept',
+          user: 9,
+          contribution_type: 7,
+          points: 10,
+          staff_reply: ''
+        },
+        permissions: {
+          7: ['accept', 'reject']
+        },
+        contributionTypes: [
+          {
+            id: 7,
+            name: 'Builder Project',
+            category: 'builder',
+            min_points: 0,
+            max_points: 100,
+            review_flow: 'builder_project'
+          }
+        ],
+        multipliers: { 7: 1 },
+        templates: [],
+        notes: [],
+        enableRubricReview: true
+      }
+    });
+
+    await fireEvent.change(screen.getByLabelText('GenLayer fit'), { target: { value: '4' } });
+    await fireEvent.click(screen.getByLabelText('Live deployment'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Accept & Create Contribution' }));
+
+    await waitFor(() => {
+      expect(onReview).toHaveBeenCalledTimes(1);
+    });
+    const payload = onReview.mock.calls[0][1].rubric_review;
+    expect(payload).toEqual(expect.objectContaining({
+      gate_failures: [],
+      extras: ['live_deployment'],
+      overall_reason: ''
+    }));
+    expect(payload.sections.genlayer_fit).toEqual({ score: 4, reason: '' });
+  });
+
+  it('shows and submits the rubric when a direct accept selected type is builder project', async () => {
+    const onReview = vi.fn();
+    const standardType = {
+      id: 8,
+      name: 'Standard Builder',
+      category: 'builder',
+      min_points: 0,
+      max_points: 10,
+      review_flow: null
+    };
+    const projectType = {
+      id: 7,
+      name: 'Builder Project',
+      category: 'builder',
+      min_points: 0,
+      max_points: 100,
+      review_flow: 'builder_project'
+    };
+
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          contribution_type: 8,
+          contribution_type_details: standardType
+        }),
+        showReviewForm: true,
+        onReview,
+        onPropose: vi.fn(),
+        reviewData: {
+          action: 'accept',
+          user: 9,
+          contribution_type: 7,
+          points: 75,
+          staff_reply: ''
+        },
+        permissions: {
+          8: ['accept', 'reject'],
+          7: ['accept', 'reject']
+        },
+        contributionTypes: [standardType, projectType],
+        multipliers: { 7: 1, 8: 1 },
+        templates: [],
+        notes: [],
+        enableRubricReview: true
+      }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Project rubric')).toBeTruthy();
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Accept & Create Contribution' }));
+
+    await waitFor(() => {
+      expect(onReview).toHaveBeenCalledTimes(1);
+    });
+    expect(onReview.mock.calls[0][1]).toEqual(expect.objectContaining({
+      contribution_type: 7,
+      rubric_review: expect.objectContaining({
+        gate_failures: [],
+        overall_reason: ''
+      })
+    }));
+  });
+
+  it('selects the gate rejection template when a direct reviewer chooses a gate failure', async () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission(),
+        showReviewForm: true,
+        onReview: vi.fn(),
+        onPropose: vi.fn(),
+        reviewData: {
+          action: 'accept',
+          user: 9,
+          contribution_type: 7,
+          points: 10,
+          staff_reply: ''
+        },
+        permissions: {
+          7: ['accept', 'reject']
+        },
+        contributionTypes: [
+          {
+            id: 7,
+            name: 'Builder Project',
+            category: 'builder',
+            min_points: 0,
+            max_points: 100,
+            review_flow: 'builder_project'
+          }
+        ],
+        multipliers: { 7: 1 },
+        templates: [
+          {
+            id: 99,
+            label: 'Reject: Project Does Not Build',
+            text: 'The project does not build from the submitted repository.',
+            action: 'reject'
+          }
+        ],
+        notes: [],
+        enableRubricReview: true
+      }
+    });
+
+    await fireEvent.click(screen.getByLabelText('Repo does not build or work'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Reject evaluation')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Reject Submission' })).toBeTruthy();
+      expect(screen.getByDisplayValue('The project does not build from the submitted repository.')).toBeTruthy();
+    });
   });
 
   it('normalizes request_more_info proposal actions before choosing a review view', async () => {

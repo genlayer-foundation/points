@@ -26,19 +26,23 @@ export const RUBRIC_SECTIONS = [
 export const RUBRIC_GATE_FAILURES = [
   {
     key: 'no_real_genlayer_contract',
-    label: 'No real GenLayer contract'
+    label: 'No real GenLayer contract',
+    templateLabel: 'Reject: Project Has No Real GenLayer Contract'
   },
   {
     key: 'branding_only',
-    label: 'Branding only'
+    label: 'Branding only',
+    templateLabel: 'Reject: GenLayer Is Branding Only'
   },
   {
     key: 'repo_does_not_build',
-    label: 'Repo does not build or work'
+    label: 'Repo does not build or work',
+    templateLabel: 'Reject: Project Does Not Build'
   },
   {
     key: 'empty_fork_or_boilerplate',
-    label: 'Empty fork or renamed boilerplate'
+    label: 'Empty fork or renamed boilerplate',
+    templateLabel: 'Reject: Empty Fork or Boilerplate'
   }
 ];
 

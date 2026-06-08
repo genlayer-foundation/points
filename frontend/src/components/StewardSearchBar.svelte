@@ -7,7 +7,7 @@
     stewardsList = [],
     templates = [],
     missions = [],
-    placeholder = 'type:blog-post reviewed:me mission:name...',
+    placeholder = 'Search URL or text, or type sort:-reviewed...',
     onSearch = () => {}
   } = $props();
 
@@ -42,7 +42,7 @@
     { name: 'template', description: 'Filter by review template', values: () => templates.map(t => t.label.toLowerCase().replace(/\s+/g, '-')) },
     { name: 'mission', description: 'Filter by mission', values: () => ['none', ...missions.map(m => m.name.toLowerCase().replace(/\s+/g, '-'))] },
     { name: 'min-contributions', description: 'Min accepted contributions', values: () => ['1', '2', '3', '4', '5'] },
-    { name: 'sort', description: 'Sort order', values: () => ['created', '-created', 'date', '-date'] }
+    { name: 'sort', description: 'Sort order', values: () => ['created', '-created', 'date', '-date', 'reviewed', '-reviewed', 'points', '-points'] }
   ];
 
   function getCurrentWord() {
@@ -229,31 +229,42 @@
 
   {#if showHelp}
     <div class="help-tooltip">
-      <div class="help-header">Search Syntax</div>
+      <div class="help-header">Submission Search</div>
       <div class="help-content">
         <div class="help-section">
-          <div class="help-row"><code>type:blog-post</code><span>Filter by contribution type</span></div>
-          <div class="help-row"><code>status:canceled</code><span>Filter by review status</span></div>
-          <div class="help-row"><code>category:builder</code><span>Filter by category (builder, validator)</span></div>
-          <div class="help-row"><code>from:username</code><span>Search by user name or address</span></div>
-          <div class="help-row"><code>assigned:me</code><span>Filter by assignment (me, unassigned, name)</span></div>
-          <div class="help-row"><code>reviewed:me</code><span>Filter by steward who accepted/rejected it</span></div>
-          <div class="help-row"><code>proposed-by:ai</code><span>Only active proposals from the AI reviewer</span></div>
-          <div class="help-row"><code>exclude:medium.com</code><span>Exclude submissions containing text</span></div>
-          <div class="help-row"><code>include:genlayer</code><span>Only show submissions containing text</span></div>
-          <div class="help-row"><code>has:url</code><span>Only submissions with URLs</span></div>
-          <div class="help-row"><code>has:proposal</code><span>Only submissions with a proposal</span></div>
-          <div class="help-row"><code>has:appeal</code><span>Only submissions appealed by submitters</span></div>
-          <div class="help-row"><code>no:url</code><span>Only submissions without URLs</span></div>
-          <div class="help-row"><code>is:interesting</code><span>Only submissions flagged as interesting</span></div>
+          <div class="help-subtitle">Common</div>
+          <div class="help-row"><code>https://x.com/...</code><span>Search submitter, title, notes, and evidence</span></div>
+          <div class="help-row"><code>include:genlayer</code><span>Require matching title, notes, or evidence</span></div>
+          <div class="help-row"><code>exclude:medium.com</code><span>Hide matching title, notes, or evidence</span></div>
+          <div class="help-row"><code>type:blog-post</code><span>Contribution type</span></div>
+          <div class="help-row"><code>category:builder</code><span>Category slug</span></div>
+          <div class="help-row"><code>from:alice</code><span>Submitter name or address</span></div>
+          <div class="help-row"><code>assigned:me</code><span>Assigned steward (me, unassigned, name)</span></div>
+          <div class="help-row"><code>reviewed:me</code><span>Steward who took the final review action</span></div>
+          <div class="help-row"><code>mission:name</code><span>Mission name, ID, or none</span></div>
+          <div class="help-row"><code>has:url</code><span>Only submissions with URL evidence</span></div>
+          <div class="help-row"><code>no:url</code><span>Only submissions without URL evidence</span></div>
+          <div class="help-row"><code>is:interesting</code><span>Flagged as interesting</span></div>
           <div class="help-row"><code>is:resubmitted</code><span>More-info requests resubmitted for review</span></div>
-          <div class="help-row"><code>not:interesting</code><span>Exclude submissions flagged as interesting</span></div>
-          <div class="help-row"><code>proposal:reject</code><span>Filter by proposed action (accept, reject, more-info)</span></div>
-          <div class="help-row"><code>confidence:high</code><span>Filter by proposal confidence (high, medium, low)</span></div>
-          <div class="help-row"><code>mission:name</code><span>Filter by mission (or "none")</span></div>
-          <div class="help-row"><code>template:spam</code><span>Filter by review template used</span></div>
-          <div class="help-row"><code>min-contributions:3</code><span>Users with N+ accepted contributions</span></div>
-          <div class="help-row"><code>sort:-created</code><span>Sort order (created, -created, date, -date)</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-subtitle">Status and Sorting</div>
+          <div class="help-row"><code>Status dropdown</code><span>Primary control for Pending, Accepted, Rejected, Canceled</span></div>
+          <div class="help-row"><code>status:accepted</code><span>Typed status filter for combined queries</span></div>
+          <div class="help-row"><code>sort:-reviewed</code><span>Latest reviewed or accepted first</span></div>
+          <div class="help-row"><code>sort:-points</code><span>Highest accepted points first</span></div>
+          <div class="help-row"><code>sort:-created</code><span>Newest submission first</span></div>
+          <div class="help-row"><code>sort:-date</code><span>Newest submitted contribution date first</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-subtitle">Advanced</div>
+          <div class="help-row"><code>has:proposal</code><span>Only submissions with an active proposal</span></div>
+          <div class="help-row"><code>proposed-by:ai</code><span>Only active proposals from the AI reviewer</span></div>
+          <div class="help-row"><code>proposal:reject</code><span>Proposed action (accept, reject, more-info)</span></div>
+          <div class="help-row"><code>confidence:high</code><span>Proposal confidence</span></div>
+          <div class="help-row"><code>template:spam</code><span>Proposal template</span></div>
+          <div class="help-row"><code>has:appeal</code><span>Appealed by submitter</span></div>
+          <div class="help-row"><code>min-contributions:3</code><span>Submitters with N+ accepted submissions</span></div>
         </div>
         <div class="help-section">
           <div class="help-subtitle">Negation</div>
@@ -264,12 +275,12 @@
         <div class="help-section">
           <div class="help-subtitle">Examples</div>
           <div class="help-example">assigned:me exclude:medium.com has:url</div>
-          <div class="help-example">has:proposal proposed-by:ai confidence:low</div>
-          <div class="help-example">status:accepted reviewed:alice</div>
-          <div class="help-example">from:alice -type:referral min-contributions:2</div>
+          <div class="help-example">status:accepted sort:-points</div>
+          <div class="help-example">status:accepted reviewed:alice sort:-reviewed</div>
+          <div class="help-example">https://x.com/user/status/123</div>
           <div class="help-example">type:bug-report -mission:wallet-login is:resubmitted</div>
         </div>
-        <div class="help-note">All terms must use tags. Unrecognized text is ignored.</div>
+        <div class="help-note">Untagged text and URLs search submitter, title, notes, and evidence. Use quotes for values with spaces.</div>
       </div>
     </div>
   {/if}

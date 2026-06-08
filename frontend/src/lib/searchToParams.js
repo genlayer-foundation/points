@@ -75,7 +75,7 @@ export function searchToParams(parsed, options = {}) {
     }
   }
 
-  // Free text (untagged) → search across username, notes, and evidence
+  // Free text (untagged) → search across submitter, title, notes, and evidence
   if (filters.freeText && filters.freeText.length > 0 && !params.username_search) {
     params.search = filters.freeText.join(' ');
   }
@@ -292,7 +292,11 @@ export function searchToParams(parsed, options = {}) {
       'created': 'created_at',
       '-created': '-created_at',
       'date': 'contribution_date',
-      '-date': '-contribution_date'
+      '-date': '-contribution_date',
+      'reviewed': 'reviewed_at',
+      '-reviewed': '-reviewed_at',
+      'points': 'converted_contribution__frozen_global_points',
+      '-points': '-converted_contribution__frozen_global_points'
     };
     const sortValue = filters.sort.value;
     params.ordering = sortMap[sortValue] || sortValue;
