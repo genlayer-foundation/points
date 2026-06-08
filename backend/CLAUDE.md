@@ -154,6 +154,7 @@ backend/
 - **Admin**: `gen_tv/admin.py` - status surfaces as a read-only `computed_status` column; date_hierarchy on `starts_at`; slug prepopulated from title.
 
 ### POAPs
+
 - **Models**: `poaps/models.py`
   - PoapDrop - POAP campaign/drop with slug, artwork, event window, status, max claims, and legacy import ID.
   - PoapDistribution - Claiming method/window/cap configuration for a drop.
