@@ -325,6 +325,10 @@ const routes = {
   '/community/highlights': AllContributions,
   '/community/leaderboard': Community,
   '/community/contribution/:id': ContributionPreview,
+  '/community/poaps': CommunityPoaps,
+  '/community/poaps/recover': PoapRecovery,
+  '/community/poaps/:slug': PoapDetail,
+  '/claim/poap/:token': PoapClaim,
   '/hackathon': Hackathon,
   '/hackathon-winners': HackathonWinners, // Hackathon winners showcase page
   '/referral-program': ReferralProgram,
@@ -382,6 +386,18 @@ const routes = {
 }
 ```
 
+#### Community POAPs
+
+- **`/community/poaps`** - POAP collection wall (`CommunityPoaps.svelte`)
+  - Calls `poapsAPI.list({ page, page_size: 100, ordering: '-event_start_at', search?, month? })`.
+  - `loadPoaps(nextPage = 1, append = false)` replaces the list on initial/filter loads and appends only when `append=true`.
+  - Search and month filters are applied when a non-append load starts; appended loads reuse `appliedSearch` / `appliedMonthFilter` so typed-but-unsubmitted filter changes do not mix result sets.
+  - `loading` controls the initial/filter skeleton, `loadingMore` controls the Load more button, and `hasMore` is driven by the paginated API `next` field.
+  - Overlapping list requests must be guarded with `latestPoapsRequestId` before mutating list, error, or loading state.
+- **`/community/poaps/recover`** - POAP recovery flow for attaching legacy wallet claims.
+- **`/community/poaps/:slug`** - POAP detail page with lazy collector loading.
+- **`/claim/poap/:token`** - Mint-link claim route.
+
 #### Profile System
 - **`/participant/:address`** - Public participant profile (anyone can view)
   - Component: `Profile.svelte`
@@ -405,6 +421,7 @@ const routes = {
   - `creatorAPI` - Community/creator membership (joinAsCreator)
   - `partnersAPI` - Ecosystem partners directory (`list`, `get(slug)`)
   - `genTvAPI` - Gen TV streams (`list`, `get(slug)`)
+  - `poapsAPI` - POAP list/detail/claims, user POAPs, secret claims, mint-link claims, and recovery wallet verification
   - `validatorsAPI.getWallOfShame(params)` - Public Wall of Shame list for active validators with Grafana metrics/logs status badges (renders in `routes/WallOfShame.svelte`)
 
 ### Authentication (`src/lib/auth.js`)

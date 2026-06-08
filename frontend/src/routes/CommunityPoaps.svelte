@@ -13,62 +13,84 @@
   let count = $state(0);
   let search = $state('');
   let monthFilter = $state('');
+  let appliedSearch = $state('');
+  let appliedMonthFilter = $state('');
+  let page = $state(1);
+  let hasMore = $state(false);
+  let loadingMore = $state(false);
+  let latestPoapsRequestId = 0;
 
   const PAGE_SIZE = 100;
   const poapGradientStyle = getCategoryGradientStyle('community', '#7f52e1');
 
-  async function loadPoaps() {
-    loading = true;
+  /** @param {number} [nextPage] @param {boolean} [append] */
+  async function loadPoaps(nextPage = 1, append = false) {
+    const requestId = ++latestPoapsRequestId;
+    if (append) {
+      loadingMore = true;
+    } else {
+      loading = true;
+      loadingMore = false;
+      appliedSearch = search.trim();
+      appliedMonthFilter = monthFilter;
+      hasMore = false;
+    }
+
     try {
+      const nextSearch = append ? appliedSearch : search.trim();
+      const nextMonthFilter = append ? appliedMonthFilter : monthFilter;
       /** @type {Record<string, any>} */
       const params = {
-        page: 1,
+        page: nextPage,
         page_size: PAGE_SIZE,
         ordering: '-event_start_at',
       };
-      if (search.trim()) params.search = search.trim();
-      if (monthFilter) params.month = monthFilter;
+      if (nextSearch) params.search = nextSearch;
+      if (nextMonthFilter) params.month = nextMonthFilter;
       const response = await poapsAPI.list(params);
+      if (requestId !== latestPoapsRequestId) return;
       const data = response.data || {};
       if (Array.isArray(data)) {
-        poaps = data;
-        count = data.length;
+        poaps = append ? [...poaps, ...data] : data;
+        count = poaps.length;
+        page = nextPage;
+        hasMore = false;
         return;
       }
 
-      const results = [...(data.results || [])];
-      const total = data.count ?? results.length;
-      let nextPage = 2;
-      let hasNext = Boolean(data.next);
-
-      while (hasNext && results.length < total) {
-        const nextResponse = await poapsAPI.list({ ...params, page: nextPage });
-        const nextData = nextResponse.data || {};
-        results.push(...(nextData.results || []));
-        hasNext = Boolean(nextData.next);
-        nextPage += 1;
-      }
-
-      poaps = results;
-      count = total;
+      const results = data.results || [];
+      poaps = append ? [...poaps, ...results] : results;
+      count = data.count ?? poaps.length;
+      page = nextPage;
+      hasMore = Boolean(data.next);
     } catch (err) {
+      if (requestId !== latestPoapsRequestId) return;
       const error = /** @type {any} */ (err);
       showError(error.response?.data?.error || 'Unable to load POAPs');
-      poaps = [];
-      count = 0;
+      if (!append) {
+        poaps = [];
+        count = 0;
+        page = 1;
+        hasMore = false;
+      }
     } finally {
-      loading = false;
+      if (requestId !== latestPoapsRequestId) return;
+      if (append) {
+        loadingMore = false;
+      } else {
+        loading = false;
+      }
     }
   }
 
   function clearFilters() {
     search = '';
     monthFilter = '';
-    loadPoaps();
+    loadPoaps(1);
   }
 
   onMount(() => {
-    loadPoaps();
+    loadPoaps(1);
   });
 </script>
 
@@ -112,11 +134,11 @@
               bind:value={search}
               class="h-10 w-full rounded-[8px] border border-[#e6e6e6] bg-white px-4 pr-10 text-[14px] text-black outline-none transition-colors placeholder:text-[#999] focus:border-[#8d81e1]"
               placeholder="Search POAPs"
-              onkeydown={(event) => event.key === 'Enter' && loadPoaps()}
+              onkeydown={(event) => event.key === 'Enter' && loadPoaps(1)}
             />
             <button
               class="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[6px] text-[#8d81e1] hover:bg-[#f4ecfd]"
-              onclick={() => loadPoaps()}
+              onclick={() => loadPoaps(1)}
               aria-label="Search POAPs"
             >
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -129,7 +151,7 @@
             bind:value={monthFilter}
             type="month"
             class="h-10 rounded-[8px] border border-[#e6e6e6] bg-white px-3 text-[14px] outline-none focus:border-[#8d81e1] md:w-[150px]"
-            onchange={() => loadPoaps()}
+            onchange={() => loadPoaps(1)}
           />
 
           {#if search || monthFilter}
@@ -165,6 +187,17 @@
         </div>
       {:else}
         <PoapCollectionWall items={poaps} density="large" showCaptions={false} showOpenBadge={true} />
+        {#if hasMore}
+          <div class="flex justify-center pt-2">
+            <button
+              class="h-10 rounded-[8px] border border-[#d9d2ff] bg-white px-4 text-[13px] font-semibold text-[#6b5bd6] transition-colors hover:bg-[#f7f4ff] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={loadingMore}
+              onclick={() => loadPoaps(page + 1, true)}
+            >
+              {loadingMore ? 'Loading...' : `Load more POAPs (${poaps.length} of ${count})`}
+            </button>
+          </div>
+        {/if}
       {/if}
     </section>
   </div>
