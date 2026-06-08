@@ -387,6 +387,7 @@ const routes = {
 ```
 
 #### Community POAPs
+
 - **`/community/poaps`** - POAP collection wall (`CommunityPoaps.svelte`)
   - Calls `poapsAPI.list({ page, page_size: 100, ordering: '-event_start_at', search?, month? })`.
   - `loadPoaps(nextPage = 1, append = false)` replaces the list on initial/filter loads and appends only when `append=true`.
