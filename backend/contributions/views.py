@@ -1474,6 +1474,9 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
         ).filter(
             Q(contribution__frozen_global_points__gt=0) |
             Q(awarded_amount__gt=0)
+        ).filter(
+            Q(contribution__user__discordconnection__guild_member=True) |
+            Q(awarded_amount__gt=0)
         )
 
         if self.request.user and self.request.user.is_authenticated and hasattr(self.request.user, 'steward'):

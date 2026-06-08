@@ -42,6 +42,7 @@ Every request needs:
 | `/api/v1/ai-review/{id}/propose/` | PUT | Update AI-created proposal | Fails if no proposal exists or proposal is human-created |
 | `/api/v1/ai-review/proposed/` | GET | List active AI proposals | Pending submissions proposed by AI |
 | `/api/v1/ai-review/reviewed/` | GET | Calibration data | Reviewed submissions that have AI proposal notes |
+| `/api/v1/ai-review/templates/` | GET | List reusable review templates | Returns `id`, `label`, `action`, and `text` |
 
 Use `/ai-review/` for new work, `/ai-review/proposed/` for active AI proposals,
 and `/ai-review/reviewed/` only for calibration.
@@ -50,9 +51,10 @@ and `/ai-review/reviewed/` only for calibration.
 
 1. Fetch candidates from `/api/v1/ai-review/`.
 2. Fetch detail for one candidate with `/api/v1/ai-review/{id}/` and inspect `internal_notes`.
-3. Decide `accept`, `reject`, or `more_info`.
-4. POST a proposal to `/api/v1/ai-review/{id}/propose/`.
-5. Continue pagination with `page` and `page_size`.
+3. Fetch `/api/v1/ai-review/templates/` if you plan to use a review template.
+4. Decide `accept`, `reject`, or `more_info`.
+5. POST a proposal to `/api/v1/ai-review/{id}/propose/`.
+6. Continue pagination with `page` and `page_size`.
 
 Create proposal:
 
@@ -94,6 +96,7 @@ curl -s -X PUT \
 | `proposed_staff_reply` | `reject`, `more_info`; optional for `accept` | User-visible text |
 | `reasoning` | Optional | Internal text |
 | `confidence` | Optional | `high`, `medium`, `low`; defaults to `medium` |
+| `template_id` | Optional | ID from `/api/v1/ai-review/templates/`; template `action` must match `proposed_action` |
 | `rubric_review` | `review_flow=builder_project` | Gate failures, section scores, optional section reasons, extras, and overall reason |
 
 ## Internal Notes
@@ -207,9 +210,25 @@ require a structured `rubric_review` object on proposal POST/PUT requests.
 For this flow, `proposed_points` is optional because the final steward assigns
 points manually from the rubric.
 
+Always decide the gate first:
+
+1. If any gate failure applies, propose `reject`.
+2. If no gate failure applies and the project is valid, propose `accept`.
+3. If the project might be valid but evidence is missing, private, broken, or
+   ambiguous, propose `more_info`.
+
 Gate failures force a reject proposal. If any gate failure applies, send
-`proposed_action: "reject"`, a user-visible `proposed_staff_reply`, and an
-internal `overall_reason`.
+`proposed_action: "reject"`, a user-visible `proposed_staff_reply`, and
+`rubric_review.overall_reason`. Do not send section scores for gate-failure
+rejects; use `sections: {}`.
+
+Passing Builder Projects usually use `proposed_action: "accept"` with all four
+section scores. Do not send `proposed_points` for Builder Project accepts unless
+you are explicitly instructed to; stewards assign final points from the rubric.
+
+Use templates when possible. Fetch `/api/v1/ai-review/templates/`, find the
+template by `label`, copy its `text` into `proposed_staff_reply`, and send its
+`id` as `template_id`. The template `action` must match `proposed_action`.
 
 Valid gate failure keys:
 
@@ -239,6 +258,44 @@ Optional verified extras:
 | `live_deployment` | Live deployment |
 | `demo_video` | Demo video |
 | `public_post` | Public post |
+
+Template labels for gate-failure rejects:
+
+| Gate failure key | Template label |
+|---|---|
+| `no_real_genlayer_contract` | `Reject: Project Has No Real GenLayer Contract` |
+| `branding_only` | `Reject: GenLayer Is Branding Only` |
+| `repo_does_not_build` | `Reject: Project Does Not Build` |
+| `empty_fork_or_boilerplate` | `Reject: Empty Fork or Boilerplate` |
+
+Fetch templates:
+
+```bash
+curl -s -H "X-AI-Review-Key: $KEY" \
+  "$BASE_URL/api/v1/ai-review/templates/"
+```
+
+Example gate-failure Project reject:
+
+```bash
+curl -s -X POST \
+  -H "X-AI-Review-Key: $KEY" \
+  -H "Content-Type: application/json" \
+  "$BASE_URL/api/v1/ai-review/{uuid}/propose/" \
+  -d '{
+    "proposed_action": "reject",
+    "template_id": 123,
+    "proposed_staff_reply": "Thanks for your submission. We could not accept this Builder Project because the repository does not build or the project does not work from the submitted evidence. Please resubmit with a working repository, setup instructions, and any deployment or demo evidence needed to verify it.",
+    "confidence": "high",
+    "reasoning": "The repository install/build path failed during review, so the project cannot be verified as working.",
+    "rubric_review": {
+      "gate_failures": ["repo_does_not_build"],
+      "sections": {},
+      "extras": [],
+      "overall_reason": "The repository does not build from the submitted evidence."
+    }
+  }'
+```
 
 Example passing Project proposal:
 

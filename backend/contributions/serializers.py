@@ -8,6 +8,7 @@ from .models import (
 )
 from .rubric_review import (
     normalize_rubric_review_payload,
+    validate_template_action,
     uses_project_rubric,
 )
 from users.serializers import UserSerializer, LightUserSerializer
@@ -900,6 +901,7 @@ class StewardSubmissionReviewSerializer(serializers.Serializer):
     def validate(self, data):
         """Validate the review action and required fields."""
         action = data.get('action')
+        validate_template_action(data.get('template_id'), action)
         submission = self.context.get('submission')
         request = self.context.get('request')
         current_contribution_type = submission.contribution_type if submission else None
@@ -1072,6 +1074,7 @@ class SubmissionProposeSerializer(serializers.Serializer):
     def validate(self, data):
         submission = self.context.get('submission')
         action = data.get('proposed_action')
+        validate_template_action(data.get('template_id'), action)
         current_contribution_type = submission.contribution_type if submission else None
         effective_contribution_type = (
             data.get('proposed_contribution_type')
