@@ -153,6 +153,16 @@ backend/
   - `/api/v1/gen-tv/streams/{slug}/` - Public read-only detail by slug
 - **Admin**: `gen_tv/admin.py` - status surfaces as a read-only `computed_status` column; date_hierarchy on `starts_at`; slug prepopulated from title.
 
+### POAPs
+- **Models**: `poaps/models.py`
+  - PoapDrop - POAP campaign/drop with slug, artwork, event window, status, max claims, and legacy import ID.
+  - PoapDistribution - Claiming method/window/cap configuration for a drop.
+  - PoapClaim - Individual minted or imported claim records.
+- **Views**: `poaps/views.py`
+  - `/api/v1/poaps/` - Public read-only POAP drop list.
+  - `/api/v1/poaps/{slug}/` - Public read-only POAP drop detail.
+- **Admin**: `poaps/admin.py` - `PoapDropAdmin` keeps `created_by` as an autocomplete field, includes only `PoapDistributionInline` in `inlines`, and exposes claims through the read-only `claims_link` field instead of rendering `PoapClaim` rows inline. This keeps heavily claimed drops editable without exceeding Django's POST field limit. Ruff RUF012 warnings on the Django admin `inlines = [PoapDistributionInline]` list literal are intentional false positives for this standard admin pattern.
+
 ### Database & Migrations
 - **Migrations**: `{app}/migrations/`
 - **Database**: SQLite by default, configured in settings.py

@@ -738,7 +738,7 @@ class PoapAPITest(TestCase):
         claims_link = model_admin.claims_link(self.drop)
         self.assertIn(reverse('admin:poaps_poapclaim_changelist'), claims_link)
         self.assertIn(f'drop__id__exact={self.drop.pk}', claims_link)
-        self.assertIn('1 claim(s)', claims_link)
+        self.assertIn('1 claim', claims_link)
 
         self.staff.is_superuser = True
         self.staff.save(update_fields=['is_superuser'])

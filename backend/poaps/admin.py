@@ -242,7 +242,8 @@ class PoapDropAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
         url = reverse('admin:poaps_poapclaim_changelist')
         query = urlencode({'drop__id__exact': obj.pk})
         count = obj.claims.count()
-        return format_html('<a href="{}?{}">{} claim(s)</a>', url, query, count)
+        label = f'{count} claim' if count == 1 else f'{count} claims'
+        return format_html('<a href="{}?{}">{}</a>', url, query, label)
 
 
 @admin.register(PoapDistribution)
