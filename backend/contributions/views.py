@@ -1987,7 +1987,7 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                     'overall_reason': rubric_review['overall_reason'],
                 },
             )
-        elif not requires_project_rubric:
+        else:
             ProjectMilestoneReview.objects.filter(submitted_contribution=submission).delete()
 
         # Create CRM note recording the final decision

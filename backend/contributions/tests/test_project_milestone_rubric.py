@@ -293,6 +293,36 @@ class ProjectMilestoneRubricHumanProposalTests(APITestCase):
         self.assertEqual(review.review_flow, ContributionType.REVIEW_FLOW_BUILDER_PROJECT)
         self.assertEqual(response.data['rubric_review']['sections'], review.sections)
 
+    def test_direct_project_more_info_clears_stale_proposal_rubric_review(self):
+        submission = self.create_submission()
+        self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/propose/',
+            data={
+                'proposed_action': 'accept',
+                'proposed_contribution_type': self.project_type.id,
+                'proposed_user': self.submitter.id,
+                'rubric_review': rubric_payload(),
+            },
+            content_type='application/json',
+        )
+        self.assertTrue(ProjectMilestoneReview.objects.filter(submitted_contribution=submission).exists())
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/review/',
+            data={
+                'action': 'more_info',
+                'staff_reply': 'Please add clearer milestone evidence.',
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'more_info_needed')
+        self.assertIsNone(submission.proposed_action)
+        self.assertFalse(ProjectMilestoneReview.objects.filter(submitted_contribution=submission).exists())
+        self.assertIsNone(response.data['rubric_review'])
+
     def test_direct_project_accept_stores_rubric_review(self):
         submission = self.create_submission()
         payload = rubric_payload(
