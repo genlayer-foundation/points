@@ -15,7 +15,7 @@
  * - is:interesting|appealed|resubmitted
  * - not:interesting|appealed|resubmitted
  * - min-contributions:number
- * - sort:created|-created|date|-date
+ * - sort:created|-created|date|-date|reviewed|-reviewed|points|-points
  *
  * Negation: -tag:value or NOT tag:value
  * Quoted values: tag:"value with spaces"
@@ -24,6 +24,7 @@
 const SINGLE_VALUE_TAGS = ['status', 'type', 'category', 'from', 'assigned', 'reviewed', 'proposed-by', 'sort', 'confidence', 'template', 'proposal', 'mission'];
 const MULTI_VALUE_TAGS = ['exclude', 'include', 'has', 'no', 'is', 'not'];
 const NUMERIC_TAGS = ['min-contributions'];
+const KNOWN_TAGS = [...SINGLE_VALUE_TAGS, ...MULTI_VALUE_TAGS, ...NUMERIC_TAGS];
 const NEGATED_MULTI_VALUE_TAGS = {
   exclude: 'include',
   include: 'exclude',
@@ -142,11 +143,38 @@ export function parseSearch(query) {
   const tokens = tokenize(query);
   let negateNext = false;
 
-  for (const token of tokens) {
+  for (let i = 0; i < tokens.length; i++) {
+    let token = tokens[i];
+
     // Handle "NOT tag:value" as two tokens
     if (token.toUpperCase() === 'NOT') {
       negateNext = true;
       continue; // Will be handled with next token
+    }
+
+    const danglingTagMatch = token.match(/^(-?)([a-z-]+):$/i);
+    if (
+      danglingTagMatch &&
+      KNOWN_TAGS.includes(danglingTagMatch[2].toLowerCase()) &&
+      i + 1 < tokens.length
+    ) {
+      const nextToken = tokens[i + 1];
+      const nextTagMatch = nextToken.match(/^-?([a-z-]+):/i);
+      const nextIsKnownTag = Boolean(
+        nextTagMatch && KNOWN_TAGS.includes(nextTagMatch[1].toLowerCase())
+      );
+      if (nextIsKnownTag) {
+        negateNext = false;
+        continue;
+      }
+      token = `${token}${nextToken}`;
+      i += 1;
+    } else if (
+      danglingTagMatch &&
+      KNOWN_TAGS.includes(danglingTagMatch[2].toLowerCase())
+    ) {
+      negateNext = false;
+      continue;
     }
 
     const parsed = parseToken(token);
@@ -176,6 +204,10 @@ export function parseSearch(query) {
       if (!isNaN(num)) {
         filters.minContributions = num;
       }
+    } else {
+      // Unknown tag-like tokens, including URLs such as https://x.com/..., are
+      // treated as plain text so they still participate in general search.
+      filters.freeText.push(token);
     }
   }
 

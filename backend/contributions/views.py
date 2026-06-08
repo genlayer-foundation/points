@@ -1100,19 +1100,44 @@ class StewardSubmissionFilterSet(FilterSet):
     has_appeal = BooleanFilter(field_name='has_appeal')
     resubmitted_more_info = BooleanFilter(method='filter_resubmitted_more_info')
 
+    def _normalized_url_query(self, term):
+        if '://' not in term and not term.lower().startswith('www.'):
+            return Q()
+        normalized = normalize_url(term)
+        if not normalized:
+            return Q()
+        return Q(normalized_url=normalized)
+
+    def _evidence_content_query(self, term):
+        return (
+            Q(url__icontains=term) |
+            Q(description__icontains=term) |
+            self._normalized_url_query(term)
+        )
+
+    def _content_query(self, term):
+        submitted_evidence = Evidence.objects.filter(
+            submitted_contribution=OuterRef('pk')
+        ).filter(self._evidence_content_query(term))
+        converted_evidence = Evidence.objects.filter(
+            contribution_id=OuterRef('converted_contribution_id')
+        ).filter(self._evidence_content_query(term))
+        return (
+            Q(title__icontains=term) |
+            Q(notes__icontains=term) |
+            Q(converted_contribution__title__icontains=term) |
+            Q(converted_contribution__notes__icontains=term) |
+            Exists(submitted_evidence) |
+            Exists(converted_evidence)
+        )
+
     def filter_search(self, queryset, name, value):
-        """General search across user name/address, notes, and evidence URLs."""
+        """General search across submitter, title, notes, and evidence."""
         if value:
-            has_matching_evidence = Evidence.objects.filter(
-                submitted_contribution=OuterRef('pk')
-            ).filter(
-                Q(url__icontains=value) | Q(description__icontains=value)
-            )
             return queryset.filter(
                 Q(user__name__icontains=value) |
                 Q(user__address__icontains=value) |
-                Q(notes__icontains=value) |
-                Exists(has_matching_evidence)
+                self._content_query(value)
             )
         return queryset
 
@@ -1206,37 +1231,21 @@ class StewardSubmissionFilterSet(FilterSet):
         return queryset
 
     def filter_exclude_content(self, queryset, name, value):
-        """Exclude submissions containing text in notes or evidence. Supports comma-separated values."""
+        """Exclude submissions containing text in title, notes, or evidence."""
         if value:
             for term in value.split(','):
                 term = term.strip()
                 if term:
-                    has_matching_evidence = Evidence.objects.filter(
-                        submitted_contribution=OuterRef('pk')
-                    ).filter(
-                        Q(url__icontains=term) | Q(description__icontains=term)
-                    )
-                    queryset = queryset.exclude(
-                        Exists(has_matching_evidence) |
-                        Q(notes__icontains=term)
-                    )
+                    queryset = queryset.exclude(self._content_query(term))
         return queryset
 
     def filter_include_content(self, queryset, name, value):
-        """Include ONLY submissions containing text in notes or evidence. Supports comma-separated values."""
+        """Include ONLY submissions containing text in title, notes, or evidence."""
         if value:
             for term in value.split(','):
                 term = term.strip()
                 if term:
-                    has_matching_evidence = Evidence.objects.filter(
-                        submitted_contribution=OuterRef('pk')
-                    ).filter(
-                        Q(url__icontains=term) | Q(description__icontains=term)
-                    )
-                    queryset = queryset.filter(
-                        Exists(has_matching_evidence) |
-                        Q(notes__icontains=term)
-                    )
+                    queryset = queryset.filter(self._content_query(term))
         return queryset
 
     def filter_exclude_empty_evidence(self, queryset, name, value):
@@ -1711,7 +1720,12 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsSteward]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = StewardSubmissionFilterSet
-    ordering_fields = ['created_at', 'contribution_date']
+    ordering_fields = [
+        'created_at',
+        'contribution_date',
+        'reviewed_at',
+        'converted_contribution__frozen_global_points',
+    ]
     ordering = ['-created_at']
 
     def get_permissions(self):
@@ -1812,9 +1826,27 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         return context
     
     @action(detail=True, methods=['post'], url_path='review')
+    @transaction.atomic
     def review(self, request, pk=None):
         """Review and take action on a submission."""
-        submission = self.get_object()
+        submission = get_object_or_404(
+            self._visible_submission_queryset(
+                SubmittedContribution.objects.select_for_update(of=('self',))
+            ).select_related(
+                'user',
+                'contribution_type',
+                'contribution_type__category',
+                'mission',
+            ).prefetch_related('evidence_items'),
+            pk=pk,
+        )
+        self.check_object_permissions(request, submission)
+
+        if submission.state not in ['pending', 'more_info_needed']:
+            return Response(
+                {'detail': 'Only pending submissions or submissions awaiting more information can be reviewed.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         serializer = StewardSubmissionReviewSerializer(
             data=request.data,
@@ -1932,22 +1964,50 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
 
         submission.save()
 
+        requires_project_rubric = uses_project_rubric(
+            final_contribution_type if action_name == 'accept' else submission.contribution_type
+        )
+        rubric_review = serializer.validated_data.get('rubric_review')
+        rubric_record = None
+        if rubric_review and requires_project_rubric:
+            rubric_record, _ = ProjectMilestoneReview.objects.update_or_create(
+                submitted_contribution=submission,
+                defaults={
+                    'proposer': request.user,
+                    'review_flow': (
+                        final_contribution_type
+                        if action_name == 'accept'
+                        else submission.contribution_type
+                    ).review_flow,
+                    'action': action_name,
+                    'confidence': None,
+                    'gate_failures': rubric_review['gate_failures'],
+                    'sections': rubric_review['sections'],
+                    'extras': rubric_review['extras'],
+                    'overall_reason': rubric_review['overall_reason'],
+                },
+            )
+        else:
+            ProjectMilestoneReview.objects.filter(submitted_contribution=submission).delete()
+
         # Create CRM note recording the final decision
         from .models import SubmissionNote
         reviewer_name = request.user.name or request.user.address[:10] + '...'
         pts_str = f" with **{serializer.validated_data.get('points', '')} points**" if action_name == 'accept' else ''
         reply_text = serializer.validated_data.get('staff_reply', '') or ''
         reply_str = f"\n\n> {reply_text}" if reply_text and action_name in ('reject', 'more_info') else ''
+        rubric_str = f"\n\n{rubric_summary_text(rubric_review)}" if rubric_review else ''
         SubmissionNote.objects.create(
             submitted_contribution=submission,
             user=request.user,
-            message=f"Reviewed: **{action_name}**{pts_str} by {reviewer_name}{reply_str}",
+            message=f"Reviewed: **{action_name}**{pts_str} by {reviewer_name}{reply_str}{rubric_str}",
             is_proposal=False,
             data={
                 'action': action_name,
                 'points': serializer.validated_data.get('points'),
                 'staff_reply': reply_text,
                 'template_id': serializer.validated_data['template_id'].id if serializer.validated_data.get('template_id') else None,
+                'rubric_review_id': rubric_record.id if rubric_record else None,
             },
         )
 
