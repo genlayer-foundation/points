@@ -285,6 +285,7 @@ frontend/src/
   - Handles tooltip positioning
   - Manages route changes
   - How it works page (`/how-it-works`) renders full-bleed (no `px-3 py-3` padding on `<main>`)
+  - Calls `normalizeLocation(window)` from `src/lib/normalizePath.js` during app startup to normalize direct/path-based URLs for the hash router
 - **Navigation**: `src/components/Navbar.svelte`
   - Top navigation bar
   - Auth button integration
@@ -299,6 +300,13 @@ frontend/src/
     - **Stewards** - Steward management pages (only visible to stewards)
     - **How it works** (bottom pinned area, above Submit Contribution) - Links to `/how-it-works`
     - **Profile** - User profile and submissions
+
+### Hash Route Normalization
+The portal uses `svelte-spa-router`, so app routes must be represented as hash URLs such as `/#/testnets`. `src/App.svelte` imports `normalizeLocation` from `src/lib/normalizePath.js` and invokes `normalizeLocation(window)` once at initial app load.
+
+`normalizeLocation` reads `window.location.pathname`, `window.location.search`, and `window.location.hash`. If a hash is already present, the path is `/`, the path looks like a static file, or the path starts with a reserved server/static prefix (`/api`, `/oauth`, `/static`, `/assets`, `/media`), it does nothing. Otherwise it rewrites the current URL with `window.history.replaceState({}, '', '/#' + pathname + search)`, so `/metrics?range=30d` becomes `/#/metrics?range=30d`.
+
+Use this normalization when debugging direct links, copied links, refreshes, or server-served deep links that arrive as plain paths. New external entry points to SPA routes should either emit hash URLs directly (`/#/route`) or be normalized by invoking `normalizeLocation(window)` before the router resolves the page.
 
 ### Routes/Pages
 All routes are defined in `src/App.svelte`:
