@@ -435,6 +435,22 @@
     }
   }
 
+  /**
+   * @param {string | number} submissionId
+   * @param {string | number} noteId
+   * @param {string} message
+   */
+  async function handleUpdateNote(submissionId, noteId, message) {
+    try {
+      await stewardAPI.updateNote(submissionId, noteId, message);
+      await loadNotes(submissionId);
+      showSuccess('Proposal note updated');
+    } catch (err) {
+      showError('Failed to update note: ' + (err.response?.data?.detail || err.response?.data?.error || err.message));
+      throw err;
+    }
+  }
+
   async function handleReview(submissionId, data) {
     processingSubmissions.add(submissionId);
     processingSubmissions = new Set(processingSubmissions);
@@ -906,9 +922,11 @@
             notes={submissionNotes[submission.id] || []}
             notesLoading={notesLoading[submission.id] || false}
             onAddNote={handleAddNote}
+            onUpdateNote={handleUpdateNote}
             onToggleInteresting={handleToggleInteresting}
             onRequestNotes={fetchNotesForCopy}
             onRequestUsers={ensureUsersLoaded}
+            currentUserId={$userStore.user?.id}
             acceptedEdit={acceptedEdits[submission.id] || null}
             canEditAccepted={Boolean(submission.state === 'accepted' && submission.contribution && acceptedEdits[submission.id] && canEditAcceptedSubmission(submission))}
             acceptedUpdating={updatingAccepted.has(submission.id)}

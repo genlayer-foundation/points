@@ -42,10 +42,12 @@
     notes = [],
     notesLoading = false,
     onAddNote = null,
+    onUpdateNote = null,
     onToggleInteresting = null,
     onRequestNotes = null,
     onRequestUsers = null,
     onAppeal = null,
+    currentUserId = null,
     acceptedEdit = null,
     canEditAccepted = false,
     acceptedUpdating = false,
@@ -295,6 +297,19 @@
   let canPropose = $derived(
     showReviewForm && permissions[submission.contribution_type]?.includes('propose')
   );
+  let canEditActiveProposalNote = $derived(
+    canPropose &&
+    submission.state === 'pending' &&
+    submission.has_proposal &&
+    currentUserId &&
+    String(submission.proposed_by) === String(currentUserId)
+  );
+  let activeProposalNoteId = $derived.by(() => {
+    if (!canEditActiveProposalNote) return null;
+    const proposalNotes = (notes || []).filter(note => note.is_proposal);
+    if (!proposalNotes.length) return null;
+    return proposalNotes[0].id;
+  });
   let hasAnyAction = $derived(canAccept || canReject || canRequestInfo || canPropose);
 
   // State for review form
@@ -1191,6 +1206,8 @@
             {notes}
             loading={notesLoading}
             {onAddNote}
+            {onUpdateNote}
+            {activeProposalNoteId}
           />
         {/if}
       </div>
