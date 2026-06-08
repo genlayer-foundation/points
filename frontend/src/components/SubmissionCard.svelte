@@ -69,27 +69,6 @@
   let canCopyReviewContext = $derived(
     showReviewForm && !isOwnSubmission && submission.state === 'pending'
   );
-  let isProjectReview = $derived(
-    enableRubricReview && isProjectReviewFlow(submission.contribution_type_details?.review_flow)
-  );
-  let rubricState = $derived({
-    gateFailures: rubricGateFailures,
-    sections: rubricSections,
-    extras: rubricExtras,
-    overallReason: rubricOverallReason
-  });
-  let hasRubricGateFailures = $derived(rubricGateFailures.length > 0);
-  let activeRubricAction = $derived(
-    reviewAction === 'propose'
-      ? proposedAction
-      : normalizeAction(reviewAction) || normalizeProposedAction(submission.proposed_action)
-  );
-  let isProposalRubric = $derived(reviewAction === 'propose');
-  let showProjectRubric = $derived(
-    isProjectReview && (reviewAction === 'accept' || reviewAction === 'reject' || reviewAction === 'propose')
-  );
-  let proposalNoticeTone = $derived(getRubricTone(normalizeProposedAction(submission.proposed_action), true));
-  let rubricTone = $derived(getRubricTone(activeRubricAction, isProposalRubric));
   let textOnlyEvidence = $derived(
     (submission.evidence_items || []).filter(evidence => !evidence?.url && evidence?.description)
   );
@@ -351,7 +330,35 @@
     selectedUserDetails?.address ||
     (selectedUser ? `User #${selectedUser}` : 'Current submitter')
   );
-  let selectedTypeDetails = $derived(contributionTypes.find(t => t.id === selectedType));
+  let selectedTypeDetails = $derived(
+    contributionTypes.find(t => String(t.id) === String(selectedType)) ||
+    (String(selectedType) === String(submission.contribution_type) ? submission.contribution_type_details : null)
+  );
+  let isProjectReview = $derived(
+    enableRubricReview && isProjectReviewFlow(
+      reviewAction === 'accept' || (reviewAction === 'propose' && proposedAction === 'accept')
+        ? selectedTypeDetails?.review_flow
+        : submission.contribution_type_details?.review_flow
+    )
+  );
+  let rubricState = $derived({
+    gateFailures: rubricGateFailures,
+    sections: rubricSections,
+    extras: rubricExtras,
+    overallReason: rubricOverallReason
+  });
+  let hasRubricGateFailures = $derived(rubricGateFailures.length > 0);
+  let activeRubricAction = $derived(
+    reviewAction === 'propose'
+      ? proposedAction
+      : normalizeAction(reviewAction) || normalizeProposedAction(submission.proposed_action)
+  );
+  let isProposalRubric = $derived(reviewAction === 'propose');
+  let showProjectRubric = $derived(
+    isProjectReview && (reviewAction === 'accept' || reviewAction === 'reject' || reviewAction === 'propose')
+  );
+  let proposalNoticeTone = $derived(getRubricTone(normalizeProposedAction(submission.proposed_action), true));
+  let rubricTone = $derived(getRubricTone(activeRubricAction, isProposalRubric));
   let points = $state(reviewData?.points || submission.proposed_points || submission.contribution_type_details?.min_points || 0);
   let staffReply = $state(reviewData?.staff_reply || '');
   let createHighlight = $state(reviewData?.create_highlight || false);
@@ -1346,7 +1353,7 @@
                         bind:selectedCategory
                         bind:selectedContributionType={selectedContributionTypeObj}
                         bind:selectedMission
-                        defaultContributionType={submission.contribution_type}
+                        defaultContributionType={selectedType}
                         defaultMission={submission.mission?.id}
                         onlySubmittable={false}
                         stewardMode={true}

@@ -910,7 +910,8 @@ class StewardSubmissionReviewSerializer(serializers.Serializer):
         ) or current_contribution_type
         current_requires_rubric = uses_project_rubric(current_contribution_type)
         requires_rubric = uses_project_rubric(effective_contribution_type)
-        if 'rubric_review' in data:
+        requires_direct_rubric = requires_rubric and action in ['accept', 'reject']
+        if requires_direct_rubric or 'rubric_review' in data:
             if requires_rubric:
                 data['rubric_review'] = normalize_rubric_review_payload(
                     data.get('rubric_review'),
