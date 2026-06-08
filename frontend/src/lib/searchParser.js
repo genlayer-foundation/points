@@ -158,8 +158,23 @@ export function parseSearch(query) {
       KNOWN_TAGS.includes(danglingTagMatch[2].toLowerCase()) &&
       i + 1 < tokens.length
     ) {
-      token = `${token}${tokens[i + 1]}`;
+      const nextToken = tokens[i + 1];
+      const nextTagMatch = nextToken.match(/^-?([a-z-]+):/i);
+      const nextIsKnownTag = Boolean(
+        nextTagMatch && KNOWN_TAGS.includes(nextTagMatch[1].toLowerCase())
+      );
+      if (nextIsKnownTag) {
+        negateNext = false;
+        continue;
+      }
+      token = `${token}${nextToken}`;
       i += 1;
+    } else if (
+      danglingTagMatch &&
+      KNOWN_TAGS.includes(danglingTagMatch[2].toLowerCase())
+    ) {
+      negateNext = false;
+      continue;
     }
 
     const parsed = parseToken(token);

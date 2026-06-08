@@ -26,6 +26,12 @@ describe("steward search negation", () => {
     });
   });
 
+  it("does not merge a dangling tag with the next real filter", () => {
+    expect(paramsFor("include: sort:-reviewed")).toEqual({
+      ordering: "-reviewed_at",
+    });
+  });
+
   it("normalizes negated presence filters to absence filters", () => {
     const { filters } = parseSearch("-has:proposal -has:url -has:appeal");
 

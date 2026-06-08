@@ -68,10 +68,7 @@ def create_templates(apps, schema_editor):
 def remove_templates(apps, schema_editor):
     ReviewTemplate = apps.get_model('stewards', 'ReviewTemplate')
     for template in TEMPLATES:
-        ReviewTemplate.objects.filter(
-            label=template['label'],
-            text=template['text'],
-        ).delete()
+        ReviewTemplate.objects.filter(label=template['label']).delete()
 
 
 class Migration(migrations.Migration):

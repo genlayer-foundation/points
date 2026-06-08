@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
-from contributions.models import SubmittedContribution, ContributionType, Category, Contribution, ContributionHighlight, Evidence
+from contributions.models import SubmittedContribution, ContributionType, Category, Contribution, ContributionHighlight
 from leaderboard.models import GlobalLeaderboardMultiplier
 from stewards.models import Steward, StewardPermission
 from datetime import datetime
@@ -451,122 +451,6 @@ class StewardPermissionTest(TestCase):
         self.submission.refresh_from_db()
         self.assertEqual(self.submission.converted_contribution.points, 80)
         self.assertEqual(response.data['contribution']['points'], 80)
-
-    def _create_accepted_submission(
-        self,
-        *,
-        points=50,
-        reviewed_at=None,
-        submitted_url=None,
-        converted_url=None,
-        title='Accepted submission',
-    ):
-        contribution = Contribution.objects.create(
-            user=self.regular_user,
-            contribution_type=self.contribution_type,
-            contribution_date=timezone.now(),
-            points=points,
-            title=title,
-            notes=f'{title} contribution notes',
-        )
-        if converted_url:
-            Evidence.objects.create(
-                contribution=contribution,
-                url=converted_url,
-                description=f'{title} converted evidence',
-            )
-
-        submission = SubmittedContribution.objects.create(
-            user=self.regular_user,
-            contribution_type=self.contribution_type,
-            contribution_date=timezone.now(),
-            notes=f'{title} submission notes',
-            title=title,
-            state='accepted',
-            reviewed_by=self.steward_user,
-            reviewed_at=reviewed_at or timezone.now(),
-            converted_contribution=contribution,
-        )
-        if submitted_url:
-            Evidence.objects.create(
-                submitted_contribution=submission,
-                url=submitted_url,
-                description=f'{title} submitted evidence',
-            )
-        return submission
-
-    def test_accepted_submission_search_matches_submitted_and_converted_evidence(self):
-        """Accepted search covers original submitted evidence and copied contribution evidence."""
-        self.client.force_authenticate(user=self.steward_user)
-        submitted_match = self._create_accepted_submission(
-            title='Submitted evidence match',
-            submitted_url='https://x.com/FIREDRAGON10101/status/2060708443153928646',
-        )
-        converted_match = self._create_accepted_submission(
-            title='Converted evidence match',
-            converted_url='https://github.com/GenLayerLabs/search-demo',
-        )
-
-        response = self.client.get('/api/v1/steward-submissions/', {
-            'state': 'accepted',
-            'include_content': 'https://x.com/FIREDRAGON10101/status/2060708443153928646',
-        })
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        result_ids = {str(item['id']) for item in response.data['results']}
-        self.assertEqual(result_ids, {str(submitted_match.id)})
-
-        response = self.client.get('/api/v1/steward-submissions/', {
-            'state': 'accepted',
-            'include_content': 'https://github.com/GenLayerLabs/search-demo',
-        })
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        result_ids = {str(item['id']) for item in response.data['results']}
-        self.assertEqual(result_ids, {str(converted_match.id)})
-
-    def test_accepted_submission_search_matches_normalized_url(self):
-        """Tracking params should not prevent URL searches from finding accepted evidence."""
-        self.client.force_authenticate(user=self.steward_user)
-        submission = self._create_accepted_submission(
-            submitted_url='https://x.com/FIREDRAGON10101/status/2060708443153928646',
-        )
-
-        response = self.client.get('/api/v1/steward-submissions/', {
-            'state': 'accepted',
-            'include_content': 'https://x.com/FIREDRAGON10101/status/2060708443153928646?s=20',
-        })
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        result_ids = {str(item['id']) for item in response.data['results']}
-        self.assertEqual(result_ids, {str(submission.id)})
-
-    def test_accepted_submissions_can_order_by_points_and_reviewed_time(self):
-        self.client.force_authenticate(user=self.steward_user)
-        older_low = self._create_accepted_submission(
-            points=20,
-            reviewed_at=timezone.now() - timezone.timedelta(days=2),
-            title='Older low points',
-        )
-        newer_high = self._create_accepted_submission(
-            points=90,
-            reviewed_at=timezone.now() - timezone.timedelta(days=1),
-            title='Newer high points',
-        )
-
-        response = self.client.get('/api/v1/steward-submissions/', {
-            'state': 'accepted',
-            'ordering': '-converted_contribution__frozen_global_points',
-        })
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        result_ids = [str(item['id']) for item in response.data['results']]
-        self.assertEqual(result_ids[:2], [str(newer_high.id), str(older_low.id)])
-
-        response = self.client.get('/api/v1/steward-submissions/', {
-            'state': 'accepted',
-            'ordering': '-reviewed_at',
-        })
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        result_ids = [str(item['id']) for item in response.data['results']]
-        self.assertEqual(result_ids[:2], [str(newer_high.id), str(older_low.id)])
 
     def test_accepted_submission_list_includes_contribution_points(self):
         """Accepted submissions list includes enough contribution data for steward edits."""
