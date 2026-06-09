@@ -342,7 +342,7 @@ describe('SubmissionCard', () => {
     expect(payload.sections.genlayer_fit).toEqual({ score: 4, reason: '' });
   });
 
-  it('recalculates builder project points from criteria and extras while allowing manual overrides', async () => {
+  it('recalculates builder project points from criteria while preserving extras and allowing manual overrides', async () => {
     render(SubmissionCard, {
       props: {
         submission: makeSubmission(),
@@ -391,7 +391,7 @@ describe('SubmissionCard', () => {
 
     await fireEvent.click(screen.getByLabelText('Demo video'));
     await waitFor(() => {
-      expect(pointsInput.value).toBe('100');
+      expect(pointsInput.value).toBe('50');
     });
 
     await fireEvent.input(pointsInput, { target: { value: '7' } });
@@ -399,12 +399,12 @@ describe('SubmissionCard', () => {
 
     await fireEvent.change(screen.getByLabelText('Frontend / UX'), { target: { value: '4' } });
     await waitFor(() => {
-      expect(pointsInput.value).toBe('98');
+      expect(pointsInput.value).toBe('7');
     });
 
     await fireEvent.click(screen.getByLabelText('Live deployment'));
     await waitFor(() => {
-      expect(pointsInput.value).toBe('100');
+      expect(pointsInput.value).toBe('7');
     });
   });
 

@@ -52,8 +52,6 @@ export const RUBRIC_EXTRAS = [
   { key: 'public_post', label: 'Public post' }
 ];
 
-export const RUBRIC_EXTRA_POINTS = 50;
-
 /**
  * @typedef {{ score: number, reason: string }} RubricSectionState
  * @typedef {{
@@ -161,14 +159,7 @@ export function calculateRubricPoints(state) {
   const engineering = scoreFor('engineering');
   const frontendUx = scoreFor('frontend_ux');
   const quality = (fit / 5) * ((2 * contractQuality + 2 * engineering + frontendUx) / 25);
-  const basePoints = Math.round(RUBRIC_EXTRA_POINTS * quality);
-  const allowedExtras = new Set(RUBRIC_EXTRAS.map(extra => extra.key));
-  const uniqueExtras = new Set(
-    (state.extras || []).filter(extraKey => allowedExtras.has(extraKey))
-  );
-  const extraPoints = uniqueExtras.size * RUBRIC_EXTRA_POINTS;
-
-  return basePoints + extraPoints;
+  return Math.round(50 * quality);
 }
 
 /** @param {RubricState} state @param {string} proposedAction */

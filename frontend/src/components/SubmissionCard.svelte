@@ -228,6 +228,7 @@
   let selectedTemplateId = $state(null);
   let autoSelectedGateKey = $state(null);
   let autoSelectedGateTemplateText = $state('');
+  let rubricPointsManuallyEdited = $state(false);
 
   $effect(() => {
     if (isProjectReview && !hasRubricGateFailures) {
@@ -404,6 +405,7 @@
     if (selectedContributionTypeObj && selectedContributionTypeObj.id !== selectedType) {
       // Only update if the type actually changed
       selectedType = selectedContributionTypeObj.id;
+      rubricPointsManuallyEdited = false;
       // Update points to the minimum of the new type
       const type = contributionTypes.find(t => t.id === selectedType);
       if (type) {
@@ -476,6 +478,7 @@
     const type = selectedTypeDetails;
     if (!type) return;
 
+    rubricPointsManuallyEdited = true;
     const newPoints = points + delta;
     points = Math.max(type.min_points, Math.min(type.max_points, newPoints));
   }
@@ -546,8 +549,12 @@
   }
 
   function updateProjectRubricPoints(state = rubricState) {
-    if (!isProjectReview || state.gateFailures?.length > 0) return;
+    if (!isProjectReview || rubricPointsManuallyEdited || state.gateFailures?.length > 0) return;
     points = clampPointsToSelectedType(calculateRubricPoints(state));
+  }
+
+  function markPointsManuallyEdited() {
+    rubricPointsManuallyEdited = true;
   }
 
   function clampPointsToSelectedType(value) {
@@ -1278,6 +1285,7 @@
                             id="points-input-{submission.id}"
                             type="number"
                             bind:value={points}
+                            oninput={markPointsManuallyEdited}
                             class="w-12 h-8 px-1 border-y border-gray-300 text-sm text-center font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent focus:z-10"
                           />
                           <button
