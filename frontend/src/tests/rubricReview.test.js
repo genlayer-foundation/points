@@ -52,7 +52,7 @@ describe('rubricReview helpers', () => {
     expect(payload.sections).toEqual({});
   });
 
-  it('calculates rubric points from weighted criteria and verified extras', () => {
+  it('calculates rubric points from weighted criteria only', () => {
     const state = validState({
       sections: {
         genlayer_fit: { score: 4, reason: '' },
@@ -63,10 +63,10 @@ describe('rubricReview helpers', () => {
       extras: ['live_deployment', 'demo_video']
     });
 
-    expect(calculateRubricPoints(state)).toBe(126);
+    expect(calculateRubricPoints(state)).toBe(26);
   });
 
-  it('sanitizes persisted rubric values before calculating points', () => {
+  it('sanitizes persisted rubric values before calculating points without extra bonuses', () => {
     const state = validState({
       sections: {
         genlayer_fit: { score: 8, reason: '' },
@@ -77,7 +77,21 @@ describe('rubricReview helpers', () => {
       extras: ['live_deployment', 'live_deployment', 'unknown_extra']
     });
 
-    expect(calculateRubricPoints(state)).toBe(70);
+    expect(calculateRubricPoints(state)).toBe(20);
+  });
+
+  it('calculates the reported 5/4/4/4 example as 40 points', () => {
+    const state = validState({
+      sections: {
+        genlayer_fit: { score: 5, reason: '' },
+        contract_quality: { score: 4, reason: '' },
+        engineering: { score: 4, reason: '' },
+        frontend_ux: { score: 4, reason: '' }
+      },
+      extras: ['live_deployment', 'demo_video']
+    });
+
+    expect(calculateRubricPoints(state)).toBe(40);
   });
 
   it('rejects gate failures with non-reject actions', () => {
