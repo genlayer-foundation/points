@@ -16,6 +16,7 @@
     RUBRIC_GATE_FAILURES,
     RUBRIC_SECTIONS,
     buildRubricReviewPayload,
+    calculateRubricPoints,
     defaultRubricSections,
     hydrateRubricState,
     isProjectReviewFlow,
@@ -227,6 +228,12 @@
   let selectedTemplateId = $state(null);
   let autoSelectedGateKey = $state(null);
   let autoSelectedGateTemplateText = $state('');
+
+  $effect(() => {
+    if (isProjectReview && !hasRubricGateFailures) {
+      updateProjectRubricPoints(rubricState);
+    }
+  });
 
   // For ContributionSelection component
   let selectedCategory = $state(submission.contribution_type_details?.category || 'validator');
@@ -535,6 +542,27 @@
     rubricSections = state.sections;
     rubricExtras = state.extras;
     rubricOverallReason = state.overallReason;
+    updateProjectRubricPoints(state);
+  }
+
+  function updateProjectRubricPoints(state = rubricState) {
+    if (!isProjectReview || state.gateFailures?.length > 0) return;
+    points = clampPointsToSelectedType(calculateRubricPoints(state));
+  }
+
+  function clampPointsToSelectedType(value) {
+    const min = Number(selectedTypeDetails?.min_points);
+    const max = Number(selectedTypeDetails?.max_points);
+    let nextValue = value;
+
+    if (Number.isFinite(min)) {
+      nextValue = Math.max(min, nextValue);
+    }
+    if (Number.isFinite(max)) {
+      nextValue = Math.min(max, nextValue);
+    }
+
+    return nextValue;
   }
 
   function toggleRubricGate(key) {
@@ -561,20 +589,26 @@
 
   function toggleRubricExtra(key) {
     if (rubricExtras.includes(key)) {
-      rubricExtras = rubricExtras.filter(item => item !== key);
+      const nextExtras = rubricExtras.filter(item => item !== key);
+      rubricExtras = nextExtras;
+      updateProjectRubricPoints({ ...rubricState, extras: nextExtras });
       return;
     }
-    rubricExtras = [...rubricExtras, key];
+    const nextExtras = [...rubricExtras, key];
+    rubricExtras = nextExtras;
+    updateProjectRubricPoints({ ...rubricState, extras: nextExtras });
   }
 
   function updateRubricScore(sectionKey, score) {
-    rubricSections = {
+    const nextSections = {
       ...rubricSections,
       [sectionKey]: {
         ...(rubricSections[sectionKey] || { reason: '' }),
         score: Number(score)
       }
     };
+    rubricSections = nextSections;
+    updateProjectRubricPoints({ ...rubricState, sections: nextSections });
   }
 
   function updateRubricReason(sectionKey, reason) {
@@ -585,6 +619,10 @@
         reason
       }
     };
+  }
+
+  function getRubricSectionReason(sectionKey) {
+    return (rubricSections[sectionKey]?.reason || '').trim();
   }
 
   async function handleShowUserPicker() {
@@ -772,14 +810,15 @@
       {#if !hasRubricGateFailures}
         <div class="space-y-3">
           {#each RUBRIC_SECTIONS as section}
+            {@const sectionReason = getRubricSectionReason(section.key)}
             <div class="rounded-md border border-slate-200 bg-white p-3">
               <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <label for="rubric-score-{submission.id}-{section.key}" class="text-sm font-semibold text-slate-950">
                     {section.label}
                   </label>
-                  {#if !isProposalRubric}
-                    <p class="mt-1 text-xs text-slate-500">{section.help}</p>
+                  {#if !isProposalRubric && sectionReason}
+                    <p class="mt-1 text-xs text-slate-500">{sectionReason}</p>
                   {/if}
                 </div>
                 <select

@@ -52,6 +52,8 @@ export const RUBRIC_EXTRAS = [
   { key: 'public_post', label: 'Public post' }
 ];
 
+export const RUBRIC_EXTRA_POINTS = 50;
+
 /**
  * @typedef {{ score: number, reason: string }} RubricSectionState
  * @typedef {{
@@ -143,6 +145,25 @@ export function buildRubricReviewPayload(state) {
     extras,
     overall_reason: overallReason
   };
+}
+
+/** @param {RubricState} state @returns {number} */
+export function calculateRubricPoints(state) {
+  const sections = state.sections || {};
+  const scoreFor = (key) => {
+    const score = Number(sections[key]?.score);
+    return Number.isFinite(score) ? score : 0;
+  };
+
+  const fit = scoreFor('genlayer_fit');
+  const contractQuality = scoreFor('contract_quality');
+  const engineering = scoreFor('engineering');
+  const frontendUx = scoreFor('frontend_ux');
+  const quality = (fit / 5) * ((2 * contractQuality + 2 * engineering + frontendUx) / 25);
+  const basePoints = Math.round(RUBRIC_EXTRA_POINTS * quality);
+  const extraPoints = (state.extras || []).length * RUBRIC_EXTRA_POINTS;
+
+  return basePoints + extraPoints;
 }
 
 /** @param {RubricState} state @param {string} proposedAction */
