@@ -248,12 +248,29 @@ class PoapAPITest(TestCase):
         [(link, token)] = generate_mint_links(distribution=distribution, count=1)
 
         self.client.force_authenticate(user=self.user)
-        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {'token': token}, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         self.client.force_authenticate(user=self.other_user)
-        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {'token': token}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        link.refresh_from_db()
+        distribution.refresh_from_db()
+        self.assertEqual(link.used_count, 1)
+        self.assertEqual(distribution.claimed_count, 1)
+
+    def test_mint_link_legacy_path_still_claims(self):
+        distribution = PoapDistribution.objects.create(
+            drop=self.drop,
+            method=PoapDistribution.METHOD_MINT_LINK,
+            active=True,
+        )
+        [(link, token)] = generate_mint_links(distribution=distribution, count=1)
+
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         link.refresh_from_db()
         distribution.refresh_from_db()
         self.assertEqual(link.used_count, 1)
@@ -262,7 +279,19 @@ class PoapAPITest(TestCase):
     def test_mint_link_claim_reports_missing_token(self):
         self.client.force_authenticate(user=self.user)
 
-        response = self.client.post('/api/v1/poaps/claim-link/not-a-real-token/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'Mint link token is missing.')
+
+    def test_mint_link_claim_reports_invalid_token(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/claim-link/',
+            {'token': 'not-a-real-token'},
+            format='json',
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
@@ -280,7 +309,7 @@ class PoapAPITest(TestCase):
         DiscordConnection.objects.filter(user=self.user).delete()
         self.client.force_authenticate(user=self.user)
 
-        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {'token': token}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn('link your Discord', response.data['error'])
@@ -299,7 +328,7 @@ class PoapAPITest(TestCase):
         [(_link, token)] = generate_mint_links(distribution=distribution, count=1)
         self.client.force_authenticate(user=self.user)
 
-        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {'token': token}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['error'], 'This mint-link distribution is inactive.')
@@ -317,7 +346,7 @@ class PoapAPITest(TestCase):
         )
         self.client.force_authenticate(user=self.user)
 
-        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {'token': token}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['error'], 'This mint link has expired.')
@@ -333,7 +362,7 @@ class PoapAPITest(TestCase):
         link.save(update_fields=['used_count', 'updated_at'])
         self.client.force_authenticate(user=self.user)
 
-        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {'token': token}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['error'], 'This mint link has already been used.')

@@ -13,20 +13,20 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@wagmi/connectors": "^5.8.3",
-    "@wagmi/core": "^2.17.2",
-    "axios": "^1.6.2",
+    "axios": "^1.17.0",
     "buffer": "^6.0.3",
     "chart.js": "^4.5.0",
     "date-fns": "^2.30.0",
     "dompurify": "^3.4.8",
-    "ethers": "^6.14.1",
+    "ethers": "^6.16.0",
     "marked": "^16.3.0",
     "process": "^0.11.10",
-    "svelte": "5.32.1",
+    "svelte": "5.56.3",
     "svelte-spa-router": "^4.0.0",
-    "viem": "^2.30.0",
-    "wagmi": "^2.15.4"
+    "viem": "^2.52.2"
+  },
+  "overrides": {
+    "ws": "8.20.1"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^3.0.0",
