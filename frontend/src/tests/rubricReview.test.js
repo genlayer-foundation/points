@@ -66,6 +66,20 @@ describe('rubricReview helpers', () => {
     expect(calculateRubricPoints(state)).toBe(126);
   });
 
+  it('sanitizes persisted rubric values before calculating points', () => {
+    const state = validState({
+      sections: {
+        genlayer_fit: { score: 8, reason: '' },
+        contract_quality: { score: 5.9, reason: '' },
+        engineering: { score: -2, reason: '' },
+        frontend_ux: { score: 'bad', reason: '' }
+      },
+      extras: ['live_deployment', 'live_deployment', 'unknown_extra']
+    });
+
+    expect(calculateRubricPoints(state)).toBe(70);
+  });
+
   it('rejects gate failures with non-reject actions', () => {
     const error = validateRubricReviewState(
       validState({ gateFailures: ['repo_does_not_build'] }),

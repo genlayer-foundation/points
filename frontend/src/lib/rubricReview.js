@@ -152,7 +152,8 @@ export function calculateRubricPoints(state) {
   const sections = state.sections || {};
   const scoreFor = (key) => {
     const score = Number(sections[key]?.score);
-    return Number.isFinite(score) ? score : 0;
+    if (!Number.isFinite(score)) return 0;
+    return Math.min(5, Math.max(0, Math.trunc(score)));
   };
 
   const fit = scoreFor('genlayer_fit');
@@ -161,7 +162,11 @@ export function calculateRubricPoints(state) {
   const frontendUx = scoreFor('frontend_ux');
   const quality = (fit / 5) * ((2 * contractQuality + 2 * engineering + frontendUx) / 25);
   const basePoints = Math.round(RUBRIC_EXTRA_POINTS * quality);
-  const extraPoints = (state.extras || []).length * RUBRIC_EXTRA_POINTS;
+  const allowedExtras = new Set(RUBRIC_EXTRAS.map(extra => extra.key));
+  const uniqueExtras = new Set(
+    (state.extras || []).filter(extraKey => allowedExtras.has(extraKey))
+  );
+  const extraPoints = uniqueExtras.size * RUBRIC_EXTRA_POINTS;
 
   return basePoints + extraPoints;
 }
