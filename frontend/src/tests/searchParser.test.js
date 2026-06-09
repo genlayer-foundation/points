@@ -99,6 +99,9 @@ describe("steward search negation", () => {
     expect(paramsFor("assigned:Pavel Kolosov", stewardOptions)).toEqual({
       assigned_to: 12,
     });
+    expect(paramsFor("assigned:Pavel kolosov", stewardOptions)).toEqual({
+      assigned_to: 12,
+    });
     expect(paramsFor("assigned: Pavel Kolosov", stewardOptions)).toEqual({
       assigned_to: 12,
     });

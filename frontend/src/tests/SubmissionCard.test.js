@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte/svelte5';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SubmissionCard from '../components/SubmissionCard.svelte';
 
 function makeSubmission(overrides = {}) {
@@ -56,6 +56,19 @@ function makeSubmission(overrides = {}) {
 }
 
 describe('SubmissionCard', () => {
+  let originalClipboard;
+
+  beforeEach(() => {
+    originalClipboard = navigator.clipboard;
+  });
+
+  afterEach(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: originalClipboard,
+      configurable: true
+    });
+  });
+
   it('copies only the submission id from the card', async () => {
     const writeText = vi.fn().mockResolvedValue();
     Object.defineProperty(navigator, 'clipboard', {

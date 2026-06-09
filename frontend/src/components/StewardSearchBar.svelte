@@ -20,7 +20,10 @@
   let lastSearchedValue = $state('');
 
   const stewardSearchValues = () => stewardsList
-    .map(s => (s.name || s.address?.slice(0, 10))?.toLowerCase().replace(/\s+/g, '-'))
+    .map(s => {
+      const identifier = s.name || s.address?.slice(0, 10);
+      return identifier?.toLowerCase().replace(/\s+/g, '-');
+    })
     .filter(Boolean);
 
   const TAGS = [

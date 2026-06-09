@@ -81,6 +81,12 @@ class AIReviewFilterSet(FilterSet):
             if item and item.strip()
         ]
 
+    def _parse_id_filter_value(self, value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
     def filter_category(self, queryset, name, value):
         if value:
             return queryset.filter(contribution_type__category__slug=value)
@@ -122,8 +128,10 @@ class AIReviewFilterSet(FilterSet):
                 if item in ('null', 'unassigned'):
                     query |= Q(assigned_to__isnull=True)
                 else:
-                    query |= Q(assigned_to_id=item)
-            return queryset.filter(query)
+                    parsed_id = self._parse_id_filter_value(item)
+                    if parsed_id is not None:
+                        query |= Q(assigned_to_id=parsed_id)
+            return queryset.filter(query) if query else queryset.none()
         return queryset
 
     def filter_exclude_assigned_to(self, queryset, name, value):
@@ -134,8 +142,10 @@ class AIReviewFilterSet(FilterSet):
                 if item in ('null', 'unassigned'):
                     query |= Q(assigned_to__isnull=True)
                 else:
-                    query |= Q(assigned_to_id=item)
-            return queryset.exclude(query)
+                    parsed_id = self._parse_id_filter_value(item)
+                    if parsed_id is not None:
+                        query |= Q(assigned_to_id=parsed_id)
+            return queryset.exclude(query) if query else queryset
         return queryset
 
     def _proposed_by_condition(self, value):
@@ -143,7 +153,10 @@ class AIReviewFilterSet(FilterSet):
             return Q(proposed_by__isnull=True)
         if value == 'ai':
             return Q(proposed_by__email=AI_STEWARD_EMAIL)
-        return Q(proposed_by_id=value)
+        parsed_id = self._parse_id_filter_value(value)
+        if parsed_id is None:
+            return None
+        return Q(proposed_by_id=parsed_id)
 
     def _is_reviewed_history_request(self):
         parser_context = getattr(self.request, 'parser_context', {}) if self.request else {}
@@ -158,7 +171,10 @@ class AIReviewFilterSet(FilterSet):
         if value == 'ai':
             notes = notes.filter(user__email=AI_STEWARD_EMAIL)
         else:
-            notes = notes.filter(user_id=value)
+            parsed_id = self._parse_id_filter_value(value)
+            if parsed_id is None:
+                return None
+            notes = notes.filter(user_id=parsed_id)
         return Exists(notes)
 
     def _historical_proposal_note_exists_for_values(self, values):
@@ -171,7 +187,9 @@ class AIReviewFilterSet(FilterSet):
             if item == 'ai':
                 user_filter |= Q(user__email=AI_STEWARD_EMAIL)
             elif item not in ('none', 'null', 'unproposed'):
-                user_filter |= Q(user_id=item)
+                parsed_id = self._parse_id_filter_value(item)
+                if parsed_id is not None:
+                    user_filter |= Q(user_id=parsed_id)
         if not user_filter:
             return None
         return Exists(notes.filter(user_filter))
@@ -191,15 +209,17 @@ class AIReviewFilterSet(FilterSet):
                 if historical_exists is not None:
                     querysets.append(queryset.filter(historical_exists))
                 if not querysets:
-                    return queryset
+                    return queryset.none()
                 result = querysets[0]
                 for extra_queryset in querysets[1:]:
                     result = result | extra_queryset
                 return result
             query = Q()
             for item in values:
-                query |= self._proposed_by_condition(item)
-            return queryset.filter(query)
+                condition = self._proposed_by_condition(item)
+                if condition is not None:
+                    query |= condition
+            return queryset.filter(query) if query else queryset.none()
         return queryset
 
     def filter_exclude_proposed_by(self, queryset, name, value):
@@ -224,8 +244,10 @@ class AIReviewFilterSet(FilterSet):
                 return queryset.exclude(pk__in=excluded.values('pk'))
             query = Q()
             for item in values:
-                query |= self._proposed_by_condition(item)
-            return queryset.exclude(query)
+                condition = self._proposed_by_condition(item)
+                if condition is not None:
+                    query |= condition
+            return queryset.exclude(query) if query else queryset
         return queryset
 
     def filter_search(self, queryset, name, value):

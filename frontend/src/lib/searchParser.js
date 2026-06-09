@@ -119,21 +119,28 @@ function isKnownTagToken(token) {
 }
 
 function isSpaceValueContinuation(token) {
-  return /^[A-Z0-9][A-Za-z0-9.'-]*$/.test(String(token || ''));
+  return /^[A-Za-z0-9][A-Za-z0-9.'-]*$/.test(String(token || ''));
 }
 
 function shouldConsumeSpaceValue(tag, value, nextToken = '') {
   if (!SPACE_VALUE_TAGS.includes(tag)) return false;
   const normalized = String(value || '').toLowerCase();
+  const next = String(nextToken || '');
   const exactAliases = {
     assigned: ['me', 'unassigned', 'none', 'null'],
     reviewed: ['me'],
     'proposed-by': ['ai', 'me', 'none', 'null', 'unproposed'],
     mission: ['none', 'null'],
   };
+  const canContinueLowercaseName = (
+    ['assigned', 'reviewed', 'proposed-by'].includes(tag) &&
+    /^[A-Z0-9]/.test(String(value || '')) &&
+    /^[a-z0-9]/.test(next)
+  );
   return (
     !(exactAliases[tag] || []).includes(normalized) &&
-    isSpaceValueContinuation(nextToken)
+    isSpaceValueContinuation(next) &&
+    (/^[A-Z0-9]/.test(next) || canContinueLowercaseName)
   );
 }
 

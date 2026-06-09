@@ -422,6 +422,53 @@ class TestAIReviewAPI(APITestCase):
         self.assertNotIn(str(assigned_to_steward.id), exclude_ids)
         self.assertIn(str(assigned_to_ai.id), exclude_ids)
 
+    def test_ai_review_invalid_steward_id_filters_do_not_error(self):
+        submission = self.fixtures['submission']
+        submission.assigned_to = self.fixtures['steward_user']
+        submission.save()
+
+        include_assigned = self.client.get(
+            '/api/v1/ai-review/',
+            data={'assigned_to': 'abc'},
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+        self.assertEqual(include_assigned.status_code, 200)
+        self.assertEqual(include_assigned.data['results'], [])
+
+        exclude_assigned = self.client.get(
+            '/api/v1/ai-review/',
+            data={'exclude_assigned_to': 'abc'},
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+        self.assertEqual(exclude_assigned.status_code, 200)
+        self.assertIn(
+            str(submission.id),
+            {str(item['id']) for item in exclude_assigned.data['results']},
+        )
+
+        submission.proposed_action = 'reject'
+        submission.proposed_by = self.fixtures['steward_user']
+        submission.save()
+
+        include_proposed = self.client.get(
+            '/api/v1/ai-review/proposed/',
+            data={'proposed_by': 'abc'},
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+        self.assertEqual(include_proposed.status_code, 200)
+        self.assertEqual(include_proposed.data['results'], [])
+
+        exclude_proposed = self.client.get(
+            '/api/v1/ai-review/proposed/',
+            data={'exclude_proposed_by': 'abc'},
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+        self.assertEqual(exclude_proposed.status_code, 200)
+        self.assertIn(
+            str(submission.id),
+            {str(item['id']) for item in exclude_proposed.data['results']},
+        )
+
     def test_ai_propose_endpoint_stores_structured_note_data(self):
         submission = self.fixtures['submission']
 

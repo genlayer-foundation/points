@@ -1107,6 +1107,12 @@ class StewardSubmissionFilterSet(FilterSet):
             if item and item.strip()
         ]
 
+    def _parse_id_filter_value(self, value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
     def _normalized_url_query(self, term):
         if '://' not in term and not term.lower().startswith('www.'):
             return Q()
@@ -1187,8 +1193,10 @@ class StewardSubmissionFilterSet(FilterSet):
                 if item == 'null' or item == 'unassigned':
                     query |= Q(assigned_to__isnull=True)
                 else:
-                    query |= Q(assigned_to_id=item)
-            return queryset.filter(query)
+                    parsed_id = self._parse_id_filter_value(item)
+                    if parsed_id is not None:
+                        query |= Q(assigned_to_id=parsed_id)
+            return queryset.filter(query) if query else queryset.none()
         return queryset
 
     def filter_exclude_assigned_to(self, queryset, name, value):
@@ -1200,22 +1208,34 @@ class StewardSubmissionFilterSet(FilterSet):
                 if item == 'null' or item == 'unassigned':
                     query |= Q(assigned_to__isnull=True)
                 else:
-                    query |= Q(assigned_to_id=item)
-            return queryset.exclude(query)
+                    parsed_id = self._parse_id_filter_value(item)
+                    if parsed_id is not None:
+                        query |= Q(assigned_to_id=parsed_id)
+            return queryset.exclude(query) if query else queryset
         return queryset
 
     def filter_reviewed_by(self, queryset, name, value):
         """Filter by steward who took the review action."""
         values = self._split_filter_values(value)
         if values:
-            return queryset.filter(reviewed_by_id__in=values)
+            parsed_ids = [
+                parsed_id for parsed_id in
+                (self._parse_id_filter_value(item) for item in values)
+                if parsed_id is not None
+            ]
+            return queryset.filter(reviewed_by_id__in=parsed_ids) if parsed_ids else queryset.none()
         return queryset
 
     def filter_exclude_reviewed_by(self, queryset, name, value):
         """Exclude submissions reviewed by a specific steward."""
         values = self._split_filter_values(value)
         if values:
-            return queryset.exclude(reviewed_by_id__in=values)
+            parsed_ids = [
+                parsed_id for parsed_id in
+                (self._parse_id_filter_value(item) for item in values)
+                if parsed_id is not None
+            ]
+            return queryset.exclude(reviewed_by_id__in=parsed_ids) if parsed_ids else queryset
         return queryset
 
     def _proposed_by_condition(self, value):
@@ -1223,7 +1243,10 @@ class StewardSubmissionFilterSet(FilterSet):
             return Q(proposed_by__isnull=True)
         if value == 'ai':
             return Q(proposed_by__email=AI_STEWARD_EMAIL)
-        return Q(proposed_by_id=value)
+        parsed_id = self._parse_id_filter_value(value)
+        if parsed_id is None:
+            return None
+        return Q(proposed_by_id=parsed_id)
 
     def filter_proposed_by(self, queryset, name, value):
         """Filter by steward or agent who created the active proposal."""
@@ -1231,8 +1254,10 @@ class StewardSubmissionFilterSet(FilterSet):
         if values:
             query = Q()
             for item in values:
-                query |= self._proposed_by_condition(item)
-            return queryset.filter(query)
+                condition = self._proposed_by_condition(item)
+                if condition is not None:
+                    query |= condition
+            return queryset.filter(query) if query else queryset.none()
         return queryset
 
     def filter_exclude_proposed_by(self, queryset, name, value):
@@ -1241,8 +1266,10 @@ class StewardSubmissionFilterSet(FilterSet):
         if values:
             query = Q()
             for item in values:
-                query |= self._proposed_by_condition(item)
-            return queryset.exclude(query)
+                condition = self._proposed_by_condition(item)
+                if condition is not None:
+                    query |= condition
+            return queryset.exclude(query) if query else queryset
         return queryset
 
     def filter_exclude_contribution_type(self, queryset, name, value):
