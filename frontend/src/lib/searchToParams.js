@@ -55,9 +55,7 @@ export function searchToParams(parsed, options = {}) {
    * @param {any} source
    * @param {any} query
    */
-  const exactOrNormalized = (source, query) => (
-    String(source) === String(query) || includesNormalized(source, query)
-  );
+  const exactId = (source, query) => String(source) === String(query);
   /**
    * @param {string} key
    * @param {any} value
@@ -122,7 +120,7 @@ export function searchToParams(parsed, options = {}) {
 
   // from → username_search (or exclude_username if negated)
   if (filters.from) {
-    const usernameValue = normalizeLookup(filters.from.value);
+    const usernameValue = normalizeListValue(filters.from.value);
     if (filters.from.negated) {
       params.exclude_username = usernameValue;
     } else {
@@ -147,7 +145,7 @@ export function searchToParams(parsed, options = {}) {
     } else {
       // Find steward by name
       const steward = stewardsList.find(s =>
-        exactOrNormalized(s.user_id, assignedFilter.value) ||
+        exactId(s.user_id, assignedFilter.value) ||
         includesNormalized(s.name, assignedFilter.value) ||
         includesNormalized(s.user_name, assignedFilter.value) ||
         includesNormalized(s.address, assignedFilter.value)
@@ -175,7 +173,7 @@ export function searchToParams(parsed, options = {}) {
       reviewedValue = currentUserId;
     } else {
       const steward = stewardsList.find(s =>
-        exactOrNormalized(s.user_id, reviewedFilter.value) ||
+        exactId(s.user_id, reviewedFilter.value) ||
         includesNormalized(s.name, reviewedFilter.value) ||
         includesNormalized(s.user_name, reviewedFilter.value) ||
         includesNormalized(s.address, reviewedFilter.value)
@@ -207,7 +205,7 @@ export function searchToParams(parsed, options = {}) {
       proposedByValue = 'none';
     } else {
       const steward = stewardsList.find(s =>
-        exactOrNormalized(s.user_id, proposedByFilter.value) ||
+        exactId(s.user_id, proposedByFilter.value) ||
         includesNormalized(s.name, proposedByFilter.value) ||
         includesNormalized(s.user_name, proposedByFilter.value) ||
         includesNormalized(s.address, proposedByFilter.value)

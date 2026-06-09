@@ -123,10 +123,32 @@ describe("steward search negation", () => {
     });
   });
 
+  it("preserves separators in submitter searches", () => {
+    expect(paramsFor("from:alice_xp")).toEqual({
+      username_search: "alice_xp",
+    });
+    expect(paramsFor("-from:alice-xp")).toEqual({
+      exclude_username: "alice-xp",
+    });
+  });
+
   it("keeps exact assignment aliases from consuming following free text", () => {
     expect(paramsFor("assigned:me github repo", stewardOptions)).toEqual({
       assigned_to: 7,
       search: "github repo",
     });
+  });
+
+  it("matches numeric steward ids exactly before fuzzy text fields", () => {
+    const options = {
+      stewardsList: [
+        { user_id: 112, name: "First Steward", address: "0xfirst" },
+        { user_id: 12, name: "Second Steward", address: "0xsecond" },
+      ],
+    };
+
+    expect(paramsFor("assigned:12", options)).toEqual({ assigned_to: 12 });
+    expect(paramsFor("reviewed:12", options)).toEqual({ reviewed_by: 12 });
+    expect(paramsFor("proposed-by:12", options)).toEqual({ proposed_by: 12 });
   });
 });
