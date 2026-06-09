@@ -904,56 +904,125 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Get users who earned the most points recently.
         Tries last 30 days first; falls back to all-time if no data.
+        When category is provided, only that category's point increase is used.
+        Otherwise, each contributor includes the recent category where they gained
+        the most points so the UI can show the matching badge and delta.
         """
         try:
             limit = int(request.query_params.get('limit', 10))
         except (ValueError, TypeError):
             limit = 10
         limit = min(max(limit, 1), 100)
+        category_slug = request.query_params.get('category')
+        if category_slug == 'global':
+            category_slug = None
 
         from datetime import timedelta
         from users.models import User
 
         cutoff = timezone.now() - timedelta(days=30)
 
-        # Aggregate points per user from last 30 days
-        trending_users = list(
-            Contribution.objects.filter(
-                created_at__gte=cutoff,
-                user__visible=True,
+        def build_points_query(recent_only=True):
+            query = Contribution.objects.filter(user__visible=True)
+            if recent_only:
+                query = query.filter(created_at__gte=cutoff)
+            if category_slug:
+                query = query.filter(contribution_type__category__slug=category_slug)
+            return (
+                query
+                .values('user_id', 'contribution_type__category__slug')
+                .annotate(total_points=Sum('frozen_global_points'))
             )
-            .values('user_id')
-            .annotate(total_points=Sum('frozen_global_points'))
-            .order_by('-total_points')[:limit]
-        )
+
+        def summarize_by_user(rows):
+            by_user = {}
+            for row in rows:
+                user_id = row['user_id']
+                category = row['contribution_type__category__slug'] or 'community'
+                points = row['total_points'] or 0
+                entry = by_user.setdefault(user_id, {
+                    'user_id': user_id,
+                    'total_recent_points': 0,
+                    'category_points': {},
+                    'top_category': category_slug or category,
+                    'top_category_points': 0,
+                })
+                entry['total_recent_points'] += points
+                entry['category_points'][category] = entry['category_points'].get(category, 0) + points
+
+            for entry in by_user.values():
+                if category_slug:
+                    entry['top_category'] = category_slug
+                    entry['top_category_points'] = entry['category_points'].get(category_slug, 0)
+                elif entry['category_points']:
+                    top_category, top_points = max(
+                        entry['category_points'].items(),
+                        key=lambda item: item[1],
+                    )
+                    entry['top_category'] = top_category
+                    entry['top_category_points'] = top_points
+
+            return sorted(
+                by_user.values(),
+                key=lambda entry: (
+                    entry['top_category_points'] if category_slug else entry['total_recent_points'],
+                    entry['top_category_points'],
+                ),
+                reverse=True,
+            )[:limit]
+
+        # Aggregate points per user/category from last 30 days
+        trending_users = summarize_by_user(build_points_query(recent_only=True))
 
         # Fall back to all-time if no recent data
         if not trending_users:
+            trending_users = summarize_by_user(build_points_query(recent_only=False))
+
+        # Legacy fallback if there are contributions without category joins
+        if not trending_users and not category_slug:
+            trending_users = list(
+                Contribution.objects.filter(
+                    created_at__gte=cutoff,
+                    user__visible=True,
+                )
+                .values('user_id')
+                .annotate(total_recent_points=Sum('frozen_global_points'))
+                .order_by('-total_recent_points')[:limit]
+            )
+
+        if not trending_users and not category_slug:
             trending_users = list(
                 Contribution.objects.filter(user__visible=True)
                 .values('user_id')
-                .annotate(total_points=Sum('frozen_global_points'))
-                .order_by('-total_points')[:limit]
+                .annotate(total_recent_points=Sum('frozen_global_points'))
+                .order_by('-total_recent_points')[:limit]
             )
 
         user_ids = [entry['user_id'] for entry in trending_users]
-        points_map = {entry['user_id']: entry['total_points'] for entry in trending_users}
-
         users = User.objects.filter(id__in=user_ids).select_related(
             'builder', 'validator', 'steward'
         )
         users_by_id = {u.id: u for u in users}
 
         results = []
-        for user_id in user_ids:
-            user = users_by_id.get(user_id)
+        for entry in trending_users:
+            user = users_by_id.get(entry['user_id'])
             if not user:
                 continue
+            top_category = entry.get('top_category') or category_slug or 'community'
+            top_category_points = entry.get('top_category_points')
+            if top_category_points is None:
+                top_category_points = entry.get('total_recent_points') or 0
             results.append({
                 'user_name': user.name or '',
                 'user_address': user.address or '',
                 'profile_image_url': user.profile_image_url or '',
-                'total_points': points_map[user_id] or 0,
+                'total_points': top_category_points,
+                'trending_points': top_category_points,
+                'total_recent_points': entry.get('total_recent_points') or top_category_points,
+                'top_category': top_category,
+                'top_category_points': top_category_points,
+                'category_points': entry.get('category_points') or {top_category: top_category_points},
                 'builder': hasattr(user, 'builder'),
                 'validator': hasattr(user, 'validator'),
                 'steward': hasattr(user, 'steward'),

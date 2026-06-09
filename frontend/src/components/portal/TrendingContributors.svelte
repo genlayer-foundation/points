@@ -20,15 +20,16 @@
   });
 
   function getUserObj(entry) {
+    const topCategory = entry.top_category;
     return {
       name: entry.user_name || entry.name,
       address: entry.user_address || entry.address,
       profile_image_url: entry.profile_image_url,
-      builder: entry.builder ?? false,
-      validator: entry.validator ?? false,
-      steward: entry.steward ?? false,
-      has_validator_waitlist: entry.has_validator_waitlist ?? false,
-      has_builder_welcome: entry.has_builder_welcome ?? false,
+      builder: topCategory ? topCategory === 'builder' : (entry.builder ?? false),
+      validator: topCategory ? topCategory === 'validator' : (entry.validator ?? false),
+      steward: topCategory ? topCategory === 'steward' : (entry.steward ?? false),
+      has_validator_waitlist: topCategory ? false : (entry.has_validator_waitlist ?? false),
+      has_builder_welcome: topCategory ? false : (entry.has_builder_welcome ?? false),
     };
   }
 
@@ -46,12 +47,18 @@
     return pts.toString();
   }
 
-  // Priority: steward > validator > builder > community
+  // Trending entries prefer the category where the user gained the most points.
   function getCategoryType(entry) {
+    if (entry.top_category) return entry.top_category;
+    if (entry.category) return entry.category;
     if (entry.steward) return 'steward';
     if (entry.validator) return 'validator';
     if (entry.builder) return 'builder';
     return 'community';
+  }
+
+  function getTrendingPoints(entry) {
+    return entry.trending_points ?? entry.top_category_points ?? entry.total_points ?? entry.points;
   }
 
   const categoryConfig = {
@@ -113,10 +120,7 @@
               {getDisplayName(entry)}
             </span>
             <span class="flex items-center gap-0.5">
-              <svg class="w-4 h-4 text-[#3eb359]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
-              </svg>
-              <span class="text-[14px] text-[#3eb359]" style="letter-spacing: 0.28px;">{formatPoints(entry.total_points)}</span>
+              <span class="text-[14px]" style="letter-spacing: 0.28px; color: {categoryConfig[getCategoryType(entry)]?.color || '#7F52E1'};">^{formatPoints(getTrendingPoints(entry))}</span>
             </span>
           </div>
 
@@ -126,7 +130,7 @@
               <img src="/assets/icons/hexagon-light.svg" alt="" class="w-full h-full" />
               <div
                 class="absolute inset-0 m-auto w-3 h-3"
-                style="background-color: {categoryConfig[getCategoryType(entry)].color}; -webkit-mask-image: url({categoryConfig[getCategoryType(entry)].icon}); mask-image: url({categoryConfig[getCategoryType(entry)].icon}); mask-size: contain; mask-repeat: no-repeat; mask-position: center;"
+                style="background-color: {categoryConfig[getCategoryType(entry)]?.color || '#7F52E1'}; -webkit-mask-image: url({categoryConfig[getCategoryType(entry)]?.icon || categoryConfig.community.icon}); mask-image: url({categoryConfig[getCategoryType(entry)]?.icon || categoryConfig.community.icon}); mask-size: contain; mask-repeat: no-repeat; mask-position: center;"
               ></div>
             </div>
           </div>

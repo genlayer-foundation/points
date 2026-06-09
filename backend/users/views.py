@@ -131,8 +131,8 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
             category_obj = get_object_or_404(Category, slug=category)
             queryset = queryset.filter(contribution__contribution_type__category=category_obj)
 
-        # Order by contribution date (newest first) and apply limit
-        queryset = queryset.order_by('-contribution__contribution_date')
+        # Order by featured date (newest first), then contribution date.
+        queryset = queryset.order_by('-created_at', '-contribution__contribution_date')
         queryset = queryset.select_related(
             'contribution',
             'contribution__user',

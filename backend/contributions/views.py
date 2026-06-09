@@ -436,7 +436,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                 # No validator type, just filter by waitlist users
                 queryset = queryset.filter(contribution__user_id__in=waitlist_users)
         
-        # Order by contribution date descending. `limit=0` is used by the
+        # Order by featured date descending. `limit=0` is used by the
         # all-contributions explorer so local filters can search every highlight.
         highlights = queryset.select_related(
             'contribution__user',
@@ -447,7 +447,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             'contribution__contribution_type__category'
         ).prefetch_related(
             'contribution__evidence_items'
-        ).order_by('-contribution__contribution_date')
+        ).order_by('-created_at', '-contribution__contribution_date')
 
         if limit > 0:
             highlights = highlights[:limit]

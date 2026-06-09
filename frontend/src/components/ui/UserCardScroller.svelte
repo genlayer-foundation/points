@@ -3,18 +3,24 @@
   import Avatar from '../Avatar.svelte';
   import CategoryIcon from '../portal/CategoryIcon.svelte';
 
-  let { entries = [], loading = false, onCardClick = null } = $props();
+  let {
+    entries = [],
+    loading = false,
+    onCardClick = null,
+    showPointIncrease = false,
+  } = $props();
 
   function getUserObj(entry) {
+    const topCategory = showPointIncrease ? entry.top_category : null;
     return {
       name: entry.user_name || entry.name,
       address: entry.user_address || entry.address,
       profile_image_url: entry.profile_image_url,
-      builder: entry.builder ?? false,
-      validator: entry.validator ?? false,
-      steward: entry.steward ?? false,
-      has_validator_waitlist: entry.has_validator_waitlist ?? false,
-      has_builder_welcome: entry.has_builder_welcome ?? false,
+      builder: topCategory ? topCategory === 'builder' : (entry.builder ?? false),
+      validator: topCategory ? topCategory === 'validator' : (entry.validator ?? false),
+      steward: topCategory ? topCategory === 'steward' : (entry.steward ?? false),
+      has_validator_waitlist: topCategory ? false : (entry.has_validator_waitlist ?? false),
+      has_builder_welcome: topCategory ? false : (entry.has_builder_welcome ?? false),
     };
   }
 
@@ -33,11 +39,29 @@
     return pts.toString();
   }
 
+  const categoryColors = {
+    builder: '#EE8521',
+    validator: '#387DE8',
+    community: '#7F52E1',
+    steward: '#19A663',
+    genlayer: '#7F52E1',
+  };
+
   function getCategoryType(entry) {
+    if (entry.top_category) return entry.top_category;
+    if (entry.category) return entry.category;
     if (entry.steward) return 'steward';
     if (entry.validator) return 'validator';
     if (entry.builder) return 'builder';
     return 'community';
+  }
+
+  function getTrendingPoints(entry) {
+    return entry.trending_points ?? entry.top_category_points ?? entry.total_points ?? entry.points;
+  }
+
+  function getCategoryColor(entry) {
+    return categoryColors[getCategoryType(entry)] || categoryColors.genlayer;
   }
 
   function handleCardClick(entry) {
@@ -88,12 +112,18 @@
           <span class="text-[14px] font-medium text-black text-left truncate" style="letter-spacing: 0.28px;">
             {getDisplayName(entry)}
           </span>
-          <span class="flex items-center gap-0.5">
-            <svg class="w-4 h-4 text-[#3eb359]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
-            </svg>
-            <span class="text-[14px] text-[#3eb359]" style="letter-spacing: 0.28px;">{formatPoints(entry.total_points ?? entry.points)}</span>
-          </span>
+          {#if showPointIncrease}
+            <span class="flex items-center gap-0.5">
+              <span class="text-[14px]" style="letter-spacing: 0.28px; color: {getCategoryColor(entry)};">^{formatPoints(getTrendingPoints(entry))}</span>
+            </span>
+          {:else}
+            <span class="flex items-center gap-0.5">
+              <svg class="w-4 h-4 text-[#3eb359]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+              </svg>
+              <span class="text-[14px] text-[#3eb359]" style="letter-spacing: 0.28px;">{formatPoints(entry.total_points ?? entry.points)}</span>
+            </span>
+          {/if}
         </div>
 
         <!-- Category icon: small hexagon -->
