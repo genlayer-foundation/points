@@ -1,4 +1,5 @@
 {
+  "name": "portal",
   "devDependencies": {
     "@aws-amplify/backend": "^1.16.1",
     "@aws-amplify/backend-cli": "^1.7.2",

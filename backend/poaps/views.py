@@ -93,6 +93,14 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['event_start_at', 'created_at', 'title']
     ordering = ['-event_start_at']
 
+    def get_throttles(self):
+        self.throttle_scope = (
+            'poap_claim_secret'
+            if getattr(self, 'action', None) == 'claim_secret'
+            else None
+        )
+        return super().get_throttles()
+
     def get_serializer_class(self):
         if self.action == 'retrieve':
             return PoapDropDetailSerializer
@@ -182,7 +190,12 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
             return self.get_paginated_response(serializer.data)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'], url_path='claim-secret', permission_classes=[permissions.IsAuthenticated])
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='claim-secret',
+        permission_classes=[permissions.IsAuthenticated],
+    )
     def claim_secret(self, request, slug=None):
         try:
             claim = claim_with_secret(
@@ -197,8 +210,7 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response(PoapClaimSerializer(claim).data, status=status.HTTP_201_CREATED)
 
-    @action(detail=False, methods=['post'], url_path=r'claim-link/(?P<token>[^/.]+)', permission_classes=[permissions.IsAuthenticated])
-    def claim_link(self, request, token=None):
+    def _claim_link_with_token(self, request, token):
         try:
             claim = claim_with_mint_link(token=token, user=request.user)
         except PoapDrop.DoesNotExist:
@@ -210,6 +222,20 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
             'claim': PoapClaimSerializer(claim).data,
             'drop': PoapDropListSerializer(claim.drop, context={'request': request}).data,
         }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='claim-link', permission_classes=[permissions.IsAuthenticated])
+    def claim_link(self, request):
+        token = request.data.get('token')
+        if not isinstance(token, str):
+            return Response({'error': 'Mint link token is missing.'}, status=status.HTTP_400_BAD_REQUEST)
+        token = token.strip()
+        if not token:
+            return Response({'error': 'Mint link token is missing.'}, status=status.HTTP_400_BAD_REQUEST)
+        return self._claim_link_with_token(request, token)
+
+    @action(detail=False, methods=['post'], url_path=r'claim-link/(?P<token>[^/.]+)', permission_classes=[permissions.IsAuthenticated])
+    def claim_link_legacy(self, request, token=None):
+        return self._claim_link_with_token(request, token)
 
     @action(detail=False, methods=['post'], url_path='verify-wallet', permission_classes=[permissions.IsAuthenticated])
     def verify_wallet(self, request):

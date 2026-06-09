@@ -436,7 +436,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                 # No validator type, just filter by waitlist users
                 queryset = queryset.filter(contribution__user_id__in=waitlist_users)
         
-        # Order by contribution date descending. `limit=0` is used by the
+        # Order by featured date descending. `limit=0` is used by the
         # all-contributions explorer so local filters can search every highlight.
         highlights = queryset.select_related(
             'contribution__user',
@@ -447,7 +447,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             'contribution__contribution_type__category'
         ).prefetch_related(
             'contribution__evidence_items'
-        ).order_by('-contribution__contribution_date')
+        ).order_by('-created_at', '-contribution__contribution_date')
 
         if limit > 0:
             highlights = highlights[:limit]
@@ -1100,6 +1100,19 @@ class StewardSubmissionFilterSet(FilterSet):
     has_appeal = BooleanFilter(field_name='has_appeal')
     resubmitted_more_info = BooleanFilter(method='filter_resubmitted_more_info')
 
+    def _split_filter_values(self, value):
+        return [
+            item.strip()
+            for item in str(value).split(',')
+            if item and item.strip()
+        ]
+
+    def _parse_id_filter_value(self, value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
     def _normalized_url_query(self, term):
         if '://' not in term and not term.lower().startswith('www.'):
             return Q()
@@ -1173,30 +1186,56 @@ class StewardSubmissionFilterSet(FilterSet):
 
     def filter_assigned_to(self, queryset, name, value):
         """Filter by assigned steward or unassigned."""
-        if value == 'null' or value == 'unassigned':
-            return queryset.filter(assigned_to__isnull=True)
-        elif value:
-            return queryset.filter(assigned_to_id=value)
+        values = self._split_filter_values(value)
+        if values:
+            query = Q()
+            for item in values:
+                if item == 'null' or item == 'unassigned':
+                    query |= Q(assigned_to__isnull=True)
+                else:
+                    parsed_id = self._parse_id_filter_value(item)
+                    if parsed_id is not None:
+                        query |= Q(assigned_to_id=parsed_id)
+            return queryset.filter(query) if query else queryset.none()
         return queryset
 
     def filter_exclude_assigned_to(self, queryset, name, value):
         """Exclude submissions assigned to a specific steward."""
-        if value == 'null' or value == 'unassigned':
-            return queryset.exclude(assigned_to__isnull=True)
-        elif value:
-            return queryset.exclude(assigned_to_id=value)
+        values = self._split_filter_values(value)
+        if values:
+            query = Q()
+            for item in values:
+                if item == 'null' or item == 'unassigned':
+                    query |= Q(assigned_to__isnull=True)
+                else:
+                    parsed_id = self._parse_id_filter_value(item)
+                    if parsed_id is not None:
+                        query |= Q(assigned_to_id=parsed_id)
+            return queryset.exclude(query) if query else queryset
         return queryset
 
     def filter_reviewed_by(self, queryset, name, value):
         """Filter by steward who took the review action."""
-        if value:
-            return queryset.filter(reviewed_by_id=value)
+        values = self._split_filter_values(value)
+        if values:
+            parsed_ids = [
+                parsed_id for parsed_id in
+                (self._parse_id_filter_value(item) for item in values)
+                if parsed_id is not None
+            ]
+            return queryset.filter(reviewed_by_id__in=parsed_ids) if parsed_ids else queryset.none()
         return queryset
 
     def filter_exclude_reviewed_by(self, queryset, name, value):
         """Exclude submissions reviewed by a specific steward."""
-        if value:
-            return queryset.exclude(reviewed_by_id=value)
+        values = self._split_filter_values(value)
+        if values:
+            parsed_ids = [
+                parsed_id for parsed_id in
+                (self._parse_id_filter_value(item) for item in values)
+                if parsed_id is not None
+            ]
+            return queryset.exclude(reviewed_by_id__in=parsed_ids) if parsed_ids else queryset
         return queryset
 
     def _proposed_by_condition(self, value):
@@ -1204,18 +1243,33 @@ class StewardSubmissionFilterSet(FilterSet):
             return Q(proposed_by__isnull=True)
         if value == 'ai':
             return Q(proposed_by__email=AI_STEWARD_EMAIL)
-        return Q(proposed_by_id=value)
+        parsed_id = self._parse_id_filter_value(value)
+        if parsed_id is None:
+            return None
+        return Q(proposed_by_id=parsed_id)
 
     def filter_proposed_by(self, queryset, name, value):
         """Filter by steward or agent who created the active proposal."""
-        if value:
-            return queryset.filter(self._proposed_by_condition(value))
+        values = self._split_filter_values(value)
+        if values:
+            query = Q()
+            for item in values:
+                condition = self._proposed_by_condition(item)
+                if condition is not None:
+                    query |= condition
+            return queryset.filter(query) if query else queryset.none()
         return queryset
 
     def filter_exclude_proposed_by(self, queryset, name, value):
         """Exclude active proposals created by a specific steward or agent."""
-        if value:
-            return queryset.exclude(self._proposed_by_condition(value))
+        values = self._split_filter_values(value)
+        if values:
+            query = Q()
+            for item in values:
+                condition = self._proposed_by_condition(item)
+                if condition is not None:
+                    query |= condition
+            return queryset.exclude(query) if query else queryset
         return queryset
 
     def filter_exclude_contribution_type(self, queryset, name, value):
@@ -2603,6 +2657,45 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK
         )
 
+    def _validate_proposal_note_update(self, request, submission, note):
+        if not note.is_proposal:
+            return Response(
+                {'detail': 'Only generated proposal notes can be edited.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if submission.state != 'pending' or not submission.proposed_action:
+            return Response(
+                {'detail': 'Proposal notes can only be edited while the proposal is pending.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if note.user_id != request.user.id or submission.proposed_by_id != request.user.id:
+            return Response(
+                {'detail': 'You can only edit your own active proposal note.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not steward_has_permission(request.user, submission.contribution_type_id, 'propose'):
+            return Response(
+                {'detail': 'You do not have permission to edit proposal notes for this contribution type.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        latest_proposal_note = (
+            submission.internal_notes
+            .filter(is_proposal=True)
+            .order_by('-created_at', '-id')
+            .first()
+        )
+        if not latest_proposal_note or latest_proposal_note.id != note.id:
+            return Response(
+                {'detail': 'Only the active generated proposal note can be edited.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return None
+
     @action(detail=True, methods=['get', 'post'], url_path='notes')
     def notes(self, request, pk=None):
         """List or create CRM notes on a submission."""
@@ -2632,6 +2725,31 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
                 SubmissionNoteSerializer(note).data,
                 status=status.HTTP_201_CREATED
             )
+
+    @action(detail=True, methods=['patch'], url_path=r'notes/(?P<note_id>[^/.]+)')
+    def update_note(self, request, pk=None, note_id=None):
+        """Edit the active generated proposal note for a pending proposal."""
+        submission = self.get_object()
+        note = get_object_or_404(
+            SubmissionNote,
+            pk=note_id,
+            submitted_contribution=submission,
+        )
+
+        validation_response = self._validate_proposal_note_update(request, submission, note)
+        if validation_response is not None:
+            return validation_response
+
+        message = request.data.get('message', '').strip()
+        if not message:
+            return Response(
+                {'error': 'Message is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        note.message = message
+        note.save(update_fields=['message', 'updated_at'])
+        return Response(SubmissionNoteSerializer(note).data)
 
     @action(detail=False, methods=['get'], url_path='ban-appeals')
     def ban_appeals(self, request):

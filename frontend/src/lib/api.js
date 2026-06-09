@@ -137,7 +137,7 @@ export const leaderboardAPI = {
   getCommunity: (params = {}) => leaderboardAPI.getLeaderboard({ type: 'community', ...params }),
   getCommunityContributors: (params = {}) => leaderboardAPI.getLeaderboard({ type: 'community', ...params }),
   getReferrals: (params = {}) => api.get('/leaderboard/referrals/', { params }),
-  getTrending: (limit = 10) => api.get('/leaderboard/trending/', { params: { limit } }),
+  getTrending: (limit = 10, params = {}) => api.get('/leaderboard/trending/', { params: { limit, ...params } }),
   getTypes: () => api.get('/leaderboard/types/'),
   recalculateAll: () => api.post('/leaderboard/recalculate/')
 };
@@ -265,6 +265,14 @@ export const stewardAPI = {
   // CRM Notes
   getNotes: (id) => api.get(`/steward-submissions/${id}/notes/`),
   addNote: (id, message) => api.post(`/steward-submissions/${id}/notes/`, { message }),
+  /**
+   * Edit the active generated proposal note on a pending submission.
+   * @param {string | number} submissionId
+   * @param {string | number} noteId
+   * @param {string} message
+   */
+  updateNote: (submissionId, noteId, message) =>
+    api.patch(`/steward-submissions/${submissionId}/notes/${noteId}/`, { message }),
 
   // Working Groups
   getWorkingGroups: () => api.get('/stewards/working-groups/'),
@@ -359,7 +367,7 @@ export const poapsAPI = {
   /** @param {string} slug @param {string} secret */
   claimSecret: (slug, secret) => api.post(`/poaps/${slug}/claim-secret/`, { secret }),
   /** @param {string} token */
-  claimLink: (token) => api.post(`/poaps/claim-link/${encodeURIComponent(token)}/`),
+  claimLink: (token) => api.post('/poaps/claim-link/', { token }),
   /** @param {{ address: string, message: string, signature: string }} payload */
   verifyWallet: (payload) => api.post('/poaps/verify-wallet/', payload),
 };

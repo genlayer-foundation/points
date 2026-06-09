@@ -87,10 +87,10 @@ backend/
   - ProjectMetric - Admin-managed title/value/detail metric rows for project pages
   - ProjectPageRevision - Owner-submitted ordered page blocks rendered through whitelisted portal components
 - **AI Review**: `contributions/ai_review/views.py`
-  - `/api/v1/ai-review/` - List pending submissions for the external AI review agent
+  - `/api/v1/ai-review/` - List pending unproposed submissions for the external AI review agent; proposal filters such as `has_proposal=true` opt into active proposals
   - `/api/v1/ai-review/{id}/` - Retrieve a pending submission with evidence and user history
   - `/api/v1/ai-review/{id}/propose/` - Submit an AI proposal for human approval
-  - `/api/v1/ai-review/proposed/` - List pending submissions with AI proposals awaiting steward review
+  - `/api/v1/ai-review/proposed/` - List pending submissions with active proposals awaiting steward review; use `proposed_by=ai` for AI-created proposals only
   - `/api/v1/ai-review/reviewed/` - List reviewed submissions that had AI proposals for calibration
   - `/api/v1/ai-review/templates/` - List review templates available to the AI review agent
 
@@ -152,6 +152,17 @@ backend/
   - `/api/v1/gen-tv/streams/` - Public read-only list with `category` filter; pagination disabled (small dataset)
   - `/api/v1/gen-tv/streams/{slug}/` - Public read-only detail by slug
 - **Admin**: `gen_tv/admin.py` - status surfaces as a read-only `computed_status` column; date_hierarchy on `starts_at`; slug prepopulated from title.
+
+### POAPs
+
+- **Models**: `poaps/models.py`
+  - PoapDrop - POAP campaign/drop with slug, artwork, event window, status, max claims, and legacy import ID.
+  - PoapDistribution - Claiming method/window/cap configuration for a drop.
+  - PoapClaim - Individual minted or imported claim records.
+- **Views**: `poaps/views.py`
+  - `/api/v1/poaps/` - Public read-only POAP drop list.
+  - `/api/v1/poaps/{slug}/` - Public read-only POAP drop detail.
+- **Admin**: `poaps/admin.py` - `PoapDropAdmin` keeps `created_by` as an autocomplete field, includes only `PoapDistributionInline` in `inlines`, and exposes claims through the read-only `claims_link` field instead of rendering `PoapClaim` rows inline. This keeps heavily claimed drops editable without exceeding Django's POST field limit. Ruff RUF012 warnings on the Django admin `inlines = [PoapDistributionInline]` list literal are intentional false positives for this standard admin pattern.
 
 ### Database & Migrations
 - **Migrations**: `{app}/migrations/`
@@ -270,7 +281,7 @@ GET    /api/v1/ai-review/
 GET    /api/v1/ai-review/{id}/
 POST   /api/v1/ai-review/{id}/propose/     (create new proposal)
 PUT    /api/v1/ai-review/{id}/propose/     (update existing proposal)
-GET    /api/v1/ai-review/proposed/     (pending AI proposals awaiting steward review)
+GET    /api/v1/ai-review/proposed/     (pending active proposals awaiting steward review; add proposed_by=ai for AI-only)
 GET    /api/v1/ai-review/reviewed/
 GET    /api/v1/ai-review/templates/
 

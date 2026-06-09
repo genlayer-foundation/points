@@ -393,24 +393,6 @@
     }
   }
 
-  // Throwing variant used by SubmissionCard's copy-context action. Failures
-  // must propagate so the copy can be aborted instead of silently producing
-  // a clipboard payload missing internal notes.
-  async function fetchNotesForCopy(submissionId) {
-    notesLoading[submissionId] = true;
-    notesLoading = { ...notesLoading };
-    try {
-      const response = await stewardAPI.getNotes(submissionId);
-      const list = response.data || [];
-      submissionNotes[submissionId] = list;
-      submissionNotes = { ...submissionNotes };
-      return list;
-    } finally {
-      notesLoading[submissionId] = false;
-      notesLoading = { ...notesLoading };
-    }
-  }
-
   async function handleToggleInteresting(submissionId, isInteresting) {
     try {
       const response = await stewardAPI.toggleInteresting(submissionId, isInteresting);
@@ -432,6 +414,22 @@
       await loadNotes(submissionId);
     } catch (err) {
       showError('Failed to add note: ' + (err.response?.data?.detail || err.message));
+    }
+  }
+
+  /**
+   * @param {string | number} submissionId
+   * @param {string | number} noteId
+   * @param {string} message
+   */
+  async function handleUpdateNote(submissionId, noteId, message) {
+    try {
+      await stewardAPI.updateNote(submissionId, noteId, message);
+      await loadNotes(submissionId);
+      showSuccess('Proposal note updated');
+    } catch (err) {
+      showError('Failed to update note: ' + (err.response?.data?.detail || err.response?.data?.error || err.message));
+      throw err;
     }
   }
 
@@ -906,9 +904,10 @@
             notes={submissionNotes[submission.id] || []}
             notesLoading={notesLoading[submission.id] || false}
             onAddNote={handleAddNote}
+            onUpdateNote={handleUpdateNote}
             onToggleInteresting={handleToggleInteresting}
-            onRequestNotes={fetchNotesForCopy}
             onRequestUsers={ensureUsersLoaded}
+            currentUserId={$userStore.user?.id}
             acceptedEdit={acceptedEdits[submission.id] || null}
             canEditAccepted={Boolean(submission.state === 'accepted' && submission.contribution && acceptedEdits[submission.id] && canEditAcceptedSubmission(submission))}
             acceptedUpdating={updatingAccepted.has(submission.id)}

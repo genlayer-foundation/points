@@ -34,11 +34,4 @@ export default defineConfig({
       stream: 'stream-browserify',
     },
   },
-  optimizeDeps: {
-    esbuildOptions: {
-      define: {
-        global: 'globalThis'
-      }
-    }
-  }
 });

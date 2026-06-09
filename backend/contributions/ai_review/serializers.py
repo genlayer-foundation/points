@@ -30,7 +30,49 @@ class AIReviewMissionSerializer(serializers.Serializer):
         return obj.is_active()
 
 
-class LightAIReviewSubmissionSerializer(serializers.ModelSerializer):
+class AIReviewProposalFieldsMixin(serializers.Serializer):
+    """Shared active-proposal fields for list and detail AI review payloads."""
+
+    proposed_by_name = serializers.SerializerMethodField()
+    proposed_user_details = serializers.SerializerMethodField()
+    proposed_template_name = serializers.SerializerMethodField()
+    assigned_to_name = serializers.SerializerMethodField()
+    rubric_review = serializers.SerializerMethodField()
+
+    def get_assigned_to_name(self, obj):
+        if obj.assigned_to:
+            return obj.assigned_to.name or str(obj.assigned_to.id)
+        return None
+
+    def get_proposed_by_name(self, obj):
+        if obj.proposed_by:
+            return obj.proposed_by.name or str(obj.proposed_by.id)
+        return None
+
+    def get_proposed_user_details(self, obj):
+        if not obj.proposed_user:
+            return None
+        return {
+            'id': obj.proposed_user.id,
+            'name': obj.proposed_user.name,
+            'address': obj.proposed_user.address,
+            'profile_image_url': obj.proposed_user.profile_image_url,
+        }
+
+    def get_proposed_template_name(self, obj):
+        if obj.proposed_template:
+            return obj.proposed_template.label
+        return None
+
+    def get_rubric_review(self, obj):
+        try:
+            review = obj.project_milestone_review
+        except ProjectMilestoneReview.DoesNotExist:
+            return None
+        return AIReviewRubricReviewSerializer(review).data
+
+
+class LightAIReviewSubmissionSerializer(AIReviewProposalFieldsMixin, serializers.ModelSerializer):
     """Light serializer for list views — no nested queries."""
 
     contribution_type_name = serializers.CharField(
@@ -58,6 +100,24 @@ class LightAIReviewSubmissionSerializer(serializers.ModelSerializer):
             'has_appeal',
             'appeal_reason',
             'has_proposal',
+            'assigned_to',
+            'assigned_to_name',
+            'proposed_action',
+            'proposed_points',
+            'proposed_contribution_type',
+            'proposed_user',
+            'proposed_user_details',
+            'proposed_staff_reply',
+            'proposed_create_highlight',
+            'proposed_highlight_title',
+            'proposed_highlight_description',
+            'proposed_by',
+            'proposed_by_name',
+            'proposed_at',
+            'proposed_confidence',
+            'proposed_template',
+            'proposed_template_name',
+            'rubric_review',
             'created_at',
         ]
         read_only_fields = fields
@@ -98,7 +158,7 @@ class AIReviewRubricReviewSerializer(serializers.ModelSerializer):
         return obj.proposer.name or str(obj.proposer.id)
 
 
-class AIReviewSubmissionSerializer(serializers.ModelSerializer):
+class AIReviewSubmissionSerializer(AIReviewProposalFieldsMixin, serializers.ModelSerializer):
     """Full serializer for detail views — includes evidence, notes, and user history."""
 
     contribution_type_name = serializers.CharField(
@@ -122,8 +182,6 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
     mission = AIReviewMissionSerializer(read_only=True)
     user_history = serializers.SerializerMethodField()
     has_proposal = serializers.SerializerMethodField()
-    proposed_by_name = serializers.SerializerMethodField()
-    rubric_review = serializers.SerializerMethodField()
 
     class Meta:
         model = SubmittedContribution
@@ -147,13 +205,23 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
             'internal_notes',
             'user_history',
             'has_proposal',
+            'assigned_to',
+            'assigned_to_name',
             'proposed_action',
             'proposed_points',
+            'proposed_contribution_type',
+            'proposed_user',
+            'proposed_user_details',
             'proposed_staff_reply',
-            'proposed_confidence',
-            'proposed_template',
+            'proposed_create_highlight',
+            'proposed_highlight_title',
+            'proposed_highlight_description',
+            'proposed_by',
             'proposed_by_name',
             'proposed_at',
+            'proposed_confidence',
+            'proposed_template',
+            'proposed_template_name',
             'rubric_review',
             'created_at',
         ]
@@ -179,18 +247,6 @@ class AIReviewSubmissionSerializer(serializers.ModelSerializer):
 
     def get_has_proposal(self, obj):
         return obj.proposed_action is not None
-
-    def get_proposed_by_name(self, obj):
-        if obj.proposed_by:
-            return obj.proposed_by.name or str(obj.proposed_by.id)
-        return None
-
-    def get_rubric_review(self, obj):
-        try:
-            review = obj.project_milestone_review
-        except ProjectMilestoneReview.DoesNotExist:
-            return None
-        return AIReviewRubricReviewSerializer(review).data
 
 
 class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):

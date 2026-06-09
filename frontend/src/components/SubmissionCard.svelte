@@ -16,6 +16,7 @@
     RUBRIC_GATE_FAILURES,
     RUBRIC_SECTIONS,
     buildRubricReviewPayload,
+    calculateRubricPoints,
     defaultRubricSections,
     hydrateRubricState,
     isProjectReviewFlow,
@@ -42,10 +43,11 @@
     notes = [],
     notesLoading = false,
     onAddNote = null,
+    onUpdateNote = null,
     onToggleInteresting = null,
-    onRequestNotes = null,
     onRequestUsers = null,
     onAppeal = null,
+    currentUserId = null,
     acceptedEdit = null,
     canEditAccepted = false,
     acceptedUpdating = false,
@@ -55,7 +57,7 @@
   } = $props();
 
   let togglingInteresting = $state(false);
-  let copyingReviewContext = $state(false);
+  let copyingSubmissionId = $state(false);
   let appealReason = $state('');
   let submittingAppeal = $state(false);
   let showUserPicker = $state(false);
@@ -66,164 +68,12 @@
   let rubricExtras = $state([]);
   let rubricOverallReason = $state('');
 
-  let canCopyReviewContext = $derived(
-    showReviewForm && !isOwnSubmission && submission.state === 'pending'
-  );
   let textOnlyEvidence = $derived(
     (submission.evidence_items || []).filter(evidence => !evidence?.url && evidence?.description)
   );
   let urlEvidence = $derived(
     (submission.evidence_items || []).filter(evidence => evidence?.url)
   );
-
-  function formatContextDate(dateString) {
-    if (!dateString) return 'N/A';
-    try {
-      return format(new Date(dateString), 'yyyy-MM-dd HH:mm');
-    } catch {
-      return dateString;
-    }
-  }
-
-  function textOrNone(value) {
-    if (value === null || value === undefined || value === '') return 'None';
-    return String(value);
-  }
-
-  function formatUserForContext(user) {
-    if (!user) return 'N/A';
-    const parts = [
-      user.name || user.display_name,
-      user.email,
-      user.address,
-    ].filter(Boolean);
-    return parts.length ? parts.join(' | ') : 'N/A';
-  }
-
-  function formatEvidenceForContext() {
-    if (!submission.evidence_items?.length) return 'None provided';
-    return submission.evidence_items
-      .map((evidence, index) => {
-        const parts = [
-          evidence.description ? `description: ${evidence.description}` : null,
-          evidence.url ? `url: ${evidence.url}` : null,
-        ].filter(Boolean);
-        return `${index + 1}. ${parts.length ? parts.join(' | ') : 'Evidence item with no description or URL'}`;
-      })
-      .join('\n');
-  }
-
-  function formatInternalNotesForContext(contextNotes = notes) {
-    if (!contextNotes?.length) return 'None';
-    return contextNotes
-      .map((note, index) => {
-        const tags = [
-          note.is_proposal ? 'proposal' : null,
-          note.data?.confidence ? `confidence: ${note.data.confidence}` : null,
-        ].filter(Boolean);
-        const tagText = tags.length ? ` [${tags.join(', ')}]` : '';
-        const author = note.user_name || note.author_details?.name || note.author_details?.address || note.author_name || 'Unknown steward';
-        const message = note.message || note.text || '';
-        return `${index + 1}. ${author}${tagText} (${formatContextDate(note.created_at)}): ${message}`;
-      })
-      .join('\n');
-  }
-
-  function formatRubricForContext() {
-    const review = submission.rubric_review;
-    if (!review) {
-      return isProjectReview
-        ? 'Required for Project proposals. No active rubric proposal yet.'
-        : 'Not applicable';
-    }
-
-    const gateFailures = review.gate_failures?.length
-      ? review.gate_failures.join(', ')
-      : 'None';
-    const sectionLines = RUBRIC_SECTIONS
-      .map(section => {
-        const value = review.sections?.[section.key];
-        if (!value) return `- ${section.label}: not scored`;
-        return `- ${section.label}: ${value.score}/5 - ${value.reason || 'No reason provided'}`;
-      })
-      .join('\n');
-    const extras = review.extras?.length ? review.extras.join(', ') : 'None';
-
-    return [
-      `- Review flow: ${review.review_flow || submission.contribution_type_details?.review_flow || 'standard'}`,
-      `- Proposed action: ${review.action || 'N/A'}`,
-      `- Confidence: ${review.confidence || 'N/A'}`,
-      `- Gate failures: ${gateFailures}`,
-      'Sections:',
-      sectionLines,
-      `- Extras: ${extras}`,
-      `- Overall reason: ${textOrNone(review.overall_reason)}`
-    ].join('\n');
-  }
-
-  function buildReviewContext(contextNotes = notes) {
-    const type = submission.contribution_type_details || {};
-    const user = submission.user_details || {};
-    const proposalLines = submission.has_proposal
-      ? [
-          `- Proposed action: ${textOrNone(submission.proposed_action)}`,
-          `- Proposed by: ${textOrNone(submission.proposed_by_details?.name || submission.proposed_by_details?.address)}`,
-          `- Proposed at: ${formatContextDate(submission.proposed_at)}`,
-          `- Proposed staff reply: ${textOrNone(submission.proposed_staff_reply)}`,
-        ].join('\n')
-      : 'None';
-    const appealLines = submission.has_appeal
-      ? [
-          '- Appealed: Yes',
-          `- Appeal reason: ${textOrNone(submission.appeal_reason)}`,
-        ].join('\n')
-      : 'None';
-
-    return [
-      '# Steward Submission Review Context',
-      '',
-      '## Submission',
-      `- ID: ${submission.id}`,
-      `- State: ${submission.state_display || submission.state}`,
-      `- Marked interesting: ${submission.is_interesting ? 'Yes' : 'No'}`,
-      `- Submitted at: ${formatContextDate(submission.created_at)}`,
-      `- Contribution date: ${formatContextDate(submission.contribution_date)}`,
-      '',
-      '## Contributor',
-      `- User: ${formatUserForContext(user)}`,
-      '',
-      '## Contribution',
-      `- Type: ${textOrNone(type.name || submission.contribution_type_name || getTypeName(submission.contribution_type))}`,
-      `- Category: ${textOrNone(type.category)}`,
-      `- Review flow: ${textOrNone(type.review_flow)}`,
-      `- Point range: ${type.min_points ?? 'N/A'}-${type.max_points ?? 'N/A'}`,
-      `- Proposed points: ${textOrNone(submission.proposed_points)}`,
-      `- Mission: ${textOrNone(submission.mission?.name)}`,
-      '',
-      '## Submitter Notes',
-      textOrNone(submission.notes),
-      '',
-      '## Evidence',
-      formatEvidenceForContext(),
-      '',
-      '## Appeal',
-      appealLines,
-      '',
-      '## Internal CRM Notes',
-      formatInternalNotesForContext(contextNotes),
-      '',
-      '## Proposal',
-      proposalLines,
-      '',
-      '## Project Rubric',
-      formatRubricForContext(),
-      '',
-      '## Review Task',
-      isProjectReview
-        ? 'Use the Project rubric document and return the structured rubric_review payload.'
-        : 'Review whether the submission evidence supports the claimed contribution type, whether the proposed point value is appropriate, and whether more information is needed.',
-    ].join('\n');
-  }
 
   async function writeClipboard(text) {
     if (navigator.clipboard?.writeText) {
@@ -242,27 +92,16 @@
     document.body.removeChild(textArea);
   }
 
-  async function handleCopyReviewContext() {
-    if (copyingReviewContext) return;
-    copyingReviewContext = true;
+  async function handleCopySubmissionId() {
+    if (copyingSubmissionId) return;
+    copyingSubmissionId = true;
     try {
-      let contextNotes = notes;
-      if (onRequestNotes) {
-        try {
-          const fetched = await onRequestNotes(submission.id);
-          if (Array.isArray(fetched)) contextNotes = fetched;
-        } catch {
-          showError('Could not load steward notes; copy aborted to avoid incomplete context.');
-          return;
-        }
-      }
-
-      await writeClipboard(buildReviewContext(contextNotes));
-      showSuccess('Submission review context copied to clipboard');
+      await writeClipboard(submission.id);
+      showSuccess('Submission ID copied to clipboard');
     } catch (err) {
-      showError('Failed to copy review context: ' + (err?.message || 'unknown error'));
+      showError('Failed to copy submission ID: ' + (err?.message || 'unknown error'));
     } finally {
-      copyingReviewContext = false;
+      copyingSubmissionId = false;
     }
   }
 
@@ -295,6 +134,28 @@
   let canPropose = $derived(
     showReviewForm && permissions[submission.contribution_type]?.includes('propose')
   );
+  let canEditActiveProposalNote = $derived(
+    canPropose &&
+    submission.state === 'pending' &&
+    submission.has_proposal &&
+    currentUserId &&
+    String(submission.proposed_by) === String(currentUserId)
+  );
+  let activeProposalNoteId = $derived.by(() => {
+    if (!canEditActiveProposalNote) return null;
+    const proposalNotes = (notes || []).filter(note => note.is_proposal);
+    if (!proposalNotes.length) return null;
+    const latest = [...proposalNotes].sort((a, b) => {
+      const timeDiff = new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      if (timeDiff !== 0) return timeDiff;
+
+      const aId = Number(a.id);
+      const bId = Number(b.id);
+      if (Number.isFinite(aId) && Number.isFinite(bId)) return bId - aId;
+      return String(b.id).localeCompare(String(a.id));
+    })[0];
+    return latest?.id ?? null;
+  });
   let hasAnyAction = $derived(canAccept || canReject || canRequestInfo || canPropose);
 
   // State for review form
@@ -367,6 +228,12 @@
   let selectedTemplateId = $state(null);
   let autoSelectedGateKey = $state(null);
   let autoSelectedGateTemplateText = $state('');
+
+  $effect(() => {
+    if (isProjectReview && !hasRubricGateFailures) {
+      updateProjectRubricPoints(rubricState);
+    }
+  });
 
   // For ContributionSelection component
   let selectedCategory = $state(submission.contribution_type_details?.category || 'validator');
@@ -675,6 +542,27 @@
     rubricSections = state.sections;
     rubricExtras = state.extras;
     rubricOverallReason = state.overallReason;
+    updateProjectRubricPoints(state);
+  }
+
+  function updateProjectRubricPoints(state = rubricState) {
+    if (!isProjectReview || state.gateFailures?.length > 0) return;
+    points = clampPointsToSelectedType(calculateRubricPoints(state));
+  }
+
+  function clampPointsToSelectedType(value) {
+    const min = Number(selectedTypeDetails?.min_points);
+    const max = Number(selectedTypeDetails?.max_points);
+    let nextValue = value;
+
+    if (Number.isFinite(min)) {
+      nextValue = Math.max(min, nextValue);
+    }
+    if (Number.isFinite(max)) {
+      nextValue = Math.min(max, nextValue);
+    }
+
+    return nextValue;
   }
 
   function toggleRubricGate(key) {
@@ -701,20 +589,26 @@
 
   function toggleRubricExtra(key) {
     if (rubricExtras.includes(key)) {
-      rubricExtras = rubricExtras.filter(item => item !== key);
+      const nextExtras = rubricExtras.filter(item => item !== key);
+      rubricExtras = nextExtras;
+      updateProjectRubricPoints({ ...rubricState, extras: nextExtras });
       return;
     }
-    rubricExtras = [...rubricExtras, key];
+    const nextExtras = [...rubricExtras, key];
+    rubricExtras = nextExtras;
+    updateProjectRubricPoints({ ...rubricState, extras: nextExtras });
   }
 
   function updateRubricScore(sectionKey, score) {
-    rubricSections = {
+    const nextSections = {
       ...rubricSections,
       [sectionKey]: {
         ...(rubricSections[sectionKey] || { reason: '' }),
         score: Number(score)
       }
     };
+    rubricSections = nextSections;
+    updateProjectRubricPoints({ ...rubricState, sections: nextSections });
   }
 
   function updateRubricReason(sectionKey, reason) {
@@ -725,6 +619,10 @@
         reason
       }
     };
+  }
+
+  function getRubricSectionReason(sectionKey) {
+    return (rubricSections[sectionKey]?.reason || '').trim();
   }
 
   async function handleShowUserPicker() {
@@ -912,14 +810,15 @@
       {#if !hasRubricGateFailures}
         <div class="space-y-3">
           {#each RUBRIC_SECTIONS as section}
+            {@const sectionReason = getRubricSectionReason(section.key)}
             <div class="rounded-md border border-slate-200 bg-white p-3">
               <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <label for="rubric-score-{submission.id}-{section.key}" class="text-sm font-semibold text-slate-950">
                     {section.label}
                   </label>
-                  {#if !isProposalRubric}
-                    <p class="mt-1 text-xs text-slate-500">{section.help}</p>
+                  {#if !isProposalRubric && sectionReason}
+                    <p class="mt-1 text-xs text-slate-500">{sectionReason}</p>
                   {/if}
                 </div>
                 <select
@@ -1025,20 +924,18 @@
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2 sm:justify-end">
-        {#if canCopyReviewContext}
-          <button
-            type="button"
-            onclick={handleCopyReviewContext}
-            disabled={copyingReviewContext}
-            class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
-            title="Copy review metadata, evidence, and internal notes for external LLM review"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16h8M8 12h8m-7 8h6a2 2 0 002-2V7.8a2 2 0 00-.59-1.41l-2.8-2.8A2 2 0 0012.2 3H9a2 2 0 00-2 2v13a2 2 0 002 2z" />
-            </svg>
-            <span>{copyingReviewContext ? 'Copying...' : 'Copy review context'}</span>
-          </button>
-        {/if}
+        <button
+          type="button"
+          onclick={handleCopySubmissionId}
+          disabled={copyingSubmissionId}
+          class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
+          title="Copy submission ID"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16h8M8 12h8m-7 8h6a2 2 0 002-2V7.8a2 2 0 00-.59-1.41l-2.8-2.8A2 2 0 0012.2 3H9a2 2 0 00-2 2v13a2 2 0 002 2z" />
+          </svg>
+          <span>{copyingSubmissionId ? 'Copying...' : 'Copy ID'}</span>
+        </button>
         {#if !isOwnSubmission && onToggleInteresting}
           <label
             class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer select-none transition-colors {submission.is_interesting ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}"
@@ -1191,6 +1088,8 @@
             {notes}
             loading={notesLoading}
             {onAddNote}
+            {onUpdateNote}
+            {activeProposalNoteId}
           />
         {/if}
       </div>

@@ -285,6 +285,7 @@ frontend/src/
   - Handles tooltip positioning
   - Manages route changes
   - How it works page (`/how-it-works`) renders full-bleed (no `px-3 py-3` padding on `<main>`)
+  - Calls `normalizeLocation(window)` from `src/lib/normalizePath.js` during app startup to normalize direct/path-based URLs for the hash router
 - **Navigation**: `src/components/Navbar.svelte`
   - Top navigation bar
   - Auth button integration
@@ -299,6 +300,13 @@ frontend/src/
     - **Stewards** - Steward management pages (only visible to stewards)
     - **How it works** (bottom pinned area, above Submit Contribution) - Links to `/how-it-works`
     - **Profile** - User profile and submissions
+
+### Hash Route Normalization
+The portal uses `svelte-spa-router`, so app routes must be represented as hash URLs such as `/#/testnets`. `src/App.svelte` imports `normalizeLocation` from `src/lib/normalizePath.js` and invokes `normalizeLocation(window)` once at initial app load.
+
+`normalizeLocation` reads `window.location.pathname`, `window.location.search`, and `window.location.hash`. If a hash is already present, the path is `/`, the path looks like a static file, or the path starts with a reserved server/static prefix (`/api`, `/oauth`, `/static`, `/assets`, `/media`), it does nothing. Otherwise it rewrites the current URL with `window.history.replaceState({}, '', '/#' + pathname + search)`, so `/metrics?range=30d` becomes `/#/metrics?range=30d`.
+
+Use this normalization when debugging direct links, copied links, refreshes, or server-served deep links that arrive as plain paths. New external entry points to SPA routes should either emit hash URLs directly (`/#/route`) or be normalized by invoking `normalizeLocation(window)` before the router resolves the page.
 
 ### Routes/Pages
 All routes are defined in `src/App.svelte`:
@@ -325,6 +333,10 @@ const routes = {
   '/community/highlights': AllContributions,
   '/community/leaderboard': Community,
   '/community/contribution/:id': ContributionPreview,
+  '/community/poaps': CommunityPoaps,
+  '/community/poaps/recover': PoapRecovery,
+  '/community/poaps/:slug': PoapDetail,
+  '/claim/poap/:token': PoapClaim,
   '/hackathon': Hackathon,
   '/hackathon-winners': HackathonWinners, // Hackathon winners showcase page
   '/referral-program': ReferralProgram,
@@ -382,6 +394,18 @@ const routes = {
 }
 ```
 
+#### Community POAPs
+
+- **`/community/poaps`** - POAP collection wall (`CommunityPoaps.svelte`)
+  - Calls `poapsAPI.list({ page, page_size: 100, ordering: '-event_start_at', search?, month? })`.
+  - `loadPoaps(nextPage = 1, append = false)` replaces the list on initial/filter loads and appends only when `append=true`.
+  - Search and month filters are applied when a non-append load starts; appended loads reuse `appliedSearch` / `appliedMonthFilter` so typed-but-unsubmitted filter changes do not mix result sets.
+  - `loading` controls the initial/filter skeleton, `loadingMore` controls the Load more button, and `hasMore` is driven by the paginated API `next` field.
+  - Overlapping list requests must be guarded with `latestPoapsRequestId` before mutating list, error, or loading state.
+- **`/community/poaps/recover`** - POAP recovery flow for attaching legacy wallet claims.
+- **`/community/poaps/:slug`** - POAP detail page with lazy collector loading.
+- **`/claim/poap/:token`** - Mint-link claim route.
+
 #### Profile System
 - **`/participant/:address`** - Public participant profile (anyone can view)
   - Component: `Profile.svelte`
@@ -405,6 +429,7 @@ const routes = {
   - `creatorAPI` - Community/creator membership (joinAsCreator)
   - `partnersAPI` - Ecosystem partners directory (`list`, `get(slug)`)
   - `genTvAPI` - Gen TV streams (`list`, `get(slug)`)
+  - `poapsAPI` - POAP list/detail/claims, user POAPs, secret claims, mint-link claims, and recovery wallet verification
   - `validatorsAPI.getWallOfShame(params)` - Public Wall of Shame list for active validators with Grafana metrics/logs status badges (renders in `routes/WallOfShame.svelte`)
 
 ### Authentication (`src/lib/auth.js`)

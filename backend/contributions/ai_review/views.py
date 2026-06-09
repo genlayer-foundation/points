@@ -74,6 +74,19 @@ class AIReviewFilterSet(FilterSet):
         model = SubmittedContribution
         fields = []
 
+    def _split_filter_values(self, value):
+        return [
+            item.strip()
+            for item in str(value).split(',')
+            if item and item.strip()
+        ]
+
+    def _parse_id_filter_value(self, value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
     def filter_category(self, queryset, name, value):
         if value:
             return queryset.filter(contribution_type__category__slug=value)
@@ -108,17 +121,31 @@ class AIReviewFilterSet(FilterSet):
         return queryset
 
     def filter_assigned_to(self, queryset, name, value):
-        if value in ('null', 'unassigned'):
-            return queryset.filter(assigned_to__isnull=True)
-        if value:
-            return queryset.filter(assigned_to_id=value)
+        values = self._split_filter_values(value)
+        if values:
+            query = Q()
+            for item in values:
+                if item in ('null', 'unassigned'):
+                    query |= Q(assigned_to__isnull=True)
+                else:
+                    parsed_id = self._parse_id_filter_value(item)
+                    if parsed_id is not None:
+                        query |= Q(assigned_to_id=parsed_id)
+            return queryset.filter(query) if query else queryset.none()
         return queryset
 
     def filter_exclude_assigned_to(self, queryset, name, value):
-        if value in ('null', 'unassigned'):
-            return queryset.exclude(assigned_to__isnull=True)
-        if value:
-            return queryset.exclude(assigned_to_id=value)
+        values = self._split_filter_values(value)
+        if values:
+            query = Q()
+            for item in values:
+                if item in ('null', 'unassigned'):
+                    query |= Q(assigned_to__isnull=True)
+                else:
+                    parsed_id = self._parse_id_filter_value(item)
+                    if parsed_id is not None:
+                        query |= Q(assigned_to_id=parsed_id)
+            return queryset.exclude(query) if query else queryset
         return queryset
 
     def _proposed_by_condition(self, value):
@@ -126,7 +153,10 @@ class AIReviewFilterSet(FilterSet):
             return Q(proposed_by__isnull=True)
         if value == 'ai':
             return Q(proposed_by__email=AI_STEWARD_EMAIL)
-        return Q(proposed_by_id=value)
+        parsed_id = self._parse_id_filter_value(value)
+        if parsed_id is None:
+            return None
+        return Q(proposed_by_id=parsed_id)
 
     def _is_reviewed_history_request(self):
         parser_context = getattr(self.request, 'parser_context', {}) if self.request else {}
@@ -141,33 +171,83 @@ class AIReviewFilterSet(FilterSet):
         if value == 'ai':
             notes = notes.filter(user__email=AI_STEWARD_EMAIL)
         else:
-            notes = notes.filter(user_id=value)
+            parsed_id = self._parse_id_filter_value(value)
+            if parsed_id is None:
+                return None
+            notes = notes.filter(user_id=parsed_id)
         return Exists(notes)
 
+    def _historical_proposal_note_exists_for_values(self, values):
+        notes = SubmissionNote.objects.filter(
+            submitted_contribution=OuterRef('pk'),
+            is_proposal=True,
+        )
+        user_filter = Q()
+        for item in values:
+            if item == 'ai':
+                user_filter |= Q(user__email=AI_STEWARD_EMAIL)
+            elif item not in ('none', 'null', 'unproposed'):
+                parsed_id = self._parse_id_filter_value(item)
+                if parsed_id is not None:
+                    user_filter |= Q(user_id=parsed_id)
+        if not user_filter:
+            return None
+        return Exists(notes.filter(user_filter))
+
     def filter_proposed_by(self, queryset, name, value):
-        if value:
+        values = self._split_filter_values(value)
+        if values:
             if self._is_reviewed_history_request():
-                if value in ('none', 'null', 'unproposed'):
+                querysets = []
+                if any(item in ('none', 'null', 'unproposed') for item in values):
                     notes = SubmissionNote.objects.filter(
                         submitted_contribution=OuterRef('pk'),
                         is_proposal=True,
                     )
-                    return queryset.filter(~Exists(notes))
-                return queryset.filter(self._historical_proposal_note_exists(value))
-            return queryset.filter(self._proposed_by_condition(value))
+                    querysets.append(queryset.filter(~Exists(notes)))
+                historical_exists = self._historical_proposal_note_exists_for_values(values)
+                if historical_exists is not None:
+                    querysets.append(queryset.filter(historical_exists))
+                if not querysets:
+                    return queryset.none()
+                result = querysets[0]
+                for extra_queryset in querysets[1:]:
+                    result = result | extra_queryset
+                return result
+            query = Q()
+            for item in values:
+                condition = self._proposed_by_condition(item)
+                if condition is not None:
+                    query |= condition
+            return queryset.filter(query) if query else queryset.none()
         return queryset
 
     def filter_exclude_proposed_by(self, queryset, name, value):
-        if value:
+        values = self._split_filter_values(value)
+        if values:
             if self._is_reviewed_history_request():
-                if value in ('none', 'null', 'unproposed'):
+                querysets = []
+                if any(item in ('none', 'null', 'unproposed') for item in values):
                     notes = SubmissionNote.objects.filter(
                         submitted_contribution=OuterRef('pk'),
                         is_proposal=True,
                     )
-                    return queryset.exclude(~Exists(notes))
-                return queryset.exclude(self._historical_proposal_note_exists(value))
-            return queryset.exclude(self._proposed_by_condition(value))
+                    querysets.append(queryset.filter(~Exists(notes)))
+                historical_exists = self._historical_proposal_note_exists_for_values(values)
+                if historical_exists is not None:
+                    querysets.append(queryset.filter(historical_exists))
+                if not querysets:
+                    return queryset
+                excluded = querysets[0]
+                for extra_queryset in querysets[1:]:
+                    excluded = excluded | extra_queryset
+                return queryset.exclude(pk__in=excluded.values('pk'))
+            query = Q()
+            for item in values:
+                condition = self._proposed_by_condition(item)
+                if condition is not None:
+                    query |= condition
+            return queryset.exclude(query) if query else queryset
         return queryset
 
     def filter_search(self, queryset, name, value):
@@ -337,6 +417,14 @@ class AIReviewViewSet(
     filterset_class = AIReviewFilterSet
     ordering_fields = ['created_at', 'contribution_date']
     ordering = ['created_at']
+    proposal_query_params = {
+        'has_proposal',
+        'proposed_by',
+        'exclude_proposed_by',
+        'proposed_action',
+        'proposed_confidence',
+        'proposed_template',
+    }
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -349,9 +437,9 @@ class AIReviewViewSet(
         # keep them queryable when the caller explicitly asks for has_appeal.
         if 'has_appeal' not in self.request.query_params:
             qs = qs.filter(has_appeal=False)
-        # The list endpoint only returns unproposed submissions;
-        # retrieve allows accessing proposed ones too (needed for PUT /propose/).
-        if self.action == 'list':
+        # The default list endpoint returns unproposed submissions. If the
+        # caller uses proposal-specific filters, leave proposals queryable.
+        if self.action == 'list' and self.proposal_query_params.isdisjoint(self.request.query_params):
             qs = qs.filter(proposed_action__isnull=True)
         prefetches = ['evidence_items']
         if self.action != 'list':
@@ -365,6 +453,9 @@ class AIReviewViewSet(
                 'mission',
                 'assigned_to',
                 'proposed_by',
+                'proposed_contribution_type',
+                'proposed_user',
+                'proposed_template',
                 'project_milestone_review',
                 'project_milestone_review__proposer',
             )
@@ -542,9 +633,11 @@ class AIReviewViewSet(
     @action(detail=False, methods=['get'], url_path='proposed')
     def proposed(self, request):
         """
-        List pending submissions that have an AI proposal awaiting steward review.
+        List pending submissions that have a proposal awaiting steward review.
 
         Returns submissions where state='pending' and proposed_action is set.
+        Filter with proposed_by=ai to restrict the list to AI-created proposals,
+        or proposed_by=<user_id> for proposals from a specific steward.
         Use GET /ai-review/{id}/ to retrieve full proposal details for any
         submission returned here.
         """
@@ -552,7 +645,6 @@ class AIReviewViewSet(
             SubmittedContribution.objects.filter(
                 state='pending',
                 proposed_action__isnull=False,
-                proposed_by__email=AI_STEWARD_EMAIL,
             )
             .select_related(
                 'contribution_type',
@@ -561,6 +653,9 @@ class AIReviewViewSet(
                 'mission',
                 'assigned_to',
                 'proposed_by',
+                'proposed_contribution_type',
+                'proposed_user',
+                'proposed_template',
                 'project_milestone_review',
                 'project_milestone_review__proposer',
             )

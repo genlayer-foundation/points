@@ -5,11 +5,16 @@
     submissionId,
     notes = [],
     onAddNote = null,
+    onUpdateNote = null,
+    activeProposalNoteId = null,
     loading = false
   } = $props();
 
   let newNote = $state('');
   let submitting = $state(false);
+  let editingNoteId = $state(null);
+  let editingMessage = $state('');
+  let updatingNote = $state(false);
 
   function formatDate(dateString) {
     if (!dateString) return '';
@@ -28,6 +33,32 @@
       newNote = '';
     } finally {
       submitting = false;
+    }
+  }
+
+  /**
+   * @param {{ id: string | number, message?: string }} note
+   */
+  function startEdit(note) {
+    editingNoteId = note.id;
+    editingMessage = note.message || '';
+  }
+
+  function cancelEdit() {
+    editingNoteId = null;
+    editingMessage = '';
+  }
+
+  async function handleUpdateNote() {
+    if (!editingNoteId || !editingMessage.trim() || !onUpdateNote) return;
+    updatingNote = true;
+    try {
+      await onUpdateNote(submissionId, editingNoteId, editingMessage.trim());
+      cancelEdit();
+    } catch {
+      // Keep editor open on failure; parent already reports the error toast.
+    } finally {
+      updatingNote = false;
     }
   }
 </script>
@@ -61,7 +92,46 @@
               {/if}
               <span class="text-[10px] text-gray-400 ml-auto">{formatDate(note.created_at)}</span>
             </div>
-            <p class="text-sm text-gray-600 whitespace-pre-wrap">{note.message}</p>
+            {#if editingNoteId === note.id}
+              <div class="space-y-2">
+                <textarea
+                  bind:value={editingMessage}
+                  rows="4"
+                  class="w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                ></textarea>
+                <div class="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onclick={cancelEdit}
+                    disabled={updatingNote}
+                    class="px-2.5 py-1 text-xs rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onclick={handleUpdateNote}
+                    disabled={!editingMessage.trim() || updatingNote}
+                    class="px-2.5 py-1 text-xs rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {updatingNote ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            {:else}
+              <div class="flex items-start gap-2">
+                <p class="min-w-0 flex-1 text-sm text-gray-600 whitespace-pre-wrap">{note.message}</p>
+                {#if activeProposalNoteId === note.id && onUpdateNote}
+                  <button
+                    type="button"
+                    onclick={() => startEdit(note)}
+                    class="flex-shrink-0 px-2 py-1 text-xs rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                  >
+                    Edit
+                  </button>
+                {/if}
+              </div>
+            {/if}
           </div>
         {/each}
       </div>

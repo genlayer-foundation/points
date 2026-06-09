@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRubricReviewPayload,
+  calculateRubricPoints,
   defaultRubricSections,
   hydrateRubricState,
   isProjectReviewFlow,
@@ -49,6 +50,34 @@ describe('rubricReview helpers', () => {
 
     expect(payload.gate_failures).toEqual(['repo_does_not_build']);
     expect(payload.sections).toEqual({});
+  });
+
+  it('calculates rubric points from weighted criteria and verified extras', () => {
+    const state = validState({
+      sections: {
+        genlayer_fit: { score: 4, reason: '' },
+        contract_quality: { score: 3, reason: '' },
+        engineering: { score: 4, reason: '' },
+        frontend_ux: { score: 2, reason: '' }
+      },
+      extras: ['live_deployment', 'demo_video']
+    });
+
+    expect(calculateRubricPoints(state)).toBe(126);
+  });
+
+  it('sanitizes persisted rubric values before calculating points', () => {
+    const state = validState({
+      sections: {
+        genlayer_fit: { score: 8, reason: '' },
+        contract_quality: { score: 5.9, reason: '' },
+        engineering: { score: -2, reason: '' },
+        frontend_ux: { score: 'bad', reason: '' }
+      },
+      extras: ['live_deployment', 'live_deployment', 'unknown_extra']
+    });
+
+    expect(calculateRubricPoints(state)).toBe(70);
   });
 
   it('rejects gate failures with non-reject actions', () => {

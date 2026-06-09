@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte/svelte5';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SubmissionCard from '../components/SubmissionCard.svelte';
 
 function makeSubmission(overrides = {}) {
@@ -56,6 +56,41 @@ function makeSubmission(overrides = {}) {
 }
 
 describe('SubmissionCard', () => {
+  let originalClipboard;
+
+  beforeEach(() => {
+    originalClipboard = navigator.clipboard;
+  });
+
+  afterEach(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: originalClipboard,
+      configurable: true
+    });
+  });
+
+  it('copies only the submission id from the card', async () => {
+    const writeText = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true
+    });
+
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({ id: 'submission-123' }),
+        notes: []
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Copy ID' }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('submission-123');
+    });
+    expect(screen.queryByRole('button', { name: /Copy review context/i })).toBeNull();
+  });
+
   it('opens directly to the project proposal rubric for proposal-only stewards', async () => {
     render(SubmissionCard, {
       props: {
@@ -153,6 +188,65 @@ describe('SubmissionCard', () => {
     });
   });
 
+  it('shows proposal criterion reasons instead of criterion descriptions while reviewing a builder project proposal', async () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          has_proposal: true,
+          proposed_action: 'accept',
+          proposed_staff_reply: 'The project meets the rubric.',
+          proposed_by_details: { name: 'AI Steward' },
+          rubric_review: {
+            action: 'accept',
+            confidence: 'high',
+            gate_failures: [],
+            sections: {
+              genlayer_fit: { score: 4, reason: 'Strong fit because the contract adjudicates a contested outcome.' },
+              contract_quality: { score: 3, reason: '' },
+              engineering: { score: 4, reason: 'The repository builds and includes useful docs.' },
+              frontend_ux: { score: 2, reason: '' }
+            },
+            extras: [],
+            overall_reason: 'The proposal has enough evidence to accept.'
+          }
+        }),
+        showReviewForm: true,
+        onReview: vi.fn(),
+        onPropose: vi.fn(),
+        reviewData: {
+          action: 'accept',
+          user: 9,
+          contribution_type: 7,
+          points: 0,
+          staff_reply: ''
+        },
+        permissions: {
+          7: ['accept', 'reject']
+        },
+        contributionTypes: [
+          {
+            id: 7,
+            name: 'Builder Project',
+            category: 'builder',
+            min_points: 0,
+            max_points: 100,
+            review_flow: 'builder_project'
+          }
+        ],
+        multipliers: { 7: 1 },
+        templates: [],
+        notes: [],
+        enableRubricReview: true
+      }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('GenLayer fit')).toBeTruthy();
+      expect(screen.getByText('Strong fit because the contract adjudicates a contested outcome.')).toBeTruthy();
+      expect(screen.queryByText('Trustless adjudication must matter. No stakes or contested outcome caps this low.')).toBeNull();
+    });
+  });
+
   it('shows the builder project rubric as a direct accept evaluation without criterion reasons', async () => {
     render(SubmissionCard, {
       props: {
@@ -246,6 +340,72 @@ describe('SubmissionCard', () => {
       overall_reason: ''
     }));
     expect(payload.sections.genlayer_fit).toEqual({ score: 4, reason: '' });
+  });
+
+  it('recalculates builder project points from criteria and extras while allowing manual overrides', async () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission(),
+        showReviewForm: true,
+        onReview: vi.fn(),
+        onPropose: vi.fn(),
+        reviewData: {
+          action: 'accept',
+          user: 9,
+          contribution_type: 7,
+          points: 10,
+          staff_reply: ''
+        },
+        permissions: {
+          7: ['accept', 'reject']
+        },
+        contributionTypes: [
+          {
+            id: 7,
+            name: 'Builder Project',
+            category: 'builder',
+            min_points: 0,
+            max_points: 100,
+            review_flow: 'builder_project'
+          }
+        ],
+        multipliers: { 7: 1 },
+        templates: [],
+        notes: [],
+        enableRubricReview: true
+      }
+    });
+
+    const pointsInput = screen.getByLabelText('Points');
+    await waitFor(() => {
+      expect(pointsInput.value).toBe('0');
+    });
+
+    await fireEvent.change(screen.getByLabelText('GenLayer fit'), { target: { value: '5' } });
+    await fireEvent.change(screen.getByLabelText('Contract quality'), { target: { value: '5' } });
+    await fireEvent.change(screen.getByLabelText('Engineering'), { target: { value: '5' } });
+    await fireEvent.change(screen.getByLabelText('Frontend / UX'), { target: { value: '5' } });
+    await waitFor(() => {
+      expect(pointsInput.value).toBe('50');
+    });
+
+    await fireEvent.click(screen.getByLabelText('Demo video'));
+    await waitFor(() => {
+      expect(pointsInput.value).toBe('100');
+    });
+
+    await fireEvent.input(pointsInput, { target: { value: '7' } });
+    expect(pointsInput.value).toBe('7');
+
+    await fireEvent.change(screen.getByLabelText('Frontend / UX'), { target: { value: '4' } });
+    await waitFor(() => {
+      expect(pointsInput.value).toBe('98');
+    });
+
+    await fireEvent.click(screen.getByLabelText('Live deployment'));
+    await waitFor(() => {
+      expect(pointsInput.value).toBe('100');
+    });
   });
 
   it('shows and submits the rubric when a direct accept selected type is builder project', async () => {

@@ -308,17 +308,23 @@
     return params;
   }
 
+  function getFeaturedSortTime(highlight) {
+    const value = highlight?.featured_at || highlight?.created_at || highlight?.contribution_date;
+    const time = value ? new Date(value).getTime() : 0;
+    return Number.isNaN(time) ? 0 : time;
+  }
+
   function sortHighlights(items) {
     return [...items].sort((a, b) => {
       switch (sortBy) {
         case 'contribution_date':
-          return new Date(a.contribution_date) - new Date(b.contribution_date);
+          return getFeaturedSortTime(a) - getFeaturedSortTime(b);
         case '-frozen_global_points':
           return (b.contribution_points || 0) - (a.contribution_points || 0);
         case 'frozen_global_points':
           return (a.contribution_points || 0) - (b.contribution_points || 0);
         default:
-          return new Date(b.contribution_date) - new Date(a.contribution_date);
+          return getFeaturedSortTime(b) - getFeaturedSortTime(a);
       }
     });
   }

@@ -3,12 +3,15 @@ import tempfile
 import zipfile
 from unittest.mock import patch
 
+from django.contrib import admin
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError, connection, transaction
 from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
 from django.utils import timezone
 from eth_account import Account
 from eth_account.messages import encode_defunct
@@ -16,7 +19,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from ethereum_auth.models import Nonce
-from poaps.admin import PoapDistributionAdminForm, PoapDropAdminForm
+from poaps.admin import PoapDistributionAdminForm, PoapDropAdmin, PoapDropAdminForm
 from poaps.models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch
 from poaps.services import generate_mint_links, hash_secret
 from social_connections.models import DiscordConnection
@@ -33,6 +36,7 @@ User = get_user_model()
 )
 class PoapAPITest(TestCase):
     def setUp(self):
+        cache.clear()
         self.client = APIClient()
         self.user = User.objects.create_user(
             email='user@example.com',
@@ -171,6 +175,26 @@ class PoapAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(PoapClaim.objects.exists())
 
+    def test_secret_claim_is_rate_limited(self):
+        self._secret_distribution()
+        self.client.force_authenticate(user=self.user)
+
+        for _ in range(10):
+            response = self.client.post(
+                '/api/v1/poaps/ama-session/claim-secret/',
+                {'secret': 'wrong'},
+                format='json',
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.post(
+            '/api/v1/poaps/ama-session/claim-secret/',
+            {'secret': 'wrong'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
     def test_secret_claim_enforces_duplicate(self):
         self._secret_distribution()
         self.client.force_authenticate(user=self.user)
@@ -224,12 +248,29 @@ class PoapAPITest(TestCase):
         [(link, token)] = generate_mint_links(distribution=distribution, count=1)
 
         self.client.force_authenticate(user=self.user)
-        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {'token': token}, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         self.client.force_authenticate(user=self.other_user)
-        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {'token': token}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        link.refresh_from_db()
+        distribution.refresh_from_db()
+        self.assertEqual(link.used_count, 1)
+        self.assertEqual(distribution.claimed_count, 1)
+
+    def test_mint_link_legacy_path_still_claims(self):
+        distribution = PoapDistribution.objects.create(
+            drop=self.drop,
+            method=PoapDistribution.METHOD_MINT_LINK,
+            active=True,
+        )
+        [(link, token)] = generate_mint_links(distribution=distribution, count=1)
+
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         link.refresh_from_db()
         distribution.refresh_from_db()
         self.assertEqual(link.used_count, 1)
@@ -238,7 +279,29 @@ class PoapAPITest(TestCase):
     def test_mint_link_claim_reports_missing_token(self):
         self.client.force_authenticate(user=self.user)
 
-        response = self.client.post('/api/v1/poaps/claim-link/not-a-real-token/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'Mint link token is missing.')
+
+    def test_mint_link_claim_rejects_malformed_token_payloads(self):
+        self.client.force_authenticate(user=self.user)
+
+        for payload in [{'token': ['abc']}, {'token': {'x': 'y'}}, {'token': '   '}]:
+            with self.subTest(payload=payload):
+                response = self.client.post('/api/v1/poaps/claim-link/', payload, format='json')
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(response.data['error'], 'Mint link token is missing.')
+
+    def test_mint_link_claim_reports_invalid_token(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/claim-link/',
+            {'token': 'not-a-real-token'},
+            format='json',
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
@@ -256,7 +319,7 @@ class PoapAPITest(TestCase):
         DiscordConnection.objects.filter(user=self.user).delete()
         self.client.force_authenticate(user=self.user)
 
-        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {'token': token}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn('link your Discord', response.data['error'])
@@ -275,7 +338,7 @@ class PoapAPITest(TestCase):
         [(_link, token)] = generate_mint_links(distribution=distribution, count=1)
         self.client.force_authenticate(user=self.user)
 
-        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {'token': token}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['error'], 'This mint-link distribution is inactive.')
@@ -293,7 +356,7 @@ class PoapAPITest(TestCase):
         )
         self.client.force_authenticate(user=self.user)
 
-        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {'token': token}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['error'], 'This mint link has expired.')
@@ -309,7 +372,7 @@ class PoapAPITest(TestCase):
         link.save(update_fields=['used_count', 'updated_at'])
         self.client.force_authenticate(user=self.user)
 
-        response = self.client.post(f'/api/v1/poaps/claim-link/{token}/')
+        response = self.client.post('/api/v1/poaps/claim-link/', {'token': token}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['error'], 'This mint link has already been used.')
@@ -723,6 +786,29 @@ class PoapAPITest(TestCase):
         )
         self.assertFalse(form.is_valid())
         self.assertIn('max_claims', form.errors)
+
+    def test_poap_drop_admin_links_to_claims_instead_of_rendering_claim_inline(self):
+        PoapClaim.objects.create(
+            drop=self.drop,
+            user=self.user,
+            claim_method=PoapClaim.CLAIM_LEGACY,
+        )
+        model_admin = PoapDropAdmin(PoapDrop, admin.site)
+
+        self.assertEqual([inline.model for inline in model_admin.inlines], [PoapDistribution])
+        claims_link = model_admin.claims_link(self.drop)
+        self.assertIn(reverse('admin:poaps_poapclaim_changelist'), claims_link)
+        self.assertIn(f'drop__id__exact={self.drop.pk}', claims_link)
+        self.assertIn('1 claim', claims_link)
+
+        self.staff.is_superuser = True
+        self.staff.save(update_fields=['is_superuser'])
+        self.client.force_login(self.staff)
+        response = self.client.get(
+            reverse('admin:poaps_poapclaim_changelist'),
+            {'drop__id__exact': self.drop.pk},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_poap_distribution_admin_form_counts_existing_unused_links_against_distribution_capacity(self):
         distribution = PoapDistribution.objects.create(
