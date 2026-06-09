@@ -226,6 +226,9 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['post'], url_path='claim-link', permission_classes=[permissions.IsAuthenticated])
     def claim_link(self, request):
         token = request.data.get('token')
+        if not isinstance(token, str):
+            return Response({'error': 'Mint link token is missing.'}, status=status.HTTP_400_BAD_REQUEST)
+        token = token.strip()
         if not token:
             return Response({'error': 'Mint link token is missing.'}, status=status.HTTP_400_BAD_REQUEST)
         return self._claim_link_with_token(request, token)
