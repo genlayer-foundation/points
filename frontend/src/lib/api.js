@@ -367,7 +367,7 @@ export const poapsAPI = {
   /** @param {string} slug @param {string} secret */
   claimSecret: (slug, secret) => api.post(`/poaps/${slug}/claim-secret/`, { secret }),
   /** @param {string} token */
-  claimLink: (token) => api.post(`/poaps/claim-link/${encodeURIComponent(token)}/`),
+  claimLink: (token) => api.post('/poaps/claim-link/', { token }),
   /** @param {{ address: string, message: string, signature: string }} payload */
   verifyWallet: (payload) => api.post('/poaps/verify-wallet/', payload),
 };

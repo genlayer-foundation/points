@@ -4,6 +4,7 @@
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { poapsAPI } from '../lib/api.js';
+  import { clearPoapClaimRedirect } from '../lib/poapRedirect.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
   import SocialLink from '../components/SocialLink.svelte';
   import PoapBadgeImage from '../components/poaps/PoapBadgeImage.svelte';
@@ -76,6 +77,7 @@
     try {
       const response = await poapsAPI.claimLink(claimToken);
       drop = response.data?.drop;
+      clearPoapClaimRedirect(claimToken);
       status = 'claimed';
       message = 'POAP claimed. Opening the details...';
       showSuccess('POAP claimed.');
@@ -94,6 +96,9 @@
         authState.resetVerification();
         requestLogin();
         return;
+      }
+      if (!isDiscordLinkError(requestError)) {
+        clearPoapClaimRedirect(claimToken);
       }
       status = 'error';
       message = requestError.response?.data?.error || 'This mint link is invalid or no longer available.';

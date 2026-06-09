@@ -5,6 +5,7 @@ Logs HTTP requests/responses for the [API] layer with smart trace breakdown.
 - DEBUG=true: Logs all requests; shows breakdown for slow requests (>100ms)
 - DEBUG=false: Logs only 5xx errors with breakdown
 """
+import re
 import time
 from django.conf import settings
 
@@ -26,6 +27,20 @@ from .tracing import (
 
 
 logger = get_api_logger()
+
+
+SENSITIVE_PATH_PATTERNS = (
+    (
+        re.compile(r'(/api/v1/poaps/claim-link/)[^/]+(/?)$'),
+        r'\1<redacted>\2',
+    ),
+)
+
+
+def redact_sensitive_path(path):
+    for pattern, replacement in SENSITIVE_PATH_PATTERNS:
+        path = pattern.sub(replacement, path)
+    return path
 
 
 class APILoggingMiddleware:
@@ -95,8 +110,9 @@ class APILoggingMiddleware:
             timing_info = self._build_timing_info(duration_ms, db_time_ms, db_query_count)
 
         # Build log message
+        request_path = redact_sensitive_path(request.path)
         log_message = (
-            f"{request.method} {request.path} "
+            f"{request.method} {request_path} "
             f"{response.status_code} "
             f"{timing_info} "
             f"{format_bytes(response_size)}"
