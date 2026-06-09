@@ -393,24 +393,6 @@
     }
   }
 
-  // Throwing variant used by SubmissionCard's copy-context action. Failures
-  // must propagate so the copy can be aborted instead of silently producing
-  // a clipboard payload missing internal notes.
-  async function fetchNotesForCopy(submissionId) {
-    notesLoading[submissionId] = true;
-    notesLoading = { ...notesLoading };
-    try {
-      const response = await stewardAPI.getNotes(submissionId);
-      const list = response.data || [];
-      submissionNotes[submissionId] = list;
-      submissionNotes = { ...submissionNotes };
-      return list;
-    } finally {
-      notesLoading[submissionId] = false;
-      notesLoading = { ...notesLoading };
-    }
-  }
-
   async function handleToggleInteresting(submissionId, isInteresting) {
     try {
       const response = await stewardAPI.toggleInteresting(submissionId, isInteresting);
@@ -924,7 +906,6 @@
             onAddNote={handleAddNote}
             onUpdateNote={handleUpdateNote}
             onToggleInteresting={handleToggleInteresting}
-            onRequestNotes={fetchNotesForCopy}
             onRequestUsers={ensureUsersLoaded}
             currentUserId={$userStore.user?.id}
             acceptedEdit={acceptedEdits[submission.id] || null}

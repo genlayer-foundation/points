@@ -44,7 +44,14 @@ class StewardSubmissionSearchTest(TestCase):
             address='0x0987654321098765432109876543210987654321',
             password='testpass123',
         )
+        self.other_steward_user = User.objects.create_user(
+            email='joaquin@test.com',
+            address='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            password='testpass123',
+            name='Joaquin Bressan',
+        )
         self.steward = Steward.objects.create(user=self.steward_user)
+        self.other_steward = Steward.objects.create(user=self.other_steward_user)
         StewardPermission.objects.create(
             steward=self.steward,
             contribution_type=self.contribution_type,
@@ -165,3 +172,130 @@ class StewardSubmissionSearchTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         result_ids = [str(item['id']) for item in response.data['results']]
         self.assertEqual(result_ids[:2], [str(newer_high.id), str(older_low.id)])
+
+    def test_can_exclude_multiple_assignment_values(self):
+        unassigned = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Unassigned submission',
+            state='pending',
+        )
+        assigned_to_other = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Assigned to Joaquin',
+            state='pending',
+            assigned_to=self.other_steward_user,
+        )
+        assigned_to_current = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Assigned to current steward',
+            state='pending',
+            assigned_to=self.steward_user,
+        )
+
+        response = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'pending',
+            'exclude_assigned_to': f'unassigned,{self.other_steward_user.id}',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result_ids = {str(item['id']) for item in response.data['results']}
+        self.assertNotIn(str(unassigned.id), result_ids)
+        self.assertNotIn(str(assigned_to_other.id), result_ids)
+        self.assertIn(str(assigned_to_current.id), result_ids)
+
+    def test_can_include_multiple_assignment_values(self):
+        unassigned = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Unassigned submission',
+            state='pending',
+        )
+        assigned_to_other = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Assigned to Joaquin',
+            state='pending',
+            assigned_to=self.other_steward_user,
+        )
+        assigned_to_current = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Assigned to current steward',
+            state='pending',
+            assigned_to=self.steward_user,
+        )
+
+        response = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'pending',
+            'assigned_to': f'unassigned,{self.other_steward_user.id}',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result_ids = {str(item['id']) for item in response.data['results']}
+        self.assertIn(str(unassigned.id), result_ids)
+        self.assertIn(str(assigned_to_other.id), result_ids)
+        self.assertNotIn(str(assigned_to_current.id), result_ids)
+
+    def test_invalid_steward_id_filters_do_not_error(self):
+        pending = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Pending proposal',
+            state='pending',
+            assigned_to=self.other_steward_user,
+            proposed_action='reject',
+            proposed_by=self.other_steward_user,
+        )
+        reviewed = self._create_accepted_submission(title='Reviewed submission')
+
+        include_assigned = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'pending',
+            'assigned_to': 'abc',
+        })
+        self.assertEqual(include_assigned.status_code, status.HTTP_200_OK)
+        self.assertEqual(include_assigned.data['results'], [])
+
+        exclude_assigned = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'pending',
+            'exclude_assigned_to': 'abc',
+        })
+        self.assertEqual(exclude_assigned.status_code, status.HTTP_200_OK)
+        self.assertIn(str(pending.id), {str(item['id']) for item in exclude_assigned.data['results']})
+
+        include_reviewed = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'accepted',
+            'reviewed_by': 'abc',
+        })
+        self.assertEqual(include_reviewed.status_code, status.HTTP_200_OK)
+        self.assertEqual(include_reviewed.data['results'], [])
+
+        exclude_reviewed = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'accepted',
+            'exclude_reviewed_by': 'abc',
+        })
+        self.assertEqual(exclude_reviewed.status_code, status.HTTP_200_OK)
+        self.assertIn(str(reviewed.id), {str(item['id']) for item in exclude_reviewed.data['results']})
+
+        include_proposed = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'pending',
+            'proposed_by': 'abc',
+        })
+        self.assertEqual(include_proposed.status_code, status.HTTP_200_OK)
+        self.assertEqual(include_proposed.data['results'], [])
+
+        exclude_proposed = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'pending',
+            'exclude_proposed_by': 'abc',
+        })
+        self.assertEqual(exclude_proposed.status_code, status.HTTP_200_OK)
+        self.assertIn(str(pending.id), {str(item['id']) for item in exclude_proposed.data['results']})

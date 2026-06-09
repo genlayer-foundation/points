@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte/svelte5';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SubmissionCard from '../components/SubmissionCard.svelte';
 
 function makeSubmission(overrides = {}) {
@@ -56,6 +56,41 @@ function makeSubmission(overrides = {}) {
 }
 
 describe('SubmissionCard', () => {
+  let originalClipboard;
+
+  beforeEach(() => {
+    originalClipboard = navigator.clipboard;
+  });
+
+  afterEach(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: originalClipboard,
+      configurable: true
+    });
+  });
+
+  it('copies only the submission id from the card', async () => {
+    const writeText = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true
+    });
+
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({ id: 'submission-123' }),
+        notes: []
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Copy ID' }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('submission-123');
+    });
+    expect(screen.queryByRole('button', { name: /Copy review context/i })).toBeNull();
+  });
+
   it('opens directly to the project proposal rubric for proposal-only stewards', async () => {
     render(SubmissionCard, {
       props: {

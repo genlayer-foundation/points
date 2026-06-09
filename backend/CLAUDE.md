@@ -87,10 +87,10 @@ backend/
   - ProjectMetric - Admin-managed title/value/detail metric rows for project pages
   - ProjectPageRevision - Owner-submitted ordered page blocks rendered through whitelisted portal components
 - **AI Review**: `contributions/ai_review/views.py`
-  - `/api/v1/ai-review/` - List pending submissions for the external AI review agent
+  - `/api/v1/ai-review/` - List pending unproposed submissions for the external AI review agent; proposal filters such as `has_proposal=true` opt into active proposals
   - `/api/v1/ai-review/{id}/` - Retrieve a pending submission with evidence and user history
   - `/api/v1/ai-review/{id}/propose/` - Submit an AI proposal for human approval
-  - `/api/v1/ai-review/proposed/` - List pending submissions with AI proposals awaiting steward review
+  - `/api/v1/ai-review/proposed/` - List pending submissions with active proposals awaiting steward review; use `proposed_by=ai` for AI-created proposals only
   - `/api/v1/ai-review/reviewed/` - List reviewed submissions that had AI proposals for calibration
   - `/api/v1/ai-review/templates/` - List review templates available to the AI review agent
 
@@ -281,7 +281,7 @@ GET    /api/v1/ai-review/
 GET    /api/v1/ai-review/{id}/
 POST   /api/v1/ai-review/{id}/propose/     (create new proposal)
 PUT    /api/v1/ai-review/{id}/propose/     (update existing proposal)
-GET    /api/v1/ai-review/proposed/     (pending AI proposals awaiting steward review)
+GET    /api/v1/ai-review/proposed/     (pending active proposals awaiting steward review; add proposed_by=ai for AI-only)
 GET    /api/v1/ai-review/reviewed/
 GET    /api/v1/ai-review/templates/
 

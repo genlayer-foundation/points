@@ -337,6 +337,138 @@ class TestAIReviewAPI(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('internal_notes', response.data['results'][0])
 
+    def test_ai_review_list_allows_explicit_active_proposal_filters(self):
+        submission = self.fixtures['submission']
+        submission.proposed_action = 'more_info'
+        submission.proposed_by = self.fixtures['steward_user']
+        submission.assigned_to = self.fixtures['steward_user']
+        submission.proposed_staff_reply = 'Please add clearer evidence.'
+        submission.proposed_confidence = 'medium'
+        submission.proposed_template = self.fixtures['reject_template']
+        submission.save()
+
+        default_response = self.client.get(
+            '/api/v1/ai-review/',
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+        self.assertEqual(default_response.status_code, 200)
+        default_ids = {str(item['id']) for item in default_response.data['results']}
+        self.assertNotIn(str(submission.id), default_ids)
+
+        filtered_response = self.client.get(
+            '/api/v1/ai-review/',
+            data={
+                'has_proposal': 'true',
+                'proposed_by': self.fixtures['steward_user'].id,
+            },
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+
+        self.assertEqual(filtered_response.status_code, 200)
+        filtered_results = filtered_response.data['results']
+        filtered_ids = {str(item['id']) for item in filtered_results}
+        self.assertIn(str(submission.id), filtered_ids)
+        proposal_payload = next(
+            item for item in filtered_results if str(item['id']) == str(submission.id)
+        )
+        self.assertEqual(proposal_payload['proposed_action'], 'more_info')
+        self.assertEqual(proposal_payload['proposed_by'], self.fixtures['steward_user'].id)
+        self.assertEqual(proposal_payload['proposed_by_name'], 'Test Steward')
+        self.assertEqual(proposal_payload['assigned_to'], self.fixtures['steward_user'].id)
+        self.assertEqual(proposal_payload['assigned_to_name'], 'Test Steward')
+        self.assertEqual(proposal_payload['proposed_staff_reply'], 'Please add clearer evidence.')
+        self.assertEqual(proposal_payload['proposed_template'], self.fixtures['reject_template'].id)
+        self.assertEqual(proposal_payload['proposed_template_name'], 'Reject: No Evidence')
+        self.assertIsNone(proposal_payload['rubric_review'])
+
+    def test_ai_review_list_supports_compound_assignment_filters(self):
+        unassigned = self.fixtures['submission']
+        assigned_to_steward = SubmittedContribution.objects.create(
+            user=self.fixtures['submitter'],
+            contribution_type=self.fixtures['ct'],
+            contribution_date=timezone.now(),
+            notes='Assigned to steward',
+            state='pending',
+            assigned_to=self.fixtures['steward_user'],
+        )
+        assigned_to_ai = SubmittedContribution.objects.create(
+            user=self.fixtures['submitter'],
+            contribution_type=self.fixtures['ct'],
+            contribution_date=timezone.now(),
+            notes='Assigned to AI',
+            state='pending',
+            assigned_to=self.fixtures['ai_user'],
+        )
+
+        include_response = self.client.get(
+            '/api/v1/ai-review/',
+            data={'assigned_to': f'unassigned,{self.fixtures["steward_user"].id}'},
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+        self.assertEqual(include_response.status_code, 200)
+        include_ids = {str(item['id']) for item in include_response.data['results']}
+        self.assertIn(str(unassigned.id), include_ids)
+        self.assertIn(str(assigned_to_steward.id), include_ids)
+        self.assertNotIn(str(assigned_to_ai.id), include_ids)
+
+        exclude_response = self.client.get(
+            '/api/v1/ai-review/',
+            data={'exclude_assigned_to': f'unassigned,{self.fixtures["steward_user"].id}'},
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+        self.assertEqual(exclude_response.status_code, 200)
+        exclude_ids = {str(item['id']) for item in exclude_response.data['results']}
+        self.assertNotIn(str(unassigned.id), exclude_ids)
+        self.assertNotIn(str(assigned_to_steward.id), exclude_ids)
+        self.assertIn(str(assigned_to_ai.id), exclude_ids)
+
+    def test_ai_review_invalid_steward_id_filters_do_not_error(self):
+        submission = self.fixtures['submission']
+        submission.assigned_to = self.fixtures['steward_user']
+        submission.save()
+
+        include_assigned = self.client.get(
+            '/api/v1/ai-review/',
+            data={'assigned_to': 'abc'},
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+        self.assertEqual(include_assigned.status_code, 200)
+        self.assertEqual(include_assigned.data['results'], [])
+
+        exclude_assigned = self.client.get(
+            '/api/v1/ai-review/',
+            data={'exclude_assigned_to': 'abc'},
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+        self.assertEqual(exclude_assigned.status_code, 200)
+        self.assertIn(
+            str(submission.id),
+            {str(item['id']) for item in exclude_assigned.data['results']},
+        )
+
+        submission.proposed_action = 'reject'
+        submission.proposed_by = self.fixtures['steward_user']
+        submission.save()
+
+        include_proposed = self.client.get(
+            '/api/v1/ai-review/proposed/',
+            data={'proposed_by': 'abc'},
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+        self.assertEqual(include_proposed.status_code, 200)
+        self.assertEqual(include_proposed.data['results'], [])
+
+        exclude_proposed = self.client.get(
+            '/api/v1/ai-review/proposed/',
+            data={'exclude_proposed_by': 'abc'},
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+        self.assertEqual(exclude_proposed.status_code, 200)
+        self.assertIn(
+            str(submission.id),
+            {str(item['id']) for item in exclude_proposed.data['results']},
+        )
+
     def test_ai_propose_endpoint_stores_structured_note_data(self):
         submission = self.fixtures['submission']
 
@@ -369,7 +501,7 @@ class TestAIReviewAPI(APITestCase):
         self.assertEqual(note.data['confidence'], 'high')
         self.assertEqual(note.data['reasoning'], 'The evidence provided does not support the claim.')
 
-    def test_proposed_endpoint_returns_only_ai_created_proposals(self):
+    def test_proposed_endpoint_returns_active_proposals_and_can_filter_to_ai(self):
         ai_submission = self.fixtures['submission']
         ai_submission.proposed_action = 'reject'
         ai_submission.proposed_by = self.fixtures['ai_user']
@@ -384,7 +516,10 @@ class TestAIReviewAPI(APITestCase):
             state='pending',
             proposed_action='more_info',
             proposed_by=self.fixtures['steward_user'],
+            assigned_to=self.fixtures['steward_user'],
+            proposed_staff_reply='Please add a working demo link.',
             proposed_confidence='low',
+            proposed_template=self.fixtures['reject_template'],
         )
 
         response = self.client.get(
@@ -396,7 +531,28 @@ class TestAIReviewAPI(APITestCase):
         self.assertEqual(response.status_code, 200)
         ids = {str(item['id']) for item in response.data['results']}
         self.assertIn(str(ai_submission.id), ids)
-        self.assertNotIn(str(human_submission.id), ids)
+        self.assertIn(str(human_submission.id), ids)
+        human_payload = next(
+            item for item in response.data['results'] if str(item['id']) == str(human_submission.id)
+        )
+        self.assertEqual(human_payload['proposed_action'], 'more_info')
+        self.assertEqual(human_payload['proposed_by'], self.fixtures['steward_user'].id)
+        self.assertEqual(human_payload['proposed_by_name'], 'Test Steward')
+        self.assertEqual(human_payload['assigned_to'], self.fixtures['steward_user'].id)
+        self.assertEqual(human_payload['proposed_staff_reply'], 'Please add a working demo link.')
+        self.assertEqual(human_payload['proposed_template_name'], 'Reject: No Evidence')
+        self.assertIsNone(human_payload['rubric_review'])
+
+        ai_only_response = self.client.get(
+            '/api/v1/ai-review/proposed/',
+            data={'proposed_confidence': 'low', 'proposed_by': 'ai'},
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+
+        self.assertEqual(ai_only_response.status_code, 200)
+        ai_only_ids = {str(item['id']) for item in ai_only_response.data['results']}
+        self.assertIn(str(ai_submission.id), ai_only_ids)
+        self.assertNotIn(str(human_submission.id), ai_only_ids)
 
     def test_ai_cannot_update_human_created_proposal(self):
         submission = self.fixtures['submission']
