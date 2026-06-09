@@ -128,6 +128,10 @@ describe("steward search negation", () => {
       assigned_to: 12,
       search: "github repo",
     });
+    expect(paramsFor("assigned:Pavel,Joaquin github repo", stewardOptions)).toEqual({
+      assigned_to: "12,11",
+      search: "github repo",
+    });
   });
 
   it("preserves separators in submitter searches", () => {

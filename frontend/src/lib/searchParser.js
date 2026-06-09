@@ -147,7 +147,8 @@ function shouldConsumeSpaceValue(tag, value, nextToken = '') {
 function canAppendSpaceValue(tag, value, nextToken = '') {
   if (!shouldConsumeSpaceValue(tag, value, nextToken)) return false;
   const next = String(nextToken || '');
-  return /^[A-Z0-9]/.test(next) || !String(value || '').includes(' ');
+  const current = String(value || '');
+  return /^[A-Z0-9]/.test(next) || (!current.includes(' ') && !current.includes(','));
 }
 
 /**
