@@ -212,6 +212,70 @@ class ProjectMilestoneRubricHumanProposalTests(APITestCase):
         self.assertIsNotNone(note)
         self.assertNotIn('points**', note.message)
 
+    @override_settings(AI_REVIEW_API_KEY='test-ai-review-key')
+    def test_ai_review_proposed_endpoint_includes_human_builder_project_proposals(self):
+        submission = self.create_submission()
+        submission.assigned_to = self.steward_user
+        submission.save(update_fields=['assigned_to'])
+        payload = rubric_payload(
+            overall_reason='Human steward prepared a builder project proposal.',
+        )
+
+        propose_response = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/propose/',
+            data={
+                'proposed_action': 'accept',
+                'proposed_contribution_type': self.project_type.id,
+                'proposed_user': self.submitter.id,
+                'rubric_review': payload,
+            },
+            content_type='application/json',
+        )
+        self.assertEqual(propose_response.status_code, 200)
+
+        response = self.client.get(
+            '/api/v1/ai-review/proposed/',
+            data={
+                'assigned_to': self.steward_user.id,
+                'proposed_by': self.steward_user.id,
+            },
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data['results']
+        ids = {str(item['id']) for item in results}
+        self.assertIn(str(submission.id), ids)
+        list_payload = next(item for item in results if str(item['id']) == str(submission.id))
+        self.assertEqual(list_payload['review_flow'], ContributionType.REVIEW_FLOW_BUILDER_PROJECT)
+        self.assertEqual(list_payload['proposed_action'], 'accept')
+        self.assertEqual(list_payload['proposed_by'], self.steward_user.id)
+        self.assertEqual(list_payload['proposed_by_name'], 'Reviewer')
+        self.assertEqual(list_payload['assigned_to'], self.steward_user.id)
+        self.assertEqual(list_payload['proposed_contribution_type'], self.project_type.id)
+        self.assertEqual(list_payload['proposed_user'], self.submitter.id)
+        self.assertEqual(list_payload['proposed_user_details']['id'], self.submitter.id)
+        self.assertEqual(
+            list_payload['rubric_review']['overall_reason'],
+            'Human steward prepared a builder project proposal.',
+        )
+        self.assertEqual(list_payload['rubric_review']['proposer_name'], 'Reviewer')
+
+        detail_response = self.client.get(
+            f'/api/v1/ai-review/{submission.id}/',
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(detail_response.data['review_flow'], ContributionType.REVIEW_FLOW_BUILDER_PROJECT)
+        self.assertEqual(detail_response.data['proposed_action'], 'accept')
+        self.assertEqual(detail_response.data['proposed_by'], self.steward_user.id)
+        self.assertEqual(detail_response.data['proposed_user_details']['id'], self.submitter.id)
+        self.assertEqual(
+            detail_response.data['rubric_review']['overall_reason'],
+            'Human steward prepared a builder project proposal.',
+        )
+        self.assertEqual(detail_response.data['rubric_review']['proposer_name'], 'Reviewer')
+
     def test_direct_project_accept_and_reject_require_rubric_review(self):
         for action in ['accept', 'reject']:
             submission = self.create_submission()

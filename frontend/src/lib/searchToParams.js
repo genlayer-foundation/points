@@ -6,18 +6,73 @@
  * Map parsed search filters to API parameters.
  * @param {Object} parsed - Output from parseSearch()
  * @param {Object} options - Additional context
- * @param {Array} options.contributionTypes - List of contribution types for name/slug lookup
- * @param {Array} options.stewardsList - List of stewards for name lookup
- * @param {string} options.currentUserId - Current user's ID for "me" resolution
- * @param {Array} options.templates - List of review templates for label lookup
- * @param {Array} options.missions - List of missions for name/ID lookup
+ * @param {Array} [options.contributionTypes] - List of contribution types for name/slug lookup
+ * @param {Array} [options.stewardsList] - List of stewards for name lookup
+ * @param {string|number|null} [options.currentUserId] - Current user's ID for "me" resolution
+ * @param {Array} [options.templates] - List of review templates for label lookup
+ * @param {Array} [options.missions] - List of missions for name/ID lookup
  * @returns {Object} API query parameters
  */
 export function searchToParams(parsed, options = {}) {
   const { contributionTypes = [], stewardsList = [], currentUserId = null } = options;
+  /** @type {Record<string, any>} */
   const params = {};
 
   const { filters } = parsed;
+  /** @param {any} value */
+  const normalizeLookup = value => String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ');
+  /** @param {any} value */
+  const normalizeListValue = value => String(value || '').trim();
+  /** @param {any} filter */
+  const splitFilterValues = filter => {
+    if (!filter) return [];
+    const filters = Array.isArray(filter) ? filter : [filter];
+    return filters.flatMap(item =>
+      String(item.value || '')
+        .split(',')
+        .map(value => ({ value: normalizeListValue(value), negated: item.negated }))
+        .filter(item => item.value)
+    );
+  };
+  /**
+   * @param {any} source
+   * @param {any} query
+   */
+  const includesNormalized = (source, query) => {
+    const normalizedSource = normalizeLookup(source);
+    const normalizedQuery = normalizeLookup(query);
+    return Boolean(
+      normalizedSource &&
+      normalizedQuery &&
+      normalizedSource.includes(normalizedQuery)
+    );
+  };
+  /**
+   * @param {any} source
+   * @param {any} query
+   */
+  const exactOrNormalized = (source, query) => (
+    String(source) === String(query) || includesNormalized(source, query)
+  );
+  /**
+   * @param {string} key
+   * @param {any} value
+   */
+  const setParamValue = (key, value) => {
+    if (!value) return;
+    if (params[key]) {
+      const existing = String(params[key]).split(',').filter(Boolean);
+      if (!existing.includes(String(value))) {
+        params[key] = [...existing, value].join(',');
+      }
+    } else {
+      params[key] = value;
+    }
+  };
   const hasValue = (values, candidates) => (
     values || []
   ).some(value => candidates.includes(String(value).toLowerCase()));
@@ -50,11 +105,10 @@ export function searchToParams(parsed, options = {}) {
 
   // type → contribution_type (by name, slug, or ID)
   if (filters.type) {
-    const typeValue = filters.type.value.toLowerCase();
+    const typeValue = normalizeLookup(filters.type.value);
     const type = contributionTypes.find(t =>
       t.slug?.toLowerCase() === typeValue ||
-      t.name?.toLowerCase() === typeValue ||
-      t.name?.toLowerCase().replace(/\s+/g, '-') === typeValue ||
+      normalizeLookup(t.name) === typeValue ||
       String(t.id) === filters.type.value
     );
     if (type) {
@@ -68,21 +122,22 @@ export function searchToParams(parsed, options = {}) {
 
   // from → username_search (or exclude_username if negated)
   if (filters.from) {
+    const usernameValue = normalizeLookup(filters.from.value);
     if (filters.from.negated) {
-      params.exclude_username = filters.from.value;
+      params.exclude_username = usernameValue;
     } else {
-      params.username_search = filters.from.value;
+      params.username_search = usernameValue;
     }
   }
 
   // Free text (untagged) → search across submitter, title, notes, and evidence
-  if (filters.freeText && filters.freeText.length > 0 && !params.username_search) {
+  if (filters.freeText && filters.freeText.length > 0) {
     params.search = filters.freeText.join(' ');
   }
 
   // assigned → assigned_to
-  if (filters.assigned) {
-    const val = filters.assigned.value.toLowerCase();
+  for (const assignedFilter of splitFilterValues(filters.assigned)) {
+    const val = normalizeLookup(assignedFilter.value);
     let assignedValue = null;
 
     if (val === 'me' && currentUserId) {
@@ -92,8 +147,10 @@ export function searchToParams(parsed, options = {}) {
     } else {
       // Find steward by name
       const steward = stewardsList.find(s =>
-        s.name?.toLowerCase().includes(val) ||
-        s.user_name?.toLowerCase().includes(val)
+        exactOrNormalized(s.user_id, assignedFilter.value) ||
+        includesNormalized(s.name, assignedFilter.value) ||
+        includesNormalized(s.user_name, assignedFilter.value) ||
+        includesNormalized(s.address, assignedFilter.value)
       );
       if (steward) {
         assignedValue = steward.user_id;
@@ -101,27 +158,27 @@ export function searchToParams(parsed, options = {}) {
     }
 
     if (assignedValue) {
-      if (filters.assigned.negated) {
-        params.exclude_assigned_to = assignedValue;
+      if (assignedFilter.negated) {
+        setParamValue('exclude_assigned_to', assignedValue);
       } else {
-        params.assigned_to = assignedValue;
+        setParamValue('assigned_to', assignedValue);
       }
     }
   }
 
   // reviewed → reviewed_by (the steward who actually accepted/rejected/requested info)
-  if (filters.reviewed) {
-    const val = filters.reviewed.value.toLowerCase();
+  for (const reviewedFilter of splitFilterValues(filters.reviewed)) {
+    const val = normalizeLookup(reviewedFilter.value);
     let reviewedValue = null;
 
     if (val === 'me' && currentUserId) {
       reviewedValue = currentUserId;
     } else {
       const steward = stewardsList.find(s =>
-        String(s.user_id) === filters.reviewed.value ||
-        s.name?.toLowerCase().includes(val) ||
-        s.user_name?.toLowerCase().includes(val) ||
-        s.address?.toLowerCase().includes(val)
+        exactOrNormalized(s.user_id, reviewedFilter.value) ||
+        includesNormalized(s.name, reviewedFilter.value) ||
+        includesNormalized(s.user_name, reviewedFilter.value) ||
+        includesNormalized(s.address, reviewedFilter.value)
       );
       if (steward) {
         reviewedValue = steward.user_id;
@@ -129,17 +186,17 @@ export function searchToParams(parsed, options = {}) {
     }
 
     if (reviewedValue) {
-      if (filters.reviewed.negated) {
-        params.exclude_reviewed_by = reviewedValue;
+      if (reviewedFilter.negated) {
+        setParamValue('exclude_reviewed_by', reviewedValue);
       } else {
-        params.reviewed_by = reviewedValue;
+        setParamValue('reviewed_by', reviewedValue);
       }
     }
   }
 
   // proposed-by → proposed_by (the steward/agent who created the active proposal)
-  if (filters['proposed-by']) {
-    const val = filters['proposed-by'].value.toLowerCase();
+  for (const proposedByFilter of splitFilterValues(filters['proposed-by'])) {
+    const val = normalizeLookup(proposedByFilter.value);
     let proposedByValue = null;
 
     if (val === 'ai') {
@@ -150,10 +207,10 @@ export function searchToParams(parsed, options = {}) {
       proposedByValue = 'none';
     } else {
       const steward = stewardsList.find(s =>
-        String(s.user_id) === filters['proposed-by'].value ||
-        s.name?.toLowerCase().includes(val) ||
-        s.user_name?.toLowerCase().includes(val) ||
-        s.address?.toLowerCase().includes(val)
+        exactOrNormalized(s.user_id, proposedByFilter.value) ||
+        includesNormalized(s.name, proposedByFilter.value) ||
+        includesNormalized(s.user_name, proposedByFilter.value) ||
+        includesNormalized(s.address, proposedByFilter.value)
       );
       if (steward) {
         proposedByValue = steward.user_id;
@@ -161,10 +218,10 @@ export function searchToParams(parsed, options = {}) {
     }
 
     if (proposedByValue) {
-      if (filters['proposed-by'].negated) {
-        params.exclude_proposed_by = proposedByValue;
+      if (proposedByFilter.negated) {
+        setParamValue('exclude_proposed_by', proposedByValue);
       } else {
-        params.proposed_by = proposedByValue;
+        setParamValue('proposed_by', proposedByValue);
       }
     }
   }
@@ -249,10 +306,9 @@ export function searchToParams(parsed, options = {}) {
   // template → proposed_template (by name/label → ID lookup)
   if (filters.template) {
     const { templates = [] } = options;
-    const templateValue = filters.template.value.toLowerCase();
+    const templateValue = normalizeLookup(filters.template.value);
     const template = templates.find(t =>
-      t.label?.toLowerCase() === templateValue ||
-      t.label?.toLowerCase().replace(/\s+/g, '-') === templateValue ||
+      normalizeLookup(t.label) === templateValue ||
       String(t.id) === filters.template.value
     );
     if (template) {
@@ -262,7 +318,7 @@ export function searchToParams(parsed, options = {}) {
 
   // mission → mission (by name → ID lookup, or 'none' for no mission)
   if (filters.mission) {
-    const missionValue = filters.mission.value.toLowerCase();
+    const missionValue = normalizeLookup(filters.mission.value);
     if (missionValue === 'none' || missionValue === 'null') {
       if (filters.mission.negated) {
         params.exclude_mission = 'none';
@@ -272,8 +328,7 @@ export function searchToParams(parsed, options = {}) {
     } else {
       const { missions = [] } = options;
       const mission = missions.find(m =>
-        m.name?.toLowerCase() === missionValue ||
-        m.name?.toLowerCase().replace(/\s+/g, '-') === missionValue ||
+        normalizeLookup(m.name) === missionValue ||
         String(m.id) === filters.mission.value
       );
       if (mission) {

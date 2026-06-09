@@ -1100,6 +1100,13 @@ class StewardSubmissionFilterSet(FilterSet):
     has_appeal = BooleanFilter(field_name='has_appeal')
     resubmitted_more_info = BooleanFilter(method='filter_resubmitted_more_info')
 
+    def _split_filter_values(self, value):
+        return [
+            item.strip()
+            for item in str(value).split(',')
+            if item and item.strip()
+        ]
+
     def _normalized_url_query(self, term):
         if '://' not in term and not term.lower().startswith('www.'):
             return Q()
@@ -1173,30 +1180,42 @@ class StewardSubmissionFilterSet(FilterSet):
 
     def filter_assigned_to(self, queryset, name, value):
         """Filter by assigned steward or unassigned."""
-        if value == 'null' or value == 'unassigned':
-            return queryset.filter(assigned_to__isnull=True)
-        elif value:
-            return queryset.filter(assigned_to_id=value)
+        values = self._split_filter_values(value)
+        if values:
+            query = Q()
+            for item in values:
+                if item == 'null' or item == 'unassigned':
+                    query |= Q(assigned_to__isnull=True)
+                else:
+                    query |= Q(assigned_to_id=item)
+            return queryset.filter(query)
         return queryset
 
     def filter_exclude_assigned_to(self, queryset, name, value):
         """Exclude submissions assigned to a specific steward."""
-        if value == 'null' or value == 'unassigned':
-            return queryset.exclude(assigned_to__isnull=True)
-        elif value:
-            return queryset.exclude(assigned_to_id=value)
+        values = self._split_filter_values(value)
+        if values:
+            query = Q()
+            for item in values:
+                if item == 'null' or item == 'unassigned':
+                    query |= Q(assigned_to__isnull=True)
+                else:
+                    query |= Q(assigned_to_id=item)
+            return queryset.exclude(query)
         return queryset
 
     def filter_reviewed_by(self, queryset, name, value):
         """Filter by steward who took the review action."""
-        if value:
-            return queryset.filter(reviewed_by_id=value)
+        values = self._split_filter_values(value)
+        if values:
+            return queryset.filter(reviewed_by_id__in=values)
         return queryset
 
     def filter_exclude_reviewed_by(self, queryset, name, value):
         """Exclude submissions reviewed by a specific steward."""
-        if value:
-            return queryset.exclude(reviewed_by_id=value)
+        values = self._split_filter_values(value)
+        if values:
+            return queryset.exclude(reviewed_by_id__in=values)
         return queryset
 
     def _proposed_by_condition(self, value):
@@ -1208,14 +1227,22 @@ class StewardSubmissionFilterSet(FilterSet):
 
     def filter_proposed_by(self, queryset, name, value):
         """Filter by steward or agent who created the active proposal."""
-        if value:
-            return queryset.filter(self._proposed_by_condition(value))
+        values = self._split_filter_values(value)
+        if values:
+            query = Q()
+            for item in values:
+                query |= self._proposed_by_condition(item)
+            return queryset.filter(query)
         return queryset
 
     def filter_exclude_proposed_by(self, queryset, name, value):
         """Exclude active proposals created by a specific steward or agent."""
-        if value:
-            return queryset.exclude(self._proposed_by_condition(value))
+        values = self._split_filter_values(value)
+        if values:
+            query = Q()
+            for item in values:
+                query |= self._proposed_by_condition(item)
+            return queryset.exclude(query)
         return queryset
 
     def filter_exclude_contribution_type(self, queryset, name, value):

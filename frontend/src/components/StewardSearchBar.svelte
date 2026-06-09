@@ -19,6 +19,10 @@
   let selectedIndex = $state(-1);
   let lastSearchedValue = $state('');
 
+  const stewardSearchValues = () => stewardsList
+    .map(s => (s.name || s.address?.slice(0, 10))?.toLowerCase().replace(/\s+/g, '-'))
+    .filter(Boolean);
+
   const TAGS = [
     {
       name: 'status',
@@ -28,9 +32,9 @@
     { name: 'type', description: 'Filter by contribution type', values: () => contributionTypes.map(t => t.name.toLowerCase().replace(/\s+/g, '-')) },
     { name: 'category', description: 'Filter by category', values: () => [...new Set(contributionTypes.map(t => t.category).filter(Boolean))] },
     { name: 'from', description: 'Search by user name or address', values: () => [] },
-    { name: 'assigned', description: 'Filter by assignment', values: () => ['me', 'unassigned', ...stewardsList.map(s => s.name || s.address?.slice(0, 10))] },
-    { name: 'reviewed', description: 'Filter by steward who reviewed', values: () => ['me', ...stewardsList.map(s => s.name || s.address?.slice(0, 10))] },
-    { name: 'proposed-by', description: 'Filter by proposal creator', values: () => ['ai', 'me', 'none', ...stewardsList.map(s => s.name || s.address?.slice(0, 10))] },
+    { name: 'assigned', description: 'Filter by assignment', values: () => ['me', 'unassigned', ...stewardSearchValues()] },
+    { name: 'reviewed', description: 'Filter by steward who reviewed', values: () => ['me', ...stewardSearchValues()] },
+    { name: 'proposed-by', description: 'Filter by proposal creator', values: () => ['ai', 'me', 'none', ...stewardSearchValues()] },
     { name: 'exclude', description: 'Exclude submissions containing text', values: () => ['medium.com'] },
     { name: 'include', description: 'Only show submissions containing text', values: () => [] },
     { name: 'has', description: 'Filter by presence', values: () => ['url', 'evidence', 'proposal', 'appeal'] },
@@ -240,6 +244,7 @@
           <div class="help-row"><code>category:builder</code><span>Category slug</span></div>
           <div class="help-row"><code>from:alice</code><span>Submitter name or address</span></div>
           <div class="help-row"><code>assigned:me</code><span>Assigned steward (me, unassigned, name)</span></div>
+          <div class="help-row"><code>assigned:pavel-kolosov</code><span>Names can use spaces or hyphens</span></div>
           <div class="help-row"><code>reviewed:me</code><span>Steward who took the final review action</span></div>
           <div class="help-row"><code>mission:name</code><span>Mission name, ID, or none</span></div>
           <div class="help-row"><code>has:url</code><span>Only submissions with URL evidence</span></div>
@@ -269,6 +274,8 @@
         <div class="help-section">
           <div class="help-subtitle">Negation</div>
           <div class="help-row"><code>-type:blog-post</code><span>Exclude contribution type</span></div>
+          <div class="help-row"><code>-assigned:unassigned,Joaquin</code><span>Exclude multiple assignments</span></div>
+          <div class="help-row"><code>-assigned:unassigned -assigned:Joaquin</code><span>Repeated exclusions also work</span></div>
           <div class="help-row"><code>-proposed-by:ai</code><span>Exclude active AI proposals</span></div>
           <div class="help-row"><code>-mission:name</code><span>Exclude a mission while keeping other matches</span></div>
         </div>
@@ -277,6 +284,8 @@
           <div class="help-example">assigned:me exclude:medium.com has:url</div>
           <div class="help-example">status:accepted sort:-points</div>
           <div class="help-example">status:accepted reviewed:alice sort:-reviewed</div>
+          <div class="help-example">assigned:Pavel Kolosov has:proposal</div>
+          <div class="help-example">-assigned:unassigned,Joaquin has:url</div>
           <div class="help-example">https://x.com/user/status/123</div>
           <div class="help-example">type:bug-report -mission:wallet-login is:resubmitted</div>
         </div>

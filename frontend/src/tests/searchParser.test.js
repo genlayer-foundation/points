@@ -2,8 +2,16 @@ import { describe, expect, it } from "vitest";
 import { parseSearch } from "../lib/searchParser.js";
 import { searchToParams } from "../lib/searchToParams.js";
 
-function paramsFor(query) {
-  return searchToParams(parseSearch(query));
+const stewardOptions = {
+  currentUserId: 7,
+  stewardsList: [
+    { user_id: 11, name: "Joaquin Bressan", address: "0xjoaquin" },
+    { user_id: 12, name: "Pavel Kolosov", address: "0xpavel" },
+  ],
+};
+
+function paramsFor(query, options = {}) {
+  return searchToParams(parseSearch(query), options);
 }
 
 describe("steward search negation", () => {
@@ -76,5 +84,49 @@ describe("steward search negation", () => {
     expect(paramsFor("proposed-by:ai")).toEqual({ proposed_by: "ai" });
     expect(paramsFor("-proposed-by:ai")).toEqual({ exclude_proposed_by: "ai" });
     expect(paramsFor("proposed-by:none")).toEqual({ proposed_by: "none" });
+  });
+
+  it("supports compound assigned exclusions with repeated or comma values", () => {
+    expect(paramsFor("-assigned:unassigned -assigned:Joaquin", stewardOptions)).toEqual({
+      exclude_assigned_to: "unassigned,11",
+    });
+    expect(paramsFor("-assigned:unassigned,Joaquin", stewardOptions)).toEqual({
+      exclude_assigned_to: "unassigned,11",
+    });
+  });
+
+  it("normalizes spaced and hyphenated steward names", () => {
+    expect(paramsFor("assigned:Pavel Kolosov", stewardOptions)).toEqual({
+      assigned_to: 12,
+    });
+    expect(paramsFor("assigned: Pavel Kolosov", stewardOptions)).toEqual({
+      assigned_to: 12,
+    });
+    expect(paramsFor("assigned:pavel-kolosov", stewardOptions)).toEqual({
+      assigned_to: 12,
+    });
+    expect(paramsFor("proposed-by:pavel-kolosov", stewardOptions)).toEqual({
+      proposed_by: 12,
+    });
+  });
+
+  it("does not swallow free text after slug or simple-name filters", () => {
+    expect(paramsFor("type:blog-post github repo", {
+      contributionTypes: [{ id: 21, name: "Blog Post", slug: "blog-post" }],
+    })).toEqual({
+      contribution_type: 21,
+      search: "github repo",
+    });
+    expect(paramsFor("from:alice github repo")).toEqual({
+      username_search: "alice",
+      search: "github repo",
+    });
+  });
+
+  it("keeps exact assignment aliases from consuming following free text", () => {
+    expect(paramsFor("assigned:me github repo", stewardOptions)).toEqual({
+      assigned_to: 7,
+      search: "github repo",
+    });
   });
 });

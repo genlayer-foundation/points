@@ -25,6 +25,8 @@ const SINGLE_VALUE_TAGS = ['status', 'type', 'category', 'from', 'assigned', 're
 const MULTI_VALUE_TAGS = ['exclude', 'include', 'has', 'no', 'is', 'not'];
 const NUMERIC_TAGS = ['min-contributions'];
 const KNOWN_TAGS = [...SINGLE_VALUE_TAGS, ...MULTI_VALUE_TAGS, ...NUMERIC_TAGS];
+const COMPOUND_SINGLE_VALUE_TAGS = ['assigned', 'reviewed', 'proposed-by'];
+const SPACE_VALUE_TAGS = ['type', 'from', 'assigned', 'reviewed', 'proposed-by', 'template', 'mission'];
 const NEGATED_MULTI_VALUE_TAGS = {
   exclude: 'include',
   include: 'exclude',
@@ -111,6 +113,30 @@ function parseToken(token) {
   return { tag, value, negated };
 }
 
+function isKnownTagToken(token) {
+  const match = token.match(/^-?([a-z-]+):/i);
+  return Boolean(match && KNOWN_TAGS.includes(match[1].toLowerCase()));
+}
+
+function isSpaceValueContinuation(token) {
+  return /^[A-Z0-9][A-Za-z0-9.'-]*$/.test(String(token || ''));
+}
+
+function shouldConsumeSpaceValue(tag, value, nextToken = '') {
+  if (!SPACE_VALUE_TAGS.includes(tag)) return false;
+  const normalized = String(value || '').toLowerCase();
+  const exactAliases = {
+    assigned: ['me', 'unassigned', 'none', 'null'],
+    reviewed: ['me'],
+    'proposed-by': ['ai', 'me', 'none', 'null', 'unproposed'],
+    mission: ['none', 'null'],
+  };
+  return (
+    !(exactAliases[tag] || []).includes(normalized) &&
+    isSpaceValueContinuation(nextToken)
+  );
+}
+
 /**
  * Parse a search query string into structured filters.
  * @param {string} query
@@ -158,17 +184,24 @@ export function parseSearch(query) {
       KNOWN_TAGS.includes(danglingTagMatch[2].toLowerCase()) &&
       i + 1 < tokens.length
     ) {
-      const nextToken = tokens[i + 1];
-      const nextTagMatch = nextToken.match(/^-?([a-z-]+):/i);
-      const nextIsKnownTag = Boolean(
-        nextTagMatch && KNOWN_TAGS.includes(nextTagMatch[1].toLowerCase())
-      );
-      if (nextIsKnownTag) {
+      if (isKnownTagToken(tokens[i + 1])) {
         negateNext = false;
         continue;
       }
-      token = `${token}${nextToken}`;
+      const tagName = danglingTagMatch[2].toLowerCase();
+      const valueParts = [tokens[i + 1]];
       i += 1;
+      if (shouldConsumeSpaceValue(tagName, valueParts[0], tokens[i + 1])) {
+        while (
+          i + 1 < tokens.length &&
+          !isKnownTagToken(tokens[i + 1]) &&
+          isSpaceValueContinuation(tokens[i + 1])
+        ) {
+          valueParts.push(tokens[i + 1]);
+          i += 1;
+        }
+      }
+      token = `${token}${valueParts.join(' ')}`;
     } else if (
       danglingTagMatch &&
       KNOWN_TAGS.includes(danglingTagMatch[2].toLowerCase())
@@ -189,9 +222,28 @@ export function parseSearch(query) {
     const negated = parsed.negated || negateNext;
     negateNext = false;
 
+    if (shouldConsumeSpaceValue(tag, parsed.value, tokens[i + 1])) {
+      while (
+        i + 1 < tokens.length &&
+        !isKnownTagToken(tokens[i + 1]) &&
+        isSpaceValueContinuation(tokens[i + 1])
+      ) {
+        parsed.value += ` ${tokens[i + 1]}`;
+        i += 1;
+      }
+    }
+
     // Handle single-value tags
     if (SINGLE_VALUE_TAGS.includes(tag)) {
-      filters[tag] = { value, negated };
+      const filter = { value: parsed.value, negated };
+      if (COMPOUND_SINGLE_VALUE_TAGS.includes(tag)) {
+        const existing = filters[tag];
+        filters[tag] = existing
+          ? (Array.isArray(existing) ? [...existing, filter] : [existing, filter])
+          : filter;
+      } else {
+        filters[tag] = filter;
+      }
     }
     // Handle multi-value tags
     else if (MULTI_VALUE_TAGS.includes(tag)) {
@@ -225,9 +277,11 @@ export function filtersToQuery(filters) {
 
   for (const tag of SINGLE_VALUE_TAGS) {
     const filter = filters[tag];
-    if (filter && filter.value) {
-      const prefix = filter.negated ? '-' : '';
-      const value = filter.value.includes(' ') ? `"${filter.value}"` : filter.value;
+    const filterItems = Array.isArray(filter) ? filter : (filter ? [filter] : []);
+    for (const item of filterItems) {
+      if (!item?.value) continue;
+      const prefix = item.negated ? '-' : '';
+      const value = item.value.includes(' ') ? `"${item.value}"` : item.value;
       parts.push(`${prefix}${tag}:${value}`);
     }
   }

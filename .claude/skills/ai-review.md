@@ -2,10 +2,10 @@
 name: ai-review
 description: >
   Use the GenLayer AI Review API to fetch submissions, inspect details, create
-  AI review proposals, update AI-created proposals, list active AI proposals,
-  and inspect reviewed AI proposals for calibration. All requests require
-  X-AI-Review-Key. The AI Review API creates proposals only; it does not apply
-  final accept, reject, or more-info decisions.
+  AI review proposals, update AI-created proposals, list active proposals,
+  inspect active human steward proposals, and inspect reviewed AI proposals for
+  calibration. All requests require X-AI-Review-Key. The AI Review API creates
+  proposals only; it does not apply final accept, reject, or more-info decisions.
 ---
 
 # AI Review API
@@ -36,16 +36,19 @@ Every request needs:
 
 | Endpoint | Method | Purpose | Default Scope |
 |---|---:|---|---|
-| `/api/v1/ai-review/` | GET | Find new submissions to evaluate | Pending, unproposed, non-appealed unless `has_appeal` is sent |
+| `/api/v1/ai-review/` | GET | Find new submissions to evaluate, or query active proposals when proposal filters are sent | Pending, unproposed, non-appealed unless `has_appeal` or proposal filters are sent |
 | `/api/v1/ai-review/{id}/` | GET | Full submission detail, including `internal_notes` | One pending submission |
 | `/api/v1/ai-review/{id}/propose/` | POST | Create AI proposal | Fails if an active proposal already exists |
 | `/api/v1/ai-review/{id}/propose/` | PUT | Update AI-created proposal | Fails if no proposal exists or proposal is human-created |
-| `/api/v1/ai-review/proposed/` | GET | List active AI proposals | Pending submissions proposed by AI |
+| `/api/v1/ai-review/proposed/` | GET | List active proposals | Pending submissions with active AI or human steward proposals |
 | `/api/v1/ai-review/reviewed/` | GET | Calibration data | Reviewed submissions that have AI proposal notes |
 | `/api/v1/ai-review/templates/` | GET | List reusable review templates | Returns `id`, `label`, `action`, and `text` |
 
-Use `/ai-review/` for new work, `/ai-review/proposed/` for active AI proposals,
-and `/ai-review/reviewed/` only for calibration.
+Use `/ai-review/` for new unproposed work, `/ai-review/proposed/` for active
+proposals from AI or human stewards, and `/ai-review/reviewed/` only for
+calibration. Add `proposed_by=ai` when you need active AI-created proposals
+only. Add `proposed_by=<user_id>` and/or `assigned_to=<user_id>` when you need
+active proposals for a specific steward.
 
 ## Workflow
 
@@ -92,7 +95,7 @@ curl -s -X PUT \
 | Field | Required When | Values |
 |---|---|---|
 | `proposed_action` | Always | `accept`, `reject`, `more_info` |
-| `proposed_points` | `proposed_action=accept` | Integer within `min_points` and `max_points` from detail |
+| `proposed_points` | Standard `proposed_action=accept`; optional for `review_flow=builder_project` | Integer within `min_points` and `max_points` from detail |
 | `proposed_staff_reply` | `reject`, `more_info`; optional for `accept` | User-visible text |
 | `reasoning` | Optional | Internal text |
 | `confidence` | Optional | `high`, `medium`, `low`; defaults to `medium` |
@@ -105,6 +108,32 @@ curl -s -X PUT \
 - Reviewed calibration submissions from `/api/v1/ai-review/reviewed/` also include `internal_notes`.
 - Each note includes `message`, `is_proposal`, `data`, and `created_at`.
 - Treat `internal_notes` as internal context only. Do not copy private reasoning or CRM notes into `proposed_staff_reply`.
+
+## Response Fields
+
+List responses from `/api/v1/ai-review/` and `/api/v1/ai-review/proposed/`
+include compact submission fields plus the active proposal summary:
+
+- `assigned_to`, `assigned_to_name`
+- `has_proposal`
+- `proposed_action`, `proposed_points`, `proposed_staff_reply`
+- `proposed_contribution_type`
+- `proposed_user`, `proposed_user_details`
+- `proposed_create_highlight`, `proposed_highlight_title`, `proposed_highlight_description`
+- `proposed_by`, `proposed_by_name`, `proposed_at`
+- `proposed_confidence`
+- `proposed_template`, `proposed_template_name`
+- `rubric_review`
+
+Full detail from `/api/v1/ai-review/{id}/` includes the same active proposal
+summary, plus `evidence_items`, `internal_notes`, and `user_history`.
+
+For standard reviews, `rubric_review` is `null`; use the `proposed_*` fields.
+For Builder Project reviews (`review_flow=builder_project`), `rubric_review`
+contains `gate_failures`, `sections`, `extras`, `overall_reason`, `action`,
+`confidence`, and `proposer_name`. Builder Project accept proposals may have
+`proposed_points: null` because final stewards assign points manually from the
+rubric.
 
 ## Filters
 
@@ -126,10 +155,10 @@ already makes the filter meaningless. Send backend parameter names exactly.
 | `exclude_mission` | mission ID, `none`, `null` | Exclude mission, or require a mission when value is `none`/`null` |
 | `username_search` | text | Match submitter name, email, or address |
 | `exclude_username` | text | Exclude matching submitters |
-| `assigned_to` | user ID, `unassigned`, `null` | Assigned steward, or unassigned |
-| `exclude_assigned_to` | user ID, `unassigned`, `null` | Exclude assigned steward, or exclude unassigned |
-| `proposed_by` | user ID, `ai`, `none`, `null`, `unproposed` | Proposal creator. On `/proposed/`, this means the active proposal creator. On `/reviewed/`, this means historical proposal-note creator. `ai` means `genlayer-steward@genlayer.foundation`; `none`/`null`/`unproposed` means no creator |
-| `exclude_proposed_by` | user ID, `ai`, `none`, `null`, `unproposed` | Exclude proposal creator using the same active-vs-historical rule as `proposed_by` |
+| `assigned_to` | user ID, `unassigned`, `null`; comma-separated values accepted | Assigned steward, unassigned, or any of several assignments |
+| `exclude_assigned_to` | user ID, `unassigned`, `null`; comma-separated values accepted | Exclude assigned stewards and/or unassigned submissions |
+| `proposed_by` | user ID, `ai`, `none`, `null`, `unproposed`; comma-separated values accepted | Proposal creator. On `/proposed/`, this means the active proposal creator. On `/reviewed/`, this means historical proposal-note creator. `ai` means `genlayer-steward@genlayer.foundation`; `none`/`null`/`unproposed` means no creator |
+| `exclude_proposed_by` | user ID, `ai`, `none`, `null`, `unproposed`; comma-separated values accepted | Exclude proposal creators using the same active-vs-historical rule as `proposed_by` |
 | `search` | text | Match submitter name/email/address, notes, evidence URL, or evidence description |
 | `include_content` | comma-separated terms | Every term must match notes or evidence |
 | `exclude_content` | comma-separated terms | Exclude if any term matches notes or evidence |
@@ -152,7 +181,7 @@ Use the exact filter for the question being asked:
 |---|---|---|
 | Submissions currently waiting on submitter info | `/api/v1/ai-review/reviewed/` or steward search | `state=more_info_needed` |
 | Pending submissions resubmitted after more info was requested | `/api/v1/ai-review/` | `resubmitted_more_info=true` |
-| Active AI proposals recommending more info | `/api/v1/ai-review/proposed/` | `proposed_action=more_info` |
+| Active proposals recommending more info | `/api/v1/ai-review/proposed/` | `proposed_action=more_info` |
 | Reviewed submissions where final steward decision was more info | `/api/v1/ai-review/reviewed/` | `state=more_info_needed` |
 | Exclude current more-info submissions | Any list endpoint where state is not fixed | `exclude_state=more_info_needed` |
 
@@ -171,13 +200,25 @@ curl -s -H "X-AI-Review-Key: $KEY" \
 curl -s -H "X-AI-Review-Key: $KEY" \
   "$BASE_URL/api/v1/ai-review/?resubmitted_more_info=true"
 
-# Active AI more-info proposals.
+# Active more-info proposals from AI or human stewards.
 curl -s -H "X-AI-Review-Key: $KEY" \
   "$BASE_URL/api/v1/ai-review/proposed/?proposed_action=more_info"
 
 # Active low-confidence AI proposals.
 curl -s -H "X-AI-Review-Key: $KEY" \
-  "$BASE_URL/api/v1/ai-review/proposed/?proposed_confidence=low"
+  "$BASE_URL/api/v1/ai-review/proposed/?proposed_confidence=low&proposed_by=ai"
+
+# Active proposals assigned to and proposed by a specific steward.
+curl -s -H "X-AI-Review-Key: $KEY" \
+  "$BASE_URL/api/v1/ai-review/proposed/?assigned_to=123&proposed_by=123&page_size=20"
+
+# Exclude unassigned submissions and one steward's assigned submissions.
+curl -s -H "X-AI-Review-Key: $KEY" \
+  "$BASE_URL/api/v1/ai-review/?exclude_assigned_to=unassigned,123&page_size=20"
+
+# Equivalent active-proposal query through the main list endpoint.
+curl -s -H "X-AI-Review-Key: $KEY" \
+  "$BASE_URL/api/v1/ai-review/?has_proposal=true&assigned_to=123&proposed_by=123&page_size=20"
 
 # Reviewed AI-proposed submissions with final more-info state.
 curl -s -H "X-AI-Review-Key: $KEY" \
@@ -190,8 +231,8 @@ curl -s -H "X-AI-Review-Key: $KEY" \
 
 ## Endpoint Defaults And Conflicts
 
-- `/api/v1/ai-review/` is always pending and unproposed. Do not use `has_proposal=true` there.
-- `/api/v1/ai-review/proposed/` is always pending AI-created proposals. Use proposal filters there.
+- `/api/v1/ai-review/` defaults to pending and unproposed. Proposal filters such as `has_proposal=true`, `proposed_by`, `proposed_action`, `proposed_confidence`, or `proposed_template` opt into active proposals.
+- `/api/v1/ai-review/proposed/` is always pending active proposals from AI or human stewards. Use proposal filters there.
 - `/api/v1/ai-review/reviewed/` is historical calibration data. Do not propose from it.
 - Main `/api/v1/ai-review/` excludes appeals unless `has_appeal` is present.
 - `state=accepted`, `state=rejected`, or `state=more_info_needed` does not make sense on main `/api/v1/ai-review/` because that endpoint starts from pending submissions.
