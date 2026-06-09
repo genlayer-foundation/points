@@ -144,6 +144,12 @@ function shouldConsumeSpaceValue(tag, value, nextToken = '') {
   );
 }
 
+function canAppendSpaceValue(tag, value, nextToken = '') {
+  if (!shouldConsumeSpaceValue(tag, value, nextToken)) return false;
+  const next = String(nextToken || '');
+  return /^[A-Z0-9]/.test(next) || !String(value || '').includes(' ');
+}
+
 /**
  * Parse a search query string into structured filters.
  * @param {string} query
@@ -202,7 +208,7 @@ export function parseSearch(query) {
         while (
           i + 1 < tokens.length &&
           !isKnownTagToken(tokens[i + 1]) &&
-          isSpaceValueContinuation(tokens[i + 1])
+          canAppendSpaceValue(tagName, valueParts.join(' '), tokens[i + 1])
         ) {
           valueParts.push(tokens[i + 1]);
           i += 1;
@@ -233,7 +239,7 @@ export function parseSearch(query) {
       while (
         i + 1 < tokens.length &&
         !isKnownTagToken(tokens[i + 1]) &&
-        isSpaceValueContinuation(tokens[i + 1])
+        canAppendSpaceValue(tag, parsed.value, tokens[i + 1])
       ) {
         parsed.value += ` ${tokens[i + 1]}`;
         i += 1;
