@@ -34,7 +34,7 @@ RUN find . -name "*.pyc" -delete 2>/dev/null || true
 # Make startup script executable
 RUN chmod +x startup.sh \
     && mkdir -p staticfiles media \
-    && chown -R app:app /app
+    && chown -R app:app staticfiles media
 
 # Expose port
 EXPOSE 8000
