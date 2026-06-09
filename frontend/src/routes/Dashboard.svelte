@@ -248,7 +248,7 @@
     // Builder-only fetches
     if (cat === 'builder') {
       promises.push(
-        leaderboardAPI.getTrending(10).then(res => {
+        leaderboardAPI.getTrending(10, { category: cat }).then(res => {
           if (requestId !== dashboardRequestSequence) return;
           trendingEntries = res.data || [];
           trendingLoading = false;
@@ -378,7 +378,7 @@
         linkText="View all"
         linkPath="/leaderboard"
       />
-      <UserCardScroller entries={trendingEntries} loading={trendingLoading} />
+      <UserCardScroller entries={trendingEntries} loading={trendingLoading} showPointIncrease={true} />
     </div>
   {/if}
 

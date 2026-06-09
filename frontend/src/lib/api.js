@@ -137,7 +137,7 @@ export const leaderboardAPI = {
   getCommunity: (params = {}) => leaderboardAPI.getLeaderboard({ type: 'community', ...params }),
   getCommunityContributors: (params = {}) => leaderboardAPI.getLeaderboard({ type: 'community', ...params }),
   getReferrals: (params = {}) => api.get('/leaderboard/referrals/', { params }),
-  getTrending: (limit = 10) => api.get('/leaderboard/trending/', { params: { limit } }),
+  getTrending: (limit = 10, params = {}) => api.get('/leaderboard/trending/', { params: { limit, ...params } }),
   getTypes: () => api.get('/leaderboard/types/'),
   recalculateAll: () => api.post('/leaderboard/recalculate/')
 };

@@ -9,6 +9,7 @@ from contributions.models import (
     Mission,
     SubmittedContribution,
 )
+from builders.models import Builder
 from community_xp.models import Mee6CurrentXP, Mee6SyncRun
 from creators.models import Creator
 from leaderboard.models import GlobalLeaderboardMultiplier, ReferralPoints
@@ -488,3 +489,76 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(ranged_response.status_code, 200)
         self.assertEqual(ranged_response.data[0]['user'], contributor.id)
         self.assertEqual(ranged_response.data[0]['total_points'], contribution.frozen_global_points)
+
+    def test_trending_uses_top_earning_category_for_badge_and_points(self):
+        contributor = self._create_user(
+            'mixed-trending@example.com',
+            '0x0000000000000000000000000000000000000014'
+        )
+        Builder.objects.create(user=contributor)
+        Contribution.objects.create(
+            user=contributor,
+            contribution_type=self.builder_type,
+            points=20,
+            frozen_global_points=20,
+            contribution_date=timezone.now()
+        )
+        Contribution.objects.create(
+            user=contributor,
+            contribution_type=self.community_type,
+            points=55,
+            frozen_global_points=55,
+            contribution_date=timezone.now()
+        )
+
+        response = self.client.get('/api/v1/leaderboard/trending/', {'limit': 1})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]['user_address'], contributor.address)
+        self.assertTrue(response.data[0]['builder'])
+        self.assertEqual(response.data[0]['top_category'], 'community')
+        self.assertEqual(response.data[0]['top_category_points'], 55)
+        self.assertEqual(response.data[0]['total_points'], 55)
+
+    def test_trending_category_filter_only_returns_that_category_points(self):
+        builder_contributor = self._create_user(
+            'builder-trending@example.com',
+            '0x0000000000000000000000000000000000000015'
+        )
+        community_contributor = self._create_user(
+            'community-trending@example.com',
+            '0x0000000000000000000000000000000000000016'
+        )
+        Contribution.objects.create(
+            user=builder_contributor,
+            contribution_type=self.builder_type,
+            points=30,
+            frozen_global_points=30,
+            contribution_date=timezone.now()
+        )
+        Contribution.objects.create(
+            user=builder_contributor,
+            contribution_type=self.community_type,
+            points=80,
+            frozen_global_points=80,
+            contribution_date=timezone.now()
+        )
+        Contribution.objects.create(
+            user=community_contributor,
+            contribution_type=self.community_type,
+            points=100,
+            frozen_global_points=100,
+            contribution_date=timezone.now()
+        )
+
+        response = self.client.get('/api/v1/leaderboard/trending/', {
+            'limit': 10,
+            'category': 'builder',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['user_address'], builder_contributor.address)
+        self.assertEqual(response.data[0]['top_category'], 'builder')
+        self.assertEqual(response.data[0]['total_points'], 30)
+        self.assertEqual(response.data[0]['category_points'], {'builder': 30})

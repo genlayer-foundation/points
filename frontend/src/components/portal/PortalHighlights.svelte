@@ -1,5 +1,4 @@
 <script>
-  import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { contributionsAPI } from '../../lib/api.js';
   import HighlightsSlider from './HighlightsSlider.svelte';
@@ -8,6 +7,7 @@
 
   let highlights = $state([]);
   let loading = $state(true);
+  let requestSequence = 0;
 
   function getHighlightsPath() {
     const params = new URLSearchParams({ view: 'highlights' });
@@ -15,19 +15,38 @@
     return `/all-contributions?${params.toString()}`;
   }
 
-  onMount(async () => {
+  function getFeaturedSortTime(highlight) {
+    const value = highlight?.featured_at || highlight?.created_at || highlight?.contribution_date;
+    const time = value ? new Date(value).getTime() : 0;
+    return Number.isNaN(time) ? 0 : time;
+  }
+
+  async function fetchHighlights() {
+    const requestId = ++requestSequence;
+    loading = true;
     try {
       const params = {};
       if (category) params.category = category;
       const response = await contributionsAPI.getAllHighlights(params);
+      if (requestId !== requestSequence) return;
       const all = Array.isArray(response.data) ? response.data : (response.data?.results || []);
-      // Sort newest first and cap to `limit` so the slider always shows the latest highlights
+      // Sort newest featured first and cap to `limit` so the slider always shows the latest highlights
       highlights = [...all]
-        .sort((a, b) => new Date(b.contribution_date) - new Date(a.contribution_date))
+        .sort((a, b) => getFeaturedSortTime(b) - getFeaturedSortTime(a))
         .slice(0, limit);
+    } catch (err) {
+      if (requestId !== requestSequence) return;
+      console.error('Failed to load portal highlights', { category, requestId, err });
+      highlights = [];
     } finally {
-      loading = false;
+      if (requestId === requestSequence) loading = false;
     }
+  }
+
+  $effect(() => {
+    void category;
+    void limit;
+    fetchHighlights();
   });
 </script>
 

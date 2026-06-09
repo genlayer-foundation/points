@@ -58,6 +58,12 @@
     }
   };
 
+  function getFeaturedSortTime(highlight) {
+    const value = highlight?.featured_at || highlight?.created_at || highlight?.contribution_date;
+    const time = value ? new Date(value).getTime() : 0;
+    return Number.isNaN(time) ? 0 : time;
+  }
+
   const toggleExpanded = (highlightId) => {
     if (expandedHighlights.has(highlightId)) {
       expandedHighlights.delete(highlightId);
@@ -94,7 +100,8 @@
         response = await contributionsAPI.getAllHighlights(params);
       }
       
-      highlights = response.data || [];
+      const all = Array.isArray(response.data) ? response.data : (response.data?.results || []);
+      highlights = [...all].sort((a, b) => getFeaturedSortTime(b) - getFeaturedSortTime(a));
       loading = false;
     } catch (err) {
       error = err.message || 'Failed to load highlighted contributions';

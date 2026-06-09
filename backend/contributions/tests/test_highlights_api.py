@@ -81,6 +81,51 @@ class ContributionHighlightsAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 12)
 
+    def test_highlights_order_by_featured_date_before_contribution_date(self):
+        old_contribution = Contribution.objects.create(
+            user=User.objects.create_user(
+                email='featured-old-contrib@test.com',
+                address='0x0000000000000000000000000000000000000101',
+                password='testpass123',
+            ),
+            contribution_type=self.contribution_type,
+            points=10,
+            contribution_date=timezone.now() - timedelta(days=20),
+            title='Old contribution featured recently',
+        )
+        recent_contribution = Contribution.objects.create(
+            user=User.objects.create_user(
+                email='featured-recent-contrib@test.com',
+                address='0x0000000000000000000000000000000000000102',
+                password='testpass123',
+            ),
+            contribution_type=self.contribution_type,
+            points=10,
+            contribution_date=timezone.now(),
+            title='Recent contribution featured earlier',
+        )
+        newer_highlight = ContributionHighlight.objects.create(
+            contribution=old_contribution,
+            title='Newest featured',
+            description='Featured after the newer contribution',
+        )
+        older_highlight = ContributionHighlight.objects.create(
+            contribution=recent_contribution,
+            title='Older featured',
+            description='Featured before the older contribution',
+        )
+        ContributionHighlight.objects.filter(id=newer_highlight.id).update(
+            created_at=timezone.now()
+        )
+        ContributionHighlight.objects.filter(id=older_highlight.id).update(
+            created_at=timezone.now() - timedelta(days=5)
+        )
+
+        response = self.client.get('/api/v1/contributions/highlights/?limit=0')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()[0]['title'], 'Newest featured')
+
     def test_highlights_rejects_negative_limit(self):
         response = self.client.get('/api/v1/contributions/highlights/?limit=-1')
 
