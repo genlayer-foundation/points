@@ -34,6 +34,10 @@
       highlights = [...all]
         .sort((a, b) => getFeaturedSortTime(b) - getFeaturedSortTime(a))
         .slice(0, limit);
+    } catch (err) {
+      if (requestId !== requestSequence) return;
+      console.error('Failed to load portal highlights', { category, requestId, err });
+      highlights = [];
     } finally {
       if (requestId === requestSequence) loading = false;
     }

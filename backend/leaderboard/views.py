@@ -922,7 +922,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
 
         cutoff = timezone.now() - timedelta(days=30)
 
-        def build_points_query(recent_only=True):
+        def build_points_query(*, recent_only=True):
             query = Contribution.objects.filter(user__visible=True)
             if recent_only:
                 query = query.filter(created_at__gte=cutoff)
@@ -978,7 +978,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         if not trending_users:
             trending_users = summarize_by_user(build_points_query(recent_only=False))
 
-        # Legacy fallback if there are contributions without category joins
+        # Legacy recent fallback for older Contribution rows that cannot join a
+        # category; only runs when trending_users is still empty and category_slug
+        # was not requested.
         if not trending_users and not category_slug:
             trending_users = list(
                 Contribution.objects.filter(
@@ -990,6 +992,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 .order_by('-total_recent_points')[:limit]
             )
 
+        # Final legacy all-time fallback without cutoff when the recent legacy
+        # Contribution aggregation still produced no trending_users.
         if not trending_users and not category_slug:
             trending_users = list(
                 Contribution.objects.filter(user__visible=True)
