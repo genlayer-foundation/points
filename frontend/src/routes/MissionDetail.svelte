@@ -2,9 +2,9 @@
   // @ts-nocheck
   import { onMount } from 'svelte';
   import { format } from 'date-fns';
-  import { marked } from 'marked';
   import { push } from 'svelte-spa-router';
   import { contributionsAPI } from '../lib/api';
+  import { parseMarkdown } from '../lib/markdownLoader.js';
   import PortalContributionCard from '../components/portal/PortalContributionCard.svelte';
   import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
 
@@ -42,20 +42,6 @@
       label: 'Steward',
     },
   };
-
-  const renderer = new marked.Renderer();
-  renderer.link = function({ href, title, text }) {
-    const safeHref = href || '#';
-    return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer"${title ? ` title="${title}"` : ''}>${text}</a>`;
-  };
-
-  marked.setOptions({
-    breaks: true,
-    gfm: true,
-    headerIds: false,
-    mangle: false,
-    renderer,
-  });
 
   let mission = $state(null);
   let contributionType = $state(null);
@@ -117,13 +103,10 @@
     return Number(value || 0).toLocaleString();
   }
 
+  // Mission descriptions come from the API; always sanitize before {@html}.
   function renderMarkdown(text) {
     if (!text) return '';
-    try {
-      return marked.parse(text);
-    } catch {
-      return text;
-    }
+    return parseMarkdown(text);
   }
 
   function scrollContributions(direction) {

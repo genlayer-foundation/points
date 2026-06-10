@@ -548,8 +548,12 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                 )
         except Exception as e:
             logger.warning(f"Failed to check balance: {str(e)}")
-            # If we can't check balance, we'll allow proceeding (fail open)
-            pass
+            # Fail closed: completing the journey awards points, so an RPC
+            # outage must not become a bypass of the balance requirement.
+            return Response(
+                {'error': 'Unable to verify your testnet balance right now. Please try again in a few minutes.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
         
         # All requirements met, create the BUILDER contribution and Builder profile atomically
         try:

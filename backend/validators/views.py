@@ -6,6 +6,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+
+from utils.throttling import WalletLinkRateThrottle
 from django.shortcuts import get_object_or_404
 from django.db.models import Min, Q, Count
 from django.db import IntegrityError, transaction
@@ -226,11 +228,17 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             'total_count': wallets.count()
         })
 
-    @action(detail=False, methods=['post'], url_path='link-by-operator')
+    @action(detail=False, methods=['post'], url_path='link-by-operator',
+            throttle_classes=[WalletLinkRateThrottle])
     def link_by_operator(self, request):
         """
         Link validator wallets to the current user by operator address.
         Only available for validators who don't have any wallets linked yet.
+
+        NOTE: linking is first-come-first-served on a public operator address
+        and carries no cryptographic ownership proof; the throttle bounds
+        mass-claiming, and mistaken/abusive links are logged and reversible
+        by staff via the admin.
         """
         user = request.user
 
@@ -259,25 +267,44 @@ class ValidatorViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Find wallets with this operator_address
-        wallets = ValidatorWallet.objects.filter(operator_address__iexact=operator_address)
-
-        if not wallets.exists():
-            return Response(
-                {'error': 'No validator wallets found for this operator address'},
-                status=status.HTTP_404_NOT_FOUND
+        # Claim atomically: lock the matching wallet rows so two concurrent
+        # requests cannot both pass the "not linked yet" checks and link the
+        # same operator (or give one user two operators).
+        with transaction.atomic():
+            wallets = (
+                ValidatorWallet.objects
+                .select_for_update()
+                .filter(operator_address__iexact=operator_address)
             )
 
-        # Check if any wallet is already linked to another validator
-        already_linked = wallets.exclude(operator__isnull=True).first()
-        if already_linked:
-            return Response(
-                {'error': 'This operator address is already linked to another validator'},
-                status=status.HTTP_409_CONFLICT
-            )
+            if not wallets.exists():
+                return Response(
+                    {'error': 'No validator wallets found for this operator address'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
-        # Link all wallets to this validator
-        count = wallets.update(operator=validator)
+            # Re-check under the lock that the caller still has no wallets
+            if ValidatorWallet.objects.filter(operator=validator).exists():
+                return Response(
+                    {'error': 'You already have validator wallets linked'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Check if any wallet is already linked to another validator
+            already_linked = wallets.exclude(operator__isnull=True).first()
+            if already_linked:
+                return Response(
+                    {'error': 'This operator address is already linked to another validator'},
+                    status=status.HTTP_409_CONFLICT
+                )
+
+            # Link all wallets to this validator
+            count = wallets.update(operator=validator)
+
+        logger.info(
+            "Validator wallet link: user=%s (id=%s) claimed %s wallet(s) for operator %s",
+            user.address, user.id, count, operator_address,
+        )
 
         return Response({
             'success': True,

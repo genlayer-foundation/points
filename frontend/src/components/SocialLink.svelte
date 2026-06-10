@@ -63,6 +63,9 @@
 
   // Primary: postMessage from the OAuth popup
   function onMessageEvent(e) {
+    // The OAuth popup is this same portal, so only accept results posted
+    // from our own origin; any other window could post a spoofed result.
+    if (e.origin !== window.location.origin) return;
     if (e.data?.type !== 'oauth_result') return;
     if (e.data?.platform !== platform) return;
     if (!hasPendingOAuth()) return;

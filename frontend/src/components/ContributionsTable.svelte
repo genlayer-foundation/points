@@ -4,6 +4,7 @@
   import Badge from './Badge.svelte';
   import Avatar from './Avatar.svelte';
   import { contributionsAPI } from '../lib/api';
+  import { isSafeHttpUrl } from '../lib/urlSafety.js';
 
   let {
     title = 'Recent Contributions',
@@ -247,10 +248,10 @@
                         <h4 class="text-sm font-semibold text-gray-700 mb-2">Evidence</h4>
                         <div class="flex flex-wrap gap-3">
                           {#each contribution.evidence_items as evidence}
-                            {#if evidence.url || evidence.file_url}
+                            {#if isSafeHttpUrl(evidence.url) || isSafeHttpUrl(evidence.file_url)}
                               <!-- Clickable evidence with URL or file -->
                               <a
-                                href={evidence.url || evidence.file_url}
+                                href={isSafeHttpUrl(evidence.url) ? evidence.url : evidence.file_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 class="group flex items-center gap-2 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 hover:border-primary-300 p-3 max-w-sm transition-all duration-200 cursor-pointer"

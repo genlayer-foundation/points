@@ -1,9 +1,9 @@
 <script>
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
-  import { marked } from 'marked';
   import { contributionsAPI } from '../lib/api';
   import { showError } from '../lib/toastStore';
+  import { parseMarkdown } from '../lib/markdownLoader.js';
   import Icons from '../components/Icons.svelte';
 
   // Props from router
@@ -15,28 +15,10 @@
   let error = $state(null);
   let expandedDoc = $state(null);
 
-  // Configure marked options for security and links
-  const renderer = new marked.Renderer();
-  renderer.link = function({ href, title, text }) {
-    const safeHref = href || '#';
-    return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer"${title ? ` title="${title}"` : ''}>${text}</a>`;
-  };
-
-  marked.setOptions({
-    breaks: true,
-    gfm: true,
-    headerIds: false,
-    mangle: false,
-    renderer: renderer
-  });
-
+  // Startup request descriptions come from the API; always sanitize before {@html}.
   function renderMarkdown(text) {
     if (!text) return '';
-    try {
-      return marked.parse(text);
-    } catch (err) {
-      return text;
-    }
+    return parseMarkdown(text);
   }
 
   async function fetchStartupRequest() {

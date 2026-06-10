@@ -6,11 +6,13 @@ services:
     environment:
       POSTGRES_DB: tally_db
       POSTGRES_USER: tally_user
-      POSTGRES_PASSWORD: tally_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tally_password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      # Bind to loopback only so the dev database is never exposed on the
+      # machine's network interfaces
+      - "127.0.0.1:5432:5432"
 
   web:
     build: .
@@ -18,8 +20,10 @@ services:
       - "8000:8000"
     environment:
       - DEBUG=True
-      - SECRET_KEY=your-development-secret-key
-      - DATABASE_URL=postgresql://tally_user:tally_password@db:5432/tally_db
+      # Provide via environment or a .env file next to this compose file;
+      # the fallback is dev-only and DEBUG-only.
+      - SECRET_KEY=${SECRET_KEY:-dev-only-insecure-secret-key}
+      - DATABASE_URL=postgresql://tally_user:${POSTGRES_PASSWORD:-tally_password}@db:5432/tally_db
       - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
       - FRONTEND_URL=http://localhost:5173
       - SIWE_DOMAIN=localhost:5173

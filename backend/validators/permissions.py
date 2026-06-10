@@ -1,3 +1,5 @@
+import hmac
+
 from rest_framework.permissions import BasePermission
 from django.conf import settings
 
@@ -11,4 +13,8 @@ class IsCronToken(BasePermission):
     def has_permission(self, request, view):
         token = request.headers.get('X-Cron-Token')
         expected_token = getattr(settings, 'CRON_SYNC_TOKEN', '')
-        return token and expected_token and token == expected_token
+        # Constant-time comparison so the token can't be recovered via timing
+        return bool(
+            token and expected_token
+            and hmac.compare_digest(str(token), str(expected_token))
+        )

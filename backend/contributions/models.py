@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.utils import timezone
@@ -840,7 +841,13 @@ class Evidence(BaseModel):
     )
     
     description = models.TextField(blank=True, help_text="Description of the evidence")
-    url = models.URLField(blank=True, help_text="Link to external evidence")
+    url = models.URLField(
+        blank=True,
+        help_text="Link to external evidence",
+        # Evidence links are rendered as anchors across the portal: only
+        # web URLs are acceptable (no ftp/file/custom schemes).
+        validators=[URLValidator(schemes=['http', 'https'])],
+    )
     url_type = models.ForeignKey(
         'EvidenceURLType',
         null=True,

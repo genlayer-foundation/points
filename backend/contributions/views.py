@@ -470,6 +470,26 @@ class EvidenceViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-created_at']
     parser_classes = [MultiPartParser, FormParser]
 
+    def get_queryset(self):
+        """
+        Evidence attached to accepted contributions is public review material;
+        evidence on pending/rejected submissions is only visible to its owner,
+        to staff, and to stewards holding a permission on the submission's
+        contribution type (mirroring StewardSubmissionViewSet visibility).
+        """
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_staff:
+            return queryset
+        visible = Q(contribution__isnull=False) | Q(submitted_contribution__user=user)
+        if hasattr(user, 'steward'):
+            permitted_type_ids = steward_permitted_type_ids(
+                user,
+                actions=['accept', 'reject', 'request_more_info', 'propose'],
+            )
+            visible |= Q(submitted_contribution__contribution_type_id__in=permitted_type_ids)
+        return queryset.filter(visible)
+
 
 # Staff-only Django views for managing submissions
 def is_staff(user):
@@ -1768,9 +1788,15 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
 
-class StewardSubmissionViewSet(viewsets.ModelViewSet):
+class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint for stewards to review submissions.
+
+    Read-only at the router level: all writes go through the explicit custom
+    actions below (review, propose, update-accepted, etc.), each of which
+    enforces per-contribution-type steward permissions. The default
+    POST/PUT/PATCH/DELETE routes are intentionally not exposed so submissions
+    cannot be mutated or deleted outside the audited review flows.
     """
     serializer_class = StewardSubmissionSerializer
     authentication_classes = [EthereumAuthentication]
@@ -2426,12 +2452,32 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         
         return Response(user_data)
 
+    def _check_type_permission(self, request, submission):
+        """
+        Require the steward to hold at least one permission (review or propose)
+        on the submission's contribution type. Returns a 403 response when the
+        check fails, or None when the steward is permitted.
+        """
+        permitted_type_ids = steward_permitted_type_ids(
+            request.user,
+            actions=['accept', 'reject', 'request_more_info', 'propose'],
+        )
+        if submission.contribution_type_id not in permitted_type_ids:
+            return Response(
+                {'detail': 'You do not have permission to manage submissions of this contribution type.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return None
+
     @action(detail=True, methods=['post'], permission_classes=[IsSteward])
     def assign(self, request, pk=None):
         """Assign submission to a steward."""
         from users.models import User
 
         submission = self.get_object()
+        permission_response = self._check_type_permission(request, submission)
+        if permission_response is not None:
+            return permission_response
         steward_id = request.data.get('steward_id')
 
         if steward_id is None:
@@ -2464,6 +2510,9 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     def toggle_interesting(self, request, pk=None):
         """Toggle (or set) the internal `is_interesting` flag on a submission."""
         submission = self.get_object()
+        permission_response = self._check_type_permission(request, submission)
+        if permission_response is not None:
+            return permission_response
 
         if 'is_interesting' in request.data:
             field = serializers.BooleanField()
@@ -2700,6 +2749,9 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
     def notes(self, request, pk=None):
         """List or create CRM notes on a submission."""
         submission = self.get_object()
+        permission_response = self._check_type_permission(request, submission)
+        if permission_response is not None:
+            return permission_response
 
         if request.method == 'GET':
             notes = submission.internal_notes.select_related('user').all()
@@ -2751,9 +2803,10 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         note.save(update_fields=['message', 'updated_at'])
         return Response(SubmissionNoteSerializer(note).data)
 
-    @action(detail=False, methods=['get'], url_path='ban-appeals')
+    @action(detail=False, methods=['get'], url_path='ban-appeals',
+            permission_classes=[permissions.IsAdminUser])
     def ban_appeals(self, request):
-        """List ban appeals, optionally filtered by status."""
+        """List ban appeals, optionally filtered by status. Staff only."""
         from users.models import BanAppeal
         from users.serializers import BanAppealSerializer
 
@@ -2768,9 +2821,11 @@ class StewardSubmissionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['post'],
-            url_path='ban-appeals/(?P<appeal_id>[^/.]+)/review')
+            url_path='ban-appeals/(?P<appeal_id>[^/.]+)/review',
+            permission_classes=[permissions.IsAdminUser])
     def review_ban_appeal(self, request, appeal_id=None):
-        """Approve or deny a ban appeal."""
+        """Approve or deny a ban appeal. Staff only: approving unbans the user,
+        which is account-level moderation power beyond steward review scope."""
         from users.models import BanAppeal
         from users.serializers import BanAppealReviewSerializer, BanAppealSerializer
 
@@ -2889,6 +2944,13 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             elif not include_inactive:
                 queryset = queryset.filter(active_q)
 
+        # Unstarted missions are unannounced content: public callers may see
+        # expired missions (needed for historical filters and detail pages),
+        # but only stewards/staff can see missions that have not started yet.
+        # This applies to every action, including retrieve.
+        if not self._is_privileged_user():
+            queryset = queryset.exclude(start_date__gt=timezone.now())
+
         # Filter by contribution type if specified
         contribution_type = self.request.query_params.get('contribution_type', None)
         if contribution_type:
@@ -2900,6 +2962,11 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(contribution_type__category__slug=category)
 
         return queryset
+
+    def _is_privileged_user(self):
+        """Stewards and staff may see unstarted (unannounced) missions."""
+        user = self.request.user
+        return user.is_authenticated and (user.is_staff or hasattr(user, 'steward'))
 
     @staticmethod
     def _active_mission_q():
@@ -2915,8 +2982,12 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
     def stats(self, request, pk=None):
         # Stats must remain available for expired missions; get_queryset()
-        # intentionally filters them out for list views.
-        mission = get_object_or_404(Mission, pk=pk)
+        # intentionally filters them out for list views. Unstarted missions,
+        # however, stay hidden from non-steward/non-staff callers.
+        mission_qs = Mission.objects.all()
+        if not self._is_privileged_user():
+            mission_qs = mission_qs.exclude(start_date__gt=timezone.now())
+        mission = get_object_or_404(mission_qs, pk=pk)
         stats = Contribution.objects.filter(mission=mission).aggregate(
             unique_users=Count('user', distinct=True),
             contributions_count=Count('id'),
