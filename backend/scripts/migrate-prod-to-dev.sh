@@ -485,17 +485,28 @@ setup_django() {
     echo -e "${YELLOW}Running Django migrations...${NC}"
     DATABASE_URL="$DEV_DATABASE_URL" python manage.py migrate
     
-    # Create admin user
+    # Create admin user.
+    # The dev database holds prod-derived data and can be network-reachable,
+    # so the superuser password must never be a fixed default. Provide one
+    # via DEV_ADMIN_PASSWORD or let the script generate a random one.
     echo -e "${YELLOW}Creating/updating admin user (dev@genlayer.foundation)...${NC}"
-    
-    DATABASE_URL="$DEV_DATABASE_URL" python manage.py shell << 'EOF'
+
+    GENERATED_ADMIN_PASSWORD=false
+    if [ -z "$DEV_ADMIN_PASSWORD" ]; then
+        DEV_ADMIN_PASSWORD=$(python -c "import secrets; print(secrets.token_urlsafe(16))")
+        GENERATED_ADMIN_PASSWORD=true
+    fi
+
+    DATABASE_URL="$DEV_DATABASE_URL" DEV_ADMIN_PASSWORD="$DEV_ADMIN_PASSWORD" python manage.py shell << 'EOF'
+import os
+
 from django.contrib.auth import get_user_model
 from stewards.models import Steward
 
 User = get_user_model()
 
 email = 'dev@genlayer.foundation'
-password = 'password'
+password = os.environ['DEV_ADMIN_PASSWORD']
 
 try:
     user = User.objects.get(email=email)
@@ -531,17 +542,21 @@ except User.DoesNotExist:
 
 print(f"\nAdmin User Details:")
 print(f"Email: {email}")
-print(f"Password: password")
 print(f"Is Steward: {Steward.objects.filter(user=user).exists()}")
 print(f"Is Superuser: {user.is_superuser}")
 print(f"Is Staff: {user.is_staff}")
 EOF
-    
+
     echo -e "${GREEN}Setup complete!${NC}"
     echo ""
     echo "Admin user credentials:"
     echo "  Email: dev@genlayer.foundation"
-    echo "  Password: password"
+    if [ "$GENERATED_ADMIN_PASSWORD" = true ]; then
+        echo "  Password: $DEV_ADMIN_PASSWORD"
+        echo "  (randomly generated; export DEV_ADMIN_PASSWORD to choose your own)"
+    else
+        echo "  Password: (from DEV_ADMIN_PASSWORD environment variable)"
+    fi
 }
 
 # Main execution
