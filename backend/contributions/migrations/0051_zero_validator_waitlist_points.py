@@ -16,13 +16,8 @@ def zero_validator_waitlist_points(apps, schema_editor):
         frozen_global_points=0,
     )
 
-    # recalculate_all_leaderboards uses live models and queries tables from
-    # apps whose migrations may not have run yet on a fresh database (tests,
-    # new dev environments). With no contributions there is nothing to
-    # recalculate, so skip it there.
-    if Contribution.objects.exists():
-        from leaderboard.models import recalculate_all_leaderboards
-        recalculate_all_leaderboards()
+    from leaderboard.models import recalculate_all_leaderboards
+    recalculate_all_leaderboards()
 
 
 def restore_validator_waitlist_points(apps, schema_editor):

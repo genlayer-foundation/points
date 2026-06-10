@@ -282,6 +282,61 @@ class NotificationAPITests(TestCase):
         response = client.get('/api/v1/notifications/')
         self.assertIn(response.status_code, (401, 403))
 
+    def test_category_filter(self):
+        services.broadcast_partner(self.partner)  # category: content
+        services.notify(
+            'referral.joined',  # category: community
+            recipient=self.user,
+            title='Your referral joined the portal',
+        )
+
+        response = self.client.get('/api/v1/notifications/', {'category': 'community'})
+        results = response.data['results']
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['category'], 'community')
+
+    def test_pagination(self):
+        for i in range(5):
+            services.notify(
+                'referral.joined',
+                recipient=self.user,
+                title=f'Referral {i} joined',
+            )
+
+        response = self.client.get('/api/v1/notifications/', {'page_size': 2})
+        self.assertEqual(response.data['count'], 5)
+        self.assertEqual(len(response.data['results']), 2)
+        self.assertIsNotNone(response.data['next'])
+        self.assertIsNone(response.data['previous'])
+
+        response = self.client.get('/api/v1/notifications/', {'page_size': 2, 'page': 3})
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertIsNone(response.data['next'])
+
+    def test_user_cannot_see_other_users_personal_notifications(self):
+        other_user = make_user('other-iso@test.com', '0x7777777777777777777777777777777777777777')
+        foreign = services.notify(
+            'referral.joined',
+            recipient=other_user,
+            title='Other user referral joined',
+        )
+
+        response = self.client.get('/api/v1/notifications/')
+        self.assertNotIn(foreign.pk, [item['id'] for item in response.data['results']])
+
+    def test_user_cannot_mark_other_users_notification_read(self):
+        other_user = make_user('other-iso@test.com', '0x7777777777777777777777777777777777777777')
+        foreign = services.notify(
+            'referral.joined',
+            recipient=other_user,
+            title='Other user referral joined',
+        )
+
+        response = self.client.post(f'/api/v1/notifications/{foreign.pk}/mark-read/')
+        self.assertEqual(response.status_code, 404)
+        foreign.refresh_from_db()
+        self.assertIsNone(foreign.read_at)
+
 
 class BroadcastAdminMixinTests(TestCase):
     def setUp(self):
