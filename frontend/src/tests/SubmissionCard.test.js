@@ -365,7 +365,7 @@ describe('SubmissionCard', () => {
             name: 'Builder Project',
             category: 'builder',
             min_points: 0,
-            max_points: 100,
+            max_points: 200,
             review_flow: 'builder_project'
           }
         ],
@@ -391,7 +391,7 @@ describe('SubmissionCard', () => {
 
     await fireEvent.click(screen.getByLabelText('Demo video'));
     await waitFor(() => {
-      expect(pointsInput.value).toBe('50');
+      expect(pointsInput.value).toBe('100');
     });
 
     await fireEvent.input(pointsInput, { target: { value: '7' } });
