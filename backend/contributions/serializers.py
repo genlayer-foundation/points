@@ -1164,8 +1164,19 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                   'has_appeal', 'appeal_reason',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution',
                   'mission']
-        read_only_fields = ['id', 'created_at', 'updated_at', 'proposed_points', 'is_interesting',
-                            'has_appeal', 'appeal_reason']
+        # Every model-backed field is read-only: this serializer only renders
+        # steward review data. State transitions, proposals and reviewer
+        # attribution are written exclusively by the viewset's custom actions,
+        # never through serializer input.
+        read_only_fields = ['id', 'user', 'contribution_type', 'contribution_date', 'notes',
+                            'title', 'state', 'staff_reply', 'reviewed_by', 'reviewed_at',
+                            'proposed_action', 'proposed_contribution_type', 'proposed_user',
+                            'proposed_staff_reply', 'proposed_create_highlight',
+                            'proposed_highlight_title', 'proposed_highlight_description',
+                            'proposed_by', 'proposed_at', 'proposed_confidence', 'proposed_template',
+                            'created_at', 'updated_at', 'last_edited_at', 'proposed_points',
+                            'is_interesting', 'has_appeal', 'appeal_reason',
+                            'converted_contribution', 'mission']
 
     def get_user_details(self, obj):
         use_light = self.context.get('use_light_serializers', False)
