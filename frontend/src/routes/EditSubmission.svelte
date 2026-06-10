@@ -9,6 +9,7 @@
   import { userStore } from '../lib/userStore';
   import { getContributionTypes } from '../lib/api/contributions.js';
   import { parseMarkdown } from '../lib/markdownLoader.js';
+  import { isSafeHttpUrl } from '../lib/urlSafety.js';
 
   let { params = {} } = $props();
 
@@ -447,6 +448,11 @@
       }
       if (hasUrl && !hasDescription) {
         error = `Evidence ${i + 1}: Please provide a description along with the URL`;
+        return;
+      }
+      // Same scheme/format validation SubmitContribution applies on create
+      if (hasUrl && !isSafeHttpUrl(normalizeUrl(slot.url.trim()))) {
+        error = `Evidence ${i + 1}: Please enter a valid http(s) URL`;
         return;
       }
     }

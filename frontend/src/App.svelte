@@ -29,9 +29,12 @@
           error: params.get('oauth_error') || '',
         };
 
-        // Primary: postMessage to opener (standard OAuth popup pattern)
+        // Primary: postMessage to opener (standard OAuth popup pattern).
+        // The opener is always this same portal, so target our own origin
+        // instead of '*' to keep the result from being readable by any
+        // window that managed to open this page.
         if (window.opener) {
-          window.opener.postMessage(result, '*');
+          window.opener.postMessage(result, window.location.origin);
         }
 
         // Fallback: localStorage for when window.opener is null (Safari)

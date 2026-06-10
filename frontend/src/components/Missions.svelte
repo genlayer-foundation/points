@@ -2,8 +2,8 @@
   // @ts-nocheck
   import { onMount, onDestroy } from 'svelte';
   import { push } from 'svelte-spa-router';
-  import { marked } from 'marked';
   import { contributionsAPI } from '../lib/api';
+  import { parseMarkdown } from '../lib/markdownLoader.js';
   import { showError } from '../lib/toastStore';
   import { currentCategory } from '../stores/category.js';
   import { getPioneerContributionsColors } from '../lib/categoryColors.js';
@@ -19,23 +19,6 @@
 
   // Character limit for truncating description
   const DESCRIPTION_CHAR_LIMIT = 150;
-
-  // Configure marked options for security and links
-  const renderer = new marked.Renderer();
-  // In marked v5+, the renderer receives a token object
-  renderer.link = function({ href, title, text }) {
-    // Handle undefined/null href values
-    const safeHref = href || '#';
-    return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer"${title ? ` title="${title}"` : ''}>${text}</a>`;
-  };
-
-  marked.setOptions({
-    breaks: true,
-    gfm: true,
-    headerIds: false,
-    mangle: false,
-    renderer: renderer
-  });
 
   async function fetchMissions() {
     try {
@@ -139,13 +122,10 @@
     expandedMissions = newExpanded;
   }
 
+  // Mission descriptions come from the API; always sanitize before {@html}.
   function renderMarkdown(text) {
     if (!text) return '';
-    try {
-      return marked.parse(text);
-    } catch (error) {
-      return text;
-    }
+    return parseMarkdown(text);
   }
 
   function needsExpansion(text) {

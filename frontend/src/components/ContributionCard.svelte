@@ -5,6 +5,7 @@
   import Avatar from './Avatar.svelte';
   import Icons from './Icons.svelte';
   import { parseMarkdown } from '../lib/markdownLoader.js';
+  import { isSafeHttpUrl } from '../lib/urlSafety.js';
 
   let {
     contribution,
@@ -190,13 +191,13 @@
                   {#if evidence.description}
                     • {evidence.description}
                   {/if}
-                  {#if evidence.url}
-                    <a href={evidence.url} target="_blank" class="{categoryColors.text} underline ml-1">
+                  {#if isSafeHttpUrl(evidence.url)}
+                    <a href={evidence.url} target="_blank" rel="noopener noreferrer" class="{categoryColors.text} underline ml-1">
                       View URL
                     </a>
                   {/if}
-                  {#if evidence.file_url}
-                    <a href={evidence.file_url} target="_blank" class="{categoryColors.text} underline ml-1">
+                  {#if isSafeHttpUrl(evidence.file_url)}
+                    <a href={evidence.file_url} target="_blank" rel="noopener noreferrer" class="{categoryColors.text} underline ml-1">
                       View File
                     </a>
                   {/if}

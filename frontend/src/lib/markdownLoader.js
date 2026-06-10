@@ -36,6 +36,19 @@ const SANITIZE_CONFIG = {
   FORBID_ATTR: ['style']
 };
 
+// External links in sanitized markdown open in a new tab with a safe rel.
+// This runs after sanitization, so target/rel don't need to be allowed
+// attributes (which would let content authors set arbitrary values).
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.tagName === 'A') {
+    const href = node.getAttribute('href') || '';
+    if (/^https?:/i.test(href)) {
+      node.setAttribute('target', '_blank');
+      node.setAttribute('rel', 'noopener noreferrer');
+    }
+  }
+});
+
 // Configure marked with minimal settings for legal documents
 marked.setOptions({
   breaks: true,            // Convert line breaks to <br> tags

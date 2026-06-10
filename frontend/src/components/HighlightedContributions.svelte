@@ -5,6 +5,7 @@
   import { contributionsAPI, usersAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
   import { parseMarkdown } from '../lib/markdownLoader.js';
+  import { isSafeHttpUrl } from '../lib/urlSafety.js';
   import Avatar from './Avatar.svelte';
   import Badge from './Badge.svelte';
   import ContributionCard from './ContributionCard.svelte';
@@ -292,8 +293,8 @@
                       {#if evidence.description}
                         • {evidence.description}
                       {/if}
-                      {#if evidence.url}
-                        <a href={evidence.url} target="_blank" class="text-primary-600 underline ml-1">
+                      {#if isSafeHttpUrl(evidence.url)}
+                        <a href={evidence.url} target="_blank" rel="noopener noreferrer" class="text-primary-600 underline ml-1">
                           View URL
                         </a>
                       {/if}
@@ -391,8 +392,8 @@
                         {#if evidence.description}
                           • {evidence.description}
                         {/if}
-                        {#if evidence.url}
-                          <a href={evidence.url} target="_blank" class="text-primary-600 underline ml-1">
+                        {#if isSafeHttpUrl(evidence.url)}
+                          <a href={evidence.url} target="_blank" rel="noopener noreferrer" class="text-primary-600 underline ml-1">
                             View URL
                           </a>
                         {/if}

@@ -1,6 +1,7 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { contributionsAPI } from '../lib/api';
+  import { isSafeHttpUrl } from '../lib/urlSafety.js';
   import { format } from 'date-fns';
   import Icons from './Icons.svelte';
 
@@ -197,7 +198,7 @@
                             {#each contribution.evidence_items as evidence}
                               <div class="flex items-center gap-1">
                                 <span class="text-gray-500">Evidence:</span>
-                                {#if evidence.url}
+                                {#if isSafeHttpUrl(evidence.url)}
                                   <a
                                     href={evidence.url}
                                     target="_blank"
