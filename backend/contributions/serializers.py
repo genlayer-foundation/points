@@ -494,7 +494,10 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
         from datetime import timedelta
 
         if value and value > timezone.now() + timedelta(minutes=5):
-            raise serializers.ValidationError('Contribution date cannot be in the future.')
+            raise serializers.ValidationError(
+                'Contribution date cannot be in the future. '
+                'Please check your device clock or use the current date.'
+            )
         return value
 
     def validate(self, data):

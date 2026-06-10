@@ -473,16 +473,22 @@ class EvidenceViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         """
         Evidence attached to accepted contributions is public review material;
-        evidence on pending/rejected submissions is only visible to its owner
-        and to stewards/staff so other users cannot browse or search it.
+        evidence on pending/rejected submissions is only visible to its owner,
+        to staff, and to stewards holding a permission on the submission's
+        contribution type (mirroring StewardSubmissionViewSet visibility).
         """
         queryset = super().get_queryset()
         user = self.request.user
-        if user.is_staff or hasattr(user, 'steward'):
+        if user.is_staff:
             return queryset
-        return queryset.filter(
-            Q(contribution__isnull=False) | Q(submitted_contribution__user=user)
-        )
+        visible = Q(contribution__isnull=False) | Q(submitted_contribution__user=user)
+        if hasattr(user, 'steward'):
+            permitted_type_ids = steward_permitted_type_ids(
+                user,
+                actions=['accept', 'reject', 'request_more_info', 'propose'],
+            )
+            visible |= Q(submitted_contribution__contribution_type_id__in=permitted_type_ids)
+        return queryset.filter(visible)
 
 
 # Staff-only Django views for managing submissions
@@ -2938,12 +2944,11 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             elif not include_inactive:
                 queryset = queryset.filter(active_q)
 
-        # Unstarted missions are unannounced content: public callers may list
-        # expired missions (needed for historical filters), but only
-        # stewards/staff can see missions that have not started yet.
-        user = self.request.user
-        is_privileged = user.is_authenticated and (user.is_staff or hasattr(user, 'steward'))
-        if self.action != 'retrieve' and not is_privileged:
+        # Unstarted missions are unannounced content: public callers may see
+        # expired missions (needed for historical filters and detail pages),
+        # but only stewards/staff can see missions that have not started yet.
+        # This applies to every action, including retrieve.
+        if not self._is_privileged_user():
             queryset = queryset.exclude(start_date__gt=timezone.now())
 
         # Filter by contribution type if specified
@@ -2957,6 +2962,11 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(contribution_type__category__slug=category)
 
         return queryset
+
+    def _is_privileged_user(self):
+        """Stewards and staff may see unstarted (unannounced) missions."""
+        user = self.request.user
+        return user.is_authenticated and (user.is_staff or hasattr(user, 'steward'))
 
     @staticmethod
     def _active_mission_q():
@@ -2972,8 +2982,12 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
     def stats(self, request, pk=None):
         # Stats must remain available for expired missions; get_queryset()
-        # intentionally filters them out for list views.
-        mission = get_object_or_404(Mission, pk=pk)
+        # intentionally filters them out for list views. Unstarted missions,
+        # however, stay hidden from non-steward/non-staff callers.
+        mission_qs = Mission.objects.all()
+        if not self._is_privileged_user():
+            mission_qs = mission_qs.exclude(start_date__gt=timezone.now())
+        mission = get_object_or_404(mission_qs, pk=pk)
         stats = Contribution.objects.filter(mission=mission).aggregate(
             unique_users=Count('user', distinct=True),
             contributions_count=Count('id'),

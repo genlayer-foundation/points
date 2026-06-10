@@ -31,11 +31,11 @@ class SafePageNumberPagination(PageNumberPagination):
         try:
             return super().paginate_queryset(queryset, request, view)
         except decimal.InvalidOperation:
-            logger.error(
+            logger.exception(
                 "Invalid decimal value encountered while paginating %s. "
-                "Run `python manage.py fix_decimal_values` after investigating "
-                "the corrupt rows; refusing to auto-rewrite contribution data.",
+                "Investigate the corrupt rows, then run "
+                "`python manage.py fix_decimal_values` (dry run; add --apply) "
+                "for a targeted repair; refusing to auto-rewrite contribution data.",
                 queryset.model.__name__ if hasattr(queryset, 'model') else type(queryset).__name__,
-                exc_info=True,
             )
             raise

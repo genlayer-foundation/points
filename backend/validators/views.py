@@ -267,25 +267,40 @@ class ValidatorViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Find wallets with this operator_address
-        wallets = ValidatorWallet.objects.filter(operator_address__iexact=operator_address)
-
-        if not wallets.exists():
-            return Response(
-                {'error': 'No validator wallets found for this operator address'},
-                status=status.HTTP_404_NOT_FOUND
+        # Claim atomically: lock the matching wallet rows so two concurrent
+        # requests cannot both pass the "not linked yet" checks and link the
+        # same operator (or give one user two operators).
+        with transaction.atomic():
+            wallets = (
+                ValidatorWallet.objects
+                .select_for_update()
+                .filter(operator_address__iexact=operator_address)
             )
 
-        # Check if any wallet is already linked to another validator
-        already_linked = wallets.exclude(operator__isnull=True).first()
-        if already_linked:
-            return Response(
-                {'error': 'This operator address is already linked to another validator'},
-                status=status.HTTP_409_CONFLICT
-            )
+            if not wallets.exists():
+                return Response(
+                    {'error': 'No validator wallets found for this operator address'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
-        # Link all wallets to this validator
-        count = wallets.update(operator=validator)
+            # Re-check under the lock that the caller still has no wallets
+            if ValidatorWallet.objects.filter(operator=validator).exists():
+                return Response(
+                    {'error': 'You already have validator wallets linked'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Check if any wallet is already linked to another validator
+            already_linked = wallets.exclude(operator__isnull=True).first()
+            if already_linked:
+                return Response(
+                    {'error': 'This operator address is already linked to another validator'},
+                    status=status.HTTP_409_CONFLICT
+                )
+
+            # Link all wallets to this validator
+            count = wallets.update(operator=validator)
+
         logger.info(
             "Validator wallet link: user=%s (id=%s) claimed %s wallet(s) for operator %s",
             user.address, user.id, count, operator_address,

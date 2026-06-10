@@ -1,5 +1,9 @@
 <script>
-  import DOMPurify from 'dompurify';
+  // DOMPurify with the shared link-hardening hook installed: external links
+  // get target="_blank" rel="noopener noreferrer" after sanitization, so
+  // target/rel are deliberately NOT in the allowlist below (authors can't
+  // inject their own values).
+  import DOMPurify from '../../lib/sanitizeHooks.js';
 
   let { id, alertType = 'info', text = '', icon = '', onDismiss } = $props();
 
@@ -8,7 +12,7 @@
   // mistaken admin entry can't inject scripts into every visitor's page.
   let safeText = $derived(DOMPurify.sanitize(text, {
     ALLOWED_TAGS: ['a', 'b', 'br', 'em', 'i', 'span', 'strong'],
-    ALLOWED_ATTR: ['href', 'title', 'target', 'rel'],
+    ALLOWED_ATTR: ['href', 'title'],
     ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|#|\/(?!\/))/i,
     ALLOW_DATA_ATTR: false,
   }));
