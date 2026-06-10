@@ -223,7 +223,7 @@ class BanAppealAPITest(TestCase):
 
 
 class BanAppealStewardReviewTest(TestCase):
-    """Test steward ban appeal review endpoints."""
+    """Test ban appeal review endpoints (staff-only; stewards are denied)."""
 
     def setUp(self):
         self.banned_user = User.objects.create_user(
@@ -241,6 +241,13 @@ class BanAppealStewardReviewTest(TestCase):
         from stewards.models import Steward
         Steward.objects.create(user=self.steward_user)
 
+        self.staff_user = User.objects.create_user(
+            email='staff@test.com',
+            address='0x2222222222222222222222222222222222222222',
+            password='testpass123',
+            is_staff=True,
+        )
+
         self.regular_user = User.objects.create_user(
             email='regular@test.com',
             address='0x1111111111111111111111111111111111111111',
@@ -253,15 +260,15 @@ class BanAppealStewardReviewTest(TestCase):
         )
         self.client = APIClient()
 
-    def test_steward_can_list_appeals(self):
-        self.client.force_authenticate(user=self.steward_user)
+    def test_staff_can_list_appeals(self):
+        self.client.force_authenticate(user=self.staff_user)
         response = self.client.get('/api/v1/steward-submissions/ban-appeals/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['status'], 'pending')
 
-    def test_steward_can_filter_appeals_by_status(self):
-        self.client.force_authenticate(user=self.steward_user)
+    def test_staff_can_filter_appeals_by_status(self):
+        self.client.force_authenticate(user=self.staff_user)
         response = self.client.get('/api/v1/steward-submissions/ban-appeals/?status=pending')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -270,8 +277,8 @@ class BanAppealStewardReviewTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
-    def test_steward_can_approve_appeal(self):
-        self.client.force_authenticate(user=self.steward_user)
+    def test_staff_can_approve_appeal(self):
+        self.client.force_authenticate(user=self.staff_user)
         response = self.client.post(
             f'/api/v1/steward-submissions/ban-appeals/{self.appeal.id}/review/',
             {'action': 'approve', 'review_notes': 'Seems genuine'},
@@ -286,8 +293,8 @@ class BanAppealStewardReviewTest(TestCase):
         self.assertEqual(self.banned_user.ban_reason, '')
         self.assertIsNone(self.banned_user.banned_at)
 
-    def test_steward_can_deny_appeal(self):
-        self.client.force_authenticate(user=self.steward_user)
+    def test_staff_can_deny_appeal(self):
+        self.client.force_authenticate(user=self.staff_user)
         response = self.client.post(
             f'/api/v1/steward-submissions/ban-appeals/{self.appeal.id}/review/',
             {'action': 'deny', 'review_notes': 'Persistent spammer'},
@@ -304,13 +311,32 @@ class BanAppealStewardReviewTest(TestCase):
         self.appeal.status = 'denied'
         self.appeal.save()
 
-        self.client.force_authenticate(user=self.steward_user)
+        self.client.force_authenticate(user=self.staff_user)
         response = self.client.post(
             f'/api/v1/steward-submissions/ban-appeals/{self.appeal.id}/review/',
             {'action': 'approve'},
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_steward_cannot_list_appeals(self):
+        """Account-level moderation requires staff, not just a steward profile."""
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.get('/api/v1/steward-submissions/ban-appeals/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_steward_cannot_review_appeal(self):
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.post(
+            f'/api/v1/steward-submissions/ban-appeals/{self.appeal.id}/review/',
+            {'action': 'approve'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Verify user stays banned
+        self.banned_user.refresh_from_db()
+        self.assertTrue(self.banned_user.is_banned)
 
     def test_regular_user_cannot_list_appeals(self):
         self.client.force_authenticate(user=self.regular_user)

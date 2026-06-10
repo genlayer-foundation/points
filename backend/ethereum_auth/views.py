@@ -7,9 +7,11 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.decorators import api_view, authentication_classes, permission_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+
+from utils.throttling import SiweAuthRateThrottle
 from siwe import SiweMessage, VerificationError
 
 from .models import Nonce
@@ -30,6 +32,7 @@ def generate_nonce(length=32):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@throttle_classes([SiweAuthRateThrottle])
 def get_nonce(request):
     """
     Generate a new nonce for SIWE authentication.
@@ -60,6 +63,7 @@ def get_nonce(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @authentication_classes([CsrfExemptSessionAuthentication])
+@throttle_classes([SiweAuthRateThrottle])
 def login(request):
     """
     Authenticate a user with a SIWE message.

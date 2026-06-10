@@ -6,6 +6,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+
+from utils.throttling import WalletLinkRateThrottle
 from django.shortcuts import get_object_or_404
 from django.db.models import Min, Q, Count
 from django.db import IntegrityError, transaction
@@ -226,11 +228,17 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             'total_count': wallets.count()
         })
 
-    @action(detail=False, methods=['post'], url_path='link-by-operator')
+    @action(detail=False, methods=['post'], url_path='link-by-operator',
+            throttle_classes=[WalletLinkRateThrottle])
     def link_by_operator(self, request):
         """
         Link validator wallets to the current user by operator address.
         Only available for validators who don't have any wallets linked yet.
+
+        NOTE: linking is first-come-first-served on a public operator address
+        and carries no cryptographic ownership proof; the throttle bounds
+        mass-claiming, and mistaken/abusive links are logged and reversible
+        by staff via the admin.
         """
         user = request.user
 
@@ -278,6 +286,10 @@ class ValidatorViewSet(viewsets.ModelViewSet):
 
         # Link all wallets to this validator
         count = wallets.update(operator=validator)
+        logger.info(
+            "Validator wallet link: user=%s (id=%s) claimed %s wallet(s) for operator %s",
+            user.address, user.id, count, operator_address,
+        )
 
         return Response({
             'success': True,

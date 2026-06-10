@@ -484,6 +484,19 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
             return ContributionSerializer(obj.converted_contribution, context=contrib_context).data
         return None
 
+    def validate_contribution_date(self, value):
+        """
+        The contribution date is client-provided and flows into date-ranged
+        leaderboards once accepted, so future dates are rejected server-side
+        (small allowance for client clock skew).
+        """
+        from django.utils import timezone
+        from datetime import timedelta
+
+        if value and value > timezone.now() + timedelta(minutes=5):
+            raise serializers.ValidationError('Contribution date cannot be in the future.')
+        return value
+
     def validate(self, data):
         """
         Validate submission data.
