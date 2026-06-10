@@ -60,6 +60,14 @@ marked.setOptions({
   smartypants: false      // Don't use smart quotes (keep original)
 });
 
+// User-authored content (submission notes, etc.) additionally drops <img>:
+// an embedded image is a tracking pixel that leaks the viewer's IP the moment
+// a steward opens the review queue.
+const USER_SANITIZE_CONFIG = {
+  ...SANITIZE_CONFIG,
+  ALLOWED_TAGS: SANITIZE_CONFIG.ALLOWED_TAGS.filter((tag) => tag !== 'img'),
+};
+
 /**
  * Parse markdown content to HTML with proper styling for legal documents
  * @param {string} markdownContent - Raw markdown content
@@ -79,6 +87,21 @@ export function parseMarkdown(markdownContent) {
     return DOMPurify.sanitize(marked.parse(markdownContent), SANITIZE_CONFIG);
   } catch (error) {
     return `<div class="text-red-600"><h3>Parse Error</h3><p>Failed to parse markdown content: ${error.message}</p></div>`;
+  }
+}
+
+/**
+ * Parse user-authored markdown (e.g. submission notes): same pipeline as
+ * parseMarkdown but without <img>, and empty input renders as empty.
+ * @param {string} markdownContent - Raw markdown content
+ * @returns {string} Sanitized HTML
+ */
+export function parseUserMarkdown(markdownContent) {
+  if (!markdownContent || typeof markdownContent !== 'string') return '';
+  try {
+    return DOMPurify.sanitize(marked.parse(markdownContent), USER_SANITIZE_CONFIG);
+  } catch (error) {
+    return '';
   }
 }
 

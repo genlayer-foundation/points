@@ -4,7 +4,7 @@
   import { getCategoryColors } from '../lib/categoryColors';
   import Avatar from './Avatar.svelte';
   import Icons from './Icons.svelte';
-  import { parseMarkdown } from '../lib/markdownLoader.js';
+  import { parseMarkdown, parseUserMarkdown } from '../lib/markdownLoader.js';
   import { isSafeHttpUrl } from '../lib/urlSafety.js';
 
   let {
@@ -178,7 +178,7 @@
         {#if submission?.notes}
           <div>
             <h5 class="text-xs font-medium text-gray-700 mb-1">Notes</h5>
-            <div class="markdown-content text-xs text-gray-600">{@html parseMarkdown(submission.notes)}</div>
+            <div class="markdown-content text-xs text-gray-600">{@html parseUserMarkdown(submission.notes)}</div>
           </div>
         {/if}
 

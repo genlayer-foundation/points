@@ -9,7 +9,7 @@
   import Badge from './Badge.svelte';
   import Icons from './Icons.svelte';
   import EvidenceUrlCard from './EvidenceUrlCard.svelte';
-  import { parseMarkdown } from '../lib/markdownLoader.js';
+  import { parseMarkdown, parseUserMarkdown } from '../lib/markdownLoader.js';
   import { showSuccess, showError } from '../lib/toastStore';
   import {
     RUBRIC_EXTRAS,
@@ -1048,7 +1048,7 @@
         {#if submission.notes}
           <div>
             <h4 class="text-sm font-medium text-gray-700">Notes</h4>
-            <div class="markdown-content mt-1 text-sm text-gray-900">{@html parseMarkdown(submission.notes)}</div>
+            <div class="markdown-content mt-1 text-sm text-gray-900">{@html parseUserMarkdown(submission.notes)}</div>
           </div>
         {/if}
 

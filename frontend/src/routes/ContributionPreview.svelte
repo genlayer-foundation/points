@@ -3,7 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import { contributionsAPI } from '../lib/api.js';
-  import { parseMarkdown } from '../lib/markdownLoader.js';
+  import { parseMarkdown, parseUserMarkdown } from '../lib/markdownLoader.js';
   import Avatar from '../components/Avatar.svelte';
   import EvidenceUrlCard from '../components/EvidenceUrlCard.svelte';
 
@@ -286,7 +286,7 @@
               Notes
             </h3>
             <div class="text-[14px] leading-[21px]" style="color: #3f3f3f; letter-spacing: 0.28px;">
-              {@html parseMarkdown(contribution.notes)}
+              {@html parseUserMarkdown(contribution.notes)}
             </div>
           </div>
         {/if}
