@@ -1,3 +1,5 @@
+import uuid
+
 from rest_framework import viewsets, permissions, filters, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -1113,6 +1115,17 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         state = request.query_params.get('state')
         if state:
             queryset = queryset.filter(state=state)
+
+        # Optional deep-link filter used by submission review links. Keeping this
+        # owner-scoped through get_queryset() prevents leaking other users'
+        # submission IDs while making highlighted submission landings reliable
+        # across pagination.
+        submission_id = request.query_params.get('submission')
+        if submission_id:
+            try:
+                queryset = queryset.filter(id=uuid.UUID(str(submission_id)))
+            except ValueError:
+                queryset = queryset.none()
 
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -2385,6 +2398,9 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             },
         )
 
+        from notifications.services import notify_submission_review
+        notify_submission_review(submission, actor=request.user)
+
         return Response(
             self.get_serializer(submission).data,
             status=status.HTTP_200_OK
@@ -2800,6 +2816,13 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             reviewed_by=request.user,
             reviewed_at=timezone.now()
         )
+
+        from notifications.services import notify_submission_review
+        reviewed_submissions = SubmittedContribution.objects.filter(
+            id__in=rejected_ids
+        ).select_related('user', 'contribution_type', 'reviewed_by')
+        for submission in reviewed_submissions:
+            notify_submission_review(submission, actor=request.user)
 
         return Response({
             'status': 'success',

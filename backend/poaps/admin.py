@@ -11,6 +11,8 @@ from django.urls import reverse
 from django.utils.html import format_html
 from django.utils import timezone
 
+from notifications import services as notification_services
+from notifications.admin_mixins import BroadcastNotificationAdminMixin
 from utils.admin_mixins import CloudinaryUploadMixin
 
 from .models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch, PoapMintLink
@@ -194,7 +196,11 @@ class PoapDistributionInline(admin.TabularInline):
 
 
 @admin.register(PoapDrop)
-class PoapDropAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
+class PoapDropAdmin(BroadcastNotificationAdminMixin, CloudinaryUploadMixin, admin.ModelAdmin):
+    broadcast_service = staticmethod(notification_services.broadcast_poap)
+    broadcast_eligible = staticmethod(lambda obj: obj.status == 'active')
+    broadcast_ineligible_reason = 'the POAP drop is not active'
+
     form = PoapDropAdminForm
     cloudinary_upload_fields = {
         'artwork_url': {

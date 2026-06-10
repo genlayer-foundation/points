@@ -154,7 +154,10 @@ class UserAdmin(BaseUserAdmin):
                 )
             except ContributionType.DoesNotExist:
                 pass
-            
+
+            from notifications.services import notify_validator_graduated
+            notify_validator_graduated(user, actor=request.user)
+
             count += 1
         
         if count > 0:

@@ -1,5 +1,7 @@
 from django.contrib import admin
 
+from notifications import services as notification_services
+from notifications.admin_mixins import BroadcastNotificationAdminMixin
 from utils.admin_mixins import CloudinaryUploadMixin
 
 from .models import Stream, StreamCategory
@@ -33,7 +35,10 @@ class StreamCategoryAdmin(admin.ModelAdmin):
 
 
 @admin.register(Stream)
-class StreamAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
+class StreamAdmin(BroadcastNotificationAdminMixin, CloudinaryUploadMixin, admin.ModelAdmin):
+    broadcast_service = staticmethod(notification_services.broadcast_stream)
+    broadcast_eligible = staticmethod(lambda obj: obj.is_active)
+    broadcast_ineligible_reason = 'the stream is inactive'
     cloudinary_upload_fields = {
         'image_url': {
             'public_id_field': 'image_public_id',

@@ -2,6 +2,7 @@
   import { push, location } from 'svelte-spa-router';
   import AuthButton from './AuthButton.svelte';
   import SearchBar from './SearchBar.svelte';
+  import NotificationCenter from './NotificationCenter.svelte';
   import { authState } from '../lib/auth.js';
   import { currentCategory } from '../stores/category.js';
   
@@ -68,11 +69,13 @@
         <span>Submit a contribution</span>
         <img src="/assets/icons/add-line.svg" alt="" class="w-4 h-4">
       </button>
+      <NotificationCenter />
       <AuthButton />
     </div>
 
     <!-- Mobile: Actions -->
     <div class="navbar-mobile-actions flex items-center md:hidden gap-2">
+      <NotificationCenter />
       <AuthButton />
       <button
         onclick={() => {

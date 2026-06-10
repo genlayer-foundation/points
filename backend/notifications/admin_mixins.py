@@ -1,0 +1,124 @@
+from django import forms
+from django.contrib import admin, messages
+from django.contrib.admin.utils import flatten_fieldsets
+
+from .services import estimate_broadcast_reach
+
+BROADCAST_FORM_FIELDS = ('broadcast_notification', 'notification_message')
+
+
+class BroadcastNotificationAdminMixin:
+    """Adds an explicit, off-by-default broadcast control to a ModelAdmin.
+
+    Saving, editing, activating, or deactivating objects stays silent. A
+    broadcast notification is only created when the admin checks
+    "Broadcast notification now" on the change form or runs the bulk action.
+
+    Configure on the concrete admin:
+        broadcast_service = staticmethod(services.broadcast_partner)
+        broadcast_eligible = staticmethod(lambda obj: obj.is_active)
+        broadcast_ineligible_reason = 'it is not active'
+    """
+
+    broadcast_service = None
+    broadcast_eligible = staticmethod(lambda obj: True)
+    broadcast_ineligible_reason = 'it is not active'
+
+    def get_form(self, request, obj=None, **kwargs):
+        # The admin passes fields flattened from get_fieldsets(), which include
+        # our extra form-only fields; strip them before the model form factory
+        # runs, then declare them on the returned form class.
+        fields = kwargs.get('fields')
+        if fields:
+            kwargs['fields'] = [field for field in fields if field not in BROADCAST_FORM_FIELDS]
+
+        base_form = super().get_form(request, obj, **kwargs)
+
+        class BroadcastNotificationForm(base_form):
+            broadcast_notification = forms.BooleanField(
+                required=False,
+                label='Broadcast notification now',
+                help_text='Off by default. Saving stays silent unless this is checked.',
+            )
+            notification_message = forms.CharField(
+                required=False,
+                label='Notification message',
+                widget=forms.Textarea(attrs={'rows': 2}),
+                help_text='Optional. Falls back to the default copy for this item.',
+            )
+
+        return BroadcastNotificationForm
+
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = list(super().get_fieldsets(request, obj))
+        if 'broadcast_notification' in flatten_fieldsets(fieldsets):
+            return fieldsets
+        fieldsets.append((
+            'Notification',
+            {
+                'fields': BROADCAST_FORM_FIELDS,
+                'description': (
+                    'Optional broadcast. Creating, editing, activating, or '
+                    'deactivating stays silent unless this is checked. '
+                    'Re-broadcasting the same item resurfaces it as unread '
+                    'instead of duplicating it.'
+                ),
+            },
+        ))
+        return fieldsets
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        if 'broadcast_selected_notifications' not in actions:
+            action = self.get_action('broadcast_selected_notifications')
+            if action:
+                actions['broadcast_selected_notifications'] = action
+        return actions
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if not form.cleaned_data.get('broadcast_notification'):
+            return
+        if not self.broadcast_eligible(obj):
+            self.message_user(
+                request,
+                f'Notification was not broadcast because {self.broadcast_ineligible_reason}.',
+                level=messages.WARNING,
+            )
+            return
+        self._send_broadcast(request, obj, form.cleaned_data.get('notification_message', ''))
+
+    @admin.action(description='Broadcast notification for selected items')
+    def broadcast_selected_notifications(self, request, queryset):
+        sent = 0
+        skipped = 0
+        last_audience = None
+        for obj in queryset:
+            if not self.broadcast_eligible(obj):
+                skipped += 1
+                continue
+            notification = self.broadcast_service(obj, actor=request.user)
+            last_audience = notification.audience
+            sent += 1
+
+        if sent:
+            reach = estimate_broadcast_reach(last_audience)
+            message = f'Published {sent} broadcast notification(s) reaching ~{reach} users.'
+        else:
+            message = 'No broadcast notifications were published.'
+        if skipped:
+            message += f' Skipped {skipped} item(s) because {self.broadcast_ineligible_reason}.'
+        self.message_user(
+            request,
+            message,
+            level=messages.WARNING if skipped else messages.SUCCESS,
+        )
+
+    def _send_broadcast(self, request, obj, message=''):
+        notification = self.broadcast_service(obj, actor=request.user, message=message)
+        reach = estimate_broadcast_reach(notification.audience)
+        self.message_user(
+            request,
+            f'Broadcast notification published, reaching ~{reach} users.',
+            level=messages.SUCCESS,
+        )

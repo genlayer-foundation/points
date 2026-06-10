@@ -1,12 +1,18 @@
 from django.contrib import admin
 
+from notifications import services as notification_services
+from notifications.admin_mixins import BroadcastNotificationAdminMixin
 from utils.admin_mixins import CloudinaryUploadMixin
 
 from .models import Partner
 
 
 @admin.register(Partner)
-class PartnerAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
+class PartnerAdmin(BroadcastNotificationAdminMixin, CloudinaryUploadMixin, admin.ModelAdmin):
+    broadcast_service = staticmethod(notification_services.broadcast_partner)
+    broadcast_eligible = staticmethod(lambda obj: obj.is_active)
+    broadcast_ineligible_reason = 'the partner is inactive'
+
     cloudinary_upload_fields = {
         'logo_url': {
             'public_id_field': 'logo_public_id',

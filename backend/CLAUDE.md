@@ -30,6 +30,7 @@ backend/
 ├── users/                 # User management and auth
 ├── partners/              # Ecosystem partners directory
 ├── gen_tv/                # Gen TV livestream index
+├── notifications/         # Portal notification system
 ├── utils/                 # Shared utilities
 └── backend/               # Django project settings
 ```
@@ -143,6 +144,22 @@ backend/
   - `/api/v1/partners/{slug}/` - Public read-only detail by slug
 - **Migrations**: `partners/migrations/0001_initial.py` creates the model and seeds the 22 founding partners from a `RunPython` step.
 - **Admin**: `partners/admin.py` - list_editable on `display_order`, `is_active`; slug prepopulated from name.
+
+### Notifications
+- **Models**: `notifications/models.py`
+  - `Notification` - Personal (has `recipient`) or broadcast (`recipient=None` + `audience`: all/validators/stewards). Broadcasts are ONE row regardless of user count; users see broadcasts created after their `date_joined`. Frozen copy (`title`/`body`/`link_url`), `payload` JSON for future channel renderers, `dedupe_key` (re-broadcasting a source object refreshes + resurfaces instead of duplicating).
+  - `NotificationReceipt` - Lazy per-user read state for broadcast rows (created on read).
+- **Registry**: `notifications/registry.py` - Single source of truth for event types (category, priority, default audience, future channels). **Adding a new notification = register an EventType here + emit it from the producer.**
+- **Services**: `notifications/services.py`
+  - Core: `notify()` (personal), `broadcast()` (audience-wide single row), `feed_for(user)`, `mark_notification_read()`, `mark_all_read()`
+  - Producers: `notify_submission_review`, `notify_contribution_highlighted` (via post_save receiver), `notify_referral_joined` (ethereum_auth login), `notify_validator_graduated` (users admin action), `broadcast_featured_content/partner/alert/contribution_type/mission/stream/poap/target_node_version`
+- **Admin mixin**: `notifications/admin_mixins.py` - `BroadcastNotificationAdminMixin` adds an off-by-default "Broadcast notification now" checkbox + bulk action to any ModelAdmin (`broadcast_service`, `broadcast_eligible` config). Applied to FeaturedContent, Alert, ContributionType, Mission, Partner, Stream, PoapDrop, TargetNodeVersion admins. Saving/activating stays silent unless explicitly checked.
+- **Views**: `notifications/views.py`
+  - `/api/v1/notifications/` - Auth-required feed (reverse-chronological; `?unread=true`, `?category=` filters)
+  - `/api/v1/notifications/unread-count/` - Unread badge count
+  - `/api/v1/notifications/{id}/mark-read/` - Personal sets `read_at`; broadcast creates a receipt
+  - `/api/v1/notifications/mark-all-read/`
+- **Future channels**: email/Telegram slot in via registry `channels` + a delivery outbox and `NotificationPreference` model when the first external channel ships (Telegram link would follow the `social_connections` pattern).
 
 ### Gen TV
 - **Models**: `gen_tv/models.py`
@@ -299,6 +316,12 @@ GET    /api/v1/projects/{slug}/            (public, project detail with metrics 
 # Gen TV
 GET    /api/v1/gen-tv/streams/             (public, supports ?category= filter)
 GET    /api/v1/gen-tv/streams/{slug}/      (public, stream detail)
+
+# Notifications
+GET    /api/v1/notifications/              (requires auth, ?unread=true ?category= filters)
+GET    /api/v1/notifications/unread-count/ (requires auth)
+POST   /api/v1/notifications/{id}/mark-read/   (requires auth)
+POST   /api/v1/notifications/mark-all-read/    (requires auth)
 ```
 
 ### Leaderboard monthly date ranges
