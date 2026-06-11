@@ -177,6 +177,9 @@ class AIReviewSubmissionSerializer(AIReviewProposalFieldsMixin, serializers.Mode
     max_points = serializers.IntegerField(
         source='contribution_type.max_points', read_only=True,
     )
+    rubric_extra_points = serializers.IntegerField(
+        source='contribution_type.rubric_extra_points', read_only=True,
+    )
     evidence_items = AIReviewEvidenceSerializer(many=True, read_only=True)
     internal_notes = AIReviewNoteSerializer(many=True, read_only=True)
     mission = AIReviewMissionSerializer(read_only=True)
@@ -194,6 +197,7 @@ class AIReviewSubmissionSerializer(AIReviewProposalFieldsMixin, serializers.Mode
             'category_name',
             'min_points',
             'max_points',
+            'rubric_extra_points',
             'title',
             'notes',
             'state',

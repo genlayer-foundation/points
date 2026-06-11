@@ -64,8 +64,10 @@ backend/
 
 ### Contributions
 - **Models**: `contributions/models.py`
-  - Contribution - Individual contribution records
+  - Contribution - Individual contribution records. Has optional `project_contribution` self-FK and `milestone_version` used by the Projects/Milestones split.
   - ContributionType - Categories with slug field, has M2M `accepted_evidence_url_types`
+- **Projects/Milestones split**: `contributions/project_milestones.py`
+  - `projects` and `milestones` are separate contribution types (migration 0068). Projects require a GitHub repository evidence URL (`required_evidence_url_types` = github-repo). Milestones must be linked to one of the submitter's ACCEPTED Projects CONTRIBUTIONS (`/submissions/accepted-projects/`) via the `project_contribution` self-FK, require a written change description (evidence optional), and get an auto-assigned sequential `milestone_version` per project contribution. IMPORTANT: this is unrelated to the projects app's curated `projects.Project` showcase table, which contribution flows must never create or modify.
   - FeaturedContent - Portal hero/community/validator-steward content managed through admin
   - ContributionTypeMultiplier - Dynamic point multipliers
   - Evidence - Evidence items with `url_type` FK for auto-detected URL type, `normalized_url` indexed field for fast duplicate detection (text descriptions and URLs only - file uploads are disabled)
@@ -250,6 +252,7 @@ DELETE /api/v1/contributions/{id}/ (requires auth)
 
 # Submissions (submitter-side)
 GET    /api/v1/submissions/my/                  (requires auth, paginated user submissions)
+GET    /api/v1/submissions/accepted-projects/   (requires auth, the user's accepted Projects contributions milestones can link to, with next_milestone_version and github_url from evidence)
 POST   /api/v1/submissions/{id}/appeal/         (requires auth, owner-only, one per submission)
 POST   /api/v1/submissions/{id}/add-evidence/   (requires auth, owner-only)
 
@@ -330,6 +333,7 @@ Located in `.env` file:
 - `ALLOWED_HOSTS` - Allowed host headers
 - `RECAPTCHA_PUBLIC_KEY` - Google reCAPTCHA site key (required - use test key from .env.example for development)
 - `RECAPTCHA_PRIVATE_KEY` - Google reCAPTCHA secret key (required - use test key from .env.example for development)
+- `RECAPTCHA_ALLOW_TEST_KEYS` - Optional opt-in flag for non-production deployments that intentionally use Google's reCAPTCHA test keys with `DEBUG=False`. Set to `true` to silence `django_recaptcha.recaptcha_test_key_error`; production must not set this flag. The logic lives in `tally/settings.py` near `_RECAPTCHA_TEST_PUBLIC_KEY` and `SILENCED_SYSTEM_CHECKS`.
 - `CRON_SYNC_TOKEN` - Cron-protected endpoint auth (used by `sync` and `sync-grafana`)
 - `GRAFANA_BASE_URL` - Grafana Cloud base URL (default `https://genlayerfoundation.grafana.net`)
 - `GRAFANA_API_TOKEN` - Grafana service-account bearer token (required for Wall of Shame). Store in AWS SSM (`/tally/{env}/grafana_api_token`) for production.
@@ -375,7 +379,7 @@ python manage.py collectstatic
 - Points calculation: base_points × multipliers = total_points
 - Addresses are stored lowercase but compared case-insensitively
 - **Evidence Submission**: File uploads are disabled (issue #212). Evidence must be submitted as text descriptions or URLs only.
-- **reCAPTCHA Protection**: New contribution submissions require Google reCAPTCHA v2 verification to prevent spam. Editing existing submissions does not require reCAPTCHA.
+- **reCAPTCHA Protection**: New contribution submissions require Google reCAPTCHA v2 verification to prevent spam. Editing existing submissions does not require reCAPTCHA. Local development silences Google's test-key system check automatically when `DEBUG=True`; dev deployments that run with `DEBUG=False` can explicitly set `RECAPTCHA_ALLOW_TEST_KEYS=true`. Never enable that flag in production.
 
 ## Serialization Patterns & Performance Optimization
 

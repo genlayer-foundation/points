@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { push, querystring } from 'svelte-spa-router';
+  import { replace, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { stewardAPI, contributionsAPI, leaderboardAPI } from '../lib/api.js';
@@ -69,7 +69,7 @@
 
   onMount(async () => {
     if (!$authState.isAuthenticated) {
-      push('/');
+      replace('/');
       return;
     }
 

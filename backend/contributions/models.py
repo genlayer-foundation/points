@@ -93,6 +93,10 @@ class ContributionType(BaseModel):
     )
     min_points = models.PositiveIntegerField(default=0, help_text="Minimum points allowed for this contribution type")
     max_points = models.PositiveIntegerField(default=100, help_text="Maximum points allowed for this contribution type")
+    rubric_extra_points = models.PositiveIntegerField(
+        default=2,
+        help_text="Points awarded per verified extra in the Builder Project rubric."
+    )
     is_default = models.BooleanField(default=False, help_text="Include this contribution type by default when creating validators")
     is_submittable = models.BooleanField(default=True, help_text="Whether this contribution type can be submitted by users")
     review_flow = models.CharField(
@@ -214,6 +218,19 @@ class Contribution(BaseModel):
         blank=True,
         related_name='contributions',
         help_text='Mission this contribution fulfills (optional)'
+    )
+    project_contribution = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='milestones',
+        help_text='Accepted Projects contribution this milestone belongs to'
+    )
+    milestone_version = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Sequential milestone version within the linked project contribution'
     )
     points = models.PositiveIntegerField(default=0)
     frozen_global_points = models.PositiveIntegerField(
@@ -530,6 +547,19 @@ class SubmittedContribution(BaseModel):
         blank=True,
         related_name='submissions',
         help_text='Mission that prompted this submission (optional)'
+    )
+    project_contribution = models.ForeignKey(
+        'Contribution',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='milestone_submissions',
+        help_text='Accepted Projects contribution this milestone submission belongs to'
+    )
+    milestone_version = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Sequential milestone version within the linked project contribution'
     )
     contribution_date = models.DateTimeField(
         help_text="Date when the contribution was made"

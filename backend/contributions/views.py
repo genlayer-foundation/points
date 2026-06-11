@@ -46,6 +46,13 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          ContributionDiscordXPStateSerializer)
 from .forms import SubmissionReviewForm
 from .permissions import IsSteward, steward_has_permission, steward_permitted_type_ids
+from .project_milestones import (
+    accepted_project_contributions_for_user,
+    is_milestone_contribution_type,
+    next_milestone_version,
+    project_contribution_display_title,
+    project_contribution_github_url,
+)
 from .url_utils import normalize_url
 from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -282,10 +289,12 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             'user__builder',    # For builder info in user details
             'contribution_type',
             'contribution_type__category',
-            'mission'  # Avoid N+1 queries when accessing mission details
+            'mission',  # Avoid N+1 queries when accessing mission details
+            'project_contribution',
         ).prefetch_related(
             'evidence_items',  # Only queried in detail view (light serializers skip this)
-            'highlights'       # Only queried in detail view (light serializers skip this)
+            'highlights',      # Only queried in detail view (light serializers skip this)
+            'project_contribution__evidence_items',  # Milestone repo link
         )
 
         # Filter by user address if provided
@@ -616,10 +625,12 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             'reviewed_by',
             'converted_contribution',
             'user',  # Optimize user access
-            'mission'  # Avoid N+1 queries when accessing mission details
+            'mission',  # Avoid N+1 queries when accessing mission details
+            'project_contribution',
         ).prefetch_related(
             'evidence_items',
             'evidence_items__url_type',
+            'project_contribution__evidence_items',  # Milestone repo link
         ).order_by('-created_at')
 
     def get_serializer_context(self):
@@ -765,7 +776,48 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             return discord_role_error
 
         return None
-    
+
+    def _project_link_error(self, user, contribution_type, project_contribution_id):
+        """Validate project-contribution linking rules for Milestones submissions."""
+        if is_milestone_contribution_type(contribution_type):
+            if not project_contribution_id:
+                return None, Response(
+                    {'error': 'Milestones must be linked to one of your accepted projects.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                project_contribution = accepted_project_contributions_for_user(user).get(
+                    id=project_contribution_id,
+                )
+            except (Contribution.DoesNotExist, ValueError, TypeError):
+                # ValueError/TypeError cover malformed ids (e.g. 'abc') that
+                # would otherwise raise during pk conversion before DRF's
+                # PrimaryKeyRelatedField validation runs.
+                return None, Response(
+                    {'error': 'Select one of your accepted projects before submitting a milestone.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            return project_contribution, None
+
+        if project_contribution_id:
+            return None, Response(
+                {'error': 'Projects can only be linked to Milestones submissions.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return None, None
+
+    def _milestone_notes_error(self, contribution_type, notes):
+        """Milestones are reviewed from the linked project's repository, so the
+        written explanation of what changed is the required content."""
+        if is_milestone_contribution_type(contribution_type) and not (notes or '').strip():
+            return Response(
+                {'error': 'Please describe the changes and improvements in this milestone.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return None
+
     def create(self, request, *args, **kwargs):
         """Create a new submission with optional mission tracking."""
         # Block banned users from submitting
@@ -832,6 +884,22 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 )
                 if contribution_type_error is not None:
                     return contribution_type_error
+
+                project_contribution_id = data.get('project_contribution')
+                milestone_project_contribution, project_error = self._project_link_error(
+                    request.user,
+                    contribution_type,
+                    project_contribution_id,
+                )
+                if project_error is not None:
+                    return project_error
+
+                notes_error = self._milestone_notes_error(
+                    contribution_type,
+                    data.get('notes'),
+                )
+                if notes_error is not None:
+                    return notes_error
             except ContributionType.DoesNotExist:
                 pass
 
@@ -865,6 +933,25 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST
                         )
                     serializer.validated_data['mission'] = locked_mission
+
+                if is_milestone_contribution_type(locked_type):
+                    locked_project_contribution = Contribution.objects.select_for_update().get(
+                        id=milestone_project_contribution.id
+                    )
+                    if not accepted_project_contributions_for_user(request.user).filter(
+                        id=locked_project_contribution.id,
+                    ).exists():
+                        return Response(
+                            {'error': 'Select one of your accepted projects before submitting a milestone.'},
+                            status=status.HTTP_403_FORBIDDEN,
+                        )
+                    serializer.validated_data['project_contribution'] = locked_project_contribution
+                    serializer.validated_data['milestone_version'] = next_milestone_version(
+                        locked_project_contribution,
+                    )
+                else:
+                    serializer.validated_data['project_contribution'] = None
+                    serializer.validated_data['milestone_version'] = None
 
                 self.perform_create(serializer)
         else:
@@ -933,12 +1020,62 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         if contribution_type_error is not None:
             return contribution_type_error
 
-        # Update state back to pending and track edit time
-        instance.state = 'pending'
-        instance.last_edited_at = timezone.now()
-        instance.staff_reply = ''  # Clear previous staff reply
+        project_contribution_id = (
+            request.data.get('project_contribution')
+            if 'project_contribution' in request.data
+            else (instance.project_contribution_id if instance.project_contribution_id else None)
+        )
+        milestone_project_contribution, project_error = self._project_link_error(
+            request.user,
+            contribution_type,
+            project_contribution_id,
+        )
+        if project_error is not None:
+            return project_error
 
-        self.perform_update(serializer)
+        notes_error = self._milestone_notes_error(
+            contribution_type,
+            serializer.validated_data.get('notes', instance.notes),
+        )
+        if notes_error is not None:
+            return notes_error
+
+        with transaction.atomic():
+            if is_milestone_contribution_type(contribution_type):
+                # Lock the project contribution row (as create does) so
+                # concurrent edits pointing at the same project cannot be
+                # assigned the same milestone version.
+                locked_project_contribution = Contribution.objects.select_for_update().get(
+                    id=milestone_project_contribution.id
+                )
+                if not accepted_project_contributions_for_user(request.user).filter(
+                    id=locked_project_contribution.id,
+                ).exists():
+                    return Response(
+                        {'error': 'Select one of your accepted projects before submitting a milestone.'},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                serializer.validated_data['project_contribution'] = locked_project_contribution
+                needs_new_version = (
+                    instance.contribution_type_id != contribution_type.id
+                    or instance.project_contribution_id != locked_project_contribution.id
+                    or not instance.milestone_version
+                )
+                if needs_new_version:
+                    serializer.validated_data['milestone_version'] = next_milestone_version(
+                        locked_project_contribution,
+                        exclude_submission_id=instance.id,
+                    )
+            else:
+                serializer.validated_data['project_contribution'] = None
+                serializer.validated_data['milestone_version'] = None
+
+            # Update state back to pending and track edit time
+            instance.state = 'pending'
+            instance.last_edited_at = timezone.now()
+            instance.staff_reply = ''  # Clear previous staff reply
+
+            self.perform_update(serializer)
 
         return Response(serializer.data)
 
@@ -988,6 +1125,27 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='accepted-projects')
+    def accepted_projects(self, request):
+        """Return the user's accepted Projects contributions milestones can link to."""
+        project_contributions = (
+            accepted_project_contributions_for_user(request.user)
+            .prefetch_related('evidence_items')
+            .order_by('-contribution_date', '-id')
+        )
+        data = [
+            {
+                'id': contribution.id,
+                'title': project_contribution_display_title(contribution),
+                'link': f'/contribution/{contribution.id}',
+                'github_url': project_contribution_github_url(contribution),
+                'contribution_date': contribution.contribution_date,
+                'next_milestone_version': next_milestone_version(contribution),
+            }
+            for contribution in project_contributions
+        ]
+        return Response(data)
 
     @action(detail=True, methods=['post'], url_path='appeal')
     def appeal(self, request, pk=None):
@@ -1877,7 +2035,9 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             'converted_contribution__contribution_type',
             'converted_contribution__contribution_type__category',
             'converted_contribution__mission',
+            'converted_contribution__project_contribution',
             'mission',
+            'project_contribution',
             'proposed_by',
             'proposed_contribution_type',
             'proposed_user',
@@ -1887,6 +2047,8 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         ).prefetch_related(
             'evidence_items',
             'converted_contribution__highlights',
+            'project_contribution__evidence_items',
+            'converted_contribution__project_contribution__evidence_items',
         ).annotate(
             internal_notes_count=Coalesce(
                 Subquery(notes_count, output_field=IntegerField()),
@@ -1907,7 +2069,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         # Use full serializers for detail views (single submission review)
         context['use_light_serializers'] = self.action == 'list'
         return context
-    
+
     @action(detail=True, methods=['post'], url_path='review')
     @transaction.atomic
     def review(self, request, pk=None):
@@ -1972,6 +2134,33 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             # Get the user for the contribution (use provided or keep original submitter)
             contribution_user = serializer.validated_data.get('user', submission.user)
 
+            project_contribution = submission.project_contribution
+            milestone_version = submission.milestone_version
+            if is_milestone_contribution_type(contribution_type):
+                if not project_contribution:
+                    return Response(
+                        {'detail': 'Milestones must be linked to an accepted project before acceptance.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                project_contribution = Contribution.objects.select_for_update().get(
+                    id=project_contribution.id,
+                )
+                # Validate against the user the contribution will belong to
+                # (stewards can reassign it), not the original submitter.
+                if not accepted_project_contributions_for_user(contribution_user).filter(
+                    id=project_contribution.id,
+                ).exists():
+                    return Response(
+                        {'detail': 'Milestones can only be accepted for a project contribution owned by the selected user.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if not milestone_version:
+                    milestone_version = next_milestone_version(
+                        project_contribution,
+                        exclude_submission_id=submission.id,
+                    )
+                    submission.milestone_version = milestone_version
+
             # Update submission contribution type if changed
             if contribution_type != submission.contribution_type:
                 submission.contribution_type = contribution_type
@@ -1984,7 +2173,9 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 contribution_date=submission.contribution_date,
                 notes=submission.notes,
                 title=submission.title,
-                mission=submission.mission
+                mission=submission.mission,
+                project_contribution=project_contribution if is_milestone_contribution_type(contribution_type) else None,
+                milestone_version=milestone_version if is_milestone_contribution_type(contribution_type) else None,
             )
 
             # Auto-grant builder status if accepting builder contribution for non-builder

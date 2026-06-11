@@ -240,6 +240,7 @@
   let selectedCategory = $state(submission.contribution_type_details?.category || 'validator');
   let selectedContributionTypeObj = $state(null);
   let selectedMission = $state(submission.mission || null);
+  let isMilestoneSubmission = $derived(submission.contribution_type_details?.slug === 'milestones');
 
   // Track which submission's proposal we've auto-filled to avoid overwriting user edits
   let lastProposalFilled = $state(null);
@@ -550,7 +551,9 @@
 
   function updateProjectRubricPoints(state = rubricState) {
     if (!isProjectReview || rubricPointsManuallyEdited || state.gateFailures?.length > 0) return;
-    points = clampPointsToSelectedType(calculateRubricPoints(state));
+    points = clampPointsToSelectedType(
+      calculateRubricPoints(state, selectedTypeDetails?.rubric_extra_points)
+    );
   }
 
   function markPointsManuallyEdited() {
@@ -915,6 +918,11 @@
               <!-- Show contribution type as title when no mission -->
               <span>{submission.contribution_type_name || getTypeName(submission.contribution_type)}</span>
             {/if}
+            {#if isMilestoneSubmission && submission.milestone_version}
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                v{submission.milestone_version}
+              </span>
+            {/if}
           {:else}
             <div class="flex items-center gap-2">
               <Avatar
@@ -1029,6 +1037,42 @@
               </div>
             </div>
           {/if}
+
+          {#if submission.project_contribution}
+            <div>
+              <h4 class="text-sm font-medium text-gray-700">Linked Project</h4>
+              <div class="mt-1 flex items-center gap-2 flex-wrap">
+                <span class="text-sm text-gray-900">
+                  {submission.project_contribution.title}
+                </span>
+                {#if isMilestoneSubmission && submission.milestone_version}
+                  <span class="text-xs text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5 font-medium">
+                    Milestone v{submission.milestone_version}
+                  </span>
+                {/if}
+                {#if submission.project_contribution.link}
+                  <a href="#{submission.project_contribution.link}" class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
+                    View Project →
+                  </a>
+                {/if}
+                {#if submission.project_contribution.github_url}
+                  <a
+                    href={submission.project_contribution.github_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Project Repository ↗
+                  </a>
+                {/if}
+              </div>
+              {#if isMilestoneSubmission}
+                <p class="mt-1 text-xs text-gray-500">
+                  Review the project repository for the changes described in this milestone.
+                </p>
+              {/if}
+            </div>
+          {/if}
         {/if}
 
         {#if isOwnSubmission && submission.mission}
@@ -1037,6 +1081,35 @@
             <p class="mt-1 text-sm text-gray-900">
               {submission.contribution_type_name || getTypeName(submission.contribution_type)}
             </p>
+          </div>
+        {/if}
+
+        {#if isOwnSubmission && submission.project_contribution}
+          <div>
+            <h4 class="text-sm font-medium text-gray-700">Linked Project</h4>
+            <div class="mt-1 flex items-center gap-2 flex-wrap">
+              <p class="text-sm text-gray-900">{submission.project_contribution.title}</p>
+              {#if isMilestoneSubmission && submission.milestone_version}
+                <span class="text-xs text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5 font-medium">
+                  Milestone v{submission.milestone_version}
+                </span>
+              {/if}
+              {#if submission.project_contribution.link}
+                <a href="#{submission.project_contribution.link}" class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
+                  View Project →
+                </a>
+              {/if}
+              {#if submission.project_contribution.github_url}
+                <a
+                  href={submission.project_contribution.github_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
+                >
+                  Project Repository ↗
+                </a>
+              {/if}
+            </div>
           </div>
         {/if}
 

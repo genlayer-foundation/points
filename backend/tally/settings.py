@@ -427,10 +427,15 @@ if not DEBUG:
 RECAPTCHA_PUBLIC_KEY = get_required_env('RECAPTCHA_PUBLIC_KEY')
 RECAPTCHA_PRIVATE_KEY = get_required_env('RECAPTCHA_PRIVATE_KEY')
 
-# Silence the test key warning in development when using Google's test keys
-# In production, this warning will still appear if test keys are accidentally used
+# Silence the test-key system check (a hard error that blocks startup when
+# DEBUG=False) in local development, and on deployments that explicitly opt in
+# via RECAPTCHA_ALLOW_TEST_KEYS=true (the dev portal runs Google's test keys on
+# purpose so QA submissions auto-pass the captcha). Production never sets the
+# flag, so accidentally shipping test keys there still refuses to boot.
+_RECAPTCHA_TEST_PUBLIC_KEY = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'
+_RECAPTCHA_ALLOW_TEST_KEYS = os.environ.get('RECAPTCHA_ALLOW_TEST_KEYS', '').lower() == 'true'
 SILENCED_SYSTEM_CHECKS = []
-if DEBUG and RECAPTCHA_PUBLIC_KEY == '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI':
+if RECAPTCHA_PUBLIC_KEY == _RECAPTCHA_TEST_PUBLIC_KEY and (DEBUG or _RECAPTCHA_ALLOW_TEST_KEYS):
     SILENCED_SYSTEM_CHECKS.append('django_recaptcha.recaptcha_test_key_error')
 
 # Cron job authentication token for validator sync endpoint

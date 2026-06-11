@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { push } from "svelte-spa-router";
   import api from "../../../lib/api.js";
-  import { contributionsAPI } from "../../../lib/api.js";
+  import { contributionsAPI, submissionsAPI } from "../../../lib/api.js";
   import { getContributionTypes } from "../../../lib/api/contributions.js";
   import { getMissions } from "../../../lib/missionsStore.js";
   import { authState } from "../../../lib/auth.js";
@@ -72,6 +72,10 @@
   let selectedType = $state(null);
   let selectedMission = $state(null);
   let selectedMissionData = $state(null);
+  let acceptedProjects = $state([]);
+  let loadingProjects = $state(false);
+  let projectsError = $state(false);
+  let selectedProject = $state("");
   let showTypeDropdown = $state(false);
   let searchQuery = $state("");
 
@@ -117,6 +121,8 @@
       } catch (err) {
         missions = [];
       }
+
+      await loadAcceptedProjects();
 
       // Handle pre-selection from URL params
       if (missionId) {
@@ -365,6 +371,34 @@
     return type.is_submittable && !isTypeFull(type);
   }
 
+  function isMilestoneType(type) {
+    return type?.slug === "milestones";
+  }
+
+  function isProjectType(type) {
+    return ["projects", "projects-and-milestones", "projects-milestones", "project-milestone"].includes(type?.slug);
+  }
+
+  async function loadAcceptedProjects() {
+    if (!$authState.isAuthenticated) return;
+    loadingProjects = true;
+    projectsError = false;
+    try {
+      const response = await submissionsAPI.getAcceptedProjects();
+      acceptedProjects = response.data || [];
+    } catch (err) {
+      // Keep failures distinct from "no accepted projects" so a transient
+      // error never tells a builder they are not eligible for milestones.
+      projectsError = true;
+    } finally {
+      loadingProjects = false;
+    }
+  }
+
+  let selectedProjectData = $derived(
+    acceptedProjects.find((project) => String(project.id) === String(selectedProject)) || null
+  );
+
   function spotsLeftLabel(count) {
     return `${count} ${Number(count) === 1 ? "spot" : "spots"} left`;
   }
@@ -389,7 +423,8 @@
     selectedType &&
     missingSocialAccounts.length === 0 &&
     missingDiscordRoles.length === 0 &&
-    !allEvidenceTypesBlocked
+    !allEvidenceTypesBlocked &&
+    (!isMilestoneType(selectedType) || !!selectedProject)
   );
 
   // True if any evidence slot has a URL that doesn't match its selected type
@@ -478,6 +513,7 @@
       selectedType = null;
       selectedMission = null;
       selectedMissionData = null;
+      selectedProject = "";
       formData.contribution_type = "";
       searchQuery = "";
     }
@@ -503,6 +539,7 @@
     selectedType = t;
     selectedMission = null;
     selectedMissionData = null;
+    selectedProject = "";
     formData.contribution_type = t.id;
     showTypeDropdown = false;
     searchQuery = t.name;
@@ -526,6 +563,7 @@
       selectedType = item.parentType;
       selectedMission = item.data.id;
       selectedMissionData = item.data;
+      selectedProject = "";
       formData.contribution_type = item.parentType.id;
       showTypeDropdown = false;
       searchQuery = item.data.name;
@@ -819,6 +857,16 @@
       return;
     }
 
+    if (isMilestoneType(selectedType) && !selectedProject) {
+      error = "Please select the accepted project this milestone belongs to.";
+      return;
+    }
+
+    if (isMilestoneType(selectedType) && !formData.notes.trim()) {
+      error = "Please describe the changes and improvements in this milestone.";
+      return;
+    }
+
     if (formData.notes.length > 1000) {
       error = "Notes cannot exceed 1000 characters";
       return;
@@ -892,7 +940,9 @@
       });
     }
 
-    if (allEvidence.length === 0) {
+    // Milestones are reviewed from the linked project's repository, so
+    // extra evidence is optional for them.
+    if (allEvidence.length === 0 && !isMilestoneType(selectedType)) {
       error =
         "Please add at least one evidence item with a URL to support your contribution";
       return;
@@ -920,6 +970,10 @@
         notes: formData.notes,
         recaptcha: recaptchaToken,
       };
+
+      if (isMilestoneType(selectedType)) {
+        submissionData.project_contribution = selectedProject;
+      }
 
       // Include mission when selected from the URL preselection or dropdown.
       const missionToSubmit = selectedMission;
@@ -1308,6 +1362,12 @@
               class="font-['Switzer'] font-semibold text-[14px] text-black"
               >{selectedType.name}</span
             >
+            {#if isProjectType(selectedType)}
+              <span
+                class="ml-2 bg-orange-100 text-orange-700 text-[11px] px-2 py-0.5 rounded-full font-medium"
+                >Project</span
+              >
+            {/if}
             {#if selectedType.max_submissions != null && selectedType.submissions_remaining != null}
               <p class="font-['Switzer'] text-[12px] text-gray-500 mt-0.5">
                 Capacity: {spotsLeftLabel(selectedType.submissions_remaining)}
@@ -1334,6 +1394,102 @@
       {/if}
 
     </div>
+
+    {#if selectedType && isMilestoneType(selectedType)}
+      <div
+        class="submit-panel flex flex-col gap-[12px] items-start p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full"
+      >
+        <div class="flex items-start justify-between gap-3 w-full">
+          <div>
+            <h2 class="font-['Switzer'] font-semibold leading-[25px] text-[20px] text-black tracking-[0.4px]">
+              Linked Project
+            </h2>
+            <p class="font-['Switzer'] text-[13px] text-[#6b6b6b] leading-[19px] tracking-[0.26px] mt-1">
+              Milestones must belong to an accepted project. Stewards review
+              your project's GitHub repository for the changes you describe.
+            </p>
+          </div>
+          {#if selectedProjectData}
+            <span class="bg-indigo-100 text-indigo-700 text-[12px] px-2 py-1 rounded-full font-medium whitespace-nowrap">
+              v{selectedProjectData.next_milestone_version || 1}
+            </span>
+          {/if}
+        </div>
+
+        {#if loadingProjects}
+          <div class="w-full rounded-[8px] border border-[#f5f5f5] bg-[#fafafa] p-[12px] text-[14px] text-[#6b6b6b] font-['Switzer']">
+            Loading accepted projects...
+          </div>
+        {:else if projectsError}
+          <div class="w-full rounded-[8px] border border-red-200 bg-red-50 p-[12px]">
+            <p class="font-['Switzer'] text-[14px] text-red-900 font-medium">
+              We couldn't load your accepted projects.
+            </p>
+            <button
+              type="button"
+              onclick={loadAcceptedProjects}
+              class="mt-2 font-['Switzer'] text-[13px] font-medium text-red-700 underline hover:text-red-900"
+            >
+              Try again
+            </button>
+          </div>
+        {:else if acceptedProjects.length === 0}
+          <div class="w-full rounded-[8px] border border-orange-200 bg-orange-50 p-[12px]">
+            <p class="font-['Switzer'] text-[14px] text-orange-900 font-medium">
+              You need an accepted project before submitting milestones.
+            </p>
+            <p class="font-['Switzer'] text-[13px] text-orange-800 mt-1">
+              Submit a Projects contribution first. Once it is accepted, milestones can be linked to it.
+            </p>
+          </div>
+        {:else}
+          <select
+            bind:value={selectedProject}
+            class="w-full h-[44px] rounded-[8px] border border-[#f5f5f5] bg-white px-[12px] font-['Switzer'] text-[14px] text-black tracking-[0.28px] focus:outline-none focus:border-black"
+            required={isMilestoneType(selectedType)}
+          >
+            <option value="">Select accepted project...</option>
+            {#each acceptedProjects as project}
+              <option value={project.id}>
+                {project.title} (next v{project.next_milestone_version || 1})
+              </option>
+            {/each}
+          </select>
+
+          {#if selectedProjectData}
+            <div class="w-full rounded-[8px] border border-[#f0f0f0] bg-[#fafafa] p-[12px]">
+              <p class="font-['Switzer'] text-[13px] text-black font-medium">
+                {selectedProjectData.title}
+              </p>
+              <p class="font-['Switzer'] text-[12px] text-[#6b6b6b] mt-1">
+                This submission will be saved as milestone v{selectedProjectData.next_milestone_version || 1}.
+              </p>
+              {#if selectedProjectData.github_url}
+                <a
+                  href={selectedProjectData.github_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1 mt-2 font-['Switzer'] text-[12px] text-[#1a1c1d] font-medium hover:underline"
+                >
+                  <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+                  </svg>
+                  {selectedProjectData.github_url.replace(/^https?:\/\//, "")}
+                </a>
+                <p class="font-['Switzer'] text-[12px] text-[#6b6b6b] mt-1">
+                  This repository will be reviewed for the changes in this milestone.
+                </p>
+              {:else}
+                <p class="font-['Switzer'] text-[12px] text-orange-700 mt-2">
+                  This project has no GitHub repository on file. Add the repository
+                  link as evidence so stewards can verify your changes.
+                </p>
+              {/if}
+            </div>
+          {/if}
+        {/if}
+      </div>
+    {/if}
 
     <!-- Social account linking gate: shown when type is selected but form can't be shown -->
     {#if selectedType && !canShowFormDetails && gateRequiredSocialAccounts.length > 0}
@@ -1423,8 +1579,18 @@
           for="notes"
           class="field-label font-['Switzer'] font-semibold leading-[25px] text-[20px] text-black tracking-[0.4px]"
         >
-          Notes / Description
+          {#if isMilestoneType(selectedType)}
+            Changes & Improvements <span class="text-[14px] font-normal text-[#e99322]">(required)</span>
+          {:else}
+            Notes / Description
+          {/if}
         </label>
+        {#if isMilestoneType(selectedType)}
+          <p class="font-['Switzer'] text-[13px] text-[#6b6b6b] leading-[19px] tracking-[0.26px] -mt-1">
+            This is the core of your milestone. Explain what you built, improved,
+            or fixed; stewards verify it against your project's GitHub repository.
+          </p>
+        {/if}
         <div
           class="field-control border border-[#f5f5f5] flex flex-col items-start rounded-[8px] w-full bg-white hover:border-gray-300 focus-within:border-black transition-colors"
         >
@@ -1434,7 +1600,10 @@
             maxlength="1000"
             rows="5"
             class="w-full p-[16px] bg-transparent font-['Switzer'] text-[14px] text-black tracking-[0.24px] focus:outline-none focus:ring-0 outline-none resize-y min-h-[120px]"
-            placeholder="Describe your contribution..."
+            placeholder={isMilestoneType(selectedType)
+              ? "Explain the changes and improvements in this milestone..."
+              : "Describe your contribution..."}
+            required={isMilestoneType(selectedType)}
           ></textarea>
         </div>
         <div class="flex items-center justify-end w-full">
@@ -1467,8 +1636,13 @@
           <p
             class="font-['Switzer'] text-[14px] text-[#6b6b6b] leading-[21px] tracking-[0.28px]"
           >
-            Get highlighted. Submit impactful or pioneering work to get
-            highlighted and earn extra recognition.
+            {#if isMilestoneType(selectedType)}
+              Optional for milestones. Add links that support your update,
+              like pull requests, demos, or posts.
+            {:else}
+              Get highlighted. Submit impactful or pioneering work to get
+              highlighted and earn extra recognition.
+            {/if}
           </p>
         </div>
 
