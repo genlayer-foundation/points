@@ -2047,6 +2047,8 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         ).prefetch_related(
             'evidence_items',
             'converted_contribution__highlights',
+            'project_contribution__evidence_items',
+            'converted_contribution__project_contribution__evidence_items',
         ).annotate(
             internal_notes_count=Coalesce(
                 Subquery(notes_count, output_field=IntegerField()),
@@ -2143,11 +2145,13 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 project_contribution = Contribution.objects.select_for_update().get(
                     id=project_contribution.id,
                 )
-                if not accepted_project_contributions_for_user(submission.user).filter(
+                # Validate against the user the contribution will belong to
+                # (stewards can reassign it), not the original submitter.
+                if not accepted_project_contributions_for_user(contribution_user).filter(
                     id=project_contribution.id,
                 ).exists():
                     return Response(
-                        {'detail': 'Milestones can only be accepted for a project contribution owned by the submitter.'},
+                        {'detail': 'Milestones can only be accepted for a project contribution owned by the selected user.'},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 if not milestone_version:

@@ -291,6 +291,45 @@ class ProjectsAndMilestonesTest(TestCase):
         eligible = self.client.get('/api/v1/submissions/accepted-projects/')
         self.assertIn(contribution.id, [item['id'] for item in eligible.data])
 
+    def test_accepting_milestone_reassigned_to_other_user_is_rejected(self):
+        project_contribution = self._accepted_project_contribution()
+        other_user = User.objects.create_user(
+            email='reassigned@test.com',
+            address='0x5555555555555555555555555555555555555555',
+            password='testpass123',
+        )
+        Builder.objects.create(user=other_user)
+        submission = SubmittedContribution.objects.create(
+            user=self.user,
+            contribution_type=self.milestone_type,
+            project_contribution=project_contribution,
+            milestone_version=1,
+            contribution_date=timezone.now(),
+            title='Milestone shipped',
+            notes='Milestone details',
+        )
+        # Reassigning the accepted contribution to another user is a
+        # staff-only action; the ownership check is the staff-path defense.
+        self.steward_user.is_staff = True
+        self.steward_user.save(update_fields=['is_staff'])
+
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/review/',
+            {
+                'action': 'accept',
+                'contribution_type': self.milestone_type.id,
+                # Reassigning the milestone to a user who does not own the
+                # linked project contribution must be rejected.
+                'user': other_user.id,
+                'points': 10,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('owned by the selected user', response.data['detail'])
+
     def test_accepting_milestone_links_contribution_to_project_contribution(self):
         project_contribution = self._accepted_project_contribution()
         submission = SubmittedContribution.objects.create(
