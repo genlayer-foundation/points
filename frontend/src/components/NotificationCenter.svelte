@@ -3,6 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { notificationStore } from '../lib/notificationStore.js';
+  import { followNotificationLink } from '../lib/notificationUtils.js';
   import { relativeTime } from '../lib/relativeTime.js';
 
   let open = $state(false);
@@ -24,18 +25,6 @@
     open = false;
   }
 
-  function followNotification(notification) {
-    const url = notification.link_url || '';
-    if (!url) return;
-
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-      return;
-    }
-
-    push(url.startsWith('#/') ? url.slice(1) : url);
-  }
-
   function openNotification(notification) {
     if (!notification.is_read) {
       // Don't block navigation on the mark-read call.
@@ -43,7 +32,7 @@
     }
 
     closePanel();
-    followNotification(notification);
+    followNotificationLink(notification);
   }
 
   async function markAllRead(event) {

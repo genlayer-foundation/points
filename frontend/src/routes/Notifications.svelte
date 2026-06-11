@@ -1,9 +1,9 @@
 <script>
-  import { push } from 'svelte-spa-router';
   import AuthButton from '../components/AuthButton.svelte';
   import { authState } from '../lib/auth.js';
   import { notificationsAPI } from '../lib/api.js';
   import { notificationStore } from '../lib/notificationStore.js';
+  import { asList, followNotificationLink } from '../lib/notificationUtils.js';
   import { relativeTime } from '../lib/relativeTime.js';
 
   let notifications = $state([]);
@@ -14,12 +14,6 @@
   let totalCount = $state(0);
   let hasNext = $state(false);
   let lastAuthState = null;
-
-  function asList(data) {
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.results)) return data.results;
-    return [];
-  }
 
   async function loadNotifications(reset = true) {
     if (!$authState.isAuthenticated) {
@@ -52,18 +46,6 @@
     }
   }
 
-  function followNotification(notification) {
-    const url = notification.link_url || '';
-    if (!url) return;
-
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-      return;
-    }
-
-    push(url.startsWith('#/') ? url.slice(1) : url);
-  }
-
   function openNotification(notification) {
     if (!notification.is_read) {
       // Don't block navigation on the mark-read call.
@@ -74,7 +56,7 @@
         })
         .catch(() => {});
     }
-    followNotification(notification);
+    followNotificationLink(notification);
   }
 
   async function markAllRead() {

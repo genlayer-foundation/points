@@ -58,6 +58,7 @@
 
     <!-- Right: Actions -->
     <div class="hidden md:flex items-center gap-2">
+      <NotificationCenter />
       {#if $authState.isAuthenticated}
         <SearchBar />
       {/if}
@@ -69,7 +70,6 @@
         <span>Submit a contribution</span>
         <img src="/assets/icons/add-line.svg" alt="" class="w-4 h-4">
       </button>
-      <NotificationCenter />
       <AuthButton />
     </div>
 
