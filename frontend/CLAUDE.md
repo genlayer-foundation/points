@@ -302,6 +302,7 @@ frontend/src/
     - **Profile** - User profile and submissions
 
 ### Content-Link Resolution (`src/lib/links.js`)
+
 Admin-managed content links (hero banners, GenNews announcements, featured builds) are stored in a URLField, so links back into the portal arrive as absolute URLs (e.g. `https://portal.genlayer.foundation/#/mission/7`). `resolvePortalLink(raw)` returns `{ href, external }`: same-origin URLs are rewritten to in-app hash routes (keeping SPA navigation and browser history intact), while cross-origin URLs stay external and should open with `target="_blank"`. Always use this helper instead of `startsWith('http')` checks when rendering content links. Used by `GenNews.svelte`, `HeroBanner.svelte`, `FeaturedBuilds.svelte`, and `EcosystemPartners.svelte`.
 
 ### Hash Route Normalization

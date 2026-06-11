@@ -32,12 +32,18 @@ export function resolvePortalLink(
     return { href: raw, external: false };
   }
 
+  // Only web URLs may render as links; executable/payload schemes
+  // (javascript:, data:, ...) are neutralized to an inert anchor.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return { href: '#', external: false };
+  }
+
   if (origin && url.origin === origin) {
     if (url.hash.startsWith('#/')) return { href: url.hash, external: false };
     if (url.pathname && url.pathname !== '/') {
       return { href: `#${url.pathname}${url.search}`, external: false };
     }
-    return { href: '#/', external: false };
+    return { href: `#/${url.search}`, external: false };
   }
 
   return { href: raw, external: true };

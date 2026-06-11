@@ -24,6 +24,20 @@ describe('resolvePortalLink', () => {
       .toEqual({ href: '#/', external: false });
   });
 
+  it('preserves query params on same-origin root URLs', () => {
+    expect(resolvePortalLink('https://portal.genlayer.foundation/?tab=news', ORIGIN))
+      .toEqual({ href: '#/?tab=news', external: false });
+  });
+
+  it('neutralizes non-http(s) schemes to an inert anchor', () => {
+    expect(resolvePortalLink('javascript:alert(1)', ORIGIN))
+      .toEqual({ href: '#', external: false });
+    expect(resolvePortalLink('data:text/html,<script>alert(1)</script>', ORIGIN))
+      .toEqual({ href: '#', external: false });
+    expect(resolvePortalLink('mailto:team@genlayer.foundation', ORIGIN))
+      .toEqual({ href: '#', external: false });
+  });
+
   it('keeps cross-origin URLs external', () => {
     expect(resolvePortalLink('https://argue.fun', ORIGIN))
       .toEqual({ href: 'https://argue.fun', external: true });
