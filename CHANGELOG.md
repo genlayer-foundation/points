@@ -4,6 +4,7 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- New social tasks award points for quick actions like following GenLayer on X, joining the Discord server, or liking a post. Active tasks appear in a slider on the Contributions page and in a full task view with Open/Completed tabs and search under each category; follows and Discord membership are verified automatically after linking the matching social account (f1377a2c)
 - Searching the Community leaderboard now shows each participant's real rank instead of restarting the numbering at 1 for the search results (d26509e0)
 - Browser back navigation now works everywhere in the portal: links to portal pages from GenNews announcements, hero banners, featured builds, ecosystem project cards, and admin-authored alerts navigate in-app instead of opening a new tab, and pages that redirect away (login-required and steward-only views) no longer trap the back button. GenNews also gets its own entry in the sidebar's Discover section (c81eb99c)
 - Projects and Milestones are now separate contribution types. Projects submissions require the project's GitHub repository as evidence. Builders with an accepted Projects contribution can submit Milestones: auto-versioned progress updates (v1, v2, ...) linked to that contribution, where the written explanation of changes is required, extra evidence is optional, and stewards review the changes against the project's repository (3e7f4d8)
