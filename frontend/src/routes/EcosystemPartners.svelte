@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { partnersAPI, validatorsAPI, projectsAPI } from '../lib/api.js';
+  import { resolvePortalLink } from '../lib/links.js';
   import PartnerCard from '../components/portal/partners/PartnerCard.svelte';
 
   const SECTIONS = [
@@ -66,13 +67,15 @@
   }
 
   function normalizeProject(b) {
-    const link = b.slug ? `#/builders/projects/${b.slug}` : (b.link || b.url || '');
+    const link = b.slug
+      ? { href: `#/builders/projects/${b.slug}`, external: false }
+      : resolvePortalLink(b.link || b.url);
     return {
       id: `project-${b.id || b.title}`,
       name: b.title || b.name || 'Project',
       logo_url: b.featured_profile_image_url || '',
-      href: link || '#',
-      isExternal: link.startsWith('http'),
+      href: link.href,
+      isExternal: link.external,
       category: 'project',
     };
   }

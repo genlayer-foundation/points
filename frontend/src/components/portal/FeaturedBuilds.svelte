@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { projectsAPI } from '../../lib/api.js';
+  import { resolvePortalLink } from '../../lib/links.js';
 
   let { title = 'Featured Builds', subtitle = 'This month curated builds' } = $props();
 
@@ -46,8 +47,9 @@
   {:else}
     <div class="flex gap-[10px] overflow-x-auto pb-2" style="-ms-overflow-style: none; scrollbar-width: none;">
       {#each builds as build}
-        {@const projectHref = build.slug ? `#/builders/projects/${build.slug}` : (build.link || build.url || '#')}
-        {@const isExternal = projectHref.startsWith('http')}
+        {@const projectLink = build.slug ? { href: `#/builders/projects/${build.slug}`, external: false } : resolvePortalLink(build.link || build.url)}
+        {@const projectHref = projectLink.href}
+        {@const isExternal = projectLink.external}
         <a
           href={projectHref}
           target={isExternal ? '_blank' : undefined}

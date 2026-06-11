@@ -7,7 +7,14 @@ describe('parseMarkdown', () => {
     const html = parseMarkdown('Read **the docs** at [GenLayer](https://genlayer.com).');
 
     expect(html).toContain('<strong>the docs</strong>');
-    expect(html).toContain('<a href="https://genlayer.com">GenLayer</a>');
+    expect(html).toContain('<a href="https://genlayer.com" target="_blank" rel="noopener noreferrer">GenLayer</a>');
+  });
+
+  it('rewrites same-origin absolute links to in-app hash routes', () => {
+    const html = parseMarkdown(`See [the mission](${window.location.origin}/#/mission/7).`);
+
+    expect(html).toContain('<a href="#/mission/7">the mission</a>');
+    expect(html).not.toContain('target="_blank"');
   });
 
   it('strips scripts, event handlers, inline styles, and unsafe URLs', () => {
