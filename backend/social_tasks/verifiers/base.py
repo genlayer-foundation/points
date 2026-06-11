@@ -68,6 +68,15 @@ def register(verifier_cls: type[Verifier]) -> type[Verifier]:
         raise ValueError(
             f'{verifier_cls.__name__} must declare verification_type'
         )
+    existing = _REGISTRY.get(instance.verification_type)
+    if existing is not None:
+        # Fail at import time: a silent overwrite would route verification
+        # for every task of this type to the wrong implementation.
+        raise ValueError(
+            f'{verifier_cls.__name__} reuses verification_type '
+            f'{instance.verification_type!r} already registered by '
+            f'{type(existing).__name__}'
+        )
     _REGISTRY[instance.verification_type] = instance
     return verifier_cls
 

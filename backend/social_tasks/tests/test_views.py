@@ -245,11 +245,21 @@ class SocialTaskViewSetTest(TestCase):
         self.assertEqual(response.json()['error'], 'account_banned')
 
     def test_anonymous_user_can_list_active_only(self):
+        inactive = SocialTask.objects.create(
+            slug='inactive-task',
+            name='Inactive Task',
+            category=self.category,
+            points=1,
+            verification_type='click_through',
+            action_url='https://example.com/inactive',
+            is_active=False,
+        )
         anon = APIClient()
         response = anon.get('/api/v1/social-tasks/')
         self.assertEqual(response.status_code, 200)
         slugs = {t['slug'] for t in response.json()}
         self.assertIn(self.click_task.slug, slugs)
+        self.assertNotIn(inactive.slug, slugs)
 
     def test_cleaning_twitter_task_without_handle_fails(self):
         from django.core.exceptions import ValidationError

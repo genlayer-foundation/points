@@ -102,6 +102,10 @@ class SocialTaskViewSet(viewsets.GenericViewSet):
         if existing:
             return self._already_completed_response(task, existing)
 
+        # Snapshot the type that is actually verified: an admin could edit the
+        # task during the (possibly slow) external verification, and the
+        # completion row must record what ran, not the new config.
+        verified_type = task.verification_type
         result = verify(task, user)
         if not result.ok:
             return self._verification_error_response(result.error_code, result.audit)
@@ -128,7 +132,7 @@ class SocialTaskViewSet(viewsets.GenericViewSet):
                     user=user,
                     task=task,
                     points_awarded=task.points,
-                    verification_type=task.verification_type,
+                    verification_type=verified_type,
                     verification_data=result.audit,
                 )
         except Exception as exc:

@@ -104,7 +104,14 @@ class SorsaClient:
         if response.status_code >= 400:
             raise SorsaError(f'Sorsa error {response.status_code}: {data}')
 
-        is_following = bool(data.get('is_following'))
+        # Strict type check: a schema change at Sorsa must surface as a loud
+        # SorsaError (-> 503, user retries later), not silently read as
+        # "not following" for every check.
+        is_following = data.get('is_following')
+        if not isinstance(is_following, bool):
+            raise SorsaError(
+                f'Unexpected is_following value: {type(is_following).__name__}'
+            )
         audit = {
             'status_code': response.status_code,
             'response': data,

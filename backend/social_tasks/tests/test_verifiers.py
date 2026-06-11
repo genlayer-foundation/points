@@ -138,6 +138,27 @@ class DiscordVerifierTest(TestCase):
             linked_at=timezone.now(),
         )
 
+    @patch('social_tasks.verifiers.discord_guild_join.requests.get')
+    def test_custom_guild_check_does_not_touch_main_guild_flag(self, mock_get):
+        """Tasks targeting a campaign guild must not overwrite the cached
+        main-guild membership flag on DiscordConnection."""
+        connection = self._link_discord()
+        connection.guild_member = True
+        connection.save(update_fields=['guild_member'])
+
+        self.task.target_guild_id = 'campaign_guild_999'
+        self.task.save()
+
+        # 404: user is not in the campaign guild. Without the main-guild gate
+        # this used to flip the cached main-guild flag to False.
+        mock_get.return_value = MagicMock(status_code=404)
+        result = verifiers.verify(self.task, self.user)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.audit['guild_id'], 'campaign_guild_999')
+        connection.refresh_from_db()
+        self.assertTrue(connection.guild_member)
+
     def test_no_connection_returns_not_linked(self):
         result = verifiers.verify(self.task, self.user)
         self.assertFalse(result.ok)
@@ -316,5 +337,14 @@ class SorsaClientTest(TestCase):
 
     @patch('requests.Session.post', side_effect=Timeout('slow'))
     def test_timeout_raises(self, _mock):
+        with self.assertRaises(SorsaError):
+            self._client().is_following('a', 'b')
+
+    @patch('requests.Session.post')
+    def test_non_boolean_is_following_raises(self, mock_post):
+        """Schema drift at Sorsa must fail loudly, not read as 'not following'."""
+        mock_post.return_value = MagicMock(
+            status_code=200, json=lambda: {'following': True}
+        )
         with self.assertRaises(SorsaError):
             self._client().is_following('a', 'b')

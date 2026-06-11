@@ -112,7 +112,7 @@
 
   function handleLinked(updatedUser) {
     if (updatedUser) {
-      userStore.setUser(updatedUser);
+      userStore.updateUser(updatedUser);
     } else {
       userStore.loadUser?.();
     }
