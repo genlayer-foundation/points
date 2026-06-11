@@ -69,16 +69,20 @@
   // Accepted projects for the milestone project picker
   let acceptedProjects = $state([]);
   let loadingProjects = $state(false);
+  let projectsError = $state(false);
   let projectsRequested = $state(false);
   let selectedProject = $state('');
 
   async function loadAcceptedProjects() {
     loadingProjects = true;
+    projectsError = false;
     try {
       const response = await submissionsAPI.getAcceptedProjects();
       acceptedProjects = response.data || [];
     } catch (err) {
-      acceptedProjects = [];
+      // Keep failures distinct from "no accepted projects" so a transient
+      // error never tells a builder they are not eligible for milestones.
+      projectsError = true;
     } finally {
       loadingProjects = false;
     }
@@ -738,6 +742,17 @@
             </label>
             {#if loadingProjects}
               <p class="text-sm text-gray-500">Loading accepted projects...</p>
+            {:else if projectsError}
+              <p class="text-sm text-red-700">
+                We couldn't load your accepted projects.
+                <button
+                  type="button"
+                  onclick={loadAcceptedProjects}
+                  class="font-medium underline hover:text-red-900"
+                >
+                  Try again
+                </button>
+              </p>
             {:else if acceptedProjects.length === 0}
               <p class="text-sm text-orange-700">
                 You need an accepted project before submitting milestones.

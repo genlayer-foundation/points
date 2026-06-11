@@ -67,7 +67,7 @@ backend/
   - Contribution - Individual contribution records. Has optional `project` FK (projects.Project) and `milestone_version` used by the Projects/Milestones split.
   - ContributionType - Categories with slug field, has M2M `accepted_evidence_url_types`
 - **Projects/Milestones split**: `contributions/project_milestones.py`
-  - `projects` and `milestones` are separate contribution types (migration 0067). Projects require a GitHub repository evidence URL (`required_evidence_url_types` = github-repo). Accepting a Projects submission creates an active projects.Project linked via `Contribution.project`. Milestones must be linked to one of the submitter's accepted projects (`/submissions/accepted-projects/`), require a written change description (evidence optional), and get an auto-assigned sequential `milestone_version` per project.
+  - `projects` and `milestones` are separate contribution types (migration 0068). Projects require a GitHub repository evidence URL (`required_evidence_url_types` = github-repo). Accepting a Projects submission creates an active projects.Project linked via `Contribution.project`. Milestones must be linked to one of the submitter's accepted projects (`/submissions/accepted-projects/`), require a written change description (evidence optional), and get an auto-assigned sequential `milestone_version` per project.
   - FeaturedContent - Portal hero/community/validator-steward content managed through admin
   - ContributionTypeMultiplier - Dynamic point multipliers
   - Evidence - Evidence items with `url_type` FK for auto-detected URL type, `normalized_url` indexed field for fast duplicate detection (text descriptions and URLs only - file uploads are disabled)

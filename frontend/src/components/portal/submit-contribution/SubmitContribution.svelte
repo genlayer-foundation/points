@@ -74,6 +74,7 @@
   let selectedMissionData = $state(null);
   let acceptedProjects = $state([]);
   let loadingProjects = $state(false);
+  let projectsError = $state(false);
   let selectedProject = $state("");
   let showTypeDropdown = $state(false);
   let searchQuery = $state("");
@@ -381,11 +382,14 @@
   async function loadAcceptedProjects() {
     if (!$authState.isAuthenticated) return;
     loadingProjects = true;
+    projectsError = false;
     try {
       const response = await submissionsAPI.getAcceptedProjects();
       acceptedProjects = response.data || [];
     } catch (err) {
-      acceptedProjects = [];
+      // Keep failures distinct from "no accepted projects" so a transient
+      // error never tells a builder they are not eligible for milestones.
+      projectsError = true;
     } finally {
       loadingProjects = false;
     }
@@ -1415,6 +1419,19 @@
         {#if loadingProjects}
           <div class="w-full rounded-[8px] border border-[#f5f5f5] bg-[#fafafa] p-[12px] text-[14px] text-[#6b6b6b] font-['Switzer']">
             Loading accepted projects...
+          </div>
+        {:else if projectsError}
+          <div class="w-full rounded-[8px] border border-red-200 bg-red-50 p-[12px]">
+            <p class="font-['Switzer'] text-[14px] text-red-900 font-medium">
+              We couldn't load your accepted projects.
+            </p>
+            <button
+              type="button"
+              onclick={loadAcceptedProjects}
+              class="mt-2 font-['Switzer'] text-[13px] font-medium text-red-700 underline hover:text-red-900"
+            >
+              Try again
+            </button>
           </div>
         {:else if acceptedProjects.length === 0}
           <div class="w-full rounded-[8px] border border-orange-200 bg-orange-50 p-[12px]">
