@@ -4,6 +4,7 @@
  */
 export function relativeTime(value, { verbose = false } = {}) {
   const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
   const seconds = Math.max(1, Math.floor((Date.now() - date.getTime()) / 1000));
   const suffix = verbose ? ' ago' : '';
 

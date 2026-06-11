@@ -107,11 +107,18 @@ function createNotificationStore() {
     const response = await notificationsAPI.markRead(id);
     const updated = response.data;
 
-    update((state) => ({
-      ...state,
-      items: state.items.map((item) => (item.id === id ? updated : item)),
-      unreadCount: Math.max(0, state.unreadCount - 1)
-    }));
+    update((state) => {
+      // Items outside the dropdown slice (page-only) still decrement: their
+      // callers only mark unread items. For items in the slice, skip the
+      // decrement when they were already read (e.g. double-click replay).
+      const itemInSlice = state.items.find((item) => item.id === id);
+      const shouldDecrement = itemInSlice ? !itemInSlice.is_read : true;
+      return {
+        ...state,
+        items: state.items.map((item) => (item.id === id ? updated : item)),
+        unreadCount: shouldDecrement ? Math.max(0, state.unreadCount - 1) : state.unreadCount
+      };
+    });
 
     return updated;
   }

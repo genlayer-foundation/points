@@ -14,6 +14,9 @@
   let totalCount = $state(0);
   let hasNext = $state(false);
   let lastAuthState = null;
+  // Guards against out-of-order responses on fast filter toggles, same as
+  // latestPoapsRequestId in CommunityPoaps.
+  let latestRequestId = 0;
 
   async function loadNotifications(reset = true) {
     if (!$authState.isAuthenticated) {
@@ -23,6 +26,7 @@
       return;
     }
 
+    const requestId = ++latestRequestId;
     loading = true;
     error = '';
 
@@ -33,6 +37,7 @@
         page_size: 30,
         unread: unreadOnly ? 'true' : undefined
       });
+      if (requestId !== latestRequestId) return;
 
       const items = asList(response.data);
       notifications = reset ? items : [...notifications, ...items];
@@ -40,9 +45,12 @@
       hasNext = Boolean(response.data?.next);
       currentPage = page;
     } catch (err) {
+      if (requestId !== latestRequestId) return;
       error = 'Failed to load notifications';
     } finally {
-      loading = false;
+      if (requestId === latestRequestId) {
+        loading = false;
+      }
     }
   }
 

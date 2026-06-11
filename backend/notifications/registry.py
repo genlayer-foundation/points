@@ -50,7 +50,11 @@ _EVENT_TYPES = [
     EventType('alert.published', category='system', priority=Notification.PRIORITY_HIGH),
 ]
 
-EVENT_TYPES = {event.slug: event for event in _EVENT_TYPES}
+EVENT_TYPES = {}
+for _event in _EVENT_TYPES:
+    if _event.slug in EVENT_TYPES:
+        raise RuntimeError(f"Duplicate notification event slug: {_event.slug}")
+    EVENT_TYPES[_event.slug] = _event
 
 
 def get_event_type(slug):
