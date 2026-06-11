@@ -37,7 +37,7 @@
   );
   let typeSlug = $derived(contribution?.contribution_type_details?.slug);
   let isMilestone = $derived(typeSlug === 'milestones');
-  let linkedProject = $derived(contribution?.project);
+  let linkedProject = $derived(contribution?.project_contribution);
   let missionName = $derived(contribution?.mission?.name);
   
   function formatDate(dateString) {
@@ -174,7 +174,7 @@
           {#if linkedProject}
             <span class="text-gray-400">•</span>
             <a
-              href="#{linkedProject.link || `/builders/projects/${linkedProject.slug}`}"
+              href="#{linkedProject.link}"
               class="{categoryColors.text} {categoryColors.hoverText} font-medium"
               onclick={(event) => event.stopPropagation()}
             >

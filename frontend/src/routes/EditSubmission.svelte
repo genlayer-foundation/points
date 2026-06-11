@@ -383,7 +383,7 @@
       // Load submission
       const submissionResponse = await api.get(`/submissions/${params.id}/`);
       submission = submissionResponse.data;
-      selectedProject = submission.project ? submission.project.id : '';
+      selectedProject = submission.project_contribution ? submission.project_contribution.id : '';
 
       // Check if editing is allowed
       if (!submission.can_edit) {
@@ -570,7 +570,7 @@
         notes: formData.notes || '',
         mission: formData.mission || null,
         // Explicit null clears the link when switching away from Milestones
-        project: isMilestoneSubmission ? selectedProject : null,
+        project_contribution: isMilestoneSubmission ? selectedProject : null,
         evidence_items: evidence_items  // Send all evidence in one request
       };
 
@@ -774,7 +774,7 @@
                 {/each}
               </select>
               <div class="mt-2 flex items-center gap-2 flex-wrap">
-                {#if submission?.milestone_version && submission?.project?.id && String(submission.project.id) === String(selectedProject)}
+                {#if submission?.milestone_version && submission?.project_contribution?.id && String(submission.project_contribution.id) === String(selectedProject)}
                   <span class="text-xs text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5 font-medium">
                     Milestone v{submission.milestone_version}
                   </span>

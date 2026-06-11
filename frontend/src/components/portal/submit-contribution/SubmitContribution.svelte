@@ -972,7 +972,7 @@
       };
 
       if (isMilestoneType(selectedType)) {
-        submissionData.project = selectedProject;
+        submissionData.project_contribution = selectedProject;
       }
 
       // Include mission when selected from the URL preselection or dropdown.
