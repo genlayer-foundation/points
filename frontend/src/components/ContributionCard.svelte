@@ -4,7 +4,8 @@
   import { getCategoryColors } from '../lib/categoryColors';
   import Avatar from './Avatar.svelte';
   import Icons from './Icons.svelte';
-  import { parseMarkdown } from '../lib/markdownLoader.js';
+  import { parseMarkdown, parseUserMarkdown } from '../lib/markdownLoader.js';
+  import { isSafeHttpUrl } from '../lib/urlSafety.js';
 
   let {
     contribution,
@@ -177,7 +178,7 @@
         {#if submission?.notes}
           <div>
             <h5 class="text-xs font-medium text-gray-700 mb-1">Notes</h5>
-            <div class="markdown-content text-xs text-gray-600">{@html parseMarkdown(submission.notes)}</div>
+            <div class="markdown-content text-xs text-gray-600">{@html parseUserMarkdown(submission.notes)}</div>
           </div>
         {/if}
 
@@ -190,13 +191,13 @@
                   {#if evidence.description}
                     • {evidence.description}
                   {/if}
-                  {#if evidence.url}
-                    <a href={evidence.url} target="_blank" class="{categoryColors.text} underline ml-1">
+                  {#if isSafeHttpUrl(evidence.url)}
+                    <a href={evidence.url} target="_blank" rel="noopener noreferrer" class="{categoryColors.text} underline ml-1">
                       View URL
                     </a>
                   {/if}
-                  {#if evidence.file_url}
-                    <a href={evidence.file_url} target="_blank" class="{categoryColors.text} underline ml-1">
+                  {#if isSafeHttpUrl(evidence.file_url)}
+                    <a href={evidence.file_url} target="_blank" rel="noopener noreferrer" class="{categoryColors.text} underline ml-1">
                       View File
                     </a>
                   {/if}

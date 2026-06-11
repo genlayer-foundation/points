@@ -202,7 +202,7 @@ cd backend/scripts
 2. Downloads production data to `backend/backups/` using Docker
 3. Restores to development database (local PostgreSQL or AWS dev instance)
 4. Runs Django migrations
-5. Creates/updates admin user (`dev@genlayer.foundation` / `password`) with Steward role
+5. Creates/updates admin user (`dev@genlayer.foundation`) with Steward role — password comes from `DEV_ADMIN_PASSWORD` or is randomly generated and printed by the script
 
 **Notes:**
 - Uses Docker to avoid PostgreSQL version mismatch issues

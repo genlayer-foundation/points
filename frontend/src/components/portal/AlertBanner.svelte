@@ -1,5 +1,21 @@
 <script>
+  // DOMPurify with the shared link-hardening hook installed: external links
+  // get target="_blank" rel="noopener noreferrer" after sanitization, so
+  // target/rel are deliberately NOT in the allowlist below (authors can't
+  // inject their own values).
+  import DOMPurify from '../../lib/sanitizeHooks.js';
+
   let { id, alertType = 'info', text = '', icon = '', onDismiss } = $props();
+
+  // Alert text is admin-managed and may contain simple inline HTML (links,
+  // emphasis), but it is still sanitized before {@html} so a compromised or
+  // mistaken admin entry can't inject scripts into every visitor's page.
+  let safeText = $derived(DOMPurify.sanitize(text, {
+    ALLOWED_TAGS: ['a', 'b', 'br', 'em', 'i', 'span', 'strong'],
+    ALLOWED_ATTR: ['href', 'title'],
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|#|\/(?!\/))/i,
+    ALLOW_DATA_ATTR: false,
+  }));
 
   const typeStyles = {
     info: {
@@ -67,9 +83,9 @@
     {/if}
   </div>
 
-  <!-- Text (supports HTML links since content is admin-managed) -->
+  <!-- Text (supports simple inline HTML links; sanitized above) -->
   <p class="flex-1 text-sm font-medium alert-text" style="color: #1b1b1b; letter-spacing: 0.28px;">
-    {@html text}
+    {@html safeText}
   </p>
 
   <!-- Close button -->

@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'dj_rest_auth',
     'corsheaders',
     'drf_yasg',
@@ -209,6 +210,10 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'poap_claim_secret': '10/minute',
+        # SIWE nonce/login are unauthenticated: bound per-IP brute force
+        'siwe_auth': '30/minute',
+        # Wallet linking is a one-time action per validator
+        'wallet_link': '10/hour',
     },
     'PAGE_SIZE': 10,
 }
@@ -216,14 +221,24 @@ REST_FRAMEWORK = {
 # JWT settings
 from datetime import timedelta
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=14),
     'ROTATE_REFRESH_TOKENS': True,
+    # Rotated refresh tokens are blacklisted so a stolen refresh token can't
+    # keep minting new sessions after its replacement is issued.
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 
 # CORS settings
 if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
+    # Even in development, never reflect arbitrary origins with credentials:
+    # a malicious website could otherwise make authenticated requests against
+    # a dev backend (which often holds prod-derived data). Local frontends run
+    # on varying ports, so allow any localhost port instead of allow-all.
+    CORS_ALLOWED_ORIGIN_REGEXES = [
+        r'^http://localhost(:\d+)?$',
+        r'^http://127\.0\.0\.1(:\d+)?$',
+    ]
 else:
     CORS_ALLOWED_ORIGINS = get_required_env('CORS_ALLOWED_ORIGINS').split(',')
 CORS_ALLOW_CREDENTIALS = True
@@ -392,6 +407,18 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # Use forwarded headers for generating URLs
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
+
+# Transport security hardening outside of local development: redirect plain
+# HTTP to HTTPS and emit HSTS so browsers refuse downgraded connections.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    # Infrastructure health checks may probe over plain HTTP without the
+    # X-Forwarded-Proto header; redirecting them would fail deployments.
+    SECURE_REDIRECT_EXEMPT = [r'^health/?$']
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False  # other subdomains are not ours to claim
+    SECURE_HSTS_PRELOAD = False
+    SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # Google reCAPTCHA settings
 # Required for contribution submission spam protection

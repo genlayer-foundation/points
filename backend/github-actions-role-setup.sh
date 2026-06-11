@@ -56,17 +56,36 @@ aws iam create-role \
     --assume-role-policy-document file://github-actions-trust-policy.json \
     --description "Role for GitHub Actions to deploy Tally backend to App Runner"
 
-# Create policy for App Runner deployment
+# Create policy for App Runner deployment.
+#
+# Deliberately scoped:
+# - No IAM write actions (CreateRole/AttachRolePolicy/PutRolePolicy): CI being
+#   able to edit the App Runner instance-role policy is a privilege-escalation
+#   path (e.g. granting itself read access to every SSM secret). The one-time
+#   role bootstrap in deploy-apprunner.sh must be run by an administrator.
+# - App Runner and ECR mutations are limited to the tally-backend* service and
+#   repository ARNs; only the List*/GetAuthorizationToken calls that AWS does
+#   not support resource-scoping for remain on "*".
+# - iam:PassRole is restricted to the two App Runner roles and only towards
+#   the App Runner service principals.
 cat > github-actions-policy.json << EOF
 {
     "Version": "2012-10-17",
     "Statement": [
         {
+            "Sid": "AppRunnerDeploy",
             "Effect": "Allow",
             "Action": [
                 "apprunner:CreateService",
                 "apprunner:UpdateService",
-                "apprunner:DescribeService",
+                "apprunner:DescribeService"
+            ],
+            "Resource": "arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/tally-backend*"
+        },
+        {
+            "Sid": "AppRunnerRead",
+            "Effect": "Allow",
+            "Action": [
                 "apprunner:ListServices",
                 "apprunner:ListVpcConnectors",
                 "apprunner:DescribeVpcConnector"
@@ -74,9 +93,17 @@ cat > github-actions-policy.json << EOF
             "Resource": "*"
         },
         {
+            "Sid": "EcrLogin",
             "Effect": "Allow",
             "Action": [
-                "ecr:GetAuthorizationToken",
+                "ecr:GetAuthorizationToken"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "EcrPush",
+            "Effect": "Allow",
+            "Action": [
                 "ecr:BatchCheckLayerAvailability",
                 "ecr:GetDownloadUrlForLayer",
                 "ecr:BatchGetImage",
@@ -87,16 +114,13 @@ cat > github-actions-policy.json << EOF
                 "ecr:CompleteLayerUpload",
                 "ecr:PutImage"
             ],
-            "Resource": "*"
+            "Resource": "arn:aws:ecr:$REGION:$ACCOUNT_ID:repository/tally-backend*"
         },
         {
+            "Sid": "ReadAppRunnerRoles",
             "Effect": "Allow",
             "Action": [
-                "iam:GetRole",
-                "iam:CreateRole",
-                "iam:AttachRolePolicy",
-                "iam:PutRolePolicy",
-                "iam:PassRole"
+                "iam:GetRole"
             ],
             "Resource": [
                 "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerInstanceRole",
@@ -104,6 +128,27 @@ cat > github-actions-policy.json << EOF
             ]
         },
         {
+            "Sid": "PassAppRunnerRoles",
+            "Effect": "Allow",
+            "Action": [
+                "iam:PassRole"
+            ],
+            "Resource": [
+                "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerInstanceRole",
+                "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerECRAccessRole"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "iam:PassedToService": [
+                        "apprunner.amazonaws.com",
+                        "build.apprunner.amazonaws.com",
+                        "tasks.apprunner.amazonaws.com"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "Identity",
             "Effect": "Allow",
             "Action": [
                 "sts:GetCallerIdentity"
@@ -111,6 +156,7 @@ cat > github-actions-policy.json << EOF
             "Resource": "*"
         },
         {
+            "Sid": "GrafanaTokenParameter",
             "Effect": "Allow",
             "Action": [
                 "ssm:PutParameter"

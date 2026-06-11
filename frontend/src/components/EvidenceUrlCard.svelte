@@ -1,6 +1,7 @@
 <script>
   import TweetEmbed from './TweetEmbed.svelte';
   import { getXPostUrl } from '../lib/xPost.js';
+  import { isSafeHttpUrl } from '../lib/urlSafety.js';
 
   /**
    * @typedef {{
@@ -63,9 +64,14 @@
     <p class="evidence-url-description">{description}</p>
   {/if}
 
-  <a href={url} target="_blank" rel="noopener noreferrer" class="evidence-url-link">
-    {url}
-  </a>
+  {#if isSafeHttpUrl(url)}
+    <a href={url} target="_blank" rel="noopener noreferrer" class="evidence-url-link">
+      {url}
+    </a>
+  {:else}
+    <!-- Non-http(s) URLs are shown as plain text, never as a link target -->
+    <span class="evidence-url-link">{url}</span>
+  {/if}
 
   {#if showPreview && canPreview}
     <div class="evidence-preview">

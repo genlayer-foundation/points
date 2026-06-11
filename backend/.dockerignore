@@ -88,9 +88,13 @@ coverage.xml
 *.cover
 .hypothesis/
 
-# Backup files
+# Backup files and database dumps — never bake prod data into images
+backups/
 *.bak
 *.backup
+*.sql
+*.dump
+*.sql.gz
 
 # Temporary files
 *.tmp

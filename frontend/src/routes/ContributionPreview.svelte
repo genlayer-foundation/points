@@ -3,9 +3,10 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import { contributionsAPI } from '../lib/api.js';
-  import { parseMarkdown } from '../lib/markdownLoader.js';
+  import { parseMarkdown, parseUserMarkdown } from '../lib/markdownLoader.js';
   import Avatar from '../components/Avatar.svelte';
   import EvidenceUrlCard from '../components/EvidenceUrlCard.svelte';
+  import Podium from '../components/ui/Podium.svelte';
 
   let { params = {} } = $props();
 
@@ -33,6 +34,7 @@
 
   let category = $derived(contribution?.contribution_type_details?.category || 'global');
   let colors = $derived(categoryConfig[category] || categoryConfig.global);
+  let valueLabel = $derived(category === 'builder' ? 'BP' : category === 'validator' ? 'VP' : category === 'community' ? 'CP' : 'pts');
   let isHighlighted = $derived(!!contribution?.highlight);
   let typeName = $derived(contribution?.contribution_type_details?.name || contribution?.contribution_type_name || 'Contribution');
 
@@ -52,12 +54,6 @@
     } catch {
       return dateString || 'N/A';
     }
-  }
-
-  function formatPoints(pts) {
-    if (pts == null) return '0';
-    if (pts >= 1000) return (pts / 1000).toFixed(1) + 'K';
-    return pts.toString();
   }
 
   function getDisplayName(user) {
@@ -83,6 +79,15 @@
 
   function getContributionCategory(c) {
     return c?.contribution_type_details?.category || 'global';
+  }
+
+  function getContributionPath(c) {
+    const id = c?.id;
+    const cat = getContributionCategory(c);
+    if (cat === 'builder') return `/builders/contribution/${id}`;
+    if (cat === 'validator') return `/validators/contribution/${id}`;
+    if (cat === 'community') return `/community/contribution/${id}`;
+    return `/contribution/${id}`;
   }
 
   onMount(async () => {
@@ -111,7 +116,8 @@
         promises.push(
           contributionsAPI.getContributionTypeTopContributors(contribution.contribution_type_details.id)
             .then(r => {
-              topContributors = (r.data || []).slice(0, 1);
+              const results = Array.isArray(r.data) ? r.data : (r.data?.results || []);
+              topContributors = results.slice(0, 3);
             }).catch(() => {})
         );
       }
@@ -286,7 +292,7 @@
               Notes
             </h3>
             <div class="text-[14px] leading-[21px]" style="color: #3f3f3f; letter-spacing: 0.28px;">
-              {@html parseMarkdown(contribution.notes)}
+              {@html parseUserMarkdown(contribution.notes)}
             </div>
           </div>
         {/if}
@@ -309,8 +315,12 @@
               {#each userContributions as uc}
                 {@const ucCategory = getContributionCategory(uc)}
                 {@const ucColors = categoryConfig[ucCategory] || categoryConfig.global}
-                <button
-                  onclick={() => push(`/contribution/${uc.id}`)}
+                <a
+                  href={`#${getContributionPath(uc)}`}
+                  onclick={(event) => {
+                    event.preventDefault();
+                    push(getContributionPath(uc));
+                  }}
                   class="flex-shrink-0 w-[260px] h-[156px] rounded-[8px] flex flex-col justify-between pl-[17px] pr-[4px] py-[17px] text-left hover:shadow-sm transition-shadow"
                   style="border: 1px solid #f0f0f0;"
                 >
@@ -324,7 +334,7 @@
                     <span class="text-[12px] font-medium text-black flex-1 truncate" style="letter-spacing: 0.24px;">
                       {getDisplayName(uc.user_details)}
                     </span>
-                    <span class="text-[12px] px-[8px] py-[4px] rounded-full flex-shrink-0" style="background: #f3f3f3; color: #6b6b6b; letter-spacing: 0.24px;">
+                    <span class="text-[12px] px-[8px] py-[4px] rounded-full flex-shrink-0" style="background: {ucColors.pillBg}; color: {ucColors.text}; letter-spacing: 0.24px;">
                       {uc.frozen_global_points || 0} pts
                     </span>
                   </div>
@@ -348,7 +358,7 @@
                       {formatDate(uc.contribution_date)}
                     </span>
                   </div>
-                </button>
+                </a>
               {/each}
             </div>
           </div>
@@ -360,30 +370,12 @@
             <h2 class="text-[20px] font-semibold text-black mb-[16px]" style="letter-spacing: 0.4px;">
               Top in {typeName}
             </h2>
-            <div class="rounded-[8px] overflow-clip" style="border: 1px solid #f0f0f0;">
-              {#each topContributors as tc, i}
-                <button
-                  onclick={() => tc.address && push(`/participant/${tc.address}`)}
-                  class="w-full flex items-center gap-[12px] px-[16px] py-[12px] hover:opacity-80 transition-opacity"
-                  style="background: #fafafa;"
-                >
-                  <span class="text-[12px] font-medium w-[20px]" style="color: #ababab; letter-spacing: 0.24px;">
-                    #{i + 1}
-                  </span>
-                  {#if tc.profile_image_url}
-                    <img src={tc.profile_image_url} alt="" class="w-[20px] h-[20px] rounded-full" />
-                  {:else}
-                    <div class="w-[20px] h-[20px] rounded-full" style="background: #e6e6e6;"></div>
-                  {/if}
-                  <span class="text-[14px] font-medium text-black flex-1 text-left" style="letter-spacing: 0.28px;">
-                    {tc.name || (tc.address ? tc.address.slice(0, 6) + '...' + tc.address.slice(-4) : 'Unknown')}
-                  </span>
-                  <span class="text-[12px] font-medium" style="color: #6b6b6b; letter-spacing: 0.24px;">
-                    {formatPoints(tc.total_points)} pts
-                  </span>
-                </button>
-              {/each}
-            </div>
+            <Podium
+              entries={topContributors}
+              accentColor={colors.text}
+              {valueLabel}
+              {category}
+            />
           </div>
         {/if}
       </div>
@@ -414,7 +406,7 @@
           <!-- Points -->
           <div class="flex items-center justify-between pr-[13px]">
             <span class="text-[12px]" style="color: #ababab; letter-spacing: 0.24px;">Points</span>
-            <span class="text-[12px] font-medium px-[8px] py-[4px] rounded-full" style="background: #f3f3f3; color: #6b6b6b;">
+            <span class="text-[12px] font-medium px-[8px] py-[4px] rounded-full" style="background: {colors.pillBg}; color: {colors.text};">
               {contribution.frozen_global_points || 0} pts
             </span>
           </div>

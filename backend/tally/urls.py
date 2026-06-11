@@ -43,7 +43,9 @@ def csrf_token(request):
         "csrfCookieName": settings.CSRF_COOKIE_NAME,
     })
 
-# Schema view for Swagger documentation
+# Schema view for Swagger documentation.
+# Open in development; staff-only in production so the full API surface
+# (including internal/steward endpoints) is not published to anonymous users.
 schema_view = get_schema_view(
     openapi.Info(
         title="Tally API",
@@ -53,8 +55,8 @@ schema_view = get_schema_view(
         contact=openapi.Contact(email="contact@example.com"),
         license=openapi.License(name="BSD License"),
     ),
-    public=True,
-    permission_classes=[permissions.AllowAny],
+    public=settings.DEBUG,
+    permission_classes=[permissions.AllowAny] if settings.DEBUG else [permissions.IsAdminUser],
 )
 
 urlpatterns = [
