@@ -150,6 +150,7 @@
   let showCommunitySection = $derived(
     Boolean(participant && (participant.creator || poapCount > 0)),
   );
+  let hasValidatorPoints = $derived((validatorStats?.totalPoints ?? 0) > 0);
 
   $effect(() => {
     const currentParams = $params;
@@ -945,7 +946,7 @@
         </div>
       {/if}
 
-      {#if participant?.validator}
+      {#if participant?.validator && hasValidatorPoints}
         <div class="w-full mb-16 pt-10 border-t border-gray-100 mt-10">
           <RoleView
             role="validator"
