@@ -52,6 +52,35 @@ class TwitterFollowVerifierTest(TestCase):
         self.assertEqual(result.error_code, 'social_account_not_linked')
         self.assertEqual(result.audit.get('platform'), 'twitter')
 
+    def test_clean_rejects_profile_url_handle(self):
+        from django.core.exceptions import ValidationError
+
+        bad = SocialTask(
+            name='Bad handle task',
+            slug='bad-handle-task',
+            category=self.category,
+            points=5,
+            verification_type='twitter_follow',
+            target_handle='https://x.com/genlayer',
+            action_url='https://x.com/genlayer',
+        )
+        with self.assertRaises(ValidationError) as cm:
+            bad.clean()
+        self.assertIn('target_handle', cm.exception.message_dict)
+
+    def test_blank_action_url_derives_follow_intent(self):
+        task = SocialTask(
+            name='Derived URL task',
+            slug='derived-url-task',
+            category=self.category,
+            points=5,
+            verification_type='twitter_follow',
+            target_handle='@genlayer',
+        )
+        task.clean()  # passes: derivable
+        task.save()
+        self.assertEqual(task.action_url, 'https://x.com/intent/follow?screen_name=genlayer')
+
     @patch('social_tasks.verifiers.twitter_follow.get_default_client')
     def test_following_returns_ok(self, mock_get_client):
         TwitterConnection.objects.create(
@@ -189,6 +218,8 @@ class DiscordVerifierTest(TestCase):
 
     @patch('social_tasks.verifiers.discord_guild_join.requests.get')
     def test_token_expired_returns_relink(self, mock_get):
+        # No refresh_token on the connection, so the one-shot refresh attempt
+        # raises ValueError immediately and re-link is the remedy.
         self._link_discord()
         mock_get.return_value = MagicMock(status_code=401)
 
@@ -197,6 +228,53 @@ class DiscordVerifierTest(TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error_code, 'token_invalid_relink_required')
         self.assertEqual(result.audit['platform'], 'discord')
+
+    @patch('social_connections.oauth_service.DiscordOAuthService.refresh_stored_access_token')
+    @patch('social_tasks.verifiers.discord_guild_join.requests.get')
+    def test_expired_token_refreshes_and_retries(self, mock_get, mock_refresh):
+        """Routine 7-day token expiry must refresh transparently, not re-link."""
+        self._link_discord()
+        mock_get.side_effect = [MagicMock(status_code=401), MagicMock(status_code=200)]
+        mock_refresh.return_value = 'fresh-token'
+
+        result = verifiers.verify(self.task, self.user)
+
+        self.assertTrue(result.ok)
+        self.assertIsNone(result.error_code)
+        mock_refresh.assert_called_once()
+        self.assertEqual(mock_get.call_count, 2)
+        # The retry must use the refreshed token.
+        retry_headers = mock_get.call_args_list[1].kwargs['headers']
+        self.assertEqual(retry_headers['Authorization'], 'Bearer fresh-token')
+
+    @patch('social_connections.oauth_service.DiscordOAuthService.refresh_stored_access_token')
+    @patch('social_tasks.verifiers.discord_guild_join.requests.get')
+    def test_refresh_transport_error_returns_unavailable(self, mock_get, mock_refresh):
+        """A transient failure of the refresh itself is retryable, not a re-link."""
+        self._link_discord()
+        mock_get.return_value = MagicMock(status_code=401)
+        mock_refresh.side_effect = Timeout('discord token endpoint slow')
+
+        result = verifiers.verify(self.task, self.user)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, 'verification_unavailable')
+
+    def test_clean_rejects_invite_link_guild_id(self):
+        from django.core.exceptions import ValidationError
+
+        bad = SocialTask(
+            name='Bad guild task',
+            slug='bad-guild-task',
+            category=self.category,
+            points=5,
+            verification_type='discord_guild_join',
+            target_guild_id='discord.gg/genlayer',
+            action_url='https://discord.gg/genlayer',
+        )
+        with self.assertRaises(ValidationError) as cm:
+            bad.clean()
+        self.assertIn('target_guild_id', cm.exception.message_dict)
 
     @patch('social_tasks.verifiers.discord_guild_join.requests.get')
     def test_forbidden_token_returns_relink(self, mock_get):
@@ -389,6 +467,19 @@ class GitHubStarVerifierTest(TestCase):
         with self.assertRaises(ValidationError) as cm:
             bad.clean()
         self.assertIn('target_repo', cm.exception.message_dict)
+
+    def test_blank_action_url_derives_repo_page(self):
+        task = SocialTask(
+            name='Derived repo URL task',
+            slug='derived-repo-url-task',
+            category=self.category,
+            points=5,
+            verification_type='github_star',
+            target_repo='genlayer-foundation/points',
+        )
+        task.clean()  # passes: derivable
+        task.save()
+        self.assertEqual(task.action_url, 'https://github.com/genlayer-foundation/points')
 
 
 class ClickThroughVerifierTest(TestCase):

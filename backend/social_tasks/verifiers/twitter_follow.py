@@ -6,6 +6,7 @@ Requires:
 """
 
 import logging
+import re
 
 from django.utils import timezone
 
@@ -13,6 +14,9 @@ from ..sorsa_client import SorsaError, get_default_client
 from .base import Verifier, VerifierResult, register
 
 logger = logging.getLogger(__name__)
+
+# X / Twitter usernames: 1-15 letters, digits, or underscores; optional @.
+HANDLE_RE = re.compile(r'^@?[A-Za-z0-9_]{1,15}$')
 
 
 @register
@@ -23,6 +27,23 @@ class TwitterFollowVerifier(Verifier):
     required_fields = ('target_handle',)
     requires_verification = True
     required_connection = 'twitter'
+
+    def clean_task(self, task) -> dict[str, str]:
+        handle = (task.target_handle or '').strip()
+        if not HANDLE_RE.match(handle):
+            return {
+                'target_handle': (
+                    'Must be a bare X handle (1-15 letters, digits or underscores, '
+                    'optional leading @) — not a profile URL.'
+                )
+            }
+        return {}
+
+    def derive_action_url(self, task) -> str | None:
+        handle = (task.target_handle or '').strip().lstrip('@')
+        if not handle:
+            return None
+        return f'https://x.com/intent/follow?screen_name={handle}'
 
     def verify(self, task, user) -> VerifierResult:
         connection = getattr(user, 'twitterconnection', None)

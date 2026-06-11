@@ -29,10 +29,11 @@
     loading = true;
     error = '';
     try {
-      const params = {};
-      if (category && category !== 'global') {
-        params.category = category;
-      }
+      // The 'global' contributions page uses the community labels and links
+      // to /community/tasks, so fetch community tasks there too — mixing in
+      // builder/validator tasks would mislabel them and "View all" would drop
+      // them.
+      const params = { category: category && category !== 'global' ? category : 'community' };
       const res = await socialTasksAPI.list(params);
       if (requestId !== requestSequence) return;
       // Backend already returns active first, then completed.

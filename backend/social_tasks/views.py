@@ -92,15 +92,19 @@ class SocialTaskViewSet(viewsets.GenericViewSet):
         except SocialTask.DoesNotExist:
             return Response({'error': 'task_not_found'}, status=status.HTTP_404_NOT_FOUND)
 
+        # Existing completion first: a retry on an already-completed task must
+        # stay idempotent (200 already_completed) even after the task expires
+        # or is deactivated — matching the list endpoint, which keeps completed
+        # tasks visible regardless of lifecycle, and the in-transaction order.
+        existing = SocialTaskCompletion.objects.filter(user=user, task=task).first()
+        if existing:
+            return self._already_completed_response(task, existing)
+
         if not task.is_currently_active():
             return Response(
                 {'error': 'task_unavailable', 'message': 'This task is not currently active.'},
                 status=status.HTTP_410_GONE,
             )
-
-        existing = SocialTaskCompletion.objects.filter(user=user, task=task).first()
-        if existing:
-            return self._already_completed_response(task, existing)
 
         # Snapshot the type that is actually verified: an admin could edit the
         # task during the (possibly slow) external verification, and the

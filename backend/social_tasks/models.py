@@ -5,6 +5,11 @@ from django.utils import timezone
 
 from utils.models import BaseModel
 
+# Categories with a user-facing task surface (Contributions-page slider +
+# /<category>/tasks route). clean() rejects others so tasks cannot be created
+# into a category no user can see; extend this when a new surface ships.
+SURFACED_CATEGORY_SLUGS = ('community', 'builder', 'validator')
+
 
 class SocialTask(BaseModel):
     """A repeatable social action that awards points (separate from Contributions).
@@ -59,7 +64,14 @@ class SocialTask(BaseModel):
         help_text='GitHub repository as owner/repo (e.g. genlayer-foundation/points). Used by: github_star.',
     )
 
-    action_url = models.URLField(help_text='External URL the user is sent to on click.')
+    action_url = models.URLField(
+        blank=True,
+        help_text=(
+            'External URL the user is sent to on click. Leave blank to derive '
+            'it from the verification target where possible (e.g. the GitHub '
+            'repo page, or an X follow link for the handle).'
+        ),
+    )
     cta_text = models.CharField(max_length=50, default='Complete')
 
     # Derived from the verifier in save(); not admin-editable.
@@ -87,6 +99,7 @@ class SocialTask(BaseModel):
         return True
 
     def clean(self):
+        """Single-pass validation so the admin sees every problem at once."""
         super().clean()
         # Lazy import — verifiers depend on Django being set up.
         from .verifiers import get_verifier
@@ -104,19 +117,37 @@ class SocialTask(BaseModel):
                     f'Required for verification type {verifier.verification_type!r}.'
                 )
         if not errors:
-            errors = verifier.clean_task(self)
+            # Format checks only make sense once the fields are present.
+            errors.update(verifier.clean_task(self))
+
+        if self.starts_at and self.ends_at and self.ends_at <= self.starts_at:
+            errors['ends_at'] = 'Must be after starts_at — an inverted window is never active.'
+
+        if self.category_id is not None and self.category.slug not in SURFACED_CATEGORY_SLUGS:
+            errors['category'] = (
+                f"No portal surface shows '{self.category.slug}' tasks — users could "
+                f"never see this task. Use one of: {', '.join(SURFACED_CATEGORY_SLUGS)}."
+            )
+
+        if not (self.action_url or '').strip() and not errors:
+            if verifier.derive_action_url(self) is None:
+                errors['action_url'] = (
+                    f"Required — '{verifier.verification_type}' cannot derive it "
+                    'from the verification target.'
+                )
+
         if errors:
             raise ValidationError(errors)
 
-        if self.starts_at and self.ends_at and self.ends_at <= self.starts_at:
-            raise ValidationError({
-                'ends_at': 'Must be after starts_at — an inverted window is never active.'
-            })
-
     def save(self, *args, **kwargs):
-        from .verifiers import platform_for
+        from .verifiers import get_verifier, platform_for
 
         self.platform = platform_for(self.verification_type)
+        if not (self.action_url or '').strip():
+            verifier = get_verifier(self.verification_type)
+            derived = verifier.derive_action_url(self) if verifier else None
+            if derived:
+                self.action_url = derived
         super().save(*args, **kwargs)
 
 

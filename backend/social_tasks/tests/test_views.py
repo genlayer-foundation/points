@@ -206,6 +206,20 @@ class SocialTaskViewSetTest(TestCase):
         response = self.client.post(f'/api/v1/social-tasks/{self.click_task.slug}/complete/')
         self.assertEqual(response.status_code, 410)
 
+    def test_completed_then_deactivated_stays_idempotent(self):
+        """A retry on an already-completed task must return 200 already_completed
+        even after the task is deactivated — matching the list endpoint, which
+        keeps completed tasks visible regardless of lifecycle."""
+        response = self.client.post(f'/api/v1/social-tasks/{self.click_task.slug}/complete/')
+        self.assertEqual(response.status_code, 201)
+
+        self.click_task.is_active = False
+        self.click_task.save()
+
+        response = self.client.post(f'/api/v1/social-tasks/{self.click_task.slug}/complete/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'already_completed')
+
     def test_task_deactivated_during_verification_does_not_award(self):
         """The active window is re-checked inside the award transaction:
         verification can take seconds (external API), and a task that expires
@@ -260,6 +274,38 @@ class SocialTaskViewSetTest(TestCase):
         slugs = {t['slug'] for t in response.json()}
         self.assertIn(self.click_task.slug, slugs)
         self.assertNotIn(inactive.slug, slugs)
+
+    def test_clean_rejects_unsurfaced_category(self):
+        from django.core.exceptions import ValidationError
+
+        steward, _ = Category.objects.get_or_create(
+            slug='steward', defaults={'name': 'Steward'},
+        )
+        bad = SocialTask(
+            name='Steward task',
+            slug='steward-task',
+            category=steward,
+            points=5,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
+        with self.assertRaises(ValidationError) as cm:
+            bad.clean()
+        self.assertIn('category', cm.exception.message_dict)
+
+    def test_clean_requires_action_url_when_not_derivable(self):
+        from django.core.exceptions import ValidationError
+
+        bad = SocialTask(
+            name='No URL click task',
+            slug='no-url-click-task',
+            category=self.category,
+            points=5,
+            verification_type='click_through',
+        )
+        with self.assertRaises(ValidationError) as cm:
+            bad.clean()
+        self.assertIn('action_url', cm.exception.message_dict)
 
     def test_cleaning_twitter_task_without_handle_fails(self):
         from django.core.exceptions import ValidationError

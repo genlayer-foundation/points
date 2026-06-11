@@ -11,6 +11,7 @@ instead of telling the user "we did not see you in the server yet".
 """
 
 import logging
+import re
 
 import requests
 from cryptography.fernet import InvalidToken
@@ -28,6 +29,9 @@ logger = logging.getLogger(__name__)
 DISCORD_GUILD_MEMBER_URL = 'https://discord.com/api/v10/users/@me/guilds/{guild_id}/member'
 DISCORD_REQUEST_TIMEOUT = 8.0
 
+# Discord guild ids are numeric snowflakes (17-20 digits), not invite links.
+GUILD_ID_RE = re.compile(r'^\d{17,20}$')
+
 
 @register
 class DiscordGuildJoinVerifier(Verifier):
@@ -37,6 +41,17 @@ class DiscordGuildJoinVerifier(Verifier):
     required_fields = ()  # target_guild_id is optional (falls back to settings.DISCORD_GUILD_ID)
     requires_verification = True
     required_connection = 'discord'
+
+    def clean_task(self, task) -> dict[str, str]:
+        guild_id = (task.target_guild_id or '').strip()
+        if guild_id and not GUILD_ID_RE.match(guild_id):
+            return {
+                'target_guild_id': (
+                    'Must be a numeric Discord server (guild) ID — not an invite '
+                    'link. Leave blank to use the main GenLayer server.'
+                )
+            }
+        return {}
 
     def verify(self, task, user) -> VerifierResult:
         connection = getattr(user, 'discordconnection', None)
@@ -58,12 +73,14 @@ class DiscordGuildJoinVerifier(Verifier):
             return VerifierResult(False, {}, 'verification_unavailable')
 
         try:
-            with trace_external('discord', 'check_guild'):
-                response = requests.get(
-                    DISCORD_GUILD_MEMBER_URL.format(guild_id=guild_id),
-                    headers={'Authorization': f'Bearer {token}'},
-                    timeout=DISCORD_REQUEST_TIMEOUT,
-                )
+            response = self._get_member(token, guild_id)
+            if response.status_code in (401, 403):
+                # Discord user tokens expire after ~7 days. Refresh once and
+                # retry before asking the user to re-link, so long-linked users
+                # are not funneled into a reconnect flow for a routine expiry.
+                refreshed = self._refresh_token(connection, user)
+                if refreshed is not None:
+                    response = self._get_member(refreshed, guild_id)
         except requests.RequestException as exc:
             logger.warning('Discord guild check transport error for user %s: %s', user.pk, exc)
             return VerifierResult(
@@ -111,6 +128,32 @@ class DiscordGuildJoinVerifier(Verifier):
             response.status_code, task.slug,
         )
         return VerifierResult(False, audit, 'verification_unavailable')
+
+    @staticmethod
+    def _get_member(token, guild_id):
+        with trace_external('discord', 'check_guild'):
+            return requests.get(
+                DISCORD_GUILD_MEMBER_URL.format(guild_id=guild_id),
+                headers={'Authorization': f'Bearer {token}'},
+                timeout=DISCORD_REQUEST_TIMEOUT,
+            )
+
+    @staticmethod
+    def _refresh_token(connection, user):
+        """Rotate the stored token; None means re-linking is the real remedy.
+
+        ValueError covers missing/invalid refresh tokens (-> re-link).
+        Transport errors and 5xx from Discord propagate as RequestException so
+        the caller maps them to verification_unavailable (retry later), not a
+        re-link prompt.
+        """
+        from social_connections.oauth_service import DiscordOAuthService
+
+        try:
+            return DiscordOAuthService().refresh_stored_access_token(connection)
+        except ValueError:
+            logger.info('Discord token refresh not possible for user %s; re-link required', user.pk)
+            return None
 
     @staticmethod
     def _cache_membership(connection, is_member):

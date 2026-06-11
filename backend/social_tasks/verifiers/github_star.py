@@ -51,6 +51,12 @@ class GitHubStarVerifier(Verifier):
             return {'target_repo': 'Must be in owner/repo format (e.g. genlayer-foundation/points).'}
         return {}
 
+    def derive_action_url(self, task) -> str | None:
+        repo = (task.target_repo or '').strip().strip('/')
+        if not repo:
+            return None
+        return f'https://github.com/{repo}'
+
     def verify(self, task, user) -> VerifierResult:
         connection = getattr(user, 'githubconnection', None)
         if connection is None:

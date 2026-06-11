@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin
+from django.db.models import Count
 
 from .models import SocialTask, SocialTaskCompletion
 from .verifiers import get_choices
@@ -23,15 +24,26 @@ class SocialTaskAdmin(admin.ModelAdmin):
         'platform',
         'verification_type',
         'points',
+        'completions',
         'is_active',
         'starts_at',
         'ends_at',
         'order',
     )
+    list_editable = ('is_active', 'order')
     list_filter = ('is_active', 'category', 'platform', 'verification_type')
     search_fields = ('name', 'slug', 'description')
     prepopulated_fields = {'slug': ('name',)}
     readonly_fields = ('platform',)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(
+            completion_count=Count('completions')
+        )
+
+    @admin.display(ordering='completion_count', description='Completions')
+    def completions(self, obj):
+        return obj.completion_count
     fieldsets = (
         (None, {
             'fields': ('name', 'slug', 'description', 'category', 'points', 'order'),

@@ -17,6 +17,10 @@
   let pendingClickThrough = $state(false);
   // Once the user has opened the link, verifying becomes the primary action.
   let opened = $state(false);
+  // Set when the backend says the stored token is dead/missing: switches the
+  // action row to the inline SocialLink so the user can reconnect right here
+  // instead of looping on a failing Verify button.
+  let needsRelink = $state(false);
 
   // Plain let, not $state — the timer id should not be a reactive dependency.
   let clickThroughTimer = null;
@@ -56,6 +60,7 @@
   function handleError(err) {
     const code = err?.response?.data?.error;
     if (code === 'social_account_not_linked' || code === 'token_invalid_relink_required') {
+      needsRelink = true;
       showError(`Reconnect your ${platformLabel || 'social'} account and try again.`);
     } else if (code === 'verification_failed') {
       showError(err.response.data.message || 'We did not see the action yet. Try again in a moment.');
@@ -114,6 +119,7 @@
   }
 
   function handleLinked(updatedUser) {
+    needsRelink = false;
     if (updatedUser) {
       userStore.updateUser(updatedUser);
     } else {
@@ -169,7 +175,7 @@
       >
         Sign in to earn →
       </button>
-    {:else if requiredPlatform && !hasRequiredConnection}
+    {:else if requiredPlatform && (!hasRequiredConnection || needsRelink)}
       <div class="w-full">
         <SocialLink
           platform={requiredPlatform}

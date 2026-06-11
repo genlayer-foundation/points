@@ -134,13 +134,18 @@ backend/
 
 ### Social Tasks
 - **Models**: `social_tasks/models.py`
-  - SocialTask - CMS row admins manage. Fields: name, slug, description, category (FK),
-    points, verification_type (slug of a registered verifier), typed target_* fields
-    (only the ones used by a current verifier — today: `target_handle`,
-    `target_guild_id`, `target_repo`), action_url, cta_text, platform (derived from
-    verifier on save), is_active, starts_at, ends_at. Add new target_* fields in the
-    same migration as the verifier that needs them; the admin "Verification targets"
-    fieldset picks up `target_*` model fields automatically.
+  - SocialTask - CMS row admins manage. Fields: name, slug, description, category (FK,
+    restricted by clean() to the surfaced categories community/builder/validator —
+    see SURFACED_CATEGORY_SLUGS), points, verification_type (slug of a registered
+    verifier), typed target_* fields (only the ones used by a current verifier —
+    today: `target_handle`, `target_guild_id`, `target_repo`), action_url (optional:
+    save() derives it from the verifier when blank, e.g. the GitHub repo page or an
+    X follow-intent link; clean() requires it for verifiers that cannot derive),
+    cta_text, platform (derived from verifier on save), is_active, starts_at,
+    ends_at, order (admin sort within the lists; list_editable). Add new target_*
+    fields in the same migration as the verifier that needs them; the admin
+    "Verification targets" fieldset picks up `target_*` model fields automatically.
+    The changelist shows a per-task Completions count.
   - `SocialTask.clean()` validates the typed target field(s) required by the chosen
     verifier; raises ValidationError otherwise. The admin dropdown for
     verification_type is rendered from the registry, so new verifiers show up
@@ -168,8 +173,13 @@ backend/
   - `discord_guild_join` makes the Discord API call inline (not via
     `DiscordOAuthService.check_guild_membership`, which collapses all non-200
     cases into `False`). It distinguishes 200 (member), 404 (not member),
-    401/403 (token expired -> `token_invalid_relink_required`), and 429/5xx /
-    transport errors (-> `verification_unavailable`). It only writes back to
+    401/403 (token expired), and 429/5xx / transport errors
+    (-> `verification_unavailable`). On 401/403 it first attempts one
+    `DiscordOAuthService.refresh_stored_access_token` rotation and retries
+    (Discord user tokens expire after ~7 days), so long-linked users are not
+    funneled into a re-link flow; only when the refresh itself is impossible
+    (missing/invalid refresh token) does it return
+    `token_invalid_relink_required`. It only writes back to
     `DiscordConnection.guild_member` when the checked guild is the main
     `settings.DISCORD_GUILD_ID`; custom-guild tasks must not corrupt the main
     guild flag.
@@ -185,12 +195,12 @@ backend/
     The internal `verification_type` slug is NOT exposed; each task instead carries
     two derived flags from the verifier registry: `requires_verification`
     ("open-and-credit" vs "open-then-verify" UX) and `required_connection`
-    ('twitter' / 'discord' / null — which linked account the card must offer
-    inline linking for). The frontend never inspects verifier slugs.
+    ('twitter' / 'discord' / 'github' / null — which linked account the card must
+    offer inline linking for). The frontend never inspects verifier slugs.
   - `POST /api/v1/social-tasks/{slug}/complete/` - Run verification, award atomically (UserRateThrottle 30/min)
 - **URLs**: `social_tasks/urls.py` mounted from `api/urls.py` under `/api/v1/`.
 - **Seeded tasks** (slug, points): `follow-genlayer-x` (10), `join-genlayer-discord` (10),
-  `like-genlayer-launch-post` (5). All in `community` category. Community ranking is
+  `check-out-genlayer-on-x` (5). All in `community` category. Community ranking is
   MEE6-based and does not include social-task points, so these seeds award
   profile-only points (`socialTaskTotal`); builder / validator category tasks feed
   their leaderboards when created.

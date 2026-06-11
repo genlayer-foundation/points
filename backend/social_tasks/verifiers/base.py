@@ -11,7 +11,7 @@ automatically by:
 - The serializer's `requires_verification` flag
 
 Adding a new logic = one new file under `verifiers/` declaring a Verifier
-subclass + @register. No central edits.
+subclass + @register, plus its side-effect import line in `verifiers/__init__.py`.
 """
 
 from __future__ import annotations
@@ -65,6 +65,14 @@ class Verifier:
         ValidationError so admins see it on the form field.
         """
         return {}
+
+    def derive_action_url(self, task) -> str | None:
+        """Default action_url derived from the task's target fields, or None.
+
+        Lets admins leave action_url blank for verifiers that can compute it
+        (e.g. github_star -> the repo page); SocialTask.save() fills it in.
+        """
+        return None
 
 
 _REGISTRY: dict[str, Verifier] = {}
