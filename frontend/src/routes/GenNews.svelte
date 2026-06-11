@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { featuredAPI } from '../lib/api.js';
+  import { resolvePortalLink } from '../lib/links.js';
 
   /**
    * @typedef {Object} FeaturedContent
@@ -79,30 +80,12 @@
 
   /**
    * @param {FeaturedContent} item
-   * @returns {string}
-   */
-  function getLink(item) {
-    const raw = item?.link || item?.url || '#';
-    if (raw.startsWith('/')) return `#${raw}`;
-    return raw;
-  }
-
-  /**
-   * @param {string} href
-   * @returns {boolean}
-   */
-  function isExternalLink(href) {
-    return href.startsWith('http://') || href.startsWith('https://');
-  }
-
-  /**
-   * @param {FeaturedContent} item
    * @param {string} fallbackType
    * @returns {Announcement}
    */
   function normalizeAnnouncement(item, fallbackType) {
     const contentType = item.content_type || fallbackType;
-    const href = getLink(item);
+    const { href, external } = resolvePortalLink(item?.link || item?.url);
 
     return {
       id: `${contentType}-${item.id || item.title || href}`,
@@ -113,7 +96,7 @@
       imageTablet: item.hero_image_url_tablet || item.hero_image_url || item.hero_image_url_mobile || '',
       imageMobile: item.hero_image_url_mobile || item.hero_image_url_tablet || item.hero_image_url || '',
       href,
-      external: isExternalLink(href),
+      external,
       dateLabel: formatDate(item.created_at),
       createdAt: getTimestamp(item.created_at),
     };

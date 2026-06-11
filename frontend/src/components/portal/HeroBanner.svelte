@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { featuredAPI } from '../../lib/api.js';
+  import { resolvePortalLink } from '../../lib/links.js';
 
   let { category = 'builder', showNewsLink = false } = $props();
 
@@ -77,7 +78,7 @@
     stopAutoAdvance();
   });
 
-  let projectLink = $derived(hero?.link || hero?.url || '#');
+  let projectLink = $derived(resolvePortalLink(hero?.link || hero?.url));
 </script>
 
 {#if showDashboardFallback}
@@ -175,7 +176,7 @@
         {#if hero.link || hero.url}
           {#if showNewsLink}
             <div class="flex flex-wrap items-center gap-2">
-              <a href={projectLink} target={projectLink.startsWith('http') ? '_blank' : undefined} rel={projectLink.startsWith('http') ? 'noopener noreferrer' : undefined} class="inline-flex h-10 px-4 bg-white rounded-[20px] items-center gap-2 hover:bg-white/90 transition-colors">
+              <a href={projectLink.href} target={projectLink.external ? '_blank' : undefined} rel={projectLink.external ? 'noopener noreferrer' : undefined} class="inline-flex h-10 px-4 bg-white rounded-[20px] items-center gap-2 hover:bg-white/90 transition-colors">
                 <span class="text-black text-sm font-medium" style="letter-spacing: 0.28px;">View project</span>
                 <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
               </a>
@@ -189,7 +190,7 @@
               </a>
             </div>
           {:else}
-            <a href={projectLink} target={projectLink.startsWith('http') ? '_blank' : undefined} rel={projectLink.startsWith('http') ? 'noopener noreferrer' : undefined} class="inline-flex h-10 px-4 bg-white rounded-[20px] items-center gap-2 hover:bg-white/90 transition-colors">
+            <a href={projectLink.href} target={projectLink.external ? '_blank' : undefined} rel={projectLink.external ? 'noopener noreferrer' : undefined} class="inline-flex h-10 px-4 bg-white rounded-[20px] items-center gap-2 hover:bg-white/90 transition-colors">
               <span class="text-black text-sm font-medium" style="letter-spacing: 0.28px;">View project</span>
               <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
             </a>

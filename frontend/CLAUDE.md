@@ -301,6 +301,9 @@ frontend/src/
     - **How it works** (bottom pinned area, above Submit Contribution) - Links to `/how-it-works`
     - **Profile** - User profile and submissions
 
+### Content-Link Resolution (`src/lib/links.js`)
+Admin-managed content links (hero banners, GenNews announcements, featured builds) are stored in a URLField, so links back into the portal arrive as absolute URLs (e.g. `https://portal.genlayer.foundation/#/mission/7`). `resolvePortalLink(raw)` returns `{ href, external }`: same-origin URLs are rewritten to in-app hash routes (keeping SPA navigation and browser history intact), while cross-origin URLs stay external and should open with `target="_blank"`. Always use this helper instead of `startsWith('http')` checks when rendering content links. Used by `GenNews.svelte`, `HeroBanner.svelte`, `FeaturedBuilds.svelte`, and `EcosystemPartners.svelte`.
+
 ### Hash Route Normalization
 The portal uses `svelte-spa-router`, so app routes must be represented as hash URLs such as `/#/testnets`. `src/App.svelte` imports `normalizeLocation` from `src/lib/normalizePath.js` and invokes `normalizeLocation(window)` once at initial app load.
 
@@ -389,6 +392,7 @@ const routes = {
   // Discover
   '/ecosystem-partners': EcosystemPartners,  // Public directory of partners + validators + projects
   '/gen-tv': GenTV,                          // Livestream index split by category section
+  '/gen-news': GenNews,                      // Hero-banner announcements index (sidebar: Discover > GenNews)
 
   '*': NotFound
 }
@@ -795,10 +799,16 @@ let isOwnProfile = $derived(user?.id === currentId);
 
 ## Navigation Functions
 ```javascript
-import { push, location } from 'svelte-spa-router';
+import { push, replace, location } from 'svelte-spa-router';
 
-// Navigate programmatically
+// Navigate programmatically (user-initiated navigation)
 push('/profile');
+
+// Redirect away from a page the user should not be on (guards, legacy
+// routes, post-auth bounces). ALWAYS use replace() here, never push():
+// a pushed redirect leaves the rejected URL in history, so the browser
+// back button bounces off it and re-redirects forever.
+replace('/');
 
 // Get current location
 $location // reactive store with current path

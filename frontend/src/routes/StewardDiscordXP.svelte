@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { push, querystring } from 'svelte-spa-router';
+  import { replace, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { stewardAPI, contributionsAPI } from '../lib/api.js';
   import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
@@ -37,7 +37,7 @@
 
   onMount(async () => {
     if (!$authState.isAuthenticated) {
-      push('/');
+      replace('/');
       return;
     }
 

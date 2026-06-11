@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { push } from 'svelte-spa-router';
+  import { push, replace } from 'svelte-spa-router';
   import { authState, verifyAuth } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { getBannedValidators, unbanValidator as blockchainUnbanValidator, unbanAllValidators as blockchainUnbanAllValidators } from '../lib/blockchain.js';
@@ -54,7 +54,7 @@
 
     // Check authentication
     if (!$authState.isAuthenticated) {
-      push('/');
+      replace('/');
       return;
     }
 
@@ -70,7 +70,7 @@
 
     // Check steward status
     if (!$userStore.user?.steward) {
-      push('/');
+      replace('/');
       return;
     }
 

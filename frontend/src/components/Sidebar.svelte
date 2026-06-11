@@ -118,6 +118,7 @@
     if (path.startsWith('/stewards')) return 'steward';
     if (path.startsWith('/ecosystem-partners')) return 'partners';
     if (path.startsWith('/gen-tv')) return 'gentv';
+    if (path.startsWith('/gen-news')) return 'gennews';
     return null;
   }
 
@@ -497,6 +498,24 @@
           </svg>
           {#if !collapsed}
             <span>Gen TV</span>
+          {/if}
+        </button>
+      </div>
+
+      <!-- GenNews -->
+      <div>
+        <button
+          onclick={() => changeCategory('gennews', '/gen-news')}
+          class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px] {getActiveSection() === 'gennews' ? '' : 'hover:bg-[#eeedfb]'}"
+          style={getActiveSection() === 'gennews' ? 'background: #eeedfb;' : ''}
+          title={collapsed ? 'GenNews' : ''}
+        >
+          <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={getActiveSection() === 'gennews' ? '#6D5DD3' : '#1a1a1a'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m3 11 18-5v12L3 14v-3z" />
+            <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+          </svg>
+          {#if !collapsed}
+            <span>GenNews</span>
           {/if}
         </button>
       </div>
@@ -899,6 +918,19 @@
           <polygon points="10,9 16,12 10,15" fill={getActiveSection() === 'gentv' ? '#6D5DD3' : '#1a1a1a'} />
         </svg>
         <span>Gen TV</span>
+      </button>
+
+      <!-- GenNews (mobile) -->
+      <button
+        onclick={() => changeCategory('gennews', '/gen-news')}
+        class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px]"
+        style={getActiveSection() === 'gennews' ? 'background: #eeedfb;' : ''}
+      >
+        <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={getActiveSection() === 'gennews' ? '#6D5DD3' : '#1a1a1a'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m3 11 18-5v12L3 14v-3z" />
+          <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+        </svg>
+        <span>GenNews</span>
       </button>
 
     </nav>
