@@ -32,9 +32,12 @@
   // Which linked social account the task needs comes straight from the API
   // (derived server-side from the verifier registry), so new verification
   // types need zero frontend changes.
+  // Display names for connection platforms; unknown ones fall back to the
+  // raw slug so a new backend connection type still renders something sane.
+  const PLATFORM_LABELS = { twitter: 'X', discord: 'Discord', github: 'GitHub' };
   let requiredPlatform = $derived(task.required_connection || null);
   let platformLabel = $derived(
-    requiredPlatform === 'twitter' ? 'X' : requiredPlatform === 'discord' ? 'Discord' : requiredPlatform || ''
+    requiredPlatform ? (PLATFORM_LABELS[requiredPlatform] ?? requiredPlatform) : ''
   );
   let hasRequiredConnection = $derived(
     !requiredPlatform || Boolean(user?.[`${requiredPlatform}_connection`])

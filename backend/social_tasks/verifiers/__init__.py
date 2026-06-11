@@ -23,6 +23,7 @@ from .base import (
 # Side-effect imports register each verifier in the registry.
 from . import click_through  # noqa: F401
 from . import discord_guild_join  # noqa: F401
+from . import github_star  # noqa: F401
 from . import twitter_follow  # noqa: F401
 
 

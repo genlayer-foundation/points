@@ -57,6 +57,15 @@ class Verifier:
     def verify(self, task, user) -> VerifierResult:
         raise NotImplementedError
 
+    def clean_task(self, task) -> dict[str, str]:
+        """Extra admin-time validation beyond required-field presence.
+
+        Return {field_name: error_message} for invalid values (e.g. a
+        malformed repo slug); SocialTask.clean() merges it into the
+        ValidationError so admins see it on the form field.
+        """
+        return {}
+
 
 _REGISTRY: dict[str, Verifier] = {}
 

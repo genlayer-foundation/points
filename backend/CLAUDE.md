@@ -137,9 +137,10 @@ backend/
   - SocialTask - CMS row admins manage. Fields: name, slug, description, category (FK),
     points, verification_type (slug of a registered verifier), typed target_* fields
     (only the ones used by a current verifier — today: `target_handle`,
-    `target_guild_id`), action_url, cta_text, platform (derived from verifier on
-    save), is_active, starts_at, ends_at. Add new target_* fields in the same
-    migration as the verifier that needs them.
+    `target_guild_id`, `target_repo`), action_url, cta_text, platform (derived from
+    verifier on save), is_active, starts_at, ends_at. Add new target_* fields in the
+    same migration as the verifier that needs them; the admin "Verification targets"
+    fieldset picks up `target_*` model fields automatically.
   - `SocialTask.clean()` validates the typed target field(s) required by the chosen
     verifier; raises ValidationError otherwise. The admin dropdown for
     verification_type is rendered from the registry, so new verifiers show up
@@ -152,10 +153,12 @@ backend/
     `required_fields_for()`, `platform_for()`, `requires_verification_for()`,
     `required_connection_for()`.
   - One file per verification logic: `twitter_follow.py`, `discord_guild_join.py`,
-    `click_through.py`. Each self-registers via `@register` and declares
-    `verification_type`, `label`, `platform`, `required_fields`,
+    `github_star.py`, `click_through.py`. Each self-registers via `@register` and
+    declares `verification_type`, `label`, `platform`, `required_fields`,
     `requires_verification`, and `required_connection` (which linked social
-    account the verifier needs: 'twitter' / 'discord' / None).
+    account the verifier needs: 'twitter' / 'discord' / 'github' / None).
+    Verifiers can also override `clean_task(task)` for admin-time validation
+    beyond field presence (e.g. github_star validates the owner/repo format).
   - To add a new logic (e.g. github_star): create
     `social_tasks/verifiers/github_star.py`, declare a `Verifier` subclass with
     `@register`, implement `verify(task, user) -> VerifierResult`, import it from
@@ -170,6 +173,12 @@ backend/
     `DiscordConnection.guild_member` when the checked guild is the main
     `settings.DISCORD_GUILD_ID`; custom-guild tasks must not corrupt the main
     guild flag.
+  - `github_star` calls `GET https://api.github.com/user/starred/{owner}/{repo}`
+    inline with the user's token (not via `GitHubOAuthService.check_repo_star`,
+    which collapses non-204 statuses and falls back to an unpaginated public
+    listing). 204 (starred), 404 (not starred), 401 (-> `token_invalid_relink_required`),
+    403 rate-limit / 5xx / transport (-> `verification_unavailable`). Works with the
+    portal's empty-scope GitHub tokens because starred repos are public data.
   - `click_through` always succeeds (trust on click; `requires_verification=False`).
 - **Views**: `social_tasks/views.py:SocialTaskViewSet`
   - `GET /api/v1/social-tasks/` - List with `?status=active|completed`, `?category=community|builder|validator`.

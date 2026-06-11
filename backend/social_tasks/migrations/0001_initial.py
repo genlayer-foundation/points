@@ -107,6 +107,7 @@ class Migration(migrations.Migration):
                 ('verification_type', models.CharField(max_length=32)),
                 ('target_handle', models.CharField(blank=True, help_text='X / Twitter handle without @. Used by: twitter_follow.', max_length=64)),
                 ('target_guild_id', models.CharField(blank=True, help_text='Discord server (guild) id. Used by: discord_guild_join. Falls back to settings.DISCORD_GUILD_ID when blank.', max_length=64)),
+                ('target_repo', models.CharField(blank=True, help_text='GitHub repository as owner/repo (e.g. genlayer-foundation/points). Used by: github_star.', max_length=140)),
                 ('action_url', models.URLField(help_text='External URL the user is sent to on click.')),
                 ('cta_text', models.CharField(default='Complete', max_length=50)),
                 ('platform', models.CharField(default='generic', editable=False, max_length=20)),

@@ -7,7 +7,7 @@ from requests.exceptions import Timeout
 
 from contributions.models import Category
 from social_connections.encryption import encrypt_token
-from social_connections.models import DiscordConnection, TwitterConnection
+from social_connections.models import DiscordConnection, GitHubConnection, TwitterConnection
 from social_tasks import verifiers
 from social_tasks.models import SocialTask
 from social_tasks.sorsa_client import SorsaClient, SorsaError
@@ -255,6 +255,142 @@ class DiscordVerifierTest(TestCase):
         self.assertEqual(result.error_code, 'token_invalid_relink_required')
 
 
+@override_settings(
+    GITHUB_ENCRYPTION_KEY=TEST_ENCRYPTION_KEY,
+    SOCIAL_ENCRYPTION_KEY=TEST_ENCRYPTION_KEY,
+)
+class GitHubStarVerifierTest(TestCase):
+    def setUp(self):
+        self.user = _make_user('dev@example.com')
+        self.category, _ = Category.objects.get_or_create(
+            slug='builder', defaults={'name': 'Builder'},
+        )
+        self.task = SocialTask.objects.create(
+            slug='star-points-repo',
+            name='Star the Points repo',
+            category=self.category,
+            points=10,
+            verification_type='github_star',
+            target_repo='genlayer-foundation/points',
+            action_url='https://github.com/genlayer-foundation/points',
+            cta_text='Star',
+        )
+
+    def _link_github(self, token_value='tok'):
+        return GitHubConnection.objects.create(
+            user=self.user,
+            platform_user_id='1',
+            platform_username='dev',
+            access_token=encrypt_token(token_value),
+            linked_at=timezone.now(),
+        )
+
+    def test_no_connection_returns_not_linked(self):
+        result = verifiers.verify(self.task, self.user)
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, 'social_account_not_linked')
+        self.assertEqual(result.audit['platform'], 'github')
+
+    def test_empty_token_returns_relink(self):
+        GitHubConnection.objects.create(
+            user=self.user,
+            platform_user_id='1',
+            platform_username='dev',
+            access_token='',
+            linked_at=timezone.now(),
+        )
+        result = verifiers.verify(self.task, self.user)
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, 'token_invalid_relink_required')
+
+    @patch('social_tasks.verifiers.github_star.requests.get')
+    def test_starred_returns_ok(self, mock_get):
+        self._link_github()
+        mock_get.return_value = MagicMock(status_code=204)
+
+        result = verifiers.verify(self.task, self.user)
+
+        self.assertTrue(result.ok)
+        self.assertIsNone(result.error_code)
+        self.assertEqual(result.audit['repo'], 'genlayer-foundation/points')
+        self.assertEqual(result.audit['status_code'], 204)
+        called_url = mock_get.call_args[0][0]
+        self.assertIn('/user/starred/genlayer-foundation/points', called_url)
+
+    @patch('social_tasks.verifiers.github_star.requests.get')
+    def test_not_starred_returns_failed(self, mock_get):
+        self._link_github()
+        mock_get.return_value = MagicMock(status_code=404)
+
+        result = verifiers.verify(self.task, self.user)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, 'verification_failed')
+
+    @patch('social_tasks.verifiers.github_star.requests.get')
+    def test_bad_credentials_returns_relink(self, mock_get):
+        self._link_github()
+        mock_get.return_value = MagicMock(status_code=401)
+
+        result = verifiers.verify(self.task, self.user)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, 'token_invalid_relink_required')
+
+    @patch('social_tasks.verifiers.github_star.requests.get')
+    def test_rate_limited_returns_unavailable(self, mock_get):
+        self._link_github()
+        mock_get.return_value = MagicMock(status_code=403)
+
+        result = verifiers.verify(self.task, self.user)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, 'verification_unavailable')
+
+    @patch('social_tasks.verifiers.github_star.requests.get')
+    def test_service_error_returns_unavailable(self, mock_get):
+        self._link_github()
+        mock_get.return_value = MagicMock(status_code=502)
+
+        result = verifiers.verify(self.task, self.user)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, 'verification_unavailable')
+
+    @patch(
+        'social_tasks.verifiers.github_star.requests.get',
+        side_effect=Timeout('slow'),
+    )
+    def test_transport_error_returns_unavailable(self, _mock):
+        self._link_github()
+        result = verifiers.verify(self.task, self.user)
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, 'verification_unavailable')
+
+    @patch('social_tasks.verifiers.github_star.decrypt_token', side_effect=InvalidToken())
+    def test_undecryptable_token_returns_relink(self, _mock):
+        self._link_github()
+        result = verifiers.verify(self.task, self.user)
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, 'token_invalid_relink_required')
+
+    def test_clean_rejects_malformed_repo(self):
+        from django.core.exceptions import ValidationError
+
+        bad = SocialTask(
+            name='Bad repo task',
+            slug='bad-repo-task',
+            category=self.category,
+            points=5,
+            verification_type='github_star',
+            target_repo='https://github.com/owner/repo',
+            action_url='https://github.com/owner/repo',
+        )
+        with self.assertRaises(ValidationError) as cm:
+            bad.clean()
+        self.assertIn('target_repo', cm.exception.message_dict)
+
+
 class ClickThroughVerifierTest(TestCase):
     def test_always_succeeds(self):
         user = _make_user('c@example.com')
@@ -280,17 +416,26 @@ class RegistryTest(TestCase):
         slugs = {slug for slug, _label in choices}
         self.assertIn('twitter_follow', slugs)
         self.assertIn('discord_guild_join', slugs)
+        self.assertIn('github_star', slugs)
         self.assertIn('click_through', slugs)
 
     def test_requires_verification_per_type(self):
         self.assertTrue(verifiers.requires_verification_for('twitter_follow'))
         self.assertTrue(verifiers.requires_verification_for('discord_guild_join'))
+        self.assertTrue(verifiers.requires_verification_for('github_star'))
         self.assertFalse(verifiers.requires_verification_for('click_through'))
 
     def test_required_fields_per_type(self):
         self.assertEqual(verifiers.required_fields_for('twitter_follow'), ('target_handle',))
         self.assertEqual(verifiers.required_fields_for('discord_guild_join'), ())
+        self.assertEqual(verifiers.required_fields_for('github_star'), ('target_repo',))
         self.assertEqual(verifiers.required_fields_for('click_through'), ())
+
+    def test_required_connection_per_type(self):
+        self.assertEqual(verifiers.required_connection_for('twitter_follow'), 'twitter')
+        self.assertEqual(verifiers.required_connection_for('discord_guild_join'), 'discord')
+        self.assertEqual(verifiers.required_connection_for('github_star'), 'github')
+        self.assertIsNone(verifiers.required_connection_for('click_through'))
 
     def test_unknown_type_returns_unsupported(self):
         class FakeTask:

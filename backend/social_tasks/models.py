@@ -53,6 +53,11 @@ class SocialTask(BaseModel):
             'Falls back to settings.DISCORD_GUILD_ID when blank.'
         ),
     )
+    target_repo = models.CharField(
+        max_length=140,
+        blank=True,
+        help_text='GitHub repository as owner/repo (e.g. genlayer-foundation/points). Used by: github_star.',
+    )
 
     action_url = models.URLField(help_text='External URL the user is sent to on click.')
     cta_text = models.CharField(max_length=50, default='Complete')
@@ -92,14 +97,16 @@ class SocialTask(BaseModel):
                 'verification_type': f'Unknown verification type: {self.verification_type!r}'
             })
 
-        missing = {}
+        errors = {}
         for field_name in verifier.required_fields:
             if not getattr(self, field_name, '').strip():
-                missing[field_name] = (
+                errors[field_name] = (
                     f'Required for verification type {verifier.verification_type!r}.'
                 )
-        if missing:
-            raise ValidationError(missing)
+        if not errors:
+            errors = verifier.clean_task(self)
+        if errors:
+            raise ValidationError(errors)
 
         if self.starts_at and self.ends_at and self.ends_at <= self.starts_at:
             raise ValidationError({
