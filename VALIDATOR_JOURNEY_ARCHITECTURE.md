@@ -159,7 +159,7 @@ def get_queryset(self):
         # Map category to type for backwards compatibility
         ...
     
-    return queryset.order_by('rank') FIX: allow to other by -rank or rank decending
+    return queryset.order_by('rank') FIX: allow to other by -rank or rank descending
 ```
 
 ##### `validator_waitlist_stats()` Action (Lines 249-291)
@@ -211,7 +211,7 @@ def get_queryset(self):
 
 **New Parameter**: `waitlist_only=true`
 - Filters highlights to only show contributions from waitlist users
-- Excludes users who have graduated to validator status FIX: keep them, but only contribution from before graduation for each, fix the implentation
+- Excludes users who have graduated to validator status FIX: keep them, but only contribution from before graduation for each, fix the implementation
 
 **Implementation**:
 ```python
@@ -232,7 +232,7 @@ if waitlist_only:
 
 ## Frontend Architecture
 
-### 1. Waitlist Route (`frontend/src/routes/Waitlist.svelte`) FIX all this based on backened changes
+### 1. Waitlist Route (`frontend/src/routes/Waitlist.svelte`) FIX all this based on backend changes
 
 #### 1.1 State Management
 **Key State Variables**:
