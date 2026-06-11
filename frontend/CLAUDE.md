@@ -295,7 +295,7 @@ frontend/src/
   - Bell icon button in the navbar, left of the search bar on desktop, before the auth button on mobile; only when authenticated
   - Unread badge, dropdown with latest notifications, mark-all-read, "View all" linking to `/notifications`
   - Polls unread count every 60s; clicking a notification marks it read (non-blocking) and follows its `link_url` (internal hash routes push in-app, http(s) opens a new tab)
-  - Full feed page: `src/routes/Notifications.svelte` (All/Unread filter pills, load-more pagination)
+  - Full feed page: `src/routes/Notifications.svelte` (All/Unread filter pills, load-more pagination). Bodies render as sanitized markdown via `parseMarkdown()` (admin campaign announcements use it); rows are `div[role=button]` so markdown links stay clickable, and rows without a `link_url` show a default cursor (pure announcements)
   - Shared utils: `src/lib/notificationUtils.js` (`asList` payload normalization, `followNotificationLink` link handling) and `src/lib/relativeTime.js` for compact timestamps
 - **Sidebar**: `src/components/Sidebar.svelte`
   - Side navigation with collapsible sections

@@ -118,7 +118,7 @@
             {#each notifications as notification (notification.id)}
               <button
                 type="button"
-                class="w-full flex gap-3 px-4 py-3 text-left transition-colors {notification.is_read ? 'hover:bg-gray-50' : 'bg-primary-50/60 hover:bg-primary-50'}"
+                class="w-full flex gap-3 px-4 py-3 text-left transition-colors {notification.link_url ? 'cursor-pointer' : 'cursor-default'} {notification.is_read ? 'hover:bg-gray-50' : 'bg-primary-50/60 hover:bg-primary-50'}"
                 onclick={() => openNotification(notification)}
               >
                 <span class="mt-1.5 w-2 h-2 rounded-full shrink-0 {notification.is_read ? 'bg-transparent' : notification.priority >= 3 ? 'bg-red-500' : 'bg-primary-500'}"></span>

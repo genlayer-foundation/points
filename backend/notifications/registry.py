@@ -48,6 +48,9 @@ _EVENT_TYPES = [
         audience=Notification.AUDIENCE_VALIDATORS,
     ),
     EventType('alert.published', category='system', priority=Notification.PRIORITY_HIGH),
+
+    # --- Campaigns (admin-composed, fan-out via notifications.campaigns) ---
+    EventType('custom.announcement', category='announcement'),
 ]
 
 EVENT_TYPES = {}

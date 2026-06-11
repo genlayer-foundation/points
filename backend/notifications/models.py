@@ -30,6 +30,7 @@ class Notification(BaseModel):
         ('content', 'Content'),
         ('validator', 'Validator'),
         ('system', 'System'),
+        ('announcement', 'Announcement'),
     ]
 
     AUDIENCE_ALL = 'all'
@@ -144,3 +145,105 @@ class NotificationReceipt(BaseModel):
 
     def __str__(self):
         return f"receipt {self.notification_id} -> {self.user_id}"
+
+
+def default_channels():
+    return ['portal']
+
+
+class CustomNotification(BaseModel):
+    """An admin-composed campaign: arbitrary copy targeted at a set of users.
+
+    Sending fans out personal Notification rows (one per resolved recipient,
+    snapshot semantics) via notifications.campaigns.send_campaign. The
+    `channels` field is the foundation for future email/Telegram delivery;
+    only the portal channel delivers today.
+    """
+
+    TARGET_EVERYONE = 'everyone'
+    TARGET_ROLES = 'roles'
+    TARGET_USERS = 'users'
+    TARGET_WALLETS = 'wallets'
+    TARGET_MODE_CHOICES = [
+        (TARGET_EVERYONE, 'Everyone'),
+        (TARGET_ROLES, 'Users with selected roles'),
+        (TARGET_USERS, 'Hand-picked users'),
+        (TARGET_WALLETS, 'Pasted wallet addresses'),
+    ]
+
+    ROLE_CHOICES = [
+        ('builders', 'Builders'),
+        ('validators', 'Validators'),
+        ('stewards', 'Stewards'),
+        ('creators', 'Creators'),
+    ]
+
+    STATUS_DRAFT = 'draft'
+    STATUS_SENT = 'sent'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_SENT, 'Sent'),
+    ]
+
+    # Message copy. Field shapes mirror Notification so the frozen copy
+    # never truncates on fan-out.
+    title = models.CharField(max_length=180)
+    body = models.TextField(
+        blank=True,
+        help_text='Supports markdown on the notifications page; shown as plain text in the dropdown preview.',
+    )
+    link_url = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text=(
+            "Optional. Internal portal path ('/missions') or full https:// URL. "
+            'Leave empty for a pure announcement with no redirect.'
+        ),
+    )
+    link_label = models.CharField(max_length=80, blank=True)
+    priority = models.PositiveSmallIntegerField(
+        choices=Notification.PRIORITY_CHOICES,
+        default=Notification.PRIORITY_NORMAL,
+    )
+
+    # Targeting
+    target_mode = models.CharField(max_length=16, choices=TARGET_MODE_CHOICES, default=TARGET_EVERYONE)
+    target_roles = models.JSONField(default=list, blank=True)
+    target_users = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='custom_notifications_targeted',
+    )
+    target_wallets = models.TextField(
+        blank=True,
+        help_text='One wallet address per line. Commas and extra whitespace are tolerated.',
+    )
+
+    # Delivery record
+    channels = models.JSONField(default=default_channels)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_DRAFT, db_index=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='custom_notifications_sent',
+    )
+    sent_count = models.PositiveIntegerField(default=0, help_text='Resolved recipients at last send.')
+    unmatched_wallets = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Wallet lines that matched no user at last send.',
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'custom notification'
+
+    def __str__(self):
+        return f"{self.title} ({self.get_target_mode_display()}, {self.status})"
+
+    @property
+    def dedupe_key(self):
+        return f"custom.announcement:{self.pk}"

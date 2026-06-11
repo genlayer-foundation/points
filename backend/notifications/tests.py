@@ -9,8 +9,8 @@ from contributions.models import Category, ContributionType, SubmittedContributi
 from partners.models import Partner
 from validators.models import Validator
 
-from notifications import services
-from notifications.models import Notification, NotificationReceipt
+from notifications import campaigns, services
+from notifications.models import CustomNotification, Notification, NotificationReceipt
 
 User = get_user_model()
 
@@ -469,3 +469,312 @@ class BroadcastAdminMixinTests(TestCase):
         self.assertEqual(notification.event_type, 'partner.published')
         self.assertEqual(notification.body, 'Say hello to our new partner')
         self.assertEqual(notification.actor, self.admin_user)
+
+
+class CampaignRecipientResolutionTests(TestCase):
+    def setUp(self):
+        self.alice = make_user('alice@test.com', '0x1010101010101010101010101010101010101010')
+        self.bob = make_user('bob@test.com', '0x2020202020202020202020202020202020202020')
+        self.carol = make_user('carol@test.com', '0x3030303030303030303030303030303030303030')
+
+    def make_campaign(self, **kwargs):
+        defaults = {'title': 'Hello', 'target_mode': CustomNotification.TARGET_EVERYONE}
+        defaults.update(kwargs)
+        target_users = defaults.pop('target_users', None)
+        campaign = CustomNotification.objects.create(**defaults)
+        if target_users:
+            campaign.target_users.set(target_users)
+        return campaign
+
+    def test_everyone_excludes_inactive_users(self):
+        User.objects.filter(pk=self.carol.pk).update(is_active=False)
+        campaign = self.make_campaign()
+
+        audience = campaigns.resolve_recipients(campaign)
+
+        self.assertIn(self.alice, audience.users)
+        self.assertNotIn(self.carol, audience.users)
+
+    def test_roles_union_dedupes_dual_role_users(self):
+        from stewards.models import Steward
+        Validator.objects.create(user=self.alice)
+        Steward.objects.create(user=self.alice)
+        Steward.objects.create(user=self.bob)
+        campaign = self.make_campaign(
+            target_mode=CustomNotification.TARGET_ROLES,
+            target_roles=['validators', 'stewards'],
+        )
+
+        audience = campaigns.resolve_recipients(campaign)
+
+        recipients = list(audience.users)
+        self.assertEqual(recipients.count(self.alice), 1)
+        self.assertIn(self.bob, recipients)
+        self.assertNotIn(self.carol, recipients)
+
+    def test_users_mode_excludes_inactive_picks(self):
+        User.objects.filter(pk=self.bob.pk).update(is_active=False)
+        campaign = self.make_campaign(
+            target_mode=CustomNotification.TARGET_USERS,
+            target_users=[self.alice, self.bob],
+        )
+
+        audience = campaigns.resolve_recipients(campaign)
+
+        self.assertIn(self.alice, audience.users)
+        self.assertNotIn(self.bob, audience.users)
+
+    def test_wallets_match_case_insensitively_and_report_unmatched(self):
+        User.objects.filter(pk=self.alice.pk).update(
+            address='0xAbCd010101010101010101010101010101010101'
+        )
+        campaign = self.make_campaign(
+            target_mode=CustomNotification.TARGET_WALLETS,
+            target_wallets=(
+                '0xabcd010101010101010101010101010101010101\n'
+                '0x9999999999999999999999999999999999999999\n'
+                'not-an-address\n'
+            ),
+        )
+
+        audience = campaigns.resolve_recipients(campaign)
+
+        self.assertEqual(list(audience.users), [User.objects.get(pk=self.alice.pk)])
+        self.assertIn('not-an-address', audience.unmatched_wallets)
+        self.assertIn('0x9999999999999999999999999999999999999999', audience.unmatched_wallets)
+
+    def test_parse_wallet_lines_handles_commas_and_duplicates(self):
+        addresses, invalid = campaigns.parse_wallet_lines(
+            '0x1010101010101010101010101010101010101010, '
+            '0X1010101010101010101010101010101010101010\n\n'
+            'garbage'
+        )
+
+        self.assertEqual(len(addresses), 1)
+        self.assertEqual(invalid, ['garbage'])
+
+
+class CampaignSendTests(TestCase):
+    def setUp(self):
+        self.admin = make_user('sender@test.com', '0x4040404040404040404040404040404040404040')
+        self.alice = make_user('alice-send@test.com', '0x5050505050505050505050505050505050505050')
+        self.bob = make_user('bob-send@test.com', '0x6060606060606060606060606060606060606060')
+
+    def make_users_campaign(self, users, **kwargs):
+        defaults = {
+            'title': 'Campaign title',
+            'body': 'Campaign body',
+            'target_mode': CustomNotification.TARGET_USERS,
+            'priority': Notification.PRIORITY_HIGH,
+        }
+        defaults.update(kwargs)
+        campaign = CustomNotification.objects.create(**defaults)
+        campaign.target_users.set(users)
+        return campaign
+
+    def test_send_fans_out_personal_rows_only(self):
+        campaign = self.make_users_campaign([self.alice, self.bob], link_url='/missions')
+
+        result = campaigns.send_campaign(campaign, actor=self.admin)
+
+        self.assertEqual(result.total, 2)
+        self.assertEqual(result.created, 2)
+        rows = Notification.objects.filter(event_type='custom.announcement')
+        self.assertEqual(rows.count(), 2)
+        # Privacy guard: campaigns must never create broadcast rows.
+        self.assertFalse(rows.filter(recipient__isnull=True).exists())
+        row = rows.get(recipient=self.alice)
+        self.assertEqual(row.dedupe_key, f'custom.announcement:{campaign.pk}')
+        self.assertEqual(row.priority, Notification.PRIORITY_HIGH)
+        self.assertEqual(row.category, 'announcement')
+        self.assertEqual(row.link_url, '#/missions')
+        self.assertEqual(row.payload, {'campaign_id': campaign.pk})
+
+        campaign.refresh_from_db()
+        self.assertEqual(campaign.status, CustomNotification.STATUS_SENT)
+        self.assertEqual(campaign.sent_by, self.admin)
+        self.assertEqual(campaign.sent_count, 2)
+
+    def test_zero_recipients_raises_and_stays_draft(self):
+        campaign = CustomNotification.objects.create(
+            title='Nobody',
+            target_mode=CustomNotification.TARGET_WALLETS,
+            target_wallets='0x7777777777777777777777777777777777777777',
+        )
+
+        with self.assertRaises(campaigns.CampaignSendError):
+            campaigns.send_campaign(campaign, actor=self.admin)
+
+        campaign.refresh_from_db()
+        self.assertEqual(campaign.status, CustomNotification.STATUS_DRAFT)
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_double_send_never_duplicates(self):
+        campaign = self.make_users_campaign([self.alice])
+
+        campaigns.send_campaign(campaign, actor=self.admin)
+        result = campaigns.send_campaign(campaign, actor=self.admin)
+
+        self.assertEqual(Notification.objects.filter(recipient=self.alice).count(), 1)
+        self.assertEqual(result.refreshed, 1)
+        self.assertEqual(result.created, 0)
+
+    def test_resend_resurfaces_unread_for_current_audience_only(self):
+        campaign = self.make_users_campaign([self.alice, self.bob])
+        campaigns.send_campaign(campaign, actor=self.admin)
+
+        alice_row = Notification.objects.get(recipient=self.alice)
+        bob_row = Notification.objects.get(recipient=self.bob)
+        alice_row.mark_read()
+        bob_row.mark_read()
+        old_bob_created_at = bob_row.created_at
+
+        # Narrow targeting to alice only, then resend with fresh copy.
+        campaign.target_users.set([self.alice])
+        campaign.title = 'Updated title'
+        campaign.save()
+        campaigns.send_campaign(campaign, actor=self.admin)
+
+        alice_row.refresh_from_db()
+        self.assertIsNone(alice_row.read_at)
+        self.assertEqual(alice_row.title, 'Updated title')
+
+        bob_row.refresh_from_db()
+        self.assertIsNotNone(bob_row.read_at)
+        self.assertEqual(bob_row.created_at, old_bob_created_at)
+        self.assertEqual(Notification.objects.count(), 2)
+
+    def test_resend_reaches_newly_matching_users(self):
+        campaign = self.make_users_campaign([self.alice])
+        campaigns.send_campaign(campaign, actor=self.admin)
+
+        campaign.target_users.add(self.bob)
+        result = campaigns.send_campaign(campaign, actor=self.admin)
+
+        self.assertEqual(result.total, 2)
+        self.assertTrue(Notification.objects.filter(recipient=self.bob).exists())
+
+
+class CampaignFeedVisibilityTests(TestCase):
+    def setUp(self):
+        self.recipient = make_user('target@test.com', '0x8080808080808080808080808080808080808080')
+        self.outsider = make_user('outsider@test.com', '0x9090909090909090909090909090909090909090')
+        campaign = CustomNotification.objects.create(
+            title='Private announcement',
+            body='Only for you.',
+            target_mode=CustomNotification.TARGET_USERS,
+        )
+        campaign.target_users.set([self.recipient])
+        campaigns.send_campaign(campaign, actor=None)
+
+    def feed_client(self, user):
+        client = APIClient()
+        client.force_authenticate(user=user)
+        return client
+
+    def test_only_recipient_sees_the_campaign(self):
+        response = self.feed_client(self.recipient).get('/api/v1/notifications/')
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(response.data['results'][0]['title'], 'Private announcement')
+
+        response = self.feed_client(self.outsider).get('/api/v1/notifications/')
+        self.assertEqual(response.data['count'], 0)
+
+    def test_unread_count_and_mark_all_read(self):
+        client = self.feed_client(self.recipient)
+        self.assertEqual(client.get('/api/v1/notifications/unread-count/').data['count'], 1)
+
+        client.post('/api/v1/notifications/mark-all-read/')
+        self.assertEqual(client.get('/api/v1/notifications/unread-count/').data['count'], 0)
+
+
+class CustomNotificationAdminTests(TestCase):
+    def setUp(self):
+        self.admin_user = User.objects.create_superuser(
+            email='campaign-admin@test.com',
+            password='adminpass123',
+        )
+        self.alice = make_user('alice-admin@test.com', '0xa0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0')
+        self.client.force_login(self.admin_user)
+
+    def post_change_form(self, campaign=None, **overrides):
+        data = {
+            'title': 'Admin campaign',
+            'body': 'Body text',
+            'link_url': '',
+            'link_label': '',
+            'priority': Notification.PRIORITY_NORMAL,
+            'target_mode': CustomNotification.TARGET_USERS,
+            'target_users': [str(self.alice.pk)],
+            'target_wallets': '',
+        }
+        data.update(overrides)
+        if campaign is None:
+            return self.client.post('/admin/notifications/customnotification/add/', data)
+        return self.client.post(
+            f'/admin/notifications/customnotification/{campaign.pk}/change/', data
+        )
+
+    def test_change_form_renders(self):
+        response = self.client.get('/admin/notifications/customnotification/add/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'target_mode')
+        self.assertContains(response, 'Send now')
+
+    def test_save_without_send_now_stays_draft(self):
+        response = self.post_change_form()
+        self.assertEqual(response.status_code, 302)
+        campaign = CustomNotification.objects.get()
+        self.assertEqual(campaign.status, CustomNotification.STATUS_DRAFT)
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_save_with_send_now_fans_out_via_save_related(self):
+        # Hand-picked users are an M2M saved after save_model; this proves
+        # the send runs in save_related with the committed M2M state.
+        response = self.post_change_form(send_now='on')
+        self.assertEqual(response.status_code, 302)
+        campaign = CustomNotification.objects.get()
+        self.assertEqual(campaign.status, CustomNotification.STATUS_SENT)
+        row = Notification.objects.get(recipient=self.alice)
+        self.assertEqual(row.event_type, 'custom.announcement')
+        self.assertEqual(row.actor, self.admin_user)
+
+    def test_wallets_mode_send_stores_unmatched(self):
+        response = self.post_change_form(
+            send_now='on',
+            target_mode=CustomNotification.TARGET_WALLETS,
+            target_users=[],
+            target_wallets=(
+                f'{self.alice.address}\n0xdead00000000000000000000000000000000beef'
+            ),
+        )
+        self.assertEqual(response.status_code, 302)
+        campaign = CustomNotification.objects.get()
+        self.assertEqual(campaign.status, CustomNotification.STATUS_SENT)
+        self.assertEqual(campaign.sent_count, 1)
+        self.assertEqual(
+            campaign.unmatched_wallets,
+            ['0xdead00000000000000000000000000000000beef'],
+        )
+
+    def test_bulk_actions_respect_status(self):
+        draft = CustomNotification.objects.create(
+            title='Draft one', target_mode=CustomNotification.TARGET_USERS
+        )
+        draft.target_users.set([self.alice])
+
+        response = self.client.post(
+            '/admin/notifications/customnotification/',
+            {'action': 'resend_selected', '_selected_action': [str(draft.pk)]},
+        )
+        self.assertEqual(response.status_code, 302)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, CustomNotification.STATUS_DRAFT)
+
+        response = self.client.post(
+            '/admin/notifications/customnotification/',
+            {'action': 'send_selected', '_selected_action': [str(draft.pk)]},
+        )
+        self.assertEqual(response.status_code, 302)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, CustomNotification.STATUS_SENT)

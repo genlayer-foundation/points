@@ -149,6 +149,11 @@ backend/
 - **Models**: `notifications/models.py`
   - `Notification` - Personal (has `recipient`) or broadcast (`recipient=None` + `audience`: all/validators/stewards). Broadcasts are ONE row regardless of user count; users see broadcasts created after their `date_joined`. Frozen copy (`title`/`body`/`link_url`), `payload` JSON for future channel renderers, `dedupe_key` (re-broadcasting a source object refreshes + resurfaces instead of duplicating).
   - `NotificationReceipt` - Lazy per-user read state for broadcast rows (created on read).
+  - `CustomNotification` - Admin-composed campaign: title/markdown body/optional link + targeting (`everyone` | `roles` union of builders/validators/stewards/creators | hand-picked `target_users` M2M | pasted `target_wallets`) + delivery record (`status` draft/sent, `sent_count`, `unmatched_wallets`, `channels` reserved for email/Telegram).
+- **Campaigns**: `notifications/campaigns.py`
+  - `resolve_recipients(campaign)` - The channel-agnostic enumeration step (always `is_active=True`; banned/invisible users included by design). Future email/Telegram channels reuse this and add their own delivery.
+  - `send_campaign(campaign, actor=...)` - Fans out personal `Notification` rows (snapshot semantics, never broadcast rows, so campaigns stay private to recipients). Idempotent via dedupe key `custom.announcement:{pk}`; resend refreshes copy + resurfaces unread, scoped to the currently resolved audience.
+  - Compose flow: Django admin > Notifications > Custom notifications. Saving is a silent draft with reach preview; off-by-default "Send now" checkbox or `send_selected`/`resend_selected` actions deliver. The send runs in `save_related` (M2M targeting commits after `save_model`).
 - **Registry**: `notifications/registry.py` - Single source of truth for event types (category, priority, default audience, future channels). **Adding a new notification = register an EventType here + emit it from the producer.**
 - **Services**: `notifications/services.py`
   - Core: `notify()` (personal), `broadcast()` (audience-wide single row), `feed_for(user)`, `mark_notification_read()`, `mark_all_read()`
