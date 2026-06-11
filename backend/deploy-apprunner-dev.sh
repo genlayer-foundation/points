@@ -49,7 +49,8 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
         "Port": "8000",
         "RuntimeEnvironmentVariables": {
           "PYTHONPATH": "/app",
-          "DJANGO_SETTINGS_MODULE": "tally.settings"
+          "DJANGO_SETTINGS_MODULE": "tally.settings",
+          "RECAPTCHA_ALLOW_TEST_KEYS": "true"
         },
         "RuntimeEnvironmentSecrets": {
           "SECRET_KEY": "$SSM_PREFIX/$SSM_ENV/secret_key",
@@ -226,7 +227,8 @@ EOF
         "Port": "8000",
         "RuntimeEnvironmentVariables": {
           "PYTHONPATH": "/app",
-          "DJANGO_SETTINGS_MODULE": "tally.settings"
+          "DJANGO_SETTINGS_MODULE": "tally.settings",
+          "RECAPTCHA_ALLOW_TEST_KEYS": "true"
         },
         "RuntimeEnvironmentSecrets": {
           "SECRET_KEY": "$SSM_PREFIX/$SSM_ENV/secret_key",
