@@ -64,6 +64,28 @@ class SubmissionReviewNotificationTests(TestCase):
             2,
         )
 
+    def test_same_dedupe_key_never_reassigns_across_users(self):
+        other_user = make_user('other-dedupe@test.com', '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+
+        first = services.notify(
+            'referral.joined',
+            recipient=self.user,
+            title='First user notification',
+            dedupe_key='shared-key',
+        )
+        second = services.notify(
+            'referral.joined',
+            recipient=other_user,
+            title='Second user notification',
+            dedupe_key='shared-key',
+        )
+
+        self.assertNotEqual(first.id, second.id)
+        first.refresh_from_db()
+        self.assertEqual(first.recipient, self.user)
+        self.assertEqual(first.title, 'First user notification')
+        self.assertEqual(second.recipient, other_user)
+
     def test_duplicate_review_call_dedupes(self):
         submission = SubmittedContribution.objects.create(
             user=self.user,

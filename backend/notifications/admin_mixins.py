@@ -1,8 +1,12 @@
+import logging
+
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.utils import flatten_fieldsets
 
 from .services import estimate_broadcast_reach
+
+logger = logging.getLogger(__name__)
 
 BROADCAST_FORM_FIELDS = ('broadcast_notification', 'notification_message')
 
@@ -92,12 +96,18 @@ class BroadcastNotificationAdminMixin:
     def broadcast_selected_notifications(self, request, queryset):
         sent = 0
         skipped = 0
+        failed = 0
         last_audience = None
         for obj in queryset:
             if not self.broadcast_eligible(obj):
                 skipped += 1
                 continue
-            notification = self.broadcast_service(obj, actor=request.user)
+            try:
+                notification = self.broadcast_service(obj, actor=request.user)
+            except Exception:
+                logger.exception('Failed to broadcast notification for %r', obj)
+                failed += 1
+                continue
             last_audience = notification.audience
             sent += 1
 
@@ -108,14 +118,27 @@ class BroadcastNotificationAdminMixin:
             message = 'No broadcast notifications were published.'
         if skipped:
             message += f' Skipped {skipped} item(s) because {self.broadcast_ineligible_reason}.'
+        if failed:
+            message += f' Failed to broadcast {failed} item(s); check server logs.'
         self.message_user(
             request,
             message,
-            level=messages.WARNING if skipped else messages.SUCCESS,
+            level=messages.WARNING if (skipped or failed) else messages.SUCCESS,
         )
 
     def _send_broadcast(self, request, obj, message=''):
-        notification = self.broadcast_service(obj, actor=request.user, message=message)
+        # The object is already saved at this point; a broadcast failure must
+        # not turn the admin save into a server error.
+        try:
+            notification = self.broadcast_service(obj, actor=request.user, message=message)
+        except Exception:
+            logger.exception('Failed to broadcast notification for %r', obj)
+            self.message_user(
+                request,
+                'The item was saved, but the broadcast notification failed to publish; check server logs.',
+                level=messages.ERROR,
+            )
+            return
         reach = estimate_broadcast_reach(notification.audience)
         self.message_user(
             request,

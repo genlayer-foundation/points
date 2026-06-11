@@ -12,6 +12,7 @@ insert regardless of user count.
 from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
@@ -72,7 +73,6 @@ def notify(
     """Create (or dedupe-refresh) a personal notification."""
     event = get_event_type(event_slug)
     values = {
-        'recipient': recipient,
         'actor': actor,
         'event_type': event.slug,
         'category': event.category,
@@ -86,7 +86,10 @@ def notify(
     }
 
     if dedupe_key:
+        # The recipient is part of the lookup, so a dedupe key shared across
+        # users can never reassign another user's notification.
         notification, created = Notification.objects.get_or_create(
+            recipient=recipient,
             dedupe_key=dedupe_key,
             defaults=values,
         )
@@ -95,7 +98,7 @@ def notify(
             _apply_values(notification, values)
         return notification
 
-    return Notification.objects.create(**values)
+    return Notification.objects.create(recipient=recipient, **values)
 
 
 def broadcast(
@@ -118,7 +121,6 @@ def broadcast(
     """
     event = get_event_type(event_slug)
     values = {
-        'recipient': None,
         'audience': audience or event.audience,
         'actor': actor,
         'event_type': event.slug,
@@ -138,18 +140,20 @@ def broadcast(
 
     if dedupe_key:
         notification, created = Notification.objects.get_or_create(
+            recipient=None,
             dedupe_key=dedupe_key,
             defaults=values,
         )
         if not created:
-            _apply_values(notification, values)
             # Deliberate re-broadcast: resurface as new and unread for everyone.
-            Notification.objects.filter(pk=notification.pk).update(created_at=timezone.now())
-            notification.receipts.all().delete()
+            with transaction.atomic():
+                _apply_values(notification, values)
+                Notification.objects.filter(pk=notification.pk).update(created_at=timezone.now())
+                notification.receipts.all().delete()
             notification.refresh_from_db(fields=['created_at'])
         return notification
 
-    return Notification.objects.create(**values)
+    return Notification.objects.create(recipient=None, **values)
 
 
 def estimate_broadcast_reach(audience):

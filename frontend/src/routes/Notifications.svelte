@@ -69,6 +69,14 @@
 
   async function markAllRead() {
     await notificationStore.markAllRead();
+    if (unreadOnly) {
+      // Everything just stopped matching the active Unread filter.
+      notifications = [];
+      totalCount = 0;
+      hasNext = false;
+      currentPage = 1;
+      return;
+    }
     notifications = notifications.map((item) => ({ ...item, is_read: true }));
   }
 

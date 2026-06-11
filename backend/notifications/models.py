@@ -77,7 +77,7 @@ class Notification(BaseModel):
     source_model = models.CharField(max_length=80, blank=True)
     source_object_id = models.CharField(max_length=120, blank=True)
     payload = models.JSONField(default=dict, blank=True)
-    dedupe_key = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    dedupe_key = models.CharField(max_length=255, null=True, blank=True)
     read_at = models.DateTimeField(null=True, blank=True, help_text='Personal notifications only.')
 
     class Meta:
@@ -89,6 +89,21 @@ class Notification(BaseModel):
                 fields=['audience', '-created_at'],
                 condition=models.Q(recipient__isnull=True),
                 name='notif_broadcast_feed_idx',
+            ),
+        ]
+        constraints = [
+            # Dedupe keys are scoped per recipient (and separately for
+            # broadcasts) so a key collision between producers can never
+            # reassign another user's notification.
+            models.UniqueConstraint(
+                fields=['recipient', 'dedupe_key'],
+                condition=models.Q(recipient__isnull=False, dedupe_key__isnull=False),
+                name='unique_personal_dedupe_per_recipient',
+            ),
+            models.UniqueConstraint(
+                fields=['dedupe_key'],
+                condition=models.Q(recipient__isnull=True, dedupe_key__isnull=False),
+                name='unique_broadcast_dedupe',
             ),
         ]
 

@@ -64,4 +64,4 @@ def get_event_type(slug):
         raise KeyError(
             f"Unknown notification event type '{slug}'. "
             "Register it in notifications/registry.py."
-        )
+        ) from None

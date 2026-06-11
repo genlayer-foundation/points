@@ -3,12 +3,17 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from . import services
-from .serializers import NotificationSerializer
+from .serializers import LightNotificationSerializer, NotificationSerializer
 
 
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return LightNotificationSerializer
+        return NotificationSerializer
 
     def get_serializer_context(self):
         context = super().get_serializer_context()

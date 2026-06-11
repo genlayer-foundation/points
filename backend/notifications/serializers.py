@@ -33,3 +33,15 @@ class NotificationSerializer(serializers.ModelSerializer):
         if obj.recipient_id is not None:
             return obj.read_at is not None
         return bool(getattr(obj, 'receipt_read', False))
+
+
+class LightNotificationSerializer(NotificationSerializer):
+    """List serializer: everything the feed UI renders, minus `payload`.
+
+    The payload is channel-renderer data (ids/slugs for future email or
+    Telegram delivery), not something list views need.
+    """
+
+    class Meta(NotificationSerializer.Meta):
+        fields = [field for field in NotificationSerializer.Meta.fields if field != 'payload']
+        read_only_fields = fields
