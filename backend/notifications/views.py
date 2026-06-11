@@ -10,6 +10,11 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['use_light_serializers'] = self.action == 'list'
+        return context
+
     def get_queryset(self):
         user = self.request.user
         queryset = services.annotate_read_state(services.feed_for(user), user)

@@ -8,7 +8,6 @@
 
   let open = $state(false);
   let container = $state(null);
-  let pollId;
 
   let notifications = $derived(($notificationStore.items || []).slice(0, 7));
   let unreadCount = $derived($notificationStore.unreadCount || 0);
@@ -61,15 +60,12 @@
 
   onMount(() => {
     document.addEventListener('click', handleDocumentClick);
-    pollId = window.setInterval(() => {
-      if ($authState.isAuthenticated) {
-        notificationStore.loadUnreadCount();
-      }
-    }, 60000);
+    // Refcounted store singleton: the second navbar instance reuses one timer.
+    const stopPolling = notificationStore.startPolling();
 
     return () => {
       document.removeEventListener('click', handleDocumentClick);
-      if (pollId) window.clearInterval(pollId);
+      stopPolling();
     };
   });
 </script>

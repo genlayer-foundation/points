@@ -34,8 +34,12 @@
 
     highlightedSubmissionId = requestedSubmission;
 
-    if (requestedState && validStateFilters.has(requestedState)) {
-      stateFilter = requestedState;
+    // Reset when the URL stops carrying a valid state so a deep-linked filter
+    // doesn't silently persist on plain #/my-submissions.
+    const nextStateFilter =
+      requestedState && validStateFilters.has(requestedState) ? requestedState : '';
+    if (stateFilter !== nextStateFilter) {
+      stateFilter = nextStateFilter;
       currentPage = 1;
     }
   }

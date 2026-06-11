@@ -338,6 +338,53 @@ class NotificationAPITests(TestCase):
         self.assertIsNone(foreign.read_at)
 
 
+class StewardReviewEndpointNotificationTests(TestCase):
+    """The main steward review endpoint must notify the submitter."""
+
+    def setUp(self):
+        from stewards.models import Steward, StewardPermission
+
+        self.category = Category.objects.create(name='Review', slug='review-notif', description='x')
+        self.contribution_type = ContributionType.objects.create(
+            name='Review Type',
+            slug='review-type-notif',
+            description='x',
+            category=self.category,
+            min_points=1,
+            max_points=10,
+        )
+        self.submitter = make_user('submitter@test.com', '0x8888888888888888888888888888888888888888')
+        self.steward_user = make_user('steward@test.com', '0x9999999999999999999999999999999999999999')
+        steward = Steward.objects.create(user=self.steward_user)
+        StewardPermission.objects.create(
+            steward=steward,
+            contribution_type=self.contribution_type,
+            action='reject',
+        )
+        self.submission = SubmittedContribution.objects.create(
+            user=self.submitter,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Review me',
+            state='pending',
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.steward_user)
+
+    def test_review_action_notifies_submitter(self):
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {'action': 'reject', 'staff_reply': 'Missing evidence'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+
+        notification = Notification.objects.get(recipient=self.submitter)
+        self.assertEqual(notification.event_type, 'submission.rejected')
+        self.assertEqual(notification.actor, self.steward_user)
+        self.assertIn(str(self.submission.id), notification.link_url)
+
+
 class BroadcastAdminMixinTests(TestCase):
     def setUp(self):
         self.admin_user = User.objects.create_superuser(

@@ -2334,6 +2334,10 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             },
         )
 
+        # Notify the submitter about the decision
+        from notifications.services import notify_submission_review
+        notify_submission_review(submission, actor=request.user)
+
         return Response(
             self.get_serializer(submission).data,
             status=status.HTTP_200_OK
