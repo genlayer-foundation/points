@@ -2,7 +2,7 @@
   import { push, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { onMount } from 'svelte';
-  import api from '../lib/api.js';
+  import api, { submissionsAPI } from '../lib/api.js';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
   import SocialLink from '../components/SocialLink.svelte';
@@ -59,6 +59,41 @@
       formInitialized = true;
     }
   });
+
+  let isMilestoneSubmission = $derived(
+    selectedContributionType
+      ? selectedContributionType.slug === 'milestones'
+      : submission?.contribution_type_details?.slug === 'milestones'
+  );
+
+  // Accepted projects for the milestone project picker
+  let acceptedProjects = $state([]);
+  let loadingProjects = $state(false);
+  let projectsRequested = $state(false);
+  let selectedProject = $state('');
+
+  async function loadAcceptedProjects() {
+    loadingProjects = true;
+    try {
+      const response = await submissionsAPI.getAcceptedProjects();
+      acceptedProjects = response.data || [];
+    } catch (err) {
+      acceptedProjects = [];
+    } finally {
+      loadingProjects = false;
+    }
+  }
+
+  $effect(() => {
+    if (isMilestoneSubmission && !projectsRequested) {
+      projectsRequested = true;
+      loadAcceptedProjects();
+    }
+  });
+
+  let selectedProjectData = $derived(
+    acceptedProjects.find((project) => String(project.id) === String(selectedProject)) || null
+  );
 
   // Sync selectedContributionType with formData.contribution_type
   $effect(() => {
@@ -344,6 +379,7 @@
       // Load submission
       const submissionResponse = await api.get(`/submissions/${params.id}/`);
       submission = submissionResponse.data;
+      selectedProject = submission.project ? submission.project.id : '';
 
       // Check if editing is allowed
       if (!submission.can_edit) {
@@ -436,6 +472,16 @@
       return;
     }
 
+    if (isMilestoneSubmission && !selectedProject) {
+      error = 'Please select the accepted project this milestone belongs to.';
+      return;
+    }
+
+    if (isMilestoneSubmission && !formData.notes.trim()) {
+      error = 'Please describe the changes and improvements in this milestone.';
+      return;
+    }
+
     // Validate evidence slots - URL is required for each evidence item
     for (let i = 0; i < evidenceSlots.length; i++) {
       const slot = evidenceSlots[i];
@@ -471,7 +517,9 @@
       return hasDescription && hasUrl;
     });
 
-    if (filledSlots.length === 0) {
+    // Milestones are reviewed from the linked project's repository, so
+    // extra evidence is optional for them.
+    if (filledSlots.length === 0 && !isMilestoneSubmission) {
       error = 'Please add at least one evidence item with a URL to support your contribution';
       return;
     }
@@ -517,6 +565,8 @@
         title: formData.title || '',
         notes: formData.notes || '',
         mission: formData.mission || null,
+        // Explicit null clears the link when switching away from Milestones
+        project: isMilestoneSubmission ? selectedProject : null,
         evidence_items: evidence_items  // Send all evidence in one request
       };
 
@@ -681,6 +731,60 @@
         {/if}
 
         {#if canShowFormDetails}
+        {#if isMilestoneSubmission}
+          <div class="mb-6 bg-gray-50 border border-gray-200 rounded-md p-4">
+            <label for="milestone-project" class="block text-sm font-medium text-gray-700 mb-2">
+              Linked Project <span class="text-red-500">*</span>
+            </label>
+            {#if loadingProjects}
+              <p class="text-sm text-gray-500">Loading accepted projects...</p>
+            {:else if acceptedProjects.length === 0}
+              <p class="text-sm text-orange-700">
+                You need an accepted project before submitting milestones.
+                Submit a Projects contribution first; once it is accepted,
+                milestones can be linked to it.
+              </p>
+            {:else}
+              <select
+                id="milestone-project"
+                bind:value={selectedProject}
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                required
+              >
+                <option value="">Select accepted project...</option>
+                {#each acceptedProjects as project}
+                  <option value={project.id}>
+                    {project.title}
+                  </option>
+                {/each}
+              </select>
+              <div class="mt-2 flex items-center gap-2 flex-wrap">
+                {#if submission?.milestone_version && submission?.project?.id && String(submission.project.id) === String(selectedProject)}
+                  <span class="text-xs text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5 font-medium">
+                    Milestone v{submission.milestone_version}
+                  </span>
+                {:else if selectedProjectData}
+                  <span class="text-xs text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5 font-medium">
+                    Will be saved as v{selectedProjectData.next_milestone_version || 1}
+                  </span>
+                {/if}
+                {#if selectedProjectData?.github_url}
+                  <a
+                    href={selectedProjectData.github_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Project Repository ↗
+                  </a>
+                {/if}
+              </div>
+              <p class="mt-1 text-xs text-gray-500">
+                Stewards review the project repository for the changes you describe.
+              </p>
+            {/if}
+          </div>
+        {/if}
         <div class="mb-6">
           <label for="contribution_date" class="block text-sm font-medium text-gray-700 mb-2">
             Contribution Date <span class="text-red-500">*</span>
@@ -711,14 +815,21 @@
 
         <div class="mb-6">
           <label for="notes" class="block text-sm font-medium text-gray-700 mb-2">
-            Notes / Description
+            {#if isMilestoneSubmission}
+              Changes & Improvements <span class="text-red-500">*</span>
+            {:else}
+              Notes / Description
+            {/if}
           </label>
           <textarea
             id="notes"
             bind:value={formData.notes}
             rows="6"
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            placeholder="Update your contribution description based on the staff feedback..."
+            placeholder={isMilestoneSubmission
+              ? "Explain the changes and improvements in this milestone..."
+              : "Update your contribution description based on the staff feedback..."}
+            required={isMilestoneSubmission}
           ></textarea>
         </div>
 

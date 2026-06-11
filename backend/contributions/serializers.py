@@ -14,6 +14,8 @@ from .rubric_review import (
 from users.serializers import UserSerializer, LightUserSerializer
 from users.models import User
 from stewards.models import ReviewTemplate
+from projects.models import Project
+from .project_milestones import is_milestone_contribution_type
 from .recaptcha_field import ReCaptchaField
 import decimal
 
@@ -81,6 +83,18 @@ class LightMissionSerializer(serializers.Serializer):
     max_submissions_per_user = serializers.IntegerField(read_only=True)
 
 
+class LightProjectSerializer(serializers.Serializer):
+    """Minimal project data for contribution/submission project links."""
+    id = serializers.IntegerField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    slug = serializers.SlugField(read_only=True)
+    github_url = serializers.CharField(read_only=True)
+    link = serializers.SerializerMethodField()
+
+    def get_link(self, obj):
+        return obj.get_link()
+
+
 class EvidenceSerializer(serializers.ModelSerializer):
     """Serializer for evidence items."""
     url_type = LightEvidenceURLTypeSerializer(read_only=True)
@@ -105,6 +119,8 @@ class LightContributionSerializer(serializers.Serializer):
     contribution_date = serializers.DateTimeField(read_only=True)
     notes = serializers.CharField(read_only=True)
     title = serializers.CharField(read_only=True, allow_blank=True)
+    project = LightProjectSerializer(read_only=True)
+    milestone_version = serializers.IntegerField(read_only=True)
     is_highlighted = serializers.SerializerMethodField()
     highlight = serializers.SerializerMethodField()
     evidence_items = serializers.SerializerMethodField()
@@ -238,13 +254,15 @@ class ContributionSerializer(serializers.ModelSerializer):
     contribution_type_details = serializers.SerializerMethodField()
     evidence_items = serializers.SerializerMethodField()
     highlight = serializers.SerializerMethodField()
+    project = LightProjectSerializer(read_only=True)
 
     class Meta:
         model = Contribution
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name',
                   'contribution_type_min_points', 'contribution_type_max_points', 'contribution_type_details',
                   'points', 'frozen_global_points', 'multiplier_at_creation', 'contribution_date',
-                  'evidence_items', 'notes', 'title', 'highlight', 'mission', 'created_at', 'updated_at']
+                  'evidence_items', 'notes', 'title', 'highlight', 'mission',
+                  'project', 'milestone_version', 'created_at', 'updated_at']
         read_only_fields = ['id', 'frozen_global_points', 'created_at', 'updated_at']
 
     def get_user_details(self, obj):
@@ -428,6 +446,11 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
     state_display = serializers.CharField(source='get_state_display', read_only=True)
     can_edit = serializers.SerializerMethodField()
     contribution = serializers.SerializerMethodField()
+    project = serializers.PrimaryKeyRelatedField(
+        queryset=Project.objects.filter(status=Project.STATUS_ACTIVE),
+        required=False,
+        allow_null=True,
+    )
     recaptcha = ReCaptchaField(required=False)  # Required only on create, handled in validate()
 
     class Meta:
@@ -436,11 +459,13 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
                   'contribution_type_details', 'contribution_date', 'notes', 'title', 'state', 'state_display',
                   'staff_reply', 'reviewed_by', 'reviewed_at', 'evidence_items', 'can_edit',
                   'proposed_points', 'converted_contribution', 'contribution', 'mission',
+                  'project', 'milestone_version',
                   'has_appeal', 'appeal_reason',
                   'created_at', 'updated_at', 'last_edited_at', 'recaptcha']
         read_only_fields = ['id', 'user', 'state', 'staff_reply', 'reviewed_by',
                           'reviewed_at', 'created_at', 'updated_at', 'last_edited_at',
                           'proposed_points', 'converted_contribution',
+                          'milestone_version',
                           'has_appeal', 'appeal_reason']
 
     def get_user_details(self, obj):
@@ -684,14 +709,16 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
 
         evidence_validated = self._validate_evidence_items(
             evidence_items_data,
-            require_at_least_one=True,
+            # Milestones are reviewed from the linked project's repository,
+            # so extra evidence URLs are optional for them.
+            require_at_least_one=not is_milestone_contribution_type(contribution_type),
             contribution_type=contribution_type,
             user=user,
         )
 
         with transaction.atomic():
             instance = super().create(validated_data)
-            for evidence_data in evidence_validated:
+            for evidence_data in (evidence_validated or []):
                 detected_type = evidence_data.pop('_detected_url_type', None)
                 Evidence.objects.create(
                     submitted_contribution=instance,
@@ -721,7 +748,7 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
             )
             evidence_items_validated = self._validate_evidence_items(
                 evidence_items_data,
-                require_at_least_one=True,
+                require_at_least_one=not is_milestone_contribution_type(contribution_type),
                 contribution_type=contribution_type,
                 user=user,
                 exclude_submission_id=instance.id,
@@ -798,6 +825,8 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
                 ret['mission'] = LightMissionSerializer(instance.mission).data
             else:
                 ret['mission'] = MissionSerializer(instance.mission, context=self.context).data
+        if instance.project:
+            ret['project'] = LightProjectSerializer(instance.project).data
 
         return ret
 
@@ -1163,6 +1192,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
     proposed_template_name = serializers.SerializerMethodField()
     notes_count = serializers.SerializerMethodField()
     rubric_review = serializers.SerializerMethodField()
+    project = LightProjectSerializer(read_only=True)
 
     class Meta:
         model = SubmittedContribution
@@ -1180,7 +1210,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                   'notes_count', 'is_interesting',
                   'has_appeal', 'appeal_reason',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution',
-                  'mission']
+                  'mission', 'project', 'milestone_version']
         # Every model-backed field is read-only: this serializer only renders
         # steward review data. State transitions, proposals and reviewer
         # attribution are written exclusively by the viewset's custom actions,
@@ -1193,7 +1223,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                             'proposed_by', 'proposed_at', 'proposed_confidence', 'proposed_template',
                             'created_at', 'updated_at', 'last_edited_at', 'proposed_points',
                             'is_interesting', 'has_appeal', 'appeal_reason',
-                            'converted_contribution', 'mission']
+                            'converted_contribution', 'mission', 'milestone_version']
 
     def get_user_details(self, obj):
         use_light = self.context.get('use_light_serializers', False)
@@ -1257,6 +1287,8 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                     'contribution_date': contribution.contribution_date,
                     'notes': contribution.notes,
                     'title': contribution.title,
+                    'project': LightProjectSerializer(contribution.project).data if contribution.project else None,
+                    'milestone_version': contribution.milestone_version,
                     'highlight': {
                         'title': highlight.title,
                         'description': highlight.description
@@ -1286,6 +1318,10 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
             contribution_data['contribution_type_details'] = LightContributionTypeSerializer(
                 obj.converted_contribution.contribution_type
             ).data
+            contribution_data['project'] = (
+                LightProjectSerializer(obj.converted_contribution.project).data
+                if obj.converted_contribution.project else None
+            )
 
             return contribution_data
         return None

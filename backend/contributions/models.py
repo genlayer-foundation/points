@@ -219,6 +219,19 @@ class Contribution(BaseModel):
         related_name='contributions',
         help_text='Mission this contribution fulfills (optional)'
     )
+    project = models.ForeignKey(
+        'projects.Project',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='contributions',
+        help_text='Project this contribution is attached to (used by project milestones)'
+    )
+    milestone_version = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Sequential milestone version within the linked project'
+    )
     points = models.PositiveIntegerField(default=0)
     frozen_global_points = models.PositiveIntegerField(
         default=0,
@@ -534,6 +547,19 @@ class SubmittedContribution(BaseModel):
         blank=True,
         related_name='submissions',
         help_text='Mission that prompted this submission (optional)'
+    )
+    project = models.ForeignKey(
+        'projects.Project',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='submissions',
+        help_text='Project this submission is attached to (required for milestones)'
+    )
+    milestone_version = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Sequential milestone version within the linked project'
     )
     contribution_date = models.DateTimeField(
         help_text="Date when the contribution was made"

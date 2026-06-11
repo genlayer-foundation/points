@@ -99,7 +99,8 @@ export const contributionsAPI = {
 
 // API endpoints for the submitter-side submission flows
 export const submissionsAPI = {
-  appeal: (id, reason) => api.post(`/submissions/${id}/appeal/`, { reason })
+  appeal: (id, reason) => api.post(`/submissions/${id}/appeal/`, { reason }),
+  getAcceptedProjects: () => api.get('/submissions/accepted-projects/')
 };
 
 

@@ -35,6 +35,9 @@
   let typeName = $derived(
     contribution?.contribution_type_details?.name || contribution?.contribution_type_name || 'Contribution'
   );
+  let typeSlug = $derived(contribution?.contribution_type_details?.slug);
+  let isMilestone = $derived(typeSlug === 'milestones');
+  let linkedProject = $derived(contribution?.project);
   let missionName = $derived(contribution?.mission?.name);
   
   function formatDate(dateString) {
@@ -89,6 +92,11 @@
             {#if missionName}
               <span class="text-xs font-normal text-gray-500">
                 · {typeName}
+              </span>
+            {/if}
+            {#if isMilestone && contribution?.milestone_version}
+              <span class="text-xs font-medium text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5">
+                v{contribution.milestone_version}
               </span>
             {/if}
           </h3>
@@ -163,6 +171,16 @@
             <span class="text-gray-400">•</span>
           {/if}
           <span class="text-gray-500">{formatDate(contribution.contribution_date)}</span>
+          {#if linkedProject}
+            <span class="text-gray-400">•</span>
+            <a
+              href="#{linkedProject.link || `/builders/projects/${linkedProject.slug}`}"
+              class="{categoryColors.text} {categoryColors.hoverText} font-medium"
+              onclick={(event) => event.stopPropagation()}
+            >
+              {linkedProject.title}
+            </a>
+          {/if}
         </div>
       </div>
       
