@@ -58,6 +58,7 @@ class LightContributionTypeSerializer(serializers.Serializer):
     description = serializers.CharField(read_only=True)
     min_points = serializers.IntegerField(read_only=True)
     max_points = serializers.IntegerField(read_only=True)
+    rubric_extra_points = serializers.IntegerField(read_only=True)
     max_submissions = serializers.IntegerField(read_only=True)
     review_flow = serializers.CharField(read_only=True)
     # Include category slug only, not the full category object
@@ -147,7 +148,7 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
         model = ContributionType
         fields = [
             'id', 'name', 'slug', 'description', 'category', 'min_points', 'max_points',
-            'current_multiplier', 'is_submittable', 'review_flow', 'max_submissions',
+            'rubric_extra_points', 'current_multiplier', 'is_submittable', 'review_flow', 'max_submissions',
             'submission_count', 'submissions_remaining', 'is_full',
             'show_in_contributions', 'examples',
             'required_social_accounts', 'required_discord_roles',

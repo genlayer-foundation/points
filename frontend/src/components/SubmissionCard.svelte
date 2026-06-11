@@ -550,7 +550,9 @@
 
   function updateProjectRubricPoints(state = rubricState) {
     if (!isProjectReview || rubricPointsManuallyEdited || state.gateFailures?.length > 0) return;
-    points = clampPointsToSelectedType(calculateRubricPoints(state));
+    points = clampPointsToSelectedType(
+      calculateRubricPoints(state, selectedTypeDetails?.rubric_extra_points)
+    );
   }
 
   function markPointsManuallyEdited() {
