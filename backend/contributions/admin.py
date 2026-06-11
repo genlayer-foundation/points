@@ -145,11 +145,19 @@ class ContributionTypeAdmin(admin.ModelAdmin):
     list_display = (
         'name', 'category', 'review_flow', 'is_default', 'is_submittable',
         'get_submission_usage', 'show_in_contributions',
-        'get_current_multiplier', 'min_points', 'max_points',
+        'get_current_multiplier', 'min_points', 'max_points', 'rubric_extra_points',
         'description', 'created_at',
     )
     list_display_links = ('get_current_multiplier',)
-    list_editable = ('name', 'review_flow', 'is_default', 'is_submittable', 'show_in_contributions', 'description')
+    list_editable = (
+        'name',
+        'review_flow',
+        'is_default',
+        'is_submittable',
+        'show_in_contributions',
+        'rubric_extra_points',
+        'description',
+    )
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at')
     list_filter = ('category', 'review_flow', 'is_default', 'is_submittable', 'show_in_contributions')

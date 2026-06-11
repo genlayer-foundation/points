@@ -52,7 +52,7 @@ export const RUBRIC_EXTRAS = [
   { key: 'public_post', label: 'Public post' }
 ];
 
-const RUBRIC_EXTRA_POINTS = 50;
+export const DEFAULT_RUBRIC_EXTRA_POINTS = 2;
 const RUBRIC_EXTRA_KEYS = new Set(RUBRIC_EXTRAS.map(extra => extra.key));
 
 /**
@@ -148,8 +148,8 @@ export function buildRubricReviewPayload(state) {
   };
 }
 
-/** @param {RubricState} state @returns {number} */
-export function calculateRubricPoints(state) {
+/** @param {RubricState} state @param {number} [extraPoints] @returns {number} */
+export function calculateRubricPoints(state, extraPoints = DEFAULT_RUBRIC_EXTRA_POINTS) {
   const sections = state.sections || {};
   const scoreFor = (key) => {
     const score = Number(sections[key]?.score);
@@ -164,7 +164,10 @@ export function calculateRubricPoints(state) {
   const quality = (fit / 5) * ((2 * contractQuality + 2 * engineering + frontendUx) / 25);
   const criteriaPoints = Math.round(50 * quality);
   const extraCount = new Set((state.extras || []).filter(extra => RUBRIC_EXTRA_KEYS.has(extra))).size;
-  return criteriaPoints + (extraCount * RUBRIC_EXTRA_POINTS);
+  const perExtraPoints = Number.isFinite(Number(extraPoints))
+    ? Math.max(0, Math.trunc(Number(extraPoints)))
+    : DEFAULT_RUBRIC_EXTRA_POINTS;
+  return criteriaPoints + (extraCount * perExtraPoints);
 }
 
 /** @param {RubricState} state @param {string} proposedAction */
