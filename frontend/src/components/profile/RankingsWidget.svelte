@@ -21,6 +21,7 @@
     // Role checks
     let isBuilder = $derived(!!participant?.builder);
     let isValidator = $derived(!!participant?.validator);
+    let hasValidatorPoints = $derived((validatorStats?.totalPoints ?? 0) > 0);
     let isCreator = $derived(!!participant?.creator);
     let isValidatorWaitlist = $derived(
         !!participant?.has_validator_waitlist && !participant?.validator,
@@ -54,7 +55,6 @@
     let availableTabs = $derived.by(() => {
         const tabs: string[] = [];
         if (isBuilder) tabs.push("Builders");
-        if (isValidator) tabs.push("Validators");
         if (isCreator) tabs.push("Community");
 
         const preferred = topRoleTabs.filter((tab) => tabs.includes(tab));
@@ -65,7 +65,9 @@
         return [...preferred, ...remaining];
     });
 
-    let hasAnyRankableRole = $derived(isBuilder || isValidator || isCreator);
+    let hasAnyRankableRole = $derived(
+        isBuilder || isCreator || isValidatorWaitlist || hasValidatorPoints,
+    );
 
     let activeTab: string | null = $state(null);
     let activeTabAddress: string | null = $state(null);
@@ -619,7 +621,7 @@
                 {/if}
 
                 <!-- Validator Stat -->
-                {#if isValidator}
+                {#if isValidator && hasValidatorPoints}
                     <div
                         class="ranking-context-card flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
                     >
