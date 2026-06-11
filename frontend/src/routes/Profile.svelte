@@ -394,6 +394,12 @@
       builderStatsLoaded = false;
       validatorStatsLoaded = false;
       communityStatsLoaded = false;
+      validatorStats = {
+        totalContributions: 0,
+        totalPoints: 0,
+        averagePoints: 0,
+        contributionTypes: [],
+      };
       poapCountLoaded = false;
       poapCount = 0;
 
@@ -454,7 +460,7 @@
           contributionStatsLoaded = true;
         });
 
-      if (participant.validator || participant.has_validator_waitlist) {
+      if (participant.validator) {
         statsAPI
           .getUserStats(participantAddress, "validator")
           .then((res) => {
@@ -939,7 +945,7 @@
         </div>
       {/if}
 
-      {#if participant?.validator || participant?.has_validator_waitlist}
+      {#if participant?.validator}
         <div class="w-full mb-16 pt-10 border-t border-gray-100 mt-10">
           <RoleView
             role="validator"
@@ -950,15 +956,11 @@
               points: validatorStats.totalPoints,
               contributions: validatorStats.totalContributions,
               rank:
-                participant.leaderboard_entries?.find((e) =>
-                  !participant?.validator && participant?.has_validator_waitlist
-                    ? e.type === "validator-waitlist"
-                    : e.type === "validator",
+                participant.leaderboard_entries?.find(
+                  (e: any) => e.type === "validator",
                 )?.rank || "-",
             }}
             {isOwnProfile}
-            isWaitlist={!participant?.validator &&
-              participant?.has_validator_waitlist}
             loading={!validatorStatsLoaded}
           />
         </div>
