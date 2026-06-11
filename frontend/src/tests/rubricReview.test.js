@@ -52,7 +52,7 @@ describe('rubricReview helpers', () => {
     expect(payload.sections).toEqual({});
   });
 
-  it('calculates rubric points from weighted criteria only', () => {
+  it('adds 50 points per verified extra to weighted criteria points', () => {
     const state = validState({
       sections: {
         genlayer_fit: { score: 4, reason: '' },
@@ -63,10 +63,10 @@ describe('rubricReview helpers', () => {
       extras: ['live_deployment', 'demo_video']
     });
 
-    expect(calculateRubricPoints(state)).toBe(26);
+    expect(calculateRubricPoints(state)).toBe(126);
   });
 
-  it('sanitizes persisted rubric values before calculating points without extra bonuses', () => {
+  it('sanitizes persisted rubric values before calculating points with valid extra bonuses', () => {
     const state = validState({
       sections: {
         genlayer_fit: { score: 8, reason: '' },
@@ -77,7 +77,7 @@ describe('rubricReview helpers', () => {
       extras: ['live_deployment', 'live_deployment', 'unknown_extra']
     });
 
-    expect(calculateRubricPoints(state)).toBe(20);
+    expect(calculateRubricPoints(state)).toBe(70);
   });
 
   it('calculates the reported 5/4/4/4 example as 40 points', () => {
@@ -88,7 +88,7 @@ describe('rubricReview helpers', () => {
         engineering: { score: 4, reason: '' },
         frontend_ux: { score: 4, reason: '' }
       },
-      extras: ['live_deployment', 'demo_video']
+      extras: []
     });
 
     expect(calculateRubricPoints(state)).toBe(40);
