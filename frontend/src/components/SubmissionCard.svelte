@@ -1038,26 +1038,26 @@
             </div>
           {/if}
 
-          {#if submission.project}
+          {#if submission.project_contribution}
             <div>
               <h4 class="text-sm font-medium text-gray-700">Linked Project</h4>
               <div class="mt-1 flex items-center gap-2 flex-wrap">
                 <span class="text-sm text-gray-900">
-                  {submission.project.title}
+                  {submission.project_contribution.title}
                 </span>
                 {#if isMilestoneSubmission && submission.milestone_version}
                   <span class="text-xs text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5 font-medium">
                     Milestone v{submission.milestone_version}
                   </span>
                 {/if}
-                {#if submission.project.link}
-                  <a href="#{submission.project.link}" class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
+                {#if submission.project_contribution.link}
+                  <a href="#{submission.project_contribution.link}" class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
                     View Project →
                   </a>
                 {/if}
-                {#if submission.project.github_url}
+                {#if submission.project_contribution.github_url}
                   <a
-                    href={submission.project.github_url}
+                    href={submission.project_contribution.github_url}
                     target="_blank"
                     rel="noopener noreferrer"
                     class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
@@ -1084,24 +1084,24 @@
           </div>
         {/if}
 
-        {#if isOwnSubmission && submission.project}
+        {#if isOwnSubmission && submission.project_contribution}
           <div>
             <h4 class="text-sm font-medium text-gray-700">Linked Project</h4>
             <div class="mt-1 flex items-center gap-2 flex-wrap">
-              <p class="text-sm text-gray-900">{submission.project.title}</p>
+              <p class="text-sm text-gray-900">{submission.project_contribution.title}</p>
               {#if isMilestoneSubmission && submission.milestone_version}
                 <span class="text-xs text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5 font-medium">
                   Milestone v{submission.milestone_version}
                 </span>
               {/if}
-              {#if submission.project.link}
-                <a href="#{submission.project.link}" class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
+              {#if submission.project_contribution.link}
+                <a href="#{submission.project_contribution.link}" class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
                   View Project →
                 </a>
               {/if}
-              {#if submission.project.github_url}
+              {#if submission.project_contribution.github_url}
                 <a
-                  href={submission.project.github_url}
+                  href={submission.project_contribution.github_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
