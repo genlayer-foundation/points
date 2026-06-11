@@ -336,6 +336,9 @@ const routes = {
   '/community/contributions/highlights': AllContributions,
   '/community/highlights': AllContributions,
   '/community/leaderboard': Community,
+  '/community/tasks': SocialTasks,
+  '/builders/tasks': SocialTasks,
+  '/validators/tasks': SocialTasks,
   '/community/contribution/:id': ContributionPreview,
   '/community/poaps': CommunityPoaps,
   '/community/poaps/recover': PoapRecovery,
@@ -436,6 +439,7 @@ const routes = {
   - `genTvAPI` - Gen TV streams (`list`, `get(slug)`)
   - `poapsAPI` - POAP list/detail/claims, user POAPs, secret claims, mint-link claims, and recovery wallet verification
   - `validatorsAPI.getWallOfShame(params)` - Public Wall of Shame list for active validators with Grafana metrics/logs status badges (renders in `routes/WallOfShame.svelte`)
+  - `socialTasksAPI` - Social tasks (`list({ status, category })`, `complete(slug)`)
 
 ### Authentication (`src/lib/auth.js`)
 - **Auth Store**: Svelte store `authState`
@@ -487,6 +491,17 @@ Reusable, data-driven display components that accept data via props. Used on Das
   - Dark variant: profile page — dark bg with gradients, rank pill, referral copy button
   - Light variant: landing page — transparent bg, adapts between logged-in and anonymous states
   - Includes real rank computation logic (fetches leaderboard, computes points to next rank)
+
+#### Social Tasks Components (`src/components/social-tasks/`)
+- **`SocialTaskCard.svelte`** - Compact 160px-tall rectangular card (title + category-tinted points pill, description, single action row). Props: `task`, `onCompleted`.
+  - The card never inspects internal verifier slugs. It uses two API-derived flags: `task.requires_verification` (open-and-credit vs open-then-verify) and `task.required_connection` ('twitter' / 'discord' / null).
+  - **Action row states**: completed → inline `✓ Completed` (pill shows the frozen `points_awarded`, not the task's current points); unauthenticated → "Sign in to earn" (clicks `[data-auth-button]`); missing the `required_connection` → embeds `<SocialLink compact>` for inline OAuth linking (same component/flow as `ProfileEdit.svelte`); otherwise → CTA + small refresh icon to verify/claim directly. The CTA is a real `<a target="_blank" rel="noopener noreferrer">` (label `task.cta_text`, href `action_url`), NOT `window.open` — `window.open` with `noopener` always returns `null`, so a popup blocker suppressing it is undetectable and would falsely credit click-through tasks; anchor navigation from a direct click is not popup-blocked.
+  - **Verifiable tasks**: after the user opens the link once, the primary action swaps to **"Verify"** (calls `socialTasksAPI.complete(slug)`) with a small external-link icon to re-open the URL. No background polling — verification is always user-initiated. Errors map to specific toasts (`verification_failed`, `token_invalid_relink_required`, `verification_unavailable`, 410 inactive).
+  - **Click-through tasks**: opening the CTA starts a one-shot ~5s timer that auto-calls `complete()` ("Crediting…" hint shown). The refresh/claim icon is hidden until the link has been opened (UI-level gate — `click_through` has no server check), then short-circuits the delay. Timer cleared on unmount. Verifiable tasks keep the refresh icon visible before opening, since the server genuinely verifies (the user may already follow / be a member).
+- **`SocialTasksSection.svelte`** - Horizontal snap slider embedded in `Contributions.svelte` (above `Missions`), styled like the Recent Contributions slider with a category-accent corner glow. Renders **only when the category has tasks** (no skeleton flash or error banner on categories without tasks). Active tasks first, then completed (backend ordering). Label/subtitle/"View all" path come from `src/lib/socialTaskLabels.js`.
+- Full route: `src/routes/SocialTasks.svelte` — gradient header + `CategoryIcon`, Open / Completed pill tabs with counts, client-side search input, responsive card grid. Mounted on three protected routes (`/community/tasks`, `/builders/tasks`, `/validators/tasks`); renders as "Social tasks" / "Builder tasks" / "Validator tasks" via `socialTaskLabels.js`.
+- Task surface labels: `src/lib/socialTaskLabels.js` (single helper `getTaskLabels(category)` → `{title, subtitle, listPath}`).
+- Category accents: `getCategoryAccent(category)` / `getCategoryPillColors(category)` from `lib/categoryColors.js` (canonical hex palette shared with `PortalContributionCard`). Do not redefine hex maps in components.
 
 #### Hackathon Components (`src/components/hackathon/`)
 - **`ProjectCard.svelte`** - Reusable hackathon project card with 3 variants (large/medium/small)
