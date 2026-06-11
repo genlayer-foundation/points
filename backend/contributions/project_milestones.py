@@ -1,12 +1,12 @@
 """Helpers shared by the Projects / Milestones contribution type split.
 
-Projects submissions create a Project profile when accepted; Milestones
-submissions must be linked to one of the submitter's accepted projects and
-receive a sequential version number within that project.
+"Projects" here means the Projects contribution type (formerly "Projects &
+Milestones"), not the projects app's curated Project profiles. A Milestones
+submission must be linked to one of the submitter's accepted Projects
+contributions and receives a sequential version number within that project
+contribution.
 """
-from django.db.models import Max, Q
-
-from projects.models import Project
+from django.db.models import Max
 
 
 PROJECT_TYPE_SLUG = 'projects'
@@ -26,6 +26,7 @@ def is_project_contribution_type(contribution_type):
         'projects',
         'projects and milestones',
         'project and milestone',
+        'projects & milestones',
     }
 
 
@@ -33,22 +34,36 @@ def is_milestone_contribution_type(contribution_type):
     return getattr(contribution_type, 'slug', None) == MILESTONE_TYPE_SLUG
 
 
-def accepted_projects_for_user(user):
-    """Active projects the user can attach milestones to.
+def accepted_project_contributions_for_user(user):
+    """Accepted Projects contributions the user can attach milestones to."""
+    from .models import Contribution
 
-    Acceptance is proven through the stable Contribution.project FK rather
-    than Project.related_contributions, which is editable profile data.
-    """
-    return (
-        Project.objects
-        .filter(status=Project.STATUS_ACTIVE)
-        .filter(Q(user=user) | Q(participants=user))
-        .filter(contributions__contribution_type__slug=PROJECT_TYPE_SLUG)
-        .distinct()
+    return Contribution.objects.filter(
+        user=user,
+        contribution_type__slug=PROJECT_TYPE_SLUG,
     )
 
 
-def next_milestone_version(project, exclude_submission_id=None):
+def project_contribution_display_title(contribution):
+    """Human-readable label for a Projects contribution in milestone pickers."""
+    title = (contribution.title or '').strip()
+    if title:
+        return title
+    notes_first_line = (contribution.notes or '').strip().splitlines()
+    if notes_first_line:
+        return notes_first_line[0][:200]
+    return f'Project #{contribution.id}'
+
+
+def project_contribution_github_url(contribution):
+    """First GitHub evidence URL of a Projects contribution (the reviewed repo)."""
+    for evidence in contribution.evidence_items.filter(url__gt='').order_by('created_at'):
+        if 'github.com' in evidence.url.lower():
+            return evidence.url
+    return ''
+
+
+def next_milestone_version(project_contribution, exclude_submission_id=None):
     from .models import Contribution, ContributionType, SubmittedContribution
 
     milestone_type_ids = ContributionType.objects.filter(
@@ -57,14 +72,17 @@ def next_milestone_version(project, exclude_submission_id=None):
 
     accepted_max = (
         Contribution.objects
-        .filter(project=project, contribution_type_id__in=milestone_type_ids)
+        .filter(
+            project_contribution=project_contribution,
+            contribution_type_id__in=milestone_type_ids,
+        )
         .aggregate(max_version=Max('milestone_version'))
         .get('max_version')
         or 0
     )
 
     pending_qs = SubmittedContribution.objects.filter(
-        project=project,
+        project_contribution=project_contribution,
         contribution_type_id__in=milestone_type_ids,
     ).exclude(state__in=['rejected', 'canceled'])
     if exclude_submission_id:

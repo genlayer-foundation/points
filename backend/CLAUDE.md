@@ -64,10 +64,10 @@ backend/
 
 ### Contributions
 - **Models**: `contributions/models.py`
-  - Contribution - Individual contribution records. Has optional `project` FK (projects.Project) and `milestone_version` used by the Projects/Milestones split.
+  - Contribution - Individual contribution records. Has optional `project_contribution` self-FK and `milestone_version` used by the Projects/Milestones split.
   - ContributionType - Categories with slug field, has M2M `accepted_evidence_url_types`
 - **Projects/Milestones split**: `contributions/project_milestones.py`
-  - `projects` and `milestones` are separate contribution types (migration 0068). Projects require a GitHub repository evidence URL (`required_evidence_url_types` = github-repo). Accepting a Projects submission creates an active projects.Project linked via `Contribution.project`. Milestones must be linked to one of the submitter's accepted projects (`/submissions/accepted-projects/`), require a written change description (evidence optional), and get an auto-assigned sequential `milestone_version` per project.
+  - `projects` and `milestones` are separate contribution types (migration 0068). Projects require a GitHub repository evidence URL (`required_evidence_url_types` = github-repo). Milestones must be linked to one of the submitter's ACCEPTED Projects CONTRIBUTIONS (`/submissions/accepted-projects/`) via the `project_contribution` self-FK, require a written change description (evidence optional), and get an auto-assigned sequential `milestone_version` per project contribution. IMPORTANT: this is unrelated to the projects app's curated `projects.Project` showcase table, which contribution flows must never create or modify.
   - FeaturedContent - Portal hero/community/validator-steward content managed through admin
   - ContributionTypeMultiplier - Dynamic point multipliers
   - Evidence - Evidence items with `url_type` FK for auto-detected URL type, `normalized_url` indexed field for fast duplicate detection (text descriptions and URLs only - file uploads are disabled)
@@ -252,7 +252,7 @@ DELETE /api/v1/contributions/{id}/ (requires auth)
 
 # Submissions (submitter-side)
 GET    /api/v1/submissions/my/                  (requires auth, paginated user submissions)
-GET    /api/v1/submissions/accepted-projects/   (requires auth, accepted projects the user can attach milestones to, with next_milestone_version and github_url)
+GET    /api/v1/submissions/accepted-projects/   (requires auth, the user's accepted Projects contributions milestones can link to, with next_milestone_version and github_url from evidence)
 POST   /api/v1/submissions/{id}/appeal/         (requires auth, owner-only, one per submission)
 POST   /api/v1/submissions/{id}/add-evidence/   (requires auth, owner-only)
 

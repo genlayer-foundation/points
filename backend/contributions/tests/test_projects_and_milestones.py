@@ -21,7 +21,7 @@ class ProjectsAndMilestonesTest(TestCase):
             slug='builder',
             defaults={'name': 'Builder', 'description': 'Builder contributions'},
         )
-        # Migration 0067 already creates the projects/milestones types, so a
+        # Migration 0068 already creates the projects/milestones types, so a
         # migrated test database has rows with these slugs. Reuse them and pin
         # the fields (point ranges, review flow) the assertions below rely on.
         self.project_type, _ = ContributionType.objects.update_or_create(
@@ -84,24 +84,20 @@ class ProjectsAndMilestonesTest(TestCase):
         self.recaptcha_patcher.start()
         self.addCleanup(self.recaptcha_patcher.stop)
 
-    def _accepted_project(self, title='Cognocracy'):
+    def _accepted_project_contribution(self, title='Cognocracy', user=None):
         contribution = Contribution.objects.create(
-            user=self.user,
+            user=user or self.user,
             contribution_type=self.project_type,
             points=25,
             contribution_date=timezone.now(),
             title=title,
         )
-        project = Project.objects.create(
-            title=title,
-            user=self.user,
-            status=Project.STATUS_ACTIVE,
+        Evidence.objects.create(
+            contribution=contribution,
+            description='Repo',
+            url=f'https://github.com/example/{title.lower().replace(" ", "-")}',
         )
-        project.participants.add(self.user)
-        project.related_contributions.add(contribution)
-        contribution.project = project
-        contribution.save(update_fields=['project', 'updated_at'])
-        return project
+        return contribution
 
     def _post_submission(self, contribution_type, **extra):
         self.client.force_authenticate(user=self.user)
@@ -121,38 +117,58 @@ class ProjectsAndMilestonesTest(TestCase):
         }
         return self.client.post('/api/v1/submissions/', payload, format='json')
 
-    def test_milestone_requires_accepted_project(self):
+    def test_milestone_requires_accepted_project_contribution(self):
         response = self._post_submission(self.milestone_type)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('Milestones must be linked', response.data['error'])
 
-    def test_milestone_submission_gets_next_project_version(self):
-        project = self._accepted_project()
+    def test_milestone_cannot_link_another_users_project_contribution(self):
+        other_user = User.objects.create_user(
+            email='other@test.com',
+            address='0x3333333333333333333333333333333333333333',
+            password='testpass123',
+        )
+        other_project = self._accepted_project_contribution(title='Other Project', user=other_user)
 
-        first = self._post_submission(self.milestone_type, project=project.id)
-        second = self._post_submission(self.milestone_type, project=project.id)
+        response = self._post_submission(
+            self.milestone_type, project_contribution=other_project.id,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_milestone_submission_gets_next_version(self):
+        project_contribution = self._accepted_project_contribution()
+
+        first = self._post_submission(
+            self.milestone_type, project_contribution=project_contribution.id,
+        )
+        second = self._post_submission(
+            self.milestone_type, project_contribution=project_contribution.id,
+        )
 
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
         self.assertEqual(second.status_code, status.HTTP_201_CREATED)
         self.assertEqual(first.data['milestone_version'], 1)
         self.assertEqual(second.data['milestone_version'], 2)
-        self.assertEqual(first.data['project']['id'], project.id)
+        self.assertEqual(first.data['project_contribution']['id'], project_contribution.id)
 
     def test_milestone_with_malformed_project_id_returns_client_error(self):
-        self._accepted_project()
+        self._accepted_project_contribution()
 
-        response = self._post_submission(self.milestone_type, project='abc')
+        response = self._post_submission(self.milestone_type, project_contribution='abc')
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn('accepted projects', response.data['error'])
 
     def test_editing_milestone_to_other_project_assigns_next_version(self):
-        project_a = self._accepted_project()
-        project_b = self._accepted_project(title='Second Project')
+        project_a = self._accepted_project_contribution()
+        project_b = self._accepted_project_contribution(title='Second Project')
 
-        first = self._post_submission(self.milestone_type, project=project_a.id)
-        self._post_submission(self.milestone_type, project=project_b.id)
+        first = self._post_submission(
+            self.milestone_type, project_contribution=project_a.id,
+        )
+        self._post_submission(self.milestone_type, project_contribution=project_b.id)
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
 
         response = self.client.put(
@@ -161,30 +177,34 @@ class ProjectsAndMilestonesTest(TestCase):
                 'contribution_type': self.milestone_type.id,
                 'contribution_date': timezone.now().date().isoformat(),
                 'notes': 'Updated milestone notes',
-                'project': project_b.id,
+                'project_contribution': project_b.id,
             },
             format='json',
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['project']['id'], project_b.id)
+        self.assertEqual(response.data['project_contribution']['id'], project_b.id)
         self.assertEqual(response.data['milestone_version'], 2)
 
     def test_milestone_requires_change_description(self):
-        project = self._accepted_project()
+        project_contribution = self._accepted_project_contribution()
 
         response = self._post_submission(
-            self.milestone_type, project=project.id, notes='   ',
+            self.milestone_type,
+            project_contribution=project_contribution.id,
+            notes='   ',
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('changes and improvements', response.data['error'])
 
     def test_milestone_submission_allows_empty_evidence(self):
-        project = self._accepted_project()
+        project_contribution = self._accepted_project_contribution()
 
         response = self._post_submission(
-            self.milestone_type, project=project.id, evidence_items=[],
+            self.milestone_type,
+            project_contribution=project_contribution.id,
+            evidence_items=[],
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -195,26 +215,12 @@ class ProjectsAndMilestonesTest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_accepted_projects_endpoint_includes_github_url(self):
-        project = self._accepted_project()
-        project.github_url = 'https://github.com/example/cognocracy'
-        project.save(update_fields=['github_url'])
-
-        self.client.force_authenticate(user=self.user)
-        response = self.client.get('/api/v1/submissions/accepted-projects/')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            response.data[0]['github_url'],
-            'https://github.com/example/cognocracy',
-        )
-
-    def test_accepted_projects_endpoint_returns_next_version(self):
-        project = self._accepted_project()
+    def test_accepted_projects_endpoint_lists_project_contributions(self):
+        project_contribution = self._accepted_project_contribution()
         SubmittedContribution.objects.create(
             user=self.user,
             contribution_type=self.milestone_type,
-            project=project,
+            project_contribution=project_contribution,
             milestone_version=1,
             contribution_date=timezone.now(),
             notes='Pending milestone',
@@ -224,20 +230,29 @@ class ProjectsAndMilestonesTest(TestCase):
         response = self.client.get('/api/v1/submissions/accepted-projects/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data[0]['id'], project.id)
+        self.assertEqual(response.data[0]['id'], project_contribution.id)
+        self.assertEqual(response.data[0]['title'], 'Cognocracy')
+        self.assertEqual(
+            response.data[0]['github_url'],
+            'https://github.com/example/cognocracy',
+        )
         self.assertEqual(response.data[0]['next_milestone_version'], 2)
 
-    def test_accepted_projects_endpoint_uses_stable_contribution_project_link(self):
-        project = self._accepted_project()
-        project.related_contributions.clear()
+    def test_accepted_projects_endpoint_excludes_other_users(self):
+        other_user = User.objects.create_user(
+            email='other2@test.com',
+            address='0x4444444444444444444444444444444444444444',
+            password='testpass123',
+        )
+        self._accepted_project_contribution(title='Other Project', user=other_user)
 
         self.client.force_authenticate(user=self.user)
         response = self.client.get('/api/v1/submissions/accepted-projects/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual([item['id'] for item in response.data], [project.id])
+        self.assertEqual(response.data, [])
 
-    def test_accepting_project_submission_creates_project_profile(self):
+    def test_accepting_project_submission_does_not_touch_projects_table(self):
         submission = SubmittedContribution.objects.create(
             user=self.user,
             contribution_type=self.project_type,
@@ -250,6 +265,7 @@ class ProjectsAndMilestonesTest(TestCase):
             description='Repo',
             url='https://github.com/example/new-project',
         )
+        projects_before = Project.objects.count()
 
         self.client.force_authenticate(user=self.steward_user)
         response = self.client.post(
@@ -265,44 +281,61 @@ class ProjectsAndMilestonesTest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         submission.refresh_from_db()
-        project = submission.project
-        self.assertIsNotNone(project)
-        self.assertEqual(project.title, 'New Project')
-        self.assertEqual(submission.converted_contribution.project, project)
-        self.assertTrue(project.related_contributions.filter(id=submission.converted_contribution_id).exists())
+        contribution = submission.converted_contribution
+        self.assertIsNotNone(contribution)
+        # The curated projects.Project showcase table is a separate feature
+        # and must never gain rows from contribution acceptance.
+        self.assertEqual(Project.objects.count(), projects_before)
+        # The accepted contribution becomes a milestone anchor immediately.
+        self.client.force_authenticate(user=self.user)
+        eligible = self.client.get('/api/v1/submissions/accepted-projects/')
+        self.assertIn(contribution.id, [item['id'] for item in eligible.data])
 
-    def test_accepting_blank_project_submission_uses_builder_fallback_title(self):
-        submission = SubmittedContribution.objects.create(
-            user=self.user,
-            contribution_type=self.project_type,
-            contribution_date=timezone.now(),
-            title='',
-            notes='   ',
+    def test_accepting_milestone_reassigned_to_other_user_is_rejected(self):
+        project_contribution = self._accepted_project_contribution()
+        other_user = User.objects.create_user(
+            email='reassigned@test.com',
+            address='0x5555555555555555555555555555555555555555',
+            password='testpass123',
         )
-
-        self.client.force_authenticate(user=self.steward_user)
-        response = self.client.post(
-            f'/api/v1/steward-submissions/{submission.id}/review/',
-            {
-                'action': 'accept',
-                'contribution_type': self.project_type.id,
-                'user': self.user.id,
-                'points': 25,
-            },
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        submission.refresh_from_db()
-        self.assertEqual(submission.project.title, f"{self.user.address}'s Project")
-        self.assertEqual(submission.converted_contribution.project, submission.project)
-
-    def test_accepting_milestone_links_contribution_to_project(self):
-        project = self._accepted_project()
+        Builder.objects.create(user=other_user)
         submission = SubmittedContribution.objects.create(
             user=self.user,
             contribution_type=self.milestone_type,
-            project=project,
+            project_contribution=project_contribution,
+            milestone_version=1,
+            contribution_date=timezone.now(),
+            title='Milestone shipped',
+            notes='Milestone details',
+        )
+        # Reassigning the accepted contribution to another user is a
+        # staff-only action; the ownership check is the staff-path defense.
+        self.steward_user.is_staff = True
+        self.steward_user.save(update_fields=['is_staff'])
+
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/review/',
+            {
+                'action': 'accept',
+                'contribution_type': self.milestone_type.id,
+                # Reassigning the milestone to a user who does not own the
+                # linked project contribution must be rejected.
+                'user': other_user.id,
+                'points': 10,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('owned by the selected user', response.data['detail'])
+
+    def test_accepting_milestone_links_contribution_to_project_contribution(self):
+        project_contribution = self._accepted_project_contribution()
+        submission = SubmittedContribution.objects.create(
+            user=self.user,
+            contribution_type=self.milestone_type,
+            project_contribution=project_contribution,
             milestone_version=1,
             contribution_date=timezone.now(),
             title='Milestone shipped',
@@ -324,6 +357,8 @@ class ProjectsAndMilestonesTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         submission.refresh_from_db()
         contribution = submission.converted_contribution
-        self.assertEqual(contribution.project, project)
+        self.assertEqual(contribution.project_contribution, project_contribution)
         self.assertEqual(contribution.milestone_version, 1)
-        self.assertTrue(project.related_contributions.filter(id=contribution.id).exists())
+        self.assertTrue(
+            project_contribution.milestones.filter(id=contribution.id).exists()
+        )

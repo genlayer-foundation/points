@@ -1,8 +1,6 @@
-from django.conf import settings
 from django.db import migrations, models
 import django.db.models.deletion
 from django.utils import timezone
-from django.utils.text import slugify
 
 
 PROJECT_SLUG = 'projects'
@@ -25,24 +23,10 @@ def _builder_category(Category):
     )[0]
 
 
-def _unique_slug(Project, title):
-    base_slug = slugify(title)[:200] or 'project'
-    slug = base_slug
-    suffix = 2
-    while Project.objects.filter(slug=slug).exists():
-        suffix_text = f'-{suffix}'
-        slug = f'{base_slug[:220 - len(suffix_text)]}{suffix_text}'
-        suffix += 1
-    return slug
-
-
-def split_types_and_backfill_projects(apps, schema_editor):
+def split_project_and_milestone_types(apps, schema_editor):
     Category = apps.get_model('contributions', 'Category')
     ContributionType = apps.get_model('contributions', 'ContributionType')
-    Contribution = apps.get_model('contributions', 'Contribution')
-    SubmittedContribution = apps.get_model('contributions', 'SubmittedContribution')
     EvidenceURLType = apps.get_model('contributions', 'EvidenceURLType')
-    Project = apps.get_model('projects', 'Project')
     GlobalLeaderboardMultiplier = apps.get_model('leaderboard', 'GlobalLeaderboardMultiplier')
     Steward = apps.get_model('stewards', 'Steward')
     StewardPermission = apps.get_model('stewards', 'StewardPermission')
@@ -53,6 +37,7 @@ def split_types_and_backfill_projects(apps, schema_editor):
         ContributionType.objects.filter(slug=PROJECT_SLUG).first()
         or ContributionType.objects.filter(slug__in=LEGACY_PROJECT_SLUGS).first()
         or ContributionType.objects.filter(name__iexact='Projects and Milestones').first()
+        or ContributionType.objects.filter(name__iexact='Projects & Milestones').first()
         or ContributionType.objects.filter(name__iexact='Project and Milestone').first()
     )
     if project_type:
@@ -73,7 +58,7 @@ def split_types_and_backfill_projects(apps, schema_editor):
         )
 
     # Projects must come with a GitHub repository: reviewers evaluate the
-    # repo, and later milestones for the project are reviewed against it.
+    # repo, and milestones for the project are reviewed against it.
     github_repo_type = EvidenceURLType.objects.filter(slug='github-repo').first()
     if github_repo_type:
         project_type.required_evidence_url_types.add(github_repo_type)
@@ -135,40 +120,6 @@ def split_types_and_backfill_projects(apps, schema_editor):
     if permissions:
         StewardPermission.objects.bulk_create(permissions, ignore_conflicts=True)
 
-    for contribution in Contribution.objects.filter(
-        contribution_type=project_type,
-        project__isnull=True,
-    ).select_related('user').iterator(chunk_size=200):
-        submission = SubmittedContribution.objects.filter(
-            converted_contribution_id=contribution.id,
-        ).first()
-        project = Project.objects.filter(
-            related_contributions=contribution,
-        ).first()
-        if project is None:
-            title = (
-                contribution.title
-                or (submission.title if submission else '')
-                or f"{contribution.user.name or contribution.user.address}'s Project"
-            )
-            description = contribution.notes or (submission.notes if submission else '')
-            project = Project.objects.create(
-                title=title[:200],
-                slug=_unique_slug(Project, title),
-                description=description[:2000],
-                details=description,
-                author=contribution.user.name or '',
-                user_id=contribution.user_id,
-                status='active',
-            )
-        project.participants.add(contribution.user_id)
-        project.related_contributions.add(contribution.id)
-        contribution.project_id = project.id
-        contribution.save(update_fields=['project', 'updated_at'])
-        if submission and submission.project_id is None:
-            submission.project_id = project.id
-            submission.save(update_fields=['project', 'updated_at'])
-
 
 def noop_reverse(apps, schema_editor):
     pass
@@ -178,32 +129,30 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('contributions', '0067_contributiontype_rubric_extra_points'),
-        ('projects', '0002_ensure_project_participants_table'),
         ('leaderboard', '0014_add_referral_points_model'),
         ('stewards', '0010_builder_project_gate_templates'),
-        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AddField(
             model_name='contribution',
-            name='project',
-            field=models.ForeignKey(blank=True, help_text='Project this contribution is attached to (used by project milestones)', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='contributions', to='projects.project'),
+            name='project_contribution',
+            field=models.ForeignKey(blank=True, help_text='Accepted Projects contribution this milestone belongs to', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='milestones', to='contributions.contribution'),
         ),
         migrations.AddField(
             model_name='contribution',
             name='milestone_version',
-            field=models.PositiveIntegerField(blank=True, help_text='Sequential milestone version within the linked project', null=True),
+            field=models.PositiveIntegerField(blank=True, help_text='Sequential milestone version within the linked project contribution', null=True),
         ),
         migrations.AddField(
             model_name='submittedcontribution',
-            name='project',
-            field=models.ForeignKey(blank=True, help_text='Project this submission is attached to (required for milestones)', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='submissions', to='projects.project'),
+            name='project_contribution',
+            field=models.ForeignKey(blank=True, help_text='Accepted Projects contribution this milestone submission belongs to', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='milestone_submissions', to='contributions.contribution'),
         ),
         migrations.AddField(
             model_name='submittedcontribution',
             name='milestone_version',
-            field=models.PositiveIntegerField(blank=True, help_text='Sequential milestone version within the linked project', null=True),
+            field=models.PositiveIntegerField(blank=True, help_text='Sequential milestone version within the linked project contribution', null=True),
         ),
-        migrations.RunPython(split_types_and_backfill_projects, noop_reverse),
+        migrations.RunPython(split_project_and_milestone_types, noop_reverse),
     ]
