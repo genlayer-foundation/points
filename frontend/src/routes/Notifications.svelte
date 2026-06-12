@@ -4,7 +4,7 @@
   import { notificationsAPI } from '../lib/api.js';
   import { notificationStore } from '../lib/notificationStore.js';
   import { asList, followNotificationLink } from '../lib/notificationUtils.js';
-  import { parseMarkdown } from '../lib/markdownLoader.js';
+  import { parseUserMarkdown } from '../lib/markdownLoader.js';
   import { relativeTime } from '../lib/relativeTime.js';
 
   let notifications = $state([]);
@@ -55,7 +55,7 @@
     }
   }
 
-  function openNotification(notification) {
+  function openNotification(notification, event) {
     if (!notification.is_read) {
       // Don't block navigation on the mark-read call.
       notificationStore
@@ -65,6 +65,9 @@
         })
         .catch(() => {});
     }
+    // A click on an inline body link should follow only that link, not also
+    // trigger the row's own redirect.
+    if (event?.target?.closest('a')) return;
     followNotificationLink(notification);
   }
 
@@ -179,7 +182,7 @@
               role="button"
               tabindex="0"
               class="w-full flex gap-3 px-4 py-4 text-left transition-colors {notification.link_url ? 'cursor-pointer' : 'cursor-default'} {notification.is_read ? 'hover:bg-gray-50' : 'bg-primary-50/60 hover:bg-primary-50'}"
-              onclick={() => openNotification(notification)}
+              onclick={(event) => openNotification(notification, event)}
               onkeydown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();
@@ -194,7 +197,7 @@
                   <span class="text-xs text-gray-400 whitespace-nowrap shrink-0">{relativeTime(notification.created_at, { verbose: true })}</span>
                 </span>
                 {#if notification.body}
-                  <span class="notification-body block text-sm text-gray-500 leading-snug mt-1">{@html parseMarkdown(notification.body)}</span>
+                  <span class="notification-body block text-sm text-gray-500 leading-snug mt-1">{@html parseUserMarkdown(notification.body)}</span>
                 {/if}
                 <span class="block text-xs text-gray-400 mt-1.5">
                   {notification.category_label || notification.category}{#if notification.link_url}&nbsp;&middot; {notification.link_label || 'Open'}{/if}
