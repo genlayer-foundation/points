@@ -130,6 +130,11 @@
     return 'Submit';
   }
 
+  function cardGradientStyle(category = activeCategory) {
+    const color = getCategoryAccent(category || activeCategory);
+    return `background: linear-gradient(180deg, ${rgbaFromHex(color, 0.95)} 0%, ${rgbaFromHex(color, 0.28)} 58%, ${rgbaFromHex(color, 0.06)} 100%);`;
+  }
+
   function handleCardClick(event, mission) {
     if (event.target.closest('button') || event.target.closest('a')) return;
     push(`/mission/${mission.id}`);
@@ -158,8 +163,9 @@
 </script>
 
 {#snippet missionSkeleton()}
-  <div class="rounded-[8px] border border-[#eef1f6] bg-white p-4 shadow-[0_8px_18px_rgba(31,42,68,0.05)] sm:p-5">
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+  <div class="relative overflow-hidden rounded-[8px] border border-[#eef1f6] bg-white p-4 pl-5 shadow-[0_8px_18px_rgba(31,42,68,0.05)] sm:p-5 sm:pl-6">
+    <div class="absolute inset-y-0 left-0 w-1.5 bg-[#f1f1f1] sk-shimmer"></div>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap gap-2">
           <div class="h-5 w-16 rounded-full bg-[#f1f1f1] sk-shimmer"></div>
@@ -216,14 +222,16 @@
         {@const capacityLabel = missionCapacityLabel(mission, parentType)}
         {@const pointsLabel = formatPoints(parentType)}
         {@const countdownLabel = mission.end_date && countdowns[mission.id] ? countdowns[mission.id] : 'Ongoing'}
+        {@const missionAccentStyle = cardGradientStyle(parentType?.category)}
 
         <div
-          class="group flex w-full cursor-pointer flex-col gap-4 rounded-[8px] border border-[#eef1f6] bg-white p-4 shadow-[0_8px_18px_rgba(31,42,68,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(31,42,68,0.10)] sm:flex-row sm:items-stretch sm:justify-between sm:p-5"
+          class="group relative flex w-full cursor-pointer flex-col gap-4 overflow-hidden rounded-[8px] border border-[#eef1f6] bg-white p-4 pl-5 shadow-[0_8px_18px_rgba(31,42,68,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(31,42,68,0.10)] sm:flex-row sm:items-stretch sm:justify-between sm:p-4 sm:pl-6"
           onclick={(event) => handleCardClick(event, mission)}
           onkeydown={(event) => handleCardKeydown(event, mission)}
           role="link"
           tabindex="0"
         >
+          <div class="absolute inset-y-0 left-0 w-1.5" style={missionAccentStyle} aria-hidden="true"></div>
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
               <span class="inline-flex h-[24px] items-center rounded-full bg-[#f7f8fb] px-2.5 text-[11px] font-semibold uppercase text-[#667085]">
@@ -281,7 +289,7 @@
             </div>
           </div>
 
-          <div class="flex flex-shrink-0 items-center justify-between gap-3 border-t border-[#eef1f6] pt-3 sm:w-[170px] sm:flex-col sm:items-end sm:justify-between sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
+          <div class="flex flex-shrink-0 items-center justify-between gap-2 border-t border-[#eef1f6] pt-3 sm:w-[142px] sm:flex-col sm:items-end sm:justify-between sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
             <span class="text-[12px] font-medium {submissionClosed ? 'text-[#98a2b3]' : 'text-[#506078]'}">
               {submissionClosed ? (capacityLabel || 'Submissions closed') : 'Ready to submit'}
             </span>
@@ -289,7 +297,7 @@
               <button
                 type="button"
                 onclick={(event) => { event.stopPropagation(); push(`/mission/${mission.id}`); }}
-                class="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-3 text-[12px] font-semibold text-[#506078] transition hover:border-black hover:text-black"
+                class="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-2.5 text-[12px] font-semibold text-[#506078] transition hover:border-black hover:text-black"
               >
                 Details
               </button>
@@ -297,7 +305,7 @@
                 type="button"
                 onclick={(event) => { event.stopPropagation(); !submissionClosed && push(`/submit-contribution?mission=${mission.id}`); }}
                 disabled={submissionClosed}
-                class="inline-flex h-9 items-center justify-center rounded-[8px] px-3 text-[12px] font-semibold transition {submissionClosed ? 'cursor-not-allowed bg-[#f2f4f7] text-[#98a2b3]' : 'bg-black text-white hover:-translate-y-0.5 hover:shadow-[0_10px_18px_rgba(31,42,68,0.14)]'}"
+                class="inline-flex h-8 items-center justify-center rounded-[8px] px-2.5 text-[12px] font-semibold transition {submissionClosed ? 'cursor-not-allowed bg-[#f2f4f7] text-[#98a2b3]' : 'bg-black text-white hover:-translate-y-0.5 hover:shadow-[0_10px_18px_rgba(31,42,68,0.14)]'}"
               >
                 {submitLabel(mission, parentType)}
               </button>

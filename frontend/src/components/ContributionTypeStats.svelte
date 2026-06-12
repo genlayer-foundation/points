@@ -72,6 +72,10 @@
     return parseMarkdown(text);
   }
 
+  function cardGradientStyle() {
+    return `background: linear-gradient(180deg, ${rgbaFromHex(accentColor, 0.95)} 0%, ${rgbaFromHex(accentColor, 0.28)} 58%, ${rgbaFromHex(accentColor, 0.06)} 100%);`;
+  }
+
   function handleCardClick(event, stats) {
     if (event.target.closest('button') || event.target.closest('a')) return;
     push(`/contribution-type/${stats.id}`);
@@ -87,8 +91,9 @@
 </script>
 
 {#snippet typeSkeleton()}
-  <div class="rounded-[8px] border border-[#eef1f6] bg-white p-4 shadow-[0_8px_18px_rgba(31,42,68,0.05)] sm:p-5">
-    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+  <div class="relative overflow-hidden rounded-[8px] border border-[#eef1f6] bg-white p-4 pl-5 shadow-[0_8px_18px_rgba(31,42,68,0.05)] sm:p-5 sm:pl-6">
+    <div class="absolute inset-y-0 left-0 w-1.5 bg-[#f1f1f1] sk-shimmer"></div>
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap gap-2">
           <div class="h-5 w-16 rounded-full bg-[#f1f1f1] sk-shimmer"></div>
@@ -100,7 +105,7 @@
           <div class="h-3 w-11/12 rounded bg-[#f1f1f1] sk-shimmer"></div>
         </div>
       </div>
-      <div class="grid grid-cols-3 gap-2 lg:w-[360px]">
+      <div class="grid grid-cols-3 gap-1.5 lg:w-[260px]">
         <div class="h-12 rounded-[8px] bg-[#f1f1f1] sk-shimmer"></div>
         <div class="h-12 rounded-[8px] bg-[#f1f1f1] sk-shimmer"></div>
         <div class="h-12 rounded-[8px] bg-[#f1f1f1] sk-shimmer"></div>
@@ -158,12 +163,13 @@
     <div class="relative space-y-3">
       {#each submittableTypes as stats (stats.id)}
         <div
-          class="group flex w-full cursor-pointer flex-col gap-4 rounded-[8px] border border-[#eef1f6] bg-white p-4 shadow-[0_8px_18px_rgba(31,42,68,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(31,42,68,0.10)] lg:flex-row lg:items-stretch lg:justify-between sm:p-5"
+          class="group relative flex w-full cursor-pointer flex-col gap-4 overflow-hidden rounded-[8px] border border-[#eef1f6] bg-white p-4 pl-5 shadow-[0_8px_18px_rgba(31,42,68,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(31,42,68,0.10)] lg:flex-row lg:items-stretch lg:justify-between sm:p-4 sm:pl-6"
           onclick={(event) => handleCardClick(event, stats)}
           onkeydown={(event) => handleCardKeydown(event, stats)}
           role="link"
           tabindex="0"
         >
+          <div class="absolute inset-y-0 left-0 w-1.5" style={cardGradientStyle()} aria-hidden="true"></div>
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
               <span class="inline-flex h-[24px] items-center rounded-full bg-[#f7f8fb] px-2.5 text-[11px] font-semibold uppercase text-[#667085]">
@@ -203,17 +209,17 @@
             </div>
           </div>
 
-          <div class="grid gap-3 border-t border-[#eef1f6] pt-3 lg:w-[430px] lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
-            <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-3 py-2">
+          <div class="grid gap-2 border-t border-[#eef1f6] pt-3 lg:w-[300px] lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
+            <div class="grid grid-cols-3 gap-1.5">
+              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-1.5">
                 <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">Accepted</p>
                 <p class="mt-0.5 text-[13px] font-semibold text-black">{formatNumber(stats.count)}</p>
               </div>
-              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-3 py-2">
+              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-1.5">
                 <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">Earned</p>
                 <p class="mt-0.5 text-[13px] font-semibold text-black">{formatNumber(stats.total_points_given)} pts</p>
               </div>
-              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-3 py-2">
+              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-1.5">
                 <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">Contributors</p>
                 <p class="mt-0.5 text-[13px] font-semibold text-black">{formatNumber(stats.participants_count)}</p>
               </div>
@@ -223,7 +229,7 @@
               <button
                 type="button"
                 onclick={(event) => { event.stopPropagation(); push(`/contribution-type/${stats.id}`); }}
-                class="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-3 text-[12px] font-semibold text-[#506078] transition hover:border-black hover:text-black"
+                class="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-2.5 text-[12px] font-semibold text-[#506078] transition hover:border-black hover:text-black"
               >
                 Details
               </button>
@@ -231,7 +237,7 @@
                 <button
                   type="button"
                   onclick={(event) => { event.stopPropagation(); push(`/submit-contribution?type=${stats.id}`); }}
-                  class="inline-flex h-9 items-center justify-center rounded-[8px] bg-black px-3 text-[12px] font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-[0_10px_18px_rgba(31,42,68,0.14)]"
+                  class="inline-flex h-8 items-center justify-center rounded-[8px] bg-black px-2.5 text-[12px] font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-[0_10px_18px_rgba(31,42,68,0.14)]"
                 >
                   Submit
                 </button>
