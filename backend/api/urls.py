@@ -57,4 +57,7 @@ urlpatterns = [
 
     # AI review agent endpoints
     path('ai-review/', include('contributions.ai_review.urls')),
+
+    # Social tasks
+    path('', include('social_tasks.urls')),
 ]
