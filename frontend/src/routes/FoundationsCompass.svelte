@@ -65,8 +65,7 @@
     { kind: 'doc', key: 'whitepaper', label: 'Whitepaper' },
   ];
 
-  function scrollToStart(e) {
-    e.preventDefault();
+  function scrollToStart() {
     document.getElementById('state-of-the-art')?.scrollIntoView({ behavior: 'smooth' });
   }
 </script>
@@ -84,7 +83,7 @@
           <a class="btn-hero" href="#/foundations/manifesto">Read the manifesto
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
           </a>
-          <a class="btn-ghost" href="#state-of-the-art" onclick={scrollToStart}>Start reading</a>
+          <button type="button" class="btn-ghost" onclick={scrollToStart}>Start reading</button>
         </div>
       </header>
 
@@ -911,6 +910,8 @@
     padding: 11px 22px;
     border-radius: 9999px;
     border: 1px solid rgba(255, 255, 255, 0.22);
+    cursor: pointer;
+    font-family: inherit;
     text-decoration: none !important;
     transition: border-color 0.15s ease, color 0.15s ease;
   }

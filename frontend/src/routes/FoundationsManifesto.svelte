@@ -56,9 +56,9 @@
         <h1>For the Right to <em>Decide</em></h1>
         <p class="hero-lede">Power is not wealth. Power is not status. Power is the ability to decide &mdash; and it is being silently concentrated into fewer and fewer hands. This is how it gets returned.</p>
         <div class="hero-actions">
-          <a class="btn-hero" href="#decide" onclick={(e) => { e.preventDefault(); document.getElementById('decide')?.scrollIntoView({ behavior: 'smooth' }); }}>Start reading
+          <button type="button" class="btn-hero" onclick={() => document.getElementById('decide')?.scrollIntoView({ behavior: 'smooth' })}>Start reading
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></svg>
-          </a>
+          </button>
           <a class="btn-ghost" href="#/foundations/compass">Read the Compass</a>
         </div>
       </header>
@@ -423,6 +423,9 @@
     font-weight: 600;
     padding: 11px 24px;
     border-radius: 9999px;
+    border: 0;
+    cursor: pointer;
+    font-family: inherit;
     text-decoration: none !important;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
