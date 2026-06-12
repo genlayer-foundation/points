@@ -119,7 +119,7 @@
     if (path.startsWith('/ecosystem-partners')) return 'partners';
     if (path.startsWith('/gen-tv')) return 'gentv';
     if (path.startsWith('/gen-news')) return 'gennews';
-    if (path.startsWith('/foundations') || path.startsWith('/manifesto')) return 'foundations';
+    if (path.startsWith('/genesis') || path.startsWith('/foundations') || path.startsWith('/manifesto')) return 'foundations';
     return null;
   }
 
@@ -463,13 +463,13 @@
         <div class="border-t border-gray-100 my-2"></div>
       {/if}
 
-      <!-- Manifesto (Foundations documents) -->
+      <!-- Genesis (Foundations documents) -->
       <div>
         <button
-          onclick={() => changeCategory('foundations', '/foundations')}
+          onclick={() => changeCategory('foundations', '/genesis')}
           class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px] {getActiveSection() === 'foundations' ? '' : 'hover:bg-[#eeedfb]'}"
           style={getActiveSection() === 'foundations' ? 'background: #eeedfb;' : ''}
-          title={collapsed ? 'Manifesto' : ''}
+          title={collapsed ? 'Genesis' : ''}
         >
           <!-- GenLayer symbol (from /assets/gl-symbol-black.svg) -->
           <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 34.0294 32" fill={getActiveSection() === 'foundations' ? '#6D5DD3' : '#1a1a1a'}>
@@ -478,7 +478,7 @@
             <path d="M16.9311 15.2394L20.3041 21.9088L16.9311 23.5623L13.7392 21.9019L16.9311 15.2394Z" />
           </svg>
           {#if !collapsed}
-            <span>Manifesto</span>
+            <span>Genesis</span>
           {/if}
         </button>
       </div>
@@ -911,9 +911,9 @@
         <span class="text-[12px] font-normal text-[#6b6b6b] tracking-[0.24px]">Discover</span>
       </div>
 
-      <!-- Manifesto (mobile) -->
+      <!-- Genesis (mobile) -->
       <button
-        onclick={() => changeCategory('foundations', '/foundations')}
+        onclick={() => changeCategory('foundations', '/genesis')}
         class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px]"
         style={getActiveSection() === 'foundations' ? 'background: #eeedfb;' : ''}
       >
@@ -923,7 +923,7 @@
           <path d="M18.6229 11.2607L24.3803 23.3639L18.9605 26.072L34.0294 32L18.6229 0V11.2607Z" />
           <path d="M16.9311 15.2394L20.3041 21.9088L16.9311 23.5623L13.7392 21.9019L16.9311 15.2394Z" />
         </svg>
-        <span>Manifesto</span>
+        <span>Genesis</span>
       </button>
 
       <!-- Ecosystem Partners (mobile) -->
