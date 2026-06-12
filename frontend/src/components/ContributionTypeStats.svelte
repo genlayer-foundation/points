@@ -92,21 +92,21 @@
 </script>
 
 {#snippet typeSkeleton()}
-  <div class="relative overflow-hidden rounded-[8px] border border-[#eef1f6] bg-white p-4 pl-5 shadow-[0_8px_18px_rgba(31,42,68,0.05)] sm:p-5 sm:pl-6">
+  <div class="relative overflow-hidden rounded-[8px] border border-[#eef1f6] bg-white p-4 pl-6 shadow-[0_8px_18px_rgba(31,42,68,0.05)]">
     <div class="absolute inset-y-0 left-0 w-1.5 bg-[#f1f1f1] sk-shimmer"></div>
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap gap-2">
           <div class="h-5 w-16 rounded-full bg-[#f1f1f1] sk-shimmer"></div>
           <div class="h-5 w-20 rounded-full bg-[#f1f1f1] sk-shimmer"></div>
         </div>
-        <div class="mt-3 h-5 w-3/5 rounded bg-[#f1f1f1] sk-shimmer"></div>
-        <div class="mt-3 space-y-2">
+        <div class="mt-4 h-5 w-3/5 rounded bg-[#f1f1f1] sk-shimmer"></div>
+        <div class="mt-4 space-y-2">
           <div class="h-3 w-full rounded bg-[#f1f1f1] sk-shimmer"></div>
           <div class="h-3 w-11/12 rounded bg-[#f1f1f1] sk-shimmer"></div>
         </div>
       </div>
-      <div class="grid grid-cols-3 gap-1.5 lg:w-[260px]">
+      <div class="grid grid-cols-3 gap-2 lg:w-[260px]">
         <div class="h-12 rounded-[8px] bg-[#f1f1f1] sk-shimmer"></div>
         <div class="h-12 rounded-[8px] bg-[#f1f1f1] sk-shimmer"></div>
         <div class="h-12 rounded-[8px] bg-[#f1f1f1] sk-shimmer"></div>
@@ -115,24 +115,24 @@
   </div>
 {/snippet}
 
-<section class="relative overflow-hidden rounded-[10px] border border-white/70 bg-white/78 p-5 shadow-[0_18px_55px_rgba(38,48,75,0.15)] backdrop-blur-md sm:p-7 md:p-8">
+<section class="relative overflow-hidden rounded-[10px] border border-white/70 bg-white/78 p-4 shadow-[0_18px_55px_rgba(38,48,75,0.15)] backdrop-blur-md sm:p-6 lg:p-8">
   <div
     class="pointer-events-none absolute bottom-0 right-0 h-[260px] w-[280px]"
     style={cornerGlowStyle}
     aria-hidden="true"
   ></div>
 
-  <div class="relative mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+  <div class="relative mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
     <div>
-      <div class="flex flex-wrap items-center gap-3">
+      <div class="flex flex-wrap items-center gap-2">
         <h2 class="text-[22px] sm:text-[25px] font-semibold font-display text-black leading-none">
           Contribution Types
         </h2>
         {#if !loading && !error}
-          <span class="inline-flex h-[25px] items-center rounded-full border border-[#e8ebf2] bg-white px-3 text-[12px] font-semibold text-[#506078]">
+          <span class="inline-flex h-6 items-center rounded-full border border-[#e8ebf2] bg-white px-4 text-[12px] font-semibold text-[#506078]">
             {typeStats.length} {typeStats.length === 1 ? 'type' : 'types'}
           </span>
-          <span class="inline-flex h-[25px] items-center rounded-full border border-[#e8ebf2] bg-white px-3 text-[12px] font-semibold text-[#506078]">
+          <span class="inline-flex h-6 items-center rounded-full border border-[#e8ebf2] bg-white px-4 text-[12px] font-semibold text-[#506078]">
             {openTypes.length} open
           </span>
         {/if}
@@ -145,13 +145,13 @@
   </div>
 
   {#if loading}
-    <div class="relative space-y-3">
+    <div class="relative space-y-4">
       {#each Array(4) as _}
         {@render typeSkeleton()}
       {/each}
     </div>
   {:else if error}
-    <div class="relative rounded-[8px] border border-red-100 bg-red-50 p-5">
+    <div class="relative rounded-[8px] border border-red-100 bg-red-50 p-4">
       <h3 class="text-[14px] font-semibold text-red-800">Error loading contribution types</h3>
       <p class="mt-1 text-[13px] text-red-700">{error}</p>
     </div>
@@ -161,10 +161,10 @@
       <p class="mt-1 text-[13px] text-[#6b6b6b]">Open calls will appear here when they are available.</p>
     </div>
   {:else}
-    <div class="relative space-y-3">
+    <div class="relative space-y-4">
       {#each submittableTypes as stats (stats.id)}
         <div
-          class="group relative flex w-full cursor-pointer flex-col gap-4 overflow-hidden rounded-[8px] border border-[#eef1f6] bg-white p-4 pl-5 shadow-[0_8px_18px_rgba(31,42,68,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(31,42,68,0.10)] lg:flex-row lg:items-stretch lg:justify-between sm:p-4 sm:pl-6"
+          class="group relative flex w-full cursor-pointer flex-col gap-4 overflow-hidden rounded-[8px] border border-[#eef1f6] bg-white p-4 pl-6 shadow-[0_8px_18px_rgba(31,42,68,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(31,42,68,0.10)] lg:flex-row lg:items-stretch lg:justify-between"
           onclick={(event) => handleCardClick(event, stats)}
           onkeydown={(event) => handleCardKeydown(event, stats)}
           role="link"
@@ -173,27 +173,27 @@
           <div class="absolute inset-y-0 left-0 w-1.5" style={cardGradientStyle()} aria-hidden="true"></div>
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <span class="inline-flex h-[24px] items-center rounded-full bg-[#f7f8fb] px-2.5 text-[11px] font-semibold uppercase text-[#667085]">
+              <span class="inline-flex h-6 items-center rounded-full bg-[#f7f8fb] px-2 text-[11px] font-semibold uppercase text-[#667085]">
                 Open call
               </span>
               <span
-                class="inline-flex h-[24px] items-center rounded-full px-2.5 text-[12px] font-semibold"
+                class="inline-flex h-6 items-center rounded-full px-2 text-[12px] font-semibold"
                 style="background: {pillColors.pillBg}; color: {pillColors.pillText};"
               >
                 {formatPoints(stats)}
               </span>
               {#if stats.count === 0}
-                <span class="inline-flex h-[24px] items-center rounded-full bg-amber-100 px-2.5 text-[12px] font-semibold text-amber-800">
+                <span class="inline-flex h-6 items-center rounded-full bg-amber-100 px-2 text-[12px] font-semibold text-amber-800">
                   Pioneer opportunity
                 </span>
               {:else}
-                <span class="inline-flex h-[24px] items-center rounded-full border border-[#e8ebf2] bg-white px-2.5 text-[12px] font-semibold text-[#506078]">
+                <span class="inline-flex h-6 items-center rounded-full border border-[#e8ebf2] bg-white px-2 text-[12px] font-semibold text-[#506078]">
                   {formatNumber(stats.participants_count)} {Number(stats.participants_count) === 1 ? 'contributor' : 'contributors'}
                 </span>
               {/if}
             </div>
 
-            <div class="mt-3 min-w-0">
+            <div class="mt-4 min-w-0">
               <h3 class="line-clamp-2 text-[16px] font-semibold leading-snug text-black sm:text-[17px]">
                   {stats.name}
               </h3>
@@ -210,17 +210,17 @@
             </div>
           </div>
 
-          <div class="grid gap-2 border-t border-[#eef1f6] pt-3 lg:w-[300px] lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
-            <div class="grid grid-cols-3 gap-1.5">
-              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-1.5">
+          <div class="grid gap-2 border-t border-[#eef1f6] pt-4 lg:w-[300px] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+            <div class="grid grid-cols-3 gap-2">
+              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-2">
                 <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">Accepted</p>
                 <p class="mt-0.5 text-[13px] font-semibold text-black">{formatNumber(stats.count)}</p>
               </div>
-              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-1.5">
+              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-2">
                 <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">Earned</p>
                 <p class="mt-0.5 text-[13px] font-semibold text-black">{formatNumber(stats.total_points_given)} pts</p>
               </div>
-              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-1.5">
+              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-2">
                 <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">Contributors</p>
                 <p class="mt-0.5 text-[13px] font-semibold text-black">{formatNumber(stats.participants_count)}</p>
               </div>
@@ -230,7 +230,7 @@
               <button
                 type="button"
                 onclick={(event) => { event.stopPropagation(); push(`/contribution-type/${stats.id}`); }}
-                class="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-2.5 text-[12px] font-semibold text-[#506078] transition hover:border-black hover:text-black"
+                class="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-2 text-[12px] font-semibold text-[#506078] transition hover:border-black hover:text-black"
               >
                 Details
               </button>
@@ -238,7 +238,7 @@
                 <button
                   type="button"
                   onclick={(event) => { event.stopPropagation(); push(`/submit-contribution?type=${stats.id}`); }}
-                  class="inline-flex h-8 items-center justify-center rounded-[8px] bg-black px-2.5 text-[12px] font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-[0_10px_18px_rgba(31,42,68,0.14)]"
+                  class="inline-flex h-8 items-center justify-center rounded-[8px] bg-black px-2 text-[12px] font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-[0_10px_18px_rgba(31,42,68,0.14)]"
                 >
                   Submit
                 </button>
