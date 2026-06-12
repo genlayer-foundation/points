@@ -471,11 +471,11 @@
           style={getActiveSection() === 'foundations' ? 'background: #eeedfb;' : ''}
           title={collapsed ? 'Manifesto' : ''}
         >
-          <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={getActiveSection() === 'foundations' ? '#6D5DD3' : '#1a1a1a'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
+          <!-- GenLayer symbol (from /assets/gl-symbol-black.svg) -->
+          <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 34.0294 32" fill={getActiveSection() === 'foundations' ? '#6D5DD3' : '#1a1a1a'}>
+            <path d="M15.4065 11.2607L9.64908 23.3639L15.0689 26.072L0 32L15.4065 0V11.2607Z" />
+            <path d="M18.6229 11.2607L24.3803 23.3639L18.9605 26.072L34.0294 32L18.6229 0V11.2607Z" />
+            <path d="M16.9311 15.2394L20.3041 21.9088L16.9311 23.5623L13.7392 21.9019L16.9311 15.2394Z" />
           </svg>
           {#if !collapsed}
             <span>Manifesto</span>
@@ -917,11 +917,11 @@
         class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px]"
         style={getActiveSection() === 'foundations' ? 'background: #eeedfb;' : ''}
       >
-        <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={getActiveSection() === 'foundations' ? '#6D5DD3' : '#1a1a1a'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
+        <!-- GenLayer symbol (from /assets/gl-symbol-black.svg) -->
+        <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 34.0294 32" fill={getActiveSection() === 'foundations' ? '#6D5DD3' : '#1a1a1a'}>
+          <path d="M15.4065 11.2607L9.64908 23.3639L15.0689 26.072L0 32L15.4065 0V11.2607Z" />
+          <path d="M18.6229 11.2607L24.3803 23.3639L18.9605 26.072L34.0294 32L18.6229 0V11.2607Z" />
+          <path d="M16.9311 15.2394L20.3041 21.9088L16.9311 23.5623L13.7392 21.9019L16.9311 15.2394Z" />
         </svg>
         <span>Manifesto</span>
       </button>
