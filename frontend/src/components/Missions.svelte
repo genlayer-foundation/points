@@ -117,14 +117,29 @@
 
   function formatPoints(type) {
     if (!type?.min_points && !type?.max_points) return null;
-    const min = Number(type.min_points || 0);
-    const max = Number(type.max_points || 0);
+    const multiplier = Number(type.current_multiplier || 1);
+    const min = Math.round(Number(type.min_points || 0) * multiplier);
+    const max = Math.round(Number(type.max_points || 0) * multiplier);
     return min === max ? `${min} pts` : `${min}-${max} pts`;
+  }
+
+  function stripPreviewMedia(html) {
+    if (!html) return '';
+
+    if (typeof DOMParser !== 'undefined') {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      doc.querySelectorAll('img, picture, source').forEach((node) => node.remove());
+      return doc.body.innerHTML;
+    }
+
+    return html
+      .replace(/<picture\b[\s\S]*?<\/picture>/gi, '')
+      .replace(/<\s*(img|source)\b[^>]*>/gi, '');
   }
 
   function renderMarkdown(text) {
     if (!text) return '';
-    return parseMarkdown(text);
+    return stripPreviewMedia(parseMarkdown(text));
   }
 
   function submitLabel(mission, parentType) {
@@ -143,12 +158,19 @@
     return `color: ${getCategoryAccent(category || activeCategory)};`;
   }
 
+  function isInteractiveTarget(event) {
+    const interactiveTarget = event.target?.closest?.('button, a, input, select, textarea, [role="button"], [role="link"]');
+    return Boolean(interactiveTarget && interactiveTarget !== event.currentTarget);
+  }
+
   function handleCardClick(event, mission) {
-    if (event.target.closest('button') || event.target.closest('a')) return;
+    if (isInteractiveTarget(event)) return;
     push(`/mission/${mission.id}`);
   }
 
   function handleCardKeydown(event, mission) {
+    if (isInteractiveTarget(event)) return;
+
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       handleCardClick(event, mission);
@@ -406,7 +428,6 @@
     content: ' / ';
   }
 
-  .markdown-preview :global(img),
   .markdown-preview :global(hr) {
     display: none;
   }

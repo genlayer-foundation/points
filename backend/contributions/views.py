@@ -3140,6 +3140,10 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
         ).values('contribution_type_id').annotate(
             count=Count('pk')
         ).values('count')
+        multiplier_field = DecimalField(max_digits=10, decimal_places=2)
+        current_multiplier = GlobalLeaderboardMultiplier.objects.filter(
+            contribution_type_id=OuterRef('contribution_type_id')
+        ).order_by('-valid_from').values('multiplier_value')[:1]
 
         annotations = {
             'submission_count': Coalesce(
@@ -3154,6 +3158,11 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
                 ),
                 Value(0),
                 output_field=IntegerField(),
+            ),
+            'contribution_type_current_multiplier_value': Coalesce(
+                Subquery(current_multiplier, output_field=multiplier_field),
+                Value(1.0, output_field=multiplier_field),
+                output_field=multiplier_field,
             ),
             'contributions_count': Count('contributions', distinct=True),
             'unique_users': Count('contributions__user', distinct=True),

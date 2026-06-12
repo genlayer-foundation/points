@@ -74,23 +74,45 @@
 
   function renderMarkdown(text) {
     if (!text) return '';
-    return parseMarkdown(text);
+    return stripPreviewMedia(parseMarkdown(text));
   }
 
-  function cardGradientStyle() {
-    return `background: linear-gradient(180deg, ${rgbaFromHex(accentColor, 0.95)} 0%, ${rgbaFromHex(accentColor, 0.28)} 58%, ${rgbaFromHex(accentColor, 0.06)} 100%);`;
+  function stripPreviewMedia(html) {
+    if (!html) return '';
+
+    if (typeof DOMParser !== 'undefined') {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      doc.querySelectorAll('img, picture, source').forEach((node) => node.remove());
+      return doc.body.innerHTML;
+    }
+
+    return html
+      .replace(/<picture\b[\s\S]*?<\/picture>/gi, '')
+      .replace(/<\s*(img|source)\b[^>]*>/gi, '');
+  }
+
+  function cardGradientStyle(category = activeCategory) {
+    const color = getCategoryAccent(category || activeCategory);
+    return `background: linear-gradient(180deg, ${rgbaFromHex(color, 0.95)} 0%, ${rgbaFromHex(color, 0.28)} 58%, ${rgbaFromHex(color, 0.06)} 100%);`;
   }
 
   function titleStyle(stats) {
     return `color: ${getCategoryAccent(typeCategory(stats))};`;
   }
 
+  function isInteractiveTarget(event) {
+    const interactiveTarget = event.target?.closest?.('button, a, input, select, textarea, [role="button"], [role="link"]');
+    return Boolean(interactiveTarget && interactiveTarget !== event.currentTarget);
+  }
+
   function handleCardClick(event, stats) {
-    if (event.target.closest('button') || event.target.closest('a')) return;
+    if (isInteractiveTarget(event)) return;
     push(`/contribution-type/${stats.id}`);
   }
 
   function handleCardKeydown(event, stats) {
+    if (isInteractiveTarget(event)) return;
+
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       handleCardClick(event, stats);
@@ -178,7 +200,7 @@
           role="link"
           tabindex="0"
         >
-          <div class="absolute inset-y-0 left-0 w-1.5" style={cardGradientStyle()} aria-hidden="true"></div>
+          <div class="absolute inset-y-0 left-0 w-1.5" style={cardGradientStyle(typeCategory(stats))} aria-hidden="true"></div>
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
               <h3 class="line-clamp-2 max-w-full text-[16px] font-semibold leading-snug sm:text-[17px]" style={titleStyle(stats)}>
@@ -316,7 +338,6 @@
     content: ' / ';
   }
 
-  .markdown-preview :global(img),
   .markdown-preview :global(hr) {
     display: none;
   }
