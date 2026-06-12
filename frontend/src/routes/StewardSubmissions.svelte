@@ -454,6 +454,9 @@
         apiData.points = parseInt(data.points);
         apiData.contribution_type = data.contribution_type;
         apiData.user = parseInt(data.user);
+        if (data.project_contribution) {
+          apiData.project_contribution = data.project_contribution;
+        }
 
         if (data.create_highlight) {
           apiData.create_highlight = true;
