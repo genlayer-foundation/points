@@ -1617,8 +1617,23 @@ class StewardDiscordXPFilterSet(FilterSet):
             Q(contribution__notes__icontains=term) |
             Q(contribution__contribution_type__name__icontains=term) |
             Q(contribution__contribution_type__slug__icontains=term) |
+            Q(social_task_completion__task__name__icontains=term) |
+            Q(social_task_completion__task__slug__icontains=term) |
+            Q(social_task_completion__task__description__icontains=term) |
             Exists(has_matching_evidence)
         )
+
+    def _user_query(self, value):
+        query = Q()
+        for source in ('contribution__user', 'social_task_completion__user'):
+            query |= (
+                Q(**{f'{source}__name__icontains': value}) |
+                Q(**{f'{source}__address__icontains': value}) |
+                Q(**{f'{source}__discord_handle__icontains': value}) |
+                Q(**{f'{source}__discordconnection__platform_username__icontains': value}) |
+                Q(**{f'{source}__discordconnection__guild_nick__icontains': value})
+            )
+        return query
 
     def filter_status(self, queryset, name, value):
         status_value = self._normalize_status(value)
@@ -1638,25 +1653,12 @@ class StewardDiscordXPFilterSet(FilterSet):
 
     def filter_username(self, queryset, name, value):
         if value:
-            return queryset.filter(
-                Q(contribution__user__name__icontains=value) |
-                Q(contribution__user__address__icontains=value) |
-                Q(contribution__user__discord_handle__icontains=value) |
-                Q(contribution__user__discordconnection__platform_username__icontains=value) |
-                Q(contribution__user__discordconnection__guild_nick__icontains=value)
-            )
+            return queryset.filter(self._user_query(value))
         return queryset
 
     def filter_search(self, queryset, name, value):
         if value:
-            return queryset.filter(
-                self._content_query(value) |
-                Q(contribution__user__name__icontains=value) |
-                Q(contribution__user__address__icontains=value) |
-                Q(contribution__user__discord_handle__icontains=value) |
-                Q(contribution__user__discordconnection__platform_username__icontains=value) |
-                Q(contribution__user__discordconnection__guild_nick__icontains=value)
-            )
+            return queryset.filter(self._content_query(value) | self._user_query(value))
         return queryset
 
     def filter_include_content(self, queryset, name, value):
@@ -1682,39 +1684,86 @@ class StewardDiscordXPFilterSet(FilterSet):
 
 class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    Steward endpoint for community contribution Discord XP tracking and awards.
+    Steward endpoint for community Discord XP tracking and awards, covering
+    community contributions and community social task completions.
     """
     serializer_class = ContributionDiscordXPStateSerializer
     authentication_classes = [EthereumAuthentication]
     permission_classes = [IsSteward]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = StewardDiscordXPFilterSet
-    lookup_field = 'contribution_id'
-    lookup_url_kwarg = 'contribution_id'
+    # Detail routes take the numeric state id; non-numeric ids must 404 at the
+    # URL level instead of raising during ORM pk coercion.
+    lookup_value_regex = '[0-9]+'
     ordering_fields = [
-        'contribution__created_at',
-        'contribution__contribution_date',
-        'contribution__frozen_global_points',
+        'entry_created_at',
+        'entry_date',
+        'target_points',
         'pending_xp',
         'distributed_at',
     ]
-    ordering = ['-contribution__created_at']
+    ordering = ['-entry_created_at']
+
+    SELECT_RELATED = (
+        'contribution',
+        'contribution__user',
+        'contribution__user__discordconnection',
+        'contribution__contribution_type',
+        'contribution__contribution_type__category',
+        'social_task_completion',
+        'social_task_completion__user',
+        'social_task_completion__user__discordconnection',
+        'social_task_completion__task',
+        'social_task_completion__task__category',
+        'distributed_by',
+        'last_copied_by',
+    )
+
+    def _can_manage_social_task_xp(self):
+        permitted_ids = steward_permitted_type_ids(self.request.user, actions=['accept'])
+        if not permitted_ids:
+            return False
+        return ContributionType.objects.filter(
+            id__in=permitted_ids,
+            category__slug='community',
+        ).exists()
 
     def get_queryset(self):
         queryset = ContributionDiscordXPState.objects.filter(
-            contribution__contribution_type__category__slug='community',
+            Q(contribution__contribution_type__category__slug='community') |
+            Q(social_task_completion__task__category__slug='community')
+        ).annotate(
+            target_points=Coalesce(
+                'contribution__frozen_global_points',
+                'social_task_completion__points_awarded',
+                output_field=IntegerField(),
+            ),
+            entry_created_at=Coalesce(
+                'contribution__created_at',
+                'social_task_completion__created_at',
+            ),
+            entry_date=Coalesce(
+                'contribution__contribution_date',
+                'social_task_completion__completed_at',
+            ),
         ).filter(
-            Q(contribution__frozen_global_points__gt=0) |
+            Q(target_points__gt=0) |
             Q(awarded_amount__gt=0)
         ).filter(
             Q(contribution__user__discordconnection__guild_member=True) |
+            Q(social_task_completion__user__discordconnection__guild_member=True) |
             Q(awarded_amount__gt=0)
         )
 
         if self.request.user and self.request.user.is_authenticated and hasattr(self.request.user, 'steward'):
             permitted_ids = steward_permitted_type_ids(self.request.user, actions=['accept'])
             if permitted_ids:
-                queryset = queryset.filter(contribution__contribution_type_id__in=permitted_ids)
+                permitted = Q(contribution__contribution_type_id__in=permitted_ids)
+                # Social tasks have no contribution type; any steward who can
+                # accept a community contribution type can manage their XP.
+                if self._can_manage_social_task_xp():
+                    permitted |= Q(social_task_completion__isnull=False)
+                queryset = queryset.filter(permitted)
             else:
                 queryset = queryset.none()
 
@@ -1723,44 +1772,36 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
         ).order_by('-created_at')
 
         return queryset.select_related(
-            'contribution',
-            'contribution__user',
-            'contribution__user__discordconnection',
-            'contribution__contribution_type',
-            'contribution__contribution_type__category',
-            'distributed_by',
-            'last_copied_by',
+            *self.SELECT_RELATED,
         ).prefetch_related(
             Prefetch('events', queryset=latest_events[:1], to_attr='latest_events'),
         ).annotate(
             pending_xp=Greatest(
-                F('contribution__frozen_global_points') - F('awarded_amount'),
+                F('target_points') - F('awarded_amount'),
                 Value(0),
                 output_field=IntegerField(),
             )
         )
 
-    def _get_locked_state(self, contribution_id):
-        state = self.get_queryset().select_for_update(of=('self',)).get(
-            contribution_id=contribution_id,
-        )
-        contribution = state.contribution
+    def _get_locked_state(self, pk):
+        state = self.get_queryset().select_for_update(of=('self',)).get(pk=pk)
 
-        if not steward_has_permission(self.request.user, contribution.contribution_type_id, 'accept'):
+        if state.contribution_id:
+            permitted = steward_has_permission(
+                self.request.user, state.contribution.contribution_type_id, 'accept',
+            )
+        else:
+            permitted = self._can_manage_social_task_xp()
+        if not permitted:
             return None, Response(
-                {'detail': 'You do not have permission to manage XP for this contribution type.'},
+                {'detail': 'You do not have permission to manage XP for this entry.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        sync_discord_xp_state_for_contribution(contribution)
+        if state.contribution_id:
+            sync_discord_xp_state_for_contribution(state.contribution)
         state = ContributionDiscordXPState.objects.select_for_update(of=('self',)).select_related(
-            'contribution',
-            'contribution__user',
-            'contribution__user__discordconnection',
-            'contribution__contribution_type',
-            'contribution__contribution_type__category',
-            'distributed_by',
-            'last_copied_by',
+            *self.SELECT_RELATED,
         ).get(pk=state.pk)
         state.refresh_status_from_contribution(save=True)
         return state, None
@@ -1810,23 +1851,23 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
         return refreshed_connection, None
 
     @action(detail=True, methods=['post'], url_path='record-copy')
-    def record_copy(self, request, contribution_id=None):
+    def record_copy(self, request, pk=None):
         try:
             with transaction.atomic():
-                state, response = self._get_locked_state(contribution_id)
+                state, response = self._get_locked_state(pk)
                 if response:
                     return response
 
                 if state.status == ContributionDiscordXPState.STATUS_NEEDS_REVIEW:
                     return Response(
                         {
-                            'detail': 'This contribution has more XP marked distributed than its current community points.',
+                            'detail': 'This entry has more XP marked distributed than its current community points.',
                             'state': self.get_serializer(state).data,
                         },
                         status=status.HTTP_409_CONFLICT,
                     )
 
-                discord_connection = getattr(state.contribution.user, 'discordconnection', None)
+                discord_connection = getattr(state.recipient, 'discordconnection', None)
                 if not discord_connection:
                     return Response(
                         {'detail': 'This contributor does not have a linked Discord account.'},
@@ -1835,14 +1876,14 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
 
                 if state.pending_amount <= 0:
                     return Response(
-                        {'detail': 'This contribution has no pending XP to copy.', 'state': self.get_serializer(state).data},
+                        {'detail': 'This entry has no pending XP to copy.', 'state': self.get_serializer(state).data},
                         status=status.HTTP_409_CONFLICT,
                     )
 
                 discord_connection, response = self._refresh_discord_connection(discord_connection)
                 if response:
                     return response
-                state.contribution.user._state.fields_cache.pop('discordconnection', None)
+                state.recipient._state.fields_cache.pop('discordconnection', None)
 
                 now = timezone.now()
                 state.last_copied_at = now
@@ -1859,20 +1900,20 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
                 )
                 return Response(self.get_serializer(state).data)
         except ContributionDiscordXPState.DoesNotExist:
-            return self._not_found_or_non_community(contribution_id)
+            return self._not_found()
 
     @action(detail=True, methods=['post'], url_path='mark-distributed')
-    def mark_distributed(self, request, contribution_id=None):
+    def mark_distributed(self, request, pk=None):
         try:
             with transaction.atomic():
-                state, response = self._get_locked_state(contribution_id)
+                state, response = self._get_locked_state(pk)
                 if response:
                     return response
 
                 if state.status == ContributionDiscordXPState.STATUS_NEEDS_REVIEW:
                     return Response(
                         {
-                            'detail': 'Unset this contribution before marking it distributed again.',
+                            'detail': 'Unset this entry before marking it distributed again.',
                             'state': self.get_serializer(state).data,
                         },
                         status=status.HTTP_409_CONFLICT,
@@ -1901,13 +1942,13 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
                 )
                 return Response(self.get_serializer(state).data)
         except ContributionDiscordXPState.DoesNotExist:
-            return self._not_found_or_non_community(contribution_id)
+            return self._not_found()
 
     @action(detail=True, methods=['post'], url_path='unset-distributed')
-    def unset_distributed(self, request, contribution_id=None):
+    def unset_distributed(self, request, pk=None):
         try:
             with transaction.atomic():
-                state, response = self._get_locked_state(contribution_id)
+                state, response = self._get_locked_state(pk)
                 if response:
                     return response
 
@@ -1930,18 +1971,11 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
                 )
                 return Response(self.get_serializer(state).data)
         except ContributionDiscordXPState.DoesNotExist:
-            return self._not_found_or_non_community(contribution_id)
+            return self._not_found()
 
-    def _not_found_or_non_community(self, contribution_id):
-        if Contribution.objects.filter(pk=contribution_id).exclude(
-            contribution_type__category__slug='community',
-        ).exists():
-            return Response(
-                {'detail': 'Discord XP can only be managed for community contributions.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+    def _not_found(self):
         return Response(
-            {'detail': 'Community contribution XP state not found.'},
+            {'detail': 'Community Discord XP state not found.'},
             status=status.HTTP_404_NOT_FOUND,
         )
 

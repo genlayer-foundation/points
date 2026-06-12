@@ -349,15 +349,17 @@ class DiscordXPDistributionEventSerializer(serializers.ModelSerializer):
 
 
 class ContributionDiscordXPStateSerializer(serializers.ModelSerializer):
+    source = serializers.SerializerMethodField()
+    social_task = serializers.SerializerMethodField()
     contributor = serializers.SerializerMethodField()
     discord = serializers.SerializerMethodField()
     contribution_type = serializers.SerializerMethodField()
-    contribution_title = serializers.CharField(source='contribution.title', read_only=True)
-    contribution_notes = serializers.CharField(source='contribution.notes', read_only=True)
-    contribution_date = serializers.DateTimeField(source='contribution.contribution_date', read_only=True)
-    contribution_created_at = serializers.DateTimeField(source='contribution.created_at', read_only=True)
-    community_points = serializers.IntegerField(source='contribution.frozen_global_points', read_only=True)
-    frozen_global_points = serializers.IntegerField(source='contribution.frozen_global_points', read_only=True)
+    contribution_title = serializers.SerializerMethodField()
+    contribution_notes = serializers.SerializerMethodField()
+    contribution_date = serializers.SerializerMethodField()
+    contribution_created_at = serializers.SerializerMethodField()
+    community_points = serializers.SerializerMethodField()
+    frozen_global_points = serializers.SerializerMethodField()
     pending_amount = serializers.SerializerMethodField()
     command = serializers.SerializerMethodField()
     distributed_by = LightUserSerializer(read_only=True)
@@ -367,7 +369,7 @@ class ContributionDiscordXPStateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContributionDiscordXPState
         fields = [
-            'id', 'contribution', 'status', 'awarded_amount',
+            'id', 'contribution', 'source', 'social_task', 'status', 'awarded_amount',
             'community_points', 'frozen_global_points', 'pending_amount', 'command',
             'distributed_at', 'distributed_by',
             'last_copied_at', 'last_copied_by',
@@ -378,11 +380,25 @@ class ContributionDiscordXPStateSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+    def get_source(self, obj):
+        return 'contribution' if obj.contribution_id else 'social_task'
+
+    def get_social_task(self, obj):
+        if not obj.social_task_completion_id:
+            return None
+        task = obj.social_task_completion.task
+        return {
+            'id': task.id,
+            'name': task.name,
+            'slug': task.slug,
+            'platform': task.platform,
+        }
+
     def get_contributor(self, obj):
-        return LightUserSerializer(obj.contribution.user).data
+        return LightUserSerializer(obj.recipient).data
 
     def get_discord(self, obj):
-        connection = getattr(obj.contribution.user, 'discordconnection', None)
+        connection = getattr(obj.recipient, 'discordconnection', None)
         if not connection:
             return None
 
@@ -394,7 +410,39 @@ class ContributionDiscordXPStateSerializer(serializers.ModelSerializer):
         }
 
     def get_contribution_type(self, obj):
+        if not obj.contribution_id:
+            return None
         return LightContributionTypeSerializer(obj.contribution.contribution_type).data
+
+    def get_contribution_title(self, obj):
+        if obj.contribution_id:
+            return obj.contribution.title
+        return obj.social_task_completion.task.name
+
+    def get_contribution_notes(self, obj):
+        if obj.contribution_id:
+            return obj.contribution.notes
+        return obj.social_task_completion.task.description
+
+    def get_contribution_date(self, obj):
+        if obj.contribution_id:
+            value = obj.contribution.contribution_date
+        else:
+            value = obj.social_task_completion.completed_at
+        return serializers.DateTimeField().to_representation(value) if value else None
+
+    def get_contribution_created_at(self, obj):
+        if obj.contribution_id:
+            value = obj.contribution.created_at
+        else:
+            value = obj.social_task_completion.created_at
+        return serializers.DateTimeField().to_representation(value) if value else None
+
+    def get_community_points(self, obj):
+        return obj.target_amount
+
+    def get_frozen_global_points(self, obj):
+        return obj.target_amount
 
     def get_pending_amount(self, obj):
         annotated = getattr(obj, 'pending_xp', None)

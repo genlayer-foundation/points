@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status
@@ -19,9 +20,18 @@ from contributions.models import (
 from leaderboard.models import GlobalLeaderboardMultiplier
 from social_connections.encryption import encrypt_token
 from social_connections.models import DiscordConnection
+from social_tasks.models import SocialTask, SocialTaskCompletion
 from stewards.models import Steward, StewardPermission
 
 User = get_user_model()
+
+
+def state_id(source):
+    """Discord XP state id for a contribution or social task completion."""
+    return ContributionDiscordXPState.objects.get(
+        Q(contribution=source) if isinstance(source, Contribution)
+        else Q(social_task_completion=source)
+    ).id
 
 
 class StewardDiscordXPTest(TestCase):
@@ -106,6 +116,24 @@ class StewardDiscordXPTest(TestCase):
             access_token=encrypt_token('discord-access-token'),
             linked_at=timezone.now(),
             guild_member=guild_member,
+        )
+
+    def create_social_task(self, *, category=None, name='Follow GenLayer', slug='follow-genlayer', points=10):
+        return SocialTask.objects.create(
+            name=name,
+            slug=slug,
+            category=category or self.community_category,
+            points=points,
+            verification_type='click_through',
+            action_url='https://example.com/task',
+        )
+
+    def complete_social_task(self, task, *, user=None, points=None):
+        return SocialTaskCompletion.objects.create(
+            user=user or self.user,
+            task=task,
+            points_awarded=points if points is not None else task.points,
+            verification_type=task.verification_type,
         )
 
     def test_community_contributions_create_xp_state_only_for_community(self):
@@ -197,7 +225,7 @@ class StewardDiscordXPTest(TestCase):
         self.assertEqual(response.data['count'], 1)
         self.assertEqual(response.data['results'][0]['contribution'], contribution.id)
 
-        response = self.client.post(f'/api/v1/steward-discord-xp/{contribution.id}/unset-distributed/')
+        response = self.client.post(f'/api/v1/steward-discord-xp/{state_id(contribution)}/unset-distributed/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         state.refresh_from_db()
         self.assertEqual(state.status, ContributionDiscordXPState.STATUS_PENDING)
@@ -207,7 +235,7 @@ class StewardDiscordXPTest(TestCase):
         connection = self.link_discord(username='alice_xp')
         contribution = self.create_contribution(points=30)
 
-        response = self.client.post(f'/api/v1/steward-discord-xp/{contribution.id}/mark-distributed/')
+        response = self.client.post(f'/api/v1/steward-discord-xp/{state_id(contribution)}/mark-distributed/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         connection.guild_member = False
@@ -224,7 +252,7 @@ class StewardDiscordXPTest(TestCase):
         self.assertEqual(response.data['results'][0]['contribution'], contribution.id)
         self.assertFalse(response.data['results'][0]['discord']['guild_member'])
 
-        response = self.client.post(f'/api/v1/steward-discord-xp/{contribution.id}/unset-distributed/')
+        response = self.client.post(f'/api/v1/steward-discord-xp/{state_id(contribution)}/unset-distributed/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         contribution.discord_xp_state.refresh_from_db()
         self.assertEqual(contribution.discord_xp_state.status, ContributionDiscordXPState.STATUS_PENDING)
@@ -244,7 +272,7 @@ class StewardDiscordXPTest(TestCase):
         }
         mock_requests.get.return_value = user_response
 
-        response = self.client.post(f'/api/v1/steward-discord-xp/{contribution.id}/record-copy/')
+        response = self.client.post(f'/api/v1/steward-discord-xp/{state_id(contribution)}/record-copy/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         state = contribution.discord_xp_state
@@ -275,7 +303,7 @@ class StewardDiscordXPTest(TestCase):
         }
         mock_requests.get.return_value = user_response
 
-        response = self.client.post(f'/api/v1/steward-discord-xp/{contribution.id}/record-copy/')
+        response = self.client.post(f'/api/v1/steward-discord-xp/{state_id(contribution)}/record-copy/')
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertIn('Discord account mismatch', response.data['detail'])
@@ -285,7 +313,7 @@ class StewardDiscordXPTest(TestCase):
         self.link_discord(username='alice_xp')
         contribution = self.create_contribution(points=30)
 
-        response = self.client.post(f'/api/v1/steward-discord-xp/{contribution.id}/mark-distributed/')
+        response = self.client.post(f'/api/v1/steward-discord-xp/{state_id(contribution)}/mark-distributed/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         state = contribution.discord_xp_state
         state.refresh_from_db()
@@ -293,7 +321,7 @@ class StewardDiscordXPTest(TestCase):
         self.assertEqual(state.awarded_amount, 30)
         self.assertEqual(state.distributed_by, self.steward_user)
 
-        response = self.client.post(f'/api/v1/steward-discord-xp/{contribution.id}/unset-distributed/')
+        response = self.client.post(f'/api/v1/steward-discord-xp/{state_id(contribution)}/unset-distributed/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         state.refresh_from_db()
         self.assertEqual(state.status, ContributionDiscordXPState.STATUS_PENDING)
@@ -328,3 +356,169 @@ class StewardDiscordXPTest(TestCase):
         state.refresh_from_db()
         self.assertEqual(state.status, ContributionDiscordXPState.STATUS_NEEDS_REVIEW)
         self.assertEqual(state.pending_amount, 0)
+
+    def test_social_task_completion_creates_xp_state_only_for_community(self):
+        community_task = self.create_social_task()
+        builder_task = self.create_social_task(
+            category=self.builder_category,
+            name='Star the repo',
+            slug='star-the-repo',
+        )
+
+        community_completion = self.complete_social_task(community_task)
+        builder_completion = self.complete_social_task(builder_task, user=self.other_user)
+
+        self.assertTrue(
+            ContributionDiscordXPState.objects.filter(
+                social_task_completion=community_completion
+            ).exists()
+        )
+        self.assertFalse(
+            ContributionDiscordXPState.objects.filter(
+                social_task_completion=builder_completion
+            ).exists()
+        )
+
+        with self.assertRaises(ValidationError):
+            ContributionDiscordXPState.objects.create(social_task_completion=builder_completion)
+
+    def test_social_task_completions_appear_in_xp_list(self):
+        self.link_discord(username='alice_xp')
+        task = self.create_social_task(points=10)
+        completion = self.complete_social_task(task)
+
+        # Guild-member requirement applies to social task rows too.
+        non_member = User.objects.create_user(
+            email='nonmember@example.com',
+            address='0x5555555555555555555555555555555555555555',
+            password='testpass123',
+            name='NonMember',
+        )
+        self.link_discord(
+            user=non_member,
+            username='nonmember_xp',
+            platform_user_id='1001',
+            guild_member=False,
+        )
+        self.complete_social_task(task, user=non_member)
+
+        response = self.client.get('/api/v1/steward-discord-xp/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 1)
+        row = response.data['results'][0]
+        self.assertEqual(row['source'], 'social_task')
+        self.assertIsNone(row['contribution'])
+        self.assertEqual(row['social_task']['slug'], task.slug)
+        self.assertEqual(row['contribution_title'], task.name)
+        self.assertEqual(row['frozen_global_points'], 10)
+        self.assertEqual(row['pending_amount'], 10)
+        self.assertEqual(row['command'], '/give-xp member:@alice_xp amount:10')
+        self.assertIsNone(row['contribution_type'])
+
+        # Search filters cover the task name and the recipient.
+        response = self.client.get('/api/v1/steward-discord-xp/', {'include_content': 'Follow GenLayer'})
+        self.assertEqual(response.data['count'], 1)
+        response = self.client.get('/api/v1/steward-discord-xp/', {'username_search': 'alice_xp'})
+        self.assertEqual(response.data['count'], 1)
+        response = self.client.get('/api/v1/steward-discord-xp/', {'exclude_content': 'Follow'})
+        self.assertEqual(response.data['count'], 0)
+
+        # contribution+social rows can coexist in one list.
+        self.create_contribution(points=40)
+        response = self.client.get('/api/v1/steward-discord-xp/')
+        self.assertEqual(response.data['count'], 2)
+        self.assertEqual(completion.discord_xp_state.status, ContributionDiscordXPState.STATUS_PENDING)
+
+    def test_social_task_mark_and_unset_distribution_flag_are_audited(self):
+        self.link_discord(username='alice_xp')
+        task = self.create_social_task(points=10)
+        completion = self.complete_social_task(task)
+
+        response = self.client.post(
+            f'/api/v1/steward-discord-xp/{state_id(completion)}/mark-distributed/'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        state = completion.discord_xp_state
+        state.refresh_from_db()
+        self.assertEqual(state.status, ContributionDiscordXPState.STATUS_DISTRIBUTED)
+        self.assertEqual(state.awarded_amount, 10)
+        self.assertEqual(state.distributed_by, self.steward_user)
+
+        response = self.client.post(
+            f'/api/v1/steward-discord-xp/{state_id(completion)}/unset-distributed/'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        state.refresh_from_db()
+        self.assertEqual(state.status, ContributionDiscordXPState.STATUS_PENDING)
+        self.assertEqual(state.awarded_amount, 0)
+
+        actions = list(
+            DiscordXPDistributionEvent.objects.filter(state=state)
+            .order_by('created_at')
+            .values_list('action', flat=True)
+        )
+        self.assertEqual(actions, [
+            DiscordXPDistributionEvent.ACTION_DISTRIBUTED,
+            DiscordXPDistributionEvent.ACTION_UNSET,
+        ])
+
+    @patch('social_connections.oauth_service.requests')
+    def test_social_task_record_copy_updates_copy_state(self, mock_requests):
+        self.link_discord(username='alice_xp')
+        task = self.create_social_task(points=10)
+        completion = self.complete_social_task(task)
+        user_response = MagicMock()
+        user_response.raise_for_status = MagicMock()
+        user_response.json.return_value = {
+            'id': '999',
+            'username': 'alice_latest',
+            'discriminator': '0',
+            'avatar': 'avatar-hash',
+        }
+        mock_requests.get.return_value = user_response
+
+        response = self.client.post(
+            f'/api/v1/steward-discord-xp/{state_id(completion)}/record-copy/'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        state = completion.discord_xp_state
+        state.refresh_from_db()
+        self.assertEqual(state.last_copied_by, self.steward_user)
+        self.assertEqual(response.data['command'], '/give-xp member:@alice_latest amount:10')
+
+    def test_social_task_rows_require_community_accept_permission(self):
+        self.link_discord(username='alice_xp')
+        task = self.create_social_task(points=10)
+        completion = self.complete_social_task(task)
+
+        builder_steward_user = User.objects.create_user(
+            email='builder-steward@example.com',
+            address='0x6666666666666666666666666666666666666666',
+            password='testpass123',
+            name='Builder Steward',
+        )
+        builder_steward = Steward.objects.create(user=builder_steward_user)
+        StewardPermission.objects.create(
+            steward=builder_steward,
+            contribution_type=self.other_type,
+            action='accept',
+        )
+        client = APIClient()
+        client.force_authenticate(user=builder_steward_user)
+
+        response = client.get('/api/v1/steward-discord-xp/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 0)
+
+        response = client.post(
+            f'/api/v1/steward-discord-xp/{state_id(completion)}/mark-distributed/'
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_non_numeric_state_id_returns_404(self):
+        for action in ['record-copy', 'mark-distributed', 'unset-distributed']:
+            response = self.client.post(f'/api/v1/steward-discord-xp/abc/{action}/')
+            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        response = self.client.get('/api/v1/steward-discord-xp/abc/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

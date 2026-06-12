@@ -387,6 +387,7 @@ const routes = {
   // Stewards
   '/stewards': StewardDashboard,
   '/stewards/submissions': StewardSubmissions,
+  '/stewards/discord-xp': StewardDiscordXP,   // Community XP rows: contributions + social task completions; actions keyed by state id (row.id)
   '/stewards/manage-users': StewardManageUsers,
 
   // Legal
@@ -447,6 +448,7 @@ const routes = {
   - `poapsAPI` - POAP list/detail/claims, user POAPs, secret claims, mint-link claims, and recovery wallet verification
   - `validatorsAPI.getWallOfShame(params)` - Public Wall of Shame list for active validators with Grafana metrics/logs status badges (renders in `routes/WallOfShame.svelte`)
   - `socialTasksAPI` - Social tasks (`list({ status, category })`, `complete(slug)`)
+  - `stewardAPI` - Steward tools: submissions review plus Discord XP (`getDiscordXP(params)` lists community XP rows for contributions and social task completions; `recordDiscordXPCopy(stateId)`, `markDiscordXPDistributed(stateId)`, `unsetDiscordXPDistributed(stateId)` act on a row's state id — `row.id`, not the contribution id)
 
 ### Authentication (`src/lib/auth.js`)
 - **Auth Store**: Svelte store `authState`

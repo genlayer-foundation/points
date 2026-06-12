@@ -34,7 +34,7 @@ class SocialTask(BaseModel):
         related_name='social_tasks',
     )
     points = models.PositiveIntegerField(
-        default=10,
+        default=500,
         help_text='Points awarded on completion. Frozen as points_awarded on each completion row.',
     )
 

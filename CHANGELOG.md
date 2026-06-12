@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Social tasks now award 500 points each, up from 5-10, including the existing follow-on-X, join-Discord, and check-out-GenLayer tasks; points already earned from past completions keep their original value (c9fb1520)
+- The steward Discord XP view now lists community social task completions alongside community contributions, so points earned from social tasks show up as XP to give on the Discord server with the same copy-command, flag-distributed, and search tools (cde1a53f)
 - New social tasks award points for quick actions like following GenLayer on X, joining the Discord server, or liking a post. Active tasks appear in a slider on the Contributions page and in a full task view with Open/Completed tabs and search under each category; follows and Discord membership are verified automatically after linking the matching social account (f1377a2c)
 - New Manifesto section in the sidebar's Discover group with GenLayer's founding documents: the Manifesto (opened by default), The Compass, and the Whitepaper. Each document gets its own inner sidebar with a document switcher and an "On this page" index that follows your reading position, and the Whitepaper is readable in an embedded PDF viewer (2a7fda71)
 - Searching the Community leaderboard now shows each participant's real rank instead of restarting the numbering at 1 for the search results (d26509e0)
