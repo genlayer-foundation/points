@@ -52,12 +52,12 @@ export function xpSearchToParams(parsed, options = {}) {
 
   if (filters.sort) {
     const sortMap = {
-      created: 'contribution__created_at',
-      '-created': '-contribution__created_at',
-      date: 'contribution__contribution_date',
-      '-date': '-contribution__contribution_date',
-      points: 'contribution__frozen_global_points',
-      '-points': '-contribution__frozen_global_points',
+      created: 'entry_created_at',
+      '-created': '-entry_created_at',
+      date: 'entry_date',
+      '-date': '-entry_date',
+      points: 'target_points',
+      '-points': '-target_points',
       distributed: 'distributed_at',
       '-distributed': '-distributed_at',
     };

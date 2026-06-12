@@ -387,6 +387,7 @@ const routes = {
   // Stewards
   '/stewards': StewardDashboard,
   '/stewards/submissions': StewardSubmissions,
+  '/stewards/discord-xp': StewardDiscordXP,   // Community XP rows: contributions + social task completions; actions keyed by state id (row.id)
   '/stewards/manage-users': StewardManageUsers,
 
   // Legal

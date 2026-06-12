@@ -573,10 +573,10 @@ class ContributionAdmin(admin.ModelAdmin):
 @admin.register(ContributionDiscordXPState)
 class ContributionDiscordXPStateAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = (
-        'contribution_link',
+        'source_link',
         'contributor',
         'discord_username',
-        'contribution_type',
+        'entry_type',
         'community_points',
         'awarded_amount',
         'pending_amount_display',
@@ -588,6 +588,7 @@ class ContributionDiscordXPStateAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
         'status',
         'contribution__contribution_type__category',
         'contribution__contribution_type',
+        'social_task_completion__task',
         'last_copied_at',
         'distributed_at',
     )
@@ -601,8 +602,15 @@ class ContributionDiscordXPStateAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
         'contribution__user__discordconnection__platform_username',
         'contribution__user__discordconnection__guild_nick',
         'contribution__contribution_type__name',
+        'social_task_completion__task__name',
+        'social_task_completion__task__slug',
+        'social_task_completion__user__name',
+        'social_task_completion__user__email',
+        'social_task_completion__user__address',
+        'social_task_completion__user__discordconnection__platform_username',
+        'social_task_completion__user__discordconnection__guild_nick',
     )
-    ordering = ('-contribution__created_at',)
+    ordering = ('-created_at',)
     show_facets = admin.ShowFacets.NEVER
 
     def get_queryset(self, request):
@@ -612,33 +620,42 @@ class ContributionDiscordXPStateAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
             'contribution__user__discordconnection',
             'contribution__contribution_type',
             'contribution__contribution_type__category',
+            'social_task_completion',
+            'social_task_completion__user',
+            'social_task_completion__user__discordconnection',
+            'social_task_completion__task',
         )
 
-    def contribution_link(self, obj):
-        url = reverse('admin:contributions_contribution_change', args=[obj.contribution_id])
-        return format_html('<a href="{}">#{}</a>', url, obj.contribution_id)
-    contribution_link.short_description = 'Contribution'
-    contribution_link.admin_order_field = 'contribution_id'
+    def source_link(self, obj):
+        if obj.contribution_id:
+            url = reverse('admin:contributions_contribution_change', args=[obj.contribution_id])
+            return format_html('<a href="{}">Contribution #{}</a>', url, obj.contribution_id)
+        url = reverse('admin:social_tasks_socialtaskcompletion_change', args=[obj.social_task_completion_id])
+        return format_html('<a href="{}">Task completion #{}</a>', url, obj.social_task_completion_id)
+    source_link.short_description = 'Source'
+    source_link.admin_order_field = 'contribution_id'
 
     def contributor(self, obj):
-        user = obj.contribution.user
+        user = obj.recipient
         return user.name or user.email or user.address
     contributor.admin_order_field = 'contribution__user__name'
 
     def discord_username(self, obj):
-        connection = getattr(obj.contribution.user, 'discordconnection', None)
+        connection = getattr(obj.recipient, 'discordconnection', None)
         if not connection:
             return '-'
         return connection.guild_nick or connection.platform_username or '-'
     discord_username.short_description = 'Discord'
 
-    def contribution_type(self, obj):
-        return obj.contribution.contribution_type
-    contribution_type.admin_order_field = 'contribution__contribution_type'
+    def entry_type(self, obj):
+        if obj.contribution_id:
+            return obj.contribution.contribution_type
+        return obj.social_task_completion.task
+    entry_type.short_description = 'Type / task'
+    entry_type.admin_order_field = 'contribution__contribution_type'
 
     def community_points(self, obj):
-        return obj.contribution.frozen_global_points
-    community_points.admin_order_field = 'contribution__frozen_global_points'
+        return obj.target_amount
 
     def pending_amount_display(self, obj):
         return obj.pending_amount
@@ -650,7 +667,7 @@ class DiscordXPDistributionEventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = (
         'created_at',
         'action',
-        'contribution_link',
+        'source_link',
         'contributor',
         'discord_username',
         'amount',
@@ -661,6 +678,7 @@ class DiscordXPDistributionEventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
         'created_at',
         'state__contribution__contribution_type__category',
         'state__contribution__contribution_type',
+        'state__social_task_completion__task',
     )
     search_fields = (
         'state__contribution__id',
@@ -670,6 +688,13 @@ class DiscordXPDistributionEventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
         'state__contribution__user__address',
         'state__contribution__user__discordconnection__platform_username',
         'state__contribution__user__discordconnection__guild_nick',
+        'state__social_task_completion__task__name',
+        'state__social_task_completion__task__slug',
+        'state__social_task_completion__user__name',
+        'state__social_task_completion__user__email',
+        'state__social_task_completion__user__address',
+        'state__social_task_completion__user__discordconnection__platform_username',
+        'state__social_task_completion__user__discordconnection__guild_nick',
         'actor__name',
         'actor__email',
     )
@@ -683,23 +708,29 @@ class DiscordXPDistributionEventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
             'state__contribution__user',
             'state__contribution__user__discordconnection',
             'state__contribution__contribution_type',
+            'state__social_task_completion',
+            'state__social_task_completion__user',
+            'state__social_task_completion__user__discordconnection',
+            'state__social_task_completion__task',
             'actor',
         )
 
-    def contribution_link(self, obj):
-        contribution_id = obj.state.contribution_id
-        url = reverse('admin:contributions_contribution_change', args=[contribution_id])
-        return format_html('<a href="{}">#{}</a>', url, contribution_id)
-    contribution_link.short_description = 'Contribution'
-    contribution_link.admin_order_field = 'state__contribution_id'
+    def source_link(self, obj):
+        if obj.state.contribution_id:
+            url = reverse('admin:contributions_contribution_change', args=[obj.state.contribution_id])
+            return format_html('<a href="{}">Contribution #{}</a>', url, obj.state.contribution_id)
+        url = reverse('admin:social_tasks_socialtaskcompletion_change', args=[obj.state.social_task_completion_id])
+        return format_html('<a href="{}">Task completion #{}</a>', url, obj.state.social_task_completion_id)
+    source_link.short_description = 'Source'
+    source_link.admin_order_field = 'state__contribution_id'
 
     def contributor(self, obj):
-        user = obj.state.contribution.user
+        user = obj.state.recipient
         return user.name or user.email or user.address
     contributor.admin_order_field = 'state__contribution__user__name'
 
     def discord_username(self, obj):
-        connection = getattr(obj.state.contribution.user, 'discordconnection', None)
+        connection = getattr(obj.state.recipient, 'discordconnection', None)
         if not connection:
             return '-'
         return connection.guild_nick or connection.platform_username or '-'
