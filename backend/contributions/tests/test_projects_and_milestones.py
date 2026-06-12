@@ -331,6 +331,7 @@ class ProjectsAndMilestonesTest(TestCase):
         self.assertIn('owned by the selected user', response.data['detail'])
 
     def test_steward_accepted_projects_endpoint_lists_selected_users_projects(self):
+        """Return only the selected user's accepted Projects for steward review."""
         project_contribution = self._accepted_project_contribution()
         other_user = User.objects.create_user(
             email='other-project-owner@test.com',
@@ -354,6 +355,7 @@ class ProjectsAndMilestonesTest(TestCase):
         )
 
     def test_accepting_submission_as_milestone_uses_selected_project_contribution(self):
+        """Accept a submission as a milestone linked to the steward-selected project."""
         project_contribution = self._accepted_project_contribution()
         submission = SubmittedContribution.objects.create(
             user=self.user,
