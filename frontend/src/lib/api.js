@@ -239,6 +239,10 @@ export const stewardAPI = {
   // Get all users for reassignment dropdown
   getUsers: () => api.get('/steward-submissions/users/'),
 
+  // Get accepted Projects contributions for a selected award user
+  getAcceptedProjectsForUser: (userId) =>
+    api.get('/steward-submissions/accepted-projects/', { params: { user: userId } }),
+
   // Get steward statistics
   getStats: () => api.get('/steward-submissions/stats/'),
 

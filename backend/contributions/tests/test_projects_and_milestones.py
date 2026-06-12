@@ -330,6 +330,66 @@ class ProjectsAndMilestonesTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('owned by the selected user', response.data['detail'])
 
+    def test_steward_accepted_projects_endpoint_lists_selected_users_projects(self):
+        project_contribution = self._accepted_project_contribution()
+        other_user = User.objects.create_user(
+            email='other-project-owner@test.com',
+            address='0x6666666666666666666666666666666666666666',
+            password='testpass123',
+        )
+        self._accepted_project_contribution(title='Other Project', user=other_user)
+
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.get(
+            '/api/v1/steward-submissions/accepted-projects/',
+            {'user': self.user.id},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item['id'] for item in response.data], [project_contribution.id])
+        self.assertEqual(response.data[0]['title'], 'Cognocracy')
+        self.assertEqual(
+            response.data[0]['github_url'],
+            'https://github.com/example/cognocracy',
+        )
+
+    def test_accepting_submission_as_milestone_uses_selected_project_contribution(self):
+        project_contribution = self._accepted_project_contribution()
+        submission = SubmittedContribution.objects.create(
+            user=self.user,
+            contribution_type=self.project_type,
+            contribution_date=timezone.now(),
+            title='Actually a milestone',
+            notes='Milestone details',
+        )
+        Evidence.objects.create(
+            submitted_contribution=submission,
+            description='Changes',
+            url='https://example.com/milestone',
+        )
+
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/review/',
+            {
+                'action': 'accept',
+                'contribution_type': self.milestone_type.id,
+                'project_contribution': project_contribution.id,
+                'user': self.user.id,
+                'points': 10,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        contribution = submission.converted_contribution
+        self.assertEqual(submission.contribution_type, self.milestone_type)
+        self.assertEqual(submission.project_contribution, project_contribution)
+        self.assertEqual(submission.milestone_version, 1)
+        self.assertEqual(contribution.project_contribution, project_contribution)
+        self.assertEqual(contribution.milestone_version, 1)
+
     def test_accepting_milestone_links_contribution_to_project_contribution(self):
         project_contribution = self._accepted_project_contribution()
         submission = SubmittedContribution.objects.create(

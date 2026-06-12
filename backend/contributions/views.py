@@ -2134,7 +2134,10 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             # Get the user for the contribution (use provided or keep original submitter)
             contribution_user = serializer.validated_data.get('user', submission.user)
 
-            project_contribution = submission.project_contribution
+            project_contribution = serializer.validated_data.get(
+                'project_contribution',
+                submission.project_contribution,
+            )
             milestone_version = submission.milestone_version
             if is_milestone_contribution_type(contribution_type):
                 if not project_contribution:
@@ -2154,12 +2157,18 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                         {'detail': 'Milestones can only be accepted for a project contribution owned by the selected user.'},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
+                if project_contribution != submission.project_contribution:
+                    milestone_version = None
                 if not milestone_version:
                     milestone_version = next_milestone_version(
                         project_contribution,
                         exclude_submission_id=submission.id,
                     )
-                    submission.milestone_version = milestone_version
+                submission.project_contribution = project_contribution
+                submission.milestone_version = milestone_version
+            else:
+                submission.project_contribution = None
+                submission.milestone_version = None
 
             # Update submission contribution type if changed
             if contribution_type != submission.contribution_type:
@@ -2642,6 +2651,43 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             })
         
         return Response(user_data)
+
+    @action(detail=False, methods=['get'], url_path='accepted-projects')
+    def accepted_projects(self, request):
+        """Get accepted Projects contributions for a user during steward review."""
+        from users.models import User
+
+        user_id = request.query_params.get('user')
+        if not user_id:
+            return Response(
+                {'detail': 'A user query parameter is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(pk=user_id)
+        except (TypeError, ValueError, User.DoesNotExist):
+            return Response(
+                {'detail': 'User not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        project_contributions = (
+            accepted_project_contributions_for_user(user)
+            .prefetch_related('evidence_items')
+            .order_by('-created_at')
+        )
+        data = [
+            {
+                'id': contribution.id,
+                'title': project_contribution_display_title(contribution),
+                'created_at': contribution.created_at,
+                'github_url': project_contribution_github_url(contribution),
+                'next_milestone_version': next_milestone_version(contribution),
+            }
+            for contribution in project_contributions
+        ]
+        return Response(data)
 
     def _check_type_permission(self, request, submission):
         """

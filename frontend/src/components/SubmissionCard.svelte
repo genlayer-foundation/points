@@ -9,6 +9,7 @@
   import Badge from './Badge.svelte';
   import Icons from './Icons.svelte';
   import EvidenceUrlCard from './EvidenceUrlCard.svelte';
+  import { stewardAPI } from '../lib/api.js';
   import { parseMarkdown, parseUserMarkdown } from '../lib/markdownLoader.js';
   import { showSuccess, showError } from '../lib/toastStore';
   import {
@@ -173,6 +174,13 @@
   );
   let selectedUser = $state(reviewData?.user || submission.user);
   let selectedType = $state(reviewData?.contribution_type || submission.contribution_type);
+  let selectedProject = $state(reviewData?.project_contribution || submission.project_contribution?.id || '');
+  let acceptedProjects = $state([]);
+  let acceptedProjectsLoading = $state(false);
+  let acceptedProjectsError = $state('');
+  let acceptedProjectsUser = $state(null);
+  let acceptedProjectsLoaded = $state(false);
+  let acceptedProjectsRequestId = 0;
   let defaultSelectedUserDetails = $derived(
     String(selectedUser) === String(submission.user)
       ? submission.user_details
@@ -194,6 +202,11 @@
   let selectedTypeDetails = $derived(
     contributionTypes.find(t => String(t.id) === String(selectedType)) ||
     (String(selectedType) === String(submission.contribution_type) ? submission.contribution_type_details : null)
+  );
+  let isSelectedMilestoneType = $derived(selectedTypeDetails?.slug === 'milestones');
+  let selectedProjectData = $derived(
+    acceptedProjects.find(project => String(project.id) === String(selectedProject)) ||
+    (String(submission.project_contribution?.id) === String(selectedProject) ? submission.project_contribution : null)
   );
   let isProjectReview = $derived(
     enableRubricReview && isProjectReviewFlow(
@@ -412,6 +425,17 @@
       if (type) {
         points = type.min_points;
       }
+    }
+  });
+
+  $effect(() => {
+    if (reviewAction === 'accept' && isSelectedMilestoneType && selectedUser) {
+      loadAcceptedProjectsForSelectedUser(selectedUser);
+    }
+    if (!isSelectedMilestoneType) {
+      selectedProject = '';
+      acceptedProjectsError = '';
+      acceptedProjectsLoaded = false;
     }
   });
 
@@ -642,10 +666,56 @@
     }
   }
 
+  async function loadAcceptedProjectsForSelectedUser(userId) {
+    const userKey = String(userId || '');
+    if (!userKey) return;
+    if (acceptedProjectsLoading && acceptedProjectsUser === userKey) return;
+    if (acceptedProjectsLoaded && acceptedProjectsUser === userKey) return;
+
+    const requestId = ++acceptedProjectsRequestId;
+    acceptedProjectsUser = userKey;
+    acceptedProjects = [];
+    acceptedProjectsError = '';
+    acceptedProjectsLoaded = false;
+    acceptedProjectsLoading = true;
+    selectedProject = '';
+
+    try {
+      const response = await stewardAPI.getAcceptedProjectsForUser(userKey);
+      if (requestId !== acceptedProjectsRequestId) return;
+
+      const projects = response.data || [];
+      acceptedProjects = projects;
+      acceptedProjectsLoaded = true;
+
+      const submissionProjectId = submission.project_contribution?.id;
+      if (
+        submissionProjectId &&
+        String(selectedUser) === String(submission.user) &&
+        projects.some(project => String(project.id) === String(submissionProjectId))
+      ) {
+        selectedProject = submissionProjectId;
+      }
+    } catch (err) {
+      if (requestId !== acceptedProjectsRequestId) return;
+      acceptedProjectsError = err.response?.data?.detail || err.message || 'Failed to load accepted projects';
+      acceptedProjectsUser = null;
+      acceptedProjectsLoaded = false;
+    } finally {
+      if (requestId === acceptedProjectsRequestId) {
+        acceptedProjectsLoading = false;
+      }
+    }
+  }
+
   function handleReview() {
     if (onReview) {
       if (isProjectReview && reviewAction === 'accept' && hasRubricGateFailures) {
         showError('Clear all gate failures before accepting this project.');
+        return;
+      }
+      if (reviewAction === 'accept' && isSelectedMilestoneType && !selectedProject) {
+        showError('Select the accepted project this milestone belongs to.');
         return;
       }
 
@@ -660,6 +730,9 @@
         highlight_description: highlightDescription,
         template_id: selectedTemplateId
       };
+      if (isSelectedMilestoneType) {
+        data.project_contribution = selectedProject;
+      }
       if (isProjectReview && (reviewAction === 'accept' || reviewAction === 'reject')) {
         data.rubric_review = buildRubricReviewPayload(rubricState);
       }
@@ -1340,6 +1413,57 @@
                         onSelectionChange={handleContributionSelectionChange}
                       />
                     </div>
+
+                    {#if reviewAction === 'accept' && isSelectedMilestoneType}
+                      <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+                        <label for="project-contribution-{submission.id}" class="block text-sm font-medium text-indigo-950 mb-2">
+                          Related Project <span class="text-red-600">*</span>
+                        </label>
+                        {#if acceptedProjectsLoading}
+                          <div class="rounded-md border border-indigo-100 bg-white px-3 py-2 text-sm text-indigo-700">
+                            Loading accepted projects...
+                          </div>
+                        {:else if acceptedProjectsError}
+                          <div class="rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-red-700">
+                            {acceptedProjectsError}
+                          </div>
+                        {:else if acceptedProjects.length === 0}
+                          <div class="rounded-md border border-yellow-200 bg-white px-3 py-2 text-sm text-yellow-800">
+                            This user has no accepted Projects contributions.
+                          </div>
+                        {:else}
+                          <select
+                            id="project-contribution-{submission.id}"
+                            bind:value={selectedProject}
+                            class="w-full rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          >
+                            <option value="">Select accepted project...</option>
+                            {#each acceptedProjects as project}
+                              <option value={project.id}>
+                                {project.title} (next v{project.next_milestone_version || 1})
+                              </option>
+                            {/each}
+                          </select>
+                          {#if selectedProjectData}
+                            <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-indigo-800">
+                              <span class="rounded-full bg-indigo-100 px-2 py-0.5 font-medium">
+                                Milestone v{selectedProjectData.next_milestone_version || 1}
+                              </span>
+                              {#if selectedProjectData.github_url}
+                                <a
+                                  href={selectedProjectData.github_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  class="font-medium text-primary-600 hover:text-primary-700 hover:underline"
+                                >
+                                  Project Repository ↗
+                                </a>
+                              {/if}
+                            </div>
+                          {/if}
+                        {/if}
+                      </div>
+                    {/if}
 
                     <div class="grid grid-cols-2 gap-4">
                       <div>
