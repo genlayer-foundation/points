@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
@@ -345,11 +346,20 @@ def is_community_contribution(contribution):
     return bool(category and category.slug == 'community')
 
 
+def is_community_social_task_completion(completion):
+    """Return whether a social task completion belongs to the community category."""
+    task = getattr(completion, 'task', None)
+    category = getattr(task, 'category', None)
+    return bool(category and category.slug == 'community')
+
+
 class ContributionDiscordXPState(BaseModel):
     """
-    Per-contribution Discord XP distribution state for community contributions.
-    This intentionally tracks contribution rows, not user aggregates, so each
-    portal award has a clear manual Discord distribution status and audit trail.
+    Per-award Discord XP distribution state for community points. Each row
+    tracks exactly one source: a community contribution or a community social
+    task completion. This intentionally tracks award rows, not user aggregates,
+    so each portal award has a clear manual Discord distribution status and
+    audit trail.
     """
     STATUS_PENDING = 'pending'
     STATUS_DISTRIBUTED = 'distributed'
@@ -363,6 +373,15 @@ class ContributionDiscordXPState(BaseModel):
 
     contribution = models.OneToOneField(
         Contribution,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='discord_xp_state',
+    )
+    social_task_completion = models.OneToOneField(
+        'social_tasks.SocialTaskCompletion',
+        null=True,
+        blank=True,
         on_delete=models.CASCADE,
         related_name='discord_xp_state',
     )
@@ -391,14 +410,31 @@ class ContributionDiscordXPState(BaseModel):
     )
 
     class Meta:
-        ordering = ['-contribution__created_at']
+        ordering = ['-created_at']
         indexes = [
             models.Index(fields=['status', 'distributed_at'], name='contrib_xp_status_dist_idx'),
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    (Q(contribution__isnull=False) & Q(social_task_completion__isnull=True)) |
+                    (Q(contribution__isnull=True) & Q(social_task_completion__isnull=False))
+                ),
+                name='discord_xp_state_single_source',
+            ),
+        ]
+
+    @property
+    def recipient(self):
+        if self.contribution_id:
+            return self.contribution.user
+        return self.social_task_completion.user
 
     @property
     def target_amount(self):
-        return int(self.contribution.frozen_global_points or 0)
+        if self.contribution_id:
+            return int(self.contribution.frozen_global_points or 0)
+        return int(self.social_task_completion.points_awarded or 0)
 
     @property
     def pending_amount(self):
@@ -407,7 +443,7 @@ class ContributionDiscordXPState(BaseModel):
     @property
     def command(self):
         amount = self.pending_amount
-        connection = getattr(self.contribution.user, 'discordconnection', None)
+        connection = getattr(self.recipient, 'discordconnection', None)
         username = getattr(connection, 'platform_username', '') if connection else ''
         if not username or amount <= 0:
             return ''
@@ -416,8 +452,14 @@ class ContributionDiscordXPState(BaseModel):
 
     def clean(self):
         super().clean()
+        if bool(self.contribution_id) == bool(self.social_task_completion_id):
+            raise ValidationError(
+                'Discord XP state must reference exactly one of contribution or social task completion.'
+            )
         if self.contribution_id and not is_community_contribution(self.contribution):
             raise ValidationError('Discord XP state can only be created for community contributions.')
+        if self.social_task_completion_id and not is_community_social_task_completion(self.social_task_completion):
+            raise ValidationError('Discord XP state can only be created for community social task completions.')
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -425,7 +467,8 @@ class ContributionDiscordXPState(BaseModel):
 
     def refresh_status_from_contribution(self, save=True):
         """
-        Reconcile state against the current frozen portal points.
+        Reconcile state against the current frozen portal points (contribution
+        frozen_global_points or social task points_awarded).
         Point reductions below manually-distributed XP are not auto-correctable
         in Discord, so they move to needs_review for steward visibility.
         """
@@ -448,7 +491,9 @@ class ContributionDiscordXPState(BaseModel):
         return self.status
 
     def __str__(self):
-        return f"Discord XP for contribution {self.contribution_id}: {self.status}"
+        if self.contribution_id:
+            return f"Discord XP for contribution {self.contribution_id}: {self.status}"
+        return f"Discord XP for social task completion {self.social_task_completion_id}: {self.status}"
 
 
 class DiscordXPDistributionEvent(BaseModel):
@@ -490,7 +535,7 @@ class DiscordXPDistributionEvent(BaseModel):
         ]
 
     def __str__(self):
-        return f"Discord XP event {self.id} for contribution {self.state.contribution_id}: {self.action}"
+        return f"Discord XP event {self.id} for state {self.state_id}: {self.action}"
 
 
 def sync_discord_xp_state_for_contribution(contribution):
@@ -519,6 +564,36 @@ def sync_discord_xp_state_for_contribution(contribution):
 @receiver(post_save, sender=Contribution)
 def sync_contribution_discord_xp_state(sender, instance, **kwargs):
     sync_discord_xp_state_for_contribution(instance)
+
+
+def sync_discord_xp_state_for_social_task_completion(completion):
+    """
+    Ensure only community social task completions have Discord XP state.
+    Mirrors sync_discord_xp_state_for_contribution for the social task source.
+    """
+    if not completion.pk:
+        return None
+
+    if not is_community_social_task_completion(completion):
+        ContributionDiscordXPState.objects.filter(social_task_completion=completion).delete()
+        return None
+
+    state, _ = ContributionDiscordXPState.objects.get_or_create(
+        social_task_completion=completion,
+        defaults={
+            'status': ContributionDiscordXPState.STATUS_PENDING,
+            'awarded_amount': 0,
+        },
+    )
+    state.refresh_status_from_contribution(save=True)
+    return state
+
+
+# Lazy string sender: social_tasks already depends on contributions (Category
+# FK), so contributions must not import social_tasks models at load time.
+@receiver(post_save, sender='social_tasks.SocialTaskCompletion')
+def sync_social_task_completion_discord_xp_state(sender, instance, **kwargs):
+    sync_discord_xp_state_for_social_task_completion(instance)
 
 
 class SubmittedContribution(BaseModel):

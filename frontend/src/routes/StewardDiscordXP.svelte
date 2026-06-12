@@ -164,7 +164,12 @@
   }
 
   function contributionTitle(row) {
-    return row.contribution_title || row.contribution_type?.name || `Contribution #${row.contribution}`;
+    return row.contribution_title || row.social_task?.name || row.contribution_type?.name || `Contribution #${row.contribution}`;
+  }
+
+  function entryTypeLabel(row) {
+    if (row.source === 'social_task') return 'Social task';
+    return row.contribution_type?.name || 'Community';
   }
 
   function statusLabel(status) {
@@ -200,35 +205,35 @@
     return Boolean(row.discord) &&
       row.status !== 'needs_review' &&
       (row.pending_amount || 0) > 0 &&
-      !busyRows.has(row.contribution);
+      !busyRows.has(row.id);
   }
 
   function canMarkDistributed(row) {
     return Boolean(row.discord) &&
       row.status !== 'needs_review' &&
       (row.pending_amount || 0) > 0 &&
-      !busyRows.has(row.contribution);
+      !busyRows.has(row.id);
   }
 
   function canUnset(row) {
-    return (row.awarded_amount || 0) > 0 && !busyRows.has(row.contribution);
+    return (row.awarded_amount || 0) > 0 && !busyRows.has(row.id);
   }
 
   async function copyCommand(row) {
     if (!canCopy(row)) return;
 
-    busyRows.add(row.contribution);
+    busyRows.add(row.id);
     busyRows = new Set(busyRows);
 
     try {
       await navigator.clipboard.writeText(row.command);
-      const response = await stewardAPI.recordDiscordXPCopy(row.contribution);
+      const response = await stewardAPI.recordDiscordXPCopy(row.id);
       updateRow(response.data);
       showSuccess('XP command copied');
     } catch (err) {
       showError(err.response?.data?.detail || 'Failed to copy XP command');
     } finally {
-      busyRows.delete(row.contribution);
+      busyRows.delete(row.id);
       busyRows = new Set(busyRows);
     }
   }
@@ -236,17 +241,17 @@
   async function markDistributed(row) {
     if (!canMarkDistributed(row)) return;
 
-    busyRows.add(row.contribution);
+    busyRows.add(row.id);
     busyRows = new Set(busyRows);
 
     try {
-      const response = await stewardAPI.markDiscordXPDistributed(row.contribution);
+      const response = await stewardAPI.markDiscordXPDistributed(row.id);
       await applyServerRow(response.data);
       showSuccess('Marked as distributed');
     } catch (err) {
       showError(err.response?.data?.detail || 'Failed to mark distributed');
     } finally {
-      busyRows.delete(row.contribution);
+      busyRows.delete(row.id);
       busyRows = new Set(busyRows);
     }
   }
@@ -254,23 +259,23 @@
   async function unsetDistributed(row) {
     if (!canUnset(row)) return;
 
-    busyRows.add(row.contribution);
+    busyRows.add(row.id);
     busyRows = new Set(busyRows);
 
     try {
-      const response = await stewardAPI.unsetDiscordXPDistributed(row.contribution);
+      const response = await stewardAPI.unsetDiscordXPDistributed(row.id);
       await applyServerRow(response.data);
       showSuccess('Distribution flag unset');
     } catch (err) {
       showError(err.response?.data?.detail || 'Failed to unset distribution flag');
     } finally {
-      busyRows.delete(row.contribution);
+      busyRows.delete(row.id);
       busyRows = new Set(busyRows);
     }
   }
 
   function updateRow(nextRow) {
-    rows = rows.map(row => row.contribution === nextRow.contribution ? nextRow : row);
+    rows = rows.map(row => row.id === nextRow.id ? nextRow : row);
   }
 
   function rowMatchesActiveStatus(row) {
@@ -278,7 +283,7 @@
   }
 
   async function applyServerRow(nextRow) {
-    const existing = rows.find(row => row.contribution === nextRow.contribution);
+    const existing = rows.find(row => row.id === nextRow.id);
     if (!existing) return;
 
     if (rowMatchesActiveStatus(nextRow)) {
@@ -286,7 +291,7 @@
       return;
     }
 
-    rows = rows.filter(row => row.contribution !== nextRow.contribution);
+    rows = rows.filter(row => row.id !== nextRow.id);
     totalCount = Math.max(0, totalCount - 1);
 
     if (rows.length === 0 && totalCount > 0) {
@@ -323,7 +328,7 @@
     <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
       <div>
         <h1 class="text-2xl font-semibold tracking-normal text-gray-950">Discord XP</h1>
-        <div class="mt-1 text-sm text-gray-600">{formatNumber(totalCount)} community contribution{totalCount === 1 ? '' : 's'}</div>
+        <div class="mt-1 text-sm text-gray-600">{formatNumber(totalCount)} community XP {totalCount === 1 ? 'entry' : 'entries'}</div>
       </div>
       <div class="flex flex-wrap gap-2">
         {#each FILTERS as filter}
@@ -394,7 +399,7 @@
                   <td class="max-w-md px-4 py-3 align-top">
                     <div class="line-clamp-2 font-medium text-gray-900">{contributionTitle(row)}</div>
                     <div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500">
-                      <span>{row.contribution_type?.name || 'Community'}</span>
+                      <span>{entryTypeLabel(row)}</span>
                       <span class="text-gray-300">/</span>
                       <span>{formatDate(row.contribution_date)}</span>
                     </div>
@@ -417,7 +422,7 @@
                           disabled={!canUnset(row)}
                           class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-400 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
                         >
-                          {busyRows.has(row.contribution) ? 'Updating...' : 'Unset flag'}
+                          {busyRows.has(row.id) ? 'Updating...' : 'Unset flag'}
                         </button>
                       {:else}
                         <button
@@ -426,7 +431,7 @@
                           disabled={!canCopy(row)}
                           class="rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 {canCopy(row) ? 'border-[#19A663] bg-white text-[#0f7d49] hover:bg-[#e6f7ed]' : ''}"
                         >
-                          {busyRows.has(row.contribution) ? 'Working...' : copyLabel(row)}
+                          {busyRows.has(row.id) ? 'Working...' : copyLabel(row)}
                         </button>
                         <button
                           type="button"

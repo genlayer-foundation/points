@@ -237,7 +237,13 @@
     '/gen-news': GenNews,
     '/gen-tv': GenTV,
 
-    // Foundations (Manifesto / Compass / Whitepaper) — sidebar entry "Manifesto"
+    // Genesis (Manifesto / Compass / Whitepaper)
+    '/genesis': FoundationsManifesto,
+    '/genesis/compass': FoundationsCompass,
+    '/genesis/manifesto': FoundationsManifesto,
+    '/genesis/whitepaper': FoundationsWhitepaper,
+
+    // Legacy Foundations aliases
     '/foundations': FoundationsManifesto,
     '/foundations/compass': FoundationsCompass,
     '/foundations/manifesto': FoundationsManifesto,
@@ -256,6 +262,7 @@
   // Pages that need full-bleed (no padding): How it works + Foundations documents
   let isFullBleedPage = $derived(
     $location === '/how-it-works' ||
+    $location.startsWith('/genesis') ||
     $location.startsWith('/foundations') ||
     $location === '/manifesto'
   );

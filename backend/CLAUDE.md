@@ -130,8 +130,10 @@ backend/
   the surrounding PostgreSQL migration transaction).
   Note: the community leaderboard ranking (`community_xp.utils.effective_community_ranking_queryset`,
   MEE6 + community contributions) does NOT include social-task points — community-category
-  task points are profile-only (`socialTaskTotal` in user stats). Builder / validator
-  category task points DO feed their leaderboards.
+  task points are profile-only (`socialTaskTotal` in user stats) and reach the community
+  ranking only once a steward distributes them as Discord XP (steward Discord XP view →
+  MEE6 picks them up; see the Social Tasks "Discord XP integration" note). Builder /
+  validator category task points DO feed their leaderboards.
 
 ### Social Tasks
 - **Models**: `social_tasks/models.py`
@@ -153,6 +155,19 @@ backend/
     automatically.
   - SocialTaskCompletion - Per-user completion. unique_together (user, task).
     Stores points_awarded + verification_type snapshot + verification_data audit.
+- **Discord XP integration**: community-category completions get a
+  `contributions.ContributionDiscordXPState` row (post_save signal in
+  `contributions/models.py`, registered with the lazy string sender
+  `'social_tasks.SocialTaskCompletion'` to avoid a circular import), so they
+  surface in the steward Discord XP view (`/api/v1/steward-discord-xp/`)
+  alongside community contributions as XP to distribute manually. The state
+  model holds exactly one source (`contribution` XOR `social_task_completion`,
+  DB check constraint); `target_amount` reads `frozen_global_points` or
+  `points_awarded` accordingly. Detail actions (`record-copy`,
+  `mark-distributed`, `unset-distributed`) are keyed by the **state id** (not
+  contribution id). Stewards with 'accept' permission on any community
+  contribution type can manage social-task XP rows. Migration
+  `contributions/0069` backfills states for pre-existing community completions.
 - **Verifier registry**: `social_tasks/verifiers/` package
   - `base.py` exposes `Verifier` base class, `VerifierResult` dataclass, `@register`
     decorator, and dispatch helpers: `verify(task, user)`, `get_choices()`,
@@ -200,8 +215,10 @@ backend/
     offer inline linking for). The frontend never inspects verifier slugs.
   - `POST /api/v1/social-tasks/{slug}/complete/` - Run verification, award atomically (UserRateThrottle 30/min)
 - **URLs**: `social_tasks/urls.py` mounted from `api/urls.py` under `/api/v1/`.
-- **Seeded tasks** (slug, points): `follow-genlayer-x` (10), `join-genlayer-discord` (10),
-  `check-out-genlayer-on-x` (5). All in `community` category. Community ranking is
+- **Seeded tasks** (slug): `follow-genlayer-x`, `join-genlayer-discord`,
+  `check-out-genlayer-on-x`. All in `community` category, all 500 points
+  (migration 0002 bumped the seeds and changed the model default from 10 to
+  500; completions made before the bump keep their frozen `points_awarded`). Community ranking is
   MEE6-based and does not include social-task points, so these seeds award
   profile-only points (`socialTaskTotal`); builder / validator category tasks feed
   their leaderboards when created.
