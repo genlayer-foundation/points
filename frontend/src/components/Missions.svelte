@@ -86,6 +86,10 @@
     return `${count} ${Number(count) === 1 ? 'spot' : 'spots'} left`;
   }
 
+  function formatNumber(value) {
+    return Number(value || 0).toLocaleString();
+  }
+
   function isFull(entity) {
     if (!entity) return false;
     if (entity.is_full === true) return true;
@@ -133,6 +137,10 @@
   function cardGradientStyle(category = activeCategory) {
     const color = getCategoryAccent(category || activeCategory);
     return `background: linear-gradient(180deg, ${rgbaFromHex(color, 0.95)} 0%, ${rgbaFromHex(color, 0.28)} 58%, ${rgbaFromHex(color, 0.06)} 100%);`;
+  }
+
+  function missionTitleStyle(category = activeCategory) {
+    return `color: ${getCategoryAccent(category || activeCategory)};`;
   }
 
   function handleCardClick(event, mission) {
@@ -220,6 +228,7 @@
         {@const pointsLabel = formatPoints(parentType)}
         {@const countdownLabel = mission.end_date && countdowns[mission.id] ? countdowns[mission.id] : 'Ongoing'}
         {@const missionAccentStyle = cardGradientStyle(parentType?.category)}
+        {@const missionTitleAccentStyle = missionTitleStyle(parentType?.category)}
 
         <div
           class="group relative flex w-full cursor-pointer flex-col gap-4 overflow-hidden rounded-[8px] border border-[#eef1f6] bg-white p-4 pl-6 shadow-[0_8px_18px_rgba(31,42,68,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(31,42,68,0.10)] sm:flex-row sm:items-stretch sm:justify-between"
@@ -231,9 +240,10 @@
           <div class="absolute inset-y-0 left-0 w-1.5" style={missionAccentStyle} aria-hidden="true"></div>
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <span class="inline-flex h-6 items-center rounded-full bg-[#f7f8fb] px-2 text-[11px] font-semibold uppercase text-[#667085]">
-                Mission
-              </span>
+              <h3 class="line-clamp-2 max-w-full text-[16px] font-semibold leading-snug sm:text-[17px]" style={missionTitleAccentStyle}>
+                {mission.name}
+              </h3>
+
               <span
                 class="inline-flex h-6 items-center rounded-full px-2 text-[12px] font-semibold"
                 style="background: {countdownLabel === 'Ended' ? '#f2f4f7' : pillColors.pillBg}; color: {countdownLabel === 'Ended' ? '#667085' : pillColors.pillText};"
@@ -245,67 +255,73 @@
                   {capacityLabel}
                 </span>
               {/if}
+              {#if pointsLabel}
+                <span
+                  class="inline-flex h-6 items-center rounded-full px-2 text-[12px] font-semibold"
+                  style="background: {pillColors.pillBg}; color: {pillColors.pillText};"
+                >
+                  {pointsLabel}
+                </span>
+              {/if}
+              {#if parentType}
+                <button
+                  type="button"
+                  onclick={(event) => { event.stopPropagation(); push(`/contribution-type/${parentType.id}`); }}
+                  class="inline-flex h-6 max-w-full items-center rounded-full border border-[#e8ebf2] bg-white px-2 text-[12px] font-semibold text-[#506078] transition hover:border-black hover:text-black"
+                >
+                  <span class="truncate">{parentType.name}</span>
+                </button>
+              {/if}
             </div>
 
-            <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-              <div class="min-w-0">
-                <h3 class="line-clamp-2 text-[16px] font-semibold leading-snug text-black sm:text-[17px]">
-                  {mission.name}
-                </h3>
-
-                {#if mission.description}
-                  <div class="markdown-preview mt-2 text-[13px] leading-5 text-[#6b6b6b]">
-                    {@html renderMarkdown(mission.description)}
-                  </div>
-                {:else}
-                  <p class="mt-2 text-[13px] leading-5 text-[#98a2b3]">
-                    No description available.
-                  </p>
-                {/if}
+            {#if mission.description}
+              <div class="markdown-preview mt-2 text-[13px] leading-5 text-[#6b6b6b]">
+                {@html renderMarkdown(mission.description)}
               </div>
-
-              <div class="flex flex-wrap items-center gap-2 lg:justify-end">
-                {#if pointsLabel}
-                  <span
-                    class="inline-flex h-8 items-center rounded-full px-4 text-[12px] font-semibold"
-                    style="background: {pillColors.pillBg}; color: {pillColors.pillText};"
-                  >
-                    {pointsLabel}
-                  </span>
-                {/if}
-                {#if parentType}
-                  <button
-                    type="button"
-                    onclick={(event) => { event.stopPropagation(); push(`/contribution-type/${parentType.id}`); }}
-                    class="inline-flex h-8 max-w-full items-center rounded-full border border-[#e8ebf2] bg-white px-4 text-[12px] font-semibold text-[#506078] transition hover:border-black hover:text-black"
-                  >
-                    <span class="truncate">{parentType.name}</span>
-                  </button>
-                {/if}
-              </div>
-            </div>
+            {:else}
+              <p class="mt-2 text-[13px] leading-5 text-[#98a2b3]">
+                No description available.
+              </p>
+            {/if}
           </div>
 
-          <div class="flex flex-shrink-0 items-center justify-between gap-2 border-t border-[#eef1f6] pt-4 sm:w-[142px] sm:flex-col sm:items-end sm:justify-between sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
-            <span class="text-[12px] font-medium {submissionClosed ? 'text-[#98a2b3]' : 'text-[#506078]'}">
-              {submissionClosed ? (capacityLabel || 'Submissions closed') : 'Ready to submit'}
-            </span>
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                onclick={(event) => { event.stopPropagation(); push(`/mission/${mission.id}`); }}
-                class="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-2 text-[12px] font-semibold text-[#506078] transition hover:border-black hover:text-black"
-              >
-                Details
-              </button>
-              <button
-                type="button"
-                onclick={(event) => { event.stopPropagation(); !submissionClosed && push(`/submit-contribution?mission=${mission.id}`); }}
-                disabled={submissionClosed}
-                class="inline-flex h-8 items-center justify-center rounded-[8px] px-2 text-[12px] font-semibold transition {submissionClosed ? 'cursor-not-allowed bg-[#f2f4f7] text-[#98a2b3]' : 'bg-black text-white hover:-translate-y-0.5 hover:shadow-[0_10px_18px_rgba(31,42,68,0.14)]'}"
-              >
-                {submitLabel(mission, parentType)}
-              </button>
+          <div class="grid gap-2 border-t border-[#eef1f6] pt-4 sm:w-[300px] sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
+            <div class="grid grid-cols-3 gap-2">
+              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-2">
+                <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">Accepted</p>
+                <p class="mt-0.5 text-[13px] font-semibold text-black">{formatNumber(mission.contributions_count)}</p>
+              </div>
+              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-2">
+                <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">Earned</p>
+                <p class="mt-0.5 text-[13px] font-semibold text-black">{formatNumber(mission.points_earned)} pts</p>
+              </div>
+              <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-2">
+                <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">Contributors</p>
+                <p class="mt-0.5 text-[13px] font-semibold text-black">{formatNumber(mission.unique_users)}</p>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[12px] font-medium {submissionClosed ? 'text-[#98a2b3]' : 'text-[#506078]'}">
+                {submissionClosed ? (capacityLabel || 'Submissions closed') : 'Ready to submit'}
+              </span>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  onclick={(event) => { event.stopPropagation(); push(`/mission/${mission.id}`); }}
+                  class="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-2 text-[12px] font-semibold text-[#506078] transition hover:border-black hover:text-black"
+                >
+                  Details
+                </button>
+                <button
+                  type="button"
+                  onclick={(event) => { event.stopPropagation(); !submissionClosed && push(`/submit-contribution?mission=${mission.id}`); }}
+                  disabled={submissionClosed}
+                  class="inline-flex h-8 items-center justify-center rounded-[8px] px-2 text-[12px] font-semibold transition {submissionClosed ? 'cursor-not-allowed bg-[#f2f4f7] text-[#98a2b3]' : 'bg-black text-white hover:-translate-y-0.5 hover:shadow-[0_10px_18px_rgba(31,42,68,0.14)]'}"
+                >
+                  {submitLabel(mission, parentType)}
+                </button>
+              </div>
             </div>
           </div>
         </div>

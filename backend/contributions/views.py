@@ -156,6 +156,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         ).order_by('-valid_from').values('multiplier_value')[:1]
 
         types_with_stats = queryset.annotate(
+            category_slug=F('category__slug'),
             count=Count('contributions'),
             participants_count=Count('contributions__user', distinct=True),
             last_earned=Coalesce(Max('contributions__contribution_date'), timezone.now()),
@@ -169,6 +170,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             'id', 'name', 'description', 'min_points', 'max_points', 'count',
             'participants_count', 'last_earned', 'total_points_given',
             'is_submittable', 'show_in_contributions', 'current_multiplier',
+            'category_slug',
         )
             
         return Response(list(types_with_stats))
@@ -3150,6 +3152,13 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
                     contribution_type_submission_count,
                     output_field=IntegerField(),
                 ),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            'contributions_count': Count('contributions', distinct=True),
+            'unique_users': Count('contributions__user', distinct=True),
+            'points_earned': Coalesce(
+                Sum('contributions__frozen_global_points'),
                 Value(0),
                 output_field=IntegerField(),
             ),

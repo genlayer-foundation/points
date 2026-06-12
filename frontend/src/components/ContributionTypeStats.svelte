@@ -59,6 +59,10 @@
     return Number(value || 0).toLocaleString();
   }
 
+  function typeCategory(stats) {
+    return stats?.category || stats?.category_slug || activeCategory;
+  }
+
   function formatPoints(stats) {
     if (stats?.min_points == null || stats?.max_points == null || stats?.current_multiplier == null) {
       return '0 pts';
@@ -76,6 +80,10 @@
 
   function cardGradientStyle() {
     return `background: linear-gradient(180deg, ${rgbaFromHex(accentColor, 0.95)} 0%, ${rgbaFromHex(accentColor, 0.28)} 58%, ${rgbaFromHex(accentColor, 0.06)} 100%);`;
+  }
+
+  function titleStyle(stats) {
+    return `color: ${getCategoryAccent(typeCategory(stats))};`;
   }
 
   function handleCardClick(event, stats) {
@@ -174,9 +182,10 @@
           <div class="absolute inset-y-0 left-0 w-1.5" style={cardGradientStyle()} aria-hidden="true"></div>
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <span class="inline-flex h-6 items-center rounded-full bg-[#f7f8fb] px-2 text-[11px] font-semibold uppercase text-[#667085]">
-                Open call
-              </span>
+              <h3 class="line-clamp-2 max-w-full text-[16px] font-semibold leading-snug sm:text-[17px]" style={titleStyle(stats)}>
+                {stats.name}
+              </h3>
+
               <span
                 class="inline-flex h-6 items-center rounded-full px-2 text-[12px] font-semibold"
                 style="background: {pillColors.pillBg}; color: {pillColors.pillText};"
@@ -194,21 +203,15 @@
               {/if}
             </div>
 
-            <div class="mt-4 min-w-0">
-              <h3 class="line-clamp-2 text-[16px] font-semibold leading-snug text-black sm:text-[17px]">
-                  {stats.name}
-              </h3>
-
-              {#if stats.description}
-                <div class="markdown-preview mt-2 text-[13px] leading-5 text-[#6b6b6b]">
-                  {@html renderMarkdown(stats.description)}
-                </div>
-              {:else}
-                <p class="mt-2 text-[13px] leading-5 text-[#98a2b3]">
-                  No description available.
-                </p>
-              {/if}
-            </div>
+            {#if stats.description}
+              <div class="markdown-preview mt-2 text-[13px] leading-5 text-[#6b6b6b]">
+                {@html renderMarkdown(stats.description)}
+              </div>
+            {:else}
+              <p class="mt-2 text-[13px] leading-5 text-[#98a2b3]">
+                No description available.
+              </p>
+            {/if}
           </div>
 
           <div class="grid gap-2 border-t border-[#eef1f6] pt-4 lg:w-[300px] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
