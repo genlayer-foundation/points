@@ -6,6 +6,7 @@
   import { userStore } from '../lib/userStore.js';
   import { contributionsAPI } from '../lib/api.js';
   import { stewardPermissions } from '../lib/stewardPermissions.js';
+  import Avatar from './Avatar.svelte';
 
   let { isOpen = $bindable(false), collapsed = $bindable(false) } = $props();
   let stewardPermissionMap = $state({});
@@ -139,6 +140,9 @@
 
   let displayName = $derived(
     $userStore.user?.name || ($authState.address ? shortAddress($authState.address) : '')
+  );
+  let sidebarUser = $derived(
+    $userStore.user || ($authState.address ? { address: $authState.address } : null)
   );
 </script>
 
@@ -620,16 +624,13 @@
       title={collapsed ? (displayName || 'Profile') : ''}
     >
       <div class="flex items-center gap-2">
-        <!-- Avatar circle -->
-        <div class="w-8 h-8 rounded-full bg-[#f5f5f5] flex items-center justify-center flex-shrink-0">
-          <span class="text-xs font-semibold text-gray-700">
-            {#if displayName}
-              {displayName[0].toUpperCase()}
-            {:else}
-              ?
-            {/if}
-          </span>
-        </div>
+        {#if sidebarUser}
+          <Avatar user={sidebarUser} size="sm" className="flex-shrink-0" />
+        {:else}
+          <div class="w-8 h-8 rounded-full bg-[#f5f5f5] flex items-center justify-center flex-shrink-0">
+            <span class="text-xs font-semibold text-gray-700">?</span>
+          </div>
+        {/if}
         {#if !collapsed}
           <span class="text-[14px] font-medium text-black tracking-[0.28px] truncate text-left">
             {displayName || 'Connect wallet'}
@@ -1006,15 +1007,13 @@
       class="w-full flex items-center justify-between pl-2 pr-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors"
     >
       <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-full bg-[#f5f5f5] flex items-center justify-center flex-shrink-0">
-          <span class="text-xs font-semibold text-gray-700">
-            {#if displayName}
-              {displayName[0].toUpperCase()}
-            {:else}
-              ?
-            {/if}
-          </span>
-        </div>
+        {#if sidebarUser}
+          <Avatar user={sidebarUser} size="sm" className="flex-shrink-0" />
+        {:else}
+          <div class="w-8 h-8 rounded-full bg-[#f5f5f5] flex items-center justify-center flex-shrink-0">
+            <span class="text-xs font-semibold text-gray-700">?</span>
+          </div>
+        {/if}
         <span class="text-[14px] font-medium text-black tracking-[0.28px] truncate text-left">
           {displayName || 'Connect wallet'}
         </span>
