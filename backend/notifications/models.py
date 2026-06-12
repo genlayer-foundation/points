@@ -36,10 +36,14 @@ class Notification(BaseModel):
     AUDIENCE_ALL = 'all'
     AUDIENCE_VALIDATORS = 'validators'
     AUDIENCE_STEWARDS = 'stewards'
+    AUDIENCE_BUILDERS = 'builders'
+    AUDIENCE_COMMUNITY = 'community'
     AUDIENCE_CHOICES = [
         (AUDIENCE_ALL, 'All users'),
         (AUDIENCE_VALIDATORS, 'Validators'),
         (AUDIENCE_STEWARDS, 'Stewards'),
+        (AUDIENCE_BUILDERS, 'Builders'),
+        (AUDIENCE_COMMUNITY, 'Community members'),
     ]
 
     recipient = models.ForeignKey(

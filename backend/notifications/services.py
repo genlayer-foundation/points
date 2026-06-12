@@ -165,6 +165,12 @@ def estimate_broadcast_reach(audience):
     if audience == Notification.AUDIENCE_STEWARDS:
         from stewards.models import Steward
         return Steward.objects.filter(user__is_active=True).count()
+    if audience == Notification.AUDIENCE_BUILDERS:
+        from builders.models import Builder
+        return Builder.objects.filter(user__is_active=True).count()
+    if audience == Notification.AUDIENCE_COMMUNITY:
+        from creators.models import Creator
+        return Creator.objects.filter(user__is_active=True).count()
     return User.objects.filter(is_active=True).count()
 
 
@@ -186,6 +192,12 @@ def audiences_for(user):
     from stewards.models import Steward
     if Steward.objects.filter(user=user).exists():
         audiences.append(Notification.AUDIENCE_STEWARDS)
+    from builders.models import Builder
+    if Builder.objects.filter(user=user).exists():
+        audiences.append(Notification.AUDIENCE_BUILDERS)
+    from creators.models import Creator
+    if Creator.objects.filter(user=user).exists():
+        audiences.append(Notification.AUDIENCE_COMMUNITY)
     return audiences
 
 
@@ -495,6 +507,51 @@ def broadcast_poap(poap_drop, actor=None, message=''):
             'poap_drop_slug': poap_drop.slug,
         },
         source=poap_drop,
+    )
+
+
+SOCIAL_TASK_AUDIENCES = {
+    'builder': Notification.AUDIENCE_BUILDERS,
+    'validator': Notification.AUDIENCE_VALIDATORS,
+    'community': Notification.AUDIENCE_COMMUNITY,
+}
+
+SOCIAL_TASK_ROUTES = {
+    'builder': '/builders/tasks',
+    'validator': '/validators/tasks',
+    'community': '/community/tasks',
+}
+
+
+def broadcast_social_task(task, actor=None, message=''):
+    """Announce a social task to the role its category targets.
+
+    Builder tasks go to builders, validator tasks to validators, community
+    tasks to community members (Creator profiles) — never to everyone.
+    """
+    category_slug = task.category.slug
+    audience = SOCIAL_TASK_AUDIENCES.get(category_slug)
+    if audience is None:
+        # SocialTask.clean() restricts categories to the mapped three; an
+        # unmapped slug means a new surface shipped without a notification
+        # decision. Fail loudly instead of over-notifying everyone.
+        raise ValueError(f"No notification audience mapped for social task category '{category_slug}'")
+
+    return broadcast(
+        'social_task.published',
+        actor=actor,
+        audience=audience,
+        title=f"New task: {task.name}",
+        body=message or task.description or f'Complete it to earn {task.points} points.',
+        link_url=internal_route(SOCIAL_TASK_ROUTES[category_slug]),
+        link_label='View tasks',
+        payload={
+            'social_task_id': task.pk,
+            'social_task_slug': task.slug,
+            'category': category_slug,
+            'points': task.points,
+        },
+        source=task,
     )
 
 

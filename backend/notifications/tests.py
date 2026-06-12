@@ -778,3 +778,103 @@ class CustomNotificationAdminTests(TestCase):
         self.assertEqual(response.status_code, 302)
         draft.refresh_from_db()
         self.assertEqual(draft.status, CustomNotification.STATUS_SENT)
+
+
+class SocialTaskBroadcastTests(TestCase):
+    def setUp(self):
+        from contributions.models import Category
+        from social_tasks.models import SocialTask
+
+        self.builder_user = make_user('builder-task@test.com', '0xb1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1')
+        self.community_user = make_user('creator-task@test.com', '0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1')
+        self.plain_user = make_user('plain-task@test.com', '0xd1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1')
+
+        from builders.models import Builder
+        from creators.models import Creator
+        Builder.objects.create(user=self.builder_user)
+        Creator.objects.create(user=self.community_user)
+
+        self.builder_category, _ = Category.objects.get_or_create(
+            slug='builder', defaults={'name': 'Builder', 'description': 'x'}
+        )
+        self.community_category, _ = Category.objects.get_or_create(
+            slug='community', defaults={'name': 'Community', 'description': 'x'}
+        )
+        self.task = SocialTask.objects.create(
+            name='Follow GenLayer',
+            slug='follow-genlayer-notif',
+            category=self.builder_category,
+            points=10,
+            verification_type='twitter_follow',
+            target_handle='genlayer',
+        )
+
+    def test_new_audiences_resolve_by_role(self):
+        self.assertIn(Notification.AUDIENCE_BUILDERS, services.audiences_for(self.builder_user))
+        self.assertIn(Notification.AUDIENCE_COMMUNITY, services.audiences_for(self.community_user))
+        self.assertNotIn(Notification.AUDIENCE_BUILDERS, services.audiences_for(self.plain_user))
+        self.assertNotIn(Notification.AUDIENCE_COMMUNITY, services.audiences_for(self.plain_user))
+
+    def test_builder_task_broadcast_targets_builders_only(self):
+        notification = services.broadcast_social_task(self.task)
+
+        self.assertEqual(notification.audience, Notification.AUDIENCE_BUILDERS)
+        self.assertEqual(notification.event_type, 'social_task.published')
+        self.assertEqual(notification.link_url, '#/builders/tasks')
+        self.assertEqual(notification.payload['points'], 10)
+
+        self.assertIn(notification.pk, [n.pk for n in services.feed_for(self.builder_user)])
+        self.assertNotIn(notification.pk, [n.pk for n in services.feed_for(self.plain_user)])
+        self.assertNotIn(notification.pk, [n.pk for n in services.feed_for(self.community_user)])
+
+    def test_community_task_broadcast_targets_community(self):
+        self.task.category = self.community_category
+        self.task.save()
+
+        notification = services.broadcast_social_task(self.task, message='Join us!')
+
+        self.assertEqual(notification.audience, Notification.AUDIENCE_COMMUNITY)
+        self.assertEqual(notification.body, 'Join us!')
+        self.assertEqual(notification.link_url, '#/community/tasks')
+        self.assertIn(notification.pk, [n.pk for n in services.feed_for(self.community_user)])
+        self.assertNotIn(notification.pk, [n.pk for n in services.feed_for(self.builder_user)])
+
+    def test_rebroadcast_same_task_updates_single_row(self):
+        first = services.broadcast_social_task(self.task)
+        second = services.broadcast_social_task(self.task, message='Reminder')
+
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(
+            Notification.objects.filter(event_type='social_task.published').count(), 1
+        )
+
+    def test_admin_save_with_checkbox_broadcasts(self):
+        admin_user = User.objects.create_superuser(
+            email='task-admin@test.com', password='adminpass123'
+        )
+        self.client.force_login(admin_user)
+        response = self.client.post(
+            f'/admin/social_tasks/socialtask/{self.task.pk}/change/',
+            {
+                'name': self.task.name,
+                'slug': self.task.slug,
+                'description': '',
+                'category': str(self.builder_category.pk),
+                'points': 10,
+                'order': 0,
+                'action_url': self.task.action_url,
+                'cta_text': 'Complete',
+                'verification_type': 'twitter_follow',
+                'target_handle': 'genlayer',
+                'target_guild_id': '',
+                'target_repo': '',
+                'is_active': 'on',
+                'starts_at_0': '', 'starts_at_1': '',
+                'ends_at_0': '', 'ends_at_1': '',
+                'broadcast_notification': 'on',
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        notification = Notification.objects.get(event_type='social_task.published')
+        self.assertEqual(notification.audience, Notification.AUDIENCE_BUILDERS)
+        self.assertEqual(notification.actor, admin_user)

@@ -41,6 +41,9 @@ _EVENT_TYPES = [
     EventType('mission.published', category='content'),
     EventType('stream.published', category='content'),
     EventType('poap.published', category='content'),
+    # Audience resolved per task category (builders/validators/community)
+    # by services.broadcast_social_task.
+    EventType('social_task.published', category='content'),
     EventType(
         'node_version.published',
         category='validator',

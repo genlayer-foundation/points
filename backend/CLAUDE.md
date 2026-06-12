@@ -235,7 +235,7 @@ backend/
 
 ### Notifications
 - **Models**: `notifications/models.py`
-  - `Notification` - Personal (has `recipient`) or broadcast (`recipient=None` + `audience`: all/validators/stewards). Broadcasts are ONE row regardless of user count; users see broadcasts created after their `date_joined`. Frozen copy (`title`/`body`/`link_url`), `payload` JSON for future channel renderers, `dedupe_key` (re-broadcasting a source object refreshes + resurfaces instead of duplicating).
+  - `Notification` - Personal (has `recipient`) or broadcast (`recipient=None` + `audience`: all/validators/stewards/builders/community). Audiences resolve via the role OneToOnes (Validator/Steward/Builder/Creator) in `services.audiences_for`. Broadcasts are ONE row regardless of user count; users see broadcasts created after their `date_joined`. Frozen copy (`title`/`body`/`link_url`), `payload` JSON for future channel renderers, `dedupe_key` (re-broadcasting a source object refreshes + resurfaces instead of duplicating).
   - `NotificationReceipt` - Lazy per-user read state for broadcast rows (created on read).
   - `CustomNotification` - Admin-composed campaign: title/markdown body/optional link + targeting (`everyone` | `roles` union of builders/validators/stewards/creators | hand-picked `target_users` M2M | pasted `target_wallets`) + delivery record (`status` draft/sent, `sent_count`, `unmatched_wallets`, `channels` reserved for email/Telegram).
 - **Campaigns**: `notifications/campaigns.py`
@@ -245,8 +245,8 @@ backend/
 - **Registry**: `notifications/registry.py` - Single source of truth for event types (category, priority, default audience, future channels). **Adding a new notification = register an EventType here + emit it from the producer.**
 - **Services**: `notifications/services.py`
   - Core: `notify()` (personal), `broadcast()` (audience-wide single row), `feed_for(user)`, `mark_notification_read()`, `mark_all_read()`
-  - Producers: `notify_submission_review`, `notify_contribution_highlighted` (via post_save receiver), `notify_referral_joined` (ethereum_auth login), `notify_validator_graduated` (users admin action), `broadcast_featured_content/partner/alert/contribution_type/mission/stream/poap/target_node_version`
-- **Admin mixin**: `notifications/admin_mixins.py` - `BroadcastNotificationAdminMixin` adds an off-by-default "Broadcast notification now" checkbox + bulk action to any ModelAdmin (`broadcast_service`, `broadcast_eligible` config). Applied to FeaturedContent, Alert, ContributionType, Mission, Partner, Stream, PoapDrop, TargetNodeVersion admins. Saving/activating stays silent unless explicitly checked.
+  - Producers: `notify_submission_review`, `notify_contribution_highlighted` (via post_save receiver), `notify_referral_joined` (ethereum_auth login), `notify_validator_graduated` (users admin action), `broadcast_featured_content/partner/alert/contribution_type/mission/stream/poap/target_node_version`, `broadcast_social_task` (audience derived from the task's category: builder→builders, validator→validators, community→community members)
+- **Admin mixin**: `notifications/admin_mixins.py` - `BroadcastNotificationAdminMixin` adds an off-by-default "Broadcast notification now" checkbox + bulk action to any ModelAdmin (`broadcast_service`, `broadcast_eligible` config). Applied to FeaturedContent, Alert, ContributionType, Mission, Partner, Stream, PoapDrop, TargetNodeVersion, SocialTask admins. Saving/activating stays silent unless explicitly checked.
 - **Views**: `notifications/views.py`
   - `/api/v1/notifications/` - Auth-required feed (reverse-chronological; `?unread=true`, `?category=` filters)
   - `/api/v1/notifications/unread-count/` - Unread badge count
