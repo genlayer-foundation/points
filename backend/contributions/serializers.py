@@ -932,6 +932,12 @@ class StewardSubmissionReviewSerializer(serializers.Serializer):
         required=False,
         help_text="Contribution type (can be changed from original)"
     )
+    project_contribution = serializers.PrimaryKeyRelatedField(
+        queryset=Contribution.objects.filter(contribution_type__slug='projects'),
+        required=False,
+        allow_null=True,
+        help_text="Accepted Projects contribution to link when accepting as a milestone"
+    )
     points = serializers.IntegerField(
         required=False,
         min_value=0,
