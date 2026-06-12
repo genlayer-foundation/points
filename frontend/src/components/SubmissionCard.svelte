@@ -433,7 +433,6 @@
       loadAcceptedProjectsForSelectedUser(selectedUser);
     }
     if (!isSelectedMilestoneType) {
-      selectedProject = '';
       acceptedProjectsError = '';
       acceptedProjectsLoaded = false;
     }
@@ -673,20 +672,25 @@
     if (acceptedProjectsLoaded && acceptedProjectsUser === userKey) return;
 
     const requestId = ++acceptedProjectsRequestId;
+    const previousSelection = String(selectedProject || '');
     acceptedProjectsUser = userKey;
     acceptedProjects = [];
     acceptedProjectsError = '';
     acceptedProjectsLoaded = false;
     acceptedProjectsLoading = true;
-    selectedProject = '';
 
     try {
-      const response = await stewardAPI.getAcceptedProjectsForUser(userKey);
+      const response = await stewardAPI.getAcceptedProjectsForUser(userKey, submission.id);
       if (requestId !== acceptedProjectsRequestId) return;
 
       const projects = response.data || [];
       acceptedProjects = projects;
       acceptedProjectsLoaded = true;
+
+      if (previousSelection && projects.some(project => String(project.id) === previousSelection)) {
+        selectedProject = previousSelection;
+        return;
+      }
 
       const submissionProjectId = submission.project_contribution?.id;
       if (
@@ -695,12 +699,15 @@
         projects.some(project => String(project.id) === String(submissionProjectId))
       ) {
         selectedProject = submissionProjectId;
+      } else {
+        selectedProject = '';
       }
     } catch (err) {
       if (requestId !== acceptedProjectsRequestId) return;
       acceptedProjectsError = err.response?.data?.detail || err.message || 'Failed to load accepted projects';
       acceptedProjectsUser = null;
       acceptedProjectsLoaded = false;
+      selectedProject = '';
     } finally {
       if (requestId === acceptedProjectsRequestId) {
         acceptedProjectsLoading = false;

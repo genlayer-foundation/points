@@ -2658,10 +2658,18 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         from users.models import User
 
         user_id = request.query_params.get('user')
+        submission_id = request.query_params.get('submission')
         if not user_id:
             return Response(
                 {'detail': 'A user query parameter is required.'},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        submission = None
+        if submission_id:
+            submission = get_object_or_404(
+                self._visible_submission_queryset(),
+                pk=submission_id,
             )
 
         try:
@@ -2683,7 +2691,10 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 'title': project_contribution_display_title(contribution),
                 'created_at': contribution.created_at,
                 'github_url': project_contribution_github_url(contribution),
-                'next_milestone_version': next_milestone_version(contribution),
+                'next_milestone_version': next_milestone_version(
+                    contribution,
+                    exclude_submission_id=submission.id if submission else None,
+                ),
             }
             for contribution in project_contributions
         ]

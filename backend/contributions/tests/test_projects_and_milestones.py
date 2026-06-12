@@ -354,6 +354,29 @@ class ProjectsAndMilestonesTest(TestCase):
             'https://github.com/example/cognocracy',
         )
 
+    def test_steward_accepted_projects_endpoint_excludes_current_submission_version(self):
+        """Show the current milestone version when reviewing an already-linked milestone."""
+        project_contribution = self._accepted_project_contribution()
+        submission = SubmittedContribution.objects.create(
+            user=self.user,
+            contribution_type=self.milestone_type,
+            project_contribution=project_contribution,
+            milestone_version=1,
+            contribution_date=timezone.now(),
+            title='Milestone shipped',
+            notes='Milestone details',
+        )
+
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.get(
+            '/api/v1/steward-submissions/accepted-projects/',
+            {'user': self.user.id, 'submission': submission.id},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]['id'], project_contribution.id)
+        self.assertEqual(response.data[0]['next_milestone_version'], 1)
+
     def test_accepting_submission_as_milestone_uses_selected_project_contribution(self):
         """Accept a submission as a milestone linked to the steward-selected project."""
         project_contribution = self._accepted_project_contribution()
