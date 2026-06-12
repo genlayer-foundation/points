@@ -156,6 +156,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
         ).order_by('-valid_from').values('multiplier_value')[:1]
 
         types_with_stats = queryset.annotate(
+            category_slug=F('category__slug'),
             count=Count('contributions'),
             participants_count=Count('contributions__user', distinct=True),
             last_earned=Coalesce(Max('contributions__contribution_date'), timezone.now()),
@@ -169,6 +170,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             'id', 'name', 'description', 'min_points', 'max_points', 'count',
             'participants_count', 'last_earned', 'total_points_given',
             'is_submittable', 'show_in_contributions', 'current_multiplier',
+            'category_slug',
         )
             
         return Response(list(types_with_stats))
@@ -3172,6 +3174,10 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
         ).values('contribution_type_id').annotate(
             count=Count('pk')
         ).values('count')
+        multiplier_field = DecimalField(max_digits=10, decimal_places=2)
+        current_multiplier = GlobalLeaderboardMultiplier.objects.filter(
+            contribution_type_id=OuterRef('contribution_type_id')
+        ).order_by('-valid_from').values('multiplier_value')[:1]
 
         annotations = {
             'submission_count': Coalesce(
@@ -3184,6 +3190,18 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
                     contribution_type_submission_count,
                     output_field=IntegerField(),
                 ),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            'contribution_type_current_multiplier_value': Coalesce(
+                Subquery(current_multiplier, output_field=multiplier_field),
+                Value(1.0, output_field=multiplier_field),
+                output_field=multiplier_field,
+            ),
+            'contributions_count': Count('contributions', distinct=True),
+            'unique_users': Count('contributions__user', distinct=True),
+            'points_earned': Coalesce(
+                Sum('contributions__frozen_global_points'),
                 Value(0),
                 output_field=IntegerField(),
             ),

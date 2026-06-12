@@ -60,6 +60,7 @@ class LightContributionTypeSerializer(serializers.Serializer):
     min_points = serializers.IntegerField(read_only=True)
     max_points = serializers.IntegerField(read_only=True)
     rubric_extra_points = serializers.IntegerField(read_only=True)
+    current_multiplier = serializers.SerializerMethodField()
     max_submissions = serializers.IntegerField(read_only=True)
     review_flow = serializers.CharField(read_only=True)
     # Include category slug only, not the full category object
@@ -68,6 +69,18 @@ class LightContributionTypeSerializer(serializers.Serializer):
     def get_category(self, obj):
         """Return just the category slug."""
         return obj.category.slug if obj.category else None
+
+    def get_current_multiplier(self, obj):
+        """Return the active point multiplier for nested contribution type cards."""
+        annotated_multiplier = getattr(obj, 'current_multiplier_value', None)
+        if annotated_multiplier is not None:
+            return float(annotated_multiplier)
+
+        from leaderboard.models import GlobalLeaderboardMultiplier
+        try:
+            return float(GlobalLeaderboardMultiplier.get_current_multiplier_value(obj))
+        except Exception:
+            return 1.0
 
 
 class LightMissionSerializer(serializers.Serializer):
@@ -1456,6 +1469,9 @@ class MissionSerializer(serializers.ModelSerializer):
     user_submission_count = serializers.SerializerMethodField()
     user_submissions_remaining = serializers.SerializerMethodField()
     user_is_full = serializers.SerializerMethodField()
+    contributions_count = serializers.SerializerMethodField()
+    unique_users = serializers.SerializerMethodField()
+    points_earned = serializers.SerializerMethodField()
 
     class Meta:
         model = Mission
@@ -1467,6 +1483,7 @@ class MissionSerializer(serializers.ModelSerializer):
             'submission_count', 'submissions_remaining', 'is_full',
             'user_submission_count', 'user_submissions_remaining',
             'user_is_full',
+            'contributions_count', 'unique_users', 'points_earned',
             'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -1476,6 +1493,14 @@ class MissionSerializer(serializers.ModelSerializer):
 
     def get_contribution_type_details(self, obj):
         contribution_type = obj.contribution_type
+        annotated_multiplier = getattr(
+            obj,
+            'contribution_type_current_multiplier_value',
+            None,
+        )
+        if annotated_multiplier is not None:
+            contribution_type.current_multiplier_value = annotated_multiplier
+
         data = LightContributionTypeSerializer(contribution_type).data
         submission_count = getattr(obj, 'contribution_type_submission_count', None)
         max_submissions = contribution_type.max_submissions
@@ -1502,6 +1527,26 @@ class MissionSerializer(serializers.ModelSerializer):
 
     def get_is_full(self, obj):
         return obj.is_full()
+
+    def get_contributions_count(self, obj):
+        value = getattr(obj, 'contributions_count', None)
+        if value is not None:
+            return value
+        return obj.contributions.count()
+
+    def get_unique_users(self, obj):
+        value = getattr(obj, 'unique_users', None)
+        if value is not None:
+            return value
+        return obj.contributions.values('user').distinct().count()
+
+    def get_points_earned(self, obj):
+        value = getattr(obj, 'points_earned', None)
+        if value is not None:
+            return value
+        return obj.contributions.aggregate(
+            total=models.Sum('frozen_global_points')
+        )['total'] or 0
 
     def _current_user(self):
         request = self.context.get('request')

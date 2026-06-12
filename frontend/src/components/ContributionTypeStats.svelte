@@ -5,6 +5,7 @@
   import { parseMarkdown } from '../lib/markdownLoader.js';
   import { getCategoryAccent, getCategoryPillColors } from '../lib/categoryColors.js';
   import { rgbaFromHex } from '../lib/categoryPresentation.js';
+  import { isInteractiveTarget, stripPreviewMedia } from '../lib/domHelpers.js';
 
   let typeStats = $state(/** @type {any[]} */ ([]));
   let loading = $state(true);
@@ -58,6 +59,10 @@
     return Number(value || 0).toLocaleString();
   }
 
+  function typeCategory(stats) {
+    return stats?.category_slug || activeCategory;
+  }
+
   function formatPoints(stats) {
     if (stats?.min_points == null || stats?.max_points == null || stats?.current_multiplier == null) {
       return '0 pts';
@@ -70,19 +75,26 @@
 
   function renderMarkdown(text) {
     if (!text) return '';
-    return parseMarkdown(text);
+    return stripPreviewMedia(parseMarkdown(text));
   }
 
-  function cardGradientStyle() {
-    return `background: linear-gradient(180deg, ${rgbaFromHex(accentColor, 0.95)} 0%, ${rgbaFromHex(accentColor, 0.28)} 58%, ${rgbaFromHex(accentColor, 0.06)} 100%);`;
+  function cardGradientStyle(category = activeCategory) {
+    const color = getCategoryAccent(category || activeCategory);
+    return `background: linear-gradient(180deg, ${rgbaFromHex(color, 0.95)} 0%, ${rgbaFromHex(color, 0.28)} 58%, ${rgbaFromHex(color, 0.06)} 100%);`;
+  }
+
+  function titleStyle(stats) {
+    return `color: ${getCategoryAccent(typeCategory(stats))};`;
   }
 
   function handleCardClick(event, stats) {
-    if (event.target.closest('button') || event.target.closest('a')) return;
+    if (isInteractiveTarget(event)) return;
     push(`/contribution-type/${stats.id}`);
   }
 
   function handleCardKeydown(event, stats) {
+    if (isInteractiveTarget(event)) return;
+
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       handleCardClick(event, stats);
@@ -130,7 +142,7 @@
         </h2>
         {#if !loading && !error}
           <span class="inline-flex h-6 items-center rounded-full border border-[#e8ebf2] bg-white px-4 text-[12px] font-semibold text-[#506078]">
-            {typeStats.length} {typeStats.length === 1 ? 'type' : 'types'}
+            {submittableTypes.length} {submittableTypes.length === 1 ? 'type' : 'types'}
           </span>
           <span class="inline-flex h-6 items-center rounded-full border border-[#e8ebf2] bg-white px-4 text-[12px] font-semibold text-[#506078]">
             {openTypes.length} open
@@ -170,12 +182,13 @@
           role="link"
           tabindex="0"
         >
-          <div class="absolute inset-y-0 left-0 w-1.5" style={cardGradientStyle()} aria-hidden="true"></div>
+          <div class="absolute inset-y-0 left-0 w-1.5" style={cardGradientStyle(typeCategory(stats))} aria-hidden="true"></div>
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <span class="inline-flex h-6 items-center rounded-full bg-[#f7f8fb] px-2 text-[11px] font-semibold uppercase text-[#667085]">
-                Open call
-              </span>
+              <h3 class="line-clamp-2 max-w-full text-[16px] font-semibold leading-snug sm:text-[17px]" style={titleStyle(stats)}>
+                {stats.name}
+              </h3>
+
               <span
                 class="inline-flex h-6 items-center rounded-full px-2 text-[12px] font-semibold"
                 style="background: {pillColors.pillBg}; color: {pillColors.pillText};"
@@ -193,21 +206,15 @@
               {/if}
             </div>
 
-            <div class="mt-4 min-w-0">
-              <h3 class="line-clamp-2 text-[16px] font-semibold leading-snug text-black sm:text-[17px]">
-                  {stats.name}
-              </h3>
-
-              {#if stats.description}
-                <div class="markdown-preview mt-2 text-[13px] leading-5 text-[#6b6b6b]">
-                  {@html renderMarkdown(stats.description)}
-                </div>
-              {:else}
-                <p class="mt-2 text-[13px] leading-5 text-[#98a2b3]">
-                  No description available.
-                </p>
-              {/if}
-            </div>
+            {#if stats.description}
+              <div class="markdown-preview mt-2 text-[13px] leading-5 text-[#6b6b6b]">
+                {@html renderMarkdown(stats.description)}
+              </div>
+            {:else}
+              <p class="mt-2 text-[13px] leading-5 text-[#98a2b3]">
+                No description available.
+              </p>
+            {/if}
           </div>
 
           <div class="grid gap-2 border-t border-[#eef1f6] pt-4 lg:w-[300px] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
@@ -313,7 +320,6 @@
     content: ' / ';
   }
 
-  .markdown-preview :global(img),
   .markdown-preview :global(hr) {
     display: none;
   }
