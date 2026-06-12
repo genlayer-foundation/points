@@ -214,10 +214,11 @@ backend/
     offer inline linking for). The frontend never inspects verifier slugs.
   - `POST /api/v1/social-tasks/{slug}/complete/` - Run verification, award atomically (UserRateThrottle 30/min)
 - **URLs**: `social_tasks/urls.py` mounted from `api/urls.py` under `/api/v1/`.
-- **Seeded tasks** (slug): `follow-genlayer-x`, `join-genlayer-discord`,
-  `check-out-genlayer-on-x`. All in `community` category, all 500 points
+- **Active seeded tasks** (slug): `follow-genlayer-x`, `join-genlayer-discord`.
+  Both are in the `community` category and award 500 points
   (migration 0002 bumped the seeds and changed the model default from 10 to
-  500; completions made before the bump keep their frozen `points_awarded`). Community ranking is
+  500; migration 0003 deactivated `check-out-genlayer-on-x`; completions made
+  before the bump keep their frozen `points_awarded`). Community ranking is
   MEE6-based and does not include social-task points, so these seeds award
   profile-only points (`socialTaskTotal`); builder / validator category tasks feed
   their leaderboards when created.
