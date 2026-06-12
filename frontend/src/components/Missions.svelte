@@ -8,6 +8,7 @@
   import { currentCategory } from '../stores/category.js';
   import { getCategoryAccent, getCategoryPillColors } from '../lib/categoryColors.js';
   import { rgbaFromHex } from '../lib/categoryPresentation.js';
+  import { isInteractiveTarget, stripPreviewMedia } from '../lib/domHelpers.js';
 
   let missions = $state([]);
   let loading = $state(true);
@@ -123,20 +124,6 @@
     return min === max ? `${min} pts` : `${min}-${max} pts`;
   }
 
-  function stripPreviewMedia(html) {
-    if (!html) return '';
-
-    if (typeof DOMParser !== 'undefined') {
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      doc.querySelectorAll('img, picture, source').forEach((node) => node.remove());
-      return doc.body.innerHTML;
-    }
-
-    return html
-      .replace(/<picture\b[\s\S]*?<\/picture>/gi, '')
-      .replace(/<\s*(img|source)\b[^>]*>/gi, '');
-  }
-
   function renderMarkdown(text) {
     if (!text) return '';
     return stripPreviewMedia(parseMarkdown(text));
@@ -156,11 +143,6 @@
 
   function missionTitleStyle(category = activeCategory) {
     return `color: ${getCategoryAccent(category || activeCategory)};`;
-  }
-
-  function isInteractiveTarget(event) {
-    const interactiveTarget = event.target?.closest?.('button, a, input, select, textarea, [role="button"], [role="link"]');
-    return Boolean(interactiveTarget && interactiveTarget !== event.currentTarget);
   }
 
   function handleCardClick(event, mission) {

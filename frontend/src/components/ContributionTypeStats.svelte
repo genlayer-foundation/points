@@ -5,6 +5,7 @@
   import { parseMarkdown } from '../lib/markdownLoader.js';
   import { getCategoryAccent, getCategoryPillColors } from '../lib/categoryColors.js';
   import { rgbaFromHex } from '../lib/categoryPresentation.js';
+  import { isInteractiveTarget, stripPreviewMedia } from '../lib/domHelpers.js';
 
   let typeStats = $state(/** @type {any[]} */ ([]));
   let loading = $state(true);
@@ -59,7 +60,7 @@
   }
 
   function typeCategory(stats) {
-    return stats?.category || stats?.category_slug || activeCategory;
+    return stats?.category_slug || activeCategory;
   }
 
   function formatPoints(stats) {
@@ -77,20 +78,6 @@
     return stripPreviewMedia(parseMarkdown(text));
   }
 
-  function stripPreviewMedia(html) {
-    if (!html) return '';
-
-    if (typeof DOMParser !== 'undefined') {
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      doc.querySelectorAll('img, picture, source').forEach((node) => node.remove());
-      return doc.body.innerHTML;
-    }
-
-    return html
-      .replace(/<picture\b[\s\S]*?<\/picture>/gi, '')
-      .replace(/<\s*(img|source)\b[^>]*>/gi, '');
-  }
-
   function cardGradientStyle(category = activeCategory) {
     const color = getCategoryAccent(category || activeCategory);
     return `background: linear-gradient(180deg, ${rgbaFromHex(color, 0.95)} 0%, ${rgbaFromHex(color, 0.28)} 58%, ${rgbaFromHex(color, 0.06)} 100%);`;
@@ -98,11 +85,6 @@
 
   function titleStyle(stats) {
     return `color: ${getCategoryAccent(typeCategory(stats))};`;
-  }
-
-  function isInteractiveTarget(event) {
-    const interactiveTarget = event.target?.closest?.('button, a, input, select, textarea, [role="button"], [role="link"]');
-    return Boolean(interactiveTarget && interactiveTarget !== event.currentTarget);
   }
 
   function handleCardClick(event, stats) {
