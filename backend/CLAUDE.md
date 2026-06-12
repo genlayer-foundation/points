@@ -345,8 +345,8 @@ PATCH  /api/v1/users/me/           (requires auth, only name)
 GET    /api/v1/users/{address}/    (requires auth)
 GET    /api/v1/users/by-address/{address}/ (requires auth)
 GET    /api/v1/users/validators/   (requires auth)
-POST   /api/v1/users/link_x_account/       (requires auth, awards 20 pts for linking X)
-POST   /api/v1/users/link_discord_account/  (requires auth, awards 20 pts for linking Discord)
+POST   /api/v1/users/link_x_account/       (requires auth, awards configured points for linking X)
+POST   /api/v1/users/link_discord_account/  (requires auth, awards configured points for linking Discord)
 
 # Social Tasks
 GET    /api/v1/social-tasks/                     (?status=active|completed&category=community|builder|validator)

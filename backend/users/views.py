@@ -658,14 +658,14 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                 Contribution.objects.create(
                     user=user,
                     contribution_type=link_type,
-                    points=20,
+                    points=link_type.min_points,
                     contribution_date=timezone.now(),
                     notes='Linked X (Twitter) account to GenLayer profile'
                 )
 
             serializer = self.get_serializer(user)
             return Response({
-                'message': 'X account linked successfully! 20 points awarded.',
+                'message': f'X account linked successfully! {link_type.min_points} points awarded.',
                 'user': serializer.data
             }, status=status.HTTP_201_CREATED)
 
@@ -727,14 +727,14 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                 Contribution.objects.create(
                     user=user,
                     contribution_type=link_type,
-                    points=20,
+                    points=link_type.min_points,
                     contribution_date=timezone.now(),
                     notes='Linked Discord account to GenLayer profile'
                 )
 
             serializer = self.get_serializer(user)
             return Response({
-                'message': 'Discord account linked successfully! 20 points awarded.',
+                'message': f'Discord account linked successfully! {link_type.min_points} points awarded.',
                 'user': serializer.data
             }, status=status.HTTP_201_CREATED)
 
