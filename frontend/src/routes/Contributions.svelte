@@ -3,6 +3,7 @@
   import Missions from '../components/Missions.svelte';
   import StartupRequests from '../components/StartupRequests.svelte';
   import PortalContributionCard from '../components/portal/PortalContributionCard.svelte';
+  import SocialTasksSection from '../components/social-tasks/SocialTasksSection.svelte';
   import { contributionsAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
   import { push } from 'svelte-spa-router';
@@ -202,6 +203,8 @@
     {#if activeCategory === 'builder'}
       <StartupRequests />
     {/if}
+
+    <SocialTasksSection />
 
     <Missions />
 

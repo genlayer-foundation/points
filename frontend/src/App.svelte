@@ -120,6 +120,7 @@
   import Notifications from './routes/Notifications.svelte';
   import GlobalDashboard from './components/GlobalDashboard.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
+  import SocialTasks from './routes/SocialTasks.svelte';
 
   async function requireAuthForRoute({ location, querystring }) {
     const state = authState.get();
@@ -174,6 +175,7 @@
     '/community/poaps': CommunityPoaps,
     '/community/poaps/recover': PoapRecovery,
     '/community/poaps/:slug': PoapDetail,
+    '/community/tasks': protectedRoute(SocialTasks),
     '/community/contribution/:id': protectedRoute(ContributionPreview),
     '/claim/poap/:token': PoapClaim,
     '/hackathon': Hackathon,
@@ -189,6 +191,7 @@
     '/builders/resources': Resources,
     '/builders/projects/:slug/edit': protectedRoute(ProjectPageEditor),
     '/builders/projects/:slug': ProjectDetail,
+    '/builders/tasks': protectedRoute(SocialTasks),
     '/builders/startup-requests/:id': StartupRequestDetail,
     
     // Validators routes
@@ -196,6 +199,7 @@
     '/validators/contributions': protectedRoute(Contributions),
     '/validators/all-contributions': protectedRoute(AllContributions),
     '/validators/leaderboard': protectedRoute(Leaderboard),
+    '/validators/tasks': protectedRoute(SocialTasks),
     '/validators/participants': Validators,
     '/validators/wall-of-shame': WallOfShame,
     '/validators/waitlist': protectedRoute(Waitlist),

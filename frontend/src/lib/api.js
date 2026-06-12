@@ -216,6 +216,12 @@ export const socialAPI = {
   checkDiscordGuild: () => api.get('/users/discord/check-guild/'),
 };
 
+// Social tasks API
+export const socialTasksAPI = {
+  list: (params = {}) => api.get('/social-tasks/', { params }),
+  complete: (slug) => api.post(`/social-tasks/${slug}/complete/`),
+};
+
 // Steward API
 export const stewardAPI = {
   // Get all submissions for review

@@ -27,12 +27,14 @@ backend/
 ├── api/                    # Core API app
 ├── contributions/          # Contribution tracking
 ├── leaderboard/           # Leaderboard and rankings
+├── social_connections/    # OAuth (GitHub, Twitter, Discord) + encrypted token storage
+├── social_tasks/          # Repeatable social tasks (follow, join, like) and completions
 ├── users/                 # User management and auth
 ├── partners/              # Ecosystem partners directory
 ├── gen_tv/                # Gen TV livestream index
 ├── notifications/         # Portal notification system
 ├── utils/                 # Shared utilities
-└── backend/               # Django project settings
+└── tally/                 # Django project settings (settings.py, urls.py)
 ```
 
 ## Key Files & Locations
@@ -117,6 +119,92 @@ backend/
   - `/api/v1/leaderboard/monthly/` - Top contribution totals for the current month by default, or for an explicit `start_date`/`end_date` range
   - `/api/v1/leaderboard/stats/` - Global statistics
   - `/api/v1/leaderboard/user_stats/by-address/{address}/` - User-specific stats
+- **Social-task plumbing**: `calculate_category_points` and `calculate_waitlist_points` sum
+  `Contribution.frozen_global_points` AND `social_tasks.SocialTaskCompletion.points_awarded`
+  for the matching category. The `update_leaderboard_on_social_task_completion` post_save
+  handler is wired in `social_tasks/apps.py:ready()`.
+  All social-task reads in `leaderboard/models.py` go through the `_social_tasks_ready()`
+  guard: old data migrations (e.g. contributions 0051) call `recalculate_all_leaderboards()`
+  while replaying history on a fresh database, before `social_tasks` 0001 has run — the
+  guard makes completions read as empty until the table exists (a try/except would abort
+  the surrounding PostgreSQL migration transaction).
+  Note: the community leaderboard ranking (`community_xp.utils.effective_community_ranking_queryset`,
+  MEE6 + community contributions) does NOT include social-task points — community-category
+  task points are profile-only (`socialTaskTotal` in user stats). Builder / validator
+  category task points DO feed their leaderboards.
+
+### Social Tasks
+- **Models**: `social_tasks/models.py`
+  - SocialTask - CMS row admins manage. Fields: name, slug, description, category (FK,
+    restricted by clean() to the surfaced categories community/builder/validator —
+    see SURFACED_CATEGORY_SLUGS), points, verification_type (slug of a registered
+    verifier), typed target_* fields (only the ones used by a current verifier —
+    today: `target_handle`, `target_guild_id`, `target_repo`), action_url (optional:
+    save() derives it from the verifier when blank, e.g. the GitHub repo page or an
+    X follow-intent link; clean() requires it for verifiers that cannot derive),
+    cta_text, platform (derived from verifier on save), is_active, starts_at,
+    ends_at, order (admin sort within the lists; list_editable). Add new target_*
+    fields in the same migration as the verifier that needs them; the admin
+    "Verification targets" fieldset picks up `target_*` model fields automatically.
+    The changelist shows a per-task Completions count.
+  - `SocialTask.clean()` validates the typed target field(s) required by the chosen
+    verifier; raises ValidationError otherwise. The admin dropdown for
+    verification_type is rendered from the registry, so new verifiers show up
+    automatically.
+  - SocialTaskCompletion - Per-user completion. unique_together (user, task).
+    Stores points_awarded + verification_type snapshot + verification_data audit.
+- **Verifier registry**: `social_tasks/verifiers/` package
+  - `base.py` exposes `Verifier` base class, `VerifierResult` dataclass, `@register`
+    decorator, and dispatch helpers: `verify(task, user)`, `get_choices()`,
+    `required_fields_for()`, `platform_for()`, `requires_verification_for()`,
+    `required_connection_for()`.
+  - One file per verification logic: `twitter_follow.py`, `discord_guild_join.py`,
+    `github_star.py`, `click_through.py`. Each self-registers via `@register` and
+    declares `verification_type`, `label`, `platform`, `required_fields`,
+    `requires_verification`, and `required_connection` (which linked social
+    account the verifier needs: 'twitter' / 'discord' / 'github' / None).
+    Verifiers can also override `clean_task(task)` for admin-time validation
+    beyond field presence (e.g. github_star validates the owner/repo format).
+  - To add a new logic (e.g. github_star): create
+    `social_tasks/verifiers/github_star.py`, declare a `Verifier` subclass with
+    `@register`, implement `verify(task, user) -> VerifierResult`, import it from
+    `verifiers/__init__.py`. Model.clean(), admin dropdown, serializer flag, and
+    view dispatch pick it up automatically with no further central edits.
+  - `twitter_follow` calls Sorsa via `social_tasks/sorsa_client.py:SorsaClient.is_following`.
+  - `discord_guild_join` makes the Discord API call inline (not via
+    `DiscordOAuthService.check_guild_membership`, which collapses all non-200
+    cases into `False`). It distinguishes 200 (member), 404 (not member),
+    401/403 (token expired), and 429/5xx / transport errors
+    (-> `verification_unavailable`). On 401/403 it first attempts one
+    `DiscordOAuthService.refresh_stored_access_token` rotation and retries
+    (Discord user tokens expire after ~7 days), so long-linked users are not
+    funneled into a re-link flow; only when the refresh itself is impossible
+    (missing/invalid refresh token) does it return
+    `token_invalid_relink_required`. It only writes back to
+    `DiscordConnection.guild_member` when the checked guild is the main
+    `settings.DISCORD_GUILD_ID`; custom-guild tasks must not corrupt the main
+    guild flag.
+  - `github_star` calls `GET https://api.github.com/user/starred/{owner}/{repo}`
+    inline with the user's token (not via `GitHubOAuthService.check_repo_star`,
+    which collapses non-204 statuses and falls back to an unpaginated public
+    listing). 204 (starred), 404 (not starred), 401 (-> `token_invalid_relink_required`),
+    403 rate-limit / 5xx / transport (-> `verification_unavailable`). Works with the
+    portal's empty-scope GitHub tokens because starred repos are public data.
+  - `click_through` always succeeds (trust on click; `requires_verification=False`).
+- **Views**: `social_tasks/views.py:SocialTaskViewSet`
+  - `GET /api/v1/social-tasks/` - List with `?status=active|completed`, `?category=community|builder|validator`.
+    The internal `verification_type` slug is NOT exposed; each task instead carries
+    two derived flags from the verifier registry: `requires_verification`
+    ("open-and-credit" vs "open-then-verify" UX) and `required_connection`
+    ('twitter' / 'discord' / 'github' / null — which linked account the card must
+    offer inline linking for). The frontend never inspects verifier slugs.
+  - `POST /api/v1/social-tasks/{slug}/complete/` - Run verification, award atomically (UserRateThrottle 30/min)
+- **URLs**: `social_tasks/urls.py` mounted from `api/urls.py` under `/api/v1/`.
+- **Seeded tasks** (slug, points): `follow-genlayer-x` (10), `join-genlayer-discord` (10),
+  `check-out-genlayer-on-x` (5). All in `community` category. Community ranking is
+  MEE6-based and does not include social-task points, so these seeds award
+  profile-only points (`socialTaskTotal`); builder / validator category tasks feed
+  their leaderboards when created.
 
 ### Validators
 - **Models**: `validators/models.py`
@@ -265,6 +353,10 @@ GET    /api/v1/users/validators/   (requires auth)
 POST   /api/v1/users/link_x_account/       (requires auth, awards 20 pts for linking X)
 POST   /api/v1/users/link_discord_account/  (requires auth, awards 20 pts for linking Discord)
 
+# Social Tasks
+GET    /api/v1/social-tasks/                     (?status=active|completed&category=community|builder|validator)
+POST   /api/v1/social-tasks/{slug}/complete/     (requires auth; throttled 30/min/user)
+
 # Contributions
 GET    /api/v1/contributions/      (requires auth)
 POST   /api/v1/contributions/      (requires auth)
@@ -368,6 +460,9 @@ Located in `.env` file:
 - `GRAFANA_PROM_DS_UID` - Prometheus datasource UID (default `grafanacloud-prom`)
 - `GRAFANA_LOKI_DS_UID` - Loki datasource UID (default `grafanacloud-logs`)
 - `GRAFANA_ASIMOV_LABEL` / `GRAFANA_BRADBURY_LABEL` - Override the `network` label values Grafana queries use per testnet (defaults: `asimov-phase5`, `bradbury-phase1`)
+- `SORSA_API_BASE_URL` - Sorsa API base URL (default `https://api.sorsa.app`); used for Twitter follow verification in social_tasks
+- `SORSA_API_KEY` - Sorsa bearer token (secret, required). Store in AWS SSM (`/tally/{env}/sorsa_api_key`) for production.
+- Note: the Sorsa request timeout and follow endpoint path are intentionally code constants in `social_tasks/sorsa_client.py`, not env vars. Changing the endpoint requires a code deploy anyway because the response parser lives in the same file.
 
 **AWS Deployment:** For production deployments on AWS App Runner, all environment variables must be stored in AWS Systems Manager (SSM) Parameter Store. See `aws-deployment-guide.md` for setup instructions.
 
