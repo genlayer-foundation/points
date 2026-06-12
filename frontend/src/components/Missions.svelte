@@ -210,9 +210,6 @@
         </p>
       </div>
 
-      <div class="hidden h-11 items-center rounded-[8px] border border-[#dfe4ee] bg-white px-3 text-[13px] font-semibold text-[#506078] shadow-[0_8px_18px_rgba(31,42,68,0.06)] sm:inline-flex">
-        Listed by nearest deadline
-      </div>
     </div>
 
     <div class="relative space-y-3">
