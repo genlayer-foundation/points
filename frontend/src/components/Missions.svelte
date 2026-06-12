@@ -301,10 +301,7 @@
               </div>
             </div>
 
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-[12px] font-medium {submissionClosed ? 'text-[#98a2b3]' : 'text-[#506078]'}">
-                {submissionClosed ? (capacityLabel || 'Submissions closed') : 'Ready to submit'}
-              </span>
+            <div class="flex items-center justify-end gap-2">
               <div class="flex items-center gap-2">
                 <button
                   type="button"
