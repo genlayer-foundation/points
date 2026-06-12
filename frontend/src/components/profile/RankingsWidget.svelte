@@ -20,12 +20,11 @@
 
     // Role checks
     let isBuilder = $derived(!!participant?.builder);
-    let isValidator = $derived(
-        !!participant?.validator || !!participant?.has_validator_waitlist,
-    );
+    let isValidator = $derived(!!participant?.validator);
+    let hasValidatorPoints = $derived((validatorStats?.totalPoints ?? 0) > 0);
     let isCreator = $derived(!!participant?.creator);
     let isValidatorWaitlist = $derived(
-        participant?.has_validator_waitlist && !participant?.validator,
+        !!participant?.has_validator_waitlist && !participant?.validator,
     );
 
     function getTabForRoleKey(roleKey: string) {
@@ -56,7 +55,6 @@
     let availableTabs = $derived.by(() => {
         const tabs: string[] = [];
         if (isBuilder) tabs.push("Builders");
-        if (isValidator) tabs.push("Validators");
         if (isCreator) tabs.push("Community");
 
         const preferred = topRoleTabs.filter((tab) => tabs.includes(tab));
@@ -67,7 +65,9 @@
         return [...preferred, ...remaining];
     });
 
-    let hasAnyRankableRole = $derived(isBuilder || isValidator || isCreator);
+    let hasAnyRankableRole = $derived(
+        isBuilder || isCreator || isValidatorWaitlist || hasValidatorPoints,
+    );
 
     let activeTab: string | null = $state(null);
     let activeTabAddress: string | null = $state(null);
@@ -172,11 +172,8 @@
         try {
             let apiType;
             if (tab === "Builders") apiType = "builder";
-            else if (tab === "Validators") {
-                apiType = isValidatorWaitlist
-                    ? "validator-waitlist"
-                    : "validator";
-            } else if (tab === "Community") apiType = "community";
+            else if (tab === "Validators") apiType = "validator";
+            else if (tab === "Community") apiType = "community";
             else apiType = "builder";
 
             if (apiType === "community" && participant?.address) {
@@ -359,10 +356,8 @@
         builder: participant?.leaderboard_entries?.find(
             (e: any) => e.type === "builder",
         ),
-        validator: participant?.leaderboard_entries?.find((e: any) =>
-            isValidatorWaitlist
-                ? e.type === "validator-waitlist"
-                : e.type === "validator",
+        validator: participant?.leaderboard_entries?.find(
+            (e: any) => e.type === "validator",
         ),
     });
 
@@ -626,7 +621,7 @@
                 {/if}
 
                 <!-- Validator Stat -->
-                {#if isValidator}
+                {#if isValidator && hasValidatorPoints}
                     <div
                         class="ranking-context-card flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
                     >
@@ -661,19 +656,36 @@
                                             0}</span
                                     >
                                     <span class="text-[12px] text-[#6b6b6b]"
-                                        >{isValidatorWaitlist
-                                            ? "Waitlist Points"
-                                            : "Validator Points"}</span
+                                        >Validator Points</span
                                     >
                                 </div>
                             </div>
                             <div
                                 class="text-[12px] font-medium text-[#6b6b6b] self-start mt-1"
                             >
-                                {isValidatorWaitlist ? "Waitlist" : ""} Rank #{rightPanelStats
-                                    .validator?.rank || "-"}
+                                Rank #{rightPanelStats.validator?.rank || "-"}
                             </div>
                         {/if}
+                    </div>
+                {:else if isValidatorWaitlist}
+                    <div
+                        class="ranking-context-card flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
+                    >
+                        <div class="flex items-center gap-4 min-w-0">
+                            <CategoryIcon
+                                category="validator"
+                                mode="hexagon"
+                                size={48}
+                            />
+                            <div class="flex flex-col min-w-0">
+                                <span class="text-[14px] font-medium text-black"
+                                    >Validator Waitlist</span
+                                >
+                                <span class="text-[12px] text-[#6b6b6b]"
+                                    >Awaiting graduation to validator</span
+                                >
+                            </div>
+                        </div>
                     </div>
                 {:else if isOwnProfile}
                     <button

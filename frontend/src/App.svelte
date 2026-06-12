@@ -99,6 +99,9 @@
   import EcosystemPartners from './routes/EcosystemPartners.svelte';
   import GenNews from './routes/GenNews.svelte';
   import GenTV from './routes/GenTV.svelte';
+  import FoundationsCompass from './routes/FoundationsCompass.svelte';
+  import FoundationsManifesto from './routes/FoundationsManifesto.svelte';
+  import FoundationsWhitepaper from './routes/FoundationsWhitepaper.svelte';
   import Referrals from './routes/Referrals.svelte';
   import LegacyReferralRedirect from './routes/LegacyReferralRedirect.svelte';
   import CommunityPoaps from './routes/CommunityPoaps.svelte';
@@ -232,6 +235,13 @@
     '/gen-news': GenNews,
     '/gen-tv': GenTV,
 
+    // Foundations (Manifesto / Compass / Whitepaper) — sidebar entry "Manifesto"
+    '/foundations': FoundationsManifesto,
+    '/foundations/compass': FoundationsCompass,
+    '/foundations/manifesto': FoundationsManifesto,
+    '/foundations/whitepaper': FoundationsWhitepaper,
+    '/manifesto': FoundationsManifesto,
+
     '*': NotFound
   };
   
@@ -241,8 +251,12 @@
     currentCategory.set(category);
   });
 
-  // How it works page needs full-bleed (no padding)
-  let isFullBleedPage = $derived($location === '/how-it-works');
+  // Pages that need full-bleed (no padding): How it works + Foundations documents
+  let isFullBleedPage = $derived(
+    $location === '/how-it-works' ||
+    $location.startsWith('/foundations') ||
+    $location === '/manifesto'
+  );
   
   // Function to hide tooltips - used for route changes
   function hideTooltips() {

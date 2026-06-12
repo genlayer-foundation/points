@@ -398,6 +398,13 @@ const routes = {
   '/gen-tv': GenTV,                          // Livestream index split by category section
   '/gen-news': GenNews,                      // Hero-banner announcements index (sidebar: Discover > GenNews)
 
+  // Foundations documents (sidebar: Discover > Manifesto) — inner doc sidebar with Manifesto/Compass/Whitepaper
+  '/foundations': FoundationsManifesto,          // Sidebar entry default — opens the Manifesto
+  '/foundations/compass': FoundationsCompass,
+  '/foundations/manifesto': FoundationsManifesto,
+  '/foundations/whitepaper': FoundationsWhitepaper,
+  '/manifesto': FoundationsManifesto,            // Legacy alias
+
   '*': NotFound
 }
 ```
@@ -519,6 +526,13 @@ Reusable, data-driven display components that accept data via props. Used on Das
   - Props: `item` (normalized `{ id, slug, name, logo_url, href, isExternal, category }`), `showBadge=false`
   - Partner cards put the logo on a black circle; validator/project cards use a soft-gradient initials fallback when no image is available
   - Click opens `item.href` (external opens in a new tab; validator profile links navigate in-app)
+
+#### Foundations (`src/routes/Foundations*.svelte` + `src/components/foundations/FoundationsShell.svelte`)
+- Ports the genlayer-compass site (github.com/acastellana/genlayer-compass) into the portal as full-bleed pages: Manifesto, The Compass, Whitepaper
+- `FoundationsShell.svelte` renders the inner document sidebar (doc switcher + "On this page" scrollspy TOC or an "About this document" card), the <900px sticky pill topbar, and the scrolling content column; it owns the IntersectionObserver scrollspy and `.reveal`/`.reveal-stagger` scroll-reveal logic
+- Pages are full-bleed (`isFullBleedPage` in App.svelte) and manage their own two-column layout/scroll; document content + the compass design system CSS (violet #7c5cff palette, dark hero cards, bento stats, editorial sticky asides, pull quotes) are scoped per page
+- TOC/section links use buttons with `scrollIntoView` (never `href="#id"` — that would collide with the hash router); cross-document links use `#/foundations/*` hrefs
+- Whitepaper embeds the PDF from genlayer.com's CDN in an iframe with a spinner that hides on load or after 3.5s
 
 #### Gen TV Components (`src/components/portal/gen-tv/`)
 - **`StreamCard.svelte`** - Card for a livestream with image, dark overlay, status badge, and title

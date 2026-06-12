@@ -2,7 +2,8 @@ name: Sync Discord Roles
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    # GitHub Actions schedules are best-effort; avoid crowded :00/:15/:30/:45 slots.
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 
 jobs:
