@@ -14,17 +14,27 @@ def backfill_social_task_xp_states(apps, schema_editor):
         task__category__slug='community',
         discord_xp_state__isnull=True,
     )
-    ContributionDiscordXPState.objects.bulk_create([
-        ContributionDiscordXPState(
+    batch = []
+    for completion in completions.iterator(chunk_size=500):
+        batch.append(ContributionDiscordXPState(
             social_task_completion=completion,
             status='pending',
             awarded_amount=0,
-        )
-        for completion in completions.iterator()
-    ], batch_size=500)
+        ))
+        if len(batch) >= 500:
+            ContributionDiscordXPState.objects.bulk_create(batch)
+            batch = []
+    if batch:
+        ContributionDiscordXPState.objects.bulk_create(batch)
 
 
 def remove_social_task_xp_states(apps, schema_editor):
+    """Delete all social-task XP states (not just backfilled ones) on rollback.
+
+    Reversing this migration restores `contribution` to NOT NULL, which is
+    impossible while any social-task rows (contribution=NULL) remain, so they
+    must all go for the schema reversal to proceed.
+    """
     ContributionDiscordXPState = apps.get_model('contributions', 'ContributionDiscordXPState')
     ContributionDiscordXPState.objects.filter(social_task_completion__isnull=False).delete()
 

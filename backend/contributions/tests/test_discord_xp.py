@@ -515,3 +515,10 @@ class StewardDiscordXPTest(TestCase):
             f'/api/v1/steward-discord-xp/{state_id(completion)}/mark-distributed/'
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_non_numeric_state_id_returns_404(self):
+        for action in ['record-copy', 'mark-distributed', 'unset-distributed']:
+            response = self.client.post(f'/api/v1/steward-discord-xp/abc/{action}/')
+            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        response = self.client.get('/api/v1/steward-discord-xp/abc/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

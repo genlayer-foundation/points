@@ -1692,6 +1692,9 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsSteward]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = StewardDiscordXPFilterSet
+    # Detail routes take the numeric state id; non-numeric ids must 404 at the
+    # URL level instead of raising during ORM pk coercion.
+    lookup_value_regex = '[0-9]+'
     ordering_fields = [
         'entry_created_at',
         'entry_date',
