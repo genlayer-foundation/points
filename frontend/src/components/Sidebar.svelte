@@ -119,6 +119,7 @@
     if (path.startsWith('/ecosystem-partners')) return 'partners';
     if (path.startsWith('/gen-tv')) return 'gentv';
     if (path.startsWith('/gen-news')) return 'gennews';
+    if (path.startsWith('/foundations') || path.startsWith('/manifesto')) return 'foundations';
     return null;
   }
 
@@ -461,6 +462,26 @@
       {:else}
         <div class="border-t border-gray-100 my-2"></div>
       {/if}
+
+      <!-- Manifesto (Foundations documents) -->
+      <div>
+        <button
+          onclick={() => changeCategory('foundations', '/foundations')}
+          class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px] {getActiveSection() === 'foundations' ? '' : 'hover:bg-[#eeedfb]'}"
+          style={getActiveSection() === 'foundations' ? 'background: #eeedfb;' : ''}
+          title={collapsed ? 'Manifesto' : ''}
+        >
+          <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={getActiveSection() === 'foundations' ? '#6D5DD3' : '#1a1a1a'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+          {#if !collapsed}
+            <span>Manifesto</span>
+          {/if}
+        </button>
+      </div>
 
       <!-- Ecosystem Partners -->
       <div>
@@ -889,6 +910,21 @@
       <div class="pt-2 pb-1 px-3">
         <span class="text-[12px] font-normal text-[#6b6b6b] tracking-[0.24px]">Discover</span>
       </div>
+
+      <!-- Manifesto (mobile) -->
+      <button
+        onclick={() => changeCategory('foundations', '/foundations')}
+        class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px]"
+        style={getActiveSection() === 'foundations' ? 'background: #eeedfb;' : ''}
+      >
+        <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={getActiveSection() === 'foundations' ? '#6D5DD3' : '#1a1a1a'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+        <span>Manifesto</span>
+      </button>
 
       <!-- Ecosystem Partners (mobile) -->
       <button
