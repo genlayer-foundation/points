@@ -16,6 +16,7 @@
   let cornerGlowStyle = $derived(
     `background: radial-gradient(circle at 100% 100%, ${rgbaFromHex(accentColor, 0.28)} 0%, ${rgbaFromHex(accentColor, 0.08)} 35%, transparent 65%);`
   );
+  let openTypes = $derived(typeStats.filter((stats) => stats.is_submittable));
 
   // Derived state: include submittable types plus non-submittable types explicitly marked
   // to show in contributions (e.g. informational / mission-host types). Sort by points desc.
@@ -129,7 +130,10 @@
         </h2>
         {#if !loading && !error}
           <span class="inline-flex h-[25px] items-center rounded-full border border-[#e8ebf2] bg-white px-3 text-[12px] font-semibold text-[#506078]">
-            {submittableTypes.length} open
+            {typeStats.length} {typeStats.length === 1 ? 'type' : 'types'}
+          </span>
+          <span class="inline-flex h-[25px] items-center rounded-full border border-[#e8ebf2] bg-white px-3 text-[12px] font-semibold text-[#506078]">
+            {openTypes.length} open
           </span>
         {/if}
       </div>
