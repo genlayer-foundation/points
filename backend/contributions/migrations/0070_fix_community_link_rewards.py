@@ -37,7 +37,7 @@ def refresh_discord_xp_states(ContributionDiscordXPState):
             next_status = 'needs_review'
         elif awarded == target:
             next_status = 'distributed'
-        elif state.status != 'needs_review':
+        else:
             next_status = 'pending'
 
         if next_status != state.status:
