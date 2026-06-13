@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from rest_framework import authentication, exceptions
+from rest_framework import authentication
 from rest_framework.authentication import SessionAuthentication
 
 from tally.middleware.logging_utils import get_app_logger

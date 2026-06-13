@@ -30,7 +30,7 @@ function isUnsafeMethod(method = 'get') {
   return UNSAFE_METHODS.has(method.toLowerCase());
 }
 
-export async function getCsrfToken() {
+async function getCsrfToken() {
   const existingToken = getCookieToken();
   if (existingToken) {
     return existingToken;

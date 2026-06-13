@@ -144,51 +144,6 @@ export const getCategoryColors = (category) => {
 };
 
 /**
- * Get pioneer/empty state colors (usually blue themed)
- */
-export const getPioneerColors = (category) => {
-  // For pioneer states, we can use themed colors or default to blue
-  if (category === 'builder') {
-    return {
-      bg: 'bg-white',      // White background with colored border
-      border: 'border-orange-300',
-      headerBg: 'bg-orange-100',
-      text: 'text-orange-900',
-      accent: 'text-orange-700',
-      icon: 'text-orange-600'
-    };
-  } else if (category === 'validator') {
-    return {
-      bg: 'bg-white',         // White background with colored border
-      border: 'border-sky-300',
-      headerBg: 'bg-sky-100',
-      text: 'text-sky-900',
-      accent: 'text-sky-700',
-      icon: 'text-sky-600'
-    };
-  } else if (category === 'community') {
-    return {
-      bg: 'bg-white',
-      border: 'border-purple-300',
-      headerBg: 'bg-purple-100',
-      text: 'text-purple-900',
-      accent: 'text-purple-700',
-      icon: 'text-purple-600'
-    };
-  } else {
-    // Default blue theme for pioneer states
-    return {
-      bg: 'bg-white',
-      border: 'border-blue-300',
-      headerBg: 'bg-blue-100',
-      text: 'text-blue-900',
-      accent: 'text-blue-700',
-      icon: 'text-blue-600'
-    };
-  }
-};
-
-/**
  * Get colors for pioneer contributions section (opportunities with zero contributions)
  */
 export const getPioneerContributionsColors = (category) => {
@@ -362,28 +317,11 @@ export const getPioneerContributionsColors = (category) => {
 };
 
 /**
- * Get simple icon color for sidebar and navigation
- */
-export const getCategoryIconColor = (category) => {
-  switch (category) {
-    case 'builder':
-      return 'text-orange-600';
-    case 'validator':
-      return 'text-sky-600';
-    case 'community':
-      return 'text-purple-600';
-    case 'global':
-      return 'text-black';
-    default:
-      return 'text-gray-500';
-  }
-};
-/**
  * Canonical hex accent per category (matches PortalContributionCard and the
  * portal gradient/glow treatments). Use these instead of redefining hex maps
  * in components.
  */
-export const CATEGORY_ACCENTS = {
+const CATEGORY_ACCENTS = {
   builder: '#ee8521',
   validator: '#387DE8',
   community: '#7F52E1',

@@ -1,4 +1,4 @@
-export const PROJECT_REVIEW_FLOWS = new Set(['builder_project']);
+const PROJECT_REVIEW_FLOWS = new Set(['builder_project']);
 
 export const RUBRIC_SECTIONS = [
   {
@@ -52,7 +52,7 @@ export const RUBRIC_EXTRAS = [
   { key: 'public_post', label: 'Public post' }
 ];
 
-export const DEFAULT_RUBRIC_EXTRA_POINTS = 2;
+const DEFAULT_RUBRIC_EXTRA_POINTS = 2;
 const RUBRIC_EXTRA_KEYS = new Set(RUBRIC_EXTRAS.map(extra => extra.key));
 
 /**

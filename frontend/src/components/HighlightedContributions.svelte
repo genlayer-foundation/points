@@ -357,7 +357,7 @@
       </div>
     {/if}
   {:else if cardStyle === 'highlight'}
-    <!-- Highlight style (used in ParticipantProfile) -->
+    <!-- Highlight style for compact profile sections. -->
     <div class="space-y-4">
       {#each highlights as highlight}
         {@const hasEvidence = highlight.contribution_details?.evidence_items?.length > 0}

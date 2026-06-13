@@ -711,7 +711,7 @@ def update_referrer_points(contribution):
         LeaderboardEntry.update_leaderboard_ranks('validator-waitlist')
 
 
-def ensure_builder_status(user, reference_date):
+def ensure_builder_status(user, _reference_date):
     """
     Create missing builder-welcome, builder contributions and Builder profile.
     Used to auto-grant builder status to users who have builder contributions.

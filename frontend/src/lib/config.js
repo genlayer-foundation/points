@@ -11,7 +11,3 @@ export const API_BASE_URL =
 
 // External Links Configuration
 export const FAUCET_URL = 'https://testnet-faucet.genlayer.foundation/';
-
-// Application Configuration
-export const APP_NAME = 'Tally';
-export const APP_DESCRIPTION = 'GenLayer Testnet Program Tracking System';
