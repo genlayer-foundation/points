@@ -1115,11 +1115,6 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         """Get all submissions for the authenticated user."""
         queryset = self.get_queryset()
 
-        # Filter by state if provided
-        state = request.query_params.get('state')
-        if state:
-            queryset = queryset.filter(state=state)
-
         # Optional deep-link filter used by submission review links. Keeping this
         # owner-scoped through get_queryset() prevents leaking other users'
         # submission IDs while making highlighted submission landings reliable
@@ -1130,6 +1125,13 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(id=uuid.UUID(str(submission_id)))
             except ValueError:
                 queryset = queryset.none()
+        else:
+            # Filter by state if provided. When a specific submission id is
+            # requested, ignore state because notification links freeze the
+            # decision state at send time and the submission may have moved on.
+            state = request.query_params.get('state')
+            if state:
+                queryset = queryset.filter(state=state)
 
         page = self.paginate_queryset(queryset)
         if page is not None:
