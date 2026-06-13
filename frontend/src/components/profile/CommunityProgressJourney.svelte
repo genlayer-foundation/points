@@ -101,7 +101,7 @@
                     >
                     <span
                         class="font-['Switzer'] font-medium text-[12px] text-[#6b6b6b] tracking-[0.24px]"
-                        >Connect your X account to earn 20 points</span
+                        >Connect your X account to earn 500 points</span
                     >
                 </div>
             </div>
@@ -118,7 +118,7 @@
                         disabled={isClaimingX}
                         class="community-claim-button px-[12px] py-[6px] bg-[#7f52e1] rounded-[6px] text-[14px] font-['Switzer'] font-medium text-white tracking-[0.28px] hover:bg-[#6b3fd4] transition-colors whitespace-nowrap disabled:opacity-50"
                     >
-                        {isClaimingX ? 'Claiming...' : 'Claim 20 pts'}
+                        {isClaimingX ? 'Claiming...' : 'Claim 500 pts'}
                     </button>
                 {:else}
                     <SocialLink
@@ -187,7 +187,7 @@
                     >
                     <span
                         class="font-['Switzer'] font-medium text-[12px] text-[#6b6b6b] tracking-[0.24px]"
-                        >Connect your Discord account to earn 20 points</span
+                        >Connect your Discord account to earn 500 points</span
                     >
                 </div>
             </div>
@@ -204,7 +204,7 @@
                         disabled={isClaimingDiscord}
                         class="community-claim-button px-[12px] py-[6px] bg-[#7f52e1] rounded-[6px] text-[14px] font-['Switzer'] font-medium text-white tracking-[0.28px] hover:bg-[#6b3fd4] transition-colors whitespace-nowrap disabled:opacity-50"
                     >
-                        {isClaimingDiscord ? 'Claiming...' : 'Claim 20 pts'}
+                        {isClaimingDiscord ? 'Claiming...' : 'Claim 500 pts'}
                     </button>
                 {:else}
                     <SocialLink

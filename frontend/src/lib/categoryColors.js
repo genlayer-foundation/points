@@ -378,3 +378,35 @@ export const getCategoryIconColor = (category) => {
       return 'text-gray-500';
   }
 };
+/**
+ * Canonical hex accent per category (matches PortalContributionCard and the
+ * portal gradient/glow treatments). Use these instead of redefining hex maps
+ * in components.
+ */
+export const CATEGORY_ACCENTS = {
+  builder: '#ee8521',
+  validator: '#387DE8',
+  community: '#7F52E1',
+  steward: '#3eb359',
+  global: '#7F52E1',
+};
+
+export const getCategoryAccent = (category) =>
+  CATEGORY_ACCENTS[category] || CATEGORY_ACCENTS.community;
+
+/**
+ * Points-pill colors (tinted background + accent text), same palette as
+ * PortalContributionCard's pill.
+ */
+export const getCategoryPillColors = (category) => {
+  const pillBgByCategory = {
+    builder: 'rgba(238,133,33,0.1)',
+    validator: 'rgba(56,125,232,0.1)',
+    community: 'rgba(127,82,225,0.1)',
+    steward: 'rgba(62,179,89,0.1)',
+  };
+  return {
+    pillBg: pillBgByCategory[category] || pillBgByCategory.community,
+    pillText: getCategoryAccent(category),
+  };
+};

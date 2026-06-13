@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     'social_connections',
     'community_xp.apps.CommunityXpConfig',
     'poaps.apps.PoapsConfig',
+    'social_tasks',
 ]
 
 MIDDLEWARE = [
@@ -281,6 +282,12 @@ DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS = int(
 
 # Shared social connection encryption key (falls back to GitHub key for backward compat)
 SOCIAL_ENCRYPTION_KEY = os.environ.get('SOCIAL_ENCRYPTION_KEY', '') or GITHUB_ENCRYPTION_KEY
+
+# Sorsa (Twitter / X social verification provider) settings.
+# Only the secret + base URL come from env. Path and timeout live as code
+# constants in social_tasks/sorsa_client.py next to the response parser.
+SORSA_API_BASE_URL = os.environ.get('SORSA_API_BASE_URL', 'https://api.sorsa.io/v3').strip().rstrip('/')
+SORSA_API_KEY = os.environ.get('SORSA_API_KEY', '')
 
 # Frontend URL for OAuth redirects
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173').strip().rstrip('/')

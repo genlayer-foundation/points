@@ -506,40 +506,65 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     def _get_user_stats(self, user, category=None):
         """
         Helper method to get statistics for a user.
+
+        Sums both `Contribution.frozen_global_points` and
+        `SocialTaskCompletion.points_awarded` so the profile totals stay
+        consistent with the builder/validator leaderboard ranks (which also
+        include social-task points via
+        `leaderboard.models.calculate_category_points`).
+
+        Deliberate exception: the community leaderboard ranking is MEE6-based
+        (`community_xp.utils.effective_community_ranking_queryset`) and does
+        NOT include social-task points, so community profile totals can sit
+        above the community ranking total by `socialTaskTotal`. Do not "fix"
+        one side to match the other without a product decision.
         """
         from django.db.models import Sum, Count
         from contributions.models import Contribution
-        
+        from social_tasks.models import SocialTaskCompletion
+
         # Get user's contributions
         contributions = Contribution.objects.filter(user=user)
-        
+
+        # Get user's social-task completions (each is one "earning event")
+        social_completions = SocialTaskCompletion.objects.filter(user=user)
+
         # Filter by category if provided
         if category:
             contributions = contributions.filter(contribution_type__category__slug=category)
-        
-        # Get user's raw portal contribution points. For community, these remain
-        # the audit trail while displayed points use MEE6 as the weekly baseline.
+            social_completions = social_completions.filter(task__category__slug=category)
+
+        # Raw portal contribution points (audit trail). For community, displayed
+        # points come from MEE6 via get_effective_community_points; for every
+        # other category they are the headline number.
         raw_total_points = contributions.aggregate(
             total=Sum('frozen_global_points')
         )['total'] or 0
-        total_points = raw_total_points
+        social_points = social_completions.aggregate(
+            total=Sum('points_awarded')
+        )['total'] or 0
 
         community_xp_breakdown = None
         if category == 'community':
             from community_xp.utils import get_effective_community_points
             community_xp_breakdown = get_effective_community_points(user)
-            total_points = community_xp_breakdown['total_points']
-        
-        # Get user's contribution count
+            base_points = community_xp_breakdown['total_points']
+        else:
+            base_points = raw_total_points
+
+        # Social-task points sit on top of the category's base — they are an
+        # independent earned stream (not tracked by MEE6 sync).
+        total_points = base_points + social_points
+
         contribution_count = contributions.count()
-        
-        # Get average points per contribution
-        avg_points = total_points / contribution_count if contribution_count > 0 else 0
-        
-        # Get contribution breakdown by type
+        social_count = social_completions.count()
+        total_count = contribution_count + social_count
+
+        avg_points = total_points / total_count if total_count > 0 else 0
+
         contribution_types = []
         types_data = contributions.values(
-            'contribution_type__name', 
+            'contribution_type__name',
             'contribution_type__id',
             'contribution_type__category__slug',
             'contribution_type__category__name'
@@ -547,10 +572,13 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             count=Count('id'),
             total_points=Sum('frozen_global_points')
         ).order_by('-total_points')
-        
+
         for type_data in types_data:
-            percentage_base = raw_total_points if category == 'community' else total_points
-            percentage = (type_data['total_points'] / percentage_base * 100) if percentage_base > 0 else 0
+            # Percentages are relative to contribution points only so the type
+            # breakdown always sums to 100% — social-task points are reported
+            # separately via socialTaskTotal, and community headline points are
+            # MEE6-based.
+            percentage = (type_data['total_points'] / raw_total_points * 100) if raw_total_points > 0 else 0
             contribution_types.append({
                 'id': type_data['contribution_type__id'],
                 'name': type_data['contribution_type__name'],
@@ -560,12 +588,18 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 'total_points': type_data['total_points'],
                 'percentage': percentage,
             })
-        
+
         result = {
-            'totalContributions': contribution_count,
+            'totalContributions': total_count,
             'totalPoints': total_points,
             'averagePoints': avg_points,
             'contributionTypes': contribution_types,
+            # Separate bucket so the frontend can render social-task earnings
+            # next to the contribution breakdown without breaking the existing
+            # ContributionBreakdown component (which expects entries to be real
+            # ContributionType rows it can drill into).
+            'socialTaskTotal': social_points,
+            'socialTaskCount': social_count,
         }
 
         if community_xp_breakdown:

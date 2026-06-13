@@ -208,20 +208,26 @@ export const socialAPI = {
   checkDiscordGuild: () => api.get('/users/discord/check-guild/'),
 };
 
+// Social tasks API
+export const socialTasksAPI = {
+  list: (params = {}) => api.get('/social-tasks/', { params }),
+  complete: (slug) => api.post(`/social-tasks/${slug}/complete/`),
+};
+
 // Steward API
 export const stewardAPI = {
   // Get all submissions for review
   getSubmissions: (params = {}) => api.get('/steward-submissions/', { params }),
 
-  // Get community contribution Discord XP states
+  // Get community Discord XP states (contributions + social task completions), keyed by state id
   getDiscordXP: (params = {}) => api.get('/steward-discord-xp/', { params }),
 
   // Record that a steward copied the manual Discord XP command
-  recordDiscordXPCopy: (contributionId) => api.post(`/steward-discord-xp/${contributionId}/record-copy/`),
+  recordDiscordXPCopy: (stateId) => api.post(`/steward-discord-xp/${stateId}/record-copy/`),
 
   // Mark or unset manual Discord XP distribution
-  markDiscordXPDistributed: (contributionId) => api.post(`/steward-discord-xp/${contributionId}/mark-distributed/`),
-  unsetDiscordXPDistributed: (contributionId) => api.post(`/steward-discord-xp/${contributionId}/unset-distributed/`),
+  markDiscordXPDistributed: (stateId) => api.post(`/steward-discord-xp/${stateId}/mark-distributed/`),
+  unsetDiscordXPDistributed: (stateId) => api.post(`/steward-discord-xp/${stateId}/unset-distributed/`),
 
   // Get a single submission
   getSubmission: (id) => api.get(`/steward-submissions/${id}/`),

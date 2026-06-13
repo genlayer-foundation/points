@@ -41,14 +41,58 @@ def has_category_contributions(user, category_slug):
 
 
 def calculate_category_points(user, category_slug):
-    """Calculate total points from a specific category, including all contribution types"""
-    query = Contribution.objects.filter(
+    """Calculate total points from a specific category.
+
+    Sums Contribution.frozen_global_points and SocialTaskCompletion.points_awarded
+    that fall under the given category.
+    """
+    contribution_total = Contribution.objects.filter(
         user=user,
         contribution_type__category__slug=category_slug
+    ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
+
+    social_task_total = _social_task_category_points(user, category_slug)
+
+    return contribution_total + social_task_total
+
+
+# Caches the "social_tasks tables exist" check. Old data migrations (e.g.
+# contributions 0051) call recalculate_all_leaderboards() while replaying
+# history on a fresh database, before social_tasks 0001 has run — at that
+# point the completion table does not exist yet and must read as empty.
+# A try/except is not an option: a failed query aborts the surrounding
+# PostgreSQL migration transaction.
+_social_tasks_table_ready = False
+
+
+def _social_tasks_ready():
+    global _social_tasks_table_ready
+    if _social_tasks_table_ready:
+        return True
+    from django.db import connection
+    from social_tasks.models import SocialTaskCompletion
+
+    _social_tasks_table_ready = (
+        SocialTaskCompletion._meta.db_table in connection.introspection.table_names()
     )
-    return query.aggregate(
-        total=Sum('frozen_global_points')
-    )['total'] or 0
+    return _social_tasks_table_ready
+
+
+def _social_task_category_points(user, category_slug, before_date=None):
+    """Sum a user's social task completions in a category, optionally bounded by date."""
+    # Lazy import to avoid circular dependency at module load time.
+    from social_tasks.models import SocialTaskCompletion
+
+    if not _social_tasks_ready():
+        return 0
+
+    qs = SocialTaskCompletion.objects.filter(
+        user=user,
+        task__category__slug=category_slug,
+    )
+    if before_date is not None:
+        qs = qs.filter(completed_at__lte=before_date)
+    return qs.aggregate(total=Sum('points_awarded'))['total'] or 0
 
 
 def get_eligible_referred_user_ids(referrer):
@@ -85,6 +129,13 @@ def calculate_waitlist_points(user):
         query = query.filter(contribution_date__lte=grad_contrib.contribution_date)
 
     contribution_points = query.aggregate(total=Sum('frozen_global_points'))['total'] or 0
+
+    # Add validator-category social-task points, bounded by graduation date if applicable.
+    contribution_points += _social_task_category_points(
+        user,
+        'validator',
+        before_date=grad_contrib.contribution_date if grad_contrib else None,
+    )
 
     if grad_contrib:
         eligible_ids = get_eligible_referred_user_ids(user)
@@ -419,6 +470,17 @@ def update_leaderboard_on_contribution(sender, instance, created, **kwargs):
         update_referrer_points(instance)
 
 
+def update_leaderboard_on_social_task_completion(sender, instance, created, **kwargs):
+    """post_save handler for SocialTaskCompletion.
+
+    Wired up by social_tasks.apps.SocialTasksConfig.ready() so model load order
+    between the two apps does not matter.
+    """
+    if kwargs.get('raw', False):
+        return
+    update_user_leaderboard_entries(instance.user)
+
+
 def update_leaderboard_on_builder_creation(sender, instance, created, **kwargs):
     """
     When a Builder profile is created, update the user's leaderboard entries.
@@ -739,6 +801,7 @@ def recalculate_all_leaderboards():
     from users.models import User
     from builders.models import Builder
     from validators.models import Validator
+    from social_tasks.models import SocialTaskCompletion
     from collections import defaultdict
 
     # Disconnect builder creation signal during bulk recalculation to avoid
@@ -805,6 +868,22 @@ def recalculate_all_leaderboards():
             for contrib in contributions:
                 user_contributions[contrib['user_id']].append(contrib)
 
+            # Bulk-load social-task completions and group by user. Reads as
+            # empty while old data migrations replay before social_tasks 0001.
+            social_completions = []
+            if _social_tasks_ready():
+                social_completions = list(SocialTaskCompletion.objects.select_related(
+                    'task__category'
+                ).values(
+                    'user_id',
+                    'task__category__slug',
+                    'points_awarded',
+                    'completed_at',
+                ))
+            user_social_completions = defaultdict(list)
+            for stc in social_completions:
+                user_social_completions[stc['user_id']].append(stc)
+
             referrer_contributions = defaultdict(list)
             for contrib in contributions:
                 if contrib['user__referred_by_id']:
@@ -822,7 +901,10 @@ def recalculate_all_leaderboards():
             entries_to_create = []
             referral_points_to_create = []
 
-            for user_id, user_contribs in user_contributions.items():
+            all_user_ids = set(user_contributions.keys()) | set(user_social_completions.keys())
+            for user_id in all_user_ids:
+                user_contribs = user_contributions.get(user_id, [])
+                user_socials = user_social_completions.get(user_id, [])
                 qualified_leaderboards = []
 
                 if user_id in validators_set:
@@ -845,17 +927,26 @@ def recalculate_all_leaderboards():
                         for contrib in user_contribs:
                             if contrib['contribution_type__category__slug'] == 'validator':
                                 points += contrib['frozen_global_points'] or 0
+                        for stc in user_socials:
+                            if stc['task__category__slug'] == 'validator':
+                                points += stc['points_awarded'] or 0
 
                     elif leaderboard_type == 'builder':
                         for contrib in user_contribs:
                             if contrib['contribution_type__category__slug'] == 'builder':
                                 points += contrib['frozen_global_points'] or 0
+                        for stc in user_socials:
+                            if stc['task__category__slug'] == 'builder':
+                                points += stc['points_awarded'] or 0
 
                     elif leaderboard_type == 'validator-waitlist':
                         for contrib in user_contribs:
                             if (contrib['contribution_type__category__slug'] == 'validator' and
                                 contrib['contribution_type__slug'] != 'validator'):
                                 points += contrib['frozen_global_points'] or 0
+                        for stc in user_socials:
+                            if stc['task__category__slug'] == 'validator':
+                                points += stc['points_awarded'] or 0
 
                         if user_id in referrer_contributions:
                             builder_referral = 0
@@ -895,6 +986,11 @@ def recalculate_all_leaderboards():
                                         if (contrib['contribution_date'] <= grad_date and
                                             contrib['contribution_type__slug'] != 'validator'):
                                             points += contrib['frozen_global_points'] or 0
+
+                                for stc in user_socials:
+                                    if (stc['task__category__slug'] == 'validator' and
+                                        stc['completed_at'] <= grad_date):
+                                        points += stc['points_awarded'] or 0
 
                                 if user_id in referrer_contributions:
                                     builder_referral = 0
@@ -951,6 +1047,9 @@ def recalculate_all_leaderboards():
             for leaderboard_type in ['validator', 'builder', 'validator-waitlist', 'validator-waitlist-graduation']:
                 LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
-            return f"Recalculated {len(user_contributions)} users across {len(LEADERBOARD_CONFIG)} leaderboards with {len(referral_points_to_create)} referrers"
+            return (
+                f"Recalculated {len(all_user_ids)} users across {len(LEADERBOARD_CONFIG)} "
+                f"leaderboards with {len(referral_points_to_create)} referrers"
+            )
     finally:
         post_save.connect(update_leaderboard_on_builder_creation, sender=Builder)
