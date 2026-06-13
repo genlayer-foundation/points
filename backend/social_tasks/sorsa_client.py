@@ -5,8 +5,8 @@ Sorsa is the third-party we use to verify Twitter / X social actions
 
 Only two settings live as env vars:
 
-    SORSA_API_KEY        bearer token used in Authorization header (secret, required)
-    SORSA_API_BASE_URL   default: https://api.sorsa.app  (in case staging
+    SORSA_API_KEY        API key sent in the ApiKey header (secret, required)
+    SORSA_API_BASE_URL   default: https://api.sorsa.io/v3  (in case staging
                          ever needs a different host)
 
 The endpoint path, timeout, and response shape are code constants — if
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 # Code constants — wire shape lives next to the parser below so any change
 # to Sorsa's contract is a one-file diff.
-SORSA_FOLLOW_PATH = '/v1/twitter/check-follow'
+SORSA_FOLLOW_PATH = '/check-follow'
 SORSA_TIMEOUT_SECONDS = 8.0
 
 
@@ -74,11 +74,12 @@ class SorsaClient:
 
         url = f'{self.base_url}{self.follow_path}'
         payload = {
-            'actor_handle': actor_handle.lstrip('@'),
-            'target_handle': target_handle.lstrip('@'),
+            # Sorsa asks "does username_2 follow username_1?"
+            'username_1': target_handle.lstrip('@'),
+            'username_2': actor_handle.lstrip('@'),
         }
         headers = {
-            'Authorization': f'Bearer {self.api_key}',
+            'ApiKey': self.api_key,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
         }
@@ -107,16 +108,16 @@ class SorsaClient:
         # Strict type check: a schema change at Sorsa must surface as a loud
         # SorsaError (-> 503, user retries later), not silently read as
         # "not following" for every check.
-        is_following = data.get('is_following')
+        is_following = data.get('follow')
         if not isinstance(is_following, bool):
             raise SorsaError(
-                f'Unexpected is_following value: {type(is_following).__name__}'
+                f'Unexpected follow value: {type(is_following).__name__}'
             )
         audit = {
             'status_code': response.status_code,
             'response': data,
-            'actor_handle': payload['actor_handle'],
-            'target_handle': payload['target_handle'],
+            'actor_handle': payload['username_2'],
+            'target_handle': payload['username_1'],
         }
         return is_following, audit
 

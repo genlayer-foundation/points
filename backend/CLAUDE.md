@@ -450,8 +450,8 @@ Located in `.env` file:
 - `GRAFANA_PROM_DS_UID` - Prometheus datasource UID (default `grafanacloud-prom`)
 - `GRAFANA_LOKI_DS_UID` - Loki datasource UID (default `grafanacloud-logs`)
 - `GRAFANA_ASIMOV_LABEL` / `GRAFANA_BRADBURY_LABEL` - Override the `network` label values Grafana queries use per testnet (defaults: `asimov-phase5`, `bradbury-phase1`)
-- `SORSA_API_BASE_URL` - Sorsa API base URL (default `https://api.sorsa.app`); used for Twitter follow verification in social_tasks
-- `SORSA_API_KEY` - Sorsa bearer token (secret, required). Store in AWS SSM (`/tally/{env}/sorsa_api_key`) for production.
+- `SORSA_API_BASE_URL` - Sorsa API base URL (default `https://api.sorsa.io/v3`); used for Twitter follow verification in social_tasks
+- `SORSA_API_KEY` - Sorsa API key sent in the `ApiKey` header (secret, required). Store in AWS SSM (`/tally/{env}/sorsa_api_key`) for production.
 - Note: the Sorsa request timeout and follow endpoint path are intentionally code constants in `social_tasks/sorsa_client.py`, not env vars. Changing the endpoint requires a code deploy anyway because the response parser lives in the same file.
 
 **AWS Deployment:** For production deployments on AWS App Runner, all environment variables must be stored in AWS Systems Manager (SSM) Parameter Store. See `aws-deployment-guide.md` for setup instructions.
