@@ -110,7 +110,6 @@ Our current solution involves:
 4. **Utility Functions**: We've created utility functions in testHelpers.js for common testing patterns:
    - `renderWithEffects`: Renders a component and ensures state is flushed
    - `waitForApiCall`: Waits for an API call to be made with specific parameters
-   - `waitForRender`: Waits for a component to fully render
 
 5. **State Flushing**: Using `flushSync` from Svelte to ensure reactive updates are processed.
 

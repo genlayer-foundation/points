@@ -2458,8 +2458,6 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         """
         from datetime import datetime, timedelta
         from django.db.models import Min, Max
-        import calendar
-
         # Build base queryset with steward visibility and optional filters first
         # (needed for date detection).
         base_qs = self._visible_submission_queryset()

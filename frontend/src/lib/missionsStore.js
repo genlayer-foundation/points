@@ -84,20 +84,3 @@ export async function getMissions(params = {}) {
 export async function prefetchMissions(paramsList) {
   await Promise.all(paramsList.map(params => getMissions(params)));
 }
-
-/**
- * Clear the missions cache
- * Useful when missions might have changed (e.g., after admin updates)
- */
-export function clearMissionsCache() {
-  cache.clear();
-}
-
-/**
- * Invalidate a specific cache entry
- * @param {Object} params - Query parameters to invalidate
- */
-export function invalidateMissionsCache(params = {}) {
-  const cacheKey = getCacheKey(params);
-  cache.delete(cacheKey);
-}

@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte/svelte5';
-import { leaderboardAPI, contributionsAPI, usersAPI, statsAPI } from '../lib/api';
+import { leaderboardAPI, contributionsAPI } from '../lib/api';
 import Dashboard from '../routes/Dashboard.svelte';
 import Contributions from '../routes/Contributions.svelte';
 import ContributionsList from '../components/ContributionsList.svelte';
 import LeaderboardTable from '../components/LeaderboardTable.svelte';
-import ParticipantProfile from '../routes/ParticipantProfile.svelte';
 
 // Mock data for tests
 const mockLeaderboardData = {

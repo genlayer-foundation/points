@@ -15,6 +15,7 @@ class CloudinaryUploadWidget(forms.Widget):
         super().__init__(attrs=attrs)
 
     def render(self, name, value, attrs=None, renderer=None):
+        _ = renderer  # Kept for Django's Widget.render API.
         context = {
             'file_field_name': f'{name}_upload',
             'url_field_name': name,
@@ -25,4 +26,5 @@ class CloudinaryUploadWidget(forms.Widget):
         return render_to_string(self.template_name, context)
 
     def value_from_datadict(self, data, files, name):
+        _ = files
         return data.get(name, '')

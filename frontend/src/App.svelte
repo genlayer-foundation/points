@@ -294,10 +294,6 @@
         const cleanUrl = window.location.pathname + window.location.hash;
         window.history.replaceState({}, '', cleanUrl);
 
-        // TODO: Remove after April 1, 2026 — temporarily send referred users to hackathon
-        if (new Date() < new Date('2026-04-01')) {
-          window.location.hash = '#/hackathon';
-        }
       }
     } catch (error) {
       // Error capturing referral code silently handled
