@@ -110,9 +110,7 @@ class SorsaClient:
         # "not following" for every check.
         is_following = data.get('follow')
         if not isinstance(is_following, bool):
-            raise SorsaError(
-                f'Unexpected follow value: {type(is_following).__name__}'
-            )
+            raise SorsaError('Unexpected follow value')
         audit = {
             'status_code': response.status_code,
             'response': data,
