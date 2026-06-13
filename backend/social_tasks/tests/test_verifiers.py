@@ -91,7 +91,7 @@ class TwitterFollowVerifierTest(TestCase):
             linked_at=timezone.now(),
         )
         client = MagicMock()
-        client.is_following.return_value = (True, {'is_following': True})
+        client.is_following.return_value = (True, {'follow': True})
         mock_get_client.return_value = client
 
         result = verifiers.verify(self.task, self.user)
@@ -110,7 +110,7 @@ class TwitterFollowVerifierTest(TestCase):
             linked_at=timezone.now(),
         )
         client = MagicMock()
-        client.is_following.return_value = (False, {'is_following': False})
+        client.is_following.return_value = (False, {'follow': False})
         mock_get_client.return_value = client
 
         result = verifiers.verify(self.task, self.user)
@@ -552,12 +552,24 @@ class SorsaClientTest(TestCase):
 
     @patch('requests.Session.post')
     def test_success_returns_bool_and_audit(self, mock_post):
-        mock_post.return_value = MagicMock(status_code=200, json=lambda: {'is_following': True})
+        mock_post.return_value = MagicMock(status_code=200, json=lambda: {'follow': True})
         is_following, audit = self._client().is_following('@actor', '@target')
         self.assertTrue(is_following)
         self.assertEqual(audit['actor_handle'], 'actor')
         self.assertEqual(audit['target_handle'], 'target')
-        self.assertEqual(audit['response'], {'is_following': True})
+        self.assertEqual(audit['response'], {'follow': True})
+
+    @patch('requests.Session.post')
+    def test_success_posts_sorsa_v3_contract(self, mock_post):
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {'follow': False, 'user_protected': False},
+        )
+        self._client().is_following('@actor', '@target')
+        _args, kwargs = mock_post.call_args
+        self.assertEqual(kwargs['json'], {'username_1': 'target', 'username_2': 'actor'})
+        self.assertEqual(kwargs['headers']['ApiKey'], 'key')
+        self.assertNotIn('Authorization', kwargs['headers'])
 
     @patch('requests.Session.post')
     def test_500_raises(self, mock_post):
@@ -580,7 +592,7 @@ class SorsaClientTest(TestCase):
     def test_non_boolean_is_following_raises(self, mock_post):
         """Schema drift at Sorsa must fail loudly, not read as 'not following'."""
         mock_post.return_value = MagicMock(
-            status_code=200, json=lambda: {'following': True}
+            status_code=200, json=lambda: {'is_following': True}
         )
         with self.assertRaises(SorsaError):
             self._client().is_following('a', 'b')
