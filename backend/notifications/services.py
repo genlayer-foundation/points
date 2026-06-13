@@ -52,6 +52,12 @@ def _apply_values(notification, values):
     notification.save(update_fields=[*values.keys(), 'updated_at'])
 
 
+def broadcast_dedupe_key(event_slug, source):
+    """Stable key for the one broadcast row attached to a source object."""
+    event = get_event_type(event_slug)
+    return f"{event.slug}:{source._meta.label_lower}:{source.pk}"
+
+
 # ---------------------------------------------------------------------------
 # Core API
 # ---------------------------------------------------------------------------
@@ -136,7 +142,7 @@ def broadcast(
 
     dedupe_key = None
     if source is not None:
-        dedupe_key = f"{event.slug}:{source._meta.label_lower}:{source.pk}"
+        dedupe_key = broadcast_dedupe_key(event.slug, source)
 
     if dedupe_key:
         notification, created = Notification.objects.get_or_create(
@@ -154,6 +160,22 @@ def broadcast(
         return notification
 
     return Notification.objects.create(recipient=None, **values)
+
+
+def recall_broadcast(event_slug, source):
+    """Delete a source object's broadcast notification, if one exists."""
+    if source is None or not source.pk:
+        return 0
+
+    event = get_event_type(event_slug)
+    queryset = Notification.objects.filter(
+        recipient__isnull=True,
+        event_type=event.slug,
+        dedupe_key=broadcast_dedupe_key(event.slug, source),
+    )
+    count = queryset.count()
+    queryset.delete()
+    return count
 
 
 def estimate_broadcast_reach(audience):

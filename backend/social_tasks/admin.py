@@ -22,6 +22,7 @@ TARGET_FIELDS = tuple(
 class SocialTaskAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
     # Broadcast goes only to the role the task's category targets
     # (builders/validators/community members), resolved in the service.
+    broadcast_event_slug = 'social_task.published'
     broadcast_service = staticmethod(notification_services.broadcast_social_task)
     broadcast_eligible = staticmethod(lambda obj: obj.is_currently_active())
     broadcast_ineligible_reason = 'the task is inactive or outside its active window'

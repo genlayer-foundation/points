@@ -197,6 +197,7 @@ class PoapDistributionInline(admin.TabularInline):
 
 @admin.register(PoapDrop)
 class PoapDropAdmin(BroadcastNotificationAdminMixin, CloudinaryUploadMixin, admin.ModelAdmin):
+    broadcast_event_slug = 'poap.published'
     broadcast_service = staticmethod(notification_services.broadcast_poap)
     broadcast_eligible = staticmethod(lambda obj: obj.status == 'active')
     broadcast_ineligible_reason = 'the POAP drop is not active'

@@ -155,6 +155,18 @@ class BroadcastNotificationTests(TestCase):
         self.assertGreaterEqual(second.created_at, old_created_at)
         self.assertEqual(NotificationReceipt.objects.count(), 0)
 
+    def test_recall_broadcast_removes_row_and_receipts(self):
+        notification = services.broadcast_partner(self.partner)
+        NotificationReceipt.objects.create(
+            notification=notification, user=self.member, read_at=timezone.now()
+        )
+
+        deleted = services.recall_broadcast('partner.published', self.partner)
+
+        self.assertEqual(deleted, 1)
+        self.assertEqual(Notification.objects.count(), 0)
+        self.assertEqual(NotificationReceipt.objects.count(), 0)
+
     def test_broadcast_hidden_from_users_joined_after(self):
         # Member joined well before the broadcast; newcomer joins after it.
         User.objects.filter(pk=self.member.pk).update(
@@ -425,6 +437,7 @@ class BroadcastAdminMixinTests(TestCase):
         response = self.client.get(f'/admin/partners/partner/{self.partner.pk}/change/')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'broadcast_notification')
+        self.assertContains(response, 'recall_broadcast_notification')
         self.assertContains(response, 'Broadcast notification now')
 
     def test_admin_save_without_checkbox_stays_silent(self):
@@ -469,6 +482,44 @@ class BroadcastAdminMixinTests(TestCase):
         self.assertEqual(notification.event_type, 'partner.published')
         self.assertEqual(notification.body, 'Say hello to our new partner')
         self.assertEqual(notification.actor, self.admin_user)
+
+    def test_admin_recall_checkbox_removes_broadcast(self):
+        services.broadcast_partner(self.partner)
+        self.assertEqual(Notification.objects.count(), 1)
+
+        self.client.force_login(self.admin_user)
+        response = self.client.post(
+            f'/admin/partners/partner/{self.partner.pk}/change/',
+            {
+                'name': self.partner.name,
+                'slug': self.partner.slug,
+                'description': self.partner.description,
+                'is_active': 'on',
+                'logo_url': '',
+                'website_url': 'https://example.com',
+                'url': '',
+                'display_order': 0,
+                'recall_broadcast_notification': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_admin_bulk_recall_removes_broadcast(self):
+        services.broadcast_partner(self.partner)
+        self.client.force_login(self.admin_user)
+
+        response = self.client.post(
+            '/admin/partners/partner/',
+            {
+                'action': 'recall_selected_notifications',
+                '_selected_action': [str(self.partner.pk)],
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Notification.objects.count(), 0)
 
 
 class CampaignRecipientResolutionTests(TestCase):
@@ -779,6 +830,40 @@ class CustomNotificationAdminTests(TestCase):
         draft.refresh_from_db()
         self.assertEqual(draft.status, CustomNotification.STATUS_SENT)
 
+    def test_recall_checkbox_deletes_delivered_campaign_rows(self):
+        campaign = CustomNotification.objects.create(
+            title='Recall me',
+            body='Wrong copy',
+            target_mode=CustomNotification.TARGET_USERS,
+            status=CustomNotification.STATUS_SENT,
+        )
+        campaign.target_users.set([self.alice])
+        campaigns.send_campaign(campaign, actor=self.admin_user)
+        self.assertEqual(Notification.objects.filter(event_type='custom.announcement').count(), 1)
+
+        response = self.post_change_form(campaign=campaign, recall_now='on')
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Notification.objects.filter(event_type='custom.announcement').count(), 0)
+        campaign.refresh_from_db()
+        self.assertEqual(campaign.status, CustomNotification.STATUS_SENT)
+
+    def test_bulk_recall_deletes_delivered_campaign_rows(self):
+        campaign = CustomNotification.objects.create(
+            title='Recall selected',
+            target_mode=CustomNotification.TARGET_USERS,
+        )
+        campaign.target_users.set([self.alice])
+        campaigns.send_campaign(campaign, actor=self.admin_user)
+
+        response = self.client.post(
+            '/admin/notifications/customnotification/',
+            {'action': 'recall_selected', '_selected_action': [str(campaign.pk)]},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Notification.objects.filter(event_type='custom.announcement').count(), 0)
+
 
 class SocialTaskBroadcastTests(TestCase):
     def setUp(self):
@@ -878,3 +963,36 @@ class SocialTaskBroadcastTests(TestCase):
         notification = Notification.objects.get(event_type='social_task.published')
         self.assertEqual(notification.audience, Notification.AUDIENCE_BUILDERS)
         self.assertEqual(notification.actor, admin_user)
+
+    def test_admin_recall_checkbox_removes_social_task_broadcast(self):
+        services.broadcast_social_task(self.task)
+        self.assertEqual(Notification.objects.filter(event_type='social_task.published').count(), 1)
+
+        admin_user = User.objects.create_superuser(
+            email='task-recall-admin@test.com', password='adminpass123'
+        )
+        self.client.force_login(admin_user)
+        response = self.client.post(
+            f'/admin/social_tasks/socialtask/{self.task.pk}/change/',
+            {
+                'name': self.task.name,
+                'slug': self.task.slug,
+                'description': '',
+                'category': str(self.builder_category.pk),
+                'points': 10,
+                'order': 0,
+                'action_url': self.task.action_url,
+                'cta_text': 'Complete',
+                'verification_type': 'twitter_follow',
+                'target_handle': 'genlayer',
+                'target_guild_id': '',
+                'target_repo': '',
+                'is_active': 'on',
+                'starts_at_0': '', 'starts_at_1': '',
+                'ends_at_0': '', 'ends_at_1': '',
+                'recall_broadcast_notification': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Notification.objects.filter(event_type='social_task.published').count(), 0)

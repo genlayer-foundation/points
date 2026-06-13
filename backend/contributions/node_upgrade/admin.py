@@ -9,6 +9,7 @@ from .models import TargetNodeVersion
 @admin.register(TargetNodeVersion)
 class TargetNodeVersionAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
     # Broadcasts go to the validators audience only (see notifications/registry.py).
+    broadcast_event_slug = 'node_version.published'
     broadcast_service = staticmethod(notification_services.broadcast_target_node_version)
     broadcast_eligible = staticmethod(lambda obj: obj.is_active)
     broadcast_ineligible_reason = 'the target node version is inactive'

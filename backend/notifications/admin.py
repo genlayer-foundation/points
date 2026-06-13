@@ -57,6 +57,11 @@ class CustomNotificationAdminForm(forms.ModelForm):
         label='Send now',
         help_text='Off by default. Saving stays a silent draft unless this is checked.',
     )
+    recall_now = forms.BooleanField(
+        required=False,
+        label='Recall delivered portal notifications',
+        help_text='Deletes delivered portal notification rows for this campaign; the campaign record stays for audit.',
+    )
 
     class Meta:
         model = CustomNotification
@@ -75,6 +80,8 @@ class CustomNotificationAdminForm(forms.ModelForm):
 
         if cleaned.get('link_label') and not cleaned.get('link_url'):
             self.add_error('link_label', 'A link label needs a link URL.')
+        if cleaned.get('send_now') and cleaned.get('recall_now'):
+            self.add_error('recall_now', 'Choose either send/resend or recall, not both.')
 
         if mode == CustomNotification.TARGET_ROLES and not cleaned.get('target_roles'):
             self.add_error('target_roles', 'Select at least one role.')
@@ -106,7 +113,7 @@ class CustomNotificationAdmin(admin.ModelAdmin):
         'audience_preview', 'channels_display', 'status', 'sent_at', 'sent_by',
         'sent_count', 'unmatched_report', 'created_at', 'updated_at',
     )
-    actions = ('send_selected', 'resend_selected')
+    actions = ('send_selected', 'resend_selected', 'recall_selected')
 
     fieldsets = (
         ('Message', {
@@ -117,7 +124,7 @@ class CustomNotificationAdmin(admin.ModelAdmin):
             'description': 'Fill only the field that matches the chosen mode; the others are ignored.',
         }),
         ('Send', {
-            'fields': ('send_now', 'audience_preview', 'channels_display'),
+            'fields': ('send_now', 'recall_now', 'audience_preview', 'channels_display'),
         }),
         ('Delivery record', {
             'fields': ('status', 'sent_at', 'sent_by', 'sent_count', 'unmatched_report'),
@@ -158,6 +165,7 @@ class CustomNotificationAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         # The M2M is saved after this hook; the send happens in save_related.
         request._send_campaign_now = form.cleaned_data.get('send_now', False)
+        request._recall_campaign_now = form.cleaned_data.get('recall_now', False)
 
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
@@ -166,7 +174,9 @@ class CustomNotificationAdmin(admin.ModelAdmin):
         if campaign.target_mode != CustomNotification.TARGET_USERS:
             campaign.target_users.clear()
 
-        if getattr(request, '_send_campaign_now', False):
+        if getattr(request, '_recall_campaign_now', False):
+            self._recall_campaign(request, campaign)
+        elif getattr(request, '_send_campaign_now', False):
             self._send_campaign(request, campaign)
         else:
             try:
@@ -202,6 +212,31 @@ class CustomNotificationAdmin(admin.ModelAdmin):
             level=messages.WARNING if result.unmatched_wallets else messages.SUCCESS,
         )
 
+    def _recall_campaign(self, request, campaign):
+        try:
+            deleted = campaigns.recall_campaign(campaign)
+        except Exception:
+            logger.exception('Failed to recall campaign %r', campaign)
+            self.message_user(
+                request,
+                'The campaign was saved, but delivered notifications could not be recalled; check server logs.',
+                level=messages.ERROR,
+            )
+            return
+
+        if deleted:
+            self.message_user(
+                request,
+                f'Recalled {deleted} delivered portal notification(s). The campaign record was kept.',
+                level=messages.SUCCESS,
+            )
+        else:
+            self.message_user(
+                request,
+                'No delivered portal notifications were found for this campaign.',
+                level=messages.INFO,
+            )
+
     @staticmethod
     def _unmatched_summary(unmatched):
         shown = ', '.join(unmatched[:10])
@@ -215,6 +250,35 @@ class CustomNotificationAdmin(admin.ModelAdmin):
     @admin.action(description='Resend selected sent custom notifications')
     def resend_selected(self, request, queryset):
         self._run_bulk(request, queryset.filter(status=CustomNotification.STATUS_SENT), queryset)
+
+    @admin.action(description='Recall delivered portal notifications for selected custom notifications')
+    def recall_selected(self, request, queryset):
+        campaigns_recalled = 0
+        deleted = 0
+        failed = 0
+
+        for campaign in queryset:
+            try:
+                count = campaigns.recall_campaign(campaign)
+            except Exception:
+                logger.exception('Failed to recall campaign %r', campaign)
+                failed += 1
+                continue
+            if count:
+                campaigns_recalled += 1
+                deleted += count
+
+        message = (
+            f'Recalled {deleted} delivered portal notification(s) '
+            f'from {campaigns_recalled} custom notification(s).'
+        )
+        if failed:
+            message += f' Failed {failed}; check server logs.'
+        self.message_user(
+            request,
+            message,
+            level=messages.WARNING if failed else messages.SUCCESS,
+        )
 
     def _run_bulk(self, request, eligible, selected):
         sent = 0

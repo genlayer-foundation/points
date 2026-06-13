@@ -9,6 +9,7 @@ from .models import Partner
 
 @admin.register(Partner)
 class PartnerAdmin(BroadcastNotificationAdminMixin, CloudinaryUploadMixin, admin.ModelAdmin):
+    broadcast_event_slug = 'partner.published'
     broadcast_service = staticmethod(notification_services.broadcast_partner)
     broadcast_eligible = staticmethod(lambda obj: obj.is_active)
     broadcast_ineligible_reason = 'the partner is inactive'

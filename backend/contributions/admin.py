@@ -144,6 +144,7 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
 
 @admin.register(ContributionType)
 class ContributionTypeAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
+    broadcast_event_slug = 'contribution_type.published'
     broadcast_service = staticmethod(notification_services.broadcast_contribution_type)
     broadcast_eligible = staticmethod(lambda obj: obj.is_submittable)
     broadcast_ineligible_reason = 'the contribution type is not submittable'
@@ -1013,6 +1014,7 @@ class ContributionHighlightAdmin(admin.ModelAdmin):
 
 @admin.register(Mission)
 class MissionAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
+    broadcast_event_slug = 'mission.published'
     broadcast_service = staticmethod(notification_services.broadcast_mission)
     broadcast_eligible = staticmethod(lambda obj: obj.is_active())
     broadcast_ineligible_reason = 'the mission is not active'
@@ -1114,6 +1116,7 @@ class StartupRequestAdmin(admin.ModelAdmin):
 
 @admin.register(FeaturedContent)
 class FeaturedContentAdmin(BroadcastNotificationAdminMixin, CloudinaryUploadMixin, admin.ModelAdmin):
+    broadcast_event_slug = 'featured.published'
     broadcast_service = staticmethod(notification_services.broadcast_featured_content)
     broadcast_eligible = staticmethod(lambda obj: obj.status == 'active')
     broadcast_ineligible_reason = 'the featured content is not active'
@@ -1175,6 +1178,7 @@ class FeaturedContentAdmin(BroadcastNotificationAdminMixin, CloudinaryUploadMixi
 
 @admin.register(Alert)
 class AlertAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
+    broadcast_event_slug = 'alert.published'
     broadcast_service = staticmethod(notification_services.broadcast_alert)
     broadcast_eligible = staticmethod(lambda obj: obj.is_active)
     broadcast_ineligible_reason = 'the alert is inactive'

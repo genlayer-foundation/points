@@ -36,6 +36,7 @@ class StreamCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Stream)
 class StreamAdmin(BroadcastNotificationAdminMixin, CloudinaryUploadMixin, admin.ModelAdmin):
+    broadcast_event_slug = 'stream.published'
     broadcast_service = staticmethod(notification_services.broadcast_stream)
     broadcast_eligible = staticmethod(lambda obj: obj.is_active)
     broadcast_ineligible_reason = 'the stream is inactive'

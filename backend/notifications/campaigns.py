@@ -186,3 +186,22 @@ def send_campaign(campaign, *, actor=None):
         refreshed=refreshed,
         unmatched_wallets=audience.unmatched_wallets,
     )
+
+
+def recall_campaign(campaign):
+    """Delete delivered portal notifications for a custom campaign.
+
+    The campaign record is kept for audit and can be resent later. Future
+    email/Telegram channels should add their own outbox recall/cancel logic
+    next to this portal-row deletion.
+    """
+    queryset = Notification.objects.filter(
+        event_type='custom.announcement',
+        dedupe_key=campaign.dedupe_key,
+        source_app='notifications',
+        source_model='customnotification',
+        source_object_id=str(campaign.pk),
+    )
+    count = queryset.count()
+    queryset.delete()
+    return count
