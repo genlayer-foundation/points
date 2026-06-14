@@ -117,6 +117,7 @@
   import ContributionPreview from './routes/ContributionPreview.svelte';
   import ProjectDetail from './routes/ProjectDetail.svelte';
   import ProjectPageEditor from './routes/ProjectPageEditor.svelte';
+  import Notifications from './routes/Notifications.svelte';
   import GlobalDashboard from './components/GlobalDashboard.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
   import SocialTasks from './routes/SocialTasks.svelte';
@@ -218,6 +219,7 @@
     '/contributions/:id': EditSubmission,
     '/metrics': Metrics,
     '/profile': ProfileEdit,
+    '/notifications': Notifications,
     '/loader-showcase': LoaderShowcase,
     
     // Steward routes

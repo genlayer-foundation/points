@@ -7,6 +7,7 @@ from partners.views import PartnerViewSet
 from projects.views import ProjectViewSet
 from gen_tv.views import StreamCategoryViewSet, StreamViewSet
 from poaps.views import PoapDropViewSet
+from notifications.views import NotificationViewSet
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 from .metrics_views import ActiveValidatorsView, ContributionTypesStatsView, ParticipantsGrowthView, TestnetMetricsView
 
@@ -30,6 +31,7 @@ router.register(r'partners', PartnerViewSet, basename='partner')
 router.register(r'gen-tv/streams', StreamViewSet, basename='stream')
 router.register(r'gen-tv/categories', StreamCategoryViewSet, basename='stream-category')
 router.register(r'poaps', PoapDropViewSet, basename='poap')
+router.register(r'notifications', NotificationViewSet, basename='notification')
 
 # The API URLs are now determined automatically by the router
 urlpatterns = [

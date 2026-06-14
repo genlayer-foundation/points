@@ -32,6 +32,7 @@ backend/
 ├── users/                 # User management and auth
 ├── partners/              # Ecosystem partners directory
 ├── gen_tv/                # Gen TV livestream index
+├── notifications/         # Portal notification system
 ├── utils/                 # Shared utilities
 └── tally/                 # Django project settings (settings.py, urls.py)
 ```
@@ -250,6 +251,28 @@ backend/
 - **Migrations**: `partners/migrations/0001_initial.py` creates the model and seeds the 22 founding partners from a `RunPython` step.
 - **Admin**: `partners/admin.py` - list_editable on `display_order`, `is_active`; slug prepopulated from name.
 
+### Notifications
+- **Models**: `notifications/models.py`
+  - `Notification` - Personal (has `recipient`) or broadcast (`recipient=None` + `audience`: all/validators/stewards/builders/community). Audiences resolve via the role OneToOnes (Validator/Steward/Builder/Creator) in `services.audiences_for`. Broadcasts are ONE row regardless of user count; users see broadcasts created after their `date_joined`. Frozen copy (`title`/`body`/`link_url`), `payload` JSON for future channel renderers, `dedupe_key` (re-broadcasting a source object refreshes + resurfaces instead of duplicating).
+  - `NotificationReceipt` - Lazy per-user read state for broadcast rows (created on read).
+  - `CustomNotification` - Admin-composed campaign: title/markdown body/optional link + targeting (`everyone` | `roles` union of builders/validators/stewards/creators | hand-picked `target_users` M2M | pasted `target_wallets`) + delivery record (`status` draft/sent, `sent_count`, `unmatched_wallets`, `channels` reserved for email/Telegram).
+- **Campaigns**: `notifications/campaigns.py`
+  - `resolve_recipients(campaign)` - The channel-agnostic enumeration step (always `is_active=True`; banned/invisible users included by design). Future email/Telegram channels reuse this and add their own delivery.
+  - `send_campaign(campaign, actor=...)` - Fans out personal `Notification` rows (snapshot semantics, never broadcast rows, so campaigns stay private to recipients). Idempotent via dedupe key `custom.announcement:{pk}`; resend refreshes copy + resurfaces unread, scoped to the currently resolved audience.
+  - `recall_campaign(campaign)` - Deletes delivered portal notification rows for that campaign while keeping the campaign record for audit/resend.
+  - Compose flow: Django admin > Notifications > Custom notifications. Saving is a silent draft with reach preview; off-by-default "Send now" checkbox or `send_selected`/`resend_selected` actions deliver. "Recall delivered portal notifications" or the `recall_selected` action removes delivered portal rows. The send/recall runs in `save_related` (M2M targeting commits after `save_model`).
+- **Registry**: `notifications/registry.py` - Single source of truth for event types (category, priority, default audience, future channels). **Adding a new notification = register an EventType here + emit it from the producer.**
+- **Services**: `notifications/services.py`
+  - Core: `notify()` (personal), `broadcast()` (audience-wide single row), `recall_broadcast()` (delete a source object's broadcast row), `feed_for(user)`, `mark_notification_read()`, `mark_all_read()`
+  - Producers: `notify_submission_review`, `notify_contribution_highlighted` (via post_save receiver), `notify_referral_joined` (ethereum_auth login), `notify_validator_graduated` (users admin action), `broadcast_featured_content/partner/alert/contribution_type/mission/stream/poap/target_node_version`, `broadcast_social_task` (audience derived from the task's category: builder→builders, validator→validators, community→community members)
+- **Admin mixin**: `notifications/admin_mixins.py` - `BroadcastNotificationAdminMixin` adds an off-by-default "Broadcast notification now" checkbox + bulk action, plus recall checkbox/action, to any ModelAdmin (`broadcast_event_slug`, `broadcast_service`, `broadcast_eligible` config). Applied to FeaturedContent, Alert, ContributionType, Mission, Partner, Stream, PoapDrop, TargetNodeVersion, SocialTask admins. Saving/activating stays silent unless explicitly checked.
+- **Views**: `notifications/views.py`
+  - `/api/v1/notifications/` - Auth-required feed (reverse-chronological; `?unread=true`, `?category=` filters)
+  - `/api/v1/notifications/unread-count/` - Unread badge count
+  - `/api/v1/notifications/{id}/mark-read/` - Personal sets `read_at`; broadcast creates a receipt
+  - `/api/v1/notifications/mark-all-read/`
+- **Future channels**: email/Telegram slot in via registry `channels` + a delivery outbox and `NotificationPreference` model when the first external channel ships (Telegram link would follow the `social_connections` pattern).
+
 ### Gen TV
 - **Models**: `gen_tv/models.py`
   - Stream - Livestream entry with `title`, `slug`, `description`, `url`, `image_url`, `starts_at` (required), `ends_at` (required), `category` (`internal` / `community`), `is_active`. `status` is a derived `@property` computed from `starts_at`/`ends_at` (no DB column).
@@ -409,6 +432,12 @@ GET    /api/v1/projects/{slug}/            (public, project detail with metrics 
 # Gen TV
 GET    /api/v1/gen-tv/streams/             (public, supports ?category= filter)
 GET    /api/v1/gen-tv/streams/{slug}/      (public, stream detail)
+
+# Notifications
+GET    /api/v1/notifications/              (requires auth, ?unread=true ?category= filters)
+GET    /api/v1/notifications/unread-count/ (requires auth)
+POST   /api/v1/notifications/{id}/mark-read/   (requires auth)
+POST   /api/v1/notifications/mark-all-read/    (requires auth)
 ```
 
 ### Leaderboard monthly date ranges
