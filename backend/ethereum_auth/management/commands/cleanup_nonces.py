@@ -1,3 +1,4 @@
+import math
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand, CommandError
@@ -8,14 +9,17 @@ from ethereum_auth.models import Nonce
 
 
 class Command(BaseCommand):
-    help = 'Remove used or expired SIWE nonces after a configurable grace period.'
+    help = 'Remove expired SIWE nonces and used SIWE nonces older than the cleanup threshold.'
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--hours',
             type=float,
             default=1,
-            help='Keep stale nonces for this many hours after their expiry time (default: 1).',
+            help=(
+                'Delete nonces expired more than this many hours ago and used '
+                'nonces created more than this many hours ago (default: 1).'
+            ),
         )
         parser.add_argument(
             '--dry-run',
@@ -25,13 +29,16 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         hours = options['hours']
-        if hours < 0:
-            raise CommandError('--hours must be greater than or equal to 0')
+        if not math.isfinite(hours) or hours < 0:
+            raise CommandError('--hours must be a finite number greater than or equal to 0')
 
-        cutoff = timezone.now() - timedelta(hours=hours)
+        try:
+            cutoff = timezone.now() - timedelta(hours=hours)
+        except OverflowError as exc:
+            raise CommandError('--hours is too large') from exc
+
         stale_nonces = Nonce.objects.filter(
-            Q(used=True) | Q(expires_at__lte=timezone.now()),
-            expires_at__lte=cutoff,
+            Q(expires_at__lte=cutoff) | Q(used=True, created_at__lte=cutoff)
         )
         count = stale_nonces.count()
 
