@@ -2,7 +2,30 @@ import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-import { OG_IMAGES, resolveRouteMeta } from '../lib/routeMeta.js';
+import { OG_IMAGES, STATIC_OG_ROUTES, resolveRouteMeta } from '../lib/routeMeta.js';
+
+const expectedRouteImages = {
+  '/': '/assets/og/portal.png',
+  '/how-it-works': '/assets/og/how-it-works.png',
+  '/referral-program': '/assets/og/referral-program.png',
+  '/hackathon': '/assets/og/hackathon.png',
+  '/hackathon-winners': '/assets/og/hackathon-winners.png',
+  '/genesis': '/assets/og/genesis.png',
+  '/genesis/manifesto': '/assets/og/genesis-manifesto.png',
+  '/genesis/whitepaper': '/assets/og/genesis-whitepaper.png',
+  '/genesis/compass': '/assets/og/genesis-compass.png',
+  '/gen-tv': '/assets/og/gen-tv.png',
+  '/gen-news': '/assets/og/gen-news.png',
+  '/ecosystem-partners': '/assets/og/ecosystem-partners.png',
+  '/builders/resources': '/assets/og/builders-resources.png',
+  '/community/poaps': '/assets/og/community-poaps.png',
+  '/participants': '/assets/og/participants.png',
+  '/validators/participants': '/assets/og/validators-participants.png',
+  '/validators/waitlist/join': '/assets/og/validators-waitlist.png',
+  '/validators/wall-of-shame': '/assets/og/validators-wall-of-shame.png',
+  '/terms-of-use': '/assets/og/terms-of-use.png',
+  '/privacy-policy': '/assets/og/privacy-policy.png',
+};
 
 describe('route metadata', () => {
   it('uses final 1200x630 OG images instead of raw backdrops', () => {
@@ -24,18 +47,45 @@ describe('route metadata', () => {
   });
 
   it('resolves route-specific images for key portal routes', () => {
-    expect(resolveRouteMeta('/participants').image).toContain('/assets/og/participants.png');
-    expect(resolveRouteMeta('/ecosystem-partners').image).toContain('/assets/og/ecosystem-partners.png');
-    expect(resolveRouteMeta('/builders/resources').image).toContain('/assets/og/builders-resources.png');
-    expect(resolveRouteMeta('/validators/waitlist/join').image).toContain('/assets/og/validators-waitlist.png');
+    for (const [route, imagePath] of Object.entries(expectedRouteImages)) {
+      expect(resolveRouteMeta(route).image).toContain(imagePath);
+    }
   });
 
-  it('keeps alias URLs while reusing Genesis route metadata', () => {
-    const meta = resolveRouteMeta('/foundations/manifesto');
+  it('only generates static OG pages for canonical route paths', () => {
+    expect(STATIC_OG_ROUTES).toEqual([
+      '/how-it-works',
+      '/referral-program',
+      '/hackathon',
+      '/hackathon-winners',
+      '/genesis',
+      '/genesis/manifesto',
+      '/genesis/whitepaper',
+      '/genesis/compass',
+      '/gen-tv',
+      '/gen-news',
+      '/ecosystem-partners',
+      '/builders/resources',
+      '/community/poaps',
+      '/participants',
+      '/validators/participants',
+      '/validators/waitlist/join',
+      '/validators/wall-of-shame',
+      '/terms-of-use',
+      '/privacy-policy',
+    ]);
+  });
 
+  it('canonicalizes legacy Foundations aliases to Genesis URLs', () => {
+    expect(resolveRouteMeta('/foundations').url).toBe('https://portal.genlayer.foundation/genesis');
+    expect(resolveRouteMeta('/foundations/manifesto').url).toBe('https://portal.genlayer.foundation/genesis/manifesto');
+    expect(resolveRouteMeta('/foundations/whitepaper').url).toBe('https://portal.genlayer.foundation/genesis/whitepaper');
+    expect(resolveRouteMeta('/foundations/compass').url).toBe('https://portal.genlayer.foundation/genesis/compass');
+    expect(resolveRouteMeta('/manifesto').url).toBe('https://portal.genlayer.foundation/genesis/manifesto');
+
+    const meta = resolveRouteMeta('/foundations/manifesto');
     expect(meta.title).toBe('GenLayer Manifesto');
     expect(meta.image).toContain('/assets/og/genesis-manifesto.png');
-    expect(meta.url).toBe('https://portal.genlayer.foundation/foundations/manifesto');
   });
 
   it('uses the generic builder project image for project detail slugs', () => {

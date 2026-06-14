@@ -223,11 +223,6 @@ export const STATIC_OG_ROUTES = [
   '/genesis/manifesto',
   '/genesis/whitepaper',
   '/genesis/compass',
-  '/foundations',
-  '/foundations/manifesto',
-  '/foundations/whitepaper',
-  '/foundations/compass',
-  '/manifesto',
   '/gen-tv',
   '/gen-news',
   '/ecosystem-partners',
@@ -259,7 +254,7 @@ export function resolveRouteMeta(path = '/') {
     return {
       ...DEFAULT_META,
       ...ROUTE_META[key],
-      url: ROUTE_META[key].url || `${SITE_URL}${normalized === '/' ? '/' : normalized}`,
+      url: ROUTE_META[key].url || `${SITE_URL}${key === '/' ? '/' : key}`,
     };
   }
 
