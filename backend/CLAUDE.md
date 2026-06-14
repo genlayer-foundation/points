@@ -515,6 +515,15 @@ python manage.py shell
 # Run tests
 python manage.py test
 
+# Preview stale SIWE nonce cleanup
+python manage.py cleanup_nonces --dry-run
+
+# Delete nonces expired more than 1 hour ago and used nonces created more than 1 hour ago
+python manage.py cleanup_nonces
+
+# Use a custom cleanup threshold, in hours
+python manage.py cleanup_nonces --hours 24
+
 # Collect static files
 python manage.py collectstatic
 ```
