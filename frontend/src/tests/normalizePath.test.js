@@ -23,6 +23,13 @@ describe('computeNormalizedUrl', () => {
       .toBe('/#/builders/leaderboard');
   });
 
+  it('removes trailing slashes when rewriting', () => {
+    expect(computeNormalizedUrl({ pathname: '/referral-program/', hash: '', search: '' }))
+      .toBe('/#/referral-program');
+    expect(computeNormalizedUrl({ pathname: '/validators/waitlist/join/', hash: '', search: '?ref=abc' }))
+      .toBe('/#/validators/waitlist/join?ref=abc');
+  });
+
   it('returns null when a hash is already present', () => {
     expect(computeNormalizedUrl({ pathname: '/testnets', hash: '#/testnets', search: '' }))
       .toBeNull();

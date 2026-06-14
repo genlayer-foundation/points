@@ -1,8 +1,4 @@
-const BASE_URL = 'https://portal.genlayer.foundation/';
-const DEFAULT_IMAGE = BASE_URL + 'assets/portal_og_image.png';
-const DEFAULT_TITLE = "GenLayer's Incentivized Builder Program";
-const DEFAULT_DESCRIPTION =
-  "GenLayer's Incentivized Builder Program rewards early contributors who help build the foundation of the GenLayer ecosystem across code, infrastructure, and community growth. Participation is open to everyone.";
+import { DEFAULT_META, resolveRouteMeta } from './routeMeta.js';
 
 function updateTag(selector, value) {
   const el = document.querySelector(selector);
@@ -10,12 +6,12 @@ function updateTag(selector, value) {
 }
 
 export function setPageMeta({ title, description, image, imageWidth, imageHeight, url }) {
-  const t = title || DEFAULT_TITLE;
-  const d = description || DEFAULT_DESCRIPTION;
-  const img = image || DEFAULT_IMAGE;
-  const w = imageWidth || '1200';
-  const h = imageHeight || '630';
-  const u = url || BASE_URL;
+  const t = title || DEFAULT_META.title;
+  const d = description || DEFAULT_META.description;
+  const img = image || DEFAULT_META.image;
+  const w = imageWidth || DEFAULT_META.imageWidth;
+  const h = imageHeight || DEFAULT_META.imageHeight;
+  const u = url || DEFAULT_META.url;
 
   document.title = t;
   updateTag('meta[name="title"]', t);
@@ -33,12 +29,9 @@ export function setPageMeta({ title, description, image, imageWidth, imageHeight
 }
 
 export function resetPageMeta() {
-  setPageMeta({
-    title: DEFAULT_TITLE,
-    description: DEFAULT_DESCRIPTION,
-    image: DEFAULT_IMAGE,
-    imageWidth: '1200',
-    imageHeight: '630',
-    url: BASE_URL,
-  });
+  setPageMeta(DEFAULT_META);
+}
+
+export function setRouteMeta(path) {
+  setPageMeta(resolveRouteMeta(path));
 }

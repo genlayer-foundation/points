@@ -7,15 +7,15 @@
   <title>GenLayer Portal</title>
 
   <!-- Primary Meta Tags -->
-  <meta name="title" content="GenLayer's Incentivized Builder Program">
-  <meta name="description" content="GenLayer's Incentivized Builder Program rewards early contributors who help build the foundation of the GenLayer ecosystem across code, infrastructure, and community growth. Participation is open to everyone.">
+  <meta name="title" content="GenLayer Portal">
+  <meta name="description" content="Track GenLayer contributions, points, validators, builders, community activity, events, and ecosystem programs.">
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://portal.genlayer.foundation/">
-  <meta property="og:title" content="GenLayer's Incentivized Builder Program">
-  <meta property="og:description" content="GenLayer's Incentivized Builder Program rewards early contributors who help build the foundation of the GenLayer ecosystem across code, infrastructure, and community growth. Participation is open to everyone.">
-  <meta property="og:image" content="https://portal.genlayer.foundation/assets/portal_og_image.png">
+  <meta property="og:title" content="GenLayer Portal">
+  <meta property="og:description" content="Track GenLayer contributions, points, validators, builders, community activity, events, and ecosystem programs.">
+  <meta property="og:image" content="https://portal.genlayer.foundation/assets/og/portal.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:site_name" content="GenLayer Portal">
@@ -23,9 +23,9 @@
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:url" content="https://portal.genlayer.foundation/">
-  <meta name="twitter:title" content="GenLayer's Incentivized Builder Program">
-  <meta name="twitter:description" content="GenLayer's Incentivized Builder Program rewards early contributors who help build the foundation of the GenLayer ecosystem across code, infrastructure, and community growth. Participation is open to everyone.">
-  <meta name="twitter:image" content="https://portal.genlayer.foundation/assets/portal_og_image.png">
+  <meta name="twitter:title" content="GenLayer Portal">
+  <meta name="twitter:description" content="Track GenLayer contributions, points, validators, builders, community activity, events, and ecosystem programs.">
+  <meta name="twitter:image" content="https://portal.genlayer.foundation/assets/og/portal.png">
   <meta name="twitter:site" content="@GenLayer">
 
   <!-- Theme Color -->
@@ -40,6 +40,7 @@
     // e.g. /referral-program → /#/referral-program
     (function () {
       var p = location.pathname;
+      if (p.length > 1) p = p.replace(/\/+$/, '');
       if (p !== '/' && !p.startsWith('/assets')) {
         location.replace('/' + location.search + '#' + p);
       }
