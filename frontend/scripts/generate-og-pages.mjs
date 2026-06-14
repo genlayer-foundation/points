@@ -17,20 +17,36 @@ function escapeHtml(value = '') {
     .replace(/>/g, '&gt;');
 }
 
+function escapeRegExp(value = '') {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function setTitle(html, title) {
-  return html.replace(/<title>.*?<\/title>/s, `<title>${escapeHtml(title)}</title>`);
+  const safe = escapeHtml(title);
+  return html.replace(/<title>.*?<\/title>/s, () => `<title>${safe}</title>`);
+}
+
+function setMetaContent(html, attrName, attrValue, content) {
+  const safe = escapeHtml(content);
+  const attr = escapeRegExp(attrName);
+  const value = escapeRegExp(attrValue);
+  const pattern = new RegExp(`<meta\\b(?=[^>]*\\b${attr}="${value}")[^>]*>`, 'i');
+
+  return html.replace(pattern, (tag) => {
+    if (/\bcontent="/i.test(tag)) {
+      return tag.replace(/\bcontent="[^"]*"/i, () => `content="${safe}"`);
+    }
+
+    return tag.replace(/\/?>$/, (end) => ` content="${safe}"${end}`);
+  });
 }
 
 function setNamedMeta(html, name, content) {
-  const safe = escapeHtml(content);
-  const pattern = new RegExp(`(<meta\\s+name="${name}"\\s+content=")[^"]*(">)`, 'i');
-  return html.replace(pattern, `$1${safe}$2`);
+  return setMetaContent(html, 'name', name, content);
 }
 
 function setPropertyMeta(html, property, content) {
-  const safe = escapeHtml(content);
-  const pattern = new RegExp(`(<meta\\s+property="${property}"\\s+content=")[^"]*(">)`, 'i');
-  return html.replace(pattern, `$1${safe}$2`);
+  return setMetaContent(html, 'property', property, content);
 }
 
 function applyMeta(html, meta) {

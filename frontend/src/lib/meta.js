@@ -28,10 +28,6 @@ export function setPageMeta({ title, description, image, imageWidth, imageHeight
   updateTag('meta[name="twitter:url"]', u);
 }
 
-export function resetPageMeta() {
-  setPageMeta(DEFAULT_META);
-}
-
 export function setRouteMeta(path) {
   setPageMeta(resolveRouteMeta(path));
 }
