@@ -147,29 +147,6 @@ export async function getBannedValidators() {
 }
 
 /**
- * Get the list of active validators from the blockchain
- * @returns {Promise<string[]>} Array of active validator addresses
- */
-export async function getActiveValidators() {
-  try {
-    const contractInfo = await getContractInfo();
-    const publicClient = await getPublicClient();
-
-    const validators = await publicClient.readContract({
-      address: contractInfo.contract_address,
-      abi: contractInfo.abi,
-      functionName: 'getValidatorsAtCurrentEpoch',
-    });
-
-    // Filter out any zero addresses (keep original case)
-    return validators
-      .filter(addr => addr.toLowerCase() !== '0x0000000000000000000000000000000000000000');
-  } catch (error) {
-    throw error;
-  }
-}
-
-/**
  * Get the balance of a validator address
  * @param {string} address - The validator's wallet address
  * @returns {Promise<{balance: bigint, formatted: string}>} Balance in wei and formatted in GEN
@@ -331,42 +308,3 @@ export async function unbanAllValidators() {
     };
   }
 }
-
-/**
- * Ensure the wallet is connected to a specific GenLayer network
- * @param {string} networkKey - 'asimov' or 'bradbury'
- * @returns {Promise<void>}
- */
-export async function ensureNetwork(networkKey = 'asimov') {
-  const network = NETWORKS[networkKey];
-  if (!network) {
-    throw new Error(`Unknown network: ${networkKey}`);
-  }
-
-  if (!window.ethereum) {
-    throw new Error('MetaMask is not installed');
-  }
-
-  try {
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    if (chainId === network.chainId) {
-      return;
-    }
-
-    await window.ethereum.request({
-      method: 'wallet_switchEthereumChain',
-      params: [{ chainId: network.chainId }],
-    });
-  } catch (error) {
-    if (error.code === 4902) {
-      await window.ethereum.request({
-        method: 'wallet_addEthereumChain',
-        params: [network],
-      });
-    } else {
-      throw error;
-    }
-  }
-}
-
-export { NETWORKS, ASIMOV_NETWORK };

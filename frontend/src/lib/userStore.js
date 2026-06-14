@@ -68,14 +68,4 @@ function createUserStore() {
   };
 }
 
-// Export singleton instance
 export const userStore = createUserStore();
-
-// Helper to get just the user data in components
-export function getUserData() {
-  let userData = null;
-  userStore.subscribe(state => {
-    userData = state.user;
-  })();
-  return userData;
-}

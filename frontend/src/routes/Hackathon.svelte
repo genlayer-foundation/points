@@ -1,5 +1,4 @@
 <script>
-  import { setPageMeta, resetPageMeta } from '../lib/meta.js';
   import heroBackground from '../assets/hackathon/hero-background.jpg';
   import prizeBackground from '../assets/hackathon/prize-background.jpg';
   import ctaBackground from '../assets/hackathon/cta-background.jpg';
@@ -84,15 +83,6 @@
     { icon: perkIcon3, title: 'Community Recognition', subtitle: 'Featured across GenLayer channels' },
   ];
 
-  $effect(() => {
-    setPageMeta({
-      title: 'Testnet Bradbury Hackathon',
-      description: 'Build on GenLayer\'s AI-driven testnet. Compete for $5,000 in prizes and Builder Points. Deploy Intelligent Contracts with Optimistic Democracy consensus.',
-      image: 'https://portal.genlayer.foundation/assets/hackathon_og_image.png',
-      url: 'https://portal.genlayer.foundation/#/hackathon',
-    });
-    return () => resetPageMeta();
-  });
 </script>
 
 <div class="flex flex-col gap-4 md:gap-6 max-w-[1200px] mx-auto pb-12 px-1 md:px-3">

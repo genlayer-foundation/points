@@ -17,7 +17,6 @@ from django.core.cache import cache
 from .models import SyncLock, Validator, ValidatorWallet
 from .serializers import (
     ValidatorWalletSerializer,
-    LightValidatorWalletSerializer,
     WallOfShameSerializer,
 )
 from .permissions import IsCronToken

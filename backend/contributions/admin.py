@@ -96,6 +96,7 @@ class ContributionTypeListFilter(admin.SimpleListFilter):
     parameter_name = 'contribution_type__id__exact'
 
     def lookups(self, request, model_admin):
+        _ = model_admin
         contribution_types = ContributionType.objects.select_related(
             'category'
         ).order_by('category__name', 'name')

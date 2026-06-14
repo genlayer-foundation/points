@@ -115,14 +115,6 @@ export const categoryTheme = derived(currentCategory, $category => {
   return themes[$category] || themes.global;
 });
 
-// Helper to get API endpoint for category
-export function getCategoryEndpoint(category, baseEndpoint) {
-  if (category === 'global') {
-    return baseEndpoint;
-  }
-  return `${baseEndpoint}/category/${category}`;
-}
-
 // Helper to detect category from route
 export function detectCategoryFromRoute(path) {
   if (path.startsWith('/builders')) {

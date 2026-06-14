@@ -9,7 +9,7 @@
   import ProfileCompletionGuard from './components/ProfileCompletionGuard.svelte';
   import { currentCategory, detectCategoryFromRoute } from './stores/category.js';
   import { location } from 'svelte-spa-router';
-  import { resetPageMeta } from './lib/meta.js';
+  import { setRouteMeta } from './lib/meta.js';
   import { authState, verifyAuth } from './lib/auth.js';
   import { normalizeLocation } from './lib/normalizePath.js';
   
@@ -294,10 +294,6 @@
         const cleanUrl = window.location.pathname + window.location.hash;
         window.history.replaceState({}, '', cleanUrl);
 
-        // TODO: Remove after April 1, 2026 — temporarily send referred users to hackathon
-        if (new Date() < new Date('2026-04-01')) {
-          window.location.hash = '#/hackathon';
-        }
       }
     } catch (error) {
       // Error capturing referral code silently handled
@@ -308,8 +304,7 @@
   function handleRouteLoaded() {
     // Hide tooltips
     hideTooltips();
-    // Reset OG meta to defaults; page-specific components will override if needed
-    resetPageMeta();
+    setRouteMeta($location);
     const mainEl = document.querySelector('main');
     if (mainEl) {
       mainEl.scrollTo({ top: 0, left: 0, behavior: 'auto' });

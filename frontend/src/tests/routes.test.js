@@ -2,11 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte/svelte5';
 import Dashboard from '../routes/Dashboard.svelte';
 import Contributions from '../routes/Contributions.svelte';
-import ParticipantProfile from '../routes/ParticipantProfile.svelte';
 import NotFound from '../routes/NotFound.svelte';
-import { leaderboardAPI, contributionsAPI, usersAPI, statsAPI } from '../lib/api';
-import { renderWithEffects, waitForApiCall, generateMockLeaderboardResponse, generateMockContributionsResponse } from './testHelpers';
-import { testUtils } from './setupTests';
+import { leaderboardAPI, contributionsAPI, statsAPI } from '../lib/api';
 
 // Mock fetch responses for all API calls
 beforeEach(() => {
@@ -56,26 +53,6 @@ beforeEach(() => {
     }
   });
   
-  usersAPI.getUserByAddress.mockResolvedValue({
-    data: {
-      name: 'Test User',
-      address: '0x123',
-      created_at: '2023-01-01',
-      leaderboard_entry: {
-        rank: 3,
-        total_points: 75
-      }
-    }
-  });
-  
-  statsAPI.getUserStats.mockResolvedValue({
-    data: {
-      totalContributions: 25,
-      contributionTypes: [
-        { id: 1, name: 'Code', count: 15, total_points: 50, percentage: 66.7 }
-      ]
-    }
-  });
 });
 
 describe('Routes Rendering Tests', () => {
@@ -139,25 +116,6 @@ describe('Routes Rendering Tests', () => {
       await waitFor(() => {
         const allContributionsHeading = screen.queryByText('All Contributions');
         expect(allContributionsHeading).not.toBeNull();
-      }, { timeout: 2000 });
-    });
-  });
-  
-describe('Participant Profile Page', () => {
-    beforeEach(() => {
-      // Reset mocks
-      usersAPI.getUserByAddress.mockClear();
-      statsAPI.getUserStats.mockClear();
-    });
-    
-    // Skip this test for now - ParticipantProfile uses router.params which is causing issues
-    it.skip('renders basic elements', async () => {
-      render(ParticipantProfile);
-      
-      // Check for profile elements that should be present regardless of data
-      await waitFor(() => {
-        const profileElement = screen.queryByText(/profile/i);
-        expect(profileElement).not.toBeNull();
       }, { timeout: 2000 });
     });
   });

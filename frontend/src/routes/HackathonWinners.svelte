@@ -1,5 +1,4 @@
 <script>
-  import { setPageMeta, resetPageMeta } from '../lib/meta.js';
   import heroBackground from '../assets/hackathon/hero-background.jpg';
   import ctaBackground from '../assets/hackathon/cta-background.jpg';
   import bulletIcon from '../assets/hackathon/bullet-icon.png';
@@ -60,16 +59,6 @@
   });
 
   const TWEET_ID = '2033965129922990190';
-
-  $effect(() => {
-    setPageMeta({
-      title: 'Hackathon Winners - Testnet Bradbury',
-      description: 'Meet the winners of GenLayer\'s Testnet Bradbury Hackathon. 135 BUIDLs, 280 hackers, built in 2 weeks.',
-      image: 'https://portal.genlayer.foundation/assets/hackathon_og_image.png',
-      url: 'https://portal.genlayer.foundation/#/hackathon-winners',
-    });
-    return () => resetPageMeta();
-  });
 
   // Load Twitter widgets.js and render the embedded tweet via oembed blockquote.
   // We use the blockquote + twttr.widgets.load() approach instead of createTweet()

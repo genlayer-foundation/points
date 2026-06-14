@@ -17,13 +17,18 @@
 
 const RESERVED_PREFIXES = ['/api', '/oauth', '/static', '/assets', '/media'];
 
+function normalizeRoutePath(pathname) {
+  if (!pathname || pathname === '/') return '/';
+  return pathname.replace(/\/+$/, '') || '/';
+}
+
 function looksLikeStaticFile(pathname) {
   const lastSegment = pathname.split('/').pop() || '';
   return lastSegment.includes('.');
 }
 
 export function computeNormalizedUrl(location) {
-  const pathname = location.pathname || '/';
+  const pathname = normalizeRoutePath(location.pathname || '/');
   const hash = location.hash || '';
   const search = location.search || '';
 

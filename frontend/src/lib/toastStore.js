@@ -57,10 +57,7 @@ function createToastStore() {
 // Create and export the store instance
 export const toastStore = createToastStore();
 
-// Convenience functions for common use cases
-export const addToast = toastStore.addToast;
 export const removeToast = toastStore.removeToast;
-export const clearToasts = toastStore.clearAll;
 
 // Type-specific convenience functions
 export const showSuccess = (message, duration) =>

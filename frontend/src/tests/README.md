@@ -69,15 +69,13 @@ When adding new features or components:
 
 ## Svelte 5 Compatibility Note
 
-Some tests are currently skipped (using `it.skip()`) due to compatibility issues with Svelte 5's reactivity system, particularly:
+Some tests may need extra care due to Svelte 5's reactivity system, particularly:
 
-1. Tests for the ParticipantProfile component - Issues with the reactive `$effect` and router parameters
-2. Tests for API calls in Dashboard and Contributions components - Timing issues with component lifecycle
+1. Tests for API calls in Dashboard and Contributions components - Timing issues with component lifecycle
 
 These tests need to be updated once we have a better understanding of how to properly test Svelte 5 components with Testing Library. The main issues are:
 
 - The timing of API calls in the `onMount` lifecycle hook
-- The `$effect` function and its interaction with reactive state
 - Router parameter subscriptions and proper cleanup in tests
 
 When updating these tests, consider:

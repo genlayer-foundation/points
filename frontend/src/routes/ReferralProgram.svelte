@@ -1,5 +1,4 @@
 <script>
-  import { setPageMeta, resetPageMeta } from '../lib/meta.js';
   import { authState } from '../lib/auth.js';
   import { push } from 'svelte-spa-router';
   import checkIcon from '../assets/referral/check-icon.png';
@@ -122,16 +121,6 @@
     canvas.style.webkitMaskImage = g;
     canvas.style.maskImage = g;
   }
-
-  $effect(() => {
-    setPageMeta({
-      title: 'Referral Program',
-      description: 'Invite builders and validators to GenLayer. Earn 10% of eligible builder and validator contribution points — forever, with no cap.',
-      image: 'https://portal.genlayer.foundation/assets/referral_og_image.png',
-      url: 'https://portal.genlayer.foundation/#/referral-program',
-    });
-    return () => resetPageMeta();
-  });
 
   $effect(() => {
     // Grab refs once — if null the effect re-runs when they bind

@@ -279,38 +279,3 @@ export function parseSearch(query) {
 
   return { filters };
 }
-
-/**
- * Convert parsed filters back to a query string.
- * Useful for URL sync and display.
- * @param {Object} filters
- * @returns {string}
- */
-export function filtersToQuery(filters) {
-  const parts = [];
-
-  for (const tag of SINGLE_VALUE_TAGS) {
-    const filter = filters[tag];
-    const filterItems = Array.isArray(filter) ? filter : (filter ? [filter] : []);
-    for (const item of filterItems) {
-      if (!item?.value) continue;
-      const prefix = item.negated ? '-' : '';
-      const value = item.value.includes(' ') ? `"${item.value}"` : item.value;
-      parts.push(`${prefix}${tag}:${value}`);
-    }
-  }
-
-  for (const tag of MULTI_VALUE_TAGS) {
-    const values = filters[tag] || [];
-    for (const value of values) {
-      const formattedValue = value.includes(' ') ? `"${value}"` : value;
-      parts.push(`${tag}:${formattedValue}`);
-    }
-  }
-
-  if (filters.minContributions !== null && filters.minContributions > 0) {
-    parts.push(`min-contributions:${filters.minContributions}`);
-  }
-
-  return parts.join(' ');
-}
