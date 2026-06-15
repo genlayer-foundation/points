@@ -205,8 +205,7 @@ class ValidatorCreationTestCase(TestCase):
         # Check user was created
         self.assertIsNotNone(user)
         self.assertEqual(user.address, '0xabcdef1234567890123456789012345678901234')
-        self.assertEqual(user.first_name, 'New')
-        self.assertEqual(user.last_name, 'Validator')
+        self.assertEqual(user.name, 'New Validator')
         self.assertTrue(user.visible)
         
         # Check contribution was created
@@ -228,8 +227,7 @@ class ValidatorCreationTestCase(TestCase):
             username='existing',
             email='existing@test.com',
             address='0x1234567890123456789012345678901234567890',
-            first_name='Old',
-            last_name='Name',
+            name='Old Name',
             visible=True
         )
         
@@ -261,8 +259,7 @@ class ValidatorCreationTestCase(TestCase):
         
         # Check name was updated
         user.refresh_from_db()
-        self.assertEqual(user.first_name, 'Updated')
-        self.assertEqual(user.last_name, 'Name')
+        self.assertEqual(user.name, 'Updated Name')
         
         # Check contribution was created
         contributions = Contribution.objects.filter(user=user)
@@ -355,8 +352,7 @@ class ValidatorCreationTestCase(TestCase):
         
         # Check user was created (address should be normalized to lowercase)
         user = User.objects.get(address='0xabcdef1234567890123456789012345678901234')
-        self.assertEqual(user.first_name, 'Test')
-        self.assertEqual(user.last_name, 'Admin Validator')
+        self.assertEqual(user.name, 'Test Admin Validator')
         
         # Check contributions were created
         contributions = Contribution.objects.filter(user=user)

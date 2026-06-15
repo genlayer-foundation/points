@@ -289,6 +289,8 @@ class Contribution(BaseModel):
             )
             self.multiplier_at_creation = multiplier_value
         except GlobalLeaderboardMultiplier.DoesNotExist as e:
+            if getattr(self, '_allow_missing_multiplier', False) and self.multiplier_at_creation is not None:
+                return
             raise ValidationError(
                 f"No active multiplier exists for contribution type '{self.contribution_type}' "
                 f"on {self.contribution_date.strftime('%Y-%m-%d %H:%M')}. "

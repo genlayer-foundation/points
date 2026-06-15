@@ -2,13 +2,13 @@ from django.test import TestCase
 from django.core.management import call_command
 from django.utils import timezone
 from django.contrib.auth import get_user_model
-from datetime import datetime, timedelta
-import pytz
+from datetime import timedelta
 from io import StringIO
 from decimal import Decimal
 
-from contributions.models import Contribution, ContributionType
-from leaderboard.models import LeaderboardEntry, GlobalLeaderboardMultiplier
+from contributions.models import Category, Contribution, ContributionType
+from leaderboard.models import LeaderboardEntry, GlobalLeaderboardMultiplier, ReferralPoints
+from validators.models import Validator, ValidatorWallet, ValidatorWalletStatusSnapshot
 
 User = get_user_model()
 
@@ -18,10 +18,16 @@ class AddDailyUptimeCommandTest(TestCase):
     
     def setUp(self):
         """Set up test data."""
+        self.validator_category = Category.objects.create(
+            name='Validator',
+            slug='validator',
+            description='Validator contributions',
+        )
         # Create uptime contribution type
         self.uptime_type = ContributionType.objects.create(
             name='Uptime',
             description='Daily validator uptime',
+            category=self.validator_category,
             min_points=1,
             max_points=10
         )
@@ -55,108 +61,83 @@ class AddDailyUptimeCommandTest(TestCase):
             name='Not a Validator',
             address='0x9999999999999999999999999999999999999999'
         )
+
+    def link_active_wallet(self, user, *, network='asimov', address=None, days_ago=0):
+        validator, _ = Validator.objects.get_or_create(user=user)
+        wallet = ValidatorWallet.objects.create(
+            operator=validator,
+            address=address or user.address,
+            operator_address=user.address,
+            network=network,
+            status='active',
+        )
+        ValidatorWalletStatusSnapshot.objects.create(
+            wallet=wallet,
+            date=timezone.now().date() - timedelta(days=days_ago),
+            status='active',
+        )
+        return wallet
     
     def test_command_creates_daily_uptime_contributions(self):
-        """Test that the command creates daily uptime contributions from first uptime to today."""
-        # Create an initial uptime contribution 5 days ago
-        five_days_ago = timezone.now() - timedelta(days=5)
-        initial_contribution = Contribution.objects.create(
-            user=self.user1,
-            contribution_type=self.uptime_type,
-            points=1,
-            contribution_date=five_days_ago,
-            multiplier_at_creation=Decimal('2.0'),
-            frozen_global_points=2
-        )
+        """Test that the command creates today's uptime for active wallets."""
+        self.link_active_wallet(self.user1)
         
         # Run the command
         out = StringIO()
         call_command('add_daily_uptime', stdout=out, verbosity=2)
         
-        # Check that contributions were created for each day
         contributions = Contribution.objects.filter(
             user=self.user1,
             contribution_type=self.uptime_type
-        ).count()
-        
-        # Should have 6 contributions (initial + 5 days up to today)
-        self.assertGreaterEqual(contributions, 6)
+        )
+
+        self.assertEqual(contributions.count(), 1)
+        self.assertIn('(asimov)', contributions.first().notes)
         
         # Verify output
         output = out.getvalue()
         self.assertIn('Daily uptime generation completed!', output)
-        self.assertIn('Users with uptime: 1', output)
+        self.assertIn('Validators with wallets: 1', output)
     
     def test_leaderboard_updates_correctly(self):
         """Test that the leaderboard is updated with correct total points."""
-        # Create initial uptime 3 days ago
-        three_days_ago = timezone.now() - timedelta(days=3)
-        Contribution.objects.create(
-            user=self.user1,
-            contribution_type=self.uptime_type,
-            points=1,
-            contribution_date=three_days_ago,
-            multiplier_at_creation=Decimal('2.0'),
-            frozen_global_points=2
-        )
+        self.link_active_wallet(self.user1)
         
         # Run the command
         call_command('add_daily_uptime', verbosity=0)
         
         # Check leaderboard entry
-        leaderboard_entry = LeaderboardEntry.objects.get(user=self.user1)
+        leaderboard_entry = LeaderboardEntry.objects.get(user=self.user1, type='validator')
         
-        # Should have 4 days worth of points (3 days + today) * 2 points each = 8 points
-        self.assertGreaterEqual(leaderboard_entry.total_points, 8)
+        self.assertEqual(leaderboard_entry.total_points, 2)
     
     def test_multiple_users_with_uptime(self):
         """Test that multiple users get their uptime updated correctly."""
-        # Create initial uptimes for both users
-        two_days_ago = timezone.now() - timedelta(days=2)
-        
-        Contribution.objects.create(
-            user=self.user1,
-            contribution_type=self.uptime_type,
-            points=1,
-            contribution_date=two_days_ago,
-            multiplier_at_creation=Decimal('2.0'),
-            frozen_global_points=2
+        self.link_active_wallet(self.user1, network='asimov')
+        self.link_active_wallet(
+            self.user2,
+            network='asimov',
+            address='0xabcdefabcdefabcdefabcdefabcdefabcdefabce',
         )
-        
-        Contribution.objects.create(
-            user=self.user2,
-            contribution_type=self.uptime_type,
-            points=1,
-            contribution_date=two_days_ago - timedelta(days=1),  # User2 started earlier
-            multiplier_at_creation=Decimal('2.0'),
-            frozen_global_points=2
+        self.link_active_wallet(
+            self.user2,
+            network='bradbury',
+            address='0xabcdefabcdefabcdefabcdefabcdefabcdefabcf',
         )
         
         # Run the command
         call_command('add_daily_uptime', verbosity=0)
         
         # Check both users have leaderboard entries
-        entry1 = LeaderboardEntry.objects.get(user=self.user1)
-        entry2 = LeaderboardEntry.objects.get(user=self.user2)
+        entry1 = LeaderboardEntry.objects.get(user=self.user1, type='validator')
+        entry2 = LeaderboardEntry.objects.get(user=self.user2, type='validator')
         
-        # User1 should have at least 3 days of uptime (2 days ago + 1 day + today)
-        self.assertGreaterEqual(entry1.total_points, 6)
-        
-        # User2 should have more points since they started earlier
+        self.assertEqual(entry1.total_points, 2)
         self.assertGreater(entry2.total_points, entry1.total_points)
     
     def test_no_duplicate_contributions(self):
         """Test that running the command multiple times doesn't create duplicates."""
-        # Create initial uptime
-        yesterday = timezone.now() - timedelta(days=1)
-        Contribution.objects.create(
-            user=self.user1,
-            contribution_type=self.uptime_type,
-            points=1,
-            contribution_date=yesterday,
-            multiplier_at_creation=Decimal('2.0'),
-            frozen_global_points=2
-        )
+        self.link_active_wallet(self.user1)
         
         # Run the command twice
         call_command('add_daily_uptime', verbosity=0)
@@ -176,16 +157,7 @@ class AddDailyUptimeCommandTest(TestCase):
     
     def test_dry_run_mode(self):
         """Test that dry run mode doesn't create any contributions."""
-        # Create initial uptime
-        yesterday = timezone.now() - timedelta(days=1)
-        Contribution.objects.create(
-            user=self.user1,
-            contribution_type=self.uptime_type,
-            points=1,
-            contribution_date=yesterday,
-            multiplier_at_creation=Decimal('2.0'),
-            frozen_global_points=2
-        )
+        self.link_active_wallet(self.user1)
         
         initial_count = Contribution.objects.count()
         
@@ -221,16 +193,7 @@ class AddDailyUptimeCommandTest(TestCase):
     
     def test_force_mode_with_missing_multiplier(self):
         """Test that force mode uses default multiplier when none exists."""
-        # Create initial uptime with existing multiplier first
-        yesterday = timezone.now() - timedelta(days=1)
-        Contribution.objects.create(
-            user=self.user1,
-            contribution_type=self.uptime_type,
-            points=1,
-            contribution_date=yesterday,
-            multiplier_at_creation=Decimal('2.0'),
-            frozen_global_points=2
-        )
+        self.link_active_wallet(self.user1)
         
         # Now delete the multiplier for future dates
         GlobalLeaderboardMultiplier.objects.all().delete()
@@ -250,19 +213,29 @@ class AddDailyUptimeCommandTest(TestCase):
         
         output = out.getvalue()
         self.assertIn('using default of 1.0', output)
+
+    def test_force_mode_updates_referrer_points(self):
+        """Force-created uptime still updates referral points despite bypassing signals."""
+        referrer = User.objects.create_user(
+            email='referrer@test.com',
+            password='testpass123',
+            name='Referrer',
+            address='0x7777777777777777777777777777777777777777'
+        )
+        self.user1.referred_by = referrer
+        self.user1.save(update_fields=['referred_by'])
+        self.link_active_wallet(self.user1)
+        GlobalLeaderboardMultiplier.objects.all().delete()
+
+        call_command('add_daily_uptime', force=True, points=10, verbosity=0)
+
+        referral_points = ReferralPoints.objects.get(user=referrer)
+        self.assertEqual(referral_points.validator_points, 1)
+        self.assertEqual(referral_points.builder_points, 0)
     
     def test_custom_points_value(self):
         """Test that custom points value is applied correctly."""
-        # Create initial uptime
-        yesterday = timezone.now() - timedelta(days=1)
-        Contribution.objects.create(
-            user=self.user1,
-            contribution_type=self.uptime_type,
-            points=1,
-            contribution_date=yesterday,
-            multiplier_at_creation=Decimal('2.0'),
-            frozen_global_points=2
-        )
+        self.link_active_wallet(self.user1)
         
         # Run with custom points value
         call_command('add_daily_uptime', points=5, verbosity=0)

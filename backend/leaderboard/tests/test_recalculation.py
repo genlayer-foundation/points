@@ -15,6 +15,8 @@ from leaderboard.models import (
     LEADERBOARD_CONFIG
 )
 from contributions.models import Contribution, ContributionType, Category
+from builders.models import Builder
+from validators.models import Validator
 
 User = get_user_model()
 
@@ -232,9 +234,10 @@ class LeaderboardRecalculationTest(TestCase):
             user=self.user1,
             contribution_type=self.validator_type,
             points=1,
-            frozen_global_points=200,  # High multiplier for testing
+            frozen_global_points=1,
             contribution_date=timezone.now()
         )
+        Validator.objects.create(user=self.user1)
         
         # Second recalculation - user should move to validator and graduation
         recalculate_all_leaderboards()
@@ -253,7 +256,7 @@ class LeaderboardRecalculationTest(TestCase):
             type='validator'
         ).first()
         self.assertIsNotNone(validator_entry)
-        self.assertEqual(validator_entry.total_points, 301)  # 1 + 100 + 200
+        self.assertEqual(validator_entry.total_points, 101)
         
         # Check user IS on graduation leaderboard with frozen points
         grad_entry = LeaderboardEntry.objects.filter(
@@ -261,7 +264,7 @@ class LeaderboardRecalculationTest(TestCase):
             type='validator-waitlist-graduation'
         ).first()
         self.assertIsNotNone(grad_entry)
-        self.assertEqual(grad_entry.total_points, 101)  # Points before graduation
+        self.assertEqual(grad_entry.total_points, 100)
         self.assertIsNotNone(grad_entry.graduation_date)
     
     def test_recalculate_with_multiple_users(self):
@@ -297,8 +300,11 @@ class LeaderboardRecalculationTest(TestCase):
             frozen_global_points=1,
             contribution_date=timezone.now() - timezone.timedelta(days=5)
         )
+        Validator.objects.create(user=self.user2)
         
         # User 3: Non-visible (should not have ranks)
+        self.user3.visible = True
+        self.user3.save(update_fields=['visible'])
         Contribution.objects.create(
             user=self.user3,
             contribution_type=self.waitlist_type,
@@ -306,6 +312,8 @@ class LeaderboardRecalculationTest(TestCase):
             frozen_global_points=0,
             contribution_date=timezone.now() - timezone.timedelta(days=10)
         )
+        self.user3.visible = False
+        self.user3.save(update_fields=['visible'])
         
         # Recalculate
         result = recalculate_all_leaderboards()
@@ -348,6 +356,8 @@ class LeaderboardRecalculationTest(TestCase):
     
     def test_recalculate_with_builder(self):
         """Test recalculation with builder contributions."""
+        Builder.objects.create(user=self.user1)
+
         # Create builder contributions
         Contribution.objects.create(
             user=self.user1,
@@ -371,14 +381,20 @@ class LeaderboardRecalculationTest(TestCase):
     
     def test_update_leaderboard_command(self):
         """Test the update_leaderboard management command."""
+        Validator.objects.create(user=self.user1)
+
         # Create contributions
-        Contribution.objects.create(
+        contribution = Contribution.objects.create(
             user=self.user1,
             contribution_type=self.node_running_type,
             points=50,
-            frozen_global_points=50,  # Will be updated to 100
-            multiplier_at_creation=1.0,  # Will be updated to 2.0
+            frozen_global_points=100,
+            multiplier_at_creation=Decimal('2.0'),
             contribution_date=timezone.now() - timezone.timedelta(days=5)
+        )
+        Contribution.objects.filter(pk=contribution.pk).update(
+            frozen_global_points=50,
+            multiplier_at_creation=Decimal('1.0'),
         )
         
         # Run the command
@@ -451,6 +467,7 @@ class LeaderboardRecalculationTest(TestCase):
             frozen_global_points=1,
             contribution_date=timezone.now() - timezone.timedelta(days=2)
         )
+        Validator.objects.create(user=self.user1)
         
         # Recalculate after graduation
         recalculate_all_leaderboards()
@@ -475,7 +492,10 @@ class LeaderboardRecalculationTest(TestCase):
         recalculate_all_leaderboards()
         
         # Check graduation points are still frozen
-        grad_entry.refresh_from_db()
+        grad_entry = LeaderboardEntry.objects.get(
+            user=self.user1,
+            type='validator-waitlist-graduation'
+        )
         self.assertEqual(grad_entry.total_points, frozen_points)
         
         # Check validator points increased
@@ -483,4 +503,4 @@ class LeaderboardRecalculationTest(TestCase):
             user=self.user1,
             type='validator'
         )
-        self.assertEqual(validator_entry.total_points, 302)  # 1 + 100 + 1 + 200
+        self.assertEqual(validator_entry.total_points, 301)

@@ -61,7 +61,7 @@ class ReferralPointsExclusionTest(TestCase):
             description='Blog post contribution',
             category=self.builder_category,
             min_points=10,
-            max_points=100,
+            max_points=200,
         )
 
         # Create multipliers (required for frozen_global_points)
@@ -224,7 +224,7 @@ class ReferralBreakdownHelperTest(TestCase):
             description='Blog post contribution',
             category=self.builder_category,
             min_points=10,
-            max_points=100,
+            max_points=200,
         )
 
         # Create multipliers

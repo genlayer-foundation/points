@@ -10,6 +10,99 @@ from contributions.url_utils import (
 )
 
 
+EVIDENCE_URL_TYPES = [
+    {
+        'name': 'X Post',
+        'slug': 'x-post',
+        'description': 'A post on X (formerly Twitter)',
+        'url_patterns': [
+            r'^https?://(www\.)?x\.com/[^/]+/status/\d+',
+            r'^https?://(www\.)?twitter\.com/[^/]+/status/\d+',
+        ],
+        'is_generic': False,
+        'order': 1,
+        'handle_extract_pattern': r'(?:x|twitter)\.com/(?P<handle>[^/]+)/status/',
+        'ownership_social_account': 'twitter',
+    },
+    {
+        'name': 'GitHub Repository',
+        'slug': 'github-repo',
+        'description': 'A GitHub repository',
+        'url_patterns': [
+            r'^https?://github\.com/[^/]+/[^/]+/?$',
+            r'^https?://github\.com/[^/]+/[^/]+/?#',
+        ],
+        'is_generic': False,
+        'order': 2,
+        'handle_extract_pattern': r'github\.com/(?P<handle>[^/]+)/',
+        'ownership_social_account': 'github',
+    },
+    {
+        'name': 'GitHub File',
+        'slug': 'github-file',
+        'description': 'A file in a GitHub repository',
+        'url_patterns': [r'^https?://github\.com/[^/]+/[^/]+/blob/.+'],
+        'is_generic': False,
+        'order': 3,
+        'handle_extract_pattern': r'github\.com/(?P<handle>[^/]+)/',
+        'ownership_social_account': 'github',
+    },
+    {
+        'name': 'GitHub Pull Request',
+        'slug': 'github-pr',
+        'description': 'A pull request on GitHub',
+        'url_patterns': [r'^https?://github\.com/[^/]+/[^/]+/pull/\d+'],
+        'is_generic': False,
+        'order': 4,
+        'handle_extract_pattern': '',
+        'ownership_social_account': '',
+    },
+    {
+        'name': 'GitHub Issue',
+        'slug': 'github-issue',
+        'description': 'An issue on GitHub',
+        'url_patterns': [r'^https?://github\.com/[^/]+/[^/]+/issues/\d+'],
+        'is_generic': False,
+        'order': 5,
+        'handle_extract_pattern': '',
+        'ownership_social_account': '',
+    },
+    {
+        'name': 'GenLayer Studio Contract',
+        'slug': 'studio-contract',
+        'description': 'A smart contract deployed on GenLayer Studio',
+        'url_patterns': [
+            r'^https?://studio\.genlayer\.com/contracts\?.*import-contract=0x[0-9a-fA-F]{40}',
+        ],
+        'is_generic': False,
+        'order': 6,
+        'handle_extract_pattern': '',
+        'ownership_social_account': '',
+    },
+    {
+        'name': 'Other',
+        'slug': 'other',
+        'description': 'Any URL that does not match a specific evidence type',
+        'url_patterns': [],
+        'is_generic': True,
+        'order': 100,
+        'handle_extract_pattern': '',
+        'ownership_social_account': '',
+    },
+]
+
+
+class EvidenceURLTypeSeededTestCase(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        for data in EVIDENCE_URL_TYPES:
+            EvidenceURLType.objects.update_or_create(
+                slug=data['slug'],
+                defaults=data,
+            )
+
+
 class NormalizeUrlTests(TestCase):
     """Tests for URL normalization."""
 
@@ -103,7 +196,7 @@ class NormalizeUrlTests(TestCase):
         self.assertIn('v=dQw4w9WgXcQ', result)
 
 
-class DetectUrlTypeTests(TestCase):
+class DetectUrlTypeTests(EvidenceURLTypeSeededTestCase):
     """Tests for URL type auto-detection using seeded EvidenceURLType records."""
 
     def test_x_post_detected(self):
@@ -170,7 +263,7 @@ class DetectUrlTypeTests(TestCase):
         self.assertEqual(result.slug, 'other')
 
 
-class ExtractHandleTests(TestCase):
+class ExtractHandleTests(EvidenceURLTypeSeededTestCase):
     """Tests for handle extraction from URLs."""
 
     def test_x_handle_extracted(self):
@@ -211,7 +304,7 @@ class ExtractHandleTests(TestCase):
         self.assertIsNone(handle)
 
 
-class ValidateHandleOwnershipTests(TestCase):
+class ValidateHandleOwnershipTests(EvidenceURLTypeSeededTestCase):
     """Tests for handle ownership validation."""
 
     def setUp(self):
@@ -315,7 +408,7 @@ class ValidateHandleOwnershipTests(TestCase):
         self.assertIsNone(result)
 
 
-class CheckDuplicateUrlTests(TestCase):
+class CheckDuplicateUrlTests(EvidenceURLTypeSeededTestCase):
     """Tests for duplicate URL checking."""
 
     def setUp(self):
@@ -378,7 +471,7 @@ class CheckDuplicateUrlTests(TestCase):
         self.assertIsNone(result)
 
 
-class CheckDuplicateUrlAllowDuplicateTests(TestCase):
+class CheckDuplicateUrlAllowDuplicateTests(EvidenceURLTypeSeededTestCase):
     """Tests for the ``allow_duplicate`` exemption in ``check_duplicate_url``.
 
     The flag is admin-configurable (no data migration ships it on by default).
@@ -486,7 +579,7 @@ class CheckDuplicateUrlAllowDuplicateTests(TestCase):
         self.assertIsNone(result)
 
 
-class CheckDuplicateUrlNullUrlTypeTests(TestCase):
+class CheckDuplicateUrlNullUrlTypeTests(EvidenceURLTypeSeededTestCase):
     """Legacy/null ``url_type`` rows must be handled correctly.
 
     Some historical evidence rows have ``url_type=None`` (e.g. before the
