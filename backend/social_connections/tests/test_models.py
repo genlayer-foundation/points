@@ -130,9 +130,11 @@ class UsedOAuthCodeTest(TestCase):
         self.assertTrue(result2)
 
     def test_cleanup_old(self):
-        UsedOAuthCode.objects.create(
+        old_code = UsedOAuthCode.objects.create(
             code='old_code',
             platform='github',
+        )
+        UsedOAuthCode.objects.filter(pk=old_code.pk).update(
             used_at=timezone.now() - timedelta(minutes=15),
         )
         UsedOAuthCode.objects.create(
