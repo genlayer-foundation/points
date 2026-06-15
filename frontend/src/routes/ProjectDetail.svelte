@@ -2,6 +2,8 @@
   // @ts-nocheck
   import { push } from 'svelte-spa-router';
   import { projectsAPI } from '../lib/api.js';
+  import { setPageMeta } from '../lib/meta.js';
+  import { truncateMetaDescription } from '../lib/metaHelpers.js';
   import ProjectPageRenderer from '../components/projects/ProjectPageRenderer.svelte';
 
   /** @type {{ params?: { slug?: string } }} */
@@ -18,8 +20,20 @@
     const slug = params.slug;
     if (slug && slug !== lastRequestedSlug) {
       lastRequestedSlug = slug;
+      project = null;
       fetchProject(slug);
     }
+  });
+
+  $effect(() => {
+    if (!project) return;
+
+    setPageMeta({
+      title: `${project.title} | GenLayer Builder Project`,
+      description: getProjectMetaDescription(),
+      image: getProjectMetaImage(),
+      path: `/builders/projects/${project.slug || params.slug}`,
+    });
   });
 
   /** @param {string} slug */
@@ -27,10 +41,12 @@
     try {
       loading = true;
       error = null;
+      project = null;
       const response = await projectsAPI.get(slug);
       project = response.data;
     } catch (err) {
       const requestError = /** @type {{ response?: { data?: { detail?: string } }, message?: string }} */ (err);
+      project = null;
       error = requestError.response?.data?.detail || requestError.message || 'Failed to load project';
     } finally {
       loading = false;
@@ -48,6 +64,25 @@
 
   function getProjectLogoUrl() {
     return project?.user_profile_image_url || project?.featured_profile_image_url || '';
+  }
+
+  function getProjectMetaDescription() {
+    return truncateMetaDescription(
+      project?.description ||
+        project?.summary ||
+        `${project?.title || 'This GenLayer builder project'} is built by ${getAuthorName()} for the GenLayer ecosystem.`
+    );
+  }
+
+  function getProjectMetaImage() {
+    return (
+      project?.hero_image_url ||
+      project?.hero_image_url_tablet ||
+      project?.hero_image_url_mobile ||
+      project?.featured_profile_image_url ||
+      project?.user_profile_image_url ||
+      undefined
+    );
   }
 
   function getHeroContentClass() {
