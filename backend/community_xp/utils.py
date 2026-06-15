@@ -378,6 +378,7 @@ def get_community_member_user_ids(user_ids=None, guild_id=None, visible_only=Tru
     member_user_ids.update(
         Contribution.objects
         .filter(**contribution_filters)
+        .exclude(contribution_type__slug__in=COMMUNITY_MEMBER_EXCLUDED_TYPE_SLUGS)
         .values_list('user_id', flat=True)
         .distinct()
     )

@@ -1,6 +1,9 @@
 """
 Tests for user profile update functionality, especially email updates.
 """
+from types import SimpleNamespace
+from unittest.mock import patch
+
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
@@ -39,10 +42,17 @@ class UserProfileUpdateTests(TestCase):
         """Authenticate the client with the given user."""
         refresh = RefreshToken.for_user(user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
-    
-    def test_unverified_user_can_set_email(self):
+
+    @staticmethod
+    def valid_email_result(email):
+        domain = email.split('@', 1)[1]
+        return SimpleNamespace(normalized=email, domain=domain)
+
+    @patch('email_validator.validate_email')
+    def test_unverified_user_can_set_email(self, mock_validate_email):
         """Test that unverified users can set their email for the first time."""
         self.authenticate(self.unverified_user)
+        mock_validate_email.return_value = self.valid_email_result('newemail@example.com')
         
         # Update profile with new email
         response = self.client.patch('/api/v1/users/me/', {
@@ -60,9 +70,11 @@ class UserProfileUpdateTests(TestCase):
         self.assertTrue(self.unverified_user.is_email_verified)
         self.assertEqual(self.unverified_user.name, 'Updated Name')
     
-    def test_verified_user_can_change_email(self):
+    @patch('email_validator.validate_email')
+    def test_verified_user_can_change_email(self, mock_validate_email):
         """Test that verified users can change their email."""
         self.authenticate(self.verified_user)
+        mock_validate_email.return_value = self.valid_email_result('changedemail@example.com')
         
         # Update profile with new email
         response = self.client.patch('/api/v1/users/me/', {
@@ -78,9 +90,11 @@ class UserProfileUpdateTests(TestCase):
         self.assertEqual(self.verified_user.email, 'changedemail@example.com')
         self.assertTrue(self.verified_user.is_email_verified)
     
-    def test_email_uniqueness_validation(self):
+    @patch('email_validator.validate_email')
+    def test_email_uniqueness_validation(self, mock_validate_email):
         """Test that email must be unique."""
         self.authenticate(self.unverified_user)
+        mock_validate_email.return_value = self.valid_email_result('verified@example.com')
         
         # Try to use an email that's already taken
         response = self.client.patch('/api/v1/users/me/', {
@@ -118,8 +132,6 @@ class UserProfileUpdateTests(TestCase):
             'name': 'Updated Name',
             'description': 'This is my bio',
             'website': 'https://example.com',
-            'twitter_handle': 'mytwitter',
-            'discord_handle': 'mydiscord',
             'telegram_handle': 'mytelegram'
         }
         
@@ -127,26 +139,25 @@ class UserProfileUpdateTests(TestCase):
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
-        # Check all fields were updated
         self.verified_user.refresh_from_db()
         self.assertEqual(self.verified_user.name, 'Updated Name')
         self.assertEqual(self.verified_user.description, 'This is my bio')
         self.assertEqual(self.verified_user.website, 'https://example.com')
-        self.assertEqual(self.verified_user.twitter_handle, 'mytwitter')
-        self.assertEqual(self.verified_user.discord_handle, 'mydiscord')
         self.assertEqual(self.verified_user.telegram_handle, 'mytelegram')
     
-    def test_twitter_handle_strips_at_symbol(self):
-        """Test that @ symbol is stripped from Twitter handle."""
+    def test_oauth_owned_handles_are_not_profile_editable(self):
+        """Twitter and Discord handles are managed by social connections."""
         self.authenticate(self.verified_user)
         
         response = self.client.patch('/api/v1/users/me/', {
-            'twitter_handle': '@mytwitter'
+            'twitter_handle': '@mytwitter',
+            'discord_handle': 'mydiscord',
         })
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.verified_user.refresh_from_db()
-        self.assertEqual(self.verified_user.twitter_handle, 'mytwitter')
+        self.assertEqual(self.verified_user.twitter_handle, '')
+        self.assertEqual(self.verified_user.discord_handle, '')
     
     def test_telegram_handle_strips_at_symbol(self):
         """Test that @ symbol is stripped from Telegram handle."""
