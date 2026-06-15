@@ -5,6 +5,7 @@
   import { userStore } from '../lib/userStore.js';
   import { poapsAPI } from '../lib/api.js';
   import { setPageMeta } from '../lib/meta.js';
+  import { truncateMetaDescription } from '../lib/metaHelpers.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
   import SocialLink from '../components/SocialLink.svelte';
   import PoapBadgeImage from '../components/poaps/PoapBadgeImage.svelte';
@@ -78,12 +79,6 @@
     return value?.status === 'active' ? 'Unavailable' : value?.status === 'draft' ? 'Draft' : 'Archived';
   }
 
-  function truncateMetaDescription(value) {
-    const text = String(value || '').replace(/\s+/g, ' ').trim();
-    if (!text) return '';
-    return text.length > 155 ? `${text.slice(0, 152).trim()}...` : text;
-  }
-
   function getPoapMetaDescription() {
     const date = formatDate(poap?.event_start_at);
     return truncateMetaDescription(
@@ -134,11 +129,13 @@
     if (!slug) return;
     loading = true;
     error = '';
+    poap = null;
     try {
       const response = await poapsAPI.get(slug);
       poap = response.data;
     } catch (err) {
       const requestError = /** @type {any} */ (err);
+      poap = null;
       error = requestError.response?.data?.detail || 'Unable to load this POAP.';
     } finally {
       loading = false;

@@ -3,6 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { projectsAPI } from '../lib/api.js';
   import { setPageMeta } from '../lib/meta.js';
+  import { truncateMetaDescription } from '../lib/metaHelpers.js';
   import ProjectPageRenderer from '../components/projects/ProjectPageRenderer.svelte';
 
   /** @type {{ params?: { slug?: string } }} */
@@ -40,10 +41,12 @@
     try {
       loading = true;
       error = null;
+      project = null;
       const response = await projectsAPI.get(slug);
       project = response.data;
     } catch (err) {
       const requestError = /** @type {{ response?: { data?: { detail?: string } }, message?: string }} */ (err);
+      project = null;
       error = requestError.response?.data?.detail || requestError.message || 'Failed to load project';
     } finally {
       loading = false;
@@ -61,12 +64,6 @@
 
   function getProjectLogoUrl() {
     return project?.user_profile_image_url || project?.featured_profile_image_url || '';
-  }
-
-  function truncateMetaDescription(value) {
-    const text = String(value || '').replace(/\s+/g, ' ').trim();
-    if (!text) return '';
-    return text.length > 155 ? `${text.slice(0, 152).trim()}...` : text;
   }
 
   function getProjectMetaDescription() {
