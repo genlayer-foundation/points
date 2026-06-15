@@ -147,6 +147,10 @@ class UserProfileUpdateTests(TestCase):
     
     def test_oauth_owned_handles_are_not_profile_editable(self):
         """Twitter and Discord handles are managed by social connections."""
+        self.verified_user.twitter_handle = 'oauth_twitter'
+        self.verified_user.discord_handle = 'oauth_discord'
+        self.verified_user.save(update_fields=['twitter_handle', 'discord_handle'])
+
         self.authenticate(self.verified_user)
         
         response = self.client.patch('/api/v1/users/me/', {
@@ -156,8 +160,8 @@ class UserProfileUpdateTests(TestCase):
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.verified_user.refresh_from_db()
-        self.assertEqual(self.verified_user.twitter_handle, '')
-        self.assertEqual(self.verified_user.discord_handle, '')
+        self.assertEqual(self.verified_user.twitter_handle, 'oauth_twitter')
+        self.assertEqual(self.verified_user.discord_handle, 'oauth_discord')
     
     def test_telegram_handle_strips_at_symbol(self):
         """Test that @ symbol is stripped from Telegram handle."""

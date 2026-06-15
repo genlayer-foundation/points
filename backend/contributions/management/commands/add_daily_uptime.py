@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from contributions.models import Contribution, ContributionType
-from leaderboard.models import GlobalLeaderboardMultiplier, update_referrer_points, update_user_leaderboard_entries
+from leaderboard.models import GlobalLeaderboardMultiplier, update_user_leaderboard_entries
 from django.db.models import Q
 from datetime import datetime, timedelta
 import pytz
@@ -192,14 +192,9 @@ class Command(BaseCommand):
                         notes=f'Auto-generated daily uptime for {today} ({network})'
                     )
                     if used_force_multiplier:
-                        now = timezone.now()
-                        contribution.created_at = now
-                        contribution.updated_at = now
-                        Contribution.objects.bulk_create([contribution])
-                        if user.referred_by:
-                            update_referrer_points(contribution)
-                    else:
-                        contribution.save()
+                        # Keep Contribution.save() and post_save side effects while honoring --force.
+                        contribution._allow_missing_multiplier = True
+                    contribution.save()
 
                     if user not in users_to_update_leaderboard:
                         users_to_update_leaderboard.append(user)

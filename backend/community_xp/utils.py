@@ -353,7 +353,7 @@ def get_community_member_user_ids(user_ids=None, guild_id=None, visible_only=Tru
     if since is not None:
         contribution_filters['created_at__gte'] = since
         poap_filters['created_at__gte'] = since
-        recent_effective_contributions = _community_contributions(user_ids=user_ids)
+        recent_effective_contributions = _community_member_contributions(user_ids=user_ids)
         if visible_only:
             recent_effective_contributions = recent_effective_contributions.filter(user__visible=True)
         member_user_ids.update(
