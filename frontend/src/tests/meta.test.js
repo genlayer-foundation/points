@@ -5,6 +5,7 @@ import {
   getRouteMeta,
   setPageMeta,
 } from '../lib/meta.js';
+import { truncateMetaDescription } from '../lib/metaHelpers.js';
 
 describe('SEO metadata helpers', () => {
   beforeEach(() => {
@@ -57,5 +58,12 @@ describe('SEO metadata helpers', () => {
     expect(
       graph.some((node) => node?.url === 'https://portal.genlayer.foundation/builders/resources')
     ).toBe(true);
+  });
+
+  it('preserves non-null falsy values when truncating meta descriptions', () => {
+    expect(truncateMetaDescription(0)).toBe('0');
+    expect(truncateMetaDescription(false)).toBe('false');
+    expect(truncateMetaDescription(null)).toBe('');
+    expect(truncateMetaDescription(undefined)).toBe('');
   });
 });
