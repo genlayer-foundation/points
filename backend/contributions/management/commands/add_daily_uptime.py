@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from contributions.models import Contribution, ContributionType
-from leaderboard.models import GlobalLeaderboardMultiplier, update_user_leaderboard_entries
+from leaderboard.models import GlobalLeaderboardMultiplier, update_referrer_points, update_user_leaderboard_entries
 from django.db.models import Q
 from datetime import datetime, timedelta
 import pytz
@@ -196,6 +196,8 @@ class Command(BaseCommand):
                         contribution.created_at = now
                         contribution.updated_at = now
                         Contribution.objects.bulk_create([contribution])
+                        if user.referred_by:
+                            update_referrer_points(contribution)
                     else:
                         contribution.save()
 

@@ -7,7 +7,7 @@ from io import StringIO
 from decimal import Decimal
 
 from contributions.models import Category, Contribution, ContributionType
-from leaderboard.models import LeaderboardEntry, GlobalLeaderboardMultiplier
+from leaderboard.models import LeaderboardEntry, GlobalLeaderboardMultiplier, ReferralPoints
 from validators.models import Validator, ValidatorWallet, ValidatorWalletStatusSnapshot
 
 User = get_user_model()
@@ -213,6 +213,25 @@ class AddDailyUptimeCommandTest(TestCase):
         
         output = out.getvalue()
         self.assertIn('using default of 1.0', output)
+
+    def test_force_mode_updates_referrer_points(self):
+        """Force-created uptime still updates referral points despite bypassing signals."""
+        referrer = User.objects.create_user(
+            email='referrer@test.com',
+            password='testpass123',
+            name='Referrer',
+            address='0x7777777777777777777777777777777777777777'
+        )
+        self.user1.referred_by = referrer
+        self.user1.save(update_fields=['referred_by'])
+        self.link_active_wallet(self.user1)
+        GlobalLeaderboardMultiplier.objects.all().delete()
+
+        call_command('add_daily_uptime', force=True, points=10, verbosity=0)
+
+        referral_points = ReferralPoints.objects.get(user=referrer)
+        self.assertEqual(referral_points.validator_points, 1)
+        self.assertEqual(referral_points.builder_points, 0)
     
     def test_custom_points_value(self):
         """Test that custom points value is applied correctly."""
