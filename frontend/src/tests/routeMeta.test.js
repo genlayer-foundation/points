@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-import { OG_IMAGES, STATIC_OG_ROUTES, resolveRouteMeta } from '../lib/routeMeta.js';
+import { OG_IMAGES, SITE_URL, STATIC_OG_ROUTES, resolveRouteMeta } from '../lib/routeMeta.js';
 
 const expectedRouteImages = {
   '/': '/assets/og/portal.png',
@@ -52,6 +52,21 @@ describe('route metadata', () => {
     }
   });
 
+  it('uses non-hash canonical URLs for every public OG route', () => {
+    for (const route of ['/', ...STATIC_OG_ROUTES]) {
+      const meta = resolveRouteMeta(route);
+      const expectedUrl = `${SITE_URL}${route === '/' ? '/' : route}`;
+
+      expect(meta.url).toBe(expectedUrl);
+      expect(meta.url).not.toContain('#');
+    }
+
+    expect(resolveRouteMeta('#/hackathon?ref=abc').url)
+      .toBe('https://portal.genlayer.foundation/hackathon');
+    expect(resolveRouteMeta('https://portal.genlayer.foundation/#/builders/resources').url)
+      .toBe('https://portal.genlayer.foundation/builders/resources');
+  });
+
   it('only generates static OG pages for canonical route paths', () => {
     expect(STATIC_OG_ROUTES).toEqual([
       '/how-it-works',
@@ -94,5 +109,18 @@ describe('route metadata', () => {
     expect(meta.title).toBe('GenLayer Builder Project');
     expect(meta.image).toContain('/assets/og/builder-project.png');
     expect(meta.url).toBe('https://portal.genlayer.foundation/builders/projects/test-project');
+  });
+
+  it('keeps supported dynamic public routes hashless and protected lookalikes noindex', () => {
+    expect(resolveRouteMeta('/builders/startup-requests/42').url)
+      .toBe('https://portal.genlayer.foundation/builders/startup-requests/42');
+    expect(resolveRouteMeta('/community/poaps/community-drop').url)
+      .toBe('https://portal.genlayer.foundation/community/poaps/community-drop');
+    expect(resolveRouteMeta('/badge/7').url)
+      .toBe('https://portal.genlayer.foundation/badge/7');
+
+    expect(resolveRouteMeta('/builders/projects/test-project/edit').robots).toBe('noindex,nofollow');
+    expect(resolveRouteMeta('/community/poaps/recover').robots).toBe('noindex,nofollow');
+    expect(resolveRouteMeta('/stewards/submissions').robots).toBe('noindex,nofollow');
   });
 });

@@ -255,6 +255,7 @@
   $effect(() => {
     const category = detectCategoryFromRoute($location);
     currentCategory.set(category);
+    setRouteMeta($location);
   });
 
   // Pages that need full-bleed (no padding): How it works + Foundations documents

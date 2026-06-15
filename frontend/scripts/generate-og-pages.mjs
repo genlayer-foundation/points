@@ -2,7 +2,15 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { DEFAULT_META, ROUTE_META_ALIASES, SITE_NAME, STATIC_OG_ROUTES, TWITTER_SITE, resolveRouteMeta } from '../src/lib/routeMeta.js';
+import {
+  DEFAULT_META,
+  ROUTE_META_ALIASES,
+  SITE_NAME,
+  STATIC_OG_ROUTES,
+  TWITTER_SITE,
+  resolveRouteMeta,
+  routeStructuredData,
+} from '../src/lib/routeMeta.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const frontendRoot = path.resolve(__dirname, '..');
@@ -49,8 +57,45 @@ function setPropertyMeta(html, property, content) {
   return setMetaContent(html, 'property', property, content);
 }
 
+function setCanonicalLink(html, href) {
+  const safe = escapeHtml(href);
+  const pattern = /<link\b(?=[^>]*\brel="canonical")[^>]*>/i;
+
+  if (pattern.test(html)) {
+    return html.replace(pattern, (tag) => {
+      if (/\bhref="/i.test(tag)) {
+        return tag.replace(/\bhref="[^"]*"/i, () => `href="${safe}"`);
+      }
+
+      return tag.replace(/\/?>$/, (end) => ` href="${safe}"${end}`);
+    });
+  }
+
+  return html.replace(/<head>/i, (tag) => `${tag}\n  <link rel="canonical" href="${safe}" />`);
+}
+
+function upsertJsonLd(html, id, data) {
+  const safeJson = JSON.stringify(data)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+  const script = `<script type="application/ld+json" data-seo="${escapeHtml(id)}">${safeJson}</script>`;
+  const pattern = new RegExp(
+    `<script\\b(?=[^>]*\\btype="application/ld\\+json")(?=[^>]*\\bdata-seo="${escapeRegExp(id)}")[^>]*>.*?<\\/script>`,
+    'is'
+  );
+
+  if (pattern.test(html)) {
+    return html.replace(pattern, script);
+  }
+
+  return html.replace(/<\/head>/i, `  ${script}\n</head>`);
+}
+
 function applyMeta(html, meta) {
   let next = setTitle(html, meta.title);
+  next = setCanonicalLink(next, meta.url);
+  next = setNamedMeta(next, 'robots', meta.robots || DEFAULT_META.robots);
   next = setNamedMeta(next, 'title', meta.title);
   next = setNamedMeta(next, 'description', meta.description);
   next = setPropertyMeta(next, 'og:type', meta.type || 'website');
@@ -67,6 +112,7 @@ function applyMeta(html, meta) {
   next = setNamedMeta(next, 'twitter:description', meta.description);
   next = setNamedMeta(next, 'twitter:image', meta.image);
   next = setNamedMeta(next, 'twitter:site', TWITTER_SITE);
+  next = upsertJsonLd(next, 'page', routeStructuredData(meta));
   return next;
 }
 

@@ -2,6 +2,7 @@
   // @ts-nocheck
   import { push } from 'svelte-spa-router';
   import { projectsAPI } from '../lib/api.js';
+  import { setPageMeta } from '../lib/meta.js';
   import ProjectPageRenderer from '../components/projects/ProjectPageRenderer.svelte';
 
   /** @type {{ params?: { slug?: string } }} */
@@ -20,6 +21,17 @@
       lastRequestedSlug = slug;
       fetchProject(slug);
     }
+  });
+
+  $effect(() => {
+    if (!project) return;
+
+    setPageMeta({
+      title: `${project.title} | GenLayer Builder Project`,
+      description: getProjectMetaDescription(),
+      image: getProjectMetaImage(),
+      path: `/builders/projects/${project.slug || params.slug}`,
+    });
   });
 
   /** @param {string} slug */
@@ -48,6 +60,31 @@
 
   function getProjectLogoUrl() {
     return project?.user_profile_image_url || project?.featured_profile_image_url || '';
+  }
+
+  function truncateMetaDescription(value) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!text) return '';
+    return text.length > 155 ? `${text.slice(0, 152).trim()}...` : text;
+  }
+
+  function getProjectMetaDescription() {
+    return truncateMetaDescription(
+      project?.description ||
+        project?.summary ||
+        `${project?.title || 'This GenLayer builder project'} is built by ${getAuthorName()} for the GenLayer ecosystem.`
+    );
+  }
+
+  function getProjectMetaImage() {
+    return (
+      project?.hero_image_url ||
+      project?.hero_image_url_tablet ||
+      project?.hero_image_url_mobile ||
+      project?.featured_profile_image_url ||
+      project?.user_profile_image_url ||
+      undefined
+    );
   }
 
   function getHeroContentClass() {
