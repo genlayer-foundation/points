@@ -7,6 +7,7 @@ Disallow: /community
 Disallow: /community/
 Allow: /community/poaps
 Allow: /community/poaps/
+Disallow: /community/poaps/recover
 Disallow: /builders
 Disallow: /builders/
 Allow: /builders/resources

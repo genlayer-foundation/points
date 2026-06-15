@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { OG_IMAGES, SITE_URL, STATIC_OG_ROUTES, resolveRouteMeta } from '../lib/routeMeta.js';
@@ -122,5 +122,12 @@ describe('route metadata', () => {
     expect(resolveRouteMeta('/builders/projects/test-project/edit').robots).toBe('noindex,nofollow');
     expect(resolveRouteMeta('/community/poaps/recover').robots).toBe('noindex,nofollow');
     expect(resolveRouteMeta('/stewards/submissions').robots).toBe('noindex,nofollow');
+  });
+
+  it('keeps noindex recovery routes blocked in robots.txt', () => {
+    const robots = readFileSync(path.join(process.cwd(), 'public', 'robots.txt'), 'utf8');
+
+    expect(robots).toContain('Allow: /community/poaps/');
+    expect(robots).toContain('Disallow: /community/poaps/recover');
   });
 });
