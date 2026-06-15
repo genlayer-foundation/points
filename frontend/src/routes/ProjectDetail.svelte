@@ -19,6 +19,7 @@
     const slug = params.slug;
     if (slug && slug !== lastRequestedSlug) {
       lastRequestedSlug = slug;
+      project = null;
       fetchProject(slug);
     }
   });

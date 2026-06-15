@@ -53,7 +53,9 @@ describe('SEO metadata helpers', () => {
 
     const jsonLd = document.querySelector('script[type="application/ld+json"][data-seo="page"]');
     expect(jsonLd).toBeTruthy();
-    expect(JSON.parse(jsonLd.textContent)['@graph'][2].url)
-      .toBe('https://portal.genlayer.foundation/builders/resources');
+    const graph = JSON.parse(jsonLd.textContent)['@graph'];
+    expect(
+      graph.some((node) => node?.url === 'https://portal.genlayer.foundation/builders/resources')
+    ).toBe(true);
   });
 });

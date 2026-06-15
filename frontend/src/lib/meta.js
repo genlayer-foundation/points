@@ -60,11 +60,10 @@ export function canonicalUrl(value = '/') {
     const canonicalPath = ROUTE_META_ALIASES[normalizedPath] || normalizedPath;
     return `${SITE_URL}${canonicalPath === '/' ? '/' : canonicalPath}`;
   } catch {
-    const path = stripTrailingSlash(
-      String(value || '/')
-        .split('#')[0]
-        .split('?')[0] || '/'
-    );
+    const raw = String(value || '/');
+    const hashIndex = raw.indexOf('#/');
+    const routePath = hashIndex >= 0 ? raw.slice(hashIndex + 1) : raw;
+    const path = stripTrailingSlash(routePath.split('?')[0].split('#')[0] || '/');
     const normalizedPath = path === '/' ? '/' : path.startsWith('/') ? path : `/${path}`;
     const canonicalPath = ROUTE_META_ALIASES[normalizedPath] || normalizedPath;
     return `${SITE_URL}${canonicalPath === '/' ? '/' : canonicalPath}`;

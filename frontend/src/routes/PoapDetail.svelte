@@ -222,6 +222,7 @@
   $effect(() => {
     if (slug && slug !== loadedSlug) {
       loadedSlug = slug;
+      poap = null;
       resetClaims();
       loadPoap();
     }
