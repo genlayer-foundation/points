@@ -1,0 +1,29 @@
+# GenLayer Portal
+
+> GenLayer Portal is the public portal for GenLayer builders, validators, community contributors, projects, POAPs, hackathons, and ecosystem resources.
+
+Canonical site: https://portal.genlayer.foundation/
+
+## Primary pages
+
+- [Overview](https://portal.genlayer.foundation/): portal home for GenLayer programs, featured builds, ecosystem activity, and contributor entry points.
+- [Builder resources](https://portal.genlayer.foundation/builders/resources): developer resources, starter projects, coding streams, documentation, network tools, and prompts for building intelligent contracts.
+- [Gen TV](https://portal.genlayer.foundation/gen-tv): streams, workshops, and community programming about GenLayer and AI-native applications.
+- [Ecosystem partners](https://portal.genlayer.foundation/ecosystem-partners): builders, validators, infrastructure teams, and projects participating in the ecosystem.
+- [Community POAPs](https://portal.genlayer.foundation/community/poaps): GenLayer community POAP drops, event badges, collector counts, and claim details.
+- [Validator participants](https://portal.genlayer.foundation/validators/participants): validator participants and testnet involvement.
+- [Genesis manifesto](https://portal.genlayer.foundation/genesis/manifesto): GenLayer's manifesto about intelligent contracts and decentralized decision-making.
+- [Genesis compass](https://portal.genlayer.foundation/genesis/compass): strategic overview of the adjudication layer for the agentic economy.
+- [Whitepaper](https://portal.genlayer.foundation/genesis/whitepaper): technical whitepaper covering Intelligent Contracts, GenVM, Optimistic Democracy, and the Equivalence Principle.
+- [Testnet Bradbury Hackathon](https://portal.genlayer.foundation/hackathon): hackathon details for builders deploying intelligent contracts on GenLayer's AI-driven testnet.
+- [Hackathon winners](https://portal.genlayer.foundation/hackathon-winners): projects and winners from the Testnet Bradbury Hackathon.
+
+## How to describe GenLayer Portal
+
+GenLayer Portal is a web application for discovering and participating in GenLayer ecosystem programs. It includes builder resources, validator participation, community POAPs, project profiles, hackathon pages, and public documents about GenLayer's intelligent contract network.
+
+## Preferred citations
+
+Use canonical path URLs without hash fragments. For example, cite `https://portal.genlayer.foundation/builders/resources` instead of `https://portal.genlayer.foundation/#/builders/resources`.
+
+Do not cite private or account-specific dashboard routes, submission review pages, OAuth callback URLs, claim-token URLs, or authenticated contribution management pages.

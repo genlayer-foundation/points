@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { contributionsAPI } from '../lib/api';
+  import { setPageMeta } from '../lib/meta.js';
   import { showError } from '../lib/toastStore';
   import { parseMarkdown } from '../lib/markdownLoader.js';
   import Icons from '../components/Icons.svelte';
@@ -19,6 +20,12 @@
   function renderMarkdown(text) {
     if (!text) return '';
     return parseMarkdown(text);
+  }
+
+  function truncateMetaDescription(value) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!text) return '';
+    return text.length > 155 ? `${text.slice(0, 152).trim()}...` : text;
   }
 
   async function fetchStartupRequest() {
@@ -64,6 +71,20 @@
 
   onMount(() => {
     fetchStartupRequest();
+  });
+
+  $effect(() => {
+    if (!startupRequest) return;
+
+    setPageMeta({
+      title: `${startupRequest.title} | GenLayer Builder Startup Request`,
+      description: truncateMetaDescription(
+        startupRequest.short_description ||
+          startupRequest.description ||
+          'Review a GenLayer builder startup request with project goals, requirements, and resources.'
+      ),
+      path: `/builders/startup-requests/${params.id}`,
+    });
   });
 </script>
 

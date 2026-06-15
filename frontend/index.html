@@ -3,10 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="canonical" href="https://portal.genlayer.foundation/" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GenLayer Portal</title>
 
   <!-- Primary Meta Tags -->
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
   <meta name="title" content="GenLayer Portal">
   <meta name="description" content="Track GenLayer contributions, points, validators, builders, community activity, events, and ecosystem programs.">
 
@@ -19,6 +21,7 @@
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:site_name" content="GenLayer Portal">
+  <meta property="og:locale" content="en_US">
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
@@ -30,6 +33,49 @@
 
   <!-- Theme Color -->
   <meta name="theme-color" content="#7c3aed">
+
+  <script type="application/ld+json" data-seo="site">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://portal.genlayer.foundation/#organization",
+          "name": "GenLayer",
+          "url": "https://www.genlayer.com/",
+          "logo": "https://portal.genlayer.foundation/assets/genlayer-portal-logo.svg",
+          "sameAs": [
+            "https://x.com/GenLayer",
+            "https://github.com/genlayer-foundation",
+            "https://docs.genlayer.com/"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://portal.genlayer.foundation/#website",
+          "url": "https://portal.genlayer.foundation/",
+          "name": "GenLayer Portal",
+          "description": "Track GenLayer contributions, points, validators, builders, community activity, events, and ecosystem programs.",
+          "publisher": {
+            "@id": "https://portal.genlayer.foundation/#organization"
+          },
+          "inLanguage": "en"
+        },
+        {
+          "@type": "WebApplication",
+          "@id": "https://portal.genlayer.foundation/#webapp",
+          "url": "https://portal.genlayer.foundation/",
+          "name": "GenLayer Portal",
+          "applicationCategory": "DeveloperApplication",
+          "operatingSystem": "Web",
+          "description": "A portal for GenLayer builders, validators, community contributors, events, points, and ecosystem programs.",
+          "publisher": {
+            "@id": "https://portal.genlayer.foundation/#organization"
+          }
+        }
+      ]
+    }
+  </script>
 
   <!-- Google reCAPTCHA -->
   <script src="https://www.google.com/recaptcha/api.js" async defer></script>
