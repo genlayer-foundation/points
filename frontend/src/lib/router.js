@@ -73,12 +73,32 @@ export async function pop() {
 const RESERVED_PREFIXES = ['/api', '/oauth', '/static', '/assets', '/media'];
 
 /**
+ * Decide the in-app path to navigate to for an anchor href, or null to leave it
+ * to the browser. Returns null for in-page (`#...`) anchors, external origins,
+ * reserved prefixes, and file-looking paths. Legacy `/#/route` links resolve to
+ * the route in their hash fragment (otherwise the router would read only the
+ * pathname `/` and land on home).
+ */
+export function linkNavTarget(href, baseHref) {
+  if (!href || href.charAt(0) === '#') return null; // inert / in-page anchors
+  let url;
+  try { url = new URL(href, baseHref); } catch { return null; }
+  if (url.origin !== new URL(baseHref).origin) return null; // external
+  const target = url.hash.startsWith('#/')
+    ? url.hash.slice(1)                       // legacy "/#/route" -> "/route"
+    : url.pathname + url.search + url.hash;
+  if (RESERVED_PREFIXES.some((p) => target.startsWith(p))) return null;
+  const last = target.split('?')[0].split('/').pop() || '';
+  if (last.includes('.')) return null; // looks like a static file
+  return target;
+}
+
+/**
  * One delegated click handler so every same-origin `<a href="/path">` navigates
  * via the SPA without a full reload — no need for `use:link` on each anchor.
  * Bails when another handler already called preventDefault (components that
- * push() themselves), on modified/new-tab/download clicks, external origins,
- * in-page (`#...`) anchors, reserved prefixes, and file-looking paths (e.g.
- * `/foo.pdf`), which fall through to normal browser handling.
+ * push() themselves), on modified/new-tab/download clicks, and anything
+ * linkNavTarget() rejects, which fall through to normal browser handling.
  */
 export function installLinkInterceptor() {
   function onClick(e) {
@@ -86,16 +106,10 @@ export function installLinkInterceptor() {
         e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     const anchor = e.target.closest?.('a');
     if (!anchor || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
-    const href = anchor.getAttribute('href');
-    if (!href || href.charAt(0) === '#') return; // inert / in-page anchors
-    let url;
-    try { url = new URL(href, window.location.href); } catch { return; }
-    if (url.origin !== window.location.origin) return; // external
-    if (RESERVED_PREFIXES.some((p) => url.pathname.startsWith(p))) return;
-    const last = url.pathname.split('/').pop() || '';
-    if (last.includes('.')) return; // looks like a static file
+    const target = linkNavTarget(anchor.getAttribute('href'), window.location.href);
+    if (target === null) return;
     e.preventDefault();
-    push(url.pathname + url.search + url.hash);
+    push(target);
   }
   document.addEventListener('click', onClick);
   return () => document.removeEventListener('click', onClick);

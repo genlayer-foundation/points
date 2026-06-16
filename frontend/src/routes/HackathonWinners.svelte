@@ -544,7 +544,7 @@
         Whether you shipped a BUIDL or you're just getting started, there's a place for you. Submit your work as a contribution, climb the leaderboard, and earn Builder Points for everything you build on GenLayer.
       </p>
       <div class="flex flex-col sm:flex-row items-center gap-2">
-        <a href="/#/submit-contribution"
+        <a href="/submit-contribution"
            class="inline-flex items-center gap-2 bg-[#9e4bf6] text-white h-10 rounded-[20px] px-4 text-[14px] font-medium tracking-[0.28px]">
           Submit a Contribution
           <img src={arrowRight} alt="" class="w-4 h-4 brightness-0 invert" />

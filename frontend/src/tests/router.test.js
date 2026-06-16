@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildRoutes, matchRoute } from '../lib/router.js';
+import { buildRoutes, matchRoute, linkNavTarget } from '../lib/router.js';
 
 // Mirror of the real route table's hard cases (params, literal-vs-:param
 // precedence, catch-all). Components are stand-in markers.
@@ -51,5 +51,32 @@ describe('history router matching', () => {
   it('matches the root and has no params on static routes', () => {
     expect(hit('/')).toEqual({ route: '/', params: {} });
     expect(hit('/genesis').params).toEqual({});
+  });
+});
+
+describe('link navigation targets', () => {
+  const base = 'https://portal.genlayer.foundation/hackathon';
+
+  it('navigates same-origin path links in-app', () => {
+    expect(linkNavTarget('/submit-contribution', base)).toBe('/submit-contribution');
+    expect(linkNavTarget('/all-contributions?category=builder', base))
+      .toBe('/all-contributions?category=builder');
+    expect(linkNavTarget('/metrics?range=30d#top', base)).toBe('/metrics?range=30d#top');
+  });
+
+  it('resolves legacy /#/route links to the hash route (regression)', () => {
+    // Without this, the router reads pathname '/' and lands on home.
+    expect(linkNavTarget('/#/submit-contribution', base)).toBe('/submit-contribution');
+    expect(linkNavTarget('/#/mission/7?x=1', base)).toBe('/mission/7?x=1');
+    expect(linkNavTarget('https://portal.genlayer.foundation/#/hackathon', base))
+      .toBe('/hackathon');
+  });
+
+  it('leaves in-page, external, reserved, and file links to the browser', () => {
+    expect(linkNavTarget('#section', base)).toBeNull();
+    expect(linkNavTarget('https://x.com/GenLayer', base)).toBeNull();
+    expect(linkNavTarget('/api/v1/export', base)).toBeNull();
+    expect(linkNavTarget('/assets/whitepaper.pdf', base)).toBeNull();
+    expect(linkNavTarget('', base)).toBeNull();
   });
 });
