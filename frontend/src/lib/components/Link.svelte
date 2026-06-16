@@ -7,8 +7,9 @@
     ...restProps
   } = $props();
   
-  // Normalize legacy '#/x' hrefs to clean paths; new callers pass '/x'.
-  let path = $derived(href.charAt(0) === '#' ? href.slice(1) : href);
+  // Normalize legacy '#/x' route hrefs to clean paths; new callers pass '/x'.
+  // In-page anchors ('#section') are left untouched.
+  let path = $derived(href.startsWith('#/') ? href.slice(1) : href);
 
   function handleClick(e) {
     // Don't interfere with modified clicks - let browser handle them naturally
@@ -22,6 +23,9 @@
       // Let the browser handle it - this will open in new tab/window
       return;
     }
+
+    // In-page anchors keep native behavior — don't route them.
+    if (path.startsWith('#')) return;
 
     // For regular left clicks, prevent default and use SPA navigation
     e.preventDefault();

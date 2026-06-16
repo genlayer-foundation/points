@@ -45,9 +45,14 @@ describe('resolvePortalLink', () => {
       .toEqual({ href: 'https://x.com/GenLayer/status/1', external: true });
   });
 
+  it('treats protocol-relative URLs as external', () => {
+    expect(resolvePortalLink('//evil.example/path', ORIGIN))
+      .toEqual({ href: '//evil.example/path', external: true });
+  });
+
   it('passes relative paths through unchanged', () => {
-    expect(resolvePortalLink('/badge/42', ORIGIN))
-      .toEqual({ href: '/badge/42', external: false });
+    expect(resolvePortalLink('/contribution/42', ORIGIN))
+      .toEqual({ href: '/contribution/42', external: false });
   });
 
   it('normalizes legacy bare hash routes into paths', () => {

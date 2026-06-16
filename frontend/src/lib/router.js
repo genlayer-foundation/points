@@ -165,6 +165,7 @@ export function link(node, opts) {
   let current = linkOpts(opts);
   function onClick(event) {
     if (
+      event.defaultPrevented ||
       event.button !== 0 ||
       event.metaKey || event.ctrlKey || event.shiftKey || event.altKey ||
       node.target === '_blank' ||
@@ -172,8 +173,12 @@ export function link(node, opts) {
     ) {
       return;
     }
+    // Same normalization/guards as the global interceptor (legacy '#/' links,
+    // external/file/reserved fall through to the browser).
+    const target = linkNavTarget(current.href || node.getAttribute('href'), window.location.href);
+    if (target === null) return;
     event.preventDefault();
-    push(current.href || node.getAttribute('href'));
+    push(target);
   }
   node.addEventListener('click', onClick);
   return {

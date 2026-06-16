@@ -360,8 +360,8 @@ class PoapMintLinkAdmin(admin.ModelAdmin):
     def _claim_url_from_token(self, token):
         frontend_url = getattr(settings, 'FRONTEND_URL', '').rstrip('/')
         if not frontend_url:
-            return f'/#/claim/poap/{token}'
-        return f'{frontend_url}/#/claim/poap/{token}'
+            return f'/claim/poap/{token}'
+        return f'{frontend_url}/claim/poap/{token}'
 
 
 @admin.register(PoapClaim)

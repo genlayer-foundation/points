@@ -25,6 +25,7 @@ export function resolvePortalLink(
   if (!raw || raw === '#') return { href: '#', external: false };
   if (raw.startsWith('#/')) return { href: raw.slice(1), external: false }; // legacy hash route
   if (raw.startsWith('#')) return { href: raw, external: false };           // in-page anchor
+  if (raw.startsWith('//')) return { href: raw, external: true };           // protocol-relative -> external
   if (raw.startsWith('/')) return { href: raw, external: false };
 
   let url;

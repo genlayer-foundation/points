@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { push, location, loc } from 'svelte-spa-router';
+  import { push, replace, location, loc } from 'svelte-spa-router';
   import { contributionsAPI, usersAPI } from '../lib/api';
   import { getMissions } from '../lib/missionsStore.js';
   import { getContributionTypes } from '../lib/api/contributions.js';
@@ -185,8 +185,10 @@
     const target = baseRoutePath + (qs ? `?${qs}` : '');
     const current = window.location.pathname + window.location.search;
     if (current !== target) {
-      window.history.replaceState({}, '', target);
+      // Router replace() keeps loc/querystring stores in sync; lastUrl dedupes
+      // the resulting loc subscription so this self-update doesn't refetch.
       lastUrl = target;
+      replace(target);
     }
   }
 

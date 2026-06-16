@@ -64,7 +64,7 @@ describe('link navigation targets', () => {
     expect(linkNavTarget('/metrics?range=30d#top', base)).toBe('/metrics?range=30d#top');
   });
 
-  it('resolves legacy /#/route links to the hash route (regression)', () => {
+  it('resolves legacy /#/route links to the clean path (regression)', () => {
     // Without this, the router reads pathname '/' and lands on home.
     expect(linkNavTarget('/#/submit-contribution', base)).toBe('/submit-contribution');
     expect(linkNavTarget('/#/mission/7?x=1', base)).toBe('/mission/7?x=1');

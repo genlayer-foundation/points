@@ -312,6 +312,7 @@ frontend/src/
 Admin-managed content links (hero banners, GenNews announcements, featured builds) are stored in a URLField, so links back into the portal arrive as absolute URLs (e.g. `https://portal.genlayer.foundation/mission/7`). `resolvePortalLink(raw)` returns `{ href, external }`: same-origin URLs are rewritten to in-app path routes (keeping SPA navigation and browser history intact), while cross-origin URLs stay external and should open with `target="_blank"`. It also normalizes legacy hash content (`#/mission/7`, `https://.../#/mission/7`) into clean paths so older entries still resolve. Always use this helper instead of `startsWith('http')` checks when rendering content links. Used by `GenNews.svelte`, `HeroBanner.svelte`, `FeaturedBuilds.svelte`, and `EcosystemPartners.svelte`.
 
 ### Routing (history-based, clean URLs)
+
 The portal uses **history-based routing** (clean `/testnets` URLs, not hash `/#/testnets`) so copied links produce correct OG/social previews and SEO. `svelte-spa-router` is hash-only, so it is replaced by a small in-house router in `src/lib/router.js` (navigation core: `push`/`replace`/`pop`, `location`/`querystring`/`params` stores, the `link` action, route matching via `regexparam`) and `src/lib/Router.svelte` (the matching/rendering component). `src/lib/wrap.js` provides `wrap()` for auth-guarded routes. A Vite alias in `vite.config.js` maps `svelte-spa-router` → `Router.svelte` and `svelte-spa-router/wrap` → `wrap.js`, so existing `import { push, location, ... } from 'svelte-spa-router'` call sites are unchanged.
 
 - **Navigation:** `push('/profile')` / `replace('/')` take clean paths (a leading `#` is tolerated for legacy callers). `$location` is `window.location.pathname`; `$querystring` is the search string without `?`.
@@ -842,7 +843,9 @@ let isOwnProfile = $derived(user?.id === currentId);
 ```
 
 ## Navigation Functions
+
 History-based routing — `'svelte-spa-router'` is aliased to the in-house router (`src/lib/router.js` / `Router.svelte`); imports below are unchanged.
+
 ```javascript
 import { push, replace, location } from 'svelte-spa-router';
 
