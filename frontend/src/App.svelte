@@ -11,8 +11,8 @@
   import { location } from 'svelte-spa-router';
   import { setRouteMeta } from './lib/meta.js';
   import { authState, verifyAuth } from './lib/auth.js';
-  import { normalizeLocation } from './lib/normalizePath.js';
-  
+  import { installLinkInterceptor } from './lib/router.js';
+
   // Early OAuth result detection — runs before routes mount.
   // Backend redirects here with ?oauth_platform=X&oauth_verified=true/false&oauth_error=...
   // We relay the result to the opener tab via postMessage (primary) and localStorage (fallback).
@@ -52,13 +52,6 @@
       }
     }
   }
-
-  // The portal uses hash routing. Direct/path-based links (sidebar hrefs
-  // opened in a new tab, refreshes of a path route, shared or indexed links)
-  // arrive without a hash and would otherwise 404. Rewrite any such path into
-  // its hash equivalent so the router can resolve it; unknown paths still
-  // fall through to the router's own NotFound view.
-  normalizeLocation(window);
 
   // State for sidebar toggle on mobile and collapse on desktop
   let sidebarOpen = $state(false);
@@ -319,10 +312,14 @@
     
     // Use event delegation for better performance
     document.body.addEventListener('mouseover', handleTooltipPosition);
-    
+
+    // SPA-navigate same-origin <a href="/path"> clicks (history routing).
+    const removeLinkInterceptor = installLinkInterceptor();
+
     // Cleanup
     return () => {
       document.body.removeEventListener('mouseover', handleTooltipPosition);
+      removeLinkInterceptor();
     };
   });
 
@@ -443,8 +440,8 @@
       <SystemAlerts />
       <Router
         {routes}
-        on:conditionsFailed={hideTooltips}
-        on:routeLoaded={handleRouteLoaded}
+        onConditionsFailed={hideTooltips}
+        onRouteLoaded={handleRouteLoaded}
       />
     </main>
   </div>

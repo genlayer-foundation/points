@@ -228,7 +228,10 @@
     if (stateFilter) urlParams.set('status', stateFilter);
     if (searchQuery) urlParams.set('q', searchQuery);
     const newUrl = urlParams.toString() ? `?${urlParams.toString()}` : '';
-    window.history.replaceState({}, '', `#/stewards/submissions${newUrl}`);
+    const target = `/stewards/submissions${newUrl}`;
+    if (window.location.pathname + window.location.search !== target) {
+      replace(target);
+    }
   }
 
   async function loadSubmissions() {

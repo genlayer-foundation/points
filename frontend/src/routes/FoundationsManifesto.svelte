@@ -59,7 +59,7 @@
           <button type="button" class="btn-hero" onclick={() => document.getElementById('decide')?.scrollIntoView({ behavior: 'smooth' })}>Start reading
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></svg>
           </button>
-          <a class="btn-ghost" href="#/genesis/compass">Read the Compass</a>
+          <a class="btn-ghost" href="/genesis/compass">Read the Compass</a>
         </div>
       </header>
 
@@ -247,15 +247,15 @@
 
       <!-- FOOTER -->
       <footer class="footer-card reveal">
-        <a class="next-link" href="#/genesis/compass">
+        <a class="next-link" href="/genesis/compass">
           <span class="nl-label">Keep exploring</span>
           <span class="nl-title">&larr; The Compass &mdash; Worldview, Concept &amp; Mission</span>
         </a>
         <div class="foot-links">
-          <a href="#/genesis/whitepaper">Whitepaper</a>
+          <a href="/genesis/whitepaper">Whitepaper</a>
           <a href="https://docs.genlayer.com" target="_blank" rel="noopener">Docs &#8599;</a>
           <a href="https://studio.genlayer.com" target="_blank" rel="noopener">Studio &#8599;</a>
-          <a href="#/">Portal &#8599;</a>
+          <a href="/">Portal &#8599;</a>
           <a href="https://github.com/genlayerlabs" target="_blank" rel="noopener">GitHub &#8599;</a>
           <a href="https://x.com/GenLayer" target="_blank" rel="noopener">X &#8599;</a>
           <a href="https://discord.gg/genlayerlabs" target="_blank" rel="noopener">Discord &#8599;</a>

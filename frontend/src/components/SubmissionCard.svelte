@@ -1131,7 +1131,7 @@
                   </span>
                 {/if}
                 {#if submission.project_contribution.link}
-                  <a href="#{submission.project_contribution.link}" class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
+                  <a href={submission.project_contribution.link} class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
                     View Project →
                   </a>
                 {/if}
@@ -1175,7 +1175,7 @@
                 </span>
               {/if}
               {#if submission.project_contribution.link}
-                <a href="#{submission.project_contribution.link}" class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
+                <a href={submission.project_contribution.link} class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
                   View Project →
                 </a>
               {/if}

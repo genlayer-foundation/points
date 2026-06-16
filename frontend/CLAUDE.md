@@ -285,7 +285,7 @@ frontend/src/
   - Handles tooltip positioning
   - Manages route changes
   - How it works page (`/how-it-works`) renders full-bleed (no `px-3 py-3` padding on `<main>`)
-  - Calls `normalizeLocation(window)` from `src/lib/normalizePath.js` during app startup to normalize direct/path-based URLs for the hash router
+  - Uses history-based routing (clean `/path` URLs) via the in-house router in `src/lib/router.js` + `Router.svelte`; installs `installLinkInterceptor()` so `<a href="/path">` clicks navigate in-app. See "Routing" below.
 - **Navigation**: `src/components/Navbar.svelte`
   - Top navigation bar
   - Auth button integration
@@ -294,7 +294,7 @@ frontend/src/
 - **Notifications**: `src/components/NotificationCenter.svelte`
   - Bell icon button in the navbar, left of the search bar on desktop, before the auth button on mobile; only when authenticated
   - Unread badge, dropdown with latest notifications, mark-all-read, "View all" linking to `/notifications`
-  - Polls unread count every 60s; clicking a notification marks it read (non-blocking) and follows its `link_url` (internal hash routes push in-app, http(s) opens a new tab)
+  - Polls unread count every 60s; clicking a notification marks it read (non-blocking) and follows its `link_url` (internal routes push in-app, http(s) opens a new tab)
   - Full feed page: `src/routes/Notifications.svelte` (All/Unread filter pills, load-more pagination). Bodies render as sanitized image-free markdown via `parseUserMarkdown()` (no `<img>`, so private campaign opens can't ping external tracking pixels); rows are `div[role=button]` so markdown links stay clickable, inline anchor clicks don't also trigger the row's `link_url` redirect, and rows without a `link_url` show a default cursor (pure announcements)
   - Shared utils: `src/lib/notificationUtils.js` (`asList` payload normalization, `followNotificationLink` link handling) and `src/lib/relativeTime.js` for compact timestamps
 - **Sidebar**: `src/components/Sidebar.svelte`
@@ -309,14 +309,17 @@ frontend/src/
 
 ### Content-Link Resolution (`src/lib/links.js`)
 
-Admin-managed content links (hero banners, GenNews announcements, featured builds) are stored in a URLField, so links back into the portal arrive as absolute URLs (e.g. `https://portal.genlayer.foundation/#/mission/7`). `resolvePortalLink(raw)` returns `{ href, external }`: same-origin URLs are rewritten to in-app hash routes (keeping SPA navigation and browser history intact), while cross-origin URLs stay external and should open with `target="_blank"`. Always use this helper instead of `startsWith('http')` checks when rendering content links. Used by `GenNews.svelte`, `HeroBanner.svelte`, `FeaturedBuilds.svelte`, and `EcosystemPartners.svelte`.
+Admin-managed content links (hero banners, GenNews announcements, featured builds) are stored in a URLField, so links back into the portal arrive as absolute URLs (e.g. `https://portal.genlayer.foundation/mission/7`). `resolvePortalLink(raw)` returns `{ href, external }`: same-origin URLs are rewritten to in-app path routes (keeping SPA navigation and browser history intact), while cross-origin URLs stay external and should open with `target="_blank"`. It also normalizes legacy hash content (`#/mission/7`, `https://.../#/mission/7`) into clean paths so older entries still resolve. Always use this helper instead of `startsWith('http')` checks when rendering content links. Used by `GenNews.svelte`, `HeroBanner.svelte`, `FeaturedBuilds.svelte`, and `EcosystemPartners.svelte`.
 
-### Hash Route Normalization
-The portal uses `svelte-spa-router`, so app routes must be represented as hash URLs such as `/#/testnets`. `src/App.svelte` imports `normalizeLocation` from `src/lib/normalizePath.js` and invokes `normalizeLocation(window)` once at initial app load.
+### Routing (history-based, clean URLs)
 
-`normalizeLocation` reads `window.location.pathname`, `window.location.search`, and `window.location.hash`. `computeNormalizedUrl` first normalizes route paths with `normalizeRoutePath`, which removes trailing slashes and treats empty paths as `/`, so `/referral-program/` becomes `/#/referral-program`. If a hash is already present, the path is `/`, `looksLikeStaticFile` sees a dot in the last path segment, or the path starts with a reserved server/static prefix (`/api`, `/oauth`, `/static`, `/assets`, `/media`), it does nothing. Otherwise it rewrites the current URL with `window.history.replaceState({}, '', '/#' + pathname + search)`, so `/metrics?range=30d` becomes `/#/metrics?range=30d`.
+The portal uses **history-based routing** (clean `/testnets` URLs, not hash `/#/testnets`) so copied links produce correct OG/social previews and SEO. `svelte-spa-router` is hash-only, so it is replaced by a small in-house router in `src/lib/router.js` (navigation core: `push`/`replace`/`pop`, `location`/`querystring`/`params` stores, the `link` action, route matching via `regexparam`) and `src/lib/Router.svelte` (the matching/rendering component). `src/lib/wrap.js` provides `wrap()` for auth-guarded routes. A Vite alias in `vite.config.js` maps `svelte-spa-router` → `Router.svelte` and `svelte-spa-router/wrap` → `wrap.js`, so existing `import { push, location, ... } from 'svelte-spa-router'` call sites are unchanged.
 
-Use this normalization when debugging direct links, copied links, refreshes, or server-served deep links that arrive as plain paths. New external entry points to SPA routes should either emit hash URLs directly (`/#/route`) or be normalized by invoking `normalizeLocation(window)` before the router resolves the page.
+- **Navigation:** `push('/profile')` / `replace('/')` take clean paths (a leading `#` is tolerated for legacy callers). `$location` is `window.location.pathname`; `$querystring` is the search string without `?`.
+- **Links:** plain `<a href="/path">` is SPA-navigated automatically by a global click interceptor (`installLinkInterceptor`, installed once in `App.svelte`); it skips modified/new-tab/external/file links and any anchor whose own handler already called `preventDefault()`. Never write `href="#/..."`.
+- **Deep links / refresh:** AWS Amplify (`amplify.yml` customRules) and the Vite dev server already serve `index.html` for unmatched paths — no server change needed.
+- **Back-compat:** a tiny boot script in `index.html` rewrites any incoming legacy `#/path` to `/path` before the app mounts, so old shared hash links still resolve.
+- **Static OG:** `scripts/generate-og-pages.mjs` (post-build) writes `dist/<route>/index.html` per `STATIC_OG_ROUTES` with route-specific meta; with history routing a copied static-route URL hits that prerendered file directly. Dynamic detail pages (projects/POAPs/profiles) still serve the generic card to crawlers — a future backend-meta + edge-function task.
 
 ### Routes/Pages
 All routes are defined in `src/App.svelte`:
@@ -541,7 +544,7 @@ Reusable, data-driven display components that accept data via props. Used on Das
 - Ports the genlayer-compass site (github.com/acastellana/genlayer-compass) into the portal as full-bleed pages: Manifesto, The Compass, Whitepaper
 - `FoundationsShell.svelte` renders the inner document sidebar (doc switcher + "On this page" scrollspy TOC or an "About this document" card), the <900px sticky pill topbar, and the scrolling content column; it owns the IntersectionObserver scrollspy and `.reveal`/`.reveal-stagger` scroll-reveal logic
 - Pages are full-bleed (`isFullBleedPage` in App.svelte) and manage their own two-column layout/scroll; document content + the compass design system CSS (violet #7c5cff palette, dark hero cards, bento stats, editorial sticky asides, pull quotes) are scoped per page
-- TOC/section links use buttons with `scrollIntoView` (never `href="#id"` — that would collide with the hash router); cross-document links use `#/foundations/*` hrefs
+- TOC/section links use buttons with `scrollIntoView` (not `href="#id"` anchors); cross-document links use `/genesis/*` path hrefs
 - Whitepaper embeds the PDF from genlayer.com's CDN in an iframe with a spinner that hides on load or after 3.5s
 
 #### Gen TV Components (`src/components/portal/gen-tv/`)
@@ -840,11 +843,17 @@ let isOwnProfile = $derived(user?.id === currentId);
 ```
 
 ## Navigation Functions
+
+History-based routing — `'svelte-spa-router'` is aliased to the in-house router (`src/lib/router.js` / `Router.svelte`); imports below are unchanged.
+
 ```javascript
 import { push, replace, location } from 'svelte-spa-router';
 
-// Navigate programmatically (user-initiated navigation)
+// Navigate programmatically (user-initiated navigation) — clean path, no '#'
 push('/profile');
+
+// Plain anchors also work (global interceptor handles them):
+//   <a href="/profile">Profile</a>
 
 // Redirect away from a page the user should not be on (guards, legacy
 // routes, post-auth bounces). ALWAYS use replace() here, never push():

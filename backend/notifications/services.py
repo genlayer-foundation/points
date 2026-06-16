@@ -25,14 +25,19 @@ from .registry import get_event_type
 # ---------------------------------------------------------------------------
 
 def internal_route(path):
-    """Normalize an internal SPA path to the hash route the frontend uses."""
+    """Normalize an internal SPA path to a clean route for the frontend router.
+
+    The frontend uses history-based routing, so new links are stored as plain
+    paths (e.g. ``/missions``). Legacy ``#/`` routes and absolute URLs are
+    passed through unchanged; the frontend still resolves legacy ``#/`` links.
+    """
     if not path:
         return ''
-    if path.startswith('#/') or path.startswith('http://') or path.startswith('https://'):
+    if path.startswith(('#/', 'http://', 'https://')):
         return path
     if not path.startswith('/'):
         path = f'/{path}'
-    return f'#{path}'
+    return path
 
 
 def _source_for(obj):
@@ -296,7 +301,7 @@ def submission_review_link(submission):
         'state': submission.state,
         'submission': str(submission.id),
     })
-    return f"#/my-submissions?{query}"
+    return f"/my-submissions?{query}"
 
 
 def _display_submission_name(submission):

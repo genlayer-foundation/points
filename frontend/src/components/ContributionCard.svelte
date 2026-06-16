@@ -173,7 +173,7 @@
           {#if linkedProject}
             <span class="text-gray-400">•</span>
             <a
-              href="#{linkedProject.link}"
+              href={linkedProject.link}
               class="{categoryColors.text} {categoryColors.hoverText} font-medium"
               onclick={(event) => event.stopPropagation()}
             >

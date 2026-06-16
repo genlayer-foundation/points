@@ -352,7 +352,7 @@
         <p class="text-[14px] leading-[21px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">GenTV coding content for builders who need a guided entry point.</p>
       </div>
       <div class="flex items-center gap-2">
-        <a href="#/gen-tv" class="hidden text-[13px] font-medium text-[#6b6b6b] transition hover:text-black sm:inline-flex">
+        <a href="/gen-tv" class="hidden text-[13px] font-medium text-[#6b6b6b] transition hover:text-black sm:inline-flex">
           View GenTV
         </a>
         <div class="flex items-center gap-1">

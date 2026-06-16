@@ -1,4 +1,5 @@
 import { push } from 'svelte-spa-router';
+import { resolvePortalLink } from './links.js';
 
 /** Normalize paginated or plain-array API payloads into a list. */
 export function asList(data) {
@@ -7,15 +8,20 @@ export function asList(data) {
   return [];
 }
 
-/** Follow a notification's link: external URLs in a new tab, internal hash routes in-app. */
+/**
+ * Follow a notification's link. Same-origin links (including legacy `#/...` and
+ * absolute portal URLs) route in-app; genuinely external links open in a new
+ * tab. resolvePortalLink does the classification and normalization.
+ */
 export function followNotificationLink(notification) {
   const url = notification.link_url || '';
   if (!url) return;
 
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    window.open(url, '_blank', 'noopener,noreferrer');
+  const { href, external } = resolvePortalLink(url);
+  if (external) {
+    window.open(href, '_blank', 'noopener,noreferrer');
     return;
   }
-
-  push(url.startsWith('#/') ? url.slice(1) : url);
+  if (!href || href.startsWith('#')) return; // inert / in-page anchor
+  push(href);
 }

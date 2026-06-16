@@ -113,7 +113,7 @@ class SubmissionReviewNotificationTests(TestCase):
         )
 
         notification = services.notify_submission_review(submission)
-        self.assertIn('#/my-submissions?', notification.link_url)
+        self.assertIn('/my-submissions?', notification.link_url)
         self.assertIn('state=more_info_needed', notification.link_url)
         self.assertIn(f'submission={submission.id}', notification.link_url)
 
@@ -638,7 +638,7 @@ class CampaignSendTests(TestCase):
         self.assertEqual(row.dedupe_key, f'custom.announcement:{campaign.pk}')
         self.assertEqual(row.priority, Notification.PRIORITY_HIGH)
         self.assertEqual(row.category, 'announcement')
-        self.assertEqual(row.link_url, '#/missions')
+        self.assertEqual(row.link_url, '/missions')
         self.assertEqual(row.payload, {'campaign_id': campaign.pk})
 
         campaign.refresh_from_db()
@@ -905,7 +905,7 @@ class SocialTaskBroadcastTests(TestCase):
 
         self.assertEqual(notification.audience, Notification.AUDIENCE_BUILDERS)
         self.assertEqual(notification.event_type, 'social_task.published')
-        self.assertEqual(notification.link_url, '#/builders/tasks')
+        self.assertEqual(notification.link_url, '/builders/tasks')
         self.assertEqual(notification.payload['points'], 10)
 
         self.assertIn(notification.pk, [n.pk for n in services.feed_for(self.builder_user)])
@@ -920,7 +920,7 @@ class SocialTaskBroadcastTests(TestCase):
 
         self.assertEqual(notification.audience, Notification.AUDIENCE_COMMUNITY)
         self.assertEqual(notification.body, 'Join us!')
-        self.assertEqual(notification.link_url, '#/community/tasks')
+        self.assertEqual(notification.link_url, '/community/tasks')
         self.assertIn(notification.pk, [n.pk for n in services.feed_for(self.community_user)])
         self.assertNotIn(notification.pk, [n.pk for n in services.feed_for(self.builder_user)])
 
