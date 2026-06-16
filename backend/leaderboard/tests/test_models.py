@@ -10,7 +10,8 @@ from leaderboard.models import (
     update_all_ranks,
     update_user_leaderboard_entries
 )
-from contributions.models import Contribution, ContributionType
+from contributions.models import Category, Contribution, ContributionType
+from validators.models import Validator
 
 User = get_user_model()
 
@@ -34,11 +35,21 @@ class LeaderboardEntryTest(TestCase):
             name='User 2',
             address='0x2222222222222222222222222222222222222222'
         )
+
+        Validator.objects.create(user=self.user1)
+        Validator.objects.create(user=self.user2)
+
+        self.validator_category = Category.objects.create(
+            name='Validator',
+            slug='validator',
+            description='Validator contributions',
+        )
         
         # Create contribution types
         self.uptime_type = ContributionType.objects.create(
             name='Uptime',
             description='Daily validator uptime',
+            category=self.validator_category,
             min_points=1,
             max_points=10
         )
@@ -46,6 +57,7 @@ class LeaderboardEntryTest(TestCase):
         self.blog_type = ContributionType.objects.create(
             name='Blog Post',
             description='Blog post contribution',
+            category=self.validator_category,
             min_points=10,
             max_points=100
         )
@@ -85,7 +97,7 @@ class LeaderboardEntryTest(TestCase):
         )
         
         # Get leaderboard entry (it was created by the signal)
-        entry = LeaderboardEntry.objects.get(user=self.user1)
+        entry = LeaderboardEntry.objects.get(user=self.user1, type='validator')
         
         # Record the initial rank (it should be 1 since it's the only user)
         initial_rank = entry.rank
@@ -134,8 +146,8 @@ class LeaderboardEntryTest(TestCase):
         )
         
         # Get the leaderboard entries (created by signals)
-        entry1 = LeaderboardEntry.objects.get(user=self.user1)
-        entry2 = LeaderboardEntry.objects.get(user=self.user2)
+        entry1 = LeaderboardEntry.objects.get(user=self.user1, type='validator')
+        entry2 = LeaderboardEntry.objects.get(user=self.user2, type='validator')
         
         # Record initial ranks
         initial_rank1 = entry1.rank
@@ -169,7 +181,7 @@ class LeaderboardEntryTest(TestCase):
     def test_update_points_with_no_contributions(self):
         """Test update_points_without_ranking when user has no contributions."""
         # Create leaderboard entry without contributions
-        entry = LeaderboardEntry.objects.create(user=self.user1)
+        entry = LeaderboardEntry.objects.create(user=self.user1, type='validator')
         
         # Update points
         total_points = entry.update_points_without_ranking()
@@ -203,7 +215,7 @@ class LeaderboardEntryTest(TestCase):
         update_user_leaderboard_entries(self.user1)
         
         # Check that entry exists with correct points and rank
-        entry1 = LeaderboardEntry.objects.get(user=self.user1)
+        entry1 = LeaderboardEntry.objects.get(user=self.user1, type='validator')
         self.assertEqual(entry1.total_points, 10)
         self.assertIsNotNone(entry1.rank)
         
@@ -212,7 +224,7 @@ class LeaderboardEntryTest(TestCase):
         
         # Check rankings are correct
         entry1.refresh_from_db()
-        entry2 = LeaderboardEntry.objects.get(user=self.user2)
+        entry2 = LeaderboardEntry.objects.get(user=self.user2, type='validator')
         
         self.assertEqual(entry2.total_points, 20)
         self.assertEqual(entry1.rank, 2)  # user1 has less points
@@ -244,8 +256,8 @@ class LeaderboardEntryTest(TestCase):
         self.user2.save()
         
         # Get the leaderboard entries (they were created by the signal)
-        entry1 = LeaderboardEntry.objects.get(user=self.user1)
-        entry2 = LeaderboardEntry.objects.get(user=self.user2)
+        entry1 = LeaderboardEntry.objects.get(user=self.user1, type='validator')
+        entry2 = LeaderboardEntry.objects.get(user=self.user2, type='validator')
         
         # Update ranks
         update_all_ranks()
@@ -270,6 +282,7 @@ class LeaderboardEntryTest(TestCase):
             address='0x3333333333333333333333333333333333333333',
             visible=True
         )
+        Validator.objects.create(user=user3)
         
         # Give all users the same points
         for user in [self.user1, self.user2, user3]:
@@ -286,9 +299,9 @@ class LeaderboardEntryTest(TestCase):
         update_all_ranks()
         
         # Get entries
-        entry1 = LeaderboardEntry.objects.get(user=self.user1)
-        entry2 = LeaderboardEntry.objects.get(user=self.user2)
-        entry3 = LeaderboardEntry.objects.get(user=user3)
+        entry1 = LeaderboardEntry.objects.get(user=self.user1, type='validator')
+        entry2 = LeaderboardEntry.objects.get(user=self.user2, type='validator')
+        entry3 = LeaderboardEntry.objects.get(user=user3, type='validator')
         
         # All should have consecutive ranks based on name ordering
         # AAA User should be rank 1, User 1 should be rank 2, User 2 should be rank 3

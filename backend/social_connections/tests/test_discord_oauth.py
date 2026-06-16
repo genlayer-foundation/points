@@ -16,7 +16,7 @@ from social_connections.discord_oauth import (
 )
 from social_connections.oauth_service import DiscordOAuthService
 
-TEST_ENCRYPTION_KEY = 'dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ='
+TEST_ENCRYPTION_KEY = 'oXf4yjCFpof8TTKIFuwb2Ie2BERopbplB_CnQGHfG64='
 
 
 @override_settings(
@@ -42,6 +42,7 @@ class DiscordOAuthTest(TestCase):
 
     def test_initiate_requires_auth(self):
         request = self.factory.get('/api/auth/discord/')
+        request.session = {}
         request.user = None
         response = discord_oauth_initiate(request)
         self.assertIn(response.status_code, [401, 403])
@@ -235,7 +236,9 @@ class DiscordOAuthTest(TestCase):
             'state': state,
         })
         response = discord_oauth_callback(request)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('oauth_platform=discord', response.url)
+        self.assertIn('oauth_verified=true', response.url)
 
         conn = DiscordConnection.objects.get(user=self.user)
         self.assertEqual(conn.platform_username, 'discorduser')
@@ -268,7 +271,9 @@ class DiscordOAuthTest(TestCase):
             'state': state,
         })
         response = discord_oauth_callback(request)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('oauth_platform=discord', response.url)
+        self.assertIn('oauth_verified=true', response.url)
 
         conn = DiscordConnection.objects.get(user=self.user)
         self.assertEqual(conn.discriminator, '')
@@ -287,8 +292,10 @@ class DiscordOAuthTest(TestCase):
             'state': state,
         })
         response = discord_oauth_callback(request)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b'code_already_used', response.content)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('oauth_platform=discord', response.url)
+        self.assertIn('oauth_verified=false', response.url)
+        self.assertIn('oauth_error=code_already_used', response.url)
 
     @patch('social_connections.oauth_service.requests')
     def test_callback_already_linked_to_another_user(self, mock_requests):
@@ -325,8 +332,10 @@ class DiscordOAuthTest(TestCase):
             'state': state,
         })
         response = discord_oauth_callback(request)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b'already_linked', response.content)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('oauth_platform=discord', response.url)
+        self.assertIn('oauth_verified=false', response.url)
+        self.assertIn('oauth_error=already_linked', response.url)
 
     @patch('social_connections.oauth_service.requests')
     def test_check_guild_no_connection(self, mock_requests):

@@ -116,6 +116,7 @@ class Mee6SyncTest(TestCase):
             address='0x0000000000000000000000000000000000000001',
             name='User One',
         )
+        self.api_client.force_authenticate(user=self.user)
         self.request_factory = RequestFactory()
 
     def add_community_contribution(self, user, points):

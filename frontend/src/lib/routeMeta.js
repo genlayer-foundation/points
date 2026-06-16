@@ -1,6 +1,8 @@
 export const SITE_URL = 'https://portal.genlayer.foundation';
 export const SITE_NAME = 'GenLayer Portal';
 export const TWITTER_SITE = '@GenLayer';
+export const DEFAULT_ROBOTS = 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1';
+export const NOINDEX_ROBOTS = 'noindex,nofollow';
 
 const ogImage = (fileName) => ({
   src: `${SITE_URL}/assets/og/${fileName}`,
@@ -40,7 +42,48 @@ export const DEFAULT_META = {
   imageWidth: OG_IMAGES.portal.width,
   imageHeight: OG_IMAGES.portal.height,
   url: `${SITE_URL}/`,
+  robots: DEFAULT_ROBOTS,
 };
+
+export function routeStructuredData({ title, description, url, image } = DEFAULT_META) {
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Organization',
+        '@id': `${SITE_URL}/#organization`,
+        name: 'GenLayer',
+        url: 'https://www.genlayer.com/',
+        logo: `${SITE_URL}/assets/genlayer-portal-logo.svg`,
+        sameAs: [
+          'https://x.com/GenLayer',
+          'https://github.com/genlayer-foundation',
+          'https://docs.genlayer.com/',
+        ],
+      },
+      {
+        '@type': 'WebSite',
+        '@id': `${SITE_URL}/#website`,
+        url: `${SITE_URL}/`,
+        name: SITE_NAME,
+        description: DEFAULT_META.description,
+        publisher: { '@id': `${SITE_URL}/#organization` },
+        inLanguage: 'en',
+      },
+      {
+        '@type': 'WebPage',
+        '@id': `${url}#webpage`,
+        url,
+        name: title,
+        description,
+        image,
+        isPartOf: { '@id': `${SITE_URL}/#website` },
+        publisher: { '@id': `${SITE_URL}/#organization` },
+        inLanguage: 'en',
+      },
+    ],
+  };
+}
 
 export const ROUTE_META = {
   '/': DEFAULT_META,
@@ -148,6 +191,14 @@ export const ROUTE_META = {
     imageWidth: OG_IMAGES.builderProject.width,
     imageHeight: OG_IMAGES.builderProject.height,
   },
+  '/builders/startup-requests/:id': {
+    title: 'GenLayer Builder Startup Request',
+    description:
+      'Explore a GenLayer builder startup request, including project goals, requirements, and supporting resources.',
+    image: OG_IMAGES.builderProject.src,
+    imageWidth: OG_IMAGES.builderProject.width,
+    imageHeight: OG_IMAGES.builderProject.height,
+  },
   '/community/poaps': {
     title: 'GenLayer Community POAPs',
     description:
@@ -155,6 +206,22 @@ export const ROUTE_META = {
     image: OG_IMAGES.communityPoaps.src,
     imageWidth: OG_IMAGES.communityPoaps.width,
     imageHeight: OG_IMAGES.communityPoaps.height,
+  },
+  '/community/poaps/:slug': {
+    title: 'GenLayer Community POAP',
+    description:
+      'View a GenLayer community POAP, including claim status, event details, and collector information.',
+    image: OG_IMAGES.communityPoaps.src,
+    imageWidth: OG_IMAGES.communityPoaps.width,
+    imageHeight: OG_IMAGES.communityPoaps.height,
+  },
+  '/badge/:id': {
+    title: 'GenLayer Badge',
+    description:
+      'View a GenLayer badge, its point value, details, and earners.',
+    image: OG_IMAGES.portal.src,
+    imageWidth: OG_IMAGES.portal.width,
+    imageHeight: OG_IMAGES.portal.height,
   },
   '/participants': {
     title: 'GenLayer Participants',
@@ -214,6 +281,10 @@ export const ROUTE_META_ALIASES = {
   '/manifesto': '/genesis/manifesto',
 };
 
+const NOINDEX_ROUTE_PATHS = new Set([
+  '/community/poaps/recover',
+]);
+
 export const STATIC_OG_ROUTES = [
   '/how-it-works',
   '/referral-program',
@@ -237,8 +308,19 @@ export const STATIC_OG_ROUTES = [
 ];
 
 function normalizeRoutePath(path) {
-  const raw = path || '/';
-  const withoutQuery = raw.split('?')[0].split('#')[0] || '/';
+  const raw = String(path || '/');
+  let routePath = raw;
+
+  try {
+    const parsed = new URL(raw, `${SITE_URL}/`);
+    routePath = parsed.hash.startsWith('#/')
+      ? parsed.hash.slice(1)
+      : parsed.pathname;
+  } catch {
+    routePath = raw.startsWith('#/') ? raw.slice(1) : raw;
+  }
+
+  const withoutQuery = routePath.split('?')[0].split('#')[0] || '/';
   if (withoutQuery.length > 1) {
     return withoutQuery.replace(/\/+$/, '');
   }
@@ -250,6 +332,14 @@ export function resolveRouteMeta(path = '/') {
   const aliasTarget = ROUTE_META_ALIASES[normalized];
   const key = aliasTarget || normalized;
 
+  if (NOINDEX_ROUTE_PATHS.has(normalized)) {
+    return {
+      ...DEFAULT_META,
+      url: `${SITE_URL}${normalized}`,
+      robots: NOINDEX_ROBOTS,
+    };
+  }
+
   if (ROUTE_META[key]) {
     return {
       ...DEFAULT_META,
@@ -258,7 +348,7 @@ export function resolveRouteMeta(path = '/') {
     };
   }
 
-  if (normalized.startsWith('/builders/projects/')) {
+  if (/^\/builders\/projects\/[^/]+$/.test(normalized)) {
     return {
       ...DEFAULT_META,
       ...ROUTE_META['/builders/projects/:slug'],
@@ -266,5 +356,33 @@ export function resolveRouteMeta(path = '/') {
     };
   }
 
-  return DEFAULT_META;
+  if (/^\/builders\/startup-requests\/[^/]+$/.test(normalized)) {
+    return {
+      ...DEFAULT_META,
+      ...ROUTE_META['/builders/startup-requests/:id'],
+      url: `${SITE_URL}${normalized}`,
+    };
+  }
+
+  if (/^\/community\/poaps\/[^/]+$/.test(normalized)) {
+    return {
+      ...DEFAULT_META,
+      ...ROUTE_META['/community/poaps/:slug'],
+      url: `${SITE_URL}${normalized}`,
+    };
+  }
+
+  if (/^\/badge\/[^/]+$/.test(normalized)) {
+    return {
+      ...DEFAULT_META,
+      ...ROUTE_META['/badge/:id'],
+      url: `${SITE_URL}${normalized}`,
+    };
+  }
+
+  return {
+    ...DEFAULT_META,
+    url: `${SITE_URL}${normalized === '/' ? '/' : normalized}`,
+    robots: NOINDEX_ROBOTS,
+  };
 }

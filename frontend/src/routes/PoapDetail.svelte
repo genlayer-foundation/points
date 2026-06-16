@@ -4,6 +4,8 @@
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { poapsAPI } from '../lib/api.js';
+  import { setPageMeta } from '../lib/meta.js';
+  import { truncateMetaDescription } from '../lib/metaHelpers.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
   import SocialLink from '../components/SocialLink.svelte';
   import PoapBadgeImage from '../components/poaps/PoapBadgeImage.svelte';
@@ -77,6 +79,14 @@
     return value?.status === 'active' ? 'Unavailable' : value?.status === 'draft' ? 'Draft' : 'Archived';
   }
 
+  function getPoapMetaDescription() {
+    const date = formatDate(poap?.event_start_at);
+    return truncateMetaDescription(
+      poap?.description ||
+        `${poap?.title || 'This GenLayer POAP'} is a GenLayer community POAP${date ? ` from ${date}` : ''}.`
+    );
+  }
+
   /** @param {any} distribution */
   function distributionIsOpen(distribution) {
     if (!distribution?.active) return false;
@@ -119,11 +129,13 @@
     if (!slug) return;
     loading = true;
     error = '';
+    poap = null;
     try {
       const response = await poapsAPI.get(slug);
       poap = response.data;
     } catch (err) {
       const requestError = /** @type {any} */ (err);
+      poap = null;
       error = requestError.response?.data?.detail || 'Unable to load this POAP.';
     } finally {
       loading = false;
@@ -207,9 +219,21 @@
   $effect(() => {
     if (slug && slug !== loadedSlug) {
       loadedSlug = slug;
+      poap = null;
       resetClaims();
       loadPoap();
     }
+  });
+
+  $effect(() => {
+    if (!poap) return;
+
+    setPageMeta({
+      title: `${poap.title} | GenLayer Community POAP`,
+      description: getPoapMetaDescription(),
+      image: poap.artwork_url || undefined,
+      path: `/community/poaps/${poap.slug || slug}`,
+    });
   });
 
   $effect(() => {

@@ -375,6 +375,24 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['community_member_count'], 1)
         self.assertEqual(response.data['new_community_members_count'], 0)
 
+    def test_recent_link_only_contribution_does_not_count_as_new_community_member(self):
+        link_only_user = self._create_user(
+            'link-only@example.com',
+            '0x0000000000000000000000000000000000000015'
+        )
+        Contribution.objects.create(
+            user=link_only_user,
+            contribution_type=self.community_link_x_type,
+            points=20,
+            contribution_date=timezone.now(),
+        )
+
+        response = self.client.get('/api/v1/leaderboard/stats/', {'type': 'community'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['community_member_count'], 0)
+        self.assertEqual(response.data['new_community_members_count'], 0)
+
     def test_generic_community_leaderboard_uses_effective_mee6_points(self):
         mee6_user = self._create_user(
             'generic-mee6@example.com',

@@ -17,7 +17,7 @@ from social_connections.twitter_oauth import (
 )
 from social_connections.oauth_service import TwitterOAuthService
 
-TEST_ENCRYPTION_KEY = 'dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ='
+TEST_ENCRYPTION_KEY = 'oXf4yjCFpof8TTKIFuwb2Ie2BERopbplB_CnQGHfG64='
 
 
 @override_settings(
@@ -47,6 +47,7 @@ class TwitterOAuthTest(TestCase):
 
     def test_initiate_requires_auth(self):
         request = self.factory.get('/api/auth/twitter/')
+        request.session = {}
         request.user = None
         response = twitter_oauth_initiate(request)
         self.assertIn(response.status_code, [401, 403])

@@ -7,7 +7,7 @@ from social_connections.oauth_service import GitHubOAuthService, TwitterOAuthSer
 from social_connections.encryption import encrypt_token, decrypt_token
 from social_connections.models import UsedOAuthCode
 
-TEST_ENCRYPTION_KEY = 'dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ='  # base64 32 bytes
+TEST_ENCRYPTION_KEY = 'oXf4yjCFpof8TTKIFuwb2Ie2BERopbplB_CnQGHfG64='
 
 
 @override_settings(SOCIAL_ENCRYPTION_KEY='', GITHUB_ENCRYPTION_KEY=TEST_ENCRYPTION_KEY)

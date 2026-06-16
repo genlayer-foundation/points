@@ -14,7 +14,7 @@ from social_connections.github_oauth import (
 )
 from social_connections.oauth_service import GitHubOAuthService
 
-TEST_ENCRYPTION_KEY = 'dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleXQ='
+TEST_ENCRYPTION_KEY = 'oXf4yjCFpof8TTKIFuwb2Ie2BERopbplB_CnQGHfG64='
 
 
 @override_settings(
@@ -39,6 +39,7 @@ class GitHubOAuthTest(TestCase):
 
     def test_initiate_requires_auth(self):
         request = self.factory.get('/api/auth/github/')
+        request.session = {}
         request.user = None
         # DRF permission should reject unauthenticated
         response = github_oauth_initiate(request)
@@ -153,7 +154,9 @@ class GitHubOAuthTest(TestCase):
             'state': state,
         })
         response = github_oauth_callback(request)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('oauth_platform=github', response.url)
+        self.assertIn('oauth_verified=true', response.url)
 
         # Verify connection was created
         conn = GitHubConnection.objects.get(user=self.user)
@@ -173,8 +176,10 @@ class GitHubOAuthTest(TestCase):
             'state': state,
         })
         response = github_oauth_callback(request)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b'code_already_used', response.content)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('oauth_platform=github', response.url)
+        self.assertIn('oauth_verified=false', response.url)
+        self.assertIn('oauth_error=code_already_used', response.url)
 
     @patch('social_connections.oauth_service.requests')
     def test_callback_already_linked_to_another_user(self, mock_requests):
@@ -208,5 +213,7 @@ class GitHubOAuthTest(TestCase):
             'state': state,
         })
         response = github_oauth_callback(request)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b'already_linked', response.content)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('oauth_platform=github', response.url)
+        self.assertIn('oauth_verified=false', response.url)
+        self.assertIn('oauth_error=already_linked', response.url)

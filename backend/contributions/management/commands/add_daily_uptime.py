@@ -1,9 +1,8 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.db import transaction
 from django.contrib.auth import get_user_model
-from contributions.models import Contribution, ContributionType, Category
-from leaderboard.models import GlobalLeaderboardMultiplier, update_all_ranks, LeaderboardEntry
+from contributions.models import Contribution, ContributionType
+from leaderboard.models import GlobalLeaderboardMultiplier, update_user_leaderboard_entries
 from django.db.models import Q
 from datetime import datetime, timedelta
 import pytz
@@ -150,6 +149,7 @@ class Command(BaseCommand):
                     tzinfo=pytz.UTC
                 )
 
+                used_force_multiplier = False
                 try:
                     _, multiplier_value = GlobalLeaderboardMultiplier.get_active_for_type(
                         uptime_type,
@@ -157,6 +157,7 @@ class Command(BaseCommand):
                     )
                 except GlobalLeaderboardMultiplier.DoesNotExist:
                     if force:
+                        used_force_multiplier = True
                         multiplier_value = decimal.Decimal('1.0')
                         self.stdout.write(
                             self.style.WARNING(
@@ -181,7 +182,7 @@ class Command(BaseCommand):
                     )
 
                 if not dry_run:
-                    Contribution.objects.create(
+                    contribution = Contribution(
                         user=user,
                         contribution_type=uptime_type,
                         points=points,
@@ -190,6 +191,10 @@ class Command(BaseCommand):
                         frozen_global_points=frozen_global_points,
                         notes=f'Auto-generated daily uptime for {today} ({network})'
                     )
+                    if used_force_multiplier:
+                        # Keep Contribution.save() and post_save side effects while honoring --force.
+                        contribution._allow_missing_multiplier = True
+                    contribution.save()
 
                     if user not in users_to_update_leaderboard:
                         users_to_update_leaderboard.append(user)
@@ -201,50 +206,10 @@ class Command(BaseCommand):
         if users_to_update_leaderboard and not dry_run:
             self.stdout.write('Updating leaderboard entries...')
 
-            uptime_category = uptime_type.category if uptime_type.category else None
-
             for user in users_to_update_leaderboard:
-                # Update GLOBAL leaderboard entry
-                global_entry, created = LeaderboardEntry.objects.get_or_create(
-                    user=user,
-                    category=None
-                )
-                global_points = global_entry.update_points_without_ranking()
-
+                update_user_leaderboard_entries(user)
                 if verbose:
-                    action = 'Created' if created else 'Updated'
-                    self.stdout.write(f'{action} GLOBAL leaderboard for {user}: {global_points} total points')
-
-                # Update CATEGORY-SPECIFIC leaderboard entry
-                if uptime_category:
-                    category_entry, cat_created = LeaderboardEntry.objects.get_or_create(
-                        user=user,
-                        category=uptime_category
-                    )
-                    category_points = category_entry.update_points_without_ranking()
-
-                    if verbose:
-                        action = 'Created' if cat_created else 'Updated'
-                        self.stdout.write(f'{action} {uptime_category.name} category leaderboard for {user}: {category_points} points')
-
-                # Update entries for ALL categories this user has contributions in
-                user_categories = Category.objects.filter(
-                    contribution_types__contributions__user=user
-                ).distinct()
-
-                for category in user_categories:
-                    if category != uptime_category:
-                        cat_entry, cat_created = LeaderboardEntry.objects.get_or_create(
-                            user=user,
-                            category=category
-                        )
-                        cat_points = cat_entry.update_points_without_ranking()
-
-                        if verbose and cat_created:
-                            self.stdout.write(f'Created {category.name} category leaderboard for {user}: {cat_points} points')
-
-            self.stdout.write('Updating all leaderboard ranks...')
-            update_all_ranks()
+                    self.stdout.write(f'Updated leaderboard entries for {user}')
 
         # Print summary
         self.stdout.write(self.style.SUCCESS(
