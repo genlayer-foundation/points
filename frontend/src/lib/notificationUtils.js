@@ -7,7 +7,7 @@ export function asList(data) {
   return [];
 }
 
-/** Follow a notification's link: external URLs in a new tab, internal hash routes in-app. */
+/** Follow a notification's link: external URLs in a new tab, internal routes in-app. */
 export function followNotificationLink(notification) {
   const url = notification.link_url || '';
   if (!url) return;

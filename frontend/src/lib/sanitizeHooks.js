@@ -9,8 +9,8 @@ import { resolvePortalLink } from './links.js';
 // hook runs after sanitization, so target/rel never need to be allowed
 // attributes (which would let content authors set arbitrary values).
 // Same-origin absolute URLs (admins paste full portal URLs) are rewritten to
-// in-app hash routes instead, so they navigate within the SPA and keep
-// browser history intact.
+// in-app path routes, so they navigate within the SPA and keep browser history
+// intact.
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   if (node.tagName === 'A') {
     const href = node.getAttribute('href') || '';
