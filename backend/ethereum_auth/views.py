@@ -155,6 +155,13 @@ def login(request):
                     user.referred_by = referrer
                     user.save(update_fields=['referred_by'])
                     logger.debug("New user referred successfully")
+
+                    # Notify the referrer; never let this break login.
+                    try:
+                        from notifications.services import notify_referral_joined
+                        notify_referral_joined(user)
+                    except Exception:
+                        logger.exception("Failed to create referral notification")
             except User.DoesNotExist:
                 # Invalid referral code, but don't fail the login
                 logger.warning("Invalid referral code provided during login")

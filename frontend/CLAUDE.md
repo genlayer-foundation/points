@@ -291,6 +291,12 @@ frontend/src/
   - Auth button integration
   - Profile link (shows when authenticated)
   - Mobile responsive menu
+- **Notifications**: `src/components/NotificationCenter.svelte`
+  - Bell icon button in the navbar, left of the search bar on desktop, before the auth button on mobile; only when authenticated
+  - Unread badge, dropdown with latest notifications, mark-all-read, "View all" linking to `/notifications`
+  - Polls unread count every 60s; clicking a notification marks it read (non-blocking) and follows its `link_url` (internal hash routes push in-app, http(s) opens a new tab)
+  - Full feed page: `src/routes/Notifications.svelte` (All/Unread filter pills, load-more pagination). Bodies render as sanitized image-free markdown via `parseUserMarkdown()` (no `<img>`, so private campaign opens can't ping external tracking pixels); rows are `div[role=button]` so markdown links stay clickable, inline anchor clicks don't also trigger the row's `link_url` redirect, and rows without a `link_url` show a default cursor (pure announcements)
+  - Shared utils: `src/lib/notificationUtils.js` (`asList` payload normalization, `followNotificationLink` link handling) and `src/lib/relativeTime.js` for compact timestamps
 - **Sidebar**: `src/components/Sidebar.svelte`
   - Side navigation with collapsible sections
   - Navigation structure:
@@ -382,6 +388,7 @@ const routes = {
   '/contributions/:id': EditSubmission,
   '/metrics': Metrics,
   '/profile': ProfileEdit,          // Edit own profile (authenticated only)
+  '/notifications': Notifications,  // Full notification feed (authenticated only)
   '/loader-showcase': LoaderShowcase,
 
   // Stewards
@@ -447,6 +454,7 @@ const routes = {
   - `genTvAPI` - Gen TV streams (`list`, `get(slug)`)
   - `poapsAPI` - POAP list/detail/claims, user POAPs, secret claims, mint-link claims, and recovery wallet verification
   - `validatorsAPI.getWallOfShame(params)` - Public Wall of Shame list for active validators with Grafana metrics/logs status badges (renders in `routes/WallOfShame.svelte`)
+  - `notificationsAPI` - Portal notifications (`list`, `unreadCount`, `markRead(id)`, `markAllRead`)
   - `socialTasksAPI` - Social tasks (`list({ status, category })`, `complete(slug)`)
   - `stewardAPI` - Steward tools: submissions review plus Discord XP (`getDiscordXP(params)` lists community XP rows for contributions and social task completions; `recordDiscordXPCopy(stateId)`, `markDiscordXPDistributed(stateId)`, `unsetDiscordXPDistributed(stateId)` act on a row's state id — `row.id`, not the contribution id)
 
@@ -611,6 +619,7 @@ $effect(() => {
 
 ### Stores
 - `authState` - Authentication state (from auth.js)
+- `notificationStore` - Notification state shared by the navbar dropdown and `/notifications` page (from notificationStore.js): latest items, unread count, `loadLatest()`, `loadUnreadCount()`, `markRead(id)`, `markAllRead()`, `reset()`. Both surfaces route mutations through this store so they stay in sync.
 - `userStore` - Current logged-in user data (from userStore.js)
   - Automatically loaded on login/auth verification
   - Updates reactively across all components

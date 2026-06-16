@@ -103,6 +103,14 @@ export const submissionsAPI = {
   getAcceptedProjects: () => api.get('/submissions/accepted-projects/')
 };
 
+// Portal notifications API
+export const notificationsAPI = {
+  list: (params = {}) => api.get('/notifications/', { params }),
+  unreadCount: () => api.get('/notifications/unread-count/'),
+  markRead: (id) => api.post(`/notifications/${id}/mark-read/`),
+  markAllRead: () => api.post('/notifications/mark-all-read/')
+};
+
 
 // API endpoints for leaderboard
 export const leaderboardAPI = {

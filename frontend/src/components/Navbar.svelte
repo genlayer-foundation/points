@@ -2,6 +2,7 @@
   import { push, location } from 'svelte-spa-router';
   import AuthButton from './AuthButton.svelte';
   import SearchBar from './SearchBar.svelte';
+  import NotificationCenter from './NotificationCenter.svelte';
   import { authState } from '../lib/auth.js';
   import { currentCategory } from '../stores/category.js';
   
@@ -89,6 +90,7 @@
 
     <!-- Right: Actions -->
     <div class="hidden md:flex items-center gap-2">
+      <NotificationCenter />
       {#if $authState.isAuthenticated}
         <SearchBar />
       {/if}
@@ -105,6 +107,7 @@
 
     <!-- Mobile: Actions -->
     <div class="navbar-mobile-actions flex items-center md:hidden gap-2">
+      <NotificationCenter />
       <AuthButton />
       <button
         onclick={() => {
