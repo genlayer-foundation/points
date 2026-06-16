@@ -47,16 +47,6 @@ class ValidatorWalletSerializer(serializers.ModelSerializer):
         return network_config.get('explorer_url', '')
 
 
-class LightValidatorWalletSerializer(serializers.ModelSerializer):
-    """
-    Lightweight serializer for ValidatorWallet in list views.
-    """
-    class Meta:
-        model = ValidatorWallet
-        fields = ['id', 'address', 'network', 'status', 'operator_address']
-        read_only_fields = fields
-
-
 class WallOfShameSerializer(serializers.ModelSerializer):
     """
     Serializer for the public Wall of Shame endpoint.
@@ -103,21 +93,3 @@ class WallOfShameSerializer(serializers.ModelSerializer):
     def get_explorer_url(self, obj):
         network_config = settings.TESTNET_NETWORKS.get(obj.network, {})
         return network_config.get('explorer_url', '')
-
-
-class ValidatorWithWalletsSerializer(serializers.Serializer):
-    """
-    Serializer that combines Validator data with their validator wallets.
-    Used for profile views to show operator's validators.
-    """
-    validator_wallets = ValidatorWalletSerializer(many=True, read_only=True)
-    active_validators_count = serializers.SerializerMethodField()
-    total_validators_count = serializers.SerializerMethodField()
-
-    def get_active_validators_count(self, obj):
-        """Get count of active validator wallets for this operator."""
-        return obj.validator_wallets.filter(status='active').count()
-
-    def get_total_validators_count(self, obj):
-        """Get total count of validator wallets for this operator."""
-        return obj.validator_wallets.count()

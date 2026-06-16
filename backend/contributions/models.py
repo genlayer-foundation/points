@@ -1213,22 +1213,6 @@ class Mission(BaseModel):
 
         return submission_count >= self.max_submissions_per_user
 
-    @classmethod
-    def get_active_missions(cls, limit=10):
-        """
-        Get currently active missions.
-        """
-        from django.utils import timezone
-        now = timezone.now()
-
-        queryset = cls.objects.filter(
-            models.Q(start_date__isnull=True) | models.Q(start_date__lte=now)
-        ).filter(
-            models.Q(end_date__isnull=True) | models.Q(end_date__gt=now)
-        ).select_related('contribution_type', 'contribution_type__category')
-
-        return queryset[:limit]
-
     def __str__(self):
         return f"{self.name} - {self.contribution_type.name}"
 
@@ -1439,14 +1423,6 @@ class FeaturedContent(BaseModel):
     def shows_in_placement(self, placement):
         placements = self.normalize_hero_placements(self.hero_placements)
         return self.HERO_PLACEMENT_ALL in placements or placement in placements
-
-    @classmethod
-    def get_active_by_type(cls, content_type, limit=10):
-        return cls.objects.filter(
-            content_type=content_type, status='active'
-        ).select_related(
-            'user', 'contribution', 'contribution__contribution_type'
-        ).order_by('order', '-created_at')[:limit]
 
 
 class Alert(BaseModel):

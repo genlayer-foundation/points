@@ -74,7 +74,6 @@ docker-compose*
 
 # Documentation
 README.md
-DEPLOYMENT.md
 aws-deployment-guide.md
 
 # Development tools
