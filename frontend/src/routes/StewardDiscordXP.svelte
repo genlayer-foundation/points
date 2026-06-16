@@ -80,7 +80,7 @@
     if (statusFilter) params.set('status', statusFilter);
     if (searchQuery) params.set('q', searchQuery);
     const suffix = params.toString() ? `?${params.toString()}` : '';
-    window.history.replaceState({}, '', `#/stewards/discord-xp${suffix}`);
+    window.history.replaceState({}, '', `/stewards/discord-xp${suffix}`);
   }
 
   async function loadXP() {

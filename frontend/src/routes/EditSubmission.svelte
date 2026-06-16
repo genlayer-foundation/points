@@ -727,7 +727,7 @@
               {/each}
             </div>
             {#if missingDiscordRoles.length > 0}
-              <a href="#/profile" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">
+              <a href="/profile" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">
                 {$userStore.user?.discord_connection ? "Refresh Discord roles from profile" : "Go to profile"} →
               </a>
             {/if}

@@ -7,9 +7,9 @@
     ...restProps
   } = $props();
   
-  // Ensure href starts with #/
-  let fullHref = $derived(href.startsWith('#') ? href : `#${href}`);
-  
+  // Normalize legacy '#/x' hrefs to clean paths; new callers pass '/x'.
+  let path = $derived(href.charAt(0) === '#' ? href.slice(1) : href);
+
   function handleClick(e) {
     // Don't interfere with modified clicks - let browser handle them naturally
     if (
@@ -22,16 +22,15 @@
       // Let the browser handle it - this will open in new tab/window
       return;
     }
-    
+
     // For regular left clicks, prevent default and use SPA navigation
     e.preventDefault();
-    const route = href.startsWith('#') ? href.substring(1) : href;
-    push(route);
+    push(path);
   }
 </script>
 
-<a 
-  href={fullHref}
+<a
+  href={path}
   class={className}
   onclick={handleClick}
   {...restProps}

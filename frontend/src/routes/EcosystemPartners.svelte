@@ -60,7 +60,7 @@
       id: `validator-${user.address || user.id || user.name}`,
       name: user.name || 'Validator',
       logo_url: user.profile_image_url || '',
-      href: user.address ? `#/participant/${user.address}` : '#',
+      href: user.address ? `/participant/${user.address}` : '#',
       isExternal: false,
       category: 'validator',
     };
@@ -68,7 +68,7 @@
 
   function normalizeProject(b) {
     const link = b.slug
-      ? { href: `#/builders/projects/${b.slug}`, external: false }
+      ? { href: `/builders/projects/${b.slug}`, external: false }
       : resolvePortalLink(b.link || b.url);
     return {
       id: `project-${b.id || b.title}`,

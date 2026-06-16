@@ -24,9 +24,8 @@
 
   function tokenFromUrl() {
     if (typeof window === 'undefined') return '';
-    const hashMatch = window.location.hash.match(/^#\/claim\/poap\/([^/?#]+)/);
     const pathMatch = window.location.pathname.match(/^\/claim\/poap\/([^/?#]+)/);
-    const rawToken = hashMatch?.[1] || pathMatch?.[1] || '';
+    const rawToken = pathMatch?.[1] || '';
     try {
       return decodeURIComponent(rawToken);
     } catch {

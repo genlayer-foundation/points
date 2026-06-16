@@ -18,13 +18,13 @@
   } = $props();
 
   const DOCS = [
-    { key: 'manifesto', label: 'Manifesto', href: '#/genesis/manifesto' },
-    { key: 'compass', label: 'The Compass', href: '#/genesis/compass' },
-    { key: 'whitepaper', label: 'Whitepaper', href: '#/genesis/whitepaper' },
+    { key: 'manifesto', label: 'Manifesto', href: '/genesis/manifesto' },
+    { key: 'compass', label: 'The Compass', href: '/genesis/compass' },
+    { key: 'whitepaper', label: 'Whitepaper', href: '/genesis/whitepaper' },
   ];
 
   function docHref(key) {
-    return DOCS.find((d) => d.key === key)?.href ?? '#/genesis';
+    return DOCS.find((d) => d.key === key)?.href ?? '/genesis';
   }
 
   let scrollEl = $state(null);

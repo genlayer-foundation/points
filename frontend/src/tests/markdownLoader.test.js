@@ -10,10 +10,10 @@ describe('parseMarkdown', () => {
     expect(html).toContain('<a href="https://genlayer.com" target="_blank" rel="noopener noreferrer">GenLayer</a>');
   });
 
-  it('rewrites same-origin absolute links to in-app hash routes', () => {
+  it('rewrites same-origin absolute links to in-app path routes', () => {
     const html = parseMarkdown(`See [the mission](${window.location.origin}/#/mission/7).`);
 
-    expect(html).toContain('<a href="#/mission/7">the mission</a>');
+    expect(html).toContain('<a href="/mission/7">the mission</a>');
     expect(html).not.toContain('target="_blank"');
   });
 

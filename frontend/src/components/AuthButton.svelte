@@ -24,7 +24,7 @@
   function preserveCurrentRouteForLogin() {
     if (sessionStorage.getItem('redirectAfterLogin')) return;
 
-    const currentRoute = $location || window.location.hash.replace(/^#/, '') || '/';
+    const currentRoute = $location || window.location.pathname || '/';
     if (currentRoute === '/my-submissions') {
       sessionStorage.setItem('redirectAfterLogin', currentRoute);
     }

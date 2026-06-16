@@ -441,9 +441,9 @@
 		{#if currentCategoryDisabled}
 			<div class="category-locked-message">
 				{#if selectedCategory === 'validator'}
-					You need to be a validator to submit validator contributions. You can enter the <a href="#/validators/waitlist">Validator Waitlist</a>.
+					You need to be a validator to submit validator contributions. You can enter the <a href="/validators/waitlist">Validator Waitlist</a>.
 				{:else}
-					Complete the Builder Welcome journey on your <a href="#/participant/{$authState.address}">profile page</a> to submit builder contributions.
+					Complete the Builder Welcome journey on your <a href="/participant/{$authState.address}">profile page</a> to submit builder contributions.
 				{/if}
 			</div>
 		{/if}

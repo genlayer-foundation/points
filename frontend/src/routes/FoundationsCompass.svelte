@@ -80,7 +80,7 @@
         <h1>The adjudication layer for the <em>agentic economy</em></h1>
         <p class="hero-lede">GenLayer uses decentralized AI validator consensus to resolve contracts that require judgment, not just code. This is the missing piece of infrastructure for the agentic economy.</p>
         <div class="hero-actions">
-          <a class="btn-hero" href="#/genesis/manifesto">Read the manifesto
+          <a class="btn-hero" href="/genesis/manifesto">Read the manifesto
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
           </a>
           <button type="button" class="btn-ghost" onclick={scrollToStart}>Start reading</button>
@@ -653,7 +653,7 @@
             <div class="bib-group">
               <h4><span class="bib-dot"></span>Founding works</h4>
               <ul>
-                <li>Albert Castellana, Jose Maria Lago, Edgars Nemse, <a href="#/genesis/whitepaper"><cite>GenLayer: The Intelligent Contract Network</cite></a> (whitepaper, February 2024) <span class="bib-note">&mdash; the founding technical document.</span></li>
+                <li>Albert Castellana, Jose Maria Lago, Edgars Nemse, <a href="/genesis/whitepaper"><cite>GenLayer: The Intelligent Contract Network</cite></a> (whitepaper, February 2024) <span class="bib-note">&mdash; the founding technical document.</span></li>
                 <li>David Riudor, <a href="https://x.com/driudor/status/1996993081791361353" target="_blank" rel="noopener"><cite>What Does Trust Mean for an Artificial Intelligence?</cite></a> (5-part essay, 2025) <span class="bib-note">&mdash; the philosophical foundation.</span></li>
                 <li>David Riudor, <a href="https://x.com/driudor/status/1910315466465173713" target="_blank" rel="noopener"><cite>Are We Witnessing the Death of Trust? &mdash; A World on Edge</cite></a> (2025) <span class="bib-note">&mdash; the Consulate of the Internet article.</span></li>
                 <li>Jose Maria Lago, <a href="https://jmlago.github.io/posts/illusion-of-determinism.html" target="_blank" rel="noopener"><cite>The Illusion of Determinism</cite></a> <span class="bib-note">&mdash; why determinism was always an approximation.</span></li>
@@ -676,7 +676,7 @@
         </div>
         <div class="ed-body">
           <div class="resources reveal-stagger">
-            <a class="res" href="#/genesis/whitepaper">
+            <a class="res" href="/genesis/whitepaper">
               <span class="res-name">Whitepaper</span>
               <span class="res-desc">GenLayer: The Intelligent Contract Network (2024) &mdash; the founding technical document. Read it here.</span>
             </a>
@@ -688,7 +688,7 @@
               <span class="res-name">GenLayer Studio</span>
               <span class="res-desc">Write and run your first Intelligent Contract in the browser.</span>
             </a>
-            <a class="res" href="#/">
+            <a class="res" href="/">
               <span class="res-name">Foundation Portal</span>
               <span class="res-desc">Contribute as a builder, validator, or community member.</span>
             </a>
@@ -719,7 +719,7 @@
       <footer class="footer-card reveal">
         <p class="foot-line">&ldquo;Two answers can be different and <em>still be the same</em>.&rdquo;</p>
         <div class="footer-actions">
-          <a class="btn-hero" href="#/genesis/manifesto">The Manifesto &mdash; For the Right to Decide
+          <a class="btn-hero" href="/genesis/manifesto">The Manifesto &mdash; For the Right to Decide
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
           </a>
           <a class="btn-ghost" href="https://genlayer.com" target="_blank" rel="noopener">genlayer.com</a>
