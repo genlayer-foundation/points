@@ -58,18 +58,6 @@ def _community_member_contributions(user_ids=None):
     return queryset
 
 
-def _aggregate_community_points(user_ids=None):
-    return {
-        row['user_id']: {
-            'total': row['total'] or 0,
-            'count': row['count'] or 0,
-        }
-        for row in _community_contributions(user_ids=user_ids)
-            .values('user_id')
-            .annotate(total=Sum('frozen_global_points'), count=Count('id'))
-    }
-
-
 def _discord_xp_states(user_ids=None):
     queryset = ContributionDiscordXPState.objects.filter(
         contribution__contribution_type__category__slug='community',
@@ -79,68 +67,6 @@ def _discord_xp_states(user_ids=None):
     if user_ids is not None:
         queryset = queryset.filter(contribution__user_id__in=user_ids)
     return queryset
-
-
-def _aggregate_pending_portal_points(user_ids=None, baseline_completed_at=None):
-    pending_expr = Greatest(
-        F('contribution__frozen_global_points') - F('awarded_amount'),
-        Value(0),
-        output_field=IntegerField(),
-    )
-    if baseline_completed_at is None:
-        effective_pending_expr = F('contribution__frozen_global_points')
-    else:
-        effective_pending_expr = Case(
-            When(
-                status=ContributionDiscordXPState.STATUS_DISTRIBUTED,
-                distributed_at__lte=baseline_completed_at,
-                then=Value(0),
-            ),
-            When(
-                status=ContributionDiscordXPState.STATUS_DISTRIBUTED,
-                distributed_at__gt=baseline_completed_at,
-                then=F('contribution__frozen_global_points'),
-            ),
-            default=pending_expr,
-            output_field=IntegerField(),
-        )
-
-    return {
-        row['contribution__user_id']: row['pending_total'] or 0
-        for row in _discord_xp_states(user_ids=user_ids)
-            .values('contribution__user_id')
-            .annotate(pending_total=Sum(effective_pending_expr))
-    }
-
-
-def _aggregate_missing_state_portal_points(user_ids=None):
-    return {
-        row['user_id']: row['total'] or 0
-        for row in _community_contributions(user_ids=user_ids)
-            .filter(discord_xp_state__isnull=True)
-            .values('user_id')
-            .annotate(total=Sum('frozen_global_points'))
-    }
-
-
-def _current_xp_by_user(users_by_id, guild_id):
-    if not users_by_id:
-        return {}
-
-    current_rows = Mee6CurrentXP.objects.filter(
-        guild_id=guild_id,
-        matched_user_id__in=users_by_id.keys(),
-    )
-
-    result = {}
-    for current in current_rows:
-        user_id = current.matched_user_id
-        if not user_id:
-            continue
-        existing = result.get(user_id)
-        if existing is None or current.xp > existing.xp:
-            result[user_id] = current
-    return result
 
 
 def _community_points_case(baseline_completed_at=None):

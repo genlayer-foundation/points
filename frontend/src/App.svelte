@@ -84,7 +84,6 @@
   import Metrics from './routes/Metrics.svelte';
   import ProfileEdit from './routes/ProfileEdit.svelte';
   import NotFound from './routes/NotFound.svelte';
-  import LoaderShowcase from './routes/LoaderShowcase.svelte';
   import StewardDashboard from './routes/StewardDashboard.svelte';
   import StewardSubmissions from './routes/StewardSubmissions.svelte';
   import StewardDiscordXP from './routes/StewardDiscordXP.svelte';
@@ -219,9 +218,8 @@
     '/contributions/:id': EditSubmission,
     '/metrics': Metrics,
     '/profile': ProfileEdit,
-    '/notifications': Notifications,
-    '/loader-showcase': LoaderShowcase,
-    
+    '/notifications': Notifications,  // Full notification feed (authenticated only; renders a signed-out state otherwise)
+
     // Steward routes
     '/stewards': StewardDashboard,
     '/stewards/submissions': StewardSubmissions,

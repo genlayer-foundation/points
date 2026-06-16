@@ -1,5 +1,4 @@
 <script>
-  import { format } from 'date-fns';
   import { push } from 'svelte-spa-router';
   import { getCategoryColors } from '../lib/categoryColors';
   import Avatar from './Avatar.svelte';

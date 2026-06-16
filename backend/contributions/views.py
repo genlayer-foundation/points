@@ -24,11 +24,7 @@ from django.db.models import (
 )
 from django.db.models.functions import TruncDate, TruncWeek, TruncMonth
 from django.db.models.functions import Coalesce, Greatest
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib import messages
-from django.views.generic import ListView
-from django.utils.decorators import method_decorator
+from django.shortcuts import get_object_or_404
 from .models import (
     ContributionType, Contribution, Evidence, SubmittedContribution,
     SubmissionNote, ContributionHighlight, Mission, StartupRequest,
@@ -46,7 +42,6 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          MissionSerializer, StartupRequestListSerializer, StartupRequestDetailSerializer,
                          FeaturedContentSerializer, AlertSerializer,
                          ContributionDiscordXPStateSerializer)
-from .forms import SubmissionReviewForm
 from .permissions import IsSteward, steward_has_permission, steward_permitted_type_ids
 from .project_milestones import (
     accepted_project_contributions_for_user,
@@ -502,111 +497,6 @@ class EvidenceViewSet(viewsets.ReadOnlyModelViewSet):
             )
             visible |= Q(submitted_contribution__contribution_type_id__in=permitted_type_ids)
         return queryset.filter(visible)
-
-
-# Staff-only Django views for managing submissions
-def is_staff(user):
-    """Check if user is staff."""
-    return user.is_authenticated and user.is_staff
-
-
-@method_decorator(login_required, name='dispatch')
-@method_decorator(user_passes_test(is_staff), name='dispatch')
-class SubmissionListView(ListView):
-    """List view for staff to see all submissions."""
-    model = SubmittedContribution
-    template_name = 'contributions/staff/submission_list.html'
-    context_object_name = 'submissions'
-    paginate_by = 20
-    
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        
-        # Filter by state if provided
-        state_filter = self.request.GET.get('state')
-        if state_filter:
-            queryset = queryset.filter(state=state_filter)
-        
-        # Order by creation date, newest first
-        return queryset.select_related('user', 'contribution_type', 'reviewed_by', 'mission').prefetch_related('evidence_items').order_by('-created_at')
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['state_filter'] = self.request.GET.get('state', '')
-        context['state_choices'] = SubmittedContribution.STATE_CHOICES
-        context['pending_count'] = SubmittedContribution.objects.filter(state='pending').count()
-        return context
-
-
-@login_required
-@user_passes_test(is_staff)
-def submission_review_view(request, pk):
-    """Single view for staff to review and take action on a submission."""
-    submission = get_object_or_404(SubmittedContribution, pk=pk)
-    
-    if request.method == 'POST':
-        form = SubmissionReviewForm(request.POST, instance=submission, user=request.user)
-        if form.is_valid():
-            form.save()
-            
-            # Show success message based on action
-            if submission.state == 'accepted':
-                messages.success(request, f'Submission accepted and contribution created with {form.cleaned_data["points"]} points.')
-            elif submission.state == 'rejected':
-                messages.warning(request, 'Submission rejected.')
-            elif submission.state == 'more_info_needed':
-                messages.info(request, 'More information requested from user.')
-            
-            # Redirect back to list or next submission
-            next_submission = SubmittedContribution.objects.filter(
-                state='pending',
-                created_at__gt=submission.created_at
-            ).first()
-            
-            if next_submission and 'review_next' in request.POST:
-                return redirect('contributions:submission-review', pk=next_submission.pk)
-            else:
-                return redirect('contributions:submission-list')
-    else:
-        form = SubmissionReviewForm(instance=submission)
-    
-    # Get evidence items
-    evidence_items = submission.evidence_items.all()
-    
-    # Get next pending submission for quick navigation
-    next_submission = SubmittedContribution.objects.filter(
-        state='pending',
-        created_at__gt=submission.created_at
-    ).first()
-    
-    # Get all contribution types with their current multipliers
-    global_multipliers = []
-    for ct in ContributionType.objects.all():
-        try:
-            multiplier = GlobalLeaderboardMultiplier.get_current_multiplier_value(ct)
-        except:
-            multiplier = 1.0
-        
-        global_multipliers.append({
-            'contribution_type_id': ct.id,
-            'contribution_type_name': ct.name,
-            'min_points': ct.min_points,
-            'max_points': ct.max_points,
-            'multiplier': float(multiplier),  # Convert Decimal to float for JSON serialization
-            'description': ct.description
-        })
-    
-    import json
-    context = {
-        'submission': submission,
-        'form': form,
-        'evidence_items': evidence_items,
-        'next_submission': next_submission,
-        'global_multipliers': global_multipliers,  # For the table
-        'global_multipliers_json': json.dumps(global_multipliers),  # For JavaScript
-    }
-    
-    return render(request, 'contributions/staff/submission_review.html', context)
 
 
 # API ViewSets for user submissions

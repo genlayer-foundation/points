@@ -1,7 +1,7 @@
 <script>
   import { push, location } from 'svelte-spa-router';
   import { onMount } from 'svelte';
-  import { currentCategory, categoryTheme } from '../stores/category.js';
+  import { currentCategory } from '../stores/category.js';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { contributionsAPI } from '../lib/api.js';

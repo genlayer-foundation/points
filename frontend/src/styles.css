@@ -72,11 +72,7 @@ h1, h2, h3, h4, h5, h6 {
   .btn-primary {
     @apply bg-primary-600 text-white hover:bg-primary-700;
   }
-  
-  .btn-secondary {
-    @apply bg-secondary-600 text-white hover:bg-secondary-700;
-  }
-  
+
   .card {
     @apply bg-white p-6 rounded-lg shadow-sm;
   }

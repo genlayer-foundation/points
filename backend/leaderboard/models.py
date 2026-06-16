@@ -27,19 +27,6 @@ def has_contribution_badge(user, slug):
     ).exists()
 
 
-def has_category_contributions(user, category_slug):
-    """Helper to check if user has contributions in a category"""
-    # For builder category, check if user has a Builder record (completed journey)
-    if category_slug == 'builder':
-        return hasattr(user, 'builder') and user.builder is not None
-
-    query = Contribution.objects.filter(
-        user=user,
-        contribution_type__category__slug=category_slug
-    )
-    return query.exists()
-
-
 def calculate_category_points(user, category_slug):
     """Calculate total points from a specific category.
 
@@ -349,42 +336,6 @@ class LeaderboardEntry(BaseModel):
         leaderboard_name = self.get_type_display() if self.type else "Unknown"
         return f"{self.user} - {leaderboard_name} - {self.total_points} points - Rank: {self.rank or 'Not ranked'}"
     
-    def update_points_without_ranking(self):
-        """
-        Update this leaderboard entry's total points based on the user's contributions.
-        This method does NOT update ranks - useful for batch operations where ranks 
-        should be updated once at the end.
-        """
-        config = LEADERBOARD_CONFIG.get(self.type)
-        if not config:
-            return self.total_points
-        
-        calculator = config['points_calculator']
-        
-        if self.type == 'validator-waitlist-graduation':
-            # Special handling for graduation
-            points, should_update, _ = calculator(self.user)
-            if should_update:
-                self.total_points = points
-                self.save(update_fields=['total_points'])
-        else:
-            self.total_points = calculator(self.user)
-            self.save(update_fields=['total_points'])
-        
-        return self.total_points
-    
-    @classmethod
-    def determine_user_leaderboards(cls, user):
-        """
-        Determine which leaderboards a user should appear on based on LEADERBOARD_CONFIG.
-        Returns a list of leaderboard type strings.
-        """
-        user_leaderboards = []
-        for leaderboard_type, config in LEADERBOARD_CONFIG.items():
-            if config['participants'](user):
-                user_leaderboards.append(leaderboard_type)
-        return user_leaderboards
-
     @classmethod
     def update_leaderboard_ranks(cls, leaderboard_type):
         """

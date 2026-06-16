@@ -7,7 +7,6 @@
     let {
         role = "builder",
         iconCategory = "builder",
-        colorTheme = "orange",
         participant = null,
         stats = {
             points: 0,

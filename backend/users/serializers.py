@@ -150,15 +150,6 @@ class LightBuilderSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField(read_only=True)
 
 
-class LightLeaderboardEntrySerializer(serializers.Serializer):
-    """
-    Minimal leaderboard entry for nested user data.
-    Only includes rank and points, not full user details.
-    """
-    rank = serializers.IntegerField(read_only=True)
-    total_points = serializers.IntegerField(read_only=True)
-
-
 # ============================================================================
 # Full Serializers
 # ============================================================================
@@ -398,15 +389,6 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
                 validator(value)
             except DjangoValidationError:
                 raise serializers.ValidationError("Enter a valid URL.")
-        return value
-    
-    def validate_twitter_handle(self, value):
-        """Validate Twitter handle format"""
-        if value:
-            # Remove @ if provided
-            value = value.lstrip('@')
-            if len(value) > 15:  # Twitter username max length
-                raise serializers.ValidationError("Twitter handle must be 15 characters or less.")
         return value
     
     def validate_telegram_handle(self, value):

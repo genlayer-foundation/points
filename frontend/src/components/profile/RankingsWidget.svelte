@@ -11,7 +11,6 @@
         builderStats = null,
         validatorStats = null,
         communityStats = null,
-        referralPoints = { builder_points: 0, validator_points: 0 },
     } = $props();
 
     let communityRank: number | null = $state(null);

@@ -58,10 +58,7 @@ class User(AbstractUser, BaseModel):
     profile_image_url = models.URLField(max_length=500, blank=True,
                                        help_text="Cloudinary URL for profile image (400x400)")
     website = models.URLField(blank=True, help_text="User's website URL")
-    
-    # Contact information
-    contact_email = models.EmailField(blank=True, 
-                                     help_text="Public contact email (different from auth email)")
+
     twitter_handle = models.CharField(max_length=50, blank=True,
                                      help_text="Twitter/X username without @")
     discord_handle = models.CharField(max_length=50, blank=True,
