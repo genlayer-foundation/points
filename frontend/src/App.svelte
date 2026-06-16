@@ -218,7 +218,7 @@
     '/contributions/:id': EditSubmission,
     '/metrics': Metrics,
     '/profile': ProfileEdit,
-    '/notifications': Notifications,
+    '/notifications': Notifications,  // Full notification feed (authenticated only; renders a signed-out state otherwise)
 
     // Steward routes
     '/stewards': StewardDashboard,
