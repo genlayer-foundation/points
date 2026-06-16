@@ -85,6 +85,7 @@ INSTALLED_APPS = [
     'community_xp.apps.CommunityXpConfig',
     'poaps.apps.PoapsConfig',
     'social_tasks',
+    'notifications.apps.NotificationsConfig',
 ]
 
 MIDDLEWARE = [

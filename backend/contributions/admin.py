@@ -44,6 +44,8 @@ from .validator_forms import CreateValidatorForm
 from leaderboard.models import GlobalLeaderboardMultiplier
 from social_connections.models import DiscordRole
 from utils.admin_mixins import CloudinaryUploadMixin
+from notifications import services as notification_services
+from notifications.admin_mixins import BroadcastNotificationAdminMixin
 
 User = get_user_model()
 
@@ -142,7 +144,11 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
 
 
 @admin.register(ContributionType)
-class ContributionTypeAdmin(admin.ModelAdmin):
+class ContributionTypeAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
+    broadcast_event_slug = 'contribution_type.published'
+    broadcast_service = staticmethod(notification_services.broadcast_contribution_type)
+    broadcast_eligible = staticmethod(lambda obj: obj.is_submittable)
+    broadcast_ineligible_reason = 'the contribution type is not submittable'
     list_display = (
         'name', 'category', 'review_flow', 'is_default', 'is_submittable',
         'get_submission_usage', 'show_in_contributions',
@@ -1008,7 +1014,11 @@ class ContributionHighlightAdmin(admin.ModelAdmin):
 
 
 @admin.register(Mission)
-class MissionAdmin(admin.ModelAdmin):
+class MissionAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
+    broadcast_event_slug = 'mission.published'
+    broadcast_service = staticmethod(notification_services.broadcast_mission)
+    broadcast_eligible = staticmethod(lambda obj: obj.is_active())
+    broadcast_ineligible_reason = 'the mission is not active'
     list_display = (
         'id', 'name', 'contribution_type', 'get_status',
         'get_submission_usage', 'start_date', 'end_date', 'created_at',
@@ -1106,7 +1116,12 @@ class StartupRequestAdmin(admin.ModelAdmin):
 
 
 @admin.register(FeaturedContent)
-class FeaturedContentAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
+class FeaturedContentAdmin(BroadcastNotificationAdminMixin, CloudinaryUploadMixin, admin.ModelAdmin):
+    broadcast_event_slug = 'featured.published'
+    broadcast_service = staticmethod(notification_services.broadcast_featured_content)
+    broadcast_eligible = staticmethod(lambda obj: obj.status == 'active')
+    broadcast_ineligible_reason = 'the featured content is not active'
+
     form = FeaturedContentAdminForm
     cloudinary_upload_fields = {
         'hero_image_url': {
@@ -1163,7 +1178,12 @@ class FeaturedContentAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
 
 
 @admin.register(Alert)
-class AlertAdmin(admin.ModelAdmin):
+class AlertAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
+    broadcast_event_slug = 'alert.published'
+    broadcast_service = staticmethod(notification_services.broadcast_alert)
+    broadcast_eligible = staticmethod(lambda obj: obj.is_active)
+    broadcast_ineligible_reason = 'the alert is inactive'
+
     list_display = ('id', 'alert_type', 'text_preview', 'get_status', 'order', 'start_date', 'end_date', 'created_at')
     list_filter = ('alert_type', 'is_active', 'created_at')
     search_fields = ('text',)
