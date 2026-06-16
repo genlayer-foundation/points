@@ -148,19 +148,6 @@ class StewardViewSet(viewsets.ModelViewSet):
                 return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def _check_steward_permission(self, request):
-        """
-        Helper method to check if the current user is a steward.
-        """
-        if not request.user.is_authenticated:
-            return False
-
-        try:
-            steward = Steward.objects.get(user=request.user)
-            return True
-        except Steward.DoesNotExist:
-            return False
-
 
 class WorkingGroupViewSet(viewsets.ModelViewSet):
     """

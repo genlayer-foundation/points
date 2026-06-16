@@ -2,8 +2,7 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
-  import api, { usersAPI, leaderboardAPI, contributionsAPI } from '../lib/api';
-  import { currentCategory, categoryTheme } from '../stores/category.js';
+  import { leaderboardAPI, contributionsAPI } from '../lib/api';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import Avatar from '../components/Avatar.svelte';

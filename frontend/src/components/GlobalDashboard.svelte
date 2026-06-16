@@ -1,9 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import { push } from "svelte-spa-router";
-  import { format } from "date-fns";
   import TopLeaderboard from "./TopLeaderboard.svelte";
-  import CategoryIcon from "./portal/CategoryIcon.svelte";
   import { leaderboardAPI, validatorsAPI } from "../lib/api";
   import { showError } from "../lib/toastStore";
 

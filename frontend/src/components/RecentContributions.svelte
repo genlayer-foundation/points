@@ -1,7 +1,6 @@
 <script>
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
-  import { format } from 'date-fns';
   import ContributionsList from './ContributionsList.svelte';
   import { contributionsAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';

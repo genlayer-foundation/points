@@ -25,13 +25,11 @@ export default defineConfig({
   assetsInclude: ['**/*.md'],
   define: {
     global: 'globalThis',
-    'process.env': {},
   },
   resolve: {
     alias: {
       buffer: 'buffer',
       process: 'process/browser',
-      stream: 'stream-browserify',
     },
   },
 });

@@ -268,8 +268,6 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
 class ContributionSerializer(serializers.ModelSerializer):
     user_details = serializers.SerializerMethodField()
     contribution_type_name = serializers.ReadOnlyField(source='contribution_type.name')
-    contribution_type_min_points = serializers.ReadOnlyField(source='contribution_type.min_points')
-    contribution_type_max_points = serializers.ReadOnlyField(source='contribution_type.max_points')
     contribution_type_details = serializers.SerializerMethodField()
     evidence_items = serializers.SerializerMethodField()
     highlight = serializers.SerializerMethodField()
@@ -278,7 +276,7 @@ class ContributionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contribution
         fields = ['id', 'user', 'user_details', 'contribution_type', 'contribution_type_name',
-                  'contribution_type_min_points', 'contribution_type_max_points', 'contribution_type_details',
+                  'contribution_type_details',
                   'points', 'frozen_global_points', 'multiplier_at_creation', 'contribution_date',
                   'evidence_items', 'notes', 'title', 'highlight', 'mission',
                   'project_contribution', 'milestone_version', 'created_at', 'updated_at']
