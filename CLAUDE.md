@@ -160,26 +160,6 @@ provide:
    - Rankings are determined by total points
    - Ties receive the same rank
 
-## Development Status
-
-The project appears to be in its early stages of development. The backend 
-structure is set up with Django apps and models defined, but many planned 
-features are not yet implemented according to the ROADMAP.md. The frontend is 
-just beginning development with only a package.json file created.
-
-### Current Progress:
-- Backend structure established
-- Key models defined
-- Authentication system set up
-- API framework in place
-
-### Next Steps (from ROADMAP.md):
-- Complete database schema implementation
-- Implement basic API endpoints
-- Create Svelte 5 frontend skeleton
-- Implement user authentication integration
-- Develop badge and points system functionality
-
 ## Integration with GenLayer Ecosystem
 
 Tally is designed to integrate with the broader GenLayer ecosystem, particularly 

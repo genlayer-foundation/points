@@ -955,15 +955,7 @@ class ContributionHighlightAdmin(admin.ModelAdmin):
             return obj.contribution.frozen_global_points
         return '-'
     points_display.short_description = 'Points'
-    
-    def contribution_summary(self, obj):
-        """Display a summary of the contribution."""
-        if obj.contribution:
-            user_display = obj.contribution.user.name or obj.contribution.user.address[:8]
-            return f"{user_display} - {obj.contribution.points} pts"
-        return '-'
-    contribution_summary.short_description = 'Contribution'
-    
+
     def contribution_type(self, obj):
         """Display the contribution type."""
         if obj.contribution:

@@ -1910,13 +1910,6 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
     ]
     ordering = ['-created_at']
 
-    def get_permissions(self):
-        """
-        Instantiates and returns the list of permissions that this view requires.
-        Steward review data, including aggregate stats, requires steward permission.
-        """
-        return super().get_permissions()
-
     def _visible_submission_queryset(self, queryset=None):
         # Filter by the steward's permitted contribution types and actions.
         # Proposal-only stewards can inspect pending submissions they can

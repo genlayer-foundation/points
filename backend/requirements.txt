@@ -3,7 +3,6 @@
 Django==6.0.6
 djangorestframework==3.17.1
 django-cors-headers==4.9.0
-dj-rest-auth==7.2.0
 djangorestframework-simplejwt==5.5.1
 django-filter==25.2
 psycopg2-binary==2.9.12
