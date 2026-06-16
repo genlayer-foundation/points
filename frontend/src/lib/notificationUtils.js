@@ -22,6 +22,6 @@ export function followNotificationLink(notification) {
     window.open(href, '_blank', 'noopener,noreferrer');
     return;
   }
-  if (!href || href === '#') return;
+  if (!href || href.startsWith('#')) return; // inert / in-page anchor
   push(href);
 }
