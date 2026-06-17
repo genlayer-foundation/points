@@ -8,8 +8,10 @@ describe('xPost utilities', () => {
       username: 'example',
       url: 'https://twitter.com/example/status/1234567890',
     });
-    expect(getXPostUrl('https://twitter.com/example/statuses/1234567890')).toMatchObject({
+    expect(getXPostUrl('https://twitter.com/example/statuses/1234567890')).toEqual({
       id: '1234567890',
+      username: 'example',
+      url: 'https://twitter.com/example/status/1234567890',
     });
   });
 

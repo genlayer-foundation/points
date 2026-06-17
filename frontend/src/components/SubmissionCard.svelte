@@ -1085,12 +1085,14 @@
                 {submission.user_details?.name || submission.user_details?.address?.slice(0, 8) + '...'}
               </span>
               {@render socialPills(submission.user_details)}
-              <a
-                href="/participant/{submission.user_details?.address}"
-                class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
-              >
-                View Profile →
-              </a>
+              {#if submission.user_details?.address}
+                <a
+                  href="/participant/{submission.user_details?.address}"
+                  class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
+                >
+                  View Profile →
+                </a>
+              {/if}
             </div>
           </div>
 
