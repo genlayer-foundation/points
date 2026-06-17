@@ -4,7 +4,6 @@
   import ContributionCard from './ContributionCard.svelte';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
   import CRMNotesPanel from './CRMNotesPanel.svelte';
-  import Link from '../lib/components/Link.svelte';
   import Avatar from './Avatar.svelte';
   import Badge from './Badge.svelte';
   import Icons from './Icons.svelte';
@@ -1086,12 +1085,12 @@
                 {submission.user_details?.name || submission.user_details?.address?.slice(0, 8) + '...'}
               </span>
               {@render socialPills(submission.user_details)}
-              <Link
+              <a
                 href="/participant/{submission.user_details?.address}"
                 class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
               >
                 View Profile →
-              </Link>
+              </a>
             </div>
           </div>
 

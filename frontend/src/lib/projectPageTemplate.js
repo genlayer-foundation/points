@@ -1,3 +1,5 @@
+import { isSafeHttpUrl } from './urlSafety.js';
+
 const ATTR_PATTERN = /([a-z_]+)=(?:"([^"]*)"|'([^']*)'|([^\s]+))/gi;
 const MEDIA_TAG_PATTERN = /^<(Image|Video)\s+([^>]*)\/>\s*$/i;
 const MEDIA_TAG_PATTERN_GLOBAL = /^<(Image|Video)\s+([^>]*)\/>\s*$/gim;
@@ -172,17 +174,6 @@ function parseAttrs(attrText) {
     match = ATTR_PATTERN.exec(attrText || '');
   }
   return attrs;
-}
-
-/** @param {string | undefined} value */
-function isSafeHttpUrl(value) {
-  if (!value) return false;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
 }
 
 /** @param {string | undefined} text */

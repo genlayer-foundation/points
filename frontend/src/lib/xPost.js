@@ -45,8 +45,3 @@ export function getXPostUrl(value) {
     return null;
   }
 }
-
-/** @param {unknown} value */
-export function isXPostUrl(value) {
-  return Boolean(getXPostUrl(value));
-}

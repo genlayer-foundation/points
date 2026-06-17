@@ -111,9 +111,7 @@
   ];
 
   const DISCORD_URL = 'https://discord.gg/A6jpkqrb';
-  const DISCORD_HANDLE = 'discord.gg/A6jpkqrb';
   const X_URL = 'https://x.com/GenLayer';
-  const X_HANDLE = '@GenLayer';
   const COMMUNITY_CATEGORY_SLUG = 'community';
   const COMMUNITY_CATEGORY_SLUGS = ['community', 'creator'];
   const COMMUNITY_PAGE_SIZE = 10;
@@ -1461,10 +1459,6 @@
 
     if (groupBy === 'month') {
       return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    }
-
-    if (groupBy === 'week') {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
