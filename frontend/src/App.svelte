@@ -122,6 +122,14 @@
       return true;
     }
 
+    // If the user navigated elsewhere while auth was verifying, don't hijack
+    // their new location by redirecting home (stale-navigation guard).
+    const guardedPath = (location || '/').replace(/\/+$/, '') || '/';
+    const herePath = window.location.pathname.replace(/\/+$/, '') || '/';
+    if (herePath !== guardedPath) {
+      return false;
+    }
+
     sessionStorage.setItem(
       'redirectAfterLogin',
       `${location || '/'}${querystring ? `?${querystring}` : ''}`
