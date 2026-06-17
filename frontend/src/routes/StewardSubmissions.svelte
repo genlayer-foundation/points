@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { replace, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
@@ -66,6 +66,11 @@
   let showRejectDialog = $state(false);
   let rejectMessage = $state('');
   let bulkRejecting = $state(false);
+
+  // Set once the component unmounts, so async loads that finish after the user
+  // navigates away don't sync the URL (which would yank them back here).
+  let destroyed = false;
+  onDestroy(() => { destroyed = true; });
 
   onMount(async () => {
     if (!$authState.isAuthenticated) {
@@ -229,12 +234,16 @@
     if (searchQuery) urlParams.set('q', searchQuery);
     const newUrl = urlParams.toString() ? `?${urlParams.toString()}` : '';
     const target = `/stewards/submissions${newUrl}`;
+    // Reflect filters in the URL without navigating/re-rendering. Using the
+    // router's replace() here would re-fire the route (scroll reset) and, for a
+    // stale load, navigate the user back to this page.
     if (window.location.pathname + window.location.search !== target) {
-      replace(target);
+      window.history.replaceState({}, '', target);
     }
   }
 
   async function loadSubmissions() {
+    if (destroyed) return; // unmounted mid-load — don't fetch or touch the URL
     const requestId = ++submissionsRequestId;
     loading = true;
     error = null;

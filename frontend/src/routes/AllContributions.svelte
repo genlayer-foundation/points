@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { push, replace, location, loc } from 'svelte-spa-router';
+  import { push, location, loc } from 'svelte-spa-router';
   import { contributionsAPI, usersAPI } from '../lib/api';
   import { getMissions } from '../lib/missionsStore.js';
   import { getContributionTypes } from '../lib/api/contributions.js';
@@ -185,10 +185,11 @@
     const target = baseRoutePath + (qs ? `?${qs}` : '');
     const current = window.location.pathname + window.location.search;
     if (current !== target) {
-      // Router replace() keeps loc/querystring stores in sync; lastUrl dedupes
-      // the resulting loc subscription so this self-update doesn't refetch.
+      // Reflect filters in the URL without navigating/re-rendering. (Router
+      // replace() would re-fire the route — scroll reset — and let a stale load
+      // navigate back here.) lastUrl keeps the loc subscription's dedup honest.
+      window.history.replaceState({}, '', target);
       lastUrl = target;
-      replace(target);
     }
   }
 
@@ -563,11 +564,17 @@
     await Promise.all([loadParticipantDetails(), resolveTypeName(), resolveMissionName()]);
     await Promise.all([loadHighlights(), loadAllContributions()]);
     isMounted = true;
-    // Router store fires on push/replace (incl. same-path query-only nav) and
-    // back/forward; raw replaceState in updateUrl() does not, so self-driven
-    // filter changes don't loop. lastUrl dedupes the immediate-subscribe call.
+  });
+
+  // Subscribe in an effect, NOT in the async onMount: Svelte ignores a cleanup
+  // returned from an async onMount, which would leak this subscription and keep
+  // refetching after you leave the page. The effect's cleanup runs on unmount.
+  // loc fires on push/replace and back/forward; raw replaceState in updateUrl()
+  // does not, so self-driven filter changes don't loop. The isMounted guard
+  // (and lastUrl dedup) make the immediate-subscribe call a no-op.
+  $effect(() => {
     const unsub = loc.subscribe(() => handleLocationChange());
-    return () => unsub();
+    return unsub;
   });
 
   // Re-resolve names when catalogs load (URL may have preselected something)

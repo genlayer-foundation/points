@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { params, push } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
@@ -82,7 +82,8 @@
       showSuccess('POAP claimed.');
       if (drop?.slug) {
         window.setTimeout(() => {
-          push(`/community/poaps/${drop.slug}`);
+          // Don't redirect if the user already navigated away mid-claim.
+          if (!destroyed) push(`/community/poaps/${drop.slug}`);
         }, 900);
       }
     } catch (err) {
@@ -116,6 +117,10 @@
       claim();
     }, 0);
   }
+
+  // Set once unmounted, so the post-claim redirect doesn't fire after leaving.
+  let destroyed = false;
+  onDestroy(() => { destroyed = true; });
 
   onMount(() => {
     if (!$authState.isAuthenticated) {
