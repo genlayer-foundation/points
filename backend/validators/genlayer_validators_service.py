@@ -623,35 +623,6 @@ class GenLayerValidatorsService:
             else:
                 stats['updated'] += 1
 
-    def get_validators_for_operator(self, operator_address: str) -> List[Dict[str, Any]]:
-        """
-        Get all validator wallets for a specific operator from database.
-
-        Args:
-            operator_address: The operator's wallet address
-
-        Returns:
-            List of validator wallet data
-        """
-        from .models import ValidatorWallet
-
-        wallets = ValidatorWallet.objects.filter(
-            operator_address__iexact=operator_address
-        ).order_by('-created_at')
-
-        return [
-            {
-                'address': w.address,
-                'network': w.network,
-                'status': w.status,
-                'v_stake': w.v_stake,
-                'd_stake': w.d_stake,
-                'moniker': w.moniker,
-                'created_at': w.created_at
-            }
-            for w in wallets
-        ]
-
     def _record_status_snapshots(self):
         """Record status snapshots for all wallets on this network for today."""
         from .models import ValidatorWallet, ValidatorWalletStatusSnapshot

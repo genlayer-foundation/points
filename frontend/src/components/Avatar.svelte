@@ -5,7 +5,6 @@
     size = "md", // Size: 'xs', 'sm', 'md', 'lg', 'xl', '2xl'
     showBorder = false, // Show white border (useful for overlapping)
     clickable = false, // Make avatar clickable
-    showStatus = false, // Show online/offline status dot
     className = "", // Additional CSS classes
   } = $props();
 
@@ -119,16 +118,4 @@
       </div>
     {/if}
   </div>
-
-  {#if showStatus}
-    <span
-      class="
-        absolute bottom-0 right-0
-        block h-2.5 w-2.5
-        rounded-full
-        bg-green-400
-        ring-2 ring-white
-      "
-    ></span>
-  {/if}
 </div>

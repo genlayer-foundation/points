@@ -84,11 +84,6 @@ def validate_drop_capacity(drop):
             raise ClaimClosedError('This POAP has reached its claim limit.')
 
 
-def validate_distribution(distribution):
-    if not distribution.is_open():
-        raise ClaimClosedError('This distribution is not currently open.')
-
-
 def validate_discord_connection(user):
     if not DiscordConnection.objects.filter(user_id=user.pk).exists():
         raise MissingDiscordConnectionError(
@@ -295,12 +290,3 @@ def attach_unmatched_claims_for_user(user):
         return 0
 
     return len(attach_unmatched_claims_for_wallet(user, user.address))
-
-
-def find_user_for_legacy_claim(wallet='', email=''):
-    User = get_user_model()
-    if wallet:
-        user = User.objects.filter(address__iexact=wallet).first()
-        if user:
-            return user
-    return None

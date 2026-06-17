@@ -114,10 +114,6 @@ class DiscordRole(models.Model):
     def color_hex(self):
         return f"#{self.color:06x}"
 
-    @property
-    def is_everyone(self):
-        return self.role_id == self.guild_id
-
     def __str__(self):
         return f"{self.name} ({self.guild_id}/{self.role_id})"
 

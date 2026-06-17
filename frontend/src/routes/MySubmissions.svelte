@@ -1,5 +1,5 @@
 <script>
-  import { push } from 'svelte-spa-router';
+  import { push, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { onMount } from 'svelte';
   import api, { submissionsAPI } from '../lib/api.js';
@@ -15,6 +15,48 @@
   let pageSize = $state(20);
   let stateFilter = $state('');
   let authChecked = $state(false);
+  let highlightedSubmissionId = $state('');
+
+  const validStateFilters = new Set([
+    'pending',
+    'accepted',
+    'rejected',
+    'canceled',
+    'more_info_needed'
+  ]);
+
+  let lastAppliedQuerystring = null;
+
+  function syncSubmissionDeepLink(query) {
+    const params = new URLSearchParams(query || '');
+    const requestedState = params.get('state') || '';
+    const requestedSubmission = params.get('submission') || '';
+
+    highlightedSubmissionId = requestedSubmission;
+
+    // Reset when the URL stops carrying a valid state so a deep-linked filter
+    // doesn't silently persist on plain /my-submissions.
+    const nextStateFilter =
+      requestedState && validStateFilters.has(requestedState) ? requestedState : '';
+    if (stateFilter !== nextStateFilter) {
+      stateFilter = nextStateFilter;
+      currentPage = 1;
+    }
+  }
+
+  function scrollToHighlightedSubmission() {
+    if (!highlightedSubmissionId || typeof document === 'undefined') return;
+
+    window.setTimeout(() => {
+      const target = document.getElementById(`submission-${highlightedSubmissionId}`);
+      if (!target) return;
+
+      target.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }, 100);
+  }
   
   // Load submissions when authenticated
   async function loadSubmissions() {
@@ -36,10 +78,15 @@
       if (stateFilter) {
         params.state = stateFilter;
       }
+
+      if (highlightedSubmissionId) {
+        params.submission = highlightedSubmissionId;
+      }
       
       const response = await api.get('/submissions/my/', { params });
       submissions = response.data.results || response.data;
       totalCount = response.data.count || submissions.length;
+      scrollToHighlightedSubmission();
     } catch (err) {
       error = 'Failed to load submissions';
     } finally {
@@ -58,8 +105,22 @@
       loading = false;
     }
   });
+
+  $effect(() => {
+    const currentQuerystring = $querystring;
+    if (currentQuerystring === lastAppliedQuerystring) return;
+
+    lastAppliedQuerystring = currentQuerystring;
+    syncSubmissionDeepLink(currentQuerystring);
+
+    if ($authState.isAuthenticated && authChecked) {
+      loadSubmissions();
+    }
+  });
   
   onMount(async () => {
+    syncSubmissionDeepLink($querystring);
+
     // Check for success message from edit submission
     const updateSuccess = sessionStorage.getItem('submissionUpdateSuccess');
     if (updateSuccess) {
@@ -85,6 +146,7 @@
   
   function handleFilterChange() {
     currentPage = 1;
+    highlightedSubmissionId = '';
     loadSubmissions();
   }
 
@@ -191,11 +253,16 @@
     
     <div class="space-y-4">
       {#each submissions as submission}
-        <SubmissionCard
-          {submission}
-          isOwnSubmission={true}
-          onAppeal={handleAppeal}
-        />
+        <div
+          id="submission-{submission.id}"
+          class="submission-card-anchor {highlightedSubmissionId === submission.id ? 'submission-card-highlight' : ''}"
+        >
+          <SubmissionCard
+            {submission}
+            isOwnSubmission={true}
+            onAppeal={handleAppeal}
+          />
+        </div>
       {/each}
     </div>
     
@@ -215,3 +282,41 @@
     {/if}
   {/if}
 </div>
+
+<style>
+  .submission-card-anchor {
+    border-radius: 0.75rem;
+    scroll-margin-top: 6rem;
+    transition: box-shadow 180ms ease, transform 180ms ease;
+  }
+
+  .submission-card-highlight {
+    animation: submission-highlight-pulse 2.4s ease-out;
+    box-shadow:
+      0 0 0 3px rgba(31, 138, 91, 0.22),
+      0 16px 36px rgba(22, 28, 24, 0.12);
+  }
+
+  @keyframes submission-highlight-pulse {
+    0% {
+      box-shadow:
+        0 0 0 0 rgba(31, 138, 91, 0.36),
+        0 12px 26px rgba(22, 28, 24, 0.08);
+      transform: translateY(0);
+    }
+
+    35% {
+      box-shadow:
+        0 0 0 5px rgba(31, 138, 91, 0.24),
+        0 18px 40px rgba(22, 28, 24, 0.14);
+      transform: translateY(-2px);
+    }
+
+    100% {
+      box-shadow:
+        0 0 0 3px rgba(31, 138, 91, 0.22),
+        0 16px 36px rgba(22, 28, 24, 0.12);
+      transform: translateY(0);
+    }
+  }
+</style>

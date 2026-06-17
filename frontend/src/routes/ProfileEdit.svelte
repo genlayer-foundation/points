@@ -84,7 +84,11 @@
     !nameError && !emailError && name.trim() !== "" && email.trim() !== "",
   );
 
+  // Set once unmounted, so a delayed loadUserData doesn't redirect after leaving.
+  let destroyed = false;
+
   async function loadUserData() {
+    if (destroyed) return;
     // Check if user is authenticated
     if (!$authState.isAuthenticated) {
       // Redirect to home page if not authenticated
@@ -148,6 +152,7 @@
 
   onDestroy(() => {
     if (roleRefreshTimer) clearInterval(roleRefreshTimer);
+    destroyed = true;
   });
 
   // Validation functions

@@ -316,7 +316,7 @@
                 {@const ucCategory = getContributionCategory(uc)}
                 {@const ucColors = categoryConfig[ucCategory] || categoryConfig.global}
                 <a
-                  href={`#${getContributionPath(uc)}`}
+                  href={getContributionPath(uc)}
                   onclick={(event) => {
                     event.preventDefault();
                     push(getContributionPath(uc));

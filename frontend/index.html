@@ -82,13 +82,17 @@
 </head>
 <body>
   <script>
-    // Redirect non-hash paths to hash-based routes (SPA uses hash routing)
-    // e.g. /referral-program → /#/referral-program
+    // Back-compat: the portal used to use hash routing, so old shared links are
+    // hash form (e.g. /#/hackathon). The router now reads location.pathname, so
+    // rewrite any incoming #/path into a clean path before the app mounts.
     (function () {
-      var p = location.pathname;
-      if (p.length > 1) p = p.replace(/\/+$/, '');
-      if (p !== '/' && !p.startsWith('/assets')) {
-        location.replace('/' + location.search + '#' + p);
+      var h = location.hash;
+      if (h && h.charAt(1) === '/') {        // only "#/..." app routes, not "#section"
+        var rest = h.slice(1);               // "/hackathon?x=1"
+        var q = rest.indexOf('?');
+        var path = q >= 0 ? rest.slice(0, q) : rest;
+        var hq = q >= 0 ? rest.slice(q) : '';
+        history.replaceState({}, '', path + (location.search || hq || ''));
       }
     })();
   </script>

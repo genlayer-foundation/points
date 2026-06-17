@@ -1,6 +1,6 @@
 <script context="module">
   // Icon paths for all icons used in the application
-  export const icons = {
+  const icons = {
     // GenLayer logo (just the geometric logo without text)
     genlayer: 'M44.26 32.35L27.72 67.12L43.29 74.9L0 91.93L44.26 0L44.26 32.35ZM53.5 32.35L70.04 67.12L54.47 74.9L97.76 91.93L53.5 0L53.5 32.35ZM48.64 43.78L58.33 62.94L48.64 67.69L39.47 62.92L48.64 43.78Z',
     

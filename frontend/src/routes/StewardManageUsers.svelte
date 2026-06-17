@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { push, replace } from 'svelte-spa-router';
   import { authState, verifyAuth } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
@@ -46,11 +46,17 @@
     paginatedValidators = bannedValidators.slice(startIndex, endIndex);
   });
 
+  // Set once unmounted, so guard redirects below don't fire after the user
+  // navigated away while auth/permissions were still resolving.
+  let destroyed = false;
+  onDestroy(() => { destroyed = true; });
+
   onMount(async () => {
     // Wait for auth verification to complete if not already done
     if (!$authState.hasVerified) {
       await verifyAuth();
     }
+    if (destroyed) return;
 
     // Check authentication
     if (!$authState.isAuthenticated) {
@@ -67,6 +73,7 @@
         attempts++;
       }
     }
+    if (destroyed) return;
 
     // Check steward status
     if (!$userStore.user?.steward) {

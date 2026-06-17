@@ -181,7 +181,7 @@
                 <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4">
               </a>
               <a
-                href="#/gen-news"
+                href="/gen-news"
                 class="inline-flex h-10 items-center gap-1 rounded-[20px] border border-white/25 bg-white/10 px-4 text-sm font-medium text-white backdrop-blur-[10px] transition-colors hover:bg-white/20"
                 style="letter-spacing: 0.28px;"
               >
@@ -197,7 +197,7 @@
           {/if}
         {:else if showNewsLink}
           <a
-            href="#/gen-news"
+            href="/gen-news"
             class="inline-flex h-10 items-center gap-2 rounded-[20px] bg-white px-4 text-sm font-medium text-black transition-colors hover:bg-white/90"
             style="letter-spacing: 0.28px;"
           >

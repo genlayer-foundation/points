@@ -150,15 +150,6 @@ class LightBuilderSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField(read_only=True)
 
 
-class LightLeaderboardEntrySerializer(serializers.Serializer):
-    """
-    Minimal leaderboard entry for nested user data.
-    Only includes rank and points, not full user details.
-    """
-    rank = serializers.IntegerField(read_only=True)
-    total_points = serializers.IntegerField(read_only=True)
-
-
 # ============================================================================
 # Full Serializers
 # ============================================================================
@@ -398,15 +389,6 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
                 validator(value)
             except DjangoValidationError:
                 raise serializers.ValidationError("Enter a valid URL.")
-        return value
-    
-    def validate_twitter_handle(self, value):
-        """Validate Twitter handle format"""
-        if value:
-            # Remove @ if provided
-            value = value.lstrip('@')
-            if len(value) > 15:  # Twitter username max length
-                raise serializers.ValidationError("Twitter handle must be 15 characters or less.")
         return value
     
     def validate_telegram_handle(self, value):
@@ -900,39 +882,6 @@ class UserSerializer(serializers.ModelSerializer):
                 data.pop(field, None)
 
         return data
-
-
-class UserCreateSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, style={'input_type': 'password'})
-    password_confirm = serializers.CharField(write_only=True, style={'input_type': 'password'})
-    
-    class Meta:
-        model = User
-        fields = ['email', 'name', 'address', 'password', 'password_confirm']
-    
-    def validate(self, data):
-        # Check that the two passwords match
-        if data['password'] != data['password_confirm']:
-            raise serializers.ValidationError("Passwords must match.")
-        return data
-    
-    def create(self, validated_data):
-        # Remove password_confirm as it's not needed anymore
-        validated_data.pop('password_confirm')
-
-        # Get the visible field from the context if provided
-        visible = self.context.get('visible', True)
-
-        # Create user
-        user = User.objects.create_user(
-            email=validated_data['email'],
-            password=validated_data['password'],
-            name=validated_data.get('name', ''),
-            address=validated_data.get('address', ''),
-            visible=visible
-        )
-
-        return user
 
 
 class BanAppealSerializer(serializers.ModelSerializer):

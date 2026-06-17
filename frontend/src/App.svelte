@@ -11,8 +11,8 @@
   import { location } from 'svelte-spa-router';
   import { setRouteMeta } from './lib/meta.js';
   import { authState, verifyAuth } from './lib/auth.js';
-  import { normalizeLocation } from './lib/normalizePath.js';
-  
+  import { installLinkInterceptor } from './lib/router.js';
+
   // Early OAuth result detection — runs before routes mount.
   // Backend redirects here with ?oauth_platform=X&oauth_verified=true/false&oauth_error=...
   // We relay the result to the opener tab via postMessage (primary) and localStorage (fallback).
@@ -53,13 +53,6 @@
     }
   }
 
-  // The portal uses hash routing. Direct/path-based links (sidebar hrefs
-  // opened in a new tab, refreshes of a path route, shared or indexed links)
-  // arrive without a hash and would otherwise 404. Rewrite any such path into
-  // its hash equivalent so the router can resolve it; unknown paths still
-  // fall through to the router's own NotFound view.
-  normalizeLocation(window);
-
   // State for sidebar toggle on mobile and collapse on desktop
   let sidebarOpen = $state(false);
   let sidebarCollapsed = $state(false);
@@ -84,7 +77,6 @@
   import Metrics from './routes/Metrics.svelte';
   import ProfileEdit from './routes/ProfileEdit.svelte';
   import NotFound from './routes/NotFound.svelte';
-  import LoaderShowcase from './routes/LoaderShowcase.svelte';
   import StewardDashboard from './routes/StewardDashboard.svelte';
   import StewardSubmissions from './routes/StewardSubmissions.svelte';
   import StewardDiscordXP from './routes/StewardDiscordXP.svelte';
@@ -117,6 +109,7 @@
   import ContributionPreview from './routes/ContributionPreview.svelte';
   import ProjectDetail from './routes/ProjectDetail.svelte';
   import ProjectPageEditor from './routes/ProjectPageEditor.svelte';
+  import Notifications from './routes/Notifications.svelte';
   import GlobalDashboard from './components/GlobalDashboard.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
   import SocialTasks from './routes/SocialTasks.svelte';
@@ -127,6 +120,16 @@
 
     if (isAuthenticated) {
       return true;
+    }
+
+    // If the user navigated elsewhere while auth was verifying, don't hijack
+    // their new location by redirecting home (stale-navigation guard). Compare
+    // path AND querystring so a query-only change on the same route also counts.
+    const normalizePath = (value) => (value || '/').replace(/\/+$/, '') || '/';
+    const guarded = `${normalizePath(location)}${querystring ? `?${querystring}` : ''}`;
+    const here = `${normalizePath(window.location.pathname)}${window.location.search || ''}`;
+    if (here !== guarded) {
+      return false;
     }
 
     sessionStorage.setItem(
@@ -218,8 +221,8 @@
     '/contributions/:id': EditSubmission,
     '/metrics': Metrics,
     '/profile': ProfileEdit,
-    '/loader-showcase': LoaderShowcase,
-    
+    '/notifications': Notifications,  // Full notification feed (authenticated only; renders a signed-out state otherwise)
+
     // Steward routes
     '/stewards': StewardDashboard,
     '/stewards/submissions': StewardSubmissions,
@@ -319,10 +322,14 @@
     
     // Use event delegation for better performance
     document.body.addEventListener('mouseover', handleTooltipPosition);
-    
+
+    // SPA-navigate same-origin <a href="/path"> clicks (history routing).
+    const removeLinkInterceptor = installLinkInterceptor();
+
     // Cleanup
     return () => {
       document.body.removeEventListener('mouseover', handleTooltipPosition);
+      removeLinkInterceptor();
     };
   });
 
@@ -443,8 +450,8 @@
       <SystemAlerts />
       <Router
         {routes}
-        on:conditionsFailed={hideTooltips}
-        on:routeLoaded={handleRouteLoaded}
+        onConditionsFailed={hideTooltips}
+        onRouteLoaded={handleRouteLoaded}
       />
     </main>
   </div>

@@ -35,8 +35,8 @@
 
   let journeysHref = $derived(
     $userStore.user?.address
-      ? `#/participant/${$userStore.user.address}`
-      : "#/",
+      ? `/participant/${$userStore.user.address}`
+      : "/",
   );
 
   let gatingTheme = $derived.by(() => {
@@ -1500,7 +1500,7 @@
           Link your {gateRequiredSocialAccounts.join(", ")} account{gateRequiredSocialAccounts.length > 1 ? "s" : ""} from your profile to submit this contribution.
         </p>
         <a
-          href="#/profile"
+          href="/profile"
           class="font-['Switzer'] text-[13px] text-[#6b6b6b] hover:text-black transition-colors tracking-[0.26px]"
         >
           Go to profile →
@@ -1516,7 +1516,7 @@
           {$userStore.user?.discord_connection ? "You need one of these Discord roles to submit this contribution" : "Link Discord and make sure you have one of these roles"}: {missingDiscordRoles.join(", ")}.
         </p>
         <a
-          href="#/profile"
+          href="/profile"
           class="font-['Switzer'] text-[13px] text-[#6b6b6b] hover:text-black transition-colors tracking-[0.26px]"
         >
           {$userStore.user?.discord_connection ? "Refresh Discord roles from profile" : "Go to profile"} →
@@ -1856,7 +1856,7 @@
             Link your {evidenceRequiredAccounts.map((a) => socialAccountLabels[a] || a).join(", ")} account{evidenceRequiredAccounts.length > 1 ? "s" : ""} from your profile to verify evidence ownership.
           </p>
           <a
-            href="#/profile"
+            href="/profile"
             class="font-['Switzer'] text-[13px] text-[#6b6b6b] hover:text-black transition-colors tracking-[0.26px]"
           >
             Go to profile →

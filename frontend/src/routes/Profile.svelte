@@ -1,14 +1,6 @@
 <script lang="ts">
   import { push, querystring } from "svelte-spa-router";
   import { format } from "date-fns";
-  import RecentContributions from "../components/RecentContributions.svelte";
-  import HighlightedContributions from "../components/HighlightedContributions.svelte";
-  import Avatar from "../components/Avatar.svelte";
-  import Badge from "../components/Badge.svelte";
-  import ContributionCard from "../components/ContributionCard.svelte";
-  import ContributionBreakdown from "../components/ContributionBreakdown.svelte";
-  import Icons from "../components/Icons.svelte";
-  import Tooltip from "../components/Tooltip.svelte";
   import {
     usersAPI,
     statsAPI,
@@ -858,7 +850,6 @@
           {builderStats}
           {validatorStats}
           {communityStats}
-          {referralPoints}
         />
       </div>
 
@@ -875,7 +866,6 @@
           <RoleView
             role="builder"
             iconCategory="builder"
-            colorTheme="orange"
             {participant}
             stats={{
               points: builderStats.totalPoints,
@@ -951,7 +941,6 @@
           <RoleView
             role="validator"
             iconCategory="validator"
-            colorTheme="sky"
             {participant}
             stats={{
               points: validatorStats.totalPoints,

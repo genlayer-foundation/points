@@ -13,24 +13,8 @@ This applies to ALL work — backend, frontend, research, everything. No excepti
 **Important**: This project has detailed documentation for faster development:
 - **Backend Documentation**: See `backend/CLAUDE.md` for Django structure, API endpoints, models, and patterns
 - **Frontend Documentation**: See `frontend/CLAUDE.md` for Svelte 5 structure, routes, components, and API integration
-- **Session Management**: See `SESSIONS.md` for the Git worktree-based development session system
 
 ⚠️ **Keep documentation updated**: When making changes to the codebase, update the relevant CLAUDE.md file to help future development sessions.
-
-## Development Sessions & Worktrees
-This project uses a custom session management system with Git worktrees. See `SESSIONS.md` for complete documentation on:
-- Creating and managing parallel development sessions
-- Port allocation and tmux window management
-- Claude Code session persistence across worktrees
-- Troubleshooting common issues
-
-Quick commands:
-```bash
-./session-mgmt add <name>     # Create new session
-./session-mgmt list            # Show all sessions
-./session-mgmt resume [name]   # Resume after restart
-./session-mgmt remove <name>   # Remove session
-```
 
 ## Svelte 5 Important Notes
 
@@ -175,26 +159,6 @@ provide:
    - User's total points are calculated from all contributions
    - Rankings are determined by total points
    - Ties receive the same rank
-
-## Development Status
-
-The project appears to be in its early stages of development. The backend 
-structure is set up with Django apps and models defined, but many planned 
-features are not yet implemented according to the ROADMAP.md. The frontend is 
-just beginning development with only a package.json file created.
-
-### Current Progress:
-- Backend structure established
-- Key models defined
-- Authentication system set up
-- API framework in place
-
-### Next Steps (from ROADMAP.md):
-- Complete database schema implementation
-- Implement basic API endpoints
-- Create Svelte 5 frontend skeleton
-- Implement user authentication integration
-- Develop badge and points system functionality
 
 ## Integration with GenLayer Ecosystem
 

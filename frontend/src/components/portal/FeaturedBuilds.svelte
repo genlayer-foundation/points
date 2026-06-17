@@ -30,7 +30,7 @@
       <p class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">{subtitle}</p>
     </div>
     <a
-      href="#/ecosystem-partners?tab=project"
+      href="/ecosystem-partners?tab=project"
       class="flex-shrink-0 text-[13px] font-medium text-[#6b6b6b] hover:text-black transition-colors inline-flex items-center gap-1"
     >
       View all
@@ -47,7 +47,7 @@
   {:else}
     <div class="flex gap-[10px] overflow-x-auto pb-2" style="-ms-overflow-style: none; scrollbar-width: none;">
       {#each builds as build}
-        {@const projectLink = build.slug ? { href: `#/builders/projects/${build.slug}`, external: false } : resolvePortalLink(build.link || build.url)}
+        {@const projectLink = build.slug ? { href: `/builders/projects/${build.slug}`, external: false } : resolvePortalLink(build.link || build.url)}
         {@const projectHref = projectLink.href}
         {@const isExternal = projectLink.external}
         <a

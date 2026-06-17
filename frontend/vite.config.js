@@ -1,5 +1,8 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { fileURLToPath, URL } from 'node:url';
+
+const local = (p) => fileURLToPath(new URL(p, import.meta.url));
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -25,13 +28,16 @@ export default defineConfig({
   assetsInclude: ['**/*.md'],
   define: {
     global: 'globalThis',
-    'process.env': {},
   },
   resolve: {
     alias: {
+      // History-based router shim replacing the hash-only svelte-spa-router,
+      // so the ~68 importing files and the route table stay unchanged.
+      // More-specific '/wrap' must come first (prefix match wins by order).
+      'svelte-spa-router/wrap': local('./src/lib/wrap.js'),
+      'svelte-spa-router': local('./src/lib/Router.svelte'),
       buffer: 'buffer',
       process: 'process/browser',
-      stream: 'stream-browserify',
     },
   },
 });

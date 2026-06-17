@@ -10,24 +10,7 @@ from django.db.models import Max
 
 
 PROJECT_TYPE_SLUG = 'projects'
-LEGACY_PROJECT_TYPE_SLUGS = {
-    PROJECT_TYPE_SLUG,
-    'projects-and-milestones',
-    'projects-milestones',
-    'project-milestone',
-}
 MILESTONE_TYPE_SLUG = 'milestones'
-
-
-def is_project_contribution_type(contribution_type):
-    slug = getattr(contribution_type, 'slug', None)
-    name = (getattr(contribution_type, 'name', '') or '').strip().lower()
-    return slug in LEGACY_PROJECT_TYPE_SLUGS or name in {
-        'projects',
-        'projects and milestones',
-        'project and milestone',
-        'projects & milestones',
-    }
 
 
 def is_milestone_contribution_type(contribution_type):

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getXPostUrl, isXPostUrl } from '../lib/xPost.js';
+import { getXPostUrl } from '../lib/xPost.js';
 
 describe('xPost utilities', () => {
   it('detects X and Twitter status URLs', () => {
@@ -8,7 +8,11 @@ describe('xPost utilities', () => {
       username: 'example',
       url: 'https://twitter.com/example/status/1234567890',
     });
-    expect(isXPostUrl('https://twitter.com/example/statuses/1234567890')).toBe(true);
+    expect(getXPostUrl('https://twitter.com/example/statuses/1234567890')).toEqual({
+      id: '1234567890',
+      username: 'example',
+      url: 'https://twitter.com/example/status/1234567890',
+    });
   });
 
   it('ignores X profile and broadcast URLs', () => {

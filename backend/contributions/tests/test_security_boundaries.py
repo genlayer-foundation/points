@@ -225,6 +225,68 @@ class EvidenceVisibilityTest(TestCase):
         self.assertIn(self.contribution_evidence.id, ids)
 
 
+class MySubmissionsDeepLinkTest(TestCase):
+    """Submission notification deep links must stay reliable and owner-scoped."""
+
+    def setUp(self):
+        self.category = Category.objects.create(name="Deep", slug="deep", description="d")
+        self.contribution_type = _make_type("Deep Type", "deep-type", self.category)
+        self.owner = User.objects.create_user(
+            email='deep-owner@test.com',
+            address='0x6666666666666666666666666666666666666666',
+            password='testpass123',
+        )
+        self.other_user = User.objects.create_user(
+            email='deep-other@test.com',
+            address='0x7777777777777777777777777777777777777777',
+            password='testpass123',
+        )
+        self.submission = SubmittedContribution.objects.create(
+            user=self.owner,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes="Moved on after notification",
+            state='accepted',
+        )
+        self.other_submission = SubmittedContribution.objects.create(
+            user=self.other_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes="Foreign submission",
+            state='accepted',
+        )
+        self.client = APIClient()
+
+    def _result_ids(self, response):
+        results = response.data.get('results', response.data)
+        return {item['id'] for item in results}
+
+    def test_submission_id_filter_ignores_stale_state(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.get(
+            '/api/v1/submissions/my/',
+            {
+                'state': 'more_info_needed',
+                'submission': str(self.submission.id),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self._result_ids(response), {str(self.submission.id)})
+
+    def test_submission_id_filter_stays_owner_scoped(self):
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.get(
+            '/api/v1/submissions/my/',
+            {'submission': str(self.other_submission.id)},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self._result_ids(response), set())
+
+
 class MissionVisibilityTest(TestCase):
     """Unstarted missions are steward/staff-only; expired ones stay public."""
 

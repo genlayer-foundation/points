@@ -16,7 +16,7 @@
       <p class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">Bradbury Builders Hackathon top projects</p>
     </div>
     <a
-      href="#/hackathon-winners"
+      href="/hackathon-winners"
       class="flex items-center gap-[4px] text-[14px] text-[#6b6b6b] hover:text-black transition-colors whitespace-nowrap"
       style="letter-spacing: 0.28px;"
     >

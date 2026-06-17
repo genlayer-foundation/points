@@ -9,7 +9,7 @@ from django.conf import settings
 from django.db.models import Sum, Q
 from .models import BanAppeal, User
 from .serializers import (
-    BanAppealSerializer, UserSerializer, UserCreateSerializer,
+    BanAppealSerializer, UserSerializer,
     UserProfileUpdateSerializer, PublicUserListSerializer,
 )
 from .cloudinary_service import CloudinaryService
@@ -86,9 +86,6 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         context['use_light_serializers'] = self.action == 'list'
         # Include referral_details only for detail/by_address views
         context['include_referral_details'] = self.action in ['retrieve', 'by_address']
-        # Pass visible flag for create action
-        if self.action == 'create' and 'visible' in self.request.data:
-            context['visible'] = self.request.data.get('visible')
         return context
 
     @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)')
@@ -144,8 +141,6 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
     
     def get_serializer_class(self):
-        if self.action == 'create':
-            return UserCreateSerializer
         if self.action == 'list':
             return PublicUserListSerializer
         return UserSerializer

@@ -52,14 +52,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django.contrib.humanize',
-    
+
     # Third-party apps
     'rest_framework',
-    'rest_framework.authtoken',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
-    'dj_rest_auth',
     'corsheaders',
     'drf_yasg',
     'django_filters',
@@ -85,6 +82,7 @@ INSTALLED_APPS = [
     'community_xp.apps.CommunityXpConfig',
     'poaps.apps.PoapsConfig',
     'social_tasks',
+    'notifications.apps.NotificationsConfig',
 ]
 
 MIDDLEWARE = [

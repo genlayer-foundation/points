@@ -2,6 +2,9 @@ from django import forms
 from django.contrib import admin
 from django.db.models import Count
 
+from notifications import services as notification_services
+from notifications.admin_mixins import BroadcastNotificationAdminMixin
+
 from .models import SocialTask, SocialTaskCompletion
 from .verifiers import get_choices
 
@@ -16,7 +19,13 @@ TARGET_FIELDS = tuple(
 
 
 @admin.register(SocialTask)
-class SocialTaskAdmin(admin.ModelAdmin):
+class SocialTaskAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
+    # Broadcast goes only to the role the task's category targets
+    # (builders/validators/community members), resolved in the service.
+    broadcast_event_slug = 'social_task.published'
+    broadcast_service = staticmethod(notification_services.broadcast_social_task)
+    broadcast_eligible = staticmethod(lambda obj: obj.is_currently_active())
+    broadcast_ineligible_reason = 'the task is inactive or outside its active window'
     list_display = (
         'name',
         'slug',
