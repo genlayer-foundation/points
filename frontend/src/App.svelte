@@ -123,10 +123,12 @@
     }
 
     // If the user navigated elsewhere while auth was verifying, don't hijack
-    // their new location by redirecting home (stale-navigation guard).
-    const guardedPath = (location || '/').replace(/\/+$/, '') || '/';
-    const herePath = window.location.pathname.replace(/\/+$/, '') || '/';
-    if (herePath !== guardedPath) {
+    // their new location by redirecting home (stale-navigation guard). Compare
+    // path AND querystring so a query-only change on the same route also counts.
+    const normalizePath = (value) => (value || '/').replace(/\/+$/, '') || '/';
+    const guarded = `${normalizePath(location)}${querystring ? `?${querystring}` : ''}`;
+    const here = `${normalizePath(window.location.pathname)}${window.location.search || ''}`;
+    if (here !== guarded) {
       return false;
     }
 
