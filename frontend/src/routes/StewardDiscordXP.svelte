@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { replace, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { stewardAPI, contributionsAPI } from '../lib/api.js';
@@ -34,6 +34,11 @@
     { value: 'distributed', label: 'Distributed' },
     { value: 'all', label: 'All' }
   ];
+
+  // Set once unmounted, so a load that finishes after the user leaves doesn't
+  // sync the URL (which would navigate them back here).
+  let destroyed = false;
+  onDestroy(() => { destroyed = true; });
 
   onMount(async () => {
     if (!$authState.isAuthenticated) {
@@ -81,12 +86,15 @@
     if (searchQuery) params.set('q', searchQuery);
     const suffix = params.toString() ? `?${params.toString()}` : '';
     const target = `/stewards/discord-xp${suffix}`;
+    // Reflect filters in the URL without navigating/re-rendering (see
+    // StewardSubmissions for why router replace() is wrong here).
     if (window.location.pathname + window.location.search !== target) {
-      replace(target);
+      window.history.replaceState({}, '', target);
     }
   }
 
   async function loadXP() {
+    if (destroyed) return; // unmounted mid-load — don't fetch or touch the URL
     const id = ++requestId;
     loading = true;
     error = null;
