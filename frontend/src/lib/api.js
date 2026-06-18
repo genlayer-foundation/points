@@ -111,6 +111,13 @@ export const notificationsAPI = {
   markAllRead: () => api.post('/notifications/mark-all-read/')
 };
 
+// Curated What's New announcements API
+export const whatsNewAPI = {
+  list: (params = {}) => api.get('/whats-new/', { params }),
+  unseenCount: () => api.get('/whats-new/unseen-count/'),
+  markSeen: (ids, action = 'seen') => api.post('/whats-new/mark-seen/', { ids, action })
+};
+
 
 // API endpoints for leaderboard
 export const leaderboardAPI = {

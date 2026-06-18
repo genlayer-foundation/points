@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Notification
+from .models import Notification, WhatsNewAnnouncement, WhatsNewAnnouncementSeen
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -45,3 +45,34 @@ class LightNotificationSerializer(NotificationSerializer):
     class Meta(NotificationSerializer.Meta):
         fields = [field for field in NotificationSerializer.Meta.fields if field != 'payload']
         read_only_fields = fields
+
+
+class WhatsNewAnnouncementSerializer(serializers.ModelSerializer):
+    audience_label = serializers.CharField(source='get_audience_display', read_only=True)
+
+    class Meta:
+        model = WhatsNewAnnouncement
+        fields = [
+            'id',
+            'title',
+            'body',
+            'eyebrow',
+            'link_url',
+            'link_label',
+            'image_url',
+            'audience',
+            'audience_label',
+            'version',
+        ]
+        read_only_fields = fields
+
+
+class WhatsNewMarkSeenSerializer(serializers.Serializer):
+    ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=True,
+    )
+    action = serializers.ChoiceField(
+        choices=WhatsNewAnnouncementSeen.ACTION_CHOICES,
+        default=WhatsNewAnnouncementSeen.ACTION_SEEN,
+    )

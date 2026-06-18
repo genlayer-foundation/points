@@ -7,6 +7,7 @@
   import Sidebar from './components/Sidebar.svelte';
   import ToastContainer from './components/ToastContainer.svelte';
   import ProfileCompletionGuard from './components/ProfileCompletionGuard.svelte';
+  import WhatsNewDialog from './components/WhatsNewDialog.svelte';
   import { currentCategory, detectCategoryFromRoute } from './stores/category.js';
   import { location } from 'svelte-spa-router';
   import { setRouteMeta } from './lib/meta.js';
@@ -461,3 +462,4 @@
 
 <!-- Profile Completion Guard - Shows on all pages until profile is complete -->
 <ProfileCompletionGuard />
+<WhatsNewDialog />

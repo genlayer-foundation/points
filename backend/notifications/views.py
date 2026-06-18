@@ -1,9 +1,14 @@
-from rest_framework import permissions, viewsets
+from rest_framework import mixins, permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from . import services
-from .serializers import LightNotificationSerializer, NotificationSerializer
+from .serializers import (
+    LightNotificationSerializer,
+    NotificationSerializer,
+    WhatsNewAnnouncementSerializer,
+    WhatsNewMarkSeenSerializer,
+)
 
 
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -57,3 +62,32 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     def mark_all_read(self, request):
         updated = services.mark_all_read(request.user)
         return Response({'updated': updated})
+
+
+class WhatsNewAnnouncementViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    serializer_class = WhatsNewAnnouncementSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        preview = self.request.query_params.get('preview')
+        if preview and preview.lower() in ('1', 'true', 'yes'):
+            return services.seen_whats_new_for(self.request.user)
+        return services.unseen_whats_new_for(self.request.user)
+
+    @action(detail=False, methods=['get'], url_path='unseen-count')
+    def unseen_count(self, request):
+        return Response({'count': services.whats_new_unseen_count(request.user)})
+
+    @action(detail=False, methods=['post'], url_path='mark-seen')
+    def mark_seen(self, request):
+        serializer = WhatsNewMarkSeenSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        updated = services.mark_whats_new_seen(
+            request.user,
+            serializer.validated_data['ids'],
+            action=serializer.validated_data['action'],
+        )
+        return Response({
+            'updated': updated,
+            'count': services.whats_new_unseen_count(request.user),
+        })

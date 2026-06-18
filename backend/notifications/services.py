@@ -16,7 +16,7 @@ from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
-from .models import Notification, NotificationReceipt
+from .models import Notification, NotificationReceipt, WhatsNewAnnouncement, WhatsNewAnnouncementSeen
 from .registry import get_event_type
 
 
@@ -199,6 +199,90 @@ def estimate_broadcast_reach(audience):
         from creators.models import Creator
         return Creator.objects.filter(user__is_active=True).count()
     return User.objects.filter(is_active=True).count()
+
+
+# ---------------------------------------------------------------------------
+# What's New announcements
+# ---------------------------------------------------------------------------
+
+def active_whats_new_for(user):
+    """Published What's New announcements matching the user's current audience."""
+    now = timezone.now()
+    return WhatsNewAnnouncement.objects.filter(
+        status=WhatsNewAnnouncement.STATUS_PUBLISHED,
+        audience__in=audiences_for(user),
+        published_at__isnull=False,
+        published_at__lte=now,
+    ).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gt=now)
+    )
+
+
+def annotate_whats_new_seen_state(queryset, user):
+    return queryset.annotate(
+        seen_current_version=Exists(
+            WhatsNewAnnouncementSeen.objects.filter(
+                announcement=OuterRef('pk'),
+                user=user,
+                version=OuterRef('version'),
+            )
+        )
+    )
+
+
+def unseen_whats_new_for(user):
+    """Unseen current-version announcements for the What's New dialog."""
+    return (
+        annotate_whats_new_seen_state(active_whats_new_for(user), user)
+        .filter(seen_current_version=False)
+        .order_by('display_order', '-published_at', '-id')
+    )
+
+
+def seen_whats_new_for(user):
+    """Recent published announcements whose current version the user has seen."""
+    now = timezone.now()
+    return (
+        annotate_whats_new_seen_state(
+            WhatsNewAnnouncement.objects.filter(
+                status=WhatsNewAnnouncement.STATUS_PUBLISHED,
+                audience__in=audiences_for(user),
+                published_at__isnull=False,
+                published_at__lte=now,
+            ),
+            user,
+        )
+        .filter(seen_current_version=True)
+        .order_by('-published_at', '-id')[:12]
+    )
+
+
+def whats_new_unseen_count(user):
+    return unseen_whats_new_for(user).count()
+
+
+def mark_whats_new_seen(user, ids, action=WhatsNewAnnouncementSeen.ACTION_SEEN):
+    """Mark visible current-version announcements as seen for a user."""
+    if not ids:
+        return 0
+
+    announcements = list(active_whats_new_for(user).filter(pk__in=ids))
+    if not announcements:
+        return 0
+
+    WhatsNewAnnouncementSeen.objects.bulk_create(
+        [
+            WhatsNewAnnouncementSeen(
+                announcement=announcement,
+                user=user,
+                version=announcement.version,
+                action=action,
+            )
+            for announcement in announcements
+        ],
+        ignore_conflicts=True,
+    )
+    return len(announcements)
 
 
 # ---------------------------------------------------------------------------
