@@ -349,7 +349,11 @@ class CommunityContributionMetricsView(APIView):
         return queryset
 
     def get_queryset(self, request):
-        queryset = Contribution.objects.filter(
+        queryset = Contribution.objects.select_related(
+            'user',
+            'contribution_type',
+            'contribution_type__category',
+        ).filter(
             contribution_type__category__slug=self.CATEGORY_SLUG,
             user__visible=True,
         ).exclude(
