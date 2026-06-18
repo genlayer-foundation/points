@@ -29,21 +29,11 @@
   }
 
   function getSideRailClass() {
-    const hasParticipants = getParticipants().length > 0;
-    const hasDemo = getVideoBlocks().length > 0;
-    if (hasParticipants && hasDemo) return 'h-[460px] sm:h-[560px]';
-    if (hasParticipants) return 'h-[230px] sm:h-[300px]';
-    return 'h-[210px] sm:h-[240px]';
+    return 'space-y-5';
   }
 
   function getSideRailGridClass() {
-    const hasParticipants = getParticipants().length > 0;
-    const hasDemo = getVideoBlocks().length > 0;
-    if (hasParticipants && hasDemo) {
-      return 'grid h-full min-h-0 grid-rows-[minmax(0,230px)_minmax(0,210px)] gap-5 sm:grid-rows-[minmax(0,300px)_minmax(0,240px)]';
-    }
-    if (hasParticipants) return 'grid h-full min-h-0 grid-rows-[minmax(0,230px)] sm:grid-rows-[minmax(0,300px)]';
-    return 'grid h-full min-h-0 grid-rows-[minmax(0,210px)] sm:grid-rows-[minmax(0,240px)]';
+    return 'grid min-h-0 gap-5';
   }
 
   /** @param {string | number | Date | null | undefined} value */
@@ -239,12 +229,12 @@
 {/snippet}
 
 {#snippet markdownSection(block)}
-  <section class="flex h-[460px] min-h-0 flex-col rounded-[10px] border border-white/70 bg-white/82 p-5 shadow-[0_18px_45px_rgba(38,48,75,0.10)] backdrop-blur-md sm:h-[560px] sm:p-6">
+  <section class="flex max-h-[460px] min-h-0 flex-col rounded-[10px] border border-white/70 bg-white/82 p-5 shadow-[0_18px_45px_rgba(38,48,75,0.10)] backdrop-blur-md sm:max-h-[560px] sm:p-6">
     {#if block.title}
       {@render sectionHeading(block.title, '')}
     {/if}
     {#if block.body}
-      <div class="project-markdown project-about-scroll min-h-0 flex-1 overflow-y-auto pr-2 text-[14px] leading-6 text-[#344054]">
+      <div class="project-markdown project-about-scroll min-h-0 max-h-[382px] overflow-y-auto pr-2 text-[14px] leading-6 text-[#344054] sm:max-h-[474px]">
         {@html renderProjectMarkdown(block.body)}
       </div>
     {:else}
@@ -255,7 +245,7 @@
 
 {#snippet videoPanel(block)}
   {@const demoMedia = getDemoMedia(block.url)}
-  <section class="flex h-full min-h-0 flex-col space-y-4">
+  <section class="flex h-[210px] min-h-0 flex-col space-y-4 sm:h-[240px]">
     <div class="min-w-0">
       <h2 class="text-[22px] font-semibold font-display leading-none text-black">{block.title || 'Demo video'}</h2>
     </div>
@@ -295,11 +285,11 @@
 {/snippet}
 
 {#snippet participantsPanel()}
-  <section class="flex h-full min-h-0 flex-col rounded-[10px] border border-white/70 bg-white/88 p-4 shadow-[0_18px_55px_rgba(38,48,75,0.14)] backdrop-blur-md">
+  <section class="flex max-h-[230px] min-h-0 flex-col rounded-[10px] border border-white/70 bg-white/88 p-4 shadow-[0_18px_55px_rgba(38,48,75,0.14)] backdrop-blur-md sm:max-h-[300px]">
     {@render sectionHeading('Participants', 'Portal users connected to this project')}
 
     {#if getParticipants().length}
-      <div class="relative min-h-0 flex-1">
+      <div class="relative min-h-0">
         {#if participantListOverflows}
           <button
             type="button"
@@ -315,7 +305,7 @@
         <div
           bind:this={participantListEl}
           onscroll={refreshParticipantScroll}
-          class="participant-scroll grid max-h-full gap-3 overflow-y-auto pr-1"
+          class="participant-scroll grid max-h-[132px] gap-3 overflow-y-auto pr-1 sm:max-h-[202px]"
           class:pt-8={participantListOverflows}
           class:pb-8={participantListOverflows}
         >
