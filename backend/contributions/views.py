@@ -32,6 +32,7 @@ from .models import (
     DiscordXPDistributionEvent, ProjectMilestoneReview,
     sync_discord_xp_state_for_contribution,
 )
+from .constants import METRICS_POINTS_EXCLUDED_TYPE_SLUGS
 from .rubric_review import rubric_summary_text, uses_project_rubric
 from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
@@ -54,16 +55,8 @@ from .url_utils import normalize_url
 from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from ethereum_auth.authentication import EthereumAuthentication
+from utils.dates import day_start
 import requests
-
-METRICS_POINTS_EXCLUDED_TYPE_SLUGS = [
-    'builder-welcome',
-    'builder',
-    'validator-waitlist',
-    'validator',
-    'community-link-x',
-    'community-link-discord',
-]
 
 AI_STEWARD_EMAIL = 'genlayer-steward@genlayer.foundation'
 
@@ -309,14 +302,21 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
         if start_date or end_date:
+            from datetime import timedelta
             from django.utils.dateparse import parse_date
 
-            parsed_start = parse_date(start_date) if start_date else None
-            parsed_end = parse_date(end_date) if end_date else None
+            try:
+                parsed_start = parse_date(start_date) if start_date else None
+            except ValueError:
+                parsed_start = None
+            try:
+                parsed_end = parse_date(end_date) if end_date else None
+            except ValueError:
+                parsed_end = None
             if parsed_start:
-                queryset = queryset.filter(contribution_date__date__gte=parsed_start)
+                queryset = queryset.filter(contribution_date__gte=day_start(parsed_start))
             if parsed_end:
-                queryset = queryset.filter(contribution_date__date__lte=parsed_end)
+                queryset = queryset.filter(contribution_date__lt=day_start(parsed_end + timedelta(days=1)))
 
         # Exclude onboarding contributions (builder-welcome and validator-waitlist)
         # EXCEPT when viewing a specific user's profile (user_address is present)
@@ -2418,10 +2418,13 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             if end_date is None:
                 end_date = timezone.now().date()
 
+        start_datetime = day_start(start_date)
+        end_datetime = day_start(end_date + timedelta(days=1))
+
         # Get ingress (new submissions by created_at)
         ingress = (
             base_qs
-            .filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
+            .filter(created_at__gte=start_datetime, created_at__lt=end_datetime)
             .annotate(period=trunc_func('created_at'))
             .values('period')
             .annotate(count=Count('id'))
@@ -2430,8 +2433,8 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Get reviews by outcome (by reviewed_at date)
         reviews_base = base_qs.filter(
-            reviewed_at__date__gte=start_date,
-            reviewed_at__date__lte=end_date
+            reviewed_at__gte=start_datetime,
+            reviewed_at__lt=end_datetime
         )
 
         accepted = (
@@ -2472,8 +2475,8 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Get points awarded (from converted contributions)
         points_qs = Contribution.objects.filter(
-            created_at__date__gte=start_date,
-            created_at__date__lte=end_date,
+            created_at__gte=start_datetime,
+            created_at__lt=end_datetime,
             source_submission__in=base_qs,
         ).exclude(
             contribution_type__slug__in=METRICS_POINTS_EXCLUDED_TYPE_SLUGS
@@ -2548,8 +2551,8 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         # subtraction produces nonsense (often clamped to 0) under filters.
         pending_review = base_qs.filter(
             state='pending',
-            created_at__date__gte=start_date,
-            created_at__date__lte=end_date
+            created_at__gte=start_datetime,
+            created_at__lt=end_datetime
         ).count()
 
         # Calculate totals for the period

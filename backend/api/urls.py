@@ -9,7 +9,13 @@ from gen_tv.views import StreamCategoryViewSet, StreamViewSet
 from poaps.views import PoapDropViewSet
 from notifications.views import NotificationViewSet
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
-from .metrics_views import ActiveValidatorsView, ContributionTypesStatsView, ParticipantsGrowthView, TestnetMetricsView
+from .metrics_views import (
+    ActiveValidatorsView,
+    CommunityContributionMetricsView,
+    ContributionTypesStatsView,
+    ParticipantsGrowthView,
+    TestnetMetricsView,
+)
 
 # Create a router and register our viewsets with it
 router = DefaultRouter()
@@ -51,6 +57,7 @@ urlpatterns = [
     # Metrics endpoints
     path('metrics/active-validators/', ActiveValidatorsView.as_view(), name='active-validators'),
     path('metrics/contribution-types/', ContributionTypesStatsView.as_view(), name='contribution-types-stats'),
+    path('metrics/community-contributions/', CommunityContributionMetricsView.as_view(), name='community-contributions-metrics'),
     path('metrics/participants-growth/', ParticipantsGrowthView.as_view(), name='participants-growth'),
     path('metrics/testnet-kpis/', TestnetMetricsView.as_view(), name='testnet-kpis'),
 
