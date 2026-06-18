@@ -1,4 +1,4 @@
-const DISCORD_INVITE_LABELS = new Map([
+const discordInviteLabels = new Map([
   ['8jm4v89vau', 'GenLayer Labs'],
   ['genlayerlabs', 'GenLayer Labs'],
   ['frgxqfm3kz', 'Precog Markets'],
@@ -89,7 +89,7 @@ function cleanGitHubPathPart(value = '') {
 function getDiscordDisplayName(host, pathParts, project) {
   const inviteCode = getDiscordInviteCode(host, pathParts);
   if (inviteCode) {
-    const knownServerName = DISCORD_INVITE_LABELS.get(inviteCode.toLowerCase());
+    const knownServerName = discordInviteLabels.get(inviteCode.toLowerCase());
     if (knownServerName) return knownServerName;
 
     const projectServerName = getProjectDiscordServerName(project);

@@ -29,11 +29,11 @@
   }
 
   function getSideRailClass() {
-    return 'space-y-5';
+    return 'space-y-4';
   }
 
   function getSideRailGridClass() {
-    return 'grid min-h-0 gap-5';
+    return 'grid min-h-0 gap-4';
   }
 
   /** @param {string | number | Date | null | undefined} value */
@@ -229,7 +229,7 @@
 {/snippet}
 
 {#snippet markdownSection(block)}
-  <section class="flex max-h-[460px] min-h-0 flex-col rounded-[10px] border border-white/70 bg-white/82 p-5 shadow-[0_18px_45px_rgba(38,48,75,0.10)] backdrop-blur-md sm:max-h-[560px] sm:p-6">
+  <section class="flex max-h-[460px] min-h-0 flex-col rounded-lg border border-white/70 bg-white/82 p-4 shadow backdrop-blur-md sm:max-h-[560px] sm:p-6">
     {#if block.title}
       {@render sectionHeading(block.title, '')}
     {/if}
@@ -285,7 +285,7 @@
 {/snippet}
 
 {#snippet participantsPanel()}
-  <section class="flex max-h-[230px] min-h-0 flex-col rounded-[10px] border border-white/70 bg-white/88 p-4 shadow-[0_18px_55px_rgba(38,48,75,0.14)] backdrop-blur-md sm:max-h-[300px]">
+  <section class="flex max-h-[230px] min-h-0 flex-col rounded-lg border border-white/70 bg-white/88 p-4 shadow backdrop-blur-md sm:max-h-[300px]">
     {@render sectionHeading('Participants', 'Portal users connected to this project')}
 
     {#if getParticipants().length}
