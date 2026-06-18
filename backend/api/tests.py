@@ -254,6 +254,13 @@ class CommunityContributionMetricsViewTests(TestCase):
             address='0x0000000000000000000000000000000000000102',
             name='Bob',
         )
+        self.private_user = User.objects.create_user(
+            email='private@example.com',
+            password='pass',
+            address='0x0000000000000000000000000000000000000103',
+            name='Private User',
+            visible=False,
+        )
 
     def _seed_contributions(self):
         base = timezone.now() - timedelta(days=3)
@@ -288,6 +295,14 @@ class CommunityContributionMetricsViewTests(TestCase):
                 points=50,
                 frozen_global_points=50,
                 title='Builder contribution',
+                contribution_date=base + timedelta(days=2),
+            ),
+            Contribution(
+                user=self.private_user,
+                contribution_type=self.event_type,
+                points=99,
+                frozen_global_points=99,
+                title='Private community event',
                 contribution_date=base + timedelta(days=2),
             ),
         ])
@@ -342,6 +357,11 @@ class CommunityContributionMetricsViewTests(TestCase):
             '/api/v1/metrics/community-contributions/',
             {'start_date': '2026-99-99'},
         )
+        inverted_range = self.client.get(
+            '/api/v1/metrics/community-contributions/',
+            {'start_date': '2026-02-01', 'end_date': '2026-01-01'},
+        )
 
         self.assertEqual(invalid_type.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(invalid_date.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(inverted_range.status_code, status.HTTP_400_BAD_REQUEST)

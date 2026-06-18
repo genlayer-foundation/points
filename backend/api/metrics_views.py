@@ -312,12 +312,12 @@ class CommunityContributionMetricsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     CATEGORY_SLUG = 'community'
-    ALLOWED_ORDERING = {
+    ALLOWED_ORDERING = (
         '-contribution_date',
         'contribution_date',
         '-frozen_global_points',
         'frozen_global_points',
-    }
+    )
 
     def _query_date(self, request, name):
         value = request.query_params.get(name)
@@ -335,6 +335,9 @@ class CommunityContributionMetricsView(APIView):
         start_date = self._query_date(request, 'start_date')
         end_date = self._query_date(request, 'end_date')
 
+        if start_date and end_date and start_date > end_date:
+            raise ValidationError({'end_date': 'Must be on or after start_date.'})
+
         if start_date:
             queryset = queryset.filter(contribution_date__gte=day_start(start_date))
 
@@ -348,6 +351,7 @@ class CommunityContributionMetricsView(APIView):
     def get_queryset(self, request):
         queryset = Contribution.objects.filter(
             contribution_type__category__slug=self.CATEGORY_SLUG,
+            user__visible=True,
         ).exclude(
             contribution_type__slug__in=METRICS_POINTS_EXCLUDED_TYPE_SLUGS,
         )
