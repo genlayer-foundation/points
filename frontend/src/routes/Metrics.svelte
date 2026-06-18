@@ -112,7 +112,6 @@
 
   const DISCORD_URL = 'https://discord.gg/A6jpkqrb';
   const X_URL = 'https://x.com/GenLayer';
-  const COMMUNITY_CATEGORY_SLUG = 'community';
   const COMMUNITY_CATEGORY_SLUGS = ['community', 'creator'];
   const COMMUNITY_PAGE_SIZE = 10;
   const SUBMISSION_CATEGORY_ORDER = ['builder', 'validator', 'community'];
@@ -184,6 +183,12 @@
     validators: 0
   };
 
+  const emptyCommunityContributionTotals = {
+    contribution_count: 0,
+    points_awarded: 0,
+    unique_contributors: 0
+  };
+
   let participantsChart;
   let submissionsChart;
   let submissionsTrendChart;
@@ -205,6 +210,7 @@
   let contributionTypes = $state([]);
   let communityContributions = $state([]);
   let communityContributionsCount = $state(0);
+  let communityContributionTotals = $state({ ...emptyCommunityContributionTotals });
 
   let submissionGroupBy = $state('week');
   let submissionStartDate = $state('');
@@ -218,6 +224,7 @@
   let communityEndDate = $state('');
   let communitySortBy = $state('-contribution_date');
   let communityPage = $state(1);
+  let communityContributionsLoaded = $state(false);
   let appliedSubmissionFilters = $state({
     category: '',
     contributionType: '',
@@ -341,6 +348,12 @@
     };
   });
 
+  $effect(() => {
+    if (activeTab === 'community') {
+      ensureCommunityContributionsLoaded();
+    }
+  });
+
   onDestroy(() => {
     destroyCharts();
   });
@@ -373,7 +386,6 @@
           await fetchSubmissionsData({ syncDates: true });
         }
 
-        await fetchCommunityContributions();
       }
 
       loading = false;
@@ -557,11 +569,9 @@
       communityContributionsError = null;
 
       const params = {
-        category: COMMUNITY_CATEGORY_SLUG,
         ordering: communitySortBy,
         page: communityPage,
-        page_size: COMMUNITY_PAGE_SIZE,
-        exclude_onboarding: 'true'
+        page_size: COMMUNITY_PAGE_SIZE
       };
 
       if (communityContributionType) {
@@ -576,16 +586,30 @@
         params.end_date = communityEndDate;
       }
 
-      const response = await api.get('/contributions/', { params });
+      const response = await api.get('/metrics/community-contributions/', { params });
       communityContributions = response.data?.results || [];
       communityContributionsCount = response.data?.count || 0;
+      communityContributionTotals = response.data?.totals || {
+        ...emptyCommunityContributionTotals,
+        contribution_count: communityContributionsCount
+      };
     } catch (err) {
       communityContributionsError = err.message || 'Failed to load community contributions';
       communityContributions = [];
       communityContributionsCount = 0;
+      communityContributionTotals = { ...emptyCommunityContributionTotals };
     } finally {
+      communityContributionsLoaded = true;
       communityContributionsLoading = false;
     }
+  }
+
+  function ensureCommunityContributionsLoaded() {
+    if (!$authState.isAuthenticated || communityContributionsLoaded || communityContributionsLoading) {
+      return;
+    }
+
+    fetchCommunityContributions();
   }
 
   async function applySubmissionFilters() {
@@ -594,6 +618,7 @@
       submissionError = null;
 
       await fetchSubmissionsData();
+      submissionsLoading = false;
       await tick();
       recreateSubmissionCharts();
     } catch (err) {
@@ -619,6 +644,7 @@
       submissionError = null;
 
       await fetchSubmissionsData({ syncDates: true });
+      submissionsLoading = false;
       await tick();
       recreateSubmissionCharts();
     } catch (err) {
@@ -1527,7 +1553,7 @@
   }
 
   function getContributionTypeName(contribution) {
-    return contribution.contribution_type_details?.name || contribution.contribution_type_name || 'Community contribution';
+    return contribution.contribution_type_details?.name || 'Community contribution';
   }
 
   function getContributionTitle(contribution) {
@@ -1802,6 +1828,27 @@
             {/if}
           </div>
 
+          <div class="mb-5 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+              <p class="text-xs font-medium text-slate-500">Contributions</p>
+              <p class="mt-2 text-2xl font-semibold text-slate-900">
+                {formatNumber(communityContributionTotals.contribution_count)}
+              </p>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+              <p class="text-xs font-medium text-slate-500">Contributors</p>
+              <p class="mt-2 text-2xl font-semibold text-slate-900">
+                {formatNumber(communityContributionTotals.unique_contributors)}
+              </p>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+              <p class="text-xs font-medium text-slate-500">Points awarded</p>
+              <p class="mt-2 text-2xl font-semibold text-slate-900">
+                {formatNumber(communityContributionTotals.points_awarded)}
+              </p>
+            </div>
+          </div>
+
           <div class="mb-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_200px_auto]">
             <div>
               <label for="community-start-date" class="mb-1.5 block text-sm font-medium text-slate-600">Start date</label>
@@ -2040,7 +2087,7 @@
     </section>
 
     {#if $userStore.user?.steward}
-    <section class:hidden={activeTab !== 'portal'} class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] lg:p-8">
+      <section class:hidden={activeTab !== 'portal'} class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] lg:p-8">
       <div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p class="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Submission Analytics</p>
@@ -2144,7 +2191,7 @@
       </div>
 
       <div class="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-        {#if loading}
+        {#if loading || submissionsLoading}
           {#each [0, 1, 2, 3, 4] as _, i (i)}
             <div class="h-[124px] animate-pulse rounded-[24px] border border-slate-200 bg-slate-50"></div>
           {/each}
@@ -2182,7 +2229,7 @@
             </button>
           </div>
 
-          {#if loading}
+          {#if loading || submissionsLoading}
             <div class="h-[320px] animate-pulse rounded-2xl border border-slate-200 bg-white"></div>
           {:else if submissionsData.data?.length > 0}
             <div class="h-[320px]">
@@ -2219,7 +2266,7 @@
             </button>
           </div>
 
-          {#if loading}
+          {#if loading || submissionsLoading}
             <div class="h-[320px] animate-pulse rounded-2xl border border-slate-200 bg-white"></div>
           {:else if submissionsData.data?.length > 0}
             <div class="h-[320px]">
@@ -2232,7 +2279,7 @@
           {/if}
         </div>
       </div>
-    </section>
+      </section>
     {/if}
 
       </div>

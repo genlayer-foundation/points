@@ -4,12 +4,16 @@ import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, status
+from rest_framework.exceptions import ValidationError
 from django.core.cache import cache
-from django.db.models import Count, Q, Min
+from django.db.models import Count, Min, Sum
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from datetime import timedelta
+from contributions.constants import METRICS_POINTS_EXCLUDED_TYPE_SLUGS
 from contributions.models import Contribution, ContributionType
-from users.models import User
+from utils.dates import day_start
+from utils.pagination import SafePageNumberPagination
 
 logger = logging.getLogger(__name__)
 
@@ -295,6 +299,123 @@ class ParticipantsGrowthView(APIView):
             current_date += timedelta(days=1)
 
         return Response({'data': data})
+
+
+class CommunityContributionMetricsView(APIView):
+    """
+    Lean metrics-page view for community contribution rows and totals.
+
+    The generic /contributions/ endpoint serializes nested user/type/evidence
+    payloads for explorer pages. Metrics only needs the table fields below plus
+    aggregate totals, so this view keeps the query to scalar values.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    CATEGORY_SLUG = 'community'
+    ALLOWED_ORDERING = {
+        '-contribution_date',
+        'contribution_date',
+        '-frozen_global_points',
+        'frozen_global_points',
+    }
+
+    def _query_date(self, request, name):
+        value = request.query_params.get(name)
+        if not value:
+            return None
+        try:
+            parsed = parse_date(value)
+        except ValueError:
+            parsed = None
+        if parsed is None:
+            raise ValidationError({name: 'Must be YYYY-MM-DD.'})
+        return parsed
+
+    def _apply_date_filters(self, queryset, request):
+        start_date = self._query_date(request, 'start_date')
+        end_date = self._query_date(request, 'end_date')
+
+        if start_date:
+            queryset = queryset.filter(contribution_date__gte=day_start(start_date))
+
+        if end_date:
+            queryset = queryset.filter(
+                contribution_date__lt=day_start(end_date + timedelta(days=1))
+            )
+
+        return queryset
+
+    def get_queryset(self, request):
+        queryset = Contribution.objects.filter(
+            contribution_type__category__slug=self.CATEGORY_SLUG,
+        ).exclude(
+            contribution_type__slug__in=METRICS_POINTS_EXCLUDED_TYPE_SLUGS,
+        )
+
+        contribution_type_id = request.query_params.get('contribution_type')
+        if contribution_type_id:
+            try:
+                queryset = queryset.filter(contribution_type_id=int(contribution_type_id))
+            except (TypeError, ValueError):
+                raise ValidationError({'contribution_type': 'Must be an integer.'})
+
+        return self._apply_date_filters(queryset, request)
+
+    def get(self, request):
+        queryset = self.get_queryset(request)
+
+        ordering = request.query_params.get('ordering', '-contribution_date')
+        if ordering not in self.ALLOWED_ORDERING:
+            ordering = '-contribution_date'
+
+        totals = queryset.aggregate(
+            unique_contributors=Count('user_id', distinct=True),
+            points_awarded=Sum('frozen_global_points'),
+        )
+
+        row_queryset = queryset.order_by(ordering, '-id').values(
+            'id',
+            'title',
+            'contribution_date',
+            'frozen_global_points',
+            'user__name',
+            'user__address',
+            'contribution_type_id',
+            'contribution_type__name',
+            'contribution_type__slug',
+            'contribution_type__category__slug',
+        )
+
+        paginator = SafePageNumberPagination()
+        page = paginator.paginate_queryset(row_queryset, request, view=self)
+
+        results = [
+            {
+                'id': item['id'],
+                'title': item['title'],
+                'contribution_date': item['contribution_date'],
+                'frozen_global_points': item['frozen_global_points'],
+                'user_details': {
+                    'name': item['user__name'],
+                    'address': item['user__address'],
+                },
+                'contribution_type_details': {
+                    'id': item['contribution_type_id'],
+                    'name': item['contribution_type__name'],
+                    'slug': item['contribution_type__slug'],
+                    'category': item['contribution_type__category__slug'],
+                },
+            }
+            for item in page
+        ]
+
+        response = paginator.get_paginated_response(results)
+        response.data['totals'] = {
+            'contribution_count': response.data['count'],
+            'unique_contributors': totals['unique_contributors'] or 0,
+            'points_awarded': totals['points_awarded'] or 0,
+        }
+        return response
 
 
 class TestnetMetricsView(APIView):

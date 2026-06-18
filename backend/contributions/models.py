@@ -250,6 +250,11 @@ class Contribution(BaseModel):
 
     def __str__(self):
         return f"{self.user} - {self.contribution_type} - {self.points} points"
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['created_at'], name='contrib_created_idx'),
+        ]
     
     def clean(self):
         """
@@ -796,6 +801,11 @@ class SubmittedContribution(BaseModel):
         ordering = ['-created_at']
         verbose_name = "Submitted Contribution"
         verbose_name_plural = "Submitted Contributions"
+        indexes = [
+            models.Index(fields=['created_at'], name='sub_created_idx'),
+            models.Index(fields=['state', 'created_at'], name='sub_state_created_idx'),
+            models.Index(fields=['state', 'reviewed_at'], name='sub_state_reviewed_idx'),
+        ]
 
 
 class SubmissionNote(BaseModel):
