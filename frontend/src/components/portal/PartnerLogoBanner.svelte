@@ -12,9 +12,9 @@
       partners = data
         .map((partner) => ({
           ...partner,
-          marquee_logo_url: partner.overview_logo_url || '',
+          marqueeLogoUrl: partner.overview_logo_url || '',
         }))
-        .filter((partner) => partner.marquee_logo_url);
+        .filter((partner) => partner.marqueeLogoUrl);
     } catch (err) {
       partners = [];
     } finally {
@@ -53,7 +53,7 @@
                 class="logo-item"
                 aria-label={partner.name}
               >
-                <img src={partner.marquee_logo_url} alt={partner.name} loading={index >= evenRow.length ? 'lazy' : 'eager'} />
+                <img src={partner.marqueeLogoUrl} alt={partner.name} loading={index >= evenRow.length ? 'lazy' : 'eager'} />
               </a>
             {/each}
           </div>
@@ -68,7 +68,7 @@
                 class="logo-item"
                 aria-label={partner.name}
               >
-                <img src={partner.marquee_logo_url} alt={partner.name} loading={index >= oddRow.length ? 'lazy' : 'eager'} />
+                <img src={partner.marqueeLogoUrl} alt={partner.name} loading={index >= oddRow.length ? 'lazy' : 'eager'} />
               </a>
             {/each}
           </div>
