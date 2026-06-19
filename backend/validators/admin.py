@@ -83,8 +83,12 @@ class ValidatorAdmin(admin.ModelAdmin):
 
 @admin.register(ValidatorWallet)
 class ValidatorWalletAdmin(admin.ModelAdmin):
-    list_display = ('address', 'network', 'status', 'operator_address', 'operator', 'moniker', 'created_at')
-    list_filter = ('network', 'status', 'created_at')
+    list_display = (
+        'moniker', 'address', 'network', 'status', 'show_in_overview',
+        'overview_order', 'assets_under_management_usd', 'created_at',
+    )
+    list_editable = ('show_in_overview', 'overview_order', 'assets_under_management_usd')
+    list_filter = ('show_in_overview', 'network', 'status', 'created_at')
     search_fields = ('address', 'operator_address', 'moniker')
     ordering = ('-created_at',)
     readonly_fields = ('created_at', 'updated_at')
@@ -92,6 +96,10 @@ class ValidatorWalletAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {
             'fields': ('address', 'network', 'status', 'operator_address', 'operator')
+        }),
+        ('Overview showcase', {
+            'fields': ('show_in_overview', 'overview_order', 'assets_under_management_usd'),
+            'description': 'Hand-pick validators for the public overview and set their assets under management (USD).',
         }),
         ('Metadata', {
             'fields': ('moniker', 'logo_uri', 'website', 'description'),

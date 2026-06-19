@@ -28,10 +28,10 @@ class ProjectAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
         },
     }
 
-    list_display = ('title', 'slug', 'user', 'status', 'order', 'created_at')
-    list_filter = ('status', 'created_at')
+    list_display = ('title', 'slug', 'user', 'status', 'show_in_overview', 'order', 'created_at')
+    list_filter = ('status', 'show_in_overview', 'created_at')
     search_fields = ('title', 'slug', 'description', 'details', 'user__name', 'user__address')
-    list_editable = ('order', 'status')
+    list_editable = ('order', 'status', 'show_in_overview')
     raw_id_fields = ('user',)
     autocomplete_fields = ('participants', 'related_contributions')
     prepopulated_fields = {'slug': ('title',)}
@@ -49,7 +49,7 @@ class ProjectAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            'fields': ('title', 'slug', 'author', 'description', 'status', 'order'),
+            'fields': ('title', 'slug', 'author', 'description', 'status', 'show_in_overview', 'order'),
         }),
         ('Relations', {
             'fields': (

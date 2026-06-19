@@ -3,14 +3,24 @@
   import { projectsAPI } from '../../lib/api.js';
   import { resolvePortalLink } from '../../lib/links.js';
 
-  let { title = 'Featured Builds', subtitle = 'This month curated builds' } = $props();
+  let {
+    title = 'Featured Builds',
+    subtitle = 'This month curated builds',
+    overviewOnly = false,
+    limit = undefined,
+    variant = 'horizontal',
+  } = $props();
 
   let builds = $state([]);
   let loading = $state(true);
 
   onMount(async () => {
     try {
-      const response = await projectsAPI.list();
+      const params = {
+        ...(overviewOnly ? { show_in_overview: true } : {}),
+        ...(limit ? { limit } : {}),
+      };
+      const response = await projectsAPI.list(params);
       if (response.data && response.data.length > 0) {
         builds = response.data;
       }
@@ -23,11 +33,13 @@
 </script>
 
 {#if loading || builds.length > 0}
-<div>
+<div class:vertical-section={variant === 'vertical'}>
   <div class="flex items-end justify-between mb-3 gap-4">
     <div class="flex flex-col gap-1">
       <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: 0.4px;">{title}</h2>
-      <p class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">{subtitle}</p>
+      {#if subtitle}
+        <p class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">{subtitle}</p>
+      {/if}
     </div>
     <a
       href="/ecosystem-partners?tab=project"
@@ -39,22 +51,25 @@
   </div>
 
   {#if loading}
-    <div class="flex gap-[10px] overflow-x-auto pb-2">
-      {#each [1, 2, 3] as _}
-        <div class="flex-shrink-0 w-[300px] h-[150px] rounded-[8px] bg-[#f8f8f8] animate-pulse"></div>
+    <div class={variant === 'vertical' ? 'vertical-project-grid' : 'flex gap-[10px] overflow-x-auto pb-2'}>
+      {#each [1, 2, 3, 4, 5] as _}
+        <div class={variant === 'vertical' ? 'vertical-project-skeleton' : 'flex-shrink-0 w-[300px] h-[150px] rounded-[8px] bg-[#f8f8f8] animate-pulse'}></div>
       {/each}
     </div>
   {:else}
-    <div class="flex gap-[10px] overflow-x-auto pb-2" style="-ms-overflow-style: none; scrollbar-width: none;">
+    <div
+      class={variant === 'vertical' ? 'vertical-project-grid' : 'flex gap-[10px] overflow-x-auto pb-2'}
+      style={variant === 'vertical' ? '' : '-ms-overflow-style: none; scrollbar-width: none;'}
+    >
       {#each builds as build}
-        {@const projectLink = resolvePortalLink(build.link || build.view_url || build.url)}
+        {@const projectLink = resolvePortalLink(build.view_url || build.url || build.link)}
         {@const projectHref = projectLink.href}
         {@const isExternal = projectLink.external}
         <a
           href={projectHref}
           target={isExternal ? '_blank' : undefined}
           rel={isExternal ? 'noopener noreferrer' : undefined}
-          class="flex-shrink-0 w-[300px] h-[150px] rounded-[8px] overflow-hidden relative group cursor-pointer bg-[#f8f8f8]"
+          class={variant === 'vertical' ? 'vertical-project-card group' : 'flex-shrink-0 w-[300px] h-[150px] rounded-[8px] overflow-hidden relative group cursor-pointer bg-[#f8f8f8]'}
         >
           <!-- Background image -->
           {#if build.hero_image_url}
@@ -63,20 +78,16 @@
             <div class="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900"></div>
           {/if}
 
-          <!-- Dark gradient overlay matching Figma: from rgba(0,0,0,0.2) to rgba(0,0,0,0.5) -->
-          <div class="absolute inset-0 bg-gradient-to-b from-[rgba(0,0,0,0.2)] to-[rgba(0,0,0,0.5)]"></div>
+          <div class={variant === 'vertical' ? 'vertical-project-overlay' : 'absolute inset-0 bg-gradient-to-b from-[rgba(0,0,0,0.2)] to-[rgba(0,0,0,0.5)]'}></div>
 
-          <!-- Top-right arrow icon — always visible, frosted glass pill -->
-          <div class="absolute top-0 right-0 p-4 flex flex-col items-start h-full">
-            <div class="flex items-center p-2 rounded-[4px] backdrop-blur-[10px]" style="background: rgba(255,255,255,0.1);">
+          <div class={variant === 'vertical' ? 'vertical-project-arrow' : 'absolute top-0 right-0 p-4 flex flex-col items-start h-full'}>
+            <div class={variant === 'vertical' ? 'vertical-project-arrow-button' : 'flex items-center p-2 rounded-[4px] backdrop-blur-[10px]'} style={variant === 'vertical' ? '' : 'background: rgba(255,255,255,0.1);'}>
               <img src="/assets/featured-builds/arrow-right-up-line.svg" alt="" class="w-4 h-4">
             </div>
           </div>
 
-          <!-- Bottom content -->
-          <div class="absolute bottom-0 left-0 right-0 p-4 flex items-end justify-between">
+          <div class={variant === 'vertical' ? 'vertical-project-content' : 'absolute bottom-0 left-0 right-0 p-4 flex items-end justify-between'}>
             <div class="flex items-center gap-1">
-              <!-- Avatar -->
               {#if build.user_profile_image_url}
                 <img src={build.user_profile_image_url} alt="" class="w-10 h-10 rounded-full flex-shrink-0">
               {:else}
@@ -96,3 +107,113 @@
   {/if}
 </div>
 {/if}
+
+<style>
+  .vertical-section {
+    min-width: 0;
+  }
+
+  .vertical-project-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .vertical-project-card,
+  .vertical-project-skeleton {
+    border-radius: 8px;
+    min-height: 300px;
+    overflow: hidden;
+  }
+
+  .vertical-project-card {
+    background: #101010;
+    border: 1px solid #ececf0;
+    cursor: pointer;
+    display: block;
+    position: relative;
+  }
+
+  .vertical-project-card :global(img.absolute) {
+    transition: transform 260ms ease;
+  }
+
+  .vertical-project-card:hover :global(img.absolute) {
+    transform: scale(1.035);
+  }
+
+  .vertical-project-overlay {
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.18) 38%, rgba(0, 0, 0, 0.76) 100%);
+    inset: 0;
+    position: absolute;
+  }
+
+  .vertical-project-arrow {
+    padding: 12px;
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+
+  .vertical-project-arrow-button {
+    align-items: center;
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    display: flex;
+    height: 34px;
+    justify-content: center;
+    width: 34px;
+  }
+
+  .vertical-project-content {
+    bottom: 0;
+    left: 0;
+    padding: 16px;
+    position: absolute;
+    right: 0;
+  }
+
+  .vertical-project-skeleton {
+    animation: project-shimmer 1.4s ease-in-out infinite;
+    background: linear-gradient(90deg, #f2f3f5, #fbfbfc, #f2f3f5);
+    background-size: 200% 100%;
+  }
+
+  @keyframes project-shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  @media (max-width: 1180px) {
+    .vertical-project-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 720px) {
+    .vertical-project-grid {
+      display: flex;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+    }
+
+    .vertical-project-grid::-webkit-scrollbar {
+      display: none;
+    }
+
+    .vertical-project-card,
+    .vertical-project-skeleton {
+      flex: 0 0 72vw;
+      min-height: 280px;
+      scroll-snap-align: start;
+    }
+  }
+</style>

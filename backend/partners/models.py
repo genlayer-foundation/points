@@ -25,6 +25,11 @@ class Partner(BaseModel):
         help_text="Lower numbers appear first within their group.",
     )
     is_active = models.BooleanField(default=True)
+    show_in_overview = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Show this partner in the overview page logo marquee. Untick to hide it there.",
+    )
 
     class Meta:
         ordering = ['display_order', 'name']

@@ -483,6 +483,14 @@ Located in `.env` file:
 - `SORSA_API_KEY` - Sorsa API key sent in the `ApiKey` header (secret, required). Store in AWS SSM (`/tally/{env}/sorsa_api_key`) for production.
 - Note: the Sorsa request timeout and follow endpoint path are intentionally code constants in `social_tasks/sorsa_client.py`, not env vars. Changing the endpoint requires a code deploy anyway because the response parser lives in the same file.
 
+### Investor overview metrics (`api/overview_metrics.py` + `api/metrics_views.py`)
+The cron `POST /api/v1/metrics/overview/refresh/` (GitHub Action `sync-overview-metrics.yml`, every 15 min) runs `refresh_overview_metrics()`, which snapshots everything below into `MetricSnapshot`. `GET /api/v1/metrics/overview/` (portal counts, social, top validators) and `GET /api/v1/metrics/overview/network-activity/` (decisions/chain-tx chart) both read the latest snapshots — the network-activity view serves the stored `network_activity` snapshot (the full `{labels, series, totals}` payload in `raw_payload`), with a live build fallback before the first cron run; the refresh endpoint clears its cache so a new snapshot shows at once.
+- `STUDIO_METRICS_URL` - GenLayer Studio executive-metrics dashboard for the decisions/chain-tx series (default `https://studio-metrics-dashboard.vercel.app/api/metrics/executive`).
+- `OVERVIEW_TOP_VALIDATORS` - optional JSON array of curated validators; superseded by the per-wallet `ValidatorWallet.show_in_overview` + `assets_under_management_usd` admin fields when any are set.
+- `DEFILLAMA_FEES_RANK` / `DEFILLAMA_FEES_RANK_URL` - the DeFiLlama fees-rank value/source shown on the overview.
+- `DISCORD_BOT_TOKEN` + `DISCORD_GUILD_ID` (Discord members), `X_BEARER_TOKEN` + `X_METRICS_USERNAME` (X followers), `GITHUB_METRICS_REPO` + `GITHUB_METRICS_TOKEN` (boilerplate stars).
+- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` for the live Telegram member count, else `TELEGRAM_MEMBERS` as a curated fallback.
+
 **AWS Deployment:** For production deployments on AWS App Runner, all environment variables must be stored in AWS Systems Manager (SSM) Parameter Store. See `aws-deployment-guide.md` for setup instructions.
 
 ## Common Commands

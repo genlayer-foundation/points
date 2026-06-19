@@ -53,6 +53,10 @@ class Project(BaseModel):
         related_name='participating_projects',
     )
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    show_in_overview = models.BooleanField(
+        default=False,
+        help_text='Show this project in the portal overview featured projects section.',
+    )
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -83,8 +87,9 @@ class Project(BaseModel):
         view_url = (self.view_url or '').strip()
         if view_url:
             return view_url
-        if self.url:
-            return self.url
+        url = (self.url or '').strip()
+        if url:
+            return url
         if self.slug:
             return f"/builders/projects/{self.slug}"
         return None

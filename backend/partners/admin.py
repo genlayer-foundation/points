@@ -25,17 +25,18 @@ class PartnerAdmin(BroadcastNotificationAdminMixin, CloudinaryUploadMixin, admin
         'name',
         'display_order',
         'is_active',
+        'show_in_overview',
         'website_url',
         'created_at',
     )
-    list_editable = ('display_order', 'is_active')
-    list_filter = ('is_active',)
+    list_editable = ('display_order', 'is_active', 'show_in_overview')
+    list_filter = ('is_active', 'show_in_overview')
     search_fields = ('name', 'description')
     prepopulated_fields = {'slug': ('name',)}
     readonly_fields = ('created_at', 'updated_at', 'logo_public_id')
     fieldsets = (
         (None, {
-            'fields': ('name', 'slug', 'description', 'is_active'),
+            'fields': ('name', 'slug', 'description', 'is_active', 'show_in_overview'),
         }),
         ('URLs', {
             'fields': ('logo_url', 'website_url', 'url'),

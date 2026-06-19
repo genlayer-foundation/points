@@ -14,6 +14,12 @@ from .serializers import (
 )
 
 
+def _as_bool(value):
+    if value is None:
+        return None
+    return str(value).lower() in {'1', 'true', 'yes', 'on'}
+
+
 class ProjectViewSet(viewsets.ReadOnlyModelViewSet):
     """Public read-only API for project profiles."""
 
@@ -22,7 +28,7 @@ class ProjectViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'slug'
 
     def get_queryset(self):
-        return (
+        queryset = (
             Project.objects
             .filter(status=Project.STATUS_ACTIVE)
             .select_related('user')
@@ -35,6 +41,18 @@ class ProjectViewSet(viewsets.ReadOnlyModelViewSet):
             )
             .order_by('order', '-created_at')
         )
+        show_in_overview = _as_bool(self.request.query_params.get('show_in_overview'))
+        if show_in_overview is not None:
+            queryset = queryset.filter(show_in_overview=show_in_overview)
+
+        try:
+            limit = int(self.request.query_params.get('limit', 0))
+        except (TypeError, ValueError):
+            limit = 0
+        if limit > 0:
+            queryset = queryset[:min(limit, 50)]
+
+        return queryset
 
     def get_serializer_class(self):
         if self.action == 'retrieve':

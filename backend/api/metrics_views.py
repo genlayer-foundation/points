@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, status
 from rest_framework.exceptions import ValidationError
+from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Count, Min, Sum
 from django.utils import timezone
@@ -14,8 +15,135 @@ from contributions.constants import METRICS_POINTS_EXCLUDED_TYPE_SLUGS
 from contributions.models import Contribution, ContributionType
 from utils.dates import day_start
 from utils.pagination import SafePageNumberPagination
+from validators.permissions import IsCronToken
+from .overview_metrics import (
+    build_network_activity,
+    get_portal_counts,
+    get_top_validators,
+    latest_network_activity,
+    latest_overview_snapshots,
+    refresh_overview_metrics,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _overview_count_metric(metric_key, label, value):
+    return {
+        'metric_key': metric_key,
+        'source': 'portal',
+        'label': label,
+        'value': value,
+        'unit': 'count',
+        'observed_at': timezone.now(),
+        'dimensions': {},
+        'status': 'ok',
+        'error': '',
+    }
+
+
+class OverviewMetricsView(APIView):
+    """
+    Public investor overview payload.
+
+    External/social metrics are read from MetricSnapshot so the public page does
+    not block on Discord, X, GitHub, explorer, or DeFiLlama response times.
+    Portal cohorts and top validators are cheap local reads and stay live.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        snapshots = latest_overview_snapshots()
+        counts = get_portal_counts()
+        metrics = {
+            'decisions_made': snapshots.get('decisions_made'),
+            'chain_transactions': snapshots.get('chain_transactions'),
+            'builders': _overview_count_metric('builders', 'Builders', counts['builders']),
+            'validators': _overview_count_metric('validators', 'Validators', counts['validators']),
+            'community_members': _overview_count_metric(
+                'community_members',
+                'Community members',
+                counts['community_members'],
+            ),
+            'contributions': _overview_count_metric('contributions', 'Contributions', counts['contributions']),
+            'discord_members': snapshots.get('discord_members'),
+            'telegram_members': snapshots.get('telegram_members'),
+            'x_followers': snapshots.get('x_followers'),
+            'github_boilerplate_stars': snapshots.get('github_boilerplate_stars'),
+            'defillama_fees_rank': snapshots.get('defillama_fees_rank'),
+        }
+        return Response({
+            'metrics': metrics,
+            'top_validators': get_top_validators(limit=4),
+            'generated_at': timezone.now(),
+        })
+
+
+class RefreshOverviewMetricsView(APIView):
+    """Cron-protected snapshot refresh for the overview metrics."""
+    authentication_classes = []
+    permission_classes = [IsCronToken]
+
+    def post(self, request):
+        results = refresh_overview_metrics()
+        # Drop the network-activity cache so the freshly-persisted snapshot is
+        # served on the next request instead of stale cached data.
+        cache.delete(NetworkActivityView.CACHE_KEY)
+        return Response({
+            'count': len(results),
+            'metrics': [
+                {
+                    'metric_key': item.metric_key,
+                    'source': item.source,
+                    'status': item.status,
+                    'observed_at': item.observed_at,
+                }
+                for item in results
+            ],
+        }, status=status.HTTP_202_ACCEPTED)
+
+
+class NetworkActivityView(APIView):
+    """
+    Overview-chart payload: weekly decisions across Studio + the two testnets,
+    plus all-time totals and the DeFiLlama rank.
+
+    Served from the latest ``network_activity`` MetricSnapshot that the 15-minute
+    cron (``refresh_overview_metrics``) persists, so the public page reads from the
+    DB instead of doing a live three-API fetch. Falls back to a one-off live build
+    only before the first cron run (so the page is never empty). The cron's refresh
+    endpoint drops ``CACHE_KEY`` on completion, so a new snapshot is reflected at
+    once; otherwise the short TTL just smooths repeated reads between cron runs.
+    """
+    permission_classes = [permissions.AllowAny]
+    CACHE_KEY = 'overview_network_activity_weekly_v1'
+    CACHE_TTL_SECONDS = 120
+
+    def get(self, request):
+        cached = cache.get(self.CACHE_KEY)
+        if cached is not None:
+            return Response(cached)
+
+        payload = latest_network_activity()
+        if payload is None:
+            # No snapshot yet (before the first cron run) — build once live, but
+            # never let an upstream failure 500 the public page or show 0 totals.
+            try:
+                payload = build_network_activity()
+            except Exception:
+                logger.exception('Network activity live fallback failed')
+                payload = None
+            if not payload or not payload.get('series'):
+                payload = {
+                    'labels': [],
+                    'series': [],
+                    'interval': 'week',
+                    'totals': {'decisions_made': None, 'chain_transactions': None, 'defillama_fees_rank': None},
+                }
+            payload['generated_at'] = timezone.now().isoformat()
+
+        cache.set(self.CACHE_KEY, payload, self.CACHE_TTL_SECONDS)
+        return Response(payload)
 
 
 class ActiveValidatorsView(APIView):
