@@ -11,6 +11,16 @@ class Partner(BaseModel):
     description = models.TextField(blank=True)
     logo_url = models.URLField(max_length=500, blank=True, help_text="Cloudinary URL for partner logo.")
     logo_public_id = models.CharField(max_length=255, blank=True, help_text="Cloudinary public ID for partner logo.")
+    overview_logo_url = models.URLField(
+        max_length=500,
+        blank=True,
+        help_text="Cloudinary URL for the partner logo used in the overview marquee.",
+    )
+    overview_logo_public_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Cloudinary public ID for the overview marquee logo.",
+    )
     website_url = models.URLField(
         max_length=500,
         help_text="Official website (primary redirect target).",
@@ -25,6 +35,11 @@ class Partner(BaseModel):
         help_text="Lower numbers appear first within their group.",
     )
     is_active = models.BooleanField(default=True)
+    show_in_overview = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Show this partner in the overview page logo marquee. Untick to hide it there.",
+    )
 
     class Meta:
         ordering = ['display_order', 'name']

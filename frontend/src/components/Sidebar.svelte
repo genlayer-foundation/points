@@ -487,13 +487,13 @@
         </button>
       </div>
 
-      <!-- Ecosystem Partners -->
+      <!-- Ecosystem -->
       <div>
         <button
           onclick={() => changeCategory('partners', '/ecosystem-partners')}
           class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px] {getActiveSection() === 'partners' ? '' : 'hover:bg-[#eeedfb]'}"
           style={getActiveSection() === 'partners' ? 'background: #eeedfb;' : ''}
-          title={collapsed ? 'Ecosystem Partners' : ''}
+          title={collapsed ? 'Ecosystem' : ''}
         >
           <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={getActiveSection() === 'partners' ? '#6D5DD3' : '#1a1a1a'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="6" cy="6" r="2.5" />
@@ -504,7 +504,7 @@
             <line x1="16.6" y1="8.2" x2="13" y2="15.6" />
           </svg>
           {#if !collapsed}
-            <span>Ecosystem Partners</span>
+            <span>Ecosystem</span>
           {/if}
         </button>
       </div>
@@ -927,7 +927,7 @@
         <span>Genesis</span>
       </button>
 
-      <!-- Ecosystem Partners (mobile) -->
+      <!-- Ecosystem (mobile) -->
       <button
         onclick={() => changeCategory('partners', '/ecosystem-partners')}
         class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px]"
@@ -941,7 +941,7 @@
           <line x1="7.4" y1="8.2" x2="11" y2="15.6" />
           <line x1="16.6" y1="8.2" x2="13" y2="15.6" />
         </svg>
-        <span>Ecosystem Partners</span>
+        <span>Ecosystem</span>
       </button>
 
       <!-- Gen TV (mobile) -->

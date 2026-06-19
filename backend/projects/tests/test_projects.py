@@ -75,7 +75,58 @@ class ProjectAPITest(TestCase):
         payload = response.json()
         slugs = {item['slug'] for item in payload}
         self.assertEqual(slugs, {active.slug})
-        self.assertEqual(payload[0]['link'], f'/builders/projects/{active.slug}')
+        self.assertEqual(payload[0]['view_url'], '')
+        self.assertEqual(payload[0]['link'], active.url)
+        self.assertFalse(payload[0]['show_in_overview'])
+
+    def test_project_list_uses_view_url_as_click_target_when_present(self):
+        project = self.create_project(view_url='/builders/projects/cognocracy')
+
+        response = self.client.get('/api/v1/projects/')
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()[0]
+        self.assertEqual(payload['slug'], project.slug)
+        self.assertEqual(payload['view_url'], '/builders/projects/cognocracy')
+        self.assertEqual(payload['url'], 'https://cognocracy.example.com')
+        self.assertEqual(payload['link'], '/builders/projects/cognocracy')
+
+    def test_project_list_uses_direct_url_when_view_url_is_blank(self):
+        project = self.create_project(view_url='', url='https://direct.example.com')
+
+        response = self.client.get('/api/v1/projects/')
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()[0]
+        self.assertEqual(payload['slug'], project.slug)
+        self.assertEqual(payload['view_url'], '')
+        self.assertEqual(payload['url'], 'https://direct.example.com')
+        self.assertEqual(payload['link'], 'https://direct.example.com')
+
+    def test_project_list_uses_slug_detail_route_when_url_is_blank(self):
+        project = self.create_project(url='')
+
+        response = self.client.get('/api/v1/projects/')
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()[0]
+        self.assertEqual(payload['slug'], project.slug)
+        self.assertEqual(payload['view_url'], '')
+        self.assertEqual(payload['url'], '')
+        self.assertEqual(payload['link'], f'/builders/projects/{project.slug}')
+
+    def test_project_list_can_filter_and_limit_overview_projects(self):
+        selected_a = self.create_project(title='Selected A', show_in_overview=True, order=1)
+        selected_b = self.create_project(title='Selected B', show_in_overview=True, order=2)
+        self.create_project(title='Selected C', show_in_overview=True, order=3)
+        self.create_project(title='Not Selected', show_in_overview=False, order=0)
+        self.create_project(title='Idle Selected', show_in_overview=True, status=Project.STATUS_IDLE)
+
+        response = self.client.get('/api/v1/projects/?show_in_overview=true&limit=2')
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual([item['slug'] for item in payload], [selected_a.slug, selected_b.slug])
 
     def test_project_detail_includes_related_contributions(self):
         project = self.create_project(github_url='https://github.com/example/cognocracy')
@@ -237,7 +288,7 @@ class ProjectAPITest(TestCase):
         self.assertEqual(project.demo_url, 'https://youtu.be/dQw4w9WgXcQ')
         self.assertEqual(project.participants.count(), 2)
         self.assertEqual(project.related_contributions.count(), 1)
-        self.assertEqual(
+        self.assertCountEqual(
             [participant['name'] for participant in response.json()['participants']],
             ['Project Builder', 'Participant Builder'],
         )

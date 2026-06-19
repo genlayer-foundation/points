@@ -4,6 +4,11 @@
   import { projectsAPI } from '../lib/api.js';
   import { setPageMeta } from '../lib/meta.js';
   import { truncateMetaDescription } from '../lib/metaHelpers.js';
+  import {
+    getProjectLinkDisplayUrl,
+    getProjectLinkLabel,
+    getProjectLinkType,
+  } from '../lib/projectLinks.js';
   import ProjectPageRenderer from '../components/projects/ProjectPageRenderer.svelte';
 
   /** @type {{ params?: { slug?: string } }} */
@@ -98,7 +103,7 @@
       const key = `${label}:${url}`.toLowerCase();
       if (seen.has(key)) return;
       seen.add(key);
-      links.push({ label, url, type: getLinkType(label, url) });
+      links.push({ label, url, type: getProjectLinkType(label, url) });
     }
 
     add('Website', project?.url);
@@ -109,75 +114,8 @@
     return links;
   }
 
-  function parseProjectUrl(rawUrl) {
-    if (!rawUrl) return null;
-    try {
-      return new URL(rawUrl);
-    } catch {
-      try {
-        return new URL(`https://${rawUrl}`);
-      } catch {
-        return null;
-      }
-    }
-  }
-
-  function getLinkType(label, url) {
-    const value = `${label || ''} ${url || ''}`.toLowerCase();
-    if (value.includes('github.com') || value.includes('github')) return 'github';
-    if (value.includes('x.com') || value.includes('twitter.com') || value.includes('twitter') || value.includes(' x')) return 'x';
-    if (value.includes('t.me') || value.includes('telegram')) return 'telegram';
-    if (value.includes('discord')) return 'discord';
-    return 'website';
-  }
-
-  function getDisplayUrl(link) {
-    const rawUrl = link?.url || '';
-    if (!rawUrl) return '';
-
-    const url = parseProjectUrl(rawUrl);
-    if (url) {
-      const host = url.hostname.replace(/^www\./, '');
-      const pathParts = url.pathname.split('/').filter(Boolean);
-
-      if (link.type === 'x' || host === 'twitter.com' || host === 'x.com') {
-        const handle = pathParts[0] || '';
-        return handle && !['i', 'intent', 'share'].includes(handle.toLowerCase()) ? `@${handle}` : host;
-      }
-
-      if (link.type === 'telegram' || host === 't.me' || host === 'telegram.me') {
-        return pathParts[0] ? `@${pathParts[0]}` : host;
-      }
-
-      if (link.type === 'discord') {
-        if (host === 'discord.gg') return pathParts[0] || host;
-        if (host.includes('discord.com') && pathParts[0] === 'invite') return pathParts[1] || host;
-        if (host.includes('discord.com') && pathParts[0] === 'channels') return pathParts[1] || host;
-        return pathParts[0] || host;
-      }
-
-      if (link.type === 'github') {
-        return pathParts[0] || host;
-      }
-
-      return host;
-    }
-
-    return rawUrl.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
-  }
-
-  function getLinkLabel(link) {
-    return {
-      website: 'Website',
-      x: 'X',
-      telegram: 'Telegram',
-      discord: 'Discord',
-      github: 'GitHub',
-    }[link.type] || link.label || 'Link';
-  }
-
   function getHeroClass() {
-    return 'relative min-h-[360px] bg-[#111827] sm:min-h-[340px] lg:min-h-[320px]';
+    return 'relative aspect-[3/4] bg-[#111827] sm:aspect-[15/7] lg:aspect-[40/13]';
   }
 </script>
 
@@ -310,14 +248,14 @@
                       target="_blank"
                       rel="noopener noreferrer"
                       class="group relative inline-flex h-11 max-w-full items-center gap-2.5 overflow-hidden rounded-full border border-white/35 bg-black/48 px-4 text-white shadow-[0_22px_54px_rgba(0,0,0,0.36)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-white/55 hover:bg-black/56"
-                      aria-label={`${getLinkLabel(link)}: ${getDisplayUrl(link)}`}
+                      aria-label={`${getProjectLinkLabel(link)}: ${getProjectLinkDisplayUrl(link, project)}`}
                     >
                       <span class="pointer-events-none absolute inset-0 bg-[linear-gradient(145deg,rgba(255,255,255,0.22),rgba(255,255,255,0.05)_42%,rgba(0,0,0,0.24)_100%)]"></span>
                       <span class="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/72"></span>
                       <span class="pointer-events-none absolute -right-8 -top-10 h-20 w-20 rounded-full bg-[#ee8521]/18 blur-2xl transition group-hover:bg-[#ee8521]/26"></span>
                       <span class="relative shrink-0 text-white/92 [filter:drop-shadow(0_1px_8px_rgba(0,0,0,0.52))]">{@render linkIcon(link.type)}</span>
                       <span class="relative min-w-0 max-w-[210px] truncate text-[14px] font-semibold leading-5 text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.52)]">
-                        {getDisplayUrl(link)}
+                        {getProjectLinkDisplayUrl(link, project)}
                       </span>
                     </a>
                     {/each}

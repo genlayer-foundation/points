@@ -57,6 +57,7 @@ describe('ProjectDetail', () => {
         ...baseProject,
         github_url: 'https://github.com/example/cognocracy',
         x_url: 'https://x.com/cognocracy',
+        discord_url: 'https://discord.gg/abc123',
         demo_url: 'https://youtu.be/dQw4w9WgXcQ',
         details: [
           'A detailed project profile.',
@@ -104,13 +105,31 @@ describe('ProjectDetail', () => {
       expect(screen.getAllByText('Project Builder').length).toBeGreaterThan(0);
     });
 
-    expect(screen.getByRole('link', { name: /GitHub: example/i })).toBeDefined();
+    expect(screen.getByRole('link', { name: /GitHub: cognocracy/i })).toBeDefined();
     expect(screen.getByRole('link', { name: /X: @cognocracy/i })).toBeDefined();
+    expect(screen.getByRole('link', { name: /Discord: Cognocracy/i })).toBeDefined();
     expect(screen.getAllByText('Demo').length).toBeGreaterThan(0);
     expect(screen.getByText('A detailed project profile.')).toBeDefined();
     expect(screen.getByAltText('Product dashboard')).toBeDefined();
     expect(screen.getByText('Product dashboard')).toBeDefined();
     expect(screen.getByTitle('Product walkthrough')).toBeDefined();
     expect(screen.getByText('Demo walkthrough')).toBeDefined();
+  });
+
+  it('shows a GitHub username for project-wide GitHub URLs', async () => {
+    getProjectMock.mockResolvedValueOnce({
+      data: {
+        ...baseProject,
+        github_url: 'https://github.com/example',
+      }
+    });
+
+    renderWithEffects(ProjectDetail, { props: { params: { slug: 'cognocracy' } } });
+
+    await waitForApiCall(projectsAPI.get, 'cognocracy');
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /GitHub: example/i })).toBeDefined();
+    });
   });
 });

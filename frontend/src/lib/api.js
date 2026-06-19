@@ -163,6 +163,12 @@ export const statsAPI = {
   }
 };
 
+// Metrics API
+export const metricsAPI = {
+  getOverview: () => api.get('/metrics/overview/'),
+  getNetworkActivity: () => api.get('/metrics/overview/network-activity/'),
+};
+
 // Validators API
 export const validatorsAPI = {
   getNewestValidators: (limit = 5) => api.get('/validators/newest/', { params: { limit } }),
@@ -346,7 +352,7 @@ export const featuredAPI = {
 
 // Project profile API
 export const projectsAPI = {
-  list: () => api.get('/projects/'),
+  list: (params) => api.get('/projects/', { params }),
   /** @param {string} slug */
   get: (slug) => api.get(`/projects/${slug}/`),
   /** @param {string} slug @param {Record<string, any>} data */

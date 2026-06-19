@@ -51,6 +51,19 @@ class ValidatorWallet(BaseModel):
     v_stake = models.CharField(max_length=78, blank=True)  # Self stake
     d_stake = models.CharField(max_length=78, blank=True)  # Delegated stake
 
+    # Overview showcase: hand-pick which validators appear on the public overview
+    # and set their assets under management (USD). Edited in admin; not touched by
+    # the on-chain sync, so the curated values survive every sync run.
+    show_in_overview = models.BooleanField(default=False, db_index=True)
+    overview_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Lower numbers appear first in the overview validators panel.",
+    )
+    assets_under_management_usd = models.DecimalField(
+        max_digits=20, decimal_places=2, null=True, blank=True,
+        help_text="Assets under management in USD, shown on the overview (e.g. 42600000 → $42.6M).",
+    )
+
     # Grafana observability status (Wall of Shame). Synced by a 5-min cron that
     # mirrors the GenLayer Foundation Grafana dashboard: 'on' if the node
     # reported in the last 5 min, 'shame' if it didn't, 'unknown' before the

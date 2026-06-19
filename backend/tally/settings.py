@@ -263,6 +263,7 @@ GITHUB_REPO_TO_STAR = os.environ.get('GITHUB_REPO_TO_STAR', 'genlayerlabs/genlay
 TWITTER_CLIENT_ID = os.environ.get('TWITTER_CLIENT_ID', '')
 TWITTER_CLIENT_SECRET = os.environ.get('TWITTER_CLIENT_SECRET', '')
 TWITTER_REDIRECT_URI = os.environ.get('TWITTER_REDIRECT_URI', f"{BACKEND_URL}/api/auth/twitter/callback/")
+X_METRICS_USERNAME = os.environ.get('X_METRICS_USERNAME', 'GenLayer')
 
 # Discord OAuth settings
 DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', '')
@@ -277,6 +278,19 @@ DISCORD_MANUAL_ROLE_SYNC_COOLDOWN_SECONDS = int(
 DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS = int(
     os.environ.get('DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS', '30')
 )
+
+# Investor overview metrics
+GITHUB_METRICS_REPO = os.environ.get('GITHUB_METRICS_REPO', GITHUB_REPO_TO_STAR)
+GITHUB_METRICS_TOKEN = os.environ.get('GITHUB_METRICS_TOKEN', '')
+DEFILLAMA_FEES_RANK = os.environ.get('DEFILLAMA_FEES_RANK', '')
+DEFILLAMA_FEES_RANK_URL = os.environ.get('DEFILLAMA_FEES_RANK_URL', 'https://defillama.com/fees/chains')
+OVERVIEW_TOP_VALIDATORS = os.environ.get('OVERVIEW_TOP_VALIDATORS', '')
+# Telegram members: a bot reads the live count when both are set, else fall back to a curated number.
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
+TELEGRAM_MEMBERS = os.environ.get('TELEGRAM_MEMBERS', '')
+# GenLayer Studio executive metrics dashboard (decisions/chain-tx time series for the overview chart).
+STUDIO_METRICS_URL = os.environ.get('STUDIO_METRICS_URL', 'https://studio-metrics-dashboard.vercel.app/api/metrics/executive')
 
 # Shared social connection encryption key (falls back to GitHub key for backward compat)
 SOCIAL_ENCRYPTION_KEY = os.environ.get('SOCIAL_ENCRYPTION_KEY', '') or GITHUB_ENCRYPTION_KEY

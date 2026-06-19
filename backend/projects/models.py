@@ -34,6 +34,7 @@ class Project(BaseModel):
     hero_image_mobile_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for mobile hero image')
     user_profile_image_url = models.URLField(max_length=500, blank=True, help_text='Cloudinary URL for project author image')
     user_profile_image_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for project author image')
+    view_url = models.CharField(max_length=500, blank=True, help_text='Optional dedicated Portal view URL for selected projects')
     url = models.URLField(max_length=500, blank=True, help_text='Project website or demo URL')
     github_url = models.URLField(max_length=500, blank=True)
     x_url = models.URLField(max_length=500, blank=True)
@@ -52,6 +53,10 @@ class Project(BaseModel):
         related_name='participating_projects',
     )
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    show_in_overview = models.BooleanField(
+        default=False,
+        help_text='Show this project in the portal overview featured projects section.',
+    )
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -79,9 +84,15 @@ class Project(BaseModel):
         super().save(*args, **kwargs)
 
     def get_link(self):
+        view_url = (self.view_url or '').strip()
+        if view_url:
+            return view_url
+        url = (self.url or '').strip()
+        if url:
+            return url
         if self.slug:
             return f"/builders/projects/{self.slug}"
-        return self.url or None
+        return None
 
     def can_be_edited_by(self, user):
         if not user or not user.is_authenticated:

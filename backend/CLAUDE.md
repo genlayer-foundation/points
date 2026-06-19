@@ -479,9 +479,17 @@ Located in `.env` file:
 - `GRAFANA_PROM_DS_UID` - Prometheus datasource UID (default `grafanacloud-prom`)
 - `GRAFANA_LOKI_DS_UID` - Loki datasource UID (default `grafanacloud-logs`)
 - `GRAFANA_ASIMOV_LABEL` / `GRAFANA_BRADBURY_LABEL` - Override the `network` label values Grafana queries use per testnet (defaults: `asimov-phase5`, `bradbury-phase1`)
-- `SORSA_API_BASE_URL` - Sorsa API base URL (default `https://api.sorsa.io/v3`); used for Twitter follow verification in social_tasks
+- `SORSA_API_BASE_URL` - Sorsa API base URL (default `https://api.sorsa.io/v3`); used for Twitter follow verification in social_tasks and X follower counts in overview metrics.
 - `SORSA_API_KEY` - Sorsa API key sent in the `ApiKey` header (secret, required). Store in AWS SSM (`/tally/{env}/sorsa_api_key`) for production.
 - Note: the Sorsa request timeout and follow endpoint path are intentionally code constants in `social_tasks/sorsa_client.py`, not env vars. Changing the endpoint requires a code deploy anyway because the response parser lives in the same file.
+
+### Investor overview metrics (`api/overview_metrics.py` + `api/metrics_views.py`)
+The cron `POST /api/v1/metrics/overview/refresh/` (GitHub Action `sync-overview-metrics.yml`, every 15 min) runs `refresh_overview_metrics()`, which snapshots the source metrics below and then stores final composite payloads in `MetricSnapshot`: `overview_payload` for `GET /api/v1/metrics/overview/` and `network_activity` for `GET /api/v1/metrics/overview/network-activity/`. Public overview reads return the last stored aggregate from the DB and do not live-fetch Studio, explorers, Discord, Telegram, X, or GitHub.
+- `STUDIO_METRICS_URL` - GenLayer Studio executive-metrics dashboard for the decisions/chain-tx series (default `https://studio-metrics-dashboard.vercel.app/api/metrics/executive`).
+- `OVERVIEW_TOP_VALIDATORS` - optional JSON array of curated validators; superseded by the per-wallet `ValidatorWallet.show_in_overview` + `assets_under_management_usd` admin fields when any are set.
+- `DEFILLAMA_FEES_RANK` / `DEFILLAMA_FEES_RANK_URL` - the DeFiLlama fees-rank value/source shown on the overview.
+- `DISCORD_BOT_TOKEN` + `DISCORD_GUILD_ID` (Discord members), `SORSA_API_KEY` + `X_METRICS_USERNAME` (X followers), `GITHUB_METRICS_REPO` + `GITHUB_METRICS_TOKEN` (boilerplate stars).
+- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` for the live Telegram member count, else `TELEGRAM_MEMBERS` or the built-in `13300` curated fallback.
 
 **AWS Deployment:** For production deployments on AWS App Runner, all environment variables must be stored in AWS Systems Manager (SSM) Parameter Store. See `aws-deployment-guide.md` for setup instructions.
 
