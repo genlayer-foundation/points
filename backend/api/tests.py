@@ -508,6 +508,46 @@ class OverviewMetricsViewTests(TestCase):
         refresh_mock.assert_called_once()
 
 
+class OverviewMetricCollectorTests(TestCase):
+    @override_settings(SORSA_API_KEY='sorsa-secret', SORSA_API_BASE_URL='https://sorsa.test/v3', X_METRICS_USERNAME='GenLayer')
+    @patch('api.overview_metrics.requests.get')
+    def test_collect_x_followers_uses_sorsa_profile_api(self, mock_get):
+        from api.overview_metrics import collect_x_followers
+
+        class FakeResponse:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {'users': [{'username': 'GenLayer', 'followers_count': 42420}]}
+
+        mock_get.return_value = FakeResponse()
+
+        snap = collect_x_followers()
+
+        self.assertEqual(snap.metric_key, 'x_followers')
+        self.assertEqual(snap.source, 'sorsa')
+        self.assertEqual(float(snap.value), 42420.0)
+        mock_get.assert_called_once_with(
+            'https://sorsa.test/v3/info-batch',
+            params={'usernames': ['GenLayer']},
+            headers={'ApiKey': 'sorsa-secret', 'Accept': 'application/json'},
+            timeout=12,
+        )
+
+    @override_settings(TELEGRAM_BOT_TOKEN='', TELEGRAM_CHAT_ID='', TELEGRAM_MEMBERS='')
+    @patch('api.overview_metrics.requests.get')
+    def test_collect_telegram_members_defaults_to_curated_value_without_bot_token(self, mock_get):
+        from api.overview_metrics import collect_telegram_members
+
+        snap = collect_telegram_members()
+
+        self.assertEqual(snap.metric_key, 'telegram_members')
+        self.assertEqual(float(snap.value), 13300.0)
+        self.assertEqual(snap.dimensions, {'fallback': 'bot_token_missing'})
+        mock_get.assert_not_called()
+
+
 class NetworkActivityViewTests(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -541,13 +581,12 @@ class NetworkActivityViewTests(TestCase):
             ]})
         if 'kpi-histories' in url:
             base = int(datetime(2026, 5, 25, tzinfo=dt_timezone.utc).timestamp())
+            base_value = 200 if (params or {}).get('metric') == 'total_rollup_transactions' else 100
             return FakeResp({'histories': [
-                {'timestamp': base + i * 86400, 'metric': 'total_finalized_transactions',
-                 'interval': 'D1', 'value': str(100 + i)}
+                {'timestamp': base + i * 86400, 'metric': (params or {}).get('metric'),
+                 'interval': 'D1', 'value': str(base_value + i)}
                 for i in range(26)
             ]})
-        if 'general-kpis' in url:
-            return FakeResp({'total_finalized_transactions': 200, 'total_rollup_transactions': 900})
         return FakeResp({}, ok=False)
 
     @patch('api.overview_metrics.requests.get')
@@ -559,25 +598,35 @@ class NetworkActivityViewTests(TestCase):
         resp = self.client.get('/api/v1/metrics/overview/network-activity/')
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data['version'], 3)
         self.assertEqual(resp.data['interval'], 'week')
         self.assertEqual([s['key'] for s in resp.data['series']], ['studio', 'asimov', 'bradbury'])
-        self.assertEqual(resp.data['labels'], ['May 25-31', 'Jun 1-7', 'Jun 8-14', 'Jun 15-21'])
+        self.assertEqual(resp.data['labels'], ['May 22-29', 'May 29 - Jun 5', 'Jun 5-12', 'Jun 12-19'])
         for s in resp.data['series']:
             self.assertEqual(len(s['values']), 4)
-        self.assertEqual(resp.data['series'][0]['values'], [28, 77, 126, 120])
-        self.assertEqual(resp.data['series'][1]['values'], [721, 770, 819, 615])
-        # studio all-time 1000 + asimov 200 + bradbury 200
-        self.assertEqual(resp.data['totals']['decisions_made'], 1400)
-        # studio chain 5000 + asimov 900 + bradbury 900
-        self.assertEqual(resp.data['totals']['chain_transactions'], 6800)
-        self.assertEqual(resp.data['totals']['defillama_fees_rank'], 15.0)
+        self.assertEqual(resp.data['series'][0]['values'], [15, 63, 112, 161])
+        self.assertEqual(resp.data['series'][1]['values'], [510, 756, 805, 854])
+        self.assertEqual(resp.data['latest_week']['label'], 'Jun 12-19')
+        self.assertEqual(resp.data['totals']['decisions_made'], 1869)
+        self.assertEqual(resp.data['totals']['chain_transactions'], 3269)
+        self.assertEqual(resp.data['totals']['daily_decisions_made'], 267)
+        self.assertEqual(resp.data['totals']['daily_chain_transactions'], 467)
+        self.assertAlmostEqual(resp.data['totals']['transactions_per_second'], 3269 / (7 * 24 * 60 * 60))
         studio_call = next(call for call in mock_get.call_args_list if 'executive' in call.args[0])
         self.assertEqual(studio_call.kwargs['params'], {'instanceId': 'all', 'range': 'quarter'})
         history_calls = [call for call in mock_get.call_args_list if 'kpi-histories' in call.args[0]]
-        self.assertEqual(len(history_calls), 2)
+        self.assertEqual(len(history_calls), 4)
+        self.assertEqual(
+            sorted(call.kwargs['params']['metric'] for call in history_calls),
+            [
+                'total_finalized_transactions',
+                'total_finalized_transactions',
+                'total_rollup_transactions',
+                'total_rollup_transactions',
+            ],
+        )
         expected_from = int(self.fixed_now.timestamp()) - 84 * 86400
         for call in history_calls:
-            self.assertEqual(call.kwargs['params']['metric'], 'total_finalized_transactions')
             self.assertEqual(call.kwargs['params']['interval'], 'D1')
             self.assertEqual(call.kwargs['params']['from_timestamp'], expected_from)
             self.assertEqual(call.kwargs['params']['to_timestamp'], int(self.fixed_now.timestamp()))
@@ -595,7 +644,27 @@ class NetworkActivityViewTests(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual([s['key'] for s in resp.data['series']], ['asimov', 'bradbury'])
         # only the two testnets contribute to totals now
-        self.assertEqual(resp.data['totals']['decisions_made'], 400)
+        self.assertEqual(resp.data['totals']['decisions_made'], 1708)
+        self.assertEqual(resp.data['totals']['daily_decisions_made'], 244)
+
+    @patch('api.overview_metrics.requests.get')
+    def test_network_activity_keeps_explorer_curves_when_chain_history_fails(self, mock_get):
+        def partial(url, params=None, timeout=None, **kwargs):
+            if 'kpi-histories' in url and (params or {}).get('metric') == 'total_rollup_transactions':
+                raise RuntimeError('chain history unsupported')
+            return self._fake_get(url, params=params, timeout=timeout, **kwargs)
+
+        mock_get.side_effect = partial
+        resp = self.client.get('/api/v1/metrics/overview/network-activity/')
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual([s['key'] for s in resp.data['series']], ['studio', 'asimov', 'bradbury'])
+        self.assertEqual(resp.data['series'][1]['values'], [510, 756, 805, 854])
+        self.assertEqual(resp.data['series'][2]['values'], [510, 756, 805, 854])
+        self.assertEqual(resp.data['latest_week_by_source']['asimov']['chain_transactions'], 0)
+        self.assertEqual(resp.data['latest_week_by_source']['bradbury']['chain_transactions'], 0)
+        self.assertEqual(resp.data['totals']['decisions_made'], 1869)
+        self.assertEqual(resp.data['totals']['chain_transactions'], 161)
 
     @patch('api.overview_metrics.requests.get')
     def test_collect_network_activity_persists_snapshot(self, mock_get):
@@ -606,9 +675,10 @@ class NetworkActivityViewTests(TestCase):
 
         self.assertEqual(snap.metric_key, 'network_activity')
         self.assertEqual(snap.status, MetricSnapshot.STATUS_OK)
+        self.assertEqual(snap.raw_payload['version'], 3)
         self.assertEqual(snap.raw_payload['interval'], 'week')
         self.assertEqual([s['key'] for s in snap.raw_payload['series']], ['studio', 'asimov', 'bradbury'])
-        self.assertEqual(snap.raw_payload['totals']['decisions_made'], 1400)
+        self.assertEqual(snap.raw_payload['totals']['decisions_made'], 1869)
 
     @patch('api.overview_metrics.requests.get')
     def test_network_activity_served_from_snapshot_without_fetching(self, mock_get):
@@ -618,8 +688,16 @@ class NetworkActivityViewTests(TestCase):
         stored = {
             'labels': ['Jun 1-7', 'Jun 8-14', 'Jun 15-21'],
             'series': [{'key': 'studio', 'label': 'Studio', 'values': [None, 5, 9]}],
+            'version': 3,
             'interval': 'week',
-            'totals': {'decisions_made': 4242, 'chain_transactions': 99, 'defillama_fees_rank': 15.0},
+            'latest_week': {'week_start': '2026-06-15', 'week_end': '2026-06-21', 'label': 'Jun 15-21'},
+            'totals': {
+                'decisions_made': 4242,
+                'chain_transactions': 99,
+                'daily_decisions_made': 606,
+                'daily_chain_transactions': 14,
+                'transactions_per_second': 99 / (7 * 24 * 60 * 60),
+            },
         }
         MetricSnapshot.objects.create(
             metric_key='network_activity', source='composite', value=4242,
@@ -630,6 +708,7 @@ class NetworkActivityViewTests(TestCase):
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data['interval'], 'week')
+        self.assertEqual(resp.data['version'], 3)
         self.assertEqual(resp.data['totals']['decisions_made'], 4242)
         self.assertEqual([s['key'] for s in resp.data['series']], ['studio'])
         self.assertEqual(resp.data['series'][0]['values'], [None, 5, 9])  # null padding preserved
@@ -654,7 +733,7 @@ class NetworkActivityViewTests(TestCase):
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data['interval'], 'week')
-        self.assertEqual(resp.data['labels'], ['May 25-31', 'Jun 1-7', 'Jun 8-14', 'Jun 15-21'])
+        self.assertEqual(resp.data['labels'], ['May 22-29', 'May 29 - Jun 5', 'Jun 5-12', 'Jun 12-19'])
         self.assertEqual([s['key'] for s in resp.data['series']], ['studio', 'asimov', 'bradbury'])
         self.assertGreater(mock_get.call_count, 0)
 
@@ -665,8 +744,16 @@ class NetworkActivityViewTests(TestCase):
         good = {
             'labels': ['Jun 1'],
             'series': [{'key': 'studio', 'label': 'Studio', 'values': [7]}],
+            'version': 3,
             'interval': 'week',
-            'totals': {'decisions_made': 1234, 'chain_transactions': 5, 'defillama_fees_rank': None},
+            'latest_week': {'week_start': '2026-05-26', 'week_end': '2026-06-01', 'label': 'May 26 - Jun 1'},
+            'totals': {
+                'decisions_made': 1234,
+                'chain_transactions': 5,
+                'daily_decisions_made': 176,
+                'daily_chain_transactions': 1,
+                'transactions_per_second': 5 / (7 * 24 * 60 * 60),
+            },
         }
         MetricSnapshot.objects.create(
             metric_key='network_activity', source='composite', value=1234,
@@ -682,8 +769,9 @@ class NetworkActivityViewTests(TestCase):
         self.assertEqual(latest_network_activity()['totals']['decisions_made'], 1234)
 
     @patch('api.overview_metrics.requests.get')
-    def test_partial_source_failure_backfills_totals_from_last_snapshot(self, mock_get):
-        # A previous good snapshot recorded each source's all-time figure.
+    def test_partial_source_failure_uses_only_sources_that_resolved_this_run(self, mock_get):
+        # Rolling-week totals should not backfill stale all-time figures from an
+        # older snapshot; they reflect the sources that resolved for this run.
         prev = {
             'labels': ['Jun 1'],
             'series': [{'key': 'studio', 'label': 'Studio', 'values': [1]}],
@@ -709,17 +797,17 @@ class NetworkActivityViewTests(TestCase):
         from api.overview_metrics import build_network_activity
         payload = build_network_activity()
 
-        # studio's all-time (1000 / 5000) is backfilled from the prior snapshot,
-        # so the headline is NOT undercounted despite studio failing this run.
-        self.assertEqual(payload['totals']['decisions_made'], 1400)
-        self.assertEqual(payload['totals']['chain_transactions'], 6800)
+        self.assertEqual(payload['totals']['decisions_made'], 1708)
+        self.assertEqual(payload['totals']['chain_transactions'], 3108)
+        self.assertEqual(payload['totals']['daily_decisions_made'], 244)
+        self.assertEqual(payload['totals']['daily_chain_transactions'], 444)
         # The chart curves still only include the sources that resolved.
         self.assertEqual([s['key'] for s in payload['series']], ['asimov', 'bradbury'])
 
     @patch('api.overview_metrics.requests.get')
-    def test_first_run_no_previous_snapshot_does_not_invent_backfill(self, mock_get):
-        # First ever run (no prior snapshot), studio down: its all-time must NOT be
-        # invented — totals come from the two testnets only, and self-heal later.
+    def test_first_run_no_previous_snapshot_does_not_invent_missing_source(self, mock_get):
+        # First ever run (no prior snapshot), studio down: its weekly totals must
+        # NOT be invented — totals come from the two testnets only.
         def partial(url, params=None, timeout=None, **kwargs):
             if 'executive' in url or 'studio' in url:
                 raise RuntimeError('studio down')
@@ -729,10 +817,10 @@ class NetworkActivityViewTests(TestCase):
         from api.overview_metrics import build_network_activity
         payload = build_network_activity()
 
-        self.assertNotIn('studio', payload['all_time_by_source'])
+        self.assertNotIn('studio', payload['latest_week_by_source'])
         self.assertEqual([s['key'] for s in payload['series']], ['asimov', 'bradbury'])
-        self.assertEqual(payload['totals']['decisions_made'], 400)      # 200 + 200
-        self.assertEqual(payload['totals']['chain_transactions'], 1800)  # 900 + 900
+        self.assertEqual(payload['totals']['decisions_made'], 1708)
+        self.assertEqual(payload['totals']['chain_transactions'], 3108)
 
     @override_settings(CRON_SYNC_TOKEN='na-secret')
     @patch('api.overview_metrics.requests.get')
@@ -740,8 +828,16 @@ class NetworkActivityViewTests(TestCase):
         mock_get.side_effect = AssertionError('served from DB, no upstream calls expected')
         first = {
             'labels': ['Jun 1'], 'series': [{'key': 'studio', 'label': 'Studio', 'values': [1]}],
+            'version': 3,
             'interval': 'week',
-            'totals': {'decisions_made': 100, 'chain_transactions': 1, 'defillama_fees_rank': None},
+            'latest_week': {'week_start': '2026-05-26', 'week_end': '2026-06-01', 'label': 'May 26 - Jun 1'},
+            'totals': {
+                'decisions_made': 100,
+                'chain_transactions': 1,
+                'daily_decisions_made': 14,
+                'daily_chain_transactions': 0,
+                'transactions_per_second': 1 / (7 * 24 * 60 * 60),
+            },
         }
         MetricSnapshot.objects.create(metric_key='network_activity', source='composite', value=100, raw_payload=first)
 
@@ -752,8 +848,16 @@ class NetworkActivityViewTests(TestCase):
         # A newer snapshot lands (as the cron would persist it).
         second = {
             'labels': ['Jun 2'], 'series': [{'key': 'studio', 'label': 'Studio', 'values': [2]}],
+            'version': 3,
             'interval': 'week',
-            'totals': {'decisions_made': 200, 'chain_transactions': 2, 'defillama_fees_rank': None},
+            'latest_week': {'week_start': '2026-05-27', 'week_end': '2026-06-02', 'label': 'May 27 - Jun 2'},
+            'totals': {
+                'decisions_made': 200,
+                'chain_transactions': 2,
+                'daily_decisions_made': 29,
+                'daily_chain_transactions': 0,
+                'transactions_per_second': 2 / (7 * 24 * 60 * 60),
+            },
         }
         MetricSnapshot.objects.create(metric_key='network_activity', source='composite', value=200, raw_payload=second)
 

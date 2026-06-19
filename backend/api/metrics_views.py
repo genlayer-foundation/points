@@ -17,6 +17,7 @@ from utils.dates import day_start
 from utils.pagination import SafePageNumberPagination
 from validators.permissions import IsCronToken
 from .overview_metrics import (
+    NETWORK_ACTIVITY_PAYLOAD_VERSION,
     build_network_activity,
     get_portal_counts,
     get_top_validators,
@@ -105,8 +106,8 @@ class RefreshOverviewMetricsView(APIView):
 
 class NetworkActivityView(APIView):
     """
-    Overview-chart payload: weekly decisions across Studio + the two testnets,
-    plus all-time totals and the DeFiLlama rank.
+    Overview-chart payload: weekday-aligned weekly decisions across Studio +
+    the two testnets, plus the latest rolling-week daily averages and TPS.
 
     Served from the latest ``network_activity`` MetricSnapshot that the 15-minute
     cron (``refresh_overview_metrics``) persists, so the public page reads from the
@@ -116,7 +117,7 @@ class NetworkActivityView(APIView):
     once; otherwise the short TTL just smooths repeated reads between cron runs.
     """
     permission_classes = [permissions.AllowAny]
-    CACHE_KEY = 'overview_network_activity_weekly_v1'
+    CACHE_KEY = 'overview_network_activity_weekly_v3'
     CACHE_TTL_SECONDS = 120
 
     def get(self, request):
@@ -135,10 +136,18 @@ class NetworkActivityView(APIView):
                 payload = None
             if not payload or not payload.get('series'):
                 payload = {
+                    'version': NETWORK_ACTIVITY_PAYLOAD_VERSION,
                     'labels': [],
                     'series': [],
                     'interval': 'week',
-                    'totals': {'decisions_made': None, 'chain_transactions': None, 'defillama_fees_rank': None},
+                    'latest_week': None,
+                    'totals': {
+                        'decisions_made': None,
+                        'chain_transactions': None,
+                        'daily_decisions_made': None,
+                        'daily_chain_transactions': None,
+                        'transactions_per_second': None,
+                    },
                 }
             payload['generated_at'] = timezone.now().isoformat()
 

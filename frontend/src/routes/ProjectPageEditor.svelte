@@ -66,9 +66,9 @@
 
   const imageFields = [
     { key: 'user_profile_image_url', type: 'logo', label: 'Logo', dimensions: '512 x 512 px', previewClass: 'rounded-full', placeholder: 'https://...' },
-    { key: 'hero_image_url', type: 'desktop', label: 'Desktop banner', dimensions: '1600 x 520 px', previewClass: 'rounded-[7px]', placeholder: 'https://...' },
-    { key: 'hero_image_url_tablet', type: 'tablet', label: 'iPad banner', dimensions: '1200 x 560 px', previewClass: 'rounded-[7px]', placeholder: 'https://...' },
-    { key: 'hero_image_url_mobile', type: 'mobile', label: 'Mobile banner', dimensions: '900 x 1200 px', previewClass: 'rounded-[7px]', placeholder: 'https://...' },
+    { key: 'hero_image_url', type: 'desktop', label: 'Desktop banner', dimensions: '1600 x 520 px · 40:13', previewClass: 'rounded-[7px]', placeholder: 'https://...' },
+    { key: 'hero_image_url_tablet', type: 'tablet', label: 'iPad banner', dimensions: '1200 x 560 px · 15:7', previewClass: 'rounded-[7px]', placeholder: 'https://...' },
+    { key: 'hero_image_url_mobile', type: 'mobile', label: 'Mobile banner', dimensions: '900 x 1200 px · 3:4', previewClass: 'rounded-[7px]', placeholder: 'https://...' },
   ];
 
   $effect(() => {

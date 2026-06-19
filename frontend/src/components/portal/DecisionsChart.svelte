@@ -46,16 +46,12 @@
 
     // chart.js mutates the arrays it receives; hand it plain copies, not Svelte's reactive proxies.
     const plainLabels = labels.map((l) => l);
-    const lastIndex = plainLabels.length - 1;
-    const datasets = series.flatMap((s) => {
+    const datasets = series.map((s) => {
       const color = COLORS[s.key] || '#8b93a1';
       const values = s.values.map((v) => (v == null ? null : Number(v)));
-      const hasPartialDay = lastIndex > 0 && values[lastIndex] != null;
-      const completedValues = hasPartialDay ? values.map((v, i) => (i === lastIndex ? null : v)) : values;
-      const partialValues = values.map((v, i) => (hasPartialDay && (i === lastIndex - 1 || i === lastIndex) ? v : null));
-      const completedDataset = {
+      return {
         label: s.label,
-        data: completedValues,
+        data: values,
         borderColor: color,
         borderWidth: 2.5,
         tension: 0.4,
@@ -76,29 +72,6 @@
           return g;
         },
       };
-      if (!hasPartialDay) return [completedDataset];
-      return [
-        completedDataset,
-        {
-          label: s.label,
-          data: partialValues,
-          borderColor: color,
-          borderDash: [5, 5],
-          borderWidth: 2.3,
-          cubicInterpolationMode: 'monotone',
-          fill: false,
-          partialDay: true,
-          pointBackgroundColor: color,
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          pointHoverBackgroundColor: color,
-          pointHoverBorderColor: '#fff',
-          pointHoverBorderWidth: 2,
-          pointHoverRadius: 4,
-          pointRadius: (ctx) => (ctx.dataIndex === lastIndex ? 3 : 0),
-          tension: 0.4,
-        },
-      ];
     });
 
     chart = new Chart(canvas, {
@@ -114,7 +87,6 @@
             position: 'top',
             align: 'end',
             labels: {
-              filter: (item, data) => !data.datasets[item.datasetIndex]?.partialDay,
               usePointStyle: true,
               pointStyle: 'circle',
               boxWidth: 8,
@@ -131,13 +103,8 @@
             usePointStyle: true,
             titleColor: '#ffffff',
             bodyColor: '#e5e5e5',
-            filter: (item) => !item.dataset.partialDay || item.dataIndex === lastIndex,
             callbacks: {
-              title: (items) => {
-                const label = items[0]?.label || '';
-                const isPartial = items.some((item) => item.dataset.partialDay);
-                return isPartial ? `${label} · this week so far` : label;
-              },
+              title: (items) => `${items[0]?.label || ''} · decisions/week`,
               label: (i) => ` ${i.dataset.label}: ${Number(i.parsed.y).toLocaleString()}`,
             },
           },

@@ -33,7 +33,7 @@
   ]);
 </script>
 
-<div class="panel portal-panel">
+<div class="panel portal-panel" aria-busy={loading}>
   <div class="panel-head">
     <h2>Portal contributors</h2>
     <p>Builders, validators and community on the portal</p>
@@ -42,9 +42,17 @@
   <div class="metric-col">
     {#each cards as card}
       <div class="metric-row" data-category={card.category}>
-        <CategoryIcon category={card.category} mode="hexagon" size={44} />
+        {#if loading}
+          <div class="metric-icon-skeleton skeleton-shimmer" aria-hidden="true"></div>
+        {:else}
+          <CategoryIcon category={card.category} mode="hexagon" size={44} />
+        {/if}
         <div class="metric-copy">
-          <strong>{loading ? '—' : formatNumber(card.value)}</strong>
+          {#if loading}
+            <span class="metric-value-skeleton skeleton-shimmer" aria-hidden="true"></span>
+          {:else}
+            <strong>{formatNumber(card.value)}</strong>
+          {/if}
           <span>{card.label}</span>
         </div>
       </div>
@@ -175,6 +183,41 @@
     font-size: 13px;
     letter-spacing: 0.24px;
     line-height: 16px;
+  }
+
+  .skeleton-shimmer {
+    animation: stat-shimmer 1.4s ease-in-out infinite;
+    background: linear-gradient(90deg, #f0f1f4 0%, #fafafb 48%, #f0f1f4 100%);
+    background-size: 220% 100%;
+  }
+
+  .metric-icon-skeleton {
+    clip-path: polygon(50% 0, 92% 25%, 92% 75%, 50% 100%, 8% 75%, 8% 25%);
+    flex: 0 0 44px;
+    height: 44px;
+    width: 44px;
+  }
+
+  .metric-value-skeleton {
+    border-radius: 6px;
+    display: block;
+    height: 28px;
+    width: 92px;
+  }
+
+  @keyframes stat-shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-shimmer {
+      animation: none;
+    }
   }
 
   @media (max-width: 620px) {
