@@ -76,6 +76,11 @@ class WhatsNewAnnouncementViewSet(mixins.ListModelMixin, viewsets.GenericViewSet
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = WhatsNewPagination
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['use_light_serializers'] = self.action == 'list'
+        return context
+
     def get_queryset(self):
         preview = self.request.query_params.get('preview')
         if preview and preview.lower() in ('1', 'true', 'yes'):
