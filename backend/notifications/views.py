@@ -1,5 +1,6 @@
 from rest_framework import mixins, permissions, viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
 from . import services
@@ -64,9 +65,16 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         return Response({'updated': updated})
 
 
+class WhatsNewPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 50
+
+
 class WhatsNewAnnouncementViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     serializer_class = WhatsNewAnnouncementSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = WhatsNewPagination
 
     def get_queryset(self):
         preview = self.request.query_params.get('preview')

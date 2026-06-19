@@ -2,7 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { push, querystring } from 'svelte-spa-router';
   import AuthButton from '../components/AuthButton.svelte';
-  import WhatsNewAnnouncementSurface from '../components/WhatsNewAnnouncementSurface.svelte';
+  import WhatsNewAnnouncementSurface from '../components/whats-new-announcement-surface.svelte';
   import { authState } from '../lib/auth.js';
   import { notificationsAPI, whatsNewAPI } from '../lib/api.js';
   import { notificationStore } from '../lib/notificationStore.js';
@@ -310,7 +310,7 @@
               >
                 <span class="flex items-center justify-between gap-2">
                   <span class="text-[11px] font-bold uppercase tracking-wide text-gray-400">{announcement.eyebrow}</span>
-                  {#if announcement.showCommunityBadge}
+                  {#if announcement.showCommunityContribution}
                     <span class="rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[11px] font-semibold text-green-700">{announcement.audienceLabel}</span>
                   {/if}
                 </span>

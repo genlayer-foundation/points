@@ -11,7 +11,7 @@ function createWhatsNewStore() {
   async function loadUnseen() {
     const response = await whatsNewAPI.list();
     const items = asList(response.data);
-    update((state) => ({ ...state, unseenCount: items.length }));
+    update((state) => ({ ...state, unseenCount: response.data?.count ?? items.length }));
     return items;
   }
 

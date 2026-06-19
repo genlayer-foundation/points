@@ -52,8 +52,8 @@
       <div class="visual-pane">
         <div class="visual-header">
           <span class="eyebrow-label">{slide.eyebrow}</span>
-          {#if slide.showCommunityBadge}
-            <span class="community-badge">{slide.audienceLabel}</span>
+          {#if slide.showCommunityContribution}
+            <span class="community-contribution">{slide.audienceLabel}</span>
           {/if}
         </div>
         <div class="image-stage">
@@ -201,7 +201,7 @@
     white-space: nowrap;
   }
 
-  .community-badge,
+  .community-contribution,
   .progress-pill {
     display: inline-flex;
     align-items: center;
@@ -213,7 +213,7 @@
     white-space: nowrap;
   }
 
-  .community-badge {
+  .community-contribution {
     min-height: 1.75rem;
     padding: 0 0.65rem;
   }

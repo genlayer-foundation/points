@@ -38,8 +38,9 @@ export function audienceMeta(audience) {
 }
 
 export function normalizeEyebrow(eyebrow) {
-  if (!eyebrow || eyebrow.trim().toLowerCase() === 'what is new') return "What's new";
-  return eyebrow;
+  const trimmed = eyebrow?.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'what is new') return "What's new";
+  return trimmed;
 }
 
 export function cleanAnnouncementSummary(body) {
@@ -68,6 +69,6 @@ export function normalizeWhatsNewItem(item) {
     accent: meta.accent,
     gradient: meta.gradient,
     image: item.image_url || FALLBACK_IMAGE,
-    showCommunityBadge: audience === 'community',
+    showCommunityContribution: audience === 'community',
   };
 }

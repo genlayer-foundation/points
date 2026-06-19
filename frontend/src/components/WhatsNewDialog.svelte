@@ -1,7 +1,7 @@
 <script>
   import { onMount, tick } from 'svelte';
   import { push } from 'svelte-spa-router';
-  import WhatsNewAnnouncementSurface from './WhatsNewAnnouncementSurface.svelte';
+  import WhatsNewAnnouncementSurface from './whats-new-announcement-surface.svelte';
   import { authState } from '../lib/auth.js';
   import { followNotificationLink } from '../lib/notificationUtils.js';
   import { whatsNewStore } from '../lib/whatsNewStore.js';
@@ -21,7 +21,7 @@
    * @property {string} accent
    * @property {string} gradient
    * @property {string} image
-   * @property {boolean} showCommunityBadge
+   * @property {boolean} showCommunityContribution
    */
 
   let visible = $state(false);

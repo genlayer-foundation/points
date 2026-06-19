@@ -50,7 +50,9 @@ def cleanup_legacy_whats_new_columns(apps, schema_editor):
                 f'ON {quote("notifications_whatsnewannouncementseen")} '
                 f'({quote("user_id")}, {quote("created_at")})'
             )
-            schema_editor.execute('DROP INDEX IF EXISTS "notificatio_user_id_e53a01_idx"')
+            schema_editor.execute(
+                f'DROP INDEX IF EXISTS {quote("notificatio_user_id_e53a01_idx")}'
+            )
 
 
 class Migration(migrations.Migration):
