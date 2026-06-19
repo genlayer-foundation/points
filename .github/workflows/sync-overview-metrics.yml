@@ -1,0 +1,38 @@
+name: Sync Overview Metrics
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sync-overview-metrics
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment: cron-job
+    timeout-minutes: 10
+    steps:
+      - name: Refresh investor overview metrics
+        run: |
+          response=$(curl -sS --max-time 120 -w "\n%{http_code}" -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Cron-Token: ${{ secrets.CRON_SYNC_TOKEN }}" \
+            "${{ secrets.API_BASE_URL }}/api/v1/metrics/overview/refresh/")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "Response: $body"
+          echo "HTTP Code: $http_code"
+
+          if [ "$http_code" = "202" ]; then
+            echo "Overview metrics refresh accepted"
+          else
+            echo "Overview metrics refresh failed with status $http_code"
+            exit 1
+          fi

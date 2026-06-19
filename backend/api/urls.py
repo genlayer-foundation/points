@@ -13,7 +13,10 @@ from .metrics_views import (
     ActiveValidatorsView,
     CommunityContributionMetricsView,
     ContributionTypesStatsView,
+    NetworkActivityView,
+    OverviewMetricsView,
     ParticipantsGrowthView,
+    RefreshOverviewMetricsView,
     TestnetMetricsView,
 )
 
@@ -58,6 +61,9 @@ urlpatterns = [
     path('metrics/active-validators/', ActiveValidatorsView.as_view(), name='active-validators'),
     path('metrics/contribution-types/', ContributionTypesStatsView.as_view(), name='contribution-types-stats'),
     path('metrics/community-contributions/', CommunityContributionMetricsView.as_view(), name='community-contributions-metrics'),
+    path('metrics/overview/', OverviewMetricsView.as_view(), name='overview-metrics'),
+    path('metrics/overview/network-activity/', NetworkActivityView.as_view(), name='overview-network-activity'),
+    path('metrics/overview/refresh/', RefreshOverviewMetricsView.as_view(), name='refresh-overview-metrics'),
     path('metrics/participants-growth/', ParticipantsGrowthView.as_view(), name='participants-growth'),
     path('metrics/testnet-kpis/', TestnetMetricsView.as_view(), name='testnet-kpis'),
 

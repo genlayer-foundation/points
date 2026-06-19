@@ -529,6 +529,15 @@ Reusable, data-driven display components that accept data via props. Used on Das
   - Props: `name`, `builder`, `avatar`, `screenshot`, `category`, `description`, `awardLabel`, `links`, `variant`
   - Adaptive rendering: logo-only mode when avatar === screenshot, background cover when distinct
 
+#### Portal Overview Components (`src/components/portal/`)
+Investor-oriented home page (`routes/Overview.svelte`), top to bottom: hero → network activity (with portal contributors) → projects (`FeaturedBuilds`) → partner marquee.
+- **`HeroBanner.svelte`** - supports `compact` (thinner banner) and `socialStats={ x, telegram, discord }` (a discreet brand-logo follower-count cluster top-right, Overview only; each badge links out to X/Telegram/Discord). The CTA button reads "View"; a "See all" text link (→ `/gen-news`) sits bottom-right next to the carousel dots. Overview fetches `metricsAPI.getOverview()` for `socialStats`.
+- **`NetworkActivity.svelte`** - two-column section: LEFT `PortalStats`, RIGHT the network-activity panel (headline KPIs — decisions, chain TXs, DeFiLlama rank — + `DecisionsChart`). Fetches `metricsAPI.getNetworkActivity()`. (The old "Securing the network" validators panel was removed.)
+- **`PortalStats.svelte`** - "Portal contributors" panel: Builders / Validators / Community members / Contributions in a column, hexagon `CategoryIcon` style. Reads the **public** `metricsAPI.getOverview()` (`metrics.{builders,validators,community_members,contributions}.value`) — NOT `statsAPI.getDashboardStats()`, which is auth-only and would render blank for public visitors.
+- **`DecisionsChart.svelte`** - chart.js (already a dep) smooth multi-line area chart: decisions/day for Studio + asimov + bradbury over 7 days. IMPORTANT: chart.js mutates the arrays it receives, so de-proxy Svelte `$props` arrays before passing them to `new Chart` (else `state_descriptors_fixed`); the canvas is always mounted so `bind:this` is set before data arrives.
+- **`PartnerLogoBanner.svelte`** - logos-only infinite marquee in TWO rows (even indices one row, odd the other, opposite directions, each tripled for a seamless loop). Fetches `partnersAPI.list({ show_in_overview: true, page_size: 100 })` so admins curate which partners appear (Partner.show_in_overview). Logos are flattened to grey silhouettes on a light band.
+- `metricsAPI` (`lib/api.js`): `getOverview()` (public; includes builders/validators/community_members/contributions counts + social + top_validators) and `getNetworkActivity()` (DB-snapshot-backed chart payload).
+
 #### Portal Hackathon Components (`src/components/portal/`)
 - **`HackathonWinnersSlider.svelte`** - Horizontal scroll slider for hackathon winners on the home page
   - Displays grand winner, track winners, and honorable mentions with award labels

@@ -47,6 +47,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
             'owner_profile_image_url',
             'featured_profile_image_url',
             'status',
+            'show_in_overview',
             'order',
             'created_at',
             'can_edit',

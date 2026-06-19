@@ -71,3 +71,21 @@ class PartnerAPITest(TestCase):
         res = self.client.get('/api/v1/partners/active-one/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()['slug'], 'active-one')
+
+    def test_show_in_overview_filter(self):
+        # 'active-two' is hidden from the overview; the filter must exclude it.
+        Partner.objects.filter(slug='active-two').update(show_in_overview=False)
+        res = self.client.get('/api/v1/partners/?show_in_overview=true')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        results = data['results'] if isinstance(data, dict) and 'results' in data else data
+        slugs = {p['slug'] for p in results}
+        self.assertIn('active-one', slugs)
+        self.assertNotIn('active-two', slugs)  # hidden from overview
+        self.assertNotIn('inactive', slugs)    # inactive everywhere
+        # Without the flag, an overview-hidden-but-active partner is still listed.
+        no_flag = self.client.get('/api/v1/partners/?page_size=100')
+        no_flag_data = no_flag.json()
+        no_flag_results = no_flag_data['results'] if isinstance(no_flag_data, dict) and 'results' in no_flag_data else no_flag_data
+        no_flag_slugs = {p['slug'] for p in no_flag_results}
+        self.assertIn('active-two', no_flag_slugs)
