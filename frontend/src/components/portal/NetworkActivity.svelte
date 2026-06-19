@@ -28,26 +28,37 @@
     return n.toLocaleString();
   }
 
-  function formatFeesTier(value) {
+  function formatTps(value) {
     if (value == null || value === '') return '—';
     const n = Number(value);
     if (!Number.isFinite(n)) return '—';
-    return `Top ${Math.round(n)}`;
+    if (n > 0 && n < 0.01) return '<0.01';
+    return n.toLocaleString(undefined, {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: n < 1 ? 2 : 0,
+    });
   }
 
   let kpis = $derived([
-    { label: 'Decisions made', value: data ? formatNumber(data.totals?.decisions_made) : '—', caption: 'All-time' },
-    { label: 'Chain TXs', value: data ? formatNumber(data.totals?.chain_transactions) : '—', caption: 'All-time' },
     {
-      label: 'Chains by fees',
-      value: data ? formatFeesTier(data.totals?.defillama_fees_rank) : '—',
-      caption: 'if GenLayer were mainnet',
-      accent: true,
+      label: 'Decisions',
+      value: data ? formatNumber(data.totals?.daily_decisions_made) : '—',
+      unit: 'per day',
+    },
+    {
+      label: 'Transactions',
+      value: data ? formatNumber(data.totals?.daily_chain_transactions) : '—',
+      unit: 'per day',
+    },
+    {
+      label: 'Transactions',
+      value: data ? formatTps(data.totals?.transactions_per_second) : '—',
+      unit: 'per second',
     },
   ]);
 </script>
 
-<section class="network-activity">
+<section class="network-activity" aria-busy={loading}>
   <!-- Left — portal contributors -->
   <PortalStats />
 
@@ -56,17 +67,21 @@
     <div class="panel-head">
       <div>
         <h2>Network activity</h2>
-        <p>Decisions made across Studio and the testnets · last 12 weeks</p>
+        <p>Decisions/week across Studio and the testnets · last 12 aligned weeks</p>
       </div>
     </div>
 
     <div class="kpi-strip">
       {#each kpis as kpi}
-        <div class:accent={kpi.accent} class="kpi">
-          <strong>{kpi.value}</strong>
+        <div class:loading class="kpi">
+          {#if loading}
+            <span class="kpi-value-skeleton" aria-hidden="true"></span>
+          {:else}
+            <strong>{kpi.value}</strong>
+          {/if}
           <div class="kpi-meta">
             <span>{kpi.label}</span>
-            <small>{kpi.caption}</small>
+            <small>{kpi.unit}</small>
           </div>
         </div>
       {/each}
@@ -168,39 +183,34 @@
     margin-top: 2px;
   }
 
-  .kpi.accent {
-    background:
-      linear-gradient(135deg, rgba(34, 28, 76, 0.88), rgba(115, 68, 177, 0.74) 45%, rgba(232, 119, 47, 0.76)),
-      url('/assets/illustrations/welcome-gradient.png') center / cover;
-    border-color: rgba(127, 82, 225, 0.32);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 10px 20px rgba(69, 47, 132, 0.1);
+  .kpi.loading {
+    min-height: 78px;
   }
 
-  .kpi.accent::after {
-    background: radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.2), transparent 32%);
-    content: '';
-    inset: 0;
-    pointer-events: none;
-    position: absolute;
+  .kpi-value-skeleton {
+    animation: kpi-shimmer 1.4s ease-in-out infinite;
+    background: linear-gradient(90deg, #eef0f3 0%, #fbfbfc 48%, #eef0f3 100%);
+    background-size: 220% 100%;
+    border-radius: 8px;
+    display: block;
+    flex: 0 0 auto;
+    height: clamp(28px, 3.1vw, 40px);
+    width: clamp(70px, 8vw, 104px);
   }
 
-  .kpi.accent > :global(*) {
-    position: relative;
-    z-index: 1;
+  @keyframes kpi-shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
   }
 
-  .kpi.accent strong {
-    color: #fff;
-    font-size: clamp(28px, 2.4vw, 34px);
-    letter-spacing: -0.5px;
-  }
-
-  .kpi.accent .kpi-meta span {
-    color: rgba(255, 255, 255, 0.9);
-  }
-
-  .kpi.accent .kpi-meta small {
-    color: rgba(255, 255, 255, 0.6);
+  @media (prefers-reduced-motion: reduce) {
+    .kpi-value-skeleton {
+      animation: none;
+    }
   }
 
   @media (max-width: 1024px) {

@@ -51,9 +51,18 @@
   </div>
 
   {#if loading}
-    <div class={variant === 'vertical' ? 'vertical-project-grid' : 'flex gap-[10px] overflow-x-auto pb-2'}>
+    <div class={variant === 'vertical' ? 'vertical-project-grid' : 'flex gap-[10px] overflow-x-auto pb-2'} aria-busy="true">
       {#each [1, 2, 3, 4, 5] as _}
-        <div class={variant === 'vertical' ? 'vertical-project-skeleton' : 'flex-shrink-0 w-[300px] h-[150px] rounded-[8px] bg-[#f8f8f8] animate-pulse'}></div>
+        <div class={variant === 'vertical' ? 'vertical-project-skeleton project-skeleton' : 'horizontal-project-skeleton project-skeleton'} aria-hidden="true">
+          <div class="project-skeleton-arrow"></div>
+          <div class="project-skeleton-footer">
+            <div class="project-skeleton-avatar"></div>
+            <div class="project-skeleton-copy">
+              <div class="project-skeleton-line title"></div>
+              <div class="project-skeleton-line meta"></div>
+            </div>
+          </div>
+        </div>
       {/each}
     </div>
   {:else}
@@ -62,7 +71,7 @@
       style={variant === 'vertical' ? '' : '-ms-overflow-style: none; scrollbar-width: none;'}
     >
       {#each builds as build}
-        {@const projectLink = resolvePortalLink(build.view_url || build.url || build.link)}
+        {@const projectLink = resolvePortalLink(build.link || build.url)}
         {@const projectHref = projectLink.href}
         {@const isExternal = projectLink.external}
         <a
@@ -121,8 +130,8 @@
 
   .vertical-project-card,
   .vertical-project-skeleton {
+    aspect-ratio: 4 / 5;
     border-radius: 8px;
-    min-height: 300px;
     overflow: hidden;
   }
 
@@ -176,17 +185,106 @@
   }
 
   .vertical-project-skeleton {
-    animation: project-shimmer 1.4s ease-in-out infinite;
-    background: linear-gradient(90deg, #f2f3f5, #fbfbfc, #f2f3f5);
-    background-size: 200% 100%;
+    display: block;
   }
 
-  @keyframes project-shimmer {
+  .horizontal-project-skeleton {
+    border-radius: 8px;
+    flex: 0 0 300px;
+    height: 150px;
+    overflow: hidden;
+  }
+
+  .project-skeleton {
+    background:
+      linear-gradient(180deg, rgba(248, 248, 249, 0.84), rgba(232, 234, 238, 0.92)),
+      linear-gradient(135deg, #f2f3f5, #fbfbfc);
+    border: 1px solid #ececf0;
+    position: relative;
+  }
+
+  .project-skeleton::before {
+    background: linear-gradient(180deg, transparent 8%, rgba(16, 16, 16, 0.05) 48%, rgba(16, 16, 16, 0.16) 100%);
+    content: '';
+    inset: 0;
+    position: absolute;
+  }
+
+  .project-skeleton::after {
+    animation: project-card-shimmer 1.45s ease-in-out infinite;
+    background: linear-gradient(105deg, transparent 22%, rgba(255, 255, 255, 0.72) 48%, transparent 72%);
+    content: '';
+    inset: 0;
+    position: absolute;
+    transform: translateX(-100%);
+  }
+
+  .project-skeleton-arrow {
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.78);
+    border-radius: 8px;
+    height: 34px;
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    width: 34px;
+    z-index: 1;
+  }
+
+  .project-skeleton-footer {
+    align-items: center;
+    bottom: 16px;
+    display: flex;
+    gap: 10px;
+    left: 16px;
+    position: absolute;
+    right: 16px;
+    z-index: 1;
+  }
+
+  .project-skeleton-avatar {
+    background: rgba(255, 255, 255, 0.78);
+    border-radius: 999px;
+    flex: 0 0 40px;
+    height: 40px;
+    width: 40px;
+  }
+
+  .project-skeleton-copy {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .project-skeleton-line {
+    background: rgba(255, 255, 255, 0.78);
+    border-radius: 999px;
+    height: 10px;
+  }
+
+  .project-skeleton-line.title {
+    width: min(150px, 82%);
+  }
+
+  .project-skeleton-line.meta {
+    opacity: 0.72;
+    width: min(92px, 58%);
+  }
+
+  @keyframes project-card-shimmer {
     from {
-      background-position: 200% 0;
+      transform: translateX(-100%);
     }
     to {
-      background-position: -200% 0;
+      transform: translateX(100%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .project-skeleton::after {
+      animation: none;
     }
   }
 
@@ -212,7 +310,6 @@
     .vertical-project-card,
     .vertical-project-skeleton {
       flex: 0 0 72vw;
-      min-height: 280px;
       scroll-snap-align: start;
     }
   }

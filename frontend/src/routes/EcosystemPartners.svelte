@@ -81,7 +81,7 @@
   }
 
   function normalizeProject(b) {
-    const link = resolvePortalLink(b.view_url || b.url || b.link);
+    const link = resolvePortalLink(b.link || b.url);
     return {
       id: `project-${b.id || b.title}`,
       name: b.title || b.name || 'Project',

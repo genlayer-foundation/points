@@ -115,7 +115,7 @@
   }
 
   function getHeroClass() {
-    return 'relative min-h-[360px] bg-[#111827] sm:min-h-[340px] lg:min-h-[320px]';
+    return 'relative aspect-[3/4] bg-[#111827] sm:aspect-[15/7] lg:aspect-[40/13]';
   }
 </script>
 

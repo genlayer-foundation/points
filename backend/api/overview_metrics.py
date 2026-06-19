@@ -21,9 +21,11 @@ EXPLORER_BASE_URLS = {
 NETWORK_ACTIVITY_WEEKS = 12
 NETWORK_ACTIVITY_DAYS = NETWORK_ACTIVITY_WEEKS * 7
 NETWORK_ACTIVITY_INTERVAL = 'week'
+NETWORK_ACTIVITY_PAYLOAD_VERSION = 3
+NETWORK_ACTIVITY_SECONDS_PER_WEEK = 7 * 24 * 60 * 60
 STUDIO_NETWORK_ACTIVITY_RANGE = 'quarter'
-# The three surfaces whose decisions/chain-tx feed the overview chart + headline.
-NETWORK_ACTIVITY_SOURCES = ('studio',) + TESTNET_NETWORKS
+OVERVIEW_PAYLOAD_METRIC_KEY = 'overview_payload'
+OVERVIEW_PAYLOAD_VERSION = 1
 
 
 def decimal_value(value):
@@ -94,10 +96,24 @@ def serialize_snapshot(item):
         'label': item.label,
         'value': float(item.value) if item.value is not None else None,
         'unit': item.unit,
-        'observed_at': item.observed_at,
+        'observed_at': item.observed_at.isoformat(),
         'dimensions': item.dimensions,
         'status': item.status,
         'error': item.error,
+    }
+
+
+def overview_count_metric(metric_key, label, value, observed_at=None):
+    return {
+        'metric_key': metric_key,
+        'source': 'portal',
+        'label': label,
+        'value': value,
+        'unit': 'count',
+        'observed_at': (observed_at or timezone.now()).isoformat(),
+        'dimensions': {},
+        'status': MetricSnapshot.STATUS_OK,
+        'error': '',
     }
 
 
@@ -243,7 +259,15 @@ def collect_telegram_members():
             raw_payload=payload,
             dimensions={'chat_id': chat_id},
         )
-    # ponytail: env fallback mirrors DEFILLAMA_FEES_RANK — show a curated number until a bot is wired
+    if not token:
+        return snapshot(
+            'telegram_members',
+            'telegram',
+            getattr(settings, 'TELEGRAM_MEMBERS', '') or 13300,
+            label='Telegram members',
+            dimensions={'fallback': 'bot_token_missing'},
+        )
+
     manual = getattr(settings, 'TELEGRAM_MEMBERS', '')
     if manual:
         return snapshot('telegram_members', 'telegram', manual, label='Telegram members')
@@ -255,24 +279,29 @@ def collect_telegram_members():
 
 
 def collect_x_followers():
-    token = getattr(settings, 'X_BEARER_TOKEN', '')
+    token = getattr(settings, 'SORSA_API_KEY', '')
+    base_url = getattr(settings, 'SORSA_API_BASE_URL', '').rstrip('/')
     username = getattr(settings, 'X_METRICS_USERNAME', 'GenLayer')
-    if not token:
-        return snapshot_error('x_followers', 'x', 'X_BEARER_TOKEN is not configured')
+    if not token or not base_url:
+        return snapshot_error('x_followers', 'sorsa', 'SORSA_API_BASE_URL or SORSA_API_KEY is not configured')
 
     response = requests.get(
-        f'https://api.x.com/2/users/by/username/{username}',
-        params={'user.fields': 'public_metrics'},
-        headers={'Authorization': f'Bearer {token}'},
+        f'{base_url}/info-batch',
+        params={'usernames': [username.lstrip('@')]},
+        headers={'ApiKey': token, 'Accept': 'application/json'},
         timeout=HTTP_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
     payload = response.json() or {}
-    metrics = payload.get('data', {}).get('public_metrics', {})
+    users = payload.get('users') or []
+    profile = users[0] if users else {}
+    followers_count = profile.get('followers_count')
+    if followers_count is None:
+        return snapshot_error('x_followers', 'sorsa', 'Sorsa profile response did not include followers_count')
     return snapshot(
         'x_followers',
-        'x',
-        metrics.get('followers_count'),
+        'sorsa',
+        followers_count,
         label='X followers',
         raw_payload=payload,
         dimensions={'username': username},
@@ -334,7 +363,8 @@ def collect_external_metrics():
             results.append(collector())
         except Exception as exc:
             metric_key = collector.__name__.replace('collect_', '')
-            results.append(snapshot_error(metric_key, metric_key.split('_')[0], exc))
+            source = 'sorsa' if metric_key == 'x_followers' else metric_key.split('_')[0]
+            results.append(snapshot_error(metric_key, source, exc))
     return results
 
 
@@ -344,17 +374,18 @@ def collect_external_metrics():
 # straight from the DB instead of doing a live multi-API fetch per request.
 # ---------------------------------------------------------------------------
 
-def _week_start_for_ts(ts):
+def _week_bounds_for_ts(ts, anchor_date):
     d = datetime.fromtimestamp(int(ts), tz=dt_timezone.utc).date()
-    return d - timedelta(days=d.weekday())
+    days_until_anchor = (anchor_date.weekday() - d.weekday()) % 7
+    week_end = d + timedelta(days=days_until_anchor)
+    return week_end - timedelta(days=7), week_end
 
 
 def _week_key(week_start):
     return week_start.isoformat()
 
 
-def _week_label(week_start):
-    week_end = week_start + timedelta(days=6)
+def _week_label(week_start, week_end):
     if week_start.month == week_end.month:
         return f'{week_start:%b} {week_start.day}-{week_end.day}'
     return f'{week_start:%b} {week_start.day} - {week_end:%b} {week_end.day}'
@@ -364,14 +395,21 @@ def _utc_midnight_ts(d):
     return int(datetime(d.year, d.month, d.day, tzinfo=dt_timezone.utc).timestamp())
 
 
-def _weekly_points(points, limit=NETWORK_ACTIVITY_WEEKS):
+def _weekly_points(points, limit=NETWORK_ACTIVITY_WEEKS, anchor_date=None):
+    anchor_date = anchor_date or timezone.now().date()
     buckets = {}
     for ts, value in points:
-        week_start = _week_start_for_ts(ts)
-        buckets[week_start] = buckets.get(week_start, 0) + int(value or 0)
+        week_start, week_end = _week_bounds_for_ts(ts, anchor_date)
+        bucket = buckets.setdefault(week_start, {'week_end': week_end, 'value': 0})
+        bucket['value'] += int(value or 0)
     return [
-        {'week_start': _week_key(week_start), 'label': _week_label(week_start), 'value': value}
-        for week_start, value in sorted(buckets.items())[-limit:]
+        {
+            'week_start': _week_key(week_start),
+            'week_end': _week_key(bucket['week_end']),
+            'label': _week_label(week_start, bucket['week_end']),
+            'value': bucket['value'],
+        }
+        for week_start, bucket in sorted(buckets.items())[-limit:]
     ]
 
 
@@ -384,21 +422,18 @@ def _daily_points_from_values(values, now):
     ]
 
 
-def fetch_explorer_decisions(network, frm, now):
-    base = EXPLORER_BASE_URLS[network]
+def _fetch_explorer_history(base, metric, frm, now):
     history = requests.get(
         f'{base}/api/v1/analytics/kpi-histories',
         params={
-            'metric': 'total_finalized_transactions',
+            'metric': metric,
             'interval': 'D1',
             'from_timestamp': frm,
             'to_timestamp': now,
         },
         timeout=HTTP_TIMEOUT_SECONDS,
     )
-    general = requests.get(f'{base}/api/v1/analytics/general-kpis', timeout=HTTP_TIMEOUT_SECONDS)
     history.raise_for_status()
-    general.raise_for_status()
     buckets = (history.json() or {}).get('histories') or []
     points = []
     for bucket in buckets:
@@ -408,18 +443,30 @@ def fetch_explorer_decisions(network, frm, now):
             points.append((int(bucket['timestamp']), round(float(bucket.get('value') or 0))))
         except (TypeError, ValueError, KeyError):
             continue
-    weekly = _weekly_points(points)
-    gen = general.json() or {}
+    return points
+
+
+def fetch_explorer_activity(network, frm, now, anchor_date):
+    base = EXPLORER_BASE_URLS[network]
+    decisions_weekly = _weekly_points(
+        _fetch_explorer_history(base, 'total_finalized_transactions', frm, now),
+        anchor_date=anchor_date,
+    )
+    try:
+        chain_points = _fetch_explorer_history(base, 'total_rollup_transactions', frm, now)
+    except Exception as exc:
+        logger.warning('Network activity: %s chain history failed: %s', network, exc)
+        chain_points = []
+    chain_weekly = _weekly_points(chain_points, anchor_date=anchor_date) if chain_points else []
     return {
-        'points': weekly,
-        'labels': [point['label'] for point in weekly],
-        'values': [point['value'] for point in weekly],
-        'decisions_all_time': int(gen.get('total_finalized_transactions') or 0),
-        'chain_all_time': int(gen.get('total_rollup_transactions') or 0),
+        'points': decisions_weekly,
+        'chain_points': chain_weekly,
+        'labels': [point['label'] for point in decisions_weekly],
+        'values': [point['value'] for point in decisions_weekly],
     }
 
 
-def fetch_studio_decisions(now):
+def fetch_studio_activity(now, anchor_date):
     url = getattr(
         settings,
         'STUDIO_METRICS_URL',
@@ -434,105 +481,124 @@ def fetch_studio_decisions(now):
     metrics = {m.get('id'): m for m in (response.json() or {}).get('metrics', []) if isinstance(m, dict)}
     decisions = metrics.get('total-decisions', {})
     chain = metrics.get('chain-transactions', {})
-    values = [round(float(v or 0)) for v in (decisions.get('sparkline') or [])]
-    weekly = _weekly_points(_daily_points_from_values(values, now))
+    decision_values = [round(float(v or 0)) for v in (decisions.get('sparkline') or [])]
+    chain_values = [round(float(v or 0)) for v in (chain.get('sparkline') or [])]
+    weekly = _weekly_points(_daily_points_from_values(decision_values, now), anchor_date=anchor_date)
+    chain_weekly = _weekly_points(_daily_points_from_values(chain_values, now), anchor_date=anchor_date)
     return {
         'points': weekly,
+        'chain_points': chain_weekly,
         'labels': [point['label'] for point in weekly],
         'values': [point['value'] for point in weekly],
-        'decisions_all_time': int(decisions.get('allTimeValue') or 0),
-        'chain_all_time': int(chain.get('allTimeValue') or 0),
     }
 
 
-def _network_activity_fees_rank():
-    rank_snapshot = latest_snapshot('defillama_fees_rank')
-    if rank_snapshot and rank_snapshot.value is not None:
-        return float(rank_snapshot.value)
-    configured = getattr(settings, 'DEFILLAMA_FEES_RANK', '')
-    try:
-        return float(configured) if configured else None
-    except (TypeError, ValueError):
-        return None
+def _values_by_week(points):
+    return {point['week_start']: int(point.get('value') or 0) for point in points}
+
+
+def _latest_week_meta(source_activity, week_key):
+    for item in source_activity:
+        for point in item['points']:
+            if point['week_start'] == week_key:
+                return {
+                    'week_start': point['week_start'],
+                    'week_end': point.get('week_end'),
+                    'label': point['label'],
+                }
+    return None
 
 
 def build_network_activity():
-    """Assemble the overview-chart payload (3 weekly curves + all-time totals).
+    """Assemble the overview-chart payload and latest rolling-week KPIs.
 
     Each source degrades independently; a failed upstream is just omitted.
     """
     now = int(timezone.now().timestamp())
     frm = now - NETWORK_ACTIVITY_DAYS * 86400
+    anchor_date = datetime.fromtimestamp(now, tz=dt_timezone.utc).date()
 
-    source_series = []
-    all_time = {}  # per-source {decisions, chain} for sources that resolved this run
+    source_activity = []
 
     # Studio first so it leads the legend/stack.
     try:
-        studio = fetch_studio_decisions(now)
+        studio = fetch_studio_activity(now, anchor_date)
         if studio['points']:
-            source_series.append({'key': 'studio', 'label': 'Studio', 'points': studio['points']})
-        all_time['studio'] = {'decisions': studio['decisions_all_time'], 'chain': studio['chain_all_time']}
+            source_activity.append({
+                'key': 'studio',
+                'label': 'Studio',
+                'points': studio['points'],
+                'chain_points': studio['chain_points'],
+            })
     except Exception as exc:
         logger.warning('Network activity: studio source failed: %s', exc)
 
     for network in TESTNET_NETWORKS:
         try:
-            net = fetch_explorer_decisions(network, frm, now)
+            net = fetch_explorer_activity(network, frm, now, anchor_date)
         except Exception as exc:
             logger.warning('Network activity: %s source failed: %s', network, exc)
             continue
         if net['points']:
-            source_series.append({'key': network, 'label': network.title(), 'points': net['points']})
-        all_time[network] = {'decisions': net['decisions_all_time'], 'chain': net['chain_all_time']}
+            source_activity.append({
+                'key': network,
+                'label': network.title(),
+                'points': net['points'],
+                'chain_points': net['chain_points'],
+            })
 
     week_keys = sorted({
         point['week_start']
-        for item in source_series
+        for item in source_activity
         for point in item['points']
     })[-NETWORK_ACTIVITY_WEEKS:]
     label_by_week = {
         point['week_start']: point['label']
-        for item in source_series
+        for item in source_activity
         for point in item['points']
     }
     labels = [label_by_week[key] for key in week_keys]
     series = []
-    for item in source_series:
-        values_by_week = {point['week_start']: point['value'] for point in item['points']}
-        values = [values_by_week.get(key) for key in week_keys]
+    latest_week_key = week_keys[-1] if week_keys else None
+    latest_week = _latest_week_meta(source_activity, latest_week_key) if latest_week_key else None
+    latest_week_by_source = {}
+
+    for item in source_activity:
+        decision_values_by_week = _values_by_week(item['points'])
+        chain_values_by_week = _values_by_week(item['chain_points'])
+        values = [decision_values_by_week.get(key) for key in week_keys]
         if any(value is not None for value in values):
             series.append({'key': item['key'], 'label': item['label'], 'values': values})
+        if latest_week_key:
+            latest_week_by_source[item['key']] = {
+                'decisions_made': decision_values_by_week.get(latest_week_key, 0),
+                'chain_transactions': chain_values_by_week.get(latest_week_key, 0),
+            }
 
-    # Backfill the all-time figure of any source that failed this run from the
-    # last good snapshot, so a transient upstream blip never undercounts the
-    # investor-facing headline totals (and never shows 0).
-    previous = _latest_network_activity_payload()
-    previous_all_time = (previous[1].get('all_time_by_source') or {}) if previous else {}
-    merged_all_time = {}
-    for key in NETWORK_ACTIVITY_SOURCES:
-        if key in all_time:
-            merged_all_time[key] = all_time[key]
-        elif key in previous_all_time:
-            merged_all_time[key] = previous_all_time[key]
-            # All-time counters only grow, so carrying the last-known value is the
-            # least-wrong choice during an outage (dropping the source would cliff
-            # the headline). Log so a prolonged outage is visible to ops.
-            logger.warning('Network activity: %s all-time backfilled from previous snapshot', key)
-
-    decisions_total = sum(int(v.get('decisions') or 0) for v in merged_all_time.values())
-    chain_total = sum(int(v.get('chain') or 0) for v in merged_all_time.values())
+    decisions_week_total = sum(item['decisions_made'] for item in latest_week_by_source.values())
+    chain_week_total = sum(item['chain_transactions'] for item in latest_week_by_source.values())
+    daily_decisions = round(decisions_week_total / 7) if latest_week_key else None
+    daily_chain = round(chain_week_total / 7) if latest_week_key else None
+    transactions_per_second = (
+        chain_week_total / NETWORK_ACTIVITY_SECONDS_PER_WEEK
+        if latest_week_key
+        else None
+    )
 
     return {
+        'version': NETWORK_ACTIVITY_PAYLOAD_VERSION,
         'labels': labels,
         'series': series,
         'interval': NETWORK_ACTIVITY_INTERVAL,
+        'latest_week': latest_week,
         'totals': {
-            'decisions_made': decisions_total,
-            'chain_transactions': chain_total,
-            'defillama_fees_rank': _network_activity_fees_rank(),
+            'decisions_made': decisions_week_total if latest_week_key else None,
+            'chain_transactions': chain_week_total if latest_week_key else None,
+            'daily_decisions_made': daily_decisions,
+            'daily_chain_transactions': daily_chain,
+            'transactions_per_second': transactions_per_second,
         },
-        'all_time_by_source': merged_all_time,
+        'latest_week_by_source': latest_week_by_source,
     }
 
 
@@ -566,10 +632,13 @@ def latest_network_activity():
     if latest is None:
         return None
     snap, payload = latest
-    # The public overview must not keep serving a pre-weekly daily snapshot after
-    # deploy. Returning None makes the read view rebuild weekly data live once;
-    # the cron then persists a fresh weekly snapshot.
-    if payload.get('interval') != NETWORK_ACTIVITY_INTERVAL:
+    # The public overview must not keep serving older snapshots whose totals used
+    # different semantics. Returning None makes the read view rebuild live once;
+    # the cron then persists a fresh snapshot.
+    if (
+        payload.get('interval') != NETWORK_ACTIVITY_INTERVAL
+        or payload.get('version') != NETWORK_ACTIVITY_PAYLOAD_VERSION
+    ):
         return None
     # ISO string so the response is identical whether served fresh or from cache,
     # regardless of the cache backend's (de)serialization.
@@ -577,13 +646,32 @@ def latest_network_activity():
     return payload
 
 
+def empty_network_activity_payload():
+    return {
+        'version': NETWORK_ACTIVITY_PAYLOAD_VERSION,
+        'labels': [],
+        'series': [],
+        'interval': NETWORK_ACTIVITY_INTERVAL,
+        'latest_week': None,
+        'totals': {
+            'decisions_made': None,
+            'chain_transactions': None,
+            'daily_decisions_made': None,
+            'daily_chain_transactions': None,
+            'transactions_per_second': None,
+        },
+        'latest_week_by_source': {},
+        'generated_at': None,
+    }
+
+
 def refresh_overview_metrics():
     results = []
     results.extend(collect_testnet_metrics())
     results.extend(collect_portal_metrics())
     results.extend(collect_external_metrics())
-    # Last, so the freshly-collected DeFiLlama rank is available to the totals.
     results.append(collect_network_activity())
+    results.append(collect_overview_payload())
     return results
 
 
@@ -598,6 +686,87 @@ def latest_overview_snapshots():
         'defillama_fees_rank',
     ]
     return {key: serialize_snapshot(latest_snapshot(key)) for key in keys}
+
+
+def empty_overview_payload():
+    return {
+        'version': OVERVIEW_PAYLOAD_VERSION,
+        'metrics': {
+            'decisions_made': None,
+            'chain_transactions': None,
+            'builders': None,
+            'validators': None,
+            'community_members': None,
+            'contributions': None,
+            'discord_members': None,
+            'telegram_members': None,
+            'x_followers': None,
+            'github_boilerplate_stars': None,
+            'defillama_fees_rank': None,
+        },
+        'top_validators': [],
+        'generated_at': None,
+    }
+
+
+def build_overview_payload():
+    generated_at = timezone.now()
+    snapshots = latest_overview_snapshots()
+    counts = get_portal_counts()
+    return {
+        'version': OVERVIEW_PAYLOAD_VERSION,
+        'metrics': {
+            'decisions_made': snapshots.get('decisions_made'),
+            'chain_transactions': snapshots.get('chain_transactions'),
+            'builders': overview_count_metric('builders', 'Builders', counts['builders'], generated_at),
+            'validators': overview_count_metric('validators', 'Validators', counts['validators'], generated_at),
+            'community_members': overview_count_metric(
+                'community_members',
+                'Community members',
+                counts['community_members'],
+                generated_at,
+            ),
+            'contributions': overview_count_metric(
+                'contributions',
+                'Contributions',
+                counts['contributions'],
+                generated_at,
+            ),
+            'discord_members': snapshots.get('discord_members'),
+            'telegram_members': snapshots.get('telegram_members'),
+            'x_followers': snapshots.get('x_followers'),
+            'github_boilerplate_stars': snapshots.get('github_boilerplate_stars'),
+            'defillama_fees_rank': snapshots.get('defillama_fees_rank'),
+        },
+        'top_validators': get_top_validators(limit=4),
+        'generated_at': generated_at.isoformat(),
+    }
+
+
+def collect_overview_payload():
+    try:
+        payload = build_overview_payload()
+    except Exception as exc:
+        return snapshot_error(OVERVIEW_PAYLOAD_METRIC_KEY, 'composite', exc)
+    return snapshot(
+        OVERVIEW_PAYLOAD_METRIC_KEY,
+        'composite',
+        None,
+        unit='payload',
+        label='Overview payload',
+        raw_payload=payload,
+    )
+
+
+def latest_overview_payload():
+    snap = latest_snapshot(OVERVIEW_PAYLOAD_METRIC_KEY)
+    if snap is None or not isinstance(snap.raw_payload, dict):
+        return None
+    payload = dict(snap.raw_payload)
+    if payload.get('version') != OVERVIEW_PAYLOAD_VERSION:
+        return None
+    payload['generated_at'] = snap.observed_at.isoformat()
+    return payload
 
 
 def get_top_validators(limit=3):

@@ -263,7 +263,6 @@ GITHUB_REPO_TO_STAR = os.environ.get('GITHUB_REPO_TO_STAR', 'genlayerlabs/genlay
 TWITTER_CLIENT_ID = os.environ.get('TWITTER_CLIENT_ID', '')
 TWITTER_CLIENT_SECRET = os.environ.get('TWITTER_CLIENT_SECRET', '')
 TWITTER_REDIRECT_URI = os.environ.get('TWITTER_REDIRECT_URI', f"{BACKEND_URL}/api/auth/twitter/callback/")
-X_BEARER_TOKEN = os.environ.get('X_BEARER_TOKEN', os.environ.get('TWITTER_BEARER_TOKEN', ''))
 X_METRICS_USERNAME = os.environ.get('X_METRICS_USERNAME', 'GenLayer')
 
 # Discord OAuth settings
