@@ -18,7 +18,7 @@ class PartnerViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = super().get_queryset()
         flag = self.request.query_params.get('show_in_overview')
         if flag is not None and flag.lower() in ('1', 'true', 'yes'):
-            queryset = queryset.filter(show_in_overview=True)
+            queryset = queryset.filter(show_in_overview=True, overview_logo_url__gt='')
         return queryset
 
     def get_serializer_class(self):

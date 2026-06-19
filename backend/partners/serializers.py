@@ -8,7 +8,7 @@ class LightPartnerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Partner
-        fields = ['id', 'name', 'slug', 'logo_url', 'website_url']
+        fields = ['id', 'name', 'slug', 'logo_url', 'overview_logo_url', 'website_url']
         read_only_fields = fields
 
 
@@ -23,10 +23,12 @@ class PartnerSerializer(serializers.ModelSerializer):
             'slug',
             'description',
             'logo_url',
+            'overview_logo_url',
             'website_url',
             'url',
             'display_order',
             'is_active',
+            'show_in_overview',
             'created_at',
             'updated_at',
         ]

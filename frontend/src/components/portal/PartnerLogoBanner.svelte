@@ -9,7 +9,12 @@
     try {
       const response = await partnersAPI.list({ ordering: 'display_order', page_size: 100, show_in_overview: true });
       const data = response.data?.results || response.data || [];
-      partners = data.filter((partner) => partner.logo_url);
+      partners = data
+        .map((partner) => ({
+          ...partner,
+          marquee_logo_url: partner.overview_logo_url || '',
+        }))
+        .filter((partner) => partner.marquee_logo_url);
     } catch (err) {
       partners = [];
     } finally {
@@ -48,7 +53,7 @@
                 class="logo-item"
                 aria-label={partner.name}
               >
-                <img src={partner.logo_url} alt={partner.name} loading={index >= evenRow.length ? 'lazy' : 'eager'} />
+                <img src={partner.marquee_logo_url} alt={partner.name} loading={index >= evenRow.length ? 'lazy' : 'eager'} />
               </a>
             {/each}
           </div>
@@ -63,7 +68,7 @@
                 class="logo-item"
                 aria-label={partner.name}
               >
-                <img src={partner.logo_url} alt={partner.name} loading={index >= oddRow.length ? 'lazy' : 'eager'} />
+                <img src={partner.marquee_logo_url} alt={partner.name} loading={index >= oddRow.length ? 'lazy' : 'eager'} />
               </a>
             {/each}
           </div>
