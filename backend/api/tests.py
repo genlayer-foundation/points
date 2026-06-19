@@ -382,7 +382,7 @@ class OverviewMetricsViewTests(TestCase):
             name=name,
         )
 
-    def test_public_overview_returns_snapshots_counts_and_top_validators(self):
+    def test_public_overview_returns_latest_aggregated_payload(self):
         builder_user = self._create_user(
             'overview-builder@example.com',
             '0x0000000000000000000000000000000000000201',
@@ -469,15 +469,32 @@ class OverviewMetricsViewTests(TestCase):
         MetricSnapshot.objects.create(metric_key='github_boilerplate_stars', source='github', value=333)
         MetricSnapshot.objects.create(metric_key='defillama_fees_rank', source='defillama', value=15, unit='rank')
 
+        from api.overview_metrics import collect_overview_payload
+        collect_overview_payload()
+
+        # These newer source rows/local writes must not affect the public response
+        # until the next refresh stores a new composite overview_payload.
+        MetricSnapshot.objects.create(metric_key='discord_members', source='discord', value=999)
+        Contribution.objects.bulk_create([
+            Contribution(
+                user=community_user,
+                contribution_type=community_type,
+                points=1,
+                frozen_global_points=1,
+                contribution_date=timezone.now(),
+            )
+        ])
+
         response = self.client.get('/api/v1/metrics/overview/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['version'], 1)
         self.assertEqual(response.data['metrics']['decisions_made']['value'], 1234.0)
         self.assertEqual(response.data['metrics']['chain_transactions']['value'], 9876.0)
         self.assertEqual(response.data['metrics']['builders']['value'], 1)
         self.assertEqual(response.data['metrics']['validators']['value'], 1)
         self.assertEqual(response.data['metrics']['community_members']['value'], 1)
-        # Public contributions count (non-onboarding, visible users): 2 created above.
+        # Public contributions count comes from the stored payload, not the row added after refresh.
         self.assertEqual(response.data['metrics']['contributions']['value'], 2)
         self.assertEqual(response.data['metrics']['discord_members']['value'], 111.0)
         self.assertEqual(response.data['metrics']['x_followers']['value'], 222.0)
@@ -487,6 +504,16 @@ class OverviewMetricsViewTests(TestCase):
         self.assertEqual(response.data['top_validators'][0]['total_stake_gen'], 500)
         self.assertEqual(response.data['top_validators'][1]['name'], 'Validator One')
         self.assertEqual(response.data['top_validators'][1]['total_stake_gen'], 250)
+
+    def test_public_overview_without_aggregate_does_not_rebuild_live_payload(self):
+        MetricSnapshot.objects.create(metric_key='discord_members', source='discord', value=111)
+
+        response = self.client.get('/api/v1/metrics/overview/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['version'], 1)
+        self.assertIsNone(response.data['metrics']['discord_members'])
+        self.assertEqual(response.data['top_validators'], [])
 
     @override_settings(CRON_SYNC_TOKEN='overview-secret')
     @patch('api.metrics_views.refresh_overview_metrics')
@@ -547,6 +574,47 @@ class OverviewMetricCollectorTests(TestCase):
         self.assertEqual(snap.dimensions, {'fallback': 'bot_token_missing'})
         mock_get.assert_not_called()
 
+    @patch('api.overview_metrics.collect_network_activity')
+    @patch('api.overview_metrics.collect_external_metrics')
+    @patch('api.overview_metrics.collect_portal_metrics')
+    @patch('api.overview_metrics.collect_testnet_metrics')
+    def test_refresh_overview_metrics_stores_composite_overview_payload(
+        self,
+        collect_testnet_mock,
+        collect_portal_mock,
+        collect_external_mock,
+        collect_network_mock,
+    ):
+        from api.overview_metrics import OVERVIEW_PAYLOAD_METRIC_KEY, refresh_overview_metrics
+
+        MetricSnapshot.objects.create(metric_key='decisions_made', source='genlayer_explorer', value=123)
+        MetricSnapshot.objects.create(metric_key='chain_transactions', source='genlayer_explorer', value=456)
+        MetricSnapshot.objects.create(metric_key='discord_members', source='discord', value=111)
+        MetricSnapshot.objects.create(metric_key='telegram_members', source='telegram', value=13300)
+        MetricSnapshot.objects.create(metric_key='x_followers', source='sorsa', value=222)
+        MetricSnapshot.objects.create(metric_key='github_boilerplate_stars', source='github', value=333)
+
+        collect_testnet_mock.return_value = []
+        collect_portal_mock.return_value = []
+        collect_external_mock.return_value = []
+        collect_network_mock.return_value = MetricSnapshot(
+            metric_key='network_activity',
+            source='composite',
+            status=MetricSnapshot.STATUS_OK,
+        )
+
+        results = refresh_overview_metrics()
+
+        self.assertEqual(results[-1].metric_key, OVERVIEW_PAYLOAD_METRIC_KEY)
+        self.assertEqual(results[-1].status, MetricSnapshot.STATUS_OK)
+        payload = results[-1].raw_payload
+        self.assertEqual(payload['version'], 1)
+        self.assertEqual(payload['metrics']['decisions_made']['value'], 123.0)
+        self.assertEqual(payload['metrics']['discord_members']['value'], 111.0)
+        self.assertEqual(payload['metrics']['telegram_members']['value'], 13300.0)
+        self.assertEqual(payload['metrics']['x_followers']['value'], 222.0)
+        self.assertEqual(payload['metrics']['github_boilerplate_stars']['value'], 333.0)
+
 
 class NetworkActivityViewTests(TestCase):
     def setUp(self):
@@ -590,28 +658,27 @@ class NetworkActivityViewTests(TestCase):
         return FakeResp({}, ok=False)
 
     @patch('api.overview_metrics.requests.get')
-    def test_network_activity_live_fallback_aggregates_three_weekly_curves(self, mock_get):
-        # No stored snapshot yet -> view builds live from the upstreams.
+    def test_build_network_activity_aggregates_three_weekly_curves(self, mock_get):
         mock_get.side_effect = self._fake_get
         MetricSnapshot.objects.create(metric_key='defillama_fees_rank', source='defillama', value=15, unit='rank')
 
-        resp = self.client.get('/api/v1/metrics/overview/network-activity/')
+        from api.overview_metrics import build_network_activity
+        payload = build_network_activity()
 
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(resp.data['version'], 3)
-        self.assertEqual(resp.data['interval'], 'week')
-        self.assertEqual([s['key'] for s in resp.data['series']], ['studio', 'asimov', 'bradbury'])
-        self.assertEqual(resp.data['labels'], ['May 22-29', 'May 29 - Jun 5', 'Jun 5-12', 'Jun 12-19'])
-        for s in resp.data['series']:
+        self.assertEqual(payload['version'], 3)
+        self.assertEqual(payload['interval'], 'week')
+        self.assertEqual([s['key'] for s in payload['series']], ['studio', 'asimov', 'bradbury'])
+        self.assertEqual(payload['labels'], ['May 22-29', 'May 29 - Jun 5', 'Jun 5-12', 'Jun 12-19'])
+        for s in payload['series']:
             self.assertEqual(len(s['values']), 4)
-        self.assertEqual(resp.data['series'][0]['values'], [15, 63, 112, 161])
-        self.assertEqual(resp.data['series'][1]['values'], [510, 756, 805, 854])
-        self.assertEqual(resp.data['latest_week']['label'], 'Jun 12-19')
-        self.assertEqual(resp.data['totals']['decisions_made'], 1869)
-        self.assertEqual(resp.data['totals']['chain_transactions'], 3269)
-        self.assertEqual(resp.data['totals']['daily_decisions_made'], 267)
-        self.assertEqual(resp.data['totals']['daily_chain_transactions'], 467)
-        self.assertAlmostEqual(resp.data['totals']['transactions_per_second'], 3269 / (7 * 24 * 60 * 60))
+        self.assertEqual(payload['series'][0]['values'], [15, 63, 112, 161])
+        self.assertEqual(payload['series'][1]['values'], [510, 756, 805, 854])
+        self.assertEqual(payload['latest_week']['label'], 'Jun 12-19')
+        self.assertEqual(payload['totals']['decisions_made'], 1869)
+        self.assertEqual(payload['totals']['chain_transactions'], 3269)
+        self.assertEqual(payload['totals']['daily_decisions_made'], 267)
+        self.assertEqual(payload['totals']['daily_chain_transactions'], 467)
+        self.assertAlmostEqual(payload['totals']['transactions_per_second'], 3269 / (7 * 24 * 60 * 60))
         studio_call = next(call for call in mock_get.call_args_list if 'executive' in call.args[0])
         self.assertEqual(studio_call.kwargs['params'], {'instanceId': 'all', 'range': 'quarter'})
         history_calls = [call for call in mock_get.call_args_list if 'kpi-histories' in call.args[0]]
@@ -632,39 +699,39 @@ class NetworkActivityViewTests(TestCase):
             self.assertEqual(call.kwargs['params']['to_timestamp'], int(self.fixed_now.timestamp()))
 
     @patch('api.overview_metrics.requests.get')
-    def test_network_activity_degrades_when_studio_fails(self, mock_get):
+    def test_build_network_activity_degrades_when_studio_fails(self, mock_get):
         def partial(url, params=None, timeout=None, **kwargs):
             if 'executive' in url or 'studio' in url:
                 raise RuntimeError('studio down')
             return self._fake_get(url, params=params, timeout=timeout, **kwargs)
 
         mock_get.side_effect = partial
-        resp = self.client.get('/api/v1/metrics/overview/network-activity/')
+        from api.overview_metrics import build_network_activity
+        payload = build_network_activity()
 
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual([s['key'] for s in resp.data['series']], ['asimov', 'bradbury'])
+        self.assertEqual([s['key'] for s in payload['series']], ['asimov', 'bradbury'])
         # only the two testnets contribute to totals now
-        self.assertEqual(resp.data['totals']['decisions_made'], 1708)
-        self.assertEqual(resp.data['totals']['daily_decisions_made'], 244)
+        self.assertEqual(payload['totals']['decisions_made'], 1708)
+        self.assertEqual(payload['totals']['daily_decisions_made'], 244)
 
     @patch('api.overview_metrics.requests.get')
-    def test_network_activity_keeps_explorer_curves_when_chain_history_fails(self, mock_get):
+    def test_build_network_activity_keeps_explorer_curves_when_chain_history_fails(self, mock_get):
         def partial(url, params=None, timeout=None, **kwargs):
             if 'kpi-histories' in url and (params or {}).get('metric') == 'total_rollup_transactions':
                 raise RuntimeError('chain history unsupported')
             return self._fake_get(url, params=params, timeout=timeout, **kwargs)
 
         mock_get.side_effect = partial
-        resp = self.client.get('/api/v1/metrics/overview/network-activity/')
+        from api.overview_metrics import build_network_activity
+        payload = build_network_activity()
 
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual([s['key'] for s in resp.data['series']], ['studio', 'asimov', 'bradbury'])
-        self.assertEqual(resp.data['series'][1]['values'], [510, 756, 805, 854])
-        self.assertEqual(resp.data['series'][2]['values'], [510, 756, 805, 854])
-        self.assertEqual(resp.data['latest_week_by_source']['asimov']['chain_transactions'], 0)
-        self.assertEqual(resp.data['latest_week_by_source']['bradbury']['chain_transactions'], 0)
-        self.assertEqual(resp.data['totals']['decisions_made'], 1869)
-        self.assertEqual(resp.data['totals']['chain_transactions'], 161)
+        self.assertEqual([s['key'] for s in payload['series']], ['studio', 'asimov', 'bradbury'])
+        self.assertEqual(payload['series'][1]['values'], [510, 756, 805, 854])
+        self.assertEqual(payload['series'][2]['values'], [510, 756, 805, 854])
+        self.assertEqual(payload['latest_week_by_source']['asimov']['chain_transactions'], 0)
+        self.assertEqual(payload['latest_week_by_source']['bradbury']['chain_transactions'], 0)
+        self.assertEqual(payload['totals']['decisions_made'], 1869)
+        self.assertEqual(payload['totals']['chain_transactions'], 161)
 
     @patch('api.overview_metrics.requests.get')
     def test_collect_network_activity_persists_snapshot(self, mock_get):
@@ -715,8 +782,22 @@ class NetworkActivityViewTests(TestCase):
         mock_get.assert_not_called()
 
     @patch('api.overview_metrics.requests.get')
-    def test_legacy_daily_snapshot_is_ignored_and_rebuilt_weekly(self, mock_get):
-        mock_get.side_effect = self._fake_get
+    def test_network_activity_without_valid_snapshot_does_not_fetch_live(self, mock_get):
+        mock_get.side_effect = AssertionError('public read must not fetch upstreams')
+
+        resp = self.client.get('/api/v1/metrics/overview/network-activity/')
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data['version'], 3)
+        self.assertEqual(resp.data['interval'], 'week')
+        self.assertEqual(resp.data['labels'], [])
+        self.assertEqual(resp.data['series'], [])
+        self.assertIsNone(resp.data['totals']['decisions_made'])
+        mock_get.assert_not_called()
+
+    @patch('api.overview_metrics.requests.get')
+    def test_legacy_daily_snapshot_is_ignored_without_live_rebuild(self, mock_get):
+        mock_get.side_effect = AssertionError('public read must not fetch upstreams')
         stored = {
             'labels': ['Jun 17', 'Jun 18', 'Jun 19'],
             'series': [{'key': 'studio', 'label': 'Studio', 'values': [5, 7, 2]}],
@@ -733,9 +814,9 @@ class NetworkActivityViewTests(TestCase):
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data['interval'], 'week')
-        self.assertEqual(resp.data['labels'], ['May 22-29', 'May 29 - Jun 5', 'Jun 5-12', 'Jun 12-19'])
-        self.assertEqual([s['key'] for s in resp.data['series']], ['studio', 'asimov', 'bradbury'])
-        self.assertGreater(mock_get.call_count, 0)
+        self.assertEqual(resp.data['labels'], [])
+        self.assertEqual(resp.data['series'], [])
+        mock_get.assert_not_called()
 
     @patch('api.overview_metrics.requests.get')
     def test_total_source_failure_does_not_clobber_good_snapshot(self, mock_get):

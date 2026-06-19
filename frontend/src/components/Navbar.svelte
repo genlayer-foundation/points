@@ -90,22 +90,6 @@
     return $location === path;
   }
 
-  async function fetchBoilerplateStarsFallback() {
-    try {
-      const response = await fetch(`https://api.github.com/repos/${BOILERPLATE_REPO}`, {
-        headers: { Accept: 'application/vnd.github+json' },
-      });
-      if (!response.ok) return;
-      const payload = await response.json();
-      const stars = payload?.stargazers_count;
-      if (stars != null) {
-        socialCounts = { ...socialCounts, github: stars };
-      }
-    } catch (err) {
-      // Navbar can render without the GitHub star count.
-    }
-  }
-
   onMount(async () => {
     try {
       const { data } = await metricsAPI.getOverview();
@@ -115,12 +99,8 @@
         telegram: data?.metrics?.telegram_members?.value ?? null,
         github: data?.metrics?.github_boilerplate_stars?.value ?? null,
       };
-
-      if (socialCounts.github == null) {
-        fetchBoilerplateStarsFallback();
-      }
     } catch (err) {
-      fetchBoilerplateStarsFallback();
+      // Navbar can render without social counts until the overview payload exists.
     }
   });
 </script>

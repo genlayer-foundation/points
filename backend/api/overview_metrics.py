@@ -24,6 +24,8 @@ NETWORK_ACTIVITY_INTERVAL = 'week'
 NETWORK_ACTIVITY_PAYLOAD_VERSION = 3
 NETWORK_ACTIVITY_SECONDS_PER_WEEK = 7 * 24 * 60 * 60
 STUDIO_NETWORK_ACTIVITY_RANGE = 'quarter'
+OVERVIEW_PAYLOAD_METRIC_KEY = 'overview_payload'
+OVERVIEW_PAYLOAD_VERSION = 1
 
 
 def decimal_value(value):
@@ -94,10 +96,24 @@ def serialize_snapshot(item):
         'label': item.label,
         'value': float(item.value) if item.value is not None else None,
         'unit': item.unit,
-        'observed_at': item.observed_at,
+        'observed_at': item.observed_at.isoformat(),
         'dimensions': item.dimensions,
         'status': item.status,
         'error': item.error,
+    }
+
+
+def overview_count_metric(metric_key, label, value, observed_at=None):
+    return {
+        'metric_key': metric_key,
+        'source': 'portal',
+        'label': label,
+        'value': value,
+        'unit': 'count',
+        'observed_at': (observed_at or timezone.now()).isoformat(),
+        'dimensions': {},
+        'status': MetricSnapshot.STATUS_OK,
+        'error': '',
     }
 
 
@@ -630,12 +646,32 @@ def latest_network_activity():
     return payload
 
 
+def empty_network_activity_payload():
+    return {
+        'version': NETWORK_ACTIVITY_PAYLOAD_VERSION,
+        'labels': [],
+        'series': [],
+        'interval': NETWORK_ACTIVITY_INTERVAL,
+        'latest_week': None,
+        'totals': {
+            'decisions_made': None,
+            'chain_transactions': None,
+            'daily_decisions_made': None,
+            'daily_chain_transactions': None,
+            'transactions_per_second': None,
+        },
+        'latest_week_by_source': {},
+        'generated_at': None,
+    }
+
+
 def refresh_overview_metrics():
     results = []
     results.extend(collect_testnet_metrics())
     results.extend(collect_portal_metrics())
     results.extend(collect_external_metrics())
     results.append(collect_network_activity())
+    results.append(collect_overview_payload())
     return results
 
 
@@ -650,6 +686,87 @@ def latest_overview_snapshots():
         'defillama_fees_rank',
     ]
     return {key: serialize_snapshot(latest_snapshot(key)) for key in keys}
+
+
+def empty_overview_payload():
+    return {
+        'version': OVERVIEW_PAYLOAD_VERSION,
+        'metrics': {
+            'decisions_made': None,
+            'chain_transactions': None,
+            'builders': None,
+            'validators': None,
+            'community_members': None,
+            'contributions': None,
+            'discord_members': None,
+            'telegram_members': None,
+            'x_followers': None,
+            'github_boilerplate_stars': None,
+            'defillama_fees_rank': None,
+        },
+        'top_validators': [],
+        'generated_at': None,
+    }
+
+
+def build_overview_payload():
+    generated_at = timezone.now()
+    snapshots = latest_overview_snapshots()
+    counts = get_portal_counts()
+    return {
+        'version': OVERVIEW_PAYLOAD_VERSION,
+        'metrics': {
+            'decisions_made': snapshots.get('decisions_made'),
+            'chain_transactions': snapshots.get('chain_transactions'),
+            'builders': overview_count_metric('builders', 'Builders', counts['builders'], generated_at),
+            'validators': overview_count_metric('validators', 'Validators', counts['validators'], generated_at),
+            'community_members': overview_count_metric(
+                'community_members',
+                'Community members',
+                counts['community_members'],
+                generated_at,
+            ),
+            'contributions': overview_count_metric(
+                'contributions',
+                'Contributions',
+                counts['contributions'],
+                generated_at,
+            ),
+            'discord_members': snapshots.get('discord_members'),
+            'telegram_members': snapshots.get('telegram_members'),
+            'x_followers': snapshots.get('x_followers'),
+            'github_boilerplate_stars': snapshots.get('github_boilerplate_stars'),
+            'defillama_fees_rank': snapshots.get('defillama_fees_rank'),
+        },
+        'top_validators': get_top_validators(limit=4),
+        'generated_at': generated_at.isoformat(),
+    }
+
+
+def collect_overview_payload():
+    try:
+        payload = build_overview_payload()
+    except Exception as exc:
+        return snapshot_error(OVERVIEW_PAYLOAD_METRIC_KEY, 'composite', exc)
+    return snapshot(
+        OVERVIEW_PAYLOAD_METRIC_KEY,
+        'composite',
+        None,
+        unit='payload',
+        label='Overview payload',
+        raw_payload=payload,
+    )
+
+
+def latest_overview_payload():
+    snap = latest_snapshot(OVERVIEW_PAYLOAD_METRIC_KEY)
+    if snap is None or not isinstance(snap.raw_payload, dict):
+        return None
+    payload = dict(snap.raw_payload)
+    if payload.get('version') != OVERVIEW_PAYLOAD_VERSION:
+        return None
+    payload['generated_at'] = snap.observed_at.isoformat()
+    return payload
 
 
 def get_top_validators(limit=3):

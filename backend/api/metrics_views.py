@@ -17,67 +17,27 @@ from utils.dates import day_start
 from utils.pagination import SafePageNumberPagination
 from validators.permissions import IsCronToken
 from .overview_metrics import (
-    NETWORK_ACTIVITY_PAYLOAD_VERSION,
-    build_network_activity,
-    get_portal_counts,
-    get_top_validators,
+    empty_network_activity_payload,
+    empty_overview_payload,
     latest_network_activity,
-    latest_overview_snapshots,
+    latest_overview_payload,
     refresh_overview_metrics,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def _overview_count_metric(metric_key, label, value):
-    return {
-        'metric_key': metric_key,
-        'source': 'portal',
-        'label': label,
-        'value': value,
-        'unit': 'count',
-        'observed_at': timezone.now(),
-        'dimensions': {},
-        'status': 'ok',
-        'error': '',
-    }
-
-
 class OverviewMetricsView(APIView):
     """
     Public investor overview payload.
 
-    External/social metrics are read from MetricSnapshot so the public page does
-    not block on Discord, X, GitHub, explorer, or DeFiLlama response times.
-    Portal cohorts and top validators are cheap local reads and stay live.
+    Served from the latest composite ``overview_payload`` MetricSnapshot that the
+    cron persists. Public page reads never fetch or aggregate source providers.
     """
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        snapshots = latest_overview_snapshots()
-        counts = get_portal_counts()
-        metrics = {
-            'decisions_made': snapshots.get('decisions_made'),
-            'chain_transactions': snapshots.get('chain_transactions'),
-            'builders': _overview_count_metric('builders', 'Builders', counts['builders']),
-            'validators': _overview_count_metric('validators', 'Validators', counts['validators']),
-            'community_members': _overview_count_metric(
-                'community_members',
-                'Community members',
-                counts['community_members'],
-            ),
-            'contributions': _overview_count_metric('contributions', 'Contributions', counts['contributions']),
-            'discord_members': snapshots.get('discord_members'),
-            'telegram_members': snapshots.get('telegram_members'),
-            'x_followers': snapshots.get('x_followers'),
-            'github_boilerplate_stars': snapshots.get('github_boilerplate_stars'),
-            'defillama_fees_rank': snapshots.get('defillama_fees_rank'),
-        }
-        return Response({
-            'metrics': metrics,
-            'top_validators': get_top_validators(limit=4),
-            'generated_at': timezone.now(),
-        })
+        return Response(latest_overview_payload() or empty_overview_payload())
 
 
 class RefreshOverviewMetricsView(APIView):
@@ -111,10 +71,9 @@ class NetworkActivityView(APIView):
 
     Served from the latest ``network_activity`` MetricSnapshot that the 15-minute
     cron (``refresh_overview_metrics``) persists, so the public page reads from the
-    DB instead of doing a live three-API fetch. Falls back to a one-off live build
-    only before the first cron run (so the page is never empty). The cron's refresh
-    endpoint drops ``CACHE_KEY`` on completion, so a new snapshot is reflected at
-    once; otherwise the short TTL just smooths repeated reads between cron runs.
+    DB instead of doing a live three-API fetch. The cron's refresh endpoint drops
+    ``CACHE_KEY`` on completion, so a new snapshot is reflected at once; otherwise
+    the short TTL just smooths repeated reads between cron runs.
     """
     permission_classes = [permissions.AllowAny]
     CACHE_KEY = 'overview_network_activity_weekly_v3'
@@ -125,31 +84,7 @@ class NetworkActivityView(APIView):
         if cached is not None:
             return Response(cached)
 
-        payload = latest_network_activity()
-        if payload is None:
-            # No snapshot yet (before the first cron run) — build once live, but
-            # never let an upstream failure 500 the public page or show 0 totals.
-            try:
-                payload = build_network_activity()
-            except Exception:
-                logger.exception('Network activity live fallback failed')
-                payload = None
-            if not payload or not payload.get('series'):
-                payload = {
-                    'version': NETWORK_ACTIVITY_PAYLOAD_VERSION,
-                    'labels': [],
-                    'series': [],
-                    'interval': 'week',
-                    'latest_week': None,
-                    'totals': {
-                        'decisions_made': None,
-                        'chain_transactions': None,
-                        'daily_decisions_made': None,
-                        'daily_chain_transactions': None,
-                        'transactions_per_second': None,
-                    },
-                }
-            payload['generated_at'] = timezone.now().isoformat()
+        payload = latest_network_activity() or empty_network_activity_payload()
 
         cache.set(self.CACHE_KEY, payload, self.CACHE_TTL_SECONDS)
         return Response(payload)
