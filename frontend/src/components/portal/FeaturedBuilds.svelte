@@ -62,7 +62,7 @@
       style={variant === 'vertical' ? '' : '-ms-overflow-style: none; scrollbar-width: none;'}
     >
       {#each builds as build}
-        {@const projectLink = resolvePortalLink(build.link || build.view_url || build.url)}
+        {@const projectLink = resolvePortalLink(build.view_url || build.url || build.link)}
         {@const projectHref = projectLink.href}
         {@const isExternal = projectLink.external}
         <a

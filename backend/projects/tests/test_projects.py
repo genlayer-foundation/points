@@ -91,6 +91,18 @@ class ProjectAPITest(TestCase):
         self.assertEqual(payload['url'], 'https://cognocracy.example.com')
         self.assertEqual(payload['link'], '/builders/projects/cognocracy')
 
+    def test_project_list_uses_direct_url_when_view_url_is_blank(self):
+        project = self.create_project(view_url='', url='https://direct.example.com')
+
+        response = self.client.get('/api/v1/projects/')
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()[0]
+        self.assertEqual(payload['slug'], project.slug)
+        self.assertEqual(payload['view_url'], '')
+        self.assertEqual(payload['url'], 'https://direct.example.com')
+        self.assertEqual(payload['link'], 'https://direct.example.com')
+
     def test_project_list_uses_slug_detail_route_when_url_is_blank(self):
         project = self.create_project(url='')
 
