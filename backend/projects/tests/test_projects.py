@@ -75,7 +75,32 @@ class ProjectAPITest(TestCase):
         payload = response.json()
         slugs = {item['slug'] for item in payload}
         self.assertEqual(slugs, {active.slug})
-        self.assertEqual(payload[0]['link'], f'/builders/projects/{active.slug}')
+        self.assertEqual(payload[0]['view_url'], '')
+        self.assertEqual(payload[0]['link'], active.url)
+
+    def test_project_list_uses_view_url_as_click_target_when_present(self):
+        project = self.create_project(view_url='/builders/projects/cognocracy')
+
+        response = self.client.get('/api/v1/projects/')
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()[0]
+        self.assertEqual(payload['slug'], project.slug)
+        self.assertEqual(payload['view_url'], '/builders/projects/cognocracy')
+        self.assertEqual(payload['url'], 'https://cognocracy.example.com')
+        self.assertEqual(payload['link'], '/builders/projects/cognocracy')
+
+    def test_project_list_uses_slug_detail_route_when_url_is_blank(self):
+        project = self.create_project(url='')
+
+        response = self.client.get('/api/v1/projects/')
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()[0]
+        self.assertEqual(payload['slug'], project.slug)
+        self.assertEqual(payload['view_url'], '')
+        self.assertEqual(payload['url'], '')
+        self.assertEqual(payload['link'], f'/builders/projects/{project.slug}')
 
     def test_project_detail_includes_related_contributions(self):
         project = self.create_project(github_url='https://github.com/example/cognocracy')
