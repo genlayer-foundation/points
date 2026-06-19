@@ -19,6 +19,7 @@
   });
 
   function formatNumber(value) {
+    if (value == null || value === '') return '—';
     const n = Number(value);
     if (!Number.isFinite(n)) return '—';
     if (n >= 1000000000) return `${(n / 1000000000).toFixed(1)}B`;
@@ -28,6 +29,7 @@
   }
 
   function formatFeesTier(value) {
+    if (value == null || value === '') return '—';
     const n = Number(value);
     if (!Number.isFinite(n)) return '—';
     return `Top ${Math.round(n)}`;

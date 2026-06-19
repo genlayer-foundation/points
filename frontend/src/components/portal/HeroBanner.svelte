@@ -16,6 +16,7 @@
   };
 
   function formatCount(n) {
+    if (n == null || n === '') return null;
     const x = Number(n);
     if (!Number.isFinite(x)) return null;
     if (x >= 1000000) return `${(x / 1000000).toFixed(1)}M`;
