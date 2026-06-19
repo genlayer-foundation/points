@@ -226,7 +226,7 @@
   </a>
 {/snippet}
 
-<div class="ecosystem-page relative -mx-3 -my-3 min-h-full overflow-hidden bg-[#FCFCFD] px-3 py-8 sm:px-5 sm:py-10 md:px-8 md:py-12">
+<div class="ecosystem-page relative -mx-3 -my-3 min-h-full overflow-hidden px-3 py-8 sm:px-5 sm:py-10 md:px-8 md:py-12">
   <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-[#EEF0F4]"></div>
 
   <div class="relative mx-auto max-w-[1380px]">
@@ -319,7 +319,29 @@
 
 <style>
   .ecosystem-page {
+    background-color: #FCFCFD;
     color: #15151B;
+  }
+
+  .ecosystem-page::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 340px;
+    pointer-events: none;
+    background-image:
+      linear-gradient(180deg, rgba(252, 252, 253, 0) 0%, rgba(252, 252, 253, 0.48) 62%, #FCFCFD 100%),
+      linear-gradient(90deg, #FCFCFD 0%, rgba(252, 252, 253, 0.78) 18%, rgba(252, 252, 253, 0.42) 62%, #FCFCFD 100%),
+      url('/assets/illustrations/welcome-gradient.png');
+    background-position:
+      center top,
+      center top,
+      center -450px;
+    background-repeat: no-repeat;
+    background-size:
+      100% 100%,
+      100% 100%,
+      clamp(1080px, 116vw, 1600px) auto;
   }
 
   .ecosystem-mono {
@@ -444,6 +466,20 @@
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+
+  @media (max-width: 720px) {
+    .ecosystem-page::before {
+      height: 280px;
+      background-position:
+        center top,
+        center top,
+        center -290px;
+      background-size:
+        100% 100%,
+        100% 100%,
+        900px auto;
     }
   }
 </style>
