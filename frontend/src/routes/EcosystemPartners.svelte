@@ -320,17 +320,28 @@
 <style>
   .ecosystem-page {
     background-color: #FCFCFD;
+    color: #15151B;
+  }
+
+  .ecosystem-page::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 340px;
+    pointer-events: none;
     background-image:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.68) 0%, rgba(255, 255, 255, 0.74) 42%, rgba(252, 252, 253, 0.78) 100%),
+      linear-gradient(180deg, rgba(252, 252, 253, 0) 0%, rgba(252, 252, 253, 0.48) 62%, #FCFCFD 100%),
+      linear-gradient(90deg, #FCFCFD 0%, rgba(252, 252, 253, 0.78) 18%, rgba(252, 252, 253, 0.42) 62%, #FCFCFD 100%),
       url('/assets/illustrations/welcome-gradient.png');
     background-position:
-      center,
-      center;
+      center top,
+      center top,
+      center -450px;
     background-repeat: no-repeat;
     background-size:
       100% 100%,
-      100% 100%;
-    color: #15151B;
+      100% 100%,
+      clamp(1080px, 116vw, 1600px) auto;
   }
 
   .ecosystem-mono {
@@ -459,16 +470,16 @@
   }
 
   @media (max-width: 720px) {
-    .ecosystem-page {
-      background-image:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.7) 46%, rgba(252, 252, 253, 0.78) 100%),
-        url('/assets/illustrations/welcome-gradient.png');
+    .ecosystem-page::before {
+      height: 280px;
       background-position:
-        center,
-        center;
+        center top,
+        center top,
+        center -290px;
       background-size:
         100% 100%,
-        100% 100%;
+        100% 100%,
+        900px auto;
     }
   }
 </style>
