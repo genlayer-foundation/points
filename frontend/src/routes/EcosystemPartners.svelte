@@ -321,7 +321,7 @@
   .ecosystem-page {
     background-color: #FCFCFD;
     background-image:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.56) 42%, rgba(252, 252, 253, 0.62) 100%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.68) 0%, rgba(255, 255, 255, 0.74) 42%, rgba(252, 252, 253, 0.78) 100%),
       url('/assets/illustrations/welcome-gradient.png');
     background-position:
       center,
@@ -461,7 +461,7 @@
   @media (max-width: 720px) {
     .ecosystem-page {
       background-image:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0.52) 46%, rgba(252, 252, 253, 0.64) 100%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.7) 46%, rgba(252, 252, 253, 0.78) 100%),
         url('/assets/illustrations/welcome-gradient.png');
       background-position:
         center,
