@@ -47,7 +47,7 @@
   {:else}
     <div class="flex gap-[10px] overflow-x-auto pb-2" style="-ms-overflow-style: none; scrollbar-width: none;">
       {#each builds as build}
-        {@const projectLink = build.slug ? { href: `/builders/projects/${build.slug}`, external: false } : resolvePortalLink(build.link || build.url)}
+        {@const projectLink = resolvePortalLink(build.link || build.view_url || build.url)}
         {@const projectHref = projectLink.href}
         {@const isExternal = projectLink.external}
         <a

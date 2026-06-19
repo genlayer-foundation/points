@@ -63,6 +63,7 @@ class ProjectAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
         ('Project Detail', {
             'fields': (
                 'details',
+                'view_url',
                 'url',
                 'github_url',
                 'x_url',

@@ -31,6 +31,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
             'hero_image_url',
             'hero_image_url_tablet',
             'hero_image_url_mobile',
+            'view_url',
             'url',
             'github_url',
             'x_url',
