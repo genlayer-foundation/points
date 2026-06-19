@@ -321,15 +321,15 @@
   .ecosystem-page {
     background-color: #FCFCFD;
     background-image:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.64) 0%, rgba(252, 252, 253, 0.86) 34%, #FCFCFD 78%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.56) 42%, rgba(252, 252, 253, 0.62) 100%),
       url('/assets/illustrations/welcome-gradient.png');
     background-position:
-      center top,
-      center -390px;
+      center,
+      center;
     background-repeat: no-repeat;
     background-size:
       100% 100%,
-      clamp(1040px, 132vw, 1780px) auto;
+      100% 100%;
     color: #15151B;
   }
 
@@ -461,14 +461,14 @@
   @media (max-width: 720px) {
     .ecosystem-page {
       background-image:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.58) 0%, rgba(252, 252, 253, 0.9) 38%, #FCFCFD 82%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0.52) 46%, rgba(252, 252, 253, 0.64) 100%),
         url('/assets/illustrations/welcome-gradient.png');
       background-position:
-        center top,
-        center -230px;
+        center,
+        center;
       background-size:
         100% 100%,
-        980px auto;
+        100% 100%;
     }
   }
 </style>
