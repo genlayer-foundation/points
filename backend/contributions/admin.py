@@ -757,9 +757,9 @@ class SubmissionNoteInline(admin.TabularInline):
 
 @admin.register(SubmittedContribution)
 class SubmittedContributionAdmin(admin.ModelAdmin):
-    list_display = ('user', 'contribution_type', 'proposed_points', 'state',
+    list_display = ('user', 'contribution_type', 'proposed_points', 'state', 'gate_reviewed',
                    'contribution_date', 'created_at', 'reviewed_by')
-    list_filter = ('state', 'contribution_type__category', ContributionTypeListFilter, 'created_at', 'reviewed_at')
+    list_filter = ('state', 'gate_reviewed', 'contribution_type__category', ContributionTypeListFilter, 'created_at', 'reviewed_at')
     search_fields = ('user__email', 'user__name', 'notes', 'staff_reply', 'mission__name')
     list_per_page = 25
     show_full_result_count = False
@@ -774,7 +774,7 @@ class SubmittedContributionAdmin(admin.ModelAdmin):
             'fields': ('id', 'user', 'contribution_type', 'contribution_type_info', 'proposed_points', 'contribution_date', 'notes')
         }),
         ('Review Status', {
-            'fields': ('state', 'staff_reply', 'reviewed_by', 'reviewed_at')
+            'fields': ('state', 'gate_reviewed', 'staff_reply', 'reviewed_by', 'reviewed_at')
         }),
         ('Tracking', {
             'fields': ('created_at', 'updated_at', 'last_edited_at', 'converted_contribution_link'),

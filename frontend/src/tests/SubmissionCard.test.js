@@ -49,6 +49,7 @@ function makeSubmission(overrides = {}) {
     is_interesting: false,
     has_appeal: false,
     appeal_reason: '',
+    more_info_requests: [],
     mission: null,
     contribution: null,
     ...overrides
@@ -89,6 +90,79 @@ describe('SubmissionCard', () => {
       expect(writeText).toHaveBeenCalledWith('submission-123');
     });
     expect(screen.queryByRole('button', { name: /Copy review context/i })).toBeNull();
+  });
+
+  it('shows more information requests in a dedicated panel', async () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          state: 'pending',
+          state_display: 'Pending Review',
+          more_info_requests: [
+            {
+              id: 1,
+              message: 'Please add a working demo link and deployment notes.',
+              user_name: 'Test Steward',
+              created_at: '2026-06-02T12:00:00Z'
+            }
+          ]
+        }),
+        notes: []
+      }
+    });
+
+    expect(screen.getByText('More information requested')).toBeTruthy();
+    expect(screen.getByText('Please add a working demo link and deployment notes.')).toBeTruthy();
+    expect(screen.getByText(/Requested by Test Steward/)).toBeTruthy();
+  });
+
+  it('uses structured more-info requests instead of duplicating staff response', async () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          state: 'more_info_needed',
+          state_display: 'More Information Needed',
+          staff_reply: 'Please add more evidence.',
+          more_info_requests: [
+            {
+              id: 2,
+              message: 'Please add more evidence.',
+              user_name: 'Test Steward',
+              created_at: '2026-06-02T12:00:00Z'
+            }
+          ]
+        }),
+        notes: []
+      }
+    });
+
+    expect(screen.getByText('More information requested')).toBeTruthy();
+    expect(screen.queryByText('Staff Response')).toBeNull();
+  });
+
+  it('shows final staff response after a historical more-info request', async () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          state: 'accepted',
+          state_display: 'Accepted',
+          staff_reply: 'Accepted after the follow-up evidence.',
+          more_info_requests: [
+            {
+              id: 3,
+              message: 'Please add more evidence.',
+              user_name: 'Test Steward',
+              created_at: '2026-06-02T12:00:00Z'
+            }
+          ]
+        }),
+        notes: []
+      }
+    });
+
+    expect(screen.getByText('More information requested')).toBeTruthy();
+    expect(screen.getByText('Staff Response')).toBeTruthy();
+    expect(screen.getByText('Accepted after the follow-up evidence.')).toBeTruthy();
   });
 
   it('opens directly to the project proposal rubric for proposal-only stewards', async () => {

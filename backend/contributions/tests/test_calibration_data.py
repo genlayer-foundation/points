@@ -182,6 +182,25 @@ class TestHumanReviewNotes(APITestCase):
         self.assertEqual(note.data['action'], 'reject')
         self.assertIsNone(note.data.get('template_id'))
 
+    def test_more_info_review_returns_structured_request(self):
+        submission = self.fixtures['submission']
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/review/',
+            data={
+                'action': 'more_info',
+                'staff_reply': 'Please add a working demo link.',
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['state'], 'more_info_needed')
+        self.assertEqual(len(response.data['more_info_requests']), 1)
+        self.assertEqual(
+            response.data['more_info_requests'][0]['message'],
+            'Please add a working demo link.',
+        )
+
     def test_human_propose_note_captures_data(self):
         """When a steward proposes via /propose/, the note.data has structured fields."""
         submission = self.fixtures['submission']
@@ -500,6 +519,44 @@ class TestAIReviewAPI(APITestCase):
         self.assertEqual(note.data['template_id'], self.fixtures['reject_template'].id)
         self.assertEqual(note.data['confidence'], 'high')
         self.assertEqual(note.data['reasoning'], 'The evidence provided does not support the claim.')
+
+    def test_ai_review_gate_reviewed_filter_and_proposal_update(self):
+        submission = self.fixtures['submission']
+        reviewed_submission = SubmittedContribution.objects.create(
+            user=self.fixtures['submitter'],
+            contribution_type=self.fixtures['ct'],
+            contribution_date=timezone.now(),
+            notes='Already gate checked',
+            state='pending',
+            gate_reviewed=True,
+        )
+
+        filtered_response = self.client.get(
+            '/api/v1/ai-review/',
+            data={'gate_reviewed': 'false'},
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+        self.assertEqual(filtered_response.status_code, 200)
+        filtered_ids = {str(item['id']) for item in filtered_response.data['results']}
+        self.assertIn(str(submission.id), filtered_ids)
+        self.assertNotIn(str(reviewed_submission.id), filtered_ids)
+
+        response = self.client.post(
+            f'/api/v1/ai-review/{submission.id}/propose/',
+            data={
+                'proposed_action': 'reject',
+                'proposed_staff_reply': 'Automated gate reject.',
+                'confidence': 'high',
+                'gate_reviewed': True,
+            },
+            content_type='application/json',
+            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['gate_reviewed'])
+        submission.refresh_from_db()
+        self.assertTrue(submission.gate_reviewed)
 
     def test_proposed_endpoint_returns_active_proposals_and_can_filter_to_ai(self):
         ai_submission = self.fixtures['submission']

@@ -64,6 +64,7 @@ class AIReviewFilterSet(FilterSet):
     proposed_confidence = CharFilter(method='filter_proposed_confidence')
     proposed_template = NumberFilter(method='filter_proposed_template')
     is_interesting = BooleanFilter(field_name='is_interesting')
+    gate_reviewed = BooleanFilter(field_name='gate_reviewed')
     has_appeal = BooleanFilter(field_name='has_appeal')
     search = CharFilter(method='filter_search')
     mission = CharFilter(method='filter_mission')
@@ -502,6 +503,8 @@ class AIReviewViewSet(
         submission.proposed_by = ai_user
         submission.proposed_at = timezone.now()
         submission.proposed_confidence = data.get('confidence', 'medium')
+        if 'gate_reviewed' in data:
+            submission.gate_reviewed = data['gate_reviewed']
 
         # Resolve template FK (PrimaryKeyRelatedField returns instance or None)
         template = data.get('template_id')

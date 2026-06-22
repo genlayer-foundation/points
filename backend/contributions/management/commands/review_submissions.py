@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 AI_STEWARD_EMAIL = 'genlayer-steward@genlayer.foundation'
 AI_STEWARD_NAME = 'GenLayer Steward'
+MISSING_TEMPLATE = object()
 
 
 # ─── URL Helpers ─────────────────────────────────────────────────────────────
@@ -291,6 +292,7 @@ class Command(BaseCommand):
         # Also skip appealed submissions — those are reserved for human
         # steward reconsideration.
         qs = qs.exclude(reviewed_by=ai_user).filter(
+            gate_reviewed=False,
             proposed_action__isnull=True,
             has_appeal=False,
         )
@@ -334,7 +336,10 @@ class Command(BaseCommand):
                 url_to_sub_ids, accepted_urls, submitted_created_at, blocklist,
                 skip_pending_duplicates=skip_pending_duplicates,
             )
-            if result:
+            if result is MISSING_TEMPLATE:
+                stats['errors'] += 1
+                continue
+            elif result:
                 template, crm_reason = result
                 stats['rejected'] += 1
                 self.stdout.write(self.style.WARNING(
@@ -351,6 +356,8 @@ class Command(BaseCommand):
                 )
             else:
                 stats['passed'] += 1
+                if not dry_run:
+                    self._mark_gate_reviewed(submission)
 
         # Auto-ban check
         banned_count = self._check_auto_bans(ai_user, dry_run)
@@ -442,7 +449,7 @@ class Command(BaseCommand):
                    url_to_sub_ids, accepted_urls, submitted_created_at,
                    blocklist,
                    skip_pending_duplicates=False):
-        """Run Tier 1 rules in order. Returns (template, crm_reason) or None."""
+        """Run Tier 1 rules in order. Returns result tuple, sentinel, or None."""
         # Rule 1: No evidence URL
         result = rule_no_evidence_url(submission, evidence_items)
         if result:
@@ -467,14 +474,14 @@ class Command(BaseCommand):
         return None
 
     def _resolve_template(self, rule_result, templates):
-        """Look up the template for a rule result. Returns (template, reason) or None."""
+        """Look up the template for a rule result."""
         template_label, crm_reason = rule_result
         template = templates.get(template_label)
         if template is None:
             self.stdout.write(self.style.ERROR(
                 f'  Template not found: {template_label}'
             ))
-            return None
+            return MISSING_TEMPLATE
         return template, crm_reason
 
     def _apply_reject(self, submission, ai_user, template, crm_reason):
@@ -483,6 +490,7 @@ class Command(BaseCommand):
         submission.staff_reply = template.text
         submission.reviewed_by = ai_user
         submission.reviewed_at = timezone.now()
+        submission.gate_reviewed = True
         # Clear any existing proposal fields
         submission.proposed_action = None
         submission.proposed_points = None
@@ -513,6 +521,13 @@ class Command(BaseCommand):
                 'reasoning': crm_reason,
             },
         )
+
+    def _mark_gate_reviewed(self, submission):
+        """Record that Tier 1 evaluated this submission and found no reject."""
+        if submission.gate_reviewed:
+            return
+        submission.gate_reviewed = True
+        submission.save(update_fields=['gate_reviewed', 'updated_at'])
 
     def _ensure_ai_steward(self):
         """Get or create the AI steward user."""
