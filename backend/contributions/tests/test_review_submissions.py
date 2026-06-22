@@ -802,6 +802,19 @@ class GateReviewedCommandTest(Tier1RuleTestBase):
         self.assertEqual(submission.state, 'pending')
         self.assertFalse(submission.gate_reviewed)
 
+    def test_template_error_does_not_mark_submission_gate_reviewed(self):
+        ReviewTemplate.objects.filter(label='Reject: No Evidence').delete()
+        submission = self._create_submission(notes='Missing evidence')
+
+        out = StringIO()
+        call_command('review_submissions', '--batch-size', '0', stdout=out)
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'pending')
+        self.assertFalse(submission.gate_reviewed)
+        self.assertIn('Template not found: Reject: No Evidence', out.getvalue())
+        self.assertIn('errors: 1', out.getvalue())
+
 
 class SubmissionIdDuplicateDeterminismTest(Tier1RuleTestBase):
     """Targeted review runs should keep duplicate handling deterministic."""

@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 AI_STEWARD_EMAIL = 'genlayer-steward@genlayer.foundation'
 AI_STEWARD_NAME = 'GenLayer Steward'
+MISSING_TEMPLATE = object()
 
 
 # ─── URL Helpers ─────────────────────────────────────────────────────────────
@@ -335,7 +336,10 @@ class Command(BaseCommand):
                 url_to_sub_ids, accepted_urls, submitted_created_at, blocklist,
                 skip_pending_duplicates=skip_pending_duplicates,
             )
-            if result:
+            if result is MISSING_TEMPLATE:
+                stats['errors'] += 1
+                continue
+            elif result:
                 template, crm_reason = result
                 stats['rejected'] += 1
                 self.stdout.write(self.style.WARNING(
@@ -445,7 +449,7 @@ class Command(BaseCommand):
                    url_to_sub_ids, accepted_urls, submitted_created_at,
                    blocklist,
                    skip_pending_duplicates=False):
-        """Run Tier 1 rules in order. Returns (template, crm_reason) or None."""
+        """Run Tier 1 rules in order. Returns result tuple, sentinel, or None."""
         # Rule 1: No evidence URL
         result = rule_no_evidence_url(submission, evidence_items)
         if result:
@@ -470,14 +474,14 @@ class Command(BaseCommand):
         return None
 
     def _resolve_template(self, rule_result, templates):
-        """Look up the template for a rule result. Returns (template, reason) or None."""
+        """Look up the template for a rule result."""
         template_label, crm_reason = rule_result
         template = templates.get(template_label)
         if template is None:
             self.stdout.write(self.style.ERROR(
                 f'  Template not found: {template_label}'
             ))
-            return None
+            return MISSING_TEMPLATE
         return template, crm_reason
 
     def _apply_reject(self, submission, ai_user, template, crm_reason):

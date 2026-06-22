@@ -978,6 +978,8 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             instance.last_edited_at = timezone.now()
             instance.staff_reply = ''  # Clear previous staff reply
             instance.gate_reviewed = False
+            instance.reviewed_by = None
+            instance.reviewed_at = None
 
             self.perform_update(serializer)
 
@@ -1115,9 +1117,10 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             submission.state = 'pending'
             submission.reviewed_by = None
             submission.reviewed_at = None
+            submission.gate_reviewed = False
             submission.save(update_fields=[
                 'has_appeal', 'appeal_reason', 'state',
-                'reviewed_by', 'reviewed_at', 'updated_at',
+                'reviewed_by', 'reviewed_at', 'gate_reviewed', 'updated_at',
             ])
 
             SubmissionNote.objects.create(
@@ -1173,9 +1176,13 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             submitted_contribution=submission,
             **serializer.validated_data
         )
-        if submission.gate_reviewed:
+        if submission.gate_reviewed or submission.reviewed_by_id or submission.reviewed_at:
             submission.gate_reviewed = False
-            submission.save(update_fields=['gate_reviewed', 'updated_at'])
+            submission.reviewed_by = None
+            submission.reviewed_at = None
+            submission.save(update_fields=[
+                'gate_reviewed', 'reviewed_by', 'reviewed_at', 'updated_at',
+            ])
 
         return Response(
             SubmittedEvidenceSerializer(evidence).data,

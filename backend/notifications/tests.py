@@ -456,6 +456,7 @@ class SubmissionReturnNotificationTests(TestCase):
             staff_reply='Rejected first time',
             reviewed_at=timezone.now(),
             assigned_to=self.steward_user,
+            gate_reviewed=True,
         )
         self.client.force_authenticate(user=self.submitter)
 
@@ -466,6 +467,8 @@ class SubmissionReturnNotificationTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200, response.data)
+        submission.refresh_from_db()
+        self.assertFalse(submission.gate_reviewed)
         notification = Notification.objects.get(recipient=self.steward_user)
         self.assertEqual(notification.event_type, 'submission.appealed')
         self.assertEqual(notification.actor, self.submitter)
@@ -482,6 +485,7 @@ class SubmissionReturnNotificationTests(TestCase):
             notes='Needs edits',
             state='more_info_needed',
             staff_reply='Please add evidence.',
+            reviewed_by=self.steward_user,
             reviewed_at=reviewed_at,
             assigned_to=self.steward_user,
             gate_reviewed=True,
@@ -498,6 +502,8 @@ class SubmissionReturnNotificationTests(TestCase):
         submission.refresh_from_db()
         self.assertEqual(submission.state, 'pending')
         self.assertFalse(submission.gate_reviewed)
+        self.assertIsNone(submission.reviewed_by)
+        self.assertIsNone(submission.reviewed_at)
         self.assertGreater(submission.last_edited_at, reviewed_at)
         notification = Notification.objects.get(recipient=self.steward_user)
         self.assertEqual(notification.event_type, 'submission.more_info_resubmitted')
