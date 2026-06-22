@@ -71,6 +71,10 @@ class BroadcastNotificationAdminMixin:
                     raise forms.ValidationError('Choose either broadcast or recall, not both.')
                 return cleaned_data
 
+        for field_name, field in base_form.base_fields.items():
+            if field_name in BroadcastNotificationForm.base_fields:
+                BroadcastNotificationForm.base_fields[field_name] = field
+
         return BroadcastNotificationForm
 
     def get_fieldsets(self, request, obj=None):

@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -10,7 +11,13 @@ from partners.models import Partner
 from validators.models import Validator
 
 from notifications import campaigns, services
-from notifications.models import CustomNotification, Notification, NotificationReceipt
+from notifications.models import (
+    CustomNotification,
+    Notification,
+    NotificationReceipt,
+    WhatsNewAnnouncement,
+    WhatsNewAnnouncementSeen,
+)
 
 User = get_user_model()
 
@@ -417,6 +424,92 @@ class StewardReviewEndpointNotificationTests(TestCase):
         self.assertEqual(notification.event_type, 'submission.rejected')
         self.assertEqual(notification.actor, self.steward_user)
         self.assertIn(str(self.submission.id), notification.link_url)
+
+
+class SubmissionReturnNotificationTests(TestCase):
+    """Submitter appeals/resubmits should notify the assigned steward."""
+
+    def setUp(self):
+        from stewards.models import Steward
+
+        self.category = Category.objects.create(name='Return', slug='return-notif', description='x')
+        self.contribution_type = ContributionType.objects.create(
+            name='Return Type',
+            slug='return-type-notif',
+            description='x',
+            category=self.category,
+            min_points=1,
+            max_points=10,
+        )
+        self.submitter = make_user('return-submit@test.com', '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+        self.steward_user = make_user('return-steward@test.com', '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+        Steward.objects.create(user=self.steward_user)
+        self.client = APIClient()
+
+    def test_appeal_notifies_assigned_steward(self):
+        submission = SubmittedContribution.objects.create(
+            user=self.submitter,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Review me again',
+            state='rejected',
+            staff_reply='Rejected first time',
+            reviewed_at=timezone.now(),
+            assigned_to=self.steward_user,
+            gate_reviewed=True,
+        )
+        self.client.force_authenticate(user=self.submitter)
+
+        response = self.client.post(
+            f'/api/v1/submissions/{submission.id}/appeal/',
+            {'reason': 'I added context in the original evidence.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        submission.refresh_from_db()
+        self.assertFalse(submission.gate_reviewed)
+        notification = Notification.objects.get(recipient=self.steward_user)
+        self.assertEqual(notification.event_type, 'submission.appealed')
+        self.assertEqual(notification.actor, self.submitter)
+        self.assertEqual(notification.payload['submission_id'], str(submission.id))
+        self.assertIn('/stewards/submissions?', notification.link_url)
+        self.assertIn(str(submission.id), notification.link_url)
+
+    def test_more_info_resubmission_notifies_assigned_steward(self):
+        reviewed_at = timezone.now() - timedelta(hours=1)
+        submission = SubmittedContribution.objects.create(
+            user=self.submitter,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Needs edits',
+            state='more_info_needed',
+            staff_reply='Please add evidence.',
+            reviewed_by=self.steward_user,
+            reviewed_at=reviewed_at,
+            assigned_to=self.steward_user,
+            gate_reviewed=True,
+        )
+        self.client.force_authenticate(user=self.submitter)
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'notes': 'Added the requested evidence.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'pending')
+        self.assertFalse(submission.gate_reviewed)
+        self.assertIsNone(submission.reviewed_by)
+        self.assertIsNone(submission.reviewed_at)
+        self.assertGreater(submission.last_edited_at, reviewed_at)
+        notification = Notification.objects.get(recipient=self.steward_user)
+        self.assertEqual(notification.event_type, 'submission.more_info_resubmitted')
+        self.assertEqual(notification.actor, self.submitter)
+        self.assertEqual(notification.payload['submission_id'], str(submission.id))
+        self.assertIn(str(submission.id), notification.link_url)
 
 
 class BroadcastAdminMixinTests(TestCase):
@@ -996,3 +1089,182 @@ class SocialTaskBroadcastTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(Notification.objects.filter(event_type='social_task.published').count(), 0)
+
+
+class WhatsNewAnnouncementAPITests(TestCase):
+    def setUp(self):
+        self.user = make_user('whatsnew@test.com', '0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1')
+        self.validator_user = make_user('whatsnew-validator@test.com', '0xe2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2')
+        Validator.objects.create(user=self.validator_user)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def make_announcement(self, **kwargs):
+        defaults = {
+            'title': 'New portal section',
+            'body': 'A focused product update.',
+            'status': WhatsNewAnnouncement.STATUS_PUBLISHED,
+            'audience': Notification.AUDIENCE_ALL,
+            'published_at': timezone.now() - timedelta(minutes=5),
+        }
+        defaults.update(kwargs)
+        return WhatsNewAnnouncement.objects.create(**defaults)
+
+    def results(self, response):
+        if isinstance(response.data, dict):
+            return response.data.get('results', response.data)
+        return response.data
+
+    def test_requires_authentication(self):
+        client = APIClient()
+        response = client.get('/api/v1/whats-new/')
+        self.assertIn(response.status_code, (401, 403))
+
+        response = client.get('/api/v1/whats-new/unseen-count/')
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_published_announcement_requires_published_at(self):
+        announcement = WhatsNewAnnouncement(
+            title='Hidden by missing publish time',
+            status=WhatsNewAnnouncement.STATUS_PUBLISHED,
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            announcement.full_clean()
+
+        self.assertIn('published_at', context.exception.message_dict)
+
+    def test_lists_only_active_unseen_announcements(self):
+        visible = self.make_announcement(title='Visible')
+        self.make_announcement(title='Draft', status=WhatsNewAnnouncement.STATUS_DRAFT)
+        self.make_announcement(title='Archived', status=WhatsNewAnnouncement.STATUS_ARCHIVED)
+        self.make_announcement(title='Expired', expires_at=timezone.now() - timedelta(minutes=1))
+        self.make_announcement(title='Future', published_at=timezone.now() + timedelta(minutes=5))
+        seen = self.make_announcement(title='Already seen')
+        WhatsNewAnnouncementSeen.objects.create(
+            announcement=seen,
+            user=self.user,
+            version=seen.version,
+        )
+
+        response = self.client.get('/api/v1/whats-new/')
+
+        self.assertEqual(response.status_code, 200)
+        results = self.results(response)
+        self.assertEqual([item['id'] for item in results], [visible.id])
+        self.assertEqual(results[0]['title'], 'Visible')
+
+    def test_role_audience_filtering(self):
+        validator_announcement = self.make_announcement(
+            title='Validator only',
+            audience=Notification.AUDIENCE_VALIDATORS,
+        )
+
+        response = self.client.get('/api/v1/whats-new/')
+        self.assertEqual(self.results(response), [])
+
+        validator_client = APIClient()
+        validator_client.force_authenticate(user=self.validator_user)
+        response = validator_client.get('/api/v1/whats-new/')
+
+        self.assertEqual([item['id'] for item in self.results(response)], [validator_announcement.id])
+
+    def test_new_users_can_see_currently_published_announcements(self):
+        announcement = self.make_announcement()
+        User.objects.filter(pk=self.user.pk).update(date_joined=timezone.now())
+        self.user.refresh_from_db()
+
+        response = self.client.get('/api/v1/whats-new/')
+
+        self.assertEqual([item['id'] for item in self.results(response)], [announcement.id])
+
+    def test_mark_seen_excludes_current_version_from_list_and_count(self):
+        announcement = self.make_announcement()
+
+        response = self.client.get('/api/v1/whats-new/unseen-count/')
+        self.assertEqual(response.data['count'], 1)
+
+        response = self.client.post(
+            '/api/v1/whats-new/mark-seen/',
+            {'ids': [announcement.id], 'action': WhatsNewAnnouncementSeen.ACTION_SKIPPED},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 0)
+        self.assertEqual(
+            WhatsNewAnnouncementSeen.objects.get(
+                announcement=announcement,
+                user=self.user,
+            ).action,
+            WhatsNewAnnouncementSeen.ACTION_SKIPPED,
+        )
+        self.assertEqual(self.results(self.client.get('/api/v1/whats-new/')), [])
+
+    def test_preview_includes_published_announcements_already_seen(self):
+        announcement = self.make_announcement(title='Seen preview')
+        expired = self.make_announcement(
+            title='Expired seen preview',
+            published_at=timezone.now() - timedelta(days=2),
+            expires_at=timezone.now() - timedelta(days=1),
+        )
+        WhatsNewAnnouncementSeen.objects.create(
+            announcement=announcement,
+            user=self.user,
+            version=announcement.version,
+        )
+        WhatsNewAnnouncementSeen.objects.create(
+            announcement=expired,
+            user=self.user,
+            version=expired.version,
+        )
+
+        response = self.client.get('/api/v1/whats-new/')
+        self.assertEqual(self.results(response), [])
+
+        response = self.client.get('/api/v1/whats-new/', {'preview': 'true'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item['id'] for item in self.results(response)], [announcement.id, expired.id])
+
+    def test_preview_excludes_unseen_announcements(self):
+        seen = self.make_announcement(title='Seen preview')
+        self.make_announcement(title='Unseen preview')
+        WhatsNewAnnouncementSeen.objects.create(
+            announcement=seen,
+            user=self.user,
+            version=seen.version,
+        )
+
+        response = self.client.get('/api/v1/whats-new/', {'preview': 'true'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item['id'] for item in self.results(response)], [seen.id])
+
+    def test_version_bump_resurfaces_seen_announcement(self):
+        announcement = self.make_announcement()
+        WhatsNewAnnouncementSeen.objects.create(
+            announcement=announcement,
+            user=self.user,
+            version=1,
+        )
+        self.assertEqual(self.results(self.client.get('/api/v1/whats-new/')), [])
+
+        announcement.version = 2
+        announcement.save(update_fields=['version', 'updated_at'])
+
+        response = self.client.get('/api/v1/whats-new/')
+        self.assertEqual([item['id'] for item in self.results(response)], [announcement.id])
+        self.assertEqual(self.results(response)[0]['version'], 2)
+
+    def test_regular_notifications_never_become_whats_new_items(self):
+        services.notify(
+            'referral.joined',
+            recipient=self.user,
+            title='Regular notification',
+        )
+
+        response = self.client.get('/api/v1/whats-new/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.results(response), [])

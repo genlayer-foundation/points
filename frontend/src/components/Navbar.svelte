@@ -4,6 +4,7 @@
   import AuthButton from './AuthButton.svelte';
   import SearchBar from './SearchBar.svelte';
   import NotificationCenter from './NotificationCenter.svelte';
+  import WhatsNewTrigger from './WhatsNewTrigger.svelte';
   import { authState } from '../lib/auth.js';
   import { currentCategory } from '../stores/category.js';
   import { metricsAPI } from '../lib/api.js';
@@ -155,6 +156,7 @@
 
     <!-- Right: Actions -->
     <div class="hidden md:flex items-center gap-2">
+      <WhatsNewTrigger />
       <NotificationCenter />
       {#if $authState.isAuthenticated}
         <SearchBar />
@@ -172,6 +174,7 @@
 
     <!-- Mobile: Actions -->
     <div class="navbar-mobile-actions flex items-center md:hidden gap-2">
+      <WhatsNewTrigger />
       <NotificationCenter />
       <AuthButton />
       <button

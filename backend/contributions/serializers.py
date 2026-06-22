@@ -495,7 +495,38 @@ class SubmittedEvidenceSerializer(serializers.ModelSerializer):
         read_only_fields = ['url_type', 'created_at']
 
 
-class SubmittedContributionSerializer(serializers.ModelSerializer):
+class MoreInfoRequestsMixin(serializers.Serializer):
+    more_info_requests = serializers.SerializerMethodField()
+
+    def get_more_info_requests(self, obj):
+        notes = getattr(obj, 'more_info_request_notes', None)
+        if notes is None:
+            notes = (
+                obj.internal_notes
+                .filter(is_proposal=False, data__action='more_info')
+                .select_related('user')
+                .order_by('-created_at', '-id')
+            )
+
+        requests = []
+        for note in notes:
+            note_data = note.data or {}
+            message = note_data.get('staff_reply') or note.message
+            if not message:
+                continue
+            user = note.user
+            user_name = user.name or (f'{user.address[:10]}...' if user.address else str(user.id))
+            requests.append({
+                'id': note.id,
+                'message': message,
+                'user': user.id,
+                'user_name': user_name,
+                'created_at': note.created_at.isoformat() if note.created_at else None,
+            })
+        return requests
+
+
+class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSerializer):
     """
     Serializer for submitted contributions (user submissions).
     Context-aware: Uses lightweight serializers for list views to avoid N+1 queries.
@@ -525,7 +556,7 @@ class SubmittedContributionSerializer(serializers.ModelSerializer):
                   'staff_reply', 'reviewed_by', 'reviewed_at', 'evidence_items', 'can_edit',
                   'proposed_points', 'converted_contribution', 'contribution', 'mission',
                   'project_contribution', 'milestone_version',
-                  'has_appeal', 'appeal_reason',
+                  'has_appeal', 'appeal_reason', 'more_info_requests',
                   'created_at', 'updated_at', 'last_edited_at', 'recaptcha']
         read_only_fields = ['id', 'user', 'state', 'staff_reply', 'reviewed_by',
                           'reviewed_at', 'created_at', 'updated_at', 'last_edited_at',
@@ -1247,7 +1278,7 @@ class SubmissionProposeSerializer(serializers.Serializer):
         return data
 
 
-class StewardSubmissionSerializer(serializers.ModelSerializer):
+class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerializer):
     """
     Enhanced serializer for steward view of submissions with all needed data.
     Context-aware: Uses lightweight serializers for list views to avoid N+1 queries.
@@ -1280,8 +1311,8 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                   'proposed_by', 'proposed_at', 'proposed_by_details', 'has_proposal',
                   'proposed_confidence', 'proposed_template', 'proposed_template_name',
                   'rubric_review',
-                  'notes_count', 'is_interesting',
-                  'has_appeal', 'appeal_reason',
+                  'notes_count', 'is_interesting', 'gate_reviewed',
+                  'has_appeal', 'appeal_reason', 'more_info_requests',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution',
                   'mission', 'project_contribution', 'milestone_version']
         # Every model-backed field is read-only: this serializer only renders
@@ -1295,7 +1326,7 @@ class StewardSubmissionSerializer(serializers.ModelSerializer):
                             'proposed_highlight_title', 'proposed_highlight_description',
                             'proposed_by', 'proposed_at', 'proposed_confidence', 'proposed_template',
                             'created_at', 'updated_at', 'last_edited_at', 'proposed_points',
-                            'is_interesting', 'has_appeal', 'appeal_reason',
+                            'is_interesting', 'gate_reviewed', 'has_appeal', 'appeal_reason',
                             'converted_contribution', 'mission', 'milestone_version']
 
     def get_user_details(self, obj):

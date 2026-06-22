@@ -780,6 +780,11 @@ class SubmittedContribution(BaseModel):
         db_index=True,
         help_text="Internal-only flag stewards can toggle to mark a submission as interesting."
     )
+    gate_reviewed = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="True once AI review has checked this submission for automated gate rejects."
+    )
 
     # Appeal fields - submitter can appeal a rejected submission once
     has_appeal = models.BooleanField(

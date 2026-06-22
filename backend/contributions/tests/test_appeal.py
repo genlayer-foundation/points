@@ -229,6 +229,24 @@ class AppealEndpointTest(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_add_evidence_clears_gate_and_review_metadata(self):
+        submission = self._make_submission(state='more_info_needed')
+        submission.gate_reviewed = True
+        submission.save(update_fields=['gate_reviewed'])
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            f'/api/v1/submissions/{submission.id}/add-evidence/',
+            {'description': 'New evidence', 'url': 'https://example.com'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        submission.refresh_from_db()
+        self.assertFalse(submission.gate_reviewed)
+        self.assertIsNone(submission.reviewed_by)
+        self.assertIsNone(submission.reviewed_at)
+
     def test_appealed_more_info_needed_submission_can_be_patched(self):
         """Once a steward asks for more info on an appealed submission,
         the submitter can edit it to respond."""

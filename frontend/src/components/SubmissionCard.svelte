@@ -74,6 +74,15 @@
   let urlEvidence = $derived(
     (submission.evidence_items || []).filter(evidence => evidence?.url)
   );
+  let moreInfoRequests = $derived(
+    (submission.more_info_requests || []).filter(request => request?.message)
+  );
+  let showStaffResponse = $derived(Boolean(
+    submission.staff_reply &&
+    submission.state !== 'rejected' &&
+    submission.state !== 'canceled' &&
+    !(submission.state === 'more_info_needed' && moreInfoRequests.length > 0)
+  ));
 
   async function writeClipboard(text) {
     if (navigator.clipboard?.writeText) {
@@ -1213,6 +1222,32 @@
           </div>
         {/if}
 
+        {#if moreInfoRequests.length > 0}
+          <div class="border border-blue-200 rounded-lg p-3 bg-blue-50">
+            <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h4 class="text-sm font-medium text-blue-950">More information requested</h4>
+              {#if moreInfoRequests.length > 1}
+                <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                  {moreInfoRequests.length} requests
+                </span>
+              {/if}
+            </div>
+            <div class="divide-y divide-blue-100">
+              {#each moreInfoRequests as request, index (request.id || index)}
+                <div class="{index === 0 ? 'pt-0' : 'pt-3'} {index === moreInfoRequests.length - 1 ? 'pb-0' : 'pb-3'}">
+                  <div class="markdown-content text-sm text-blue-900">{@html parseMarkdown(request.message)}</div>
+                  <p class="mt-2 text-xs text-blue-700">
+                    {request.user_name ? `Requested by ${request.user_name}` : 'Requested'}
+                    {#if request.created_at}
+                      on {formatDate(request.created_at)}
+                    {/if}
+                  </p>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
         {#if submission.evidence_items?.length > 0}
           <div>
             <h4 class="text-sm font-medium text-gray-700">Evidence</h4>
@@ -1235,7 +1270,7 @@
           </div>
         {/if}
 
-        {#if submission.staff_reply && submission.state !== 'rejected' && submission.state !== 'canceled'}
+        {#if showStaffResponse}
           <div class="bg-gray-50 p-3 rounded">
             <h4 class="text-sm font-medium text-gray-700 mb-1">Staff Response</h4>
             <div class="markdown-content text-sm text-gray-600">{@html parseMarkdown(submission.staff_reply)}</div>

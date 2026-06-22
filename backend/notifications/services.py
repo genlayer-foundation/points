@@ -16,7 +16,7 @@ from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
-from .models import Notification, NotificationReceipt
+from .models import Notification, NotificationReceipt, WhatsNewAnnouncement, WhatsNewAnnouncementSeen
 from .registry import get_event_type
 
 
@@ -202,6 +202,90 @@ def estimate_broadcast_reach(audience):
 
 
 # ---------------------------------------------------------------------------
+# What's New announcements
+# ---------------------------------------------------------------------------
+
+def active_whats_new_for(user):
+    """Published What's New announcements matching the user's current audience."""
+    now = timezone.now()
+    return WhatsNewAnnouncement.objects.filter(
+        status=WhatsNewAnnouncement.STATUS_PUBLISHED,
+        audience__in=audiences_for(user),
+        published_at__isnull=False,
+        published_at__lte=now,
+    ).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gt=now)
+    )
+
+
+def annotate_whats_new_seen_state(queryset, user):
+    return queryset.annotate(
+        seen_current_version=Exists(
+            WhatsNewAnnouncementSeen.objects.filter(
+                announcement=OuterRef('pk'),
+                user=user,
+                version=OuterRef('version'),
+            )
+        )
+    )
+
+
+def unseen_whats_new_for(user):
+    """Unseen current-version announcements for the What's New dialog."""
+    return (
+        annotate_whats_new_seen_state(active_whats_new_for(user), user)
+        .filter(seen_current_version=False)
+        .order_by('display_order', '-published_at', '-id')
+    )
+
+
+def seen_whats_new_for(user):
+    """Recent published announcements whose current version the user has seen."""
+    now = timezone.now()
+    return (
+        annotate_whats_new_seen_state(
+            WhatsNewAnnouncement.objects.filter(
+                status=WhatsNewAnnouncement.STATUS_PUBLISHED,
+                audience__in=audiences_for(user),
+                published_at__isnull=False,
+                published_at__lte=now,
+            ),
+            user,
+        )
+        .filter(seen_current_version=True)
+        .order_by('-published_at', '-id')[:12]
+    )
+
+
+def whats_new_unseen_count(user):
+    return unseen_whats_new_for(user).count()
+
+
+def mark_whats_new_seen(user, ids, action=WhatsNewAnnouncementSeen.ACTION_SEEN):
+    """Mark visible current-version announcements as seen for a user."""
+    if not ids:
+        return 0
+
+    announcements = list(active_whats_new_for(user).filter(pk__in=ids))
+    if not announcements:
+        return 0
+
+    WhatsNewAnnouncementSeen.objects.bulk_create(
+        [
+            WhatsNewAnnouncementSeen(
+                announcement=announcement,
+                user=user,
+                version=announcement.version,
+                action=action,
+            )
+            for announcement in announcements
+        ],
+        ignore_conflicts=True,
+    )
+    return len(announcements)
+
+
+# ---------------------------------------------------------------------------
 # Feed queries and read state
 # ---------------------------------------------------------------------------
 
@@ -304,6 +388,14 @@ def submission_review_link(submission):
     return f"/my-submissions?{query}"
 
 
+def steward_submission_review_link(submission):
+    query = urlencode({
+        'status': 'pending',
+        'q': str(submission.id),
+    })
+    return f"/stewards/submissions?{query}"
+
+
 def _display_submission_name(submission):
     if submission.title:
         return submission.title
@@ -346,6 +438,45 @@ def notify_submission_review(submission, actor=None):
         },
         source=submission,
         dedupe_key=f"submission-review:{submission.id}:{submission.state}:{decision_marker}",
+    )
+
+
+def notify_submission_reopened_for_steward(submission, *, kind, actor=None):
+    """Notify the assigned steward when a submitter returns a submission to review."""
+    if not submission.assigned_to_id:
+        return None
+
+    name = _display_submission_name(submission)
+    if kind == 'appeal':
+        event_slug = 'submission.appealed'
+        title = 'Submission appealed'
+        body = f"{name} was appealed by the submitter and is ready for re-review."
+        dedupe_marker = 'appeal'
+    elif kind == 'more_info_resubmitted':
+        event_slug = 'submission.more_info_resubmitted'
+        title = 'More information resubmitted'
+        body = f"{name} was updated by the submitter after your more-information request."
+        edit_at = submission.last_edited_at or submission.updated_at
+        dedupe_marker = edit_at.isoformat() if edit_at else ''
+    else:
+        raise ValueError(f"Unknown submission reopen notification kind: {kind}")
+
+    return notify(
+        event_slug,
+        recipient=submission.assigned_to,
+        actor=actor or submission.user,
+        title=title,
+        body=body,
+        link_url=steward_submission_review_link(submission),
+        link_label='Open submission',
+        payload={
+            'submission_id': str(submission.id),
+            'state': submission.state,
+            'kind': kind,
+            'contribution_type': submission.contribution_type.name if submission.contribution_type_id else '',
+        },
+        source=submission,
+        dedupe_key=f"submission-reopened:{submission.id}:{kind}:{dedupe_marker}",
     )
 
 

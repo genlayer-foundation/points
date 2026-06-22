@@ -727,6 +727,95 @@ class ActiveProposalSkipTest(TestCase):
         self.assertEqual(self.submission.proposed_by, self.proposer)
 
 
+class GateReviewedCommandTest(Tier1RuleTestBase):
+    """Tier 1 command should maintain the gate_reviewed marker."""
+
+    def setUp(self):
+        super().setUp()
+        ReviewTemplate.objects.create(
+            label='Reject: No Evidence',
+            text='No evidence URL provided.',
+            action='reject',
+        )
+        ReviewTemplate.objects.create(
+            label='Reject: Duplicate Submission',
+            text='Duplicate evidence URL.',
+            action='reject',
+        )
+        ReviewTemplate.objects.create(
+            label='Reject: Invalid Evidence URL',
+            text='Invalid evidence URL.',
+            action='reject',
+        )
+
+    def test_command_marks_passed_submission_gate_reviewed(self):
+        submission = self._create_submission(notes='Valid submission')
+        self._add_evidence(submission, url='https://example.com/valid')
+
+        out = StringIO()
+        call_command('review_submissions', '--batch-size', '0', stdout=out)
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'pending')
+        self.assertTrue(submission.gate_reviewed)
+
+    def test_command_marks_rejected_submission_gate_reviewed(self):
+        submission = self._create_submission(notes='Missing evidence')
+
+        out = StringIO()
+        call_command('review_submissions', '--batch-size', '0', stdout=out)
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'rejected')
+        self.assertTrue(submission.gate_reviewed)
+
+    def test_command_skips_gate_reviewed_submission(self):
+        submission = self._create_submission(
+            notes='Missing evidence',
+            state='pending',
+        )
+        submission.gate_reviewed = True
+        submission.save(update_fields=['gate_reviewed'])
+
+        out = StringIO()
+        call_command('review_submissions', '--batch-size', '0', stdout=out)
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'pending')
+        self.assertTrue(submission.gate_reviewed)
+        self.assertIn('Found 0 submissions to process', out.getvalue())
+
+    def test_dry_run_does_not_mark_submission_gate_reviewed(self):
+        submission = self._create_submission(notes='Valid submission')
+        self._add_evidence(submission, url='https://example.com/dry-run')
+
+        out = StringIO()
+        call_command(
+            'review_submissions',
+            '--dry-run',
+            '--batch-size',
+            '0',
+            stdout=out,
+        )
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'pending')
+        self.assertFalse(submission.gate_reviewed)
+
+    def test_template_error_does_not_mark_submission_gate_reviewed(self):
+        ReviewTemplate.objects.filter(label='Reject: No Evidence').delete()
+        submission = self._create_submission(notes='Missing evidence')
+
+        out = StringIO()
+        call_command('review_submissions', '--batch-size', '0', stdout=out)
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'pending')
+        self.assertFalse(submission.gate_reviewed)
+        self.assertIn('Template not found: Reject: No Evidence', out.getvalue())
+        self.assertIn('errors: 1', out.getvalue())
+
+
 class SubmissionIdDuplicateDeterminismTest(Tier1RuleTestBase):
     """Targeted review runs should keep duplicate handling deterministic."""
 

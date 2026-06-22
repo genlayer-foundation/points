@@ -6,7 +6,7 @@
 
   let { category = 'builder', showNewsLink = false, compact = false } = $props();
 
-  let heightClass = $derived(compact ? 'h-[420px] md:h-[240px]' : 'h-[480px] md:h-[300px]');
+  let frameClass = $derived(compact ? 'hero-frame hero-frame--compact' : 'hero-frame');
 
   let heroes = $state([]);
   let currentIndex = $state(0);
@@ -86,7 +86,7 @@
 {#if showDashboardFallback}
   <!-- Dashboard fallback banner -->
   <div
-    class="relative overflow-hidden rounded-[8px] p-4 pt-10 md:p-5 flex items-start md:items-end {heightClass}"
+    class="relative overflow-hidden rounded-[8px] p-4 pt-10 md:p-5 flex items-start md:items-end {frameClass}"
     style="background: {fallbackGradient};"
   >
     <div class="absolute inset-0 opacity-25" style="background-image: linear-gradient(rgba(255,255,255,0.22) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.18) 1px, transparent 1px); background-size: 44px 44px;"></div>
@@ -123,7 +123,7 @@
   </div>
 {:else if loading}
   <!-- Loading skeleton -->
-  <div class="hero-loading relative overflow-hidden rounded-[8px] p-4 pt-10 md:p-5 flex items-start md:items-end {heightClass}" style="background: {loadingGradient};" aria-busy="true">
+  <div class="hero-loading relative overflow-hidden rounded-[8px] p-4 pt-10 md:p-5 flex items-start md:items-end {frameClass}" style="background: {loadingGradient};" aria-busy="true">
     <div class="hero-loading-grid" aria-hidden="true"></div>
     <div class="hero-loading-sweep" aria-hidden="true"></div>
 
@@ -152,7 +152,7 @@
   <div
     role="region"
     aria-label="Featured announcement"
-    class="relative overflow-hidden rounded-[8px] p-4 pt-10 md:p-5 flex items-start md:items-end {heightClass}"
+    class="relative overflow-hidden rounded-[8px] p-4 pt-10 md:p-5 flex items-start md:items-end {frameClass}"
     style="background: linear-gradient(to right, #8d81e1, #eae9f3);"
     onmouseenter={stopAutoAdvance}
     onmouseleave={startAutoAdvance}
@@ -227,6 +227,23 @@
 {/if}
 
 <style>
+  .hero-frame {
+    height: 480px;
+  }
+
+  .hero-frame--compact {
+    height: 420px;
+  }
+
+  @media (min-width: 768px) {
+    .hero-frame,
+    .hero-frame--compact {
+      aspect-ratio: 40 / 13;
+      height: auto;
+      min-height: 0;
+    }
+  }
+
   .hero-loading {
     isolation: isolate;
   }

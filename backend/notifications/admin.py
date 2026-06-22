@@ -3,8 +3,16 @@ import logging
 from django import forms
 from django.contrib import admin, messages
 
+from utils.admin_mixins import CloudinaryUploadMixin
+
 from . import campaigns
-from .models import CustomNotification, Notification, NotificationReceipt
+from .models import (
+    CustomNotification,
+    Notification,
+    NotificationReceipt,
+    WhatsNewAnnouncement,
+    WhatsNewAnnouncementSeen,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -305,3 +313,104 @@ class CustomNotificationAdmin(admin.ModelAdmin):
             message,
             level=messages.WARNING if (skipped or failed) else messages.SUCCESS,
         )
+
+
+class WhatsNewAnnouncementAdminForm(forms.ModelForm):
+    class Meta:
+        model = WhatsNewAnnouncement
+        fields = [
+            'title', 'body', 'eyebrow', 'link_url', 'link_label',
+            'image_url',
+            'status', 'audience', 'published_at', 'expires_at',
+            'display_order', 'version',
+        ]
+        widgets = {
+            'body': forms.Textarea(attrs={'rows': 7}),
+        }
+
+
+@admin.register(WhatsNewAnnouncement)
+class WhatsNewAnnouncementAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
+    form = WhatsNewAnnouncementAdminForm
+    cloudinary_upload_fields = {
+        'image_url': {
+            'public_id_field': 'image_public_id',
+            'folder': 'tally/whats-new',
+        },
+    }
+    list_display = (
+        'title',
+        'status',
+        'audience',
+        'version',
+        'display_order',
+        'published_at',
+        'expires_at',
+        'created_at',
+    )
+    list_filter = ('status', 'audience')
+    search_fields = ('title', 'body', 'eyebrow')
+    readonly_fields = (
+        'image_public_id',
+        'created_at',
+        'updated_at',
+    )
+    actions = (
+        'publish_selected',
+        'archive_selected',
+        'bump_version_selected',
+    )
+    ordering = ('display_order', '-published_at', '-created_at')
+
+    fieldsets = (
+        ('Content', {
+            'fields': ('title', 'eyebrow', 'body', 'link_url', 'link_label'),
+        }),
+        ('Presentation', {
+            'fields': ('image_url',),
+        }),
+        ('Delivery', {
+            'fields': ('status', 'audience', 'published_at', 'expires_at', 'display_order', 'version'),
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    @admin.action(description="Publish selected What's New announcements")
+    def publish_selected(self, request, queryset):
+        count = 0
+        for announcement in queryset:
+            announcement.publish()
+            announcement.save(update_fields=['status', 'published_at', 'updated_at'])
+            count += 1
+        self.message_user(request, f'Published {count} announcement(s).', level=messages.SUCCESS)
+
+    @admin.action(description="Archive selected What's New announcements")
+    def archive_selected(self, request, queryset):
+        count = 0
+        for announcement in queryset:
+            announcement.archive()
+            announcement.save(update_fields=['status', 'updated_at'])
+            count += 1
+        self.message_user(request, f'Archived {count} announcement(s).', level=messages.SUCCESS)
+
+    @admin.action(description="Bump version and resurface selected What's New announcements")
+    def bump_version_selected(self, request, queryset):
+        count = 0
+        for announcement in queryset:
+            announcement.bump_version()
+            announcement.save(update_fields=['version', 'updated_at'])
+            count += 1
+        self.message_user(request, f'Resurfaced {count} announcement(s).', level=messages.SUCCESS)
+
+
+@admin.register(WhatsNewAnnouncementSeen)
+class WhatsNewAnnouncementSeenAdmin(admin.ModelAdmin):
+    list_display = ('announcement', 'user', 'version', 'action', 'created_at')
+    list_filter = ('action', 'version', 'created_at')
+    search_fields = ('announcement__title', 'user__email', 'user__address', 'user__name')
+    raw_id_fields = ('announcement', 'user')
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('-created_at',)

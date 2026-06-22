@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
@@ -251,3 +252,112 @@ class CustomNotification(BaseModel):
     @property
     def dedupe_key(self):
         return f"custom.announcement:{self.pk}"
+
+
+class WhatsNewAnnouncement(BaseModel):
+    """Curated product announcement shown in the What's New dialog.
+
+    This is intentionally separate from Notification: regular feed items are
+    operational/user events, while these records are authored product updates.
+    """
+
+    STATUS_DRAFT = 'draft'
+    STATUS_PUBLISHED = 'published'
+    STATUS_ARCHIVED = 'archived'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_PUBLISHED, 'Published'),
+        (STATUS_ARCHIVED, 'Archived'),
+    ]
+
+    title = models.CharField(max_length=180)
+    body = models.TextField(blank=True)
+    eyebrow = models.CharField(max_length=80, blank=True, default="What's new")
+    link_url = models.CharField(max_length=500, blank=True)
+    link_label = models.CharField(max_length=80, blank=True)
+
+    image_url = models.URLField(max_length=500, blank=True, help_text='Cloudinary URL for the dialog image.')
+    image_public_id = models.CharField(max_length=255, blank=True, help_text='Cloudinary public ID for the dialog image.')
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_DRAFT, db_index=True)
+    audience = models.CharField(
+        max_length=16,
+        choices=Notification.AUDIENCE_CHOICES,
+        default=Notification.AUDIENCE_ALL,
+        db_index=True,
+    )
+    published_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    display_order = models.PositiveIntegerField(default=0)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ['display_order', '-published_at', '-created_at']
+        indexes = [
+            models.Index(fields=['status', 'audience', 'display_order']),
+            models.Index(fields=['status', 'published_at']),
+        ]
+        verbose_name = "What's New announcement"
+        verbose_name_plural = "What's New announcements"
+
+    def __str__(self):
+        return f"{self.title} v{self.version} ({self.status})"
+
+    def clean(self):
+        super().clean()
+        if self.link_label and not self.link_url:
+            raise ValidationError({'link_label': 'A link label needs a link URL.'})
+        if self.status == self.STATUS_PUBLISHED and not self.published_at:
+            raise ValidationError({'published_at': 'Published announcements need a publish time.'})
+        if self.expires_at and self.published_at and self.expires_at <= self.published_at:
+            raise ValidationError({'expires_at': 'Expiration must be after publish time.'})
+
+    def publish(self):
+        self.status = self.STATUS_PUBLISHED
+        if not self.published_at:
+            self.published_at = timezone.now()
+
+    def archive(self):
+        self.status = self.STATUS_ARCHIVED
+
+    def bump_version(self):
+        self.version += 1
+
+
+class WhatsNewAnnouncementSeen(BaseModel):
+    """Per-user seen state for a specific What's New announcement version."""
+
+    ACTION_SEEN = 'seen'
+    ACTION_SKIPPED = 'skipped'
+    ACTION_OPENED = 'opened'
+    ACTION_CHOICES = [
+        (ACTION_SEEN, 'Seen'),
+        (ACTION_SKIPPED, 'Skipped'),
+        (ACTION_OPENED, 'Opened link'),
+    ]
+
+    announcement = models.ForeignKey(
+        WhatsNewAnnouncement,
+        on_delete=models.CASCADE,
+        related_name='seen_records',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='whats_new_seen',
+    )
+    version = models.PositiveIntegerField()
+    action = models.CharField(max_length=16, choices=ACTION_CHOICES, default=ACTION_SEEN)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['announcement', 'user', 'version'],
+                name='unique_whats_new_seen_version',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id} saw {self.announcement_id} v{self.version}"
