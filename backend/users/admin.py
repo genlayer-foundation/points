@@ -12,6 +12,7 @@ from social_connections.admin import GitHubConnectionInline, TwitterConnectionIn
 from validators.models import Validator
 from builders.models import Builder
 from stewards.models import Steward
+from utils.admin_mixins import CloudinaryUploadMixin
 
 
 class ContributionInline(admin.TabularInline):
@@ -46,7 +47,18 @@ class ContributionInline(admin.TabularInline):
 
 
 @admin.register(User)
-class UserAdmin(BaseUserAdmin):
+class UserAdmin(CloudinaryUploadMixin, BaseUserAdmin):
+    cloudinary_upload_fields = {
+        'profile_image_url': {
+            'public_id_field': 'profile_image_public_id',
+            'folder': 'tally/profiles',
+        },
+        'banner_image_url': {
+            'public_id_field': 'banner_image_public_id',
+            'folder': 'tally/banners',
+        },
+    }
+
     list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'is_banned', 'address', 'is_email_verified')
     list_filter = ('is_staff', 'is_active', 'visible', 'is_banned', 'is_email_verified')
     search_fields = ('email', 'name', 'address', 'referral_code', 'twitter_handle', 'discord_handle', 'telegram_handle')
@@ -55,7 +67,7 @@ class UserAdmin(BaseUserAdmin):
     fieldsets = (
         (None, {'fields': ('email', 'password', 'is_email_verified')}),
         (_('Personal info'), {'fields': ('name', 'address', 'description')}),
-        (_('Profile Images'), {'fields': ('profile_image_url', 'banner_image_url', 'profile_image_public_id', 'banner_image_public_id')}),
+        (_('Profile Images'), {'fields': ('profile_image_url', 'banner_image_url')}),
         (_('Contact & Social'), {'fields': ('website', 'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle')}),
         (_('Referral System'), {'fields': ('referral_code', 'referred_by')}),
         (_('Visibility'), {'fields': ('visible',)}),

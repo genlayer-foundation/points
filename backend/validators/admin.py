@@ -1,6 +1,9 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
+
+from utils.admin_mixins import CloudinaryUploadMixin
+
 from .models import Validator, ValidatorWallet, ValidatorWalletStatusSnapshot
 
 
@@ -82,7 +85,13 @@ class ValidatorAdmin(admin.ModelAdmin):
 
 
 @admin.register(ValidatorWallet)
-class ValidatorWalletAdmin(admin.ModelAdmin):
+class ValidatorWalletAdmin(CloudinaryUploadMixin, admin.ModelAdmin):
+    cloudinary_upload_fields = {
+        'logo_uri': {
+            'folder': 'tally/validators',
+        },
+    }
+
     list_display = (
         'moniker', 'address', 'network', 'status', 'show_in_overview',
         'overview_order', 'assets_under_management_usd', 'created_at',

@@ -221,19 +221,22 @@
     align-items: center;
     background: #fff;
     display: grid;
-    grid-template-columns: minmax(360px, 1.1fr) 200px minmax(280px, 1fr);
+    grid-template-columns:
+      minmax(280px, 0.82fr)
+      minmax(180px, 220px)
+      minmax(280px, 0.82fr);
     margin: 96px -12px -12px;
     min-height: 430px;
     overflow: visible;
-    padding: 48px 40px 58px;
+    padding: 48px clamp(24px, 6vw, 112px) 58px;
     position: relative;
     z-index: 0;
   }
 
   .auth-layer-footer::before {
-    background: url('/assets/illustrations/welcome-gradient.png') center / min(1420px, 135vw) auto no-repeat;
+    background: url('/assets/illustrations/welcome-gradient.png') center / 100% 100% no-repeat;
     content: '';
-    inset: -190px -10% -120px;
+    inset: -190px 0 -120px;
     opacity: 0.5;
     pointer-events: none;
     position: absolute;
@@ -262,7 +265,7 @@
     align-items: flex-start;
     display: flex;
     flex-direction: column;
-    justify-self: start;
+    justify-self: center;
     max-width: 470px;
   }
 
@@ -347,7 +350,7 @@
     font-family: var(--font-mono);
     font-size: 15px;
     font-weight: 500;
-    justify-self: end;
+    justify-self: center;
     letter-spacing: 0;
     line-height: 1.5;
     margin: 0;
