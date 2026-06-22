@@ -165,14 +165,16 @@
     display: grid;
     grid-template-columns: minmax(22rem, 1.04fr) minmax(21rem, 0.96fr);
     height: 100%;
-    min-height: 29rem;
+    min-height: 0;
   }
 
   .visual-pane {
     display: flex;
     min-width: 0;
+    min-height: 0;
     flex-direction: column;
     gap: 0.78rem;
+    overflow: hidden;
     padding: 0.82rem;
     border-right: 1px solid rgba(238, 241, 246, 0.72);
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.38));
@@ -221,7 +223,7 @@
   .image-stage {
     position: relative;
     flex: 1;
-    min-height: 21rem;
+    min-height: 0;
     overflow: hidden;
     border: 1px solid transparent;
     border-radius: 12px;
@@ -269,12 +271,14 @@
   }
 
   .copy-pane {
+    position: relative;
     display: flex;
     flex-direction: column;
+    height: 100%;
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-    padding: 1.75rem 1.6rem 1.15rem;
+    padding: 1.75rem 1.6rem 4.65rem;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.54));
   }
 
@@ -346,6 +350,11 @@
   }
 
   .dialog-footer {
+    position: absolute;
+    right: 1.6rem;
+    bottom: 1.15rem;
+    left: 1.6rem;
+    z-index: 2;
     display: flex;
     flex: 0 0 auto;
     align-items: center;
@@ -353,8 +362,8 @@
     gap: 1rem;
     min-width: 0;
     max-width: 100%;
-    margin-top: auto;
-    padding-top: 1rem;
+    margin-top: 0;
+    padding-top: 0;
   }
 
   .dialog-actions {
@@ -496,7 +505,7 @@
     .copy-pane {
       min-height: 0;
       max-height: min(25rem, calc(100vh - 17rem));
-      padding: 1.18rem 1.08rem 0.95rem;
+      padding: 1.18rem 1.08rem 6rem;
     }
 
     .copy-pane h2 {
@@ -507,6 +516,12 @@
     .dialog-footer {
       align-items: flex-start;
       flex-direction: column;
+    }
+
+    .dialog-footer {
+      right: 1.08rem;
+      bottom: 0.95rem;
+      left: 1.08rem;
     }
 
     .step-dots {
