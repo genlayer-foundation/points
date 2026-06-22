@@ -2,6 +2,132 @@ from rest_framework import serializers
 from .models import WorkingGroup, WorkingGroupParticipant
 
 
+def feature_score_summary(scores):
+    score_values = sorted(int(score) for score in scores)
+    reviewer_count = len(score_values)
+    if reviewer_count == 0:
+        return {
+            'median_score': None,
+            'reviewer_count': 0,
+            'spread': None,
+            'decision': 'pending',
+            'manual_review': False,
+            'is_borderline': False,
+        }
+
+    midpoint = reviewer_count // 2
+    if reviewer_count % 2:
+        median_score = float(score_values[midpoint])
+    else:
+        median_score = (score_values[midpoint - 1] + score_values[midpoint]) / 2
+
+    spread = score_values[-1] - score_values[0]
+    manual_review = spread >= 3
+    is_borderline = not manual_review and 1.5 <= median_score < 2
+
+    if manual_review:
+        decision = 'manual_review'
+    elif median_score >= 2:
+        decision = 'feature'
+    else:
+        decision = 'do_not_feature'
+
+    return {
+        'median_score': median_score,
+        'reviewer_count': reviewer_count,
+        'spread': spread,
+        'decision': decision,
+        'manual_review': manual_review,
+        'is_borderline': is_borderline,
+    }
+
+
+class FeatureCandidateSubmissionSerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    notes = serializers.CharField(read_only=True)
+    state = serializers.CharField(read_only=True)
+    contribution_date = serializers.DateTimeField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+    own_score = serializers.SerializerMethodField()
+    user_details = serializers.SerializerMethodField()
+    contribution_type_details = serializers.SerializerMethodField()
+    evidence_items = serializers.SerializerMethodField()
+
+    def get_own_score(self, obj):
+        score_map = self.context.get('own_score_map', {})
+        return score_map.get(obj.id)
+
+    def get_user_details(self, obj):
+        user = obj.user
+        return {
+            'name': user.name,
+            'profile_image_url': user.profile_image_url,
+        }
+
+    def get_contribution_type_details(self, obj):
+        contribution_type = obj.contribution_type
+        category = contribution_type.category
+        return {
+            'id': contribution_type.id,
+            'name': contribution_type.name,
+            'slug': contribution_type.slug,
+            'category': category.slug if category else None,
+        }
+
+    def get_evidence_items(self, obj):
+        return [
+            {
+                'id': evidence.id,
+                'description': evidence.description,
+                'url': evidence.url,
+                'file': evidence.file.url if evidence.file else None,
+            }
+            for evidence in obj.evidence_items.all()
+        ]
+
+
+class FeatureCandidateAdminSerializer(FeatureCandidateSubmissionSerializer):
+    median_score = serializers.SerializerMethodField()
+    reviewer_count = serializers.SerializerMethodField()
+    spread = serializers.SerializerMethodField()
+    decision = serializers.SerializerMethodField()
+    manual_review = serializers.SerializerMethodField()
+    is_borderline = serializers.SerializerMethodField()
+
+    def get_user_details(self, obj):
+        user = obj.user
+        return {
+            'id': user.id,
+            'name': user.name,
+            'address': user.address,
+            'profile_image_url': user.profile_image_url,
+        }
+
+    def _summary(self, obj):
+        summary_map = self.context.get('summary_map', {})
+        return summary_map.get(obj.id) or feature_score_summary([])
+
+    def get_median_score(self, obj):
+        return self._summary(obj)['median_score']
+
+    def get_reviewer_count(self, obj):
+        return self._summary(obj)['reviewer_count']
+
+    def get_spread(self, obj):
+        return self._summary(obj)['spread']
+
+    def get_decision(self, obj):
+        return self._summary(obj)['decision']
+
+    def get_manual_review(self, obj):
+        return self._summary(obj)['manual_review']
+
+    def get_is_borderline(self, obj):
+        return self._summary(obj)['is_borderline']
+
+
 class WorkingGroupParticipantSerializer(serializers.ModelSerializer):
     """
     Serializer for working group participant with user details.

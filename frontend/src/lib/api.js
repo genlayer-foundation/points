@@ -319,7 +319,13 @@ export const stewardAPI = {
   deleteWorkingGroup: (id) => api.delete(`/stewards/working-groups/${id}/`),
   addParticipant: (groupId, userId) => api.post(`/stewards/working-groups/${groupId}/add_participant/`, { user_id: userId }),
   removeParticipant: (groupId, userId) => api.post(`/stewards/working-groups/${groupId}/remove_participant/`, { user_id: userId }),
-  searchUsersForGroup: (query) => api.get('/stewards/working-groups/search_users/', { params: { q: query } })
+  searchUsersForGroup: (query) => api.get('/stewards/working-groups/search_users/', { params: { q: query } }),
+
+  // Feature candidate scoring
+  getFeatureReviewAccess: () => api.get('/stewards/feature-reviews/access/'),
+  getFeatureReviewCandidates: () => api.get('/stewards/feature-reviews/'),
+  scoreFeatureReviewCandidate: (id, score) => api.post(`/stewards/feature-reviews/${id}/score/`, { score }),
+  getFeatureReviewAdmin: () => api.get('/stewards/feature-reviews/admin/')
 };
 
 // Image upload API

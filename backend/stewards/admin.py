@@ -1,5 +1,12 @@
 from django.contrib import admin
-from .models import Steward, StewardPermission, ReviewTemplate, WorkingGroup, WorkingGroupParticipant
+from .models import (
+    FeatureCandidateScore,
+    Steward,
+    StewardPermission,
+    ReviewTemplate,
+    WorkingGroup,
+    WorkingGroupParticipant,
+)
 
 
 class StewardInline(admin.StackedInline):
@@ -7,7 +14,7 @@ class StewardInline(admin.StackedInline):
     model = Steward
     extra = 0  # Don't show empty rows
     max_num = 1  # Only one steward per user
-    fields = ()  # No fields yet, model is empty
+    fields = ('can_review_feature_candidates',)
     verbose_name = "Steward Information"
     verbose_name_plural = "Steward Information"
     can_delete = True  # Allow deletion through inline
@@ -23,15 +30,15 @@ class StewardPermissionInline(admin.TabularInline):
 
 @admin.register(Steward)
 class StewardAdmin(admin.ModelAdmin):
-    list_display = ('user', 'permission_count', 'created_at', 'updated_at')
+    list_display = ('user', 'can_review_feature_candidates', 'permission_count', 'created_at', 'updated_at')
     search_fields = ('user__email', 'user__name')
-    list_filter = ('created_at', 'updated_at')
+    list_filter = ('can_review_feature_candidates', 'created_at', 'updated_at')
     ordering = ('-created_at',)
     inlines = [StewardPermissionInline]
 
     fieldsets = (
         (None, {
-            'fields': ('user',)
+            'fields': ('user', 'can_review_feature_candidates')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
@@ -52,6 +59,22 @@ class StewardPermissionAdmin(admin.ModelAdmin):
     search_fields = ('steward__user__name', 'steward__user__email', 'contribution_type__name')
     autocomplete_fields = ['steward', 'contribution_type']
     ordering = ('steward', 'contribution_type', 'action')
+
+
+@admin.register(FeatureCandidateScore)
+class FeatureCandidateScoreAdmin(admin.ModelAdmin):
+    list_display = ('submission', 'steward', 'score', 'created_at', 'updated_at')
+    list_filter = ('score', 'created_at', 'updated_at')
+    search_fields = (
+        'submission__title',
+        'submission__user__name',
+        'submission__user__email',
+        'steward__user__name',
+        'steward__user__email',
+    )
+    autocomplete_fields = ['submission', 'steward']
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('-updated_at',)
 
 
 @admin.register(ReviewTemplate)

@@ -1,3 +1,4 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.conf import settings
 from utils.models import BaseModel
@@ -13,9 +14,51 @@ class Steward(BaseModel):
         on_delete=models.CASCADE,
         related_name='steward'
     )
+    can_review_feature_candidates = models.BooleanField(
+        default=False,
+        help_text="Can access the blind reviewer scoring view for interesting submissions.",
+    )
 
     def __str__(self):
         return f"{self.user.email} - Steward"
+
+
+class FeatureCandidateScore(BaseModel):
+    """
+    Blind score from one steward for one interesting submission.
+    Aggregates are computed server-side and are never exposed to reviewers.
+    """
+    submission = models.ForeignKey(
+        'contributions.SubmittedContribution',
+        on_delete=models.CASCADE,
+        related_name='feature_candidate_scores',
+    )
+    steward = models.ForeignKey(
+        Steward,
+        on_delete=models.CASCADE,
+        related_name='feature_candidate_scores',
+    )
+    score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(0), MaxValueValidator(3)],
+        help_text="0 = not interesting, 1 = weak, 2 = good, 3 = strong.",
+    )
+
+    class Meta:
+        unique_together = ['submission', 'steward']
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(score__gte=0, score__lte=3),
+                name='feature_candidate_score_score_range_0_3',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['submission', 'score']),
+            models.Index(fields=['steward', 'updated_at']),
+        ]
+        ordering = ['submission', 'steward']
+
+    def __str__(self):
+        return f"{self.submission_id} - {self.steward.user.email} - {self.score}"
 
 
 class StewardPermission(BaseModel):
