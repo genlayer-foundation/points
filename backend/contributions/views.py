@@ -525,6 +525,14 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             'evidence_items',
             'evidence_items__url_type',
             'project_contribution__evidence_items',  # Milestone repo link
+            Prefetch(
+                'internal_notes',
+                queryset=SubmissionNote.objects.filter(
+                    is_proposal=False,
+                    data__action='more_info',
+                ).select_related('user').order_by('-created_at', '-id'),
+                to_attr='more_info_request_notes',
+            ),
         ).order_by('-created_at')
 
     def get_serializer_context(self):
@@ -892,6 +900,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         # Update the submission
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
+        was_more_info_needed = instance.state == 'more_info_needed'
 
         contribution_type = (
             serializer.validated_data.get('contribution_type')
@@ -968,8 +977,17 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             instance.state = 'pending'
             instance.last_edited_at = timezone.now()
             instance.staff_reply = ''  # Clear previous staff reply
+            instance.gate_reviewed = False
 
             self.perform_update(serializer)
+
+            if was_more_info_needed:
+                from notifications.services import notify_submission_reopened_for_steward
+                notify_submission_reopened_for_steward(
+                    instance,
+                    kind='more_info_resubmitted',
+                    actor=request.user,
+                )
 
         return Response(serializer.data)
 
@@ -1110,6 +1128,13 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 data={'kind': 'appeal'},
             )
 
+            from notifications.services import notify_submission_reopened_for_steward
+            notify_submission_reopened_for_steward(
+                submission,
+                kind='appeal',
+                actor=request.user,
+            )
+
         serializer = self.get_serializer(submission)
         return Response(serializer.data)
 
@@ -1148,6 +1173,9 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             submitted_contribution=submission,
             **serializer.validated_data
         )
+        if submission.gate_reviewed:
+            submission.gate_reviewed = False
+            submission.save(update_fields=['gate_reviewed', 'updated_at'])
 
         return Response(
             SubmittedEvidenceSerializer(evidence).data,
@@ -1232,11 +1260,18 @@ class StewardSubmissionFilterSet(FilterSet):
     def filter_search(self, queryset, name, value):
         """General search across submitter, title, notes, and evidence."""
         if value:
-            return queryset.filter(
+            query = (
                 Q(user__name__icontains=value) |
                 Q(user__address__icontains=value) |
                 self._content_query(value)
             )
+            try:
+                submission_id = uuid.UUID(str(value))
+            except ValueError:
+                pass
+            else:
+                query |= Q(id=submission_id)
+            return queryset.filter(query)
         return queryset
 
     def filter_category(self, queryset, name, value):
@@ -1983,6 +2018,14 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             'converted_contribution__highlights',
             'project_contribution__evidence_items',
             'converted_contribution__project_contribution__evidence_items',
+            Prefetch(
+                'internal_notes',
+                queryset=SubmissionNote.objects.filter(
+                    is_proposal=False,
+                    data__action='more_info',
+                ).select_related('user').order_by('-created_at', '-id'),
+                to_attr='more_info_request_notes',
+            ),
         ).annotate(
             internal_notes_count=Coalesce(
                 Subquery(notes_count, output_field=IntegerField()),

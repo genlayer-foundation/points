@@ -97,6 +97,7 @@ class LightAIReviewSubmissionSerializer(AIReviewProposalFieldsMixin, serializers
             'notes',
             'state',
             'mission',
+            'gate_reviewed',
             'has_appeal',
             'appeal_reason',
             'has_proposal',
@@ -203,6 +204,7 @@ class AIReviewSubmissionSerializer(AIReviewProposalFieldsMixin, serializers.Mode
             'state',
             'staff_reply',
             'mission',
+            'gate_reviewed',
             'has_appeal',
             'appeal_reason',
             'evidence_items',
@@ -284,6 +286,7 @@ class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):
             'state',
             'staff_reply',
             'mission',
+            'gate_reviewed',
             'has_appeal',
             'appeal_reason',
             'reviewed_at',
@@ -325,6 +328,7 @@ class AIReviewProposeSerializer(serializers.Serializer):
         queryset=ReviewTemplate.objects.all(), required=False, allow_null=True,
     )
     rubric_review = serializers.JSONField(required=False)
+    gate_reviewed = serializers.BooleanField(required=False)
 
     def validate(self, data):
         submission = self.context.get('submission')

@@ -388,6 +388,14 @@ def submission_review_link(submission):
     return f"/my-submissions?{query}"
 
 
+def steward_submission_review_link(submission):
+    query = urlencode({
+        'status': 'pending',
+        'q': str(submission.id),
+    })
+    return f"/stewards/submissions?{query}"
+
+
 def _display_submission_name(submission):
     if submission.title:
         return submission.title
@@ -430,6 +438,45 @@ def notify_submission_review(submission, actor=None):
         },
         source=submission,
         dedupe_key=f"submission-review:{submission.id}:{submission.state}:{decision_marker}",
+    )
+
+
+def notify_submission_reopened_for_steward(submission, *, kind, actor=None):
+    """Notify the assigned steward when a submitter returns a submission to review."""
+    if not submission.assigned_to_id:
+        return None
+
+    name = _display_submission_name(submission)
+    if kind == 'appeal':
+        event_slug = 'submission.appealed'
+        title = 'Submission appealed'
+        body = f"{name} was appealed by the submitter and is ready for re-review."
+        dedupe_marker = 'appeal'
+    elif kind == 'more_info_resubmitted':
+        event_slug = 'submission.more_info_resubmitted'
+        title = 'More information resubmitted'
+        body = f"{name} was updated by the submitter after your more-information request."
+        edit_at = submission.last_edited_at or submission.updated_at
+        dedupe_marker = edit_at.isoformat() if edit_at else ''
+    else:
+        raise ValueError(f"Unknown submission reopen notification kind: {kind}")
+
+    return notify(
+        event_slug,
+        recipient=submission.assigned_to,
+        actor=actor or submission.user,
+        title=title,
+        body=body,
+        link_url=steward_submission_review_link(submission),
+        link_label='Open submission',
+        payload={
+            'submission_id': str(submission.id),
+            'state': submission.state,
+            'kind': kind,
+            'contribution_type': submission.contribution_type.name if submission.contribution_type_id else '',
+        },
+        source=submission,
+        dedupe_key=f"submission-reopened:{submission.id}:{kind}:{dedupe_marker}",
     )
 
 

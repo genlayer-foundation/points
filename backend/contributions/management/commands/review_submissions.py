@@ -291,6 +291,7 @@ class Command(BaseCommand):
         # Also skip appealed submissions — those are reserved for human
         # steward reconsideration.
         qs = qs.exclude(reviewed_by=ai_user).filter(
+            gate_reviewed=False,
             proposed_action__isnull=True,
             has_appeal=False,
         )
@@ -351,6 +352,8 @@ class Command(BaseCommand):
                 )
             else:
                 stats['passed'] += 1
+                if not dry_run:
+                    self._mark_gate_reviewed(submission)
 
         # Auto-ban check
         banned_count = self._check_auto_bans(ai_user, dry_run)
@@ -483,6 +486,7 @@ class Command(BaseCommand):
         submission.staff_reply = template.text
         submission.reviewed_by = ai_user
         submission.reviewed_at = timezone.now()
+        submission.gate_reviewed = True
         # Clear any existing proposal fields
         submission.proposed_action = None
         submission.proposed_points = None
@@ -513,6 +517,13 @@ class Command(BaseCommand):
                 'reasoning': crm_reason,
             },
         )
+
+    def _mark_gate_reviewed(self, submission):
+        """Record that Tier 1 evaluated this submission and found no reject."""
+        if submission.gate_reviewed:
+            return
+        submission.gate_reviewed = True
+        submission.save(update_fields=['gate_reviewed', 'updated_at'])
 
     def _ensure_ai_steward(self):
         """Get or create the AI steward user."""

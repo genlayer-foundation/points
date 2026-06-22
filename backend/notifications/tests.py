@@ -426,6 +426,86 @@ class StewardReviewEndpointNotificationTests(TestCase):
         self.assertIn(str(self.submission.id), notification.link_url)
 
 
+class SubmissionReturnNotificationTests(TestCase):
+    """Submitter appeals/resubmits should notify the assigned steward."""
+
+    def setUp(self):
+        from stewards.models import Steward
+
+        self.category = Category.objects.create(name='Return', slug='return-notif', description='x')
+        self.contribution_type = ContributionType.objects.create(
+            name='Return Type',
+            slug='return-type-notif',
+            description='x',
+            category=self.category,
+            min_points=1,
+            max_points=10,
+        )
+        self.submitter = make_user('return-submit@test.com', '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+        self.steward_user = make_user('return-steward@test.com', '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+        Steward.objects.create(user=self.steward_user)
+        self.client = APIClient()
+
+    def test_appeal_notifies_assigned_steward(self):
+        submission = SubmittedContribution.objects.create(
+            user=self.submitter,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Review me again',
+            state='rejected',
+            staff_reply='Rejected first time',
+            reviewed_at=timezone.now(),
+            assigned_to=self.steward_user,
+        )
+        self.client.force_authenticate(user=self.submitter)
+
+        response = self.client.post(
+            f'/api/v1/submissions/{submission.id}/appeal/',
+            {'reason': 'I added context in the original evidence.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        notification = Notification.objects.get(recipient=self.steward_user)
+        self.assertEqual(notification.event_type, 'submission.appealed')
+        self.assertEqual(notification.actor, self.submitter)
+        self.assertEqual(notification.payload['submission_id'], str(submission.id))
+        self.assertIn('/stewards/submissions?', notification.link_url)
+        self.assertIn(str(submission.id), notification.link_url)
+
+    def test_more_info_resubmission_notifies_assigned_steward(self):
+        reviewed_at = timezone.now() - timedelta(hours=1)
+        submission = SubmittedContribution.objects.create(
+            user=self.submitter,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Needs edits',
+            state='more_info_needed',
+            staff_reply='Please add evidence.',
+            reviewed_at=reviewed_at,
+            assigned_to=self.steward_user,
+            gate_reviewed=True,
+        )
+        self.client.force_authenticate(user=self.submitter)
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'notes': 'Added the requested evidence.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'pending')
+        self.assertFalse(submission.gate_reviewed)
+        self.assertGreater(submission.last_edited_at, reviewed_at)
+        notification = Notification.objects.get(recipient=self.steward_user)
+        self.assertEqual(notification.event_type, 'submission.more_info_resubmitted')
+        self.assertEqual(notification.actor, self.submitter)
+        self.assertEqual(notification.payload['submission_id'], str(submission.id))
+        self.assertIn(str(submission.id), notification.link_url)
+
+
 class BroadcastAdminMixinTests(TestCase):
     def setUp(self):
         self.admin_user = User.objects.create_superuser(
