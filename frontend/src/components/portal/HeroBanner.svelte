@@ -232,15 +232,20 @@
   }
 
   .hero-frame--compact {
-    height: 420px;
+    height: 240px;
   }
 
   @media (min-width: 768px) {
-    .hero-frame,
-    .hero-frame--compact {
+    .hero-frame {
       aspect-ratio: 40 / 13;
       height: auto;
       min-height: 0;
+    }
+
+    .hero-frame--compact {
+      aspect-ratio: 40 / 6.5;
+      height: auto;
+      min-height: 220px;
     }
   }
 
