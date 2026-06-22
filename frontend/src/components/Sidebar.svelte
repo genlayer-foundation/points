@@ -4,13 +4,14 @@
   import { currentCategory } from '../stores/category.js';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
-  import { contributionsAPI } from '../lib/api.js';
+  import { contributionsAPI, stewardAPI } from '../lib/api.js';
   import { stewardPermissions } from '../lib/stewardPermissions.js';
   import Avatar from './Avatar.svelte';
 
   let { isOpen = $bindable(false), collapsed = $bindable(false) } = $props();
   let stewardPermissionMap = $state({});
   let communityContributionTypes = $state([]);
+  let featureReviewAccess = $state({ can_review: false, can_admin: false });
   let stewardNavPermissionsLoaded = $state(false);
 
   let canAccessDiscordXP = $derived(
@@ -23,6 +24,9 @@
       (actions || []).some(action => action !== 'propose')
     )
   );
+  let canAccessFeatureReviews = $derived(
+    featureReviewAccess.can_review || featureReviewAccess.can_admin
+  );
 
   async function loadStewardNavigationPermissions() {
     try {
@@ -34,6 +38,13 @@
       communityContributionTypes = response.data.results || response.data || [];
     } catch (err) {
       communityContributionTypes = [];
+    }
+
+    try {
+      const featureAccessResponse = await stewardAPI.getFeatureReviewAccess();
+      featureReviewAccess = featureAccessResponse.data || { can_review: false, can_admin: false };
+    } catch (err) {
+      featureReviewAccess = { can_review: false, can_admin: false };
     }
   }
 
@@ -51,6 +62,7 @@
     } else if (!$userStore.user?.steward) {
       stewardNavPermissionsLoaded = false;
       communityContributionTypes = [];
+      featureReviewAccess = { can_review: false, can_admin: false };
     }
   });
 
@@ -432,6 +444,16 @@
             >
               Contribution Submissions
             </a>
+            {#if canAccessFeatureReviews}
+              <a
+                href="/stewards/feature-reviews"
+                class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                  isActive('/stewards/feature-reviews') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
+                }"
+              >
+                Feature Scoring
+              </a>
+            {/if}
             {#if canAccessDiscordXP}
               <a
                 href="/stewards/discord-xp"
@@ -882,6 +904,16 @@
           >
             Contribution Submissions
           </a>
+          {#if canAccessFeatureReviews}
+            <a
+              href="/stewards/feature-reviews"
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/stewards/feature-reviews') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Feature Scoring
+            </a>
+          {/if}
           {#if canAccessDiscordXP}
             <a
               href="/stewards/discord-xp"

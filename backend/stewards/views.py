@@ -1,21 +1,164 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.db.models import Count, Q
-from .models import Steward, WorkingGroup, WorkingGroupParticipant
+from django.shortcuts import get_object_or_404
+from contributions.models import SubmittedContribution
+from .models import FeatureCandidateScore, Steward, WorkingGroup, WorkingGroupParticipant
 from users.serializers import StewardSerializer
 from users.models import User
 from .serializers import (
+    FeatureCandidateAdminSerializer,
+    FeatureCandidateSubmissionSerializer,
     WorkingGroupListSerializer,
     WorkingGroupDetailSerializer,
     WorkingGroupCreateSerializer,
     WorkingGroupUpdateSerializer,
+    feature_score_summary,
 )
 from contributions.permissions import IsSteward
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def user_can_review_feature_candidates(user):
+    return bool(
+        user
+        and user.is_authenticated
+        and hasattr(user, 'steward')
+        and user.steward.can_review_feature_candidates
+    )
+
+
+def user_can_admin_feature_candidates(user):
+    return bool(
+        user
+        and user.is_authenticated
+        and (user.is_staff or user.is_superuser)
+    )
+
+
+class FeatureCandidateReviewViewSet(viewsets.ViewSet):
+    """
+    Blind scoring view for interesting submissions.
+    Reviewers see only their own scores. Staff can access aggregate decisions.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def _interesting_queryset(self, include_scores=False):
+        queryset = SubmittedContribution.objects.filter(is_interesting=True).select_related(
+            'user',
+            'contribution_type',
+            'contribution_type__category',
+        ).prefetch_related(
+            'evidence_items',
+        ).order_by('-created_at')
+        if include_scores:
+            queryset = queryset.prefetch_related('feature_candidate_scores')
+        return queryset
+
+    def _own_score_map(self, request):
+        if not hasattr(request.user, 'steward'):
+            return {}
+        return dict(
+            FeatureCandidateScore.objects.filter(
+                steward=request.user.steward,
+                submission__is_interesting=True,
+            ).values_list('submission_id', 'score')
+        )
+
+    def _summary_map(self, submissions):
+        result = {}
+        for submission in submissions:
+            scores = [
+                score.score
+                for score in getattr(submission, 'feature_candidate_scores').all()
+            ]
+            result[submission.id] = feature_score_summary(scores)
+        return result
+
+    @action(detail=False, methods=['get'], url_path='access')
+    def access(self, request):
+        return Response({
+            'can_review': user_can_review_feature_candidates(request.user),
+            'can_admin': user_can_admin_feature_candidates(request.user),
+        })
+
+    def list(self, request):
+        if not user_can_review_feature_candidates(request.user):
+            return Response(
+                {'detail': 'You do not have access to feature candidate scoring.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        submissions = list(self._interesting_queryset())
+        own_score_map = self._own_score_map(request)
+        serializer = FeatureCandidateSubmissionSerializer(
+            submissions,
+            many=True,
+            context={'own_score_map': own_score_map},
+        )
+        scored_count = sum(1 for submission in submissions if submission.id in own_score_map)
+        return Response({
+            'results': serializer.data,
+            'progress': {
+                'scored': scored_count,
+                'total': len(submissions),
+            },
+        })
+
+    @action(detail=True, methods=['post'], url_path='score')
+    def score(self, request, pk=None):
+        if not user_can_review_feature_candidates(request.user):
+            return Response(
+                {'detail': 'You do not have access to feature candidate scoring.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            score = serializers.IntegerField(min_value=0, max_value=3).run_validation(
+                request.data.get('score')
+            )
+        except serializers.ValidationError as exc:
+            return Response({'score': exc.detail}, status=status.HTTP_400_BAD_REQUEST)
+
+        submission = get_object_or_404(self._interesting_queryset(), pk=pk)
+        FeatureCandidateScore.objects.update_or_create(
+            submission=submission,
+            steward=request.user.steward,
+            defaults={'score': score},
+        )
+
+        return Response({'submission': str(submission.id), 'score': score})
+
+    @action(detail=False, methods=['get'], url_path='admin')
+    def admin(self, request):
+        if not user_can_admin_feature_candidates(request.user):
+            return Response(
+                {'detail': 'Only staff users can access feature candidate aggregates.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        submissions = list(self._interesting_queryset(include_scores=True))
+        own_score_map = self._own_score_map(request)
+        summary_map = self._summary_map(submissions)
+        submissions.sort(
+            key=lambda submission: (
+                not summary_map[submission.id]['manual_review'],
+                not summary_map[submission.id]['is_borderline'],
+                summary_map[submission.id]['decision'] != 'pending',
+                -1 * (summary_map[submission.id]['median_score'] or 0),
+                submission.created_at,
+            )
+        )
+        serializer = FeatureCandidateAdminSerializer(
+            submissions,
+            many=True,
+            context={'own_score_map': own_score_map, 'summary_map': summary_map},
+        )
+        return Response({'results': serializer.data})
 
 
 class StewardViewSet(viewsets.ModelViewSet):
@@ -267,4 +410,3 @@ class WorkingGroupViewSet(viewsets.ModelViewSet):
         ]
 
         return Response(results)
-

@@ -182,6 +182,16 @@ vi.mock('../lib/api', () => {
       getNewestValidators: vi.fn().mockResolvedValue({ data: [] }),
       getAllValidators: vi.fn().mockResolvedValue({ data: [] })
     },
+    stewardAPI: {
+      getFeatureReviewAccess: vi.fn().mockResolvedValue({ data: { can_review: false, can_admin: false } }),
+      getFeatureReviewCandidates: vi.fn().mockResolvedValue({ data: { results: [], progress: { scored: 0, total: 0 } } }),
+      scoreFeatureReviewCandidate: vi.fn().mockResolvedValue({ data: {} }),
+      getFeatureReviewAdmin: vi.fn().mockResolvedValue({ data: { results: [] } }),
+      getMyPermissions: vi.fn().mockResolvedValue({ data: {} }),
+      getStewards: vi.fn().mockResolvedValue({ data: [] }),
+      getStats: vi.fn().mockResolvedValue({ data: {} }),
+      getTemplates: vi.fn().mockResolvedValue({ data: [] })
+    },
     projectsAPI: {
       list: vi.fn().mockResolvedValue({ data: [mockProject] }),
       get: vi.fn().mockResolvedValue({ data: mockProject }),
