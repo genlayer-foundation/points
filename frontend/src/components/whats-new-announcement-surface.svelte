@@ -269,8 +269,8 @@
   }
 
   .copy-pane {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    display: flex;
+    flex-direction: column;
     min-width: 0;
     min-height: 0;
     overflow: hidden;
@@ -310,6 +310,7 @@
   }
 
   .slide-body {
+    flex: 1 1 auto;
     min-height: 0;
     margin-top: 0.82rem;
     overflow-y: auto;
@@ -351,6 +352,7 @@
     justify-content: space-between;
     gap: 1rem;
     min-width: 0;
+    max-width: 100%;
     margin-top: auto;
     padding-top: 1rem;
   }
@@ -397,6 +399,7 @@
   .primary-action,
   .secondary-action {
     display: inline-flex;
+    flex: 0 1 auto;
     align-items: center;
     justify-content: center;
     min-width: 0;
