@@ -2,6 +2,35 @@ from rest_framework import serializers
 from .models import WorkingGroup, WorkingGroupParticipant
 
 
+def feature_candidate_user_data(user, include_id=False):
+    from social_connections.serializers import (
+        PublicDiscordConnectionSerializer,
+        PublicGitHubConnectionSerializer,
+        PublicTwitterConnectionSerializer,
+    )
+
+    def _get(related_name, serializer_class):
+        try:
+            connection = getattr(user, related_name)
+        except Exception:
+            return None
+        if connection is None:
+            return None
+        return serializer_class(connection).data
+
+    data = {
+        'name': user.name,
+        'address': user.address,
+        'profile_image_url': user.profile_image_url,
+        'github_connection': _get('githubconnection', PublicGitHubConnectionSerializer),
+        'twitter_connection': _get('twitterconnection', PublicTwitterConnectionSerializer),
+        'discord_connection': _get('discordconnection', PublicDiscordConnectionSerializer),
+    }
+    if include_id:
+        data['id'] = user.id
+    return data
+
+
 def feature_score_summary(scores):
     score_values = sorted(int(score) for score in scores)
     reviewer_count = len(score_values)
@@ -60,11 +89,7 @@ class FeatureCandidateSubmissionSerializer(serializers.Serializer):
         return score_map.get(obj.id)
 
     def get_user_details(self, obj):
-        user = obj.user
-        return {
-            'name': user.name,
-            'profile_image_url': user.profile_image_url,
-        }
+        return feature_candidate_user_data(obj.user)
 
     def get_contribution_type_details(self, obj):
         contribution_type = obj.contribution_type
@@ -82,6 +107,10 @@ class FeatureCandidateSubmissionSerializer(serializers.Serializer):
                 'id': evidence.id,
                 'description': evidence.description,
                 'url': evidence.url,
+                'url_type': {
+                    'name': evidence.url_type.name,
+                    'slug': evidence.url_type.slug,
+                } if evidence.url_type else None,
                 'file': evidence.file.url if evidence.file else None,
             }
             for evidence in obj.evidence_items.all()
@@ -97,13 +126,7 @@ class FeatureCandidateAdminSerializer(FeatureCandidateSubmissionSerializer):
     is_borderline = serializers.SerializerMethodField()
 
     def get_user_details(self, obj):
-        user = obj.user
-        return {
-            'id': user.id,
-            'name': user.name,
-            'address': user.address,
-            'profile_image_url': user.profile_image_url,
-        }
+        return feature_candidate_user_data(obj.user, include_id=True)
 
     def _summary(self, obj):
         summary_map = self.context.get('summary_map', {})
