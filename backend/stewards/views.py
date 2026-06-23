@@ -2,9 +2,9 @@ from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.shortcuts import get_object_or_404
-from contributions.models import SubmittedContribution
+from contributions.models import Evidence, SubmittedContribution
 from .models import FeatureCandidateScore, Steward, WorkingGroup, WorkingGroupParticipant
 from users.serializers import StewardSerializer
 from users.models import User
@@ -48,12 +48,22 @@ class FeatureCandidateReviewViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def _interesting_queryset(self, include_scores=False):
-        queryset = SubmittedContribution.objects.filter(is_interesting=True).select_related(
+        queryset = SubmittedContribution.objects.filter(
+            is_interesting=True,
+            state='accepted',
+            contribution_type__slug='projects',
+        ).select_related(
             'user',
+            'user__githubconnection',
+            'user__twitterconnection',
+            'user__discordconnection',
             'contribution_type',
             'contribution_type__category',
         ).prefetch_related(
-            'evidence_items',
+            Prefetch(
+                'evidence_items',
+                queryset=Evidence.objects.select_related('url_type').order_by('-created_at'),
+            ),
         ).order_by('-created_at')
         if include_scores:
             queryset = queryset.prefetch_related('feature_candidate_scores')
@@ -66,6 +76,8 @@ class FeatureCandidateReviewViewSet(viewsets.ViewSet):
             FeatureCandidateScore.objects.filter(
                 steward=request.user.steward,
                 submission__is_interesting=True,
+                submission__state='accepted',
+                submission__contribution_type__slug='projects',
             ).values_list('submission_id', 'score')
         )
 

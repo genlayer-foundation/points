@@ -81,7 +81,6 @@
   import StewardDashboard from './routes/StewardDashboard.svelte';
   import StewardSubmissions from './routes/StewardSubmissions.svelte';
   import StewardDiscordXP from './routes/StewardDiscordXP.svelte';
-  import StewardManageUsers from './routes/StewardManageUsers.svelte';
   import StewardFeatureReviews from './routes/StewardFeatureReviews.svelte';
   import ValidatorWaitlist from './routes/ValidatorWaitlist.svelte';
   import Waitlist from './routes/Waitlist.svelte';
@@ -230,7 +229,6 @@
     '/stewards/submissions': StewardSubmissions,
     '/stewards/feature-reviews': StewardFeatureReviews,
     '/stewards/discord-xp': StewardDiscordXP,
-    '/stewards/manage-users': StewardManageUsers,
 
     // Legal routes
     '/terms-of-use': TermsOfUse,
@@ -264,9 +262,10 @@
     setRouteMeta($location);
   });
 
-  // Pages that need full-bleed (no padding): How it works + Foundations documents
+  // Pages that need full-bleed (no padding): immersive docs and full-width steward review surfaces
   let isFullBleedPage = $derived(
     $location === '/how-it-works' ||
+    $location === '/stewards/feature-reviews' ||
     $location.startsWith('/genesis') ||
     $location.startsWith('/foundations') ||
     $location === '/manifesto'

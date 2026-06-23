@@ -19,11 +19,6 @@
       (stewardPermissionMap[String(type.id)] || []).includes('accept')
     )
   );
-  let canAccessManageUsers = $derived(
-    Object.values(stewardPermissionMap || {}).some(actions =>
-      (actions || []).some(action => action !== 'propose')
-    )
-  );
   let canAccessFeatureReviews = $derived(
     featureReviewAccess.can_review || featureReviewAccess.can_admin
   );
@@ -463,17 +458,6 @@
                 }"
               >
                 Discord XP
-              </a>
-            {/if}
-            {#if canAccessManageUsers}
-              <a
-                href="/stewards/manage-users"
-                onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}
-                class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-                  isActive('/stewards/manage-users') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
-                }"
-              >
-                Manage Users
               </a>
             {/if}
           </div>
@@ -923,17 +907,6 @@
               }"
             >
               Discord XP
-            </a>
-          {/if}
-          {#if canAccessManageUsers}
-            <a
-              href="/stewards/manage-users"
-              onclick={(e) => { e.preventDefault(); navigate('/stewards/manage-users'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-                isActive('/stewards/manage-users') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
-              }"
-            >
-              Manage Users
             </a>
           {/if}
         </div>
