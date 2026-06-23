@@ -42,6 +42,30 @@ class StewardAPITestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_public_steward_list_only_includes_visible_users(self):
+        visible_user = User.objects.create_user(
+            email='visible-steward@example.com',
+            password='testpass123',
+            name='Visible Steward',
+            visible=True,
+        )
+        hidden_user = User.objects.create_user(
+            email='hidden-steward@example.com',
+            password='testpass123',
+            name='Hidden Steward',
+            visible=False,
+        )
+        Steward.objects.create(user=visible_user)
+        Steward.objects.create(user=hidden_user)
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get('/api/v1/stewards/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {item['name'] for item in response.data}
+        self.assertIn('Visible Steward', names)
+        self.assertNotIn('Hidden Steward', names)
+
 
 class FeatureCandidateReviewAPITestCase(APITestCase):
     def setUp(self):

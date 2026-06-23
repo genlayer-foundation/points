@@ -5,6 +5,7 @@
   import { leaderboardAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
   import { getCategoryGradientStyle } from '../lib/categoryPresentation.js';
+  import { push, querystring } from 'svelte-spa-router';
   
   const PAGE_SIZE = 10;
   const PODIUM_SIZE = 3;
@@ -27,16 +28,6 @@
   let requestSequence = 0;
 
   const categoryConfig = {
-    global: {
-      title: 'Global Leaderboard',
-      label: 'participants',
-      description: 'All-time rankings across the GenLayer ecosystem.',
-      icon: '/assets/icons/group-white.svg',
-      iconClass: 'bg-black',
-      accentColor: '#7f52e1',
-      valueLabel: 'GP',
-      podiumCategory: 'global',
-    },
     builder: {
       title: 'Builders Leaderboard',
       label: 'builders',
@@ -57,16 +48,6 @@
       valueLabel: 'VP',
       podiumCategory: 'validator',
     },
-    steward: {
-      title: 'Stewards Leaderboard',
-      label: 'stewards',
-      description: 'All-time steward contribution rankings.',
-      icon: '/assets/icons/group-white.svg',
-      iconClass: 'bg-emerald-500',
-      accentColor: '#3eb359',
-      valueLabel: 'SP',
-      podiumCategory: 'steward',
-    },
     community: {
       title: 'Community Leaderboard',
       label: 'community',
@@ -79,9 +60,21 @@
     },
   };
 
-  let pageConfig = $derived(categoryConfig[$currentCategory] || categoryConfig.global);
-  let activeGradientCategory = $derived($currentCategory || 'global');
-  let gradientStyle = $derived(getCategoryGradientStyle(activeGradientCategory, pageConfig.accentColor));
+  const leaderboardCategories = [
+    { id: 'builder', label: 'Builders' },
+    { id: 'validator', label: 'Validators' },
+    { id: 'community', label: 'Community' },
+  ];
+
+  function normalizeCategory(category) {
+    return categoryConfig[category] ? category : 'builder';
+  }
+
+  let selectedCategory = $derived(
+    normalizeCategory(new URLSearchParams($querystring || '').get('type') || $currentCategory)
+  );
+  let pageConfig = $derived(categoryConfig[selectedCategory]);
+  let gradientStyle = $derived(getCategoryGradientStyle(selectedCategory, pageConfig.accentColor));
   let topEntries = $derived(podiumEntries);
   let tableEntries = $derived(leaderboard);
   let isSearching = $derived(searchQuery.trim().length > 0 || activeSearch.length > 0);
@@ -104,11 +97,6 @@
 
   function fetchEntries(category, options) {
     const params = activeSearch ? { ...options, search: activeSearch } : options;
-
-    if (category === 'global') {
-      return leaderboardAPI.getLeaderboard(params);
-    }
-
     return leaderboardAPI.getLeaderboard({ type: category, order: 'asc', ...params });
   }
 
@@ -121,7 +109,7 @@
   }
 
   async function fetchLeaderboard(page = 1, { reset = false } = {}) {
-    const category = $currentCategory || 'global';
+    const category = selectedCategory;
     const shouldShowFullLoader = reset || (podiumEntries.length === 0 && leaderboard.length === 0);
     const requestId = ++requestSequence;
 
@@ -133,7 +121,7 @@
       const podiumResponse = await fetchEntries(category, { limit: PODIUM_SIZE, offset: 0, include_count: true });
 
       if (requestId !== requestSequence) return;
-      if (category !== ($currentCategory || 'global')) return;
+      if (category !== selectedCategory) return;
 
       const podiumData = extractEntries(podiumResponse.data);
       const availableForPodium = extractCount(podiumResponse.data, podiumData.length);
@@ -144,7 +132,7 @@
       const tableResponse = await fetchEntries(category, { limit: REQUEST_SIZE, offset: tableOffset, include_count: true });
 
       if (requestId !== requestSequence) return;
-      if (category !== ($currentCategory || 'global')) return;
+      if (category !== selectedCategory) return;
 
       const tableData = extractEntries(tableResponse.data);
       const responseCount = extractCount(tableResponse.data, availableForPodium);
@@ -177,15 +165,23 @@
 
   // Re-fetch when category changes
   $effect(() => {
-    const category = $currentCategory || 'global';
+    const category = selectedCategory;
     if (category && category !== activeCategory) {
       activeCategory = category;
+      currentCategory.set(category);
       searchQuery = '';
       activeSearch = '';
       pendingPage = null;
       fetchLeaderboard(1, { reset: true });
     }
   });
+
+  function selectCategory(category) {
+    const nextCategory = normalizeCategory(category);
+    if (nextCategory === selectedCategory) return;
+    currentCategory.set(nextCategory);
+    push(`/leaderboard?type=${nextCategory}`);
+  }
 
   $effect(() => {
     const query = searchQuery.trim();
@@ -208,15 +204,7 @@
     class="absolute inset-x-0 top-0 h-[320px] pointer-events-none overflow-hidden"
     style="-webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%); mask-image: linear-gradient(to bottom, black 0%, transparent 100%);"
   >
-    {#if activeGradientCategory === 'global'}
-      <img
-        src="/assets/illustrations/welcome-gradient.png"
-        alt=""
-        class="absolute inset-0 w-full h-full object-cover opacity-70"
-      />
-    {:else}
-      <div class="absolute inset-0" style={gradientStyle}></div>
-    {/if}
+    <div class="absolute inset-0" style={gradientStyle}></div>
     <div class="absolute inset-0 bg-white/25"></div>
   </div>
 
@@ -259,6 +247,24 @@
         </div>
       {/if}
     </header>
+
+    <div class="inline-flex max-w-full flex-wrap items-center gap-1 rounded-[10px] border border-white/70 bg-white/82 p-1 shadow-[0_8px_22px_rgba(31,42,68,0.08)] backdrop-blur-md">
+      {#each leaderboardCategories as category}
+        <button
+          type="button"
+          onclick={() => selectCategory(category.id)}
+          class={`min-h-10 rounded-[8px] px-4 text-[14px] font-semibold transition-colors ${
+            selectedCategory === category.id
+              ? 'text-white shadow-[0_6px_14px_rgba(31,42,68,0.12)]'
+              : 'text-[#4b5565] hover:bg-[#f5f6fa] hover:text-black'
+          }`}
+          style={selectedCategory === category.id ? `background-color: ${pageConfig.accentColor};` : ''}
+          aria-pressed={selectedCategory === category.id}
+        >
+          {category.label}
+        </button>
+      {/each}
+    </div>
 
     <section class="rounded-[10px] border border-white/70 bg-white/78 p-5 sm:p-7 md:p-8 shadow-[0_18px_55px_rgba(38,48,75,0.15)] backdrop-blur-md">
       {#if loading}
