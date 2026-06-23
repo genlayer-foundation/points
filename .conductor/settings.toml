@@ -1,0 +1,9 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+[scripts]
+setup = "./conductor-setup.sh"
+run = "./conductor-run.sh"
+# Frontend is pinned to 5173 and backend to 8000 (OAuth/SIWE/CSRF require it),
+# so two workspaces can't run at once — they'd collide on those ports and the
+# single SQLite DB.
+run_mode = "nonconcurrent"
