@@ -56,6 +56,7 @@
   let activeTab = $state('review');
   let reviewFilterTab = $state('not_scored');
   let saving = $state(new Set());
+  let scoreDrafts = $state({});
   let expandedTitles = $state(new Set());
   let expandedDescriptions = $state(new Set());
   let expandedAdminRows = $state(new Set());
@@ -116,6 +117,15 @@
     const response = await stewardAPI.getFeatureReviewCandidates();
     candidates = response.data?.results || [];
     progress = response.data?.progress || { scored: 0, total: candidates.length };
+    scoreDrafts = Object.fromEntries(
+      candidates.map(candidate => [
+        candidate.id,
+        {
+          score: candidate.own_score,
+          reason: candidate.own_score_reason || '',
+        },
+      ])
+    );
   }
 
   async function loadAdminRows() {
@@ -138,21 +148,60 @@
     }
   }
 
-  async function scoreCandidate(candidate, score) {
+  function draftFor(candidate) {
+    return scoreDrafts[candidate.id] || {
+      score: candidate.own_score,
+      reason: candidate.own_score_reason || '',
+    };
+  }
+
+  function draftScore(candidate) {
+    return draftFor(candidate).score;
+  }
+
+  function draftReason(candidate) {
+    return draftFor(candidate).reason || '';
+  }
+
+  function updateScoreDraft(candidate, patch) {
+    scoreDrafts = {
+      ...scoreDrafts,
+      [candidate.id]: {
+        ...draftFor(candidate),
+        ...patch,
+      },
+    };
+  }
+
+  async function scoreCandidate(candidate) {
+    const draft = draftFor(candidate);
+    if (!Number.isInteger(draft.score)) {
+      showError('Select a score before saving.');
+      return;
+    }
+
     saving.add(candidate.id);
     saving = new Set(saving);
     try {
-      await stewardAPI.scoreFeatureReviewCandidate(candidate.id, score);
+      const response = await stewardAPI.scoreFeatureReviewCandidate(
+        candidate.id,
+        draft.score,
+        draft.reason || ''
+      );
+      const savedReason = response.data?.reason ?? draft.reason ?? '';
       const wasUnscored = candidate.own_score === null || candidate.own_score === undefined;
       candidates = candidates.map(item =>
-        item.id === candidate.id ? { ...item, own_score: score } : item
+        item.id === candidate.id
+          ? { ...item, own_score: draft.score, own_score_reason: savedReason }
+          : item
       );
+      updateScoreDraft(candidate, { score: draft.score, reason: savedReason });
       if (wasUnscored) {
         progress = { ...progress, scored: progress.scored + 1 };
       }
       showSuccess('Score saved');
     } catch (err) {
-      showError(err.response?.data?.detail || err.response?.data?.score || 'Failed to save score.');
+      showError(err.response?.data?.detail || err.response?.data?.score || err.response?.data?.reason || 'Failed to save score.');
     } finally {
       saving.delete(candidate.id);
       saving = new Set(saving);
@@ -308,12 +357,12 @@
   }
 
   function scoreButtonClass(candidate, option) {
-    if (candidate.own_score === option.value) return option.selectedClass;
+    if (draftScore(candidate) === option.value) return option.selectedClass;
     return `${option.guideClass} hover:border-[#19A663] hover:bg-white hover:text-gray-950`;
   }
 
   function scoreNumberClass(candidate, option) {
-    if (candidate.own_score === option.value) return 'bg-white/20 text-current';
+    if (draftScore(candidate) === option.value) return 'bg-white/20 text-current';
     return option.numberClass;
   }
 
@@ -564,12 +613,12 @@
                     {/if}
                   </div>
 
-                  <div class="grid grid-cols-1 gap-2">
+                  <div class="grid grid-cols-1 gap-3">
                     {#each scoreOptions as option}
                       <button
                         type="button"
                         disabled={saving.has(candidate.id)}
-                        onclick={() => scoreCandidate(candidate, option.value)}
+                        onclick={() => updateScoreDraft(candidate, { score: option.value })}
                         title={`${option.value} - ${option.label}`}
                         aria-label={`Score ${option.value} - ${option.label}`}
                         class="flex min-h-16 items-center justify-start gap-3 rounded-md border px-3 py-2 text-left text-xs font-semibold transition-colors active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-60 {scoreButtonClass(candidate, option)}"
@@ -580,6 +629,25 @@
                         <span class="leading-tight">{option.label}</span>
                       </button>
                     {/each}
+                    <label class="block">
+                      <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Reason</span>
+                      <textarea
+                        value={draftReason(candidate)}
+                        oninput={(event) => updateScoreDraft(candidate, { reason: event.currentTarget.value })}
+                        maxlength="2000"
+                        rows="4"
+                        placeholder="What stood out in this project for the score?"
+                        class="mt-2 min-h-28 w-full resize-y rounded-md border border-gray-200 bg-white px-3 py-2 text-sm leading-5 text-gray-800 shadow-sm outline-none transition-colors placeholder:text-gray-400 focus:border-[#19A663] focus:ring-2 focus:ring-emerald-100"
+                      ></textarea>
+                    </label>
+                    <button
+                      type="button"
+                      disabled={saving.has(candidate.id) || !Number.isInteger(draftScore(candidate))}
+                      onclick={() => scoreCandidate(candidate)}
+                      class="inline-flex min-h-11 items-center justify-center rounded-md bg-[#19A663] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#137f4c] disabled:cursor-not-allowed disabled:bg-gray-300"
+                    >
+                      {saving.has(candidate.id) ? 'Saving...' : 'Save opinion'}
+                    </button>
                   </div>
             </article>
 	          {/each}

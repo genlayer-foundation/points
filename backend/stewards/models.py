@@ -42,6 +42,11 @@ class FeatureCandidateScore(BaseModel):
         validators=[MinValueValidator(0), MaxValueValidator(3)],
         help_text="0 = not interesting, 1 = weak, 2 = good, 3 = strong.",
     )
+    reason = models.TextField(
+        blank=True,
+        default='',
+        help_text="Reviewer note explaining what stood out for this score.",
+    )
 
     class Meta:
         unique_together = ['submission', 'steward']

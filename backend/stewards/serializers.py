@@ -81,13 +81,18 @@ class FeatureCandidateSubmissionSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
     own_score = serializers.SerializerMethodField()
+    own_score_reason = serializers.SerializerMethodField()
     user_details = serializers.SerializerMethodField()
     contribution_type_details = serializers.SerializerMethodField()
     evidence_items = serializers.SerializerMethodField()
 
     def get_own_score(self, obj):
-        score_map = self.context.get('own_score_map', {})
-        return score_map.get(obj.id)
+        review_map = self.context.get('own_review_map', {})
+        return (review_map.get(obj.id) or {}).get('score')
+
+    def get_own_score_reason(self, obj):
+        review_map = self.context.get('own_review_map', {})
+        return (review_map.get(obj.id) or {}).get('reason') or ''
 
     def get_user_details(self, obj):
         return feature_candidate_user_data(obj.user)
