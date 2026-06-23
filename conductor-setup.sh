@@ -46,7 +46,7 @@ else
 fi
 
 # Copy environment file if it exists in root
-if [ -f "$CONDUCTOR_ROOT_PATH/backend/.env" ]; then
+if [ -n "$CONDUCTOR_ROOT_PATH" ] && [ -f "$CONDUCTOR_ROOT_PATH/backend/.env" ]; then
     echo "  Copying backend .env file..."
     cp "$CONDUCTOR_ROOT_PATH/backend/.env" .env
 elif [ -f ".env.example" ]; then
@@ -68,7 +68,7 @@ echo "  Installing npm packages..."
 npm install --silent
 
 # Copy frontend environment file if it exists
-if [ -f "$CONDUCTOR_ROOT_PATH/frontend/.env" ]; then
+if [ -n "$CONDUCTOR_ROOT_PATH" ] && [ -f "$CONDUCTOR_ROOT_PATH/frontend/.env" ]; then
     echo "  Copying frontend .env file..."
     cp "$CONDUCTOR_ROOT_PATH/frontend/.env" .env
 elif [ -f ".env.example" ]; then
