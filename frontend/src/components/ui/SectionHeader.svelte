@@ -1,7 +1,26 @@
 <script>
   import { push } from 'svelte-spa-router';
+  import { authState } from '../../lib/auth.js';
 
-  let { title = '', subtitle = '', linkText = 'View all', linkPath = '', showLink = true, showArrow = true } = $props();
+  let {
+    title = '',
+    subtitle = '',
+    linkText = 'View all',
+    linkPath = '',
+    showLink = true,
+    showArrow = true,
+    requiresAuth = false,
+  } = $props();
+
+  function handleLinkClick() {
+    if (requiresAuth && !$authState.isAuthenticated) {
+      sessionStorage.setItem('redirectAfterLogin', linkPath);
+      const authButton = document.querySelector('[data-auth-button]');
+      if (authButton) authButton.click();
+      return;
+    }
+    push(linkPath);
+  }
 </script>
 
 <div class="flex items-center justify-between mb-4">
@@ -13,7 +32,7 @@
   </div>
   {#if showLink && linkPath}
     <button
-      onclick={() => push(linkPath)}
+      onclick={handleLinkClick}
       class="flex items-center gap-1 text-[14px] text-[#6b6b6b] hover:text-black transition-colors flex-shrink-0"
       style="letter-spacing: 0.28px;"
     >

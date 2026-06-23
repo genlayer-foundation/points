@@ -119,7 +119,7 @@
   // Determine which top-level section is active
   function getActiveSection() {
     const path = $location;
-    if (path === '/' || path === '/testnets' || path === '/metrics') return 'global';
+    if (path === '/' || path === '/testnets' || path === '/metrics' || path === '/leaderboard') return 'global';
     if (path.startsWith('/builders')) return 'builder';
     if (path.startsWith('/validators')) return 'validator';
     if (path.startsWith('/community')) return 'community';
@@ -217,6 +217,15 @@
             >
               Metrics
             </a>
+            <a
+              href="/leaderboard"
+              onclick={(e) => { e.preventDefault(); navigate('/leaderboard'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Leaderboards
+            </a>
           </div>
         {/if}
       </div>
@@ -250,7 +259,7 @@
           {/if}
         </button>
 
-        {#if !collapsed && getActiveSection() === 'builder'}
+        {#if !collapsed && getActiveSection() === 'builder' && $authState.isAuthenticated}
           <div class="pl-5">
             <a
               href="/builders/contributions"
@@ -260,15 +269,6 @@
               }"
             >
               Contributions
-            </a>
-            <a
-              href="/builders/leaderboard"
-              onclick={(e) => { e.preventDefault(); navigate('/builders/leaderboard'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-                isActive('/builders/leaderboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
-              }"
-            >
-              Leaderboard
             </a>
             <a
               href="/builders/resources"
@@ -303,7 +303,7 @@
           {/if}
         </button>
 
-        {#if !collapsed && getActiveSection() === 'validator'}
+        {#if !collapsed && getActiveSection() === 'validator' && $authState.isAuthenticated}
           <div class="pl-5">
             <a
               href="/validators/contributions"
@@ -313,15 +313,6 @@
               }"
             >
               Contributions
-            </a>
-            <a
-              href="/validators/leaderboard"
-              onclick={(e) => { e.preventDefault(); navigate('/validators/leaderboard'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-                isActive('/validators/leaderboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
-              }"
-            >
-              Leaderboard
             </a>
             <a
               href="/validators/participants"
@@ -340,15 +331,6 @@
               }"
             >
               Wall of Shame
-            </a>
-            <a
-              href="/validators/waitlist"
-              onclick={(e) => { e.preventDefault(); navigate('/validators/waitlist'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-                isActive('/validators/waitlist') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
-              }"
-            >
-              Waitlist
             </a>
           </div>
         {/if}
@@ -374,7 +356,7 @@
           {/if}
         </button>
 
-        {#if !collapsed && getActiveSection() === 'community'}
+        {#if !collapsed && getActiveSection() === 'community' && $authState.isAuthenticated}
           <div class="pl-5">
             <a
               href="/community/contributions"
@@ -384,15 +366,6 @@
               }"
             >
               Contributions
-            </a>
-            <a
-              href="/community/leaderboard"
-              onclick={(e) => { e.preventDefault(); navigate('/community/leaderboard'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-                isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
-              }"
-            >
-              Leaderboard
             </a>
             <a
               href="/community/poaps"
@@ -580,22 +553,24 @@
     {/if}
 
     <!-- Submit Contribution link -->
-    {#if !collapsed}
-      <button
-        onclick={handleSubmitContribution}
-        class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"
-      >
-        <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
-        <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">Submit Contribution</span>
-      </button>
-    {:else}
-      <button
-        onclick={handleSubmitContribution}
-        class="w-full flex px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors"
-        title="Submit Contribution"
-      >
-        <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
-      </button>
+    {#if $authState.isAuthenticated}
+      {#if !collapsed}
+        <button
+          onclick={handleSubmitContribution}
+          class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"
+        >
+          <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
+          <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">Submit Contribution</span>
+        </button>
+      {:else}
+        <button
+          onclick={handleSubmitContribution}
+          class="w-full flex px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors"
+          title="Submit Contribution"
+        >
+          <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
+        </button>
+      {/if}
     {/if}
 
     <!-- My Submissions link (authenticated only) -->
@@ -699,6 +674,15 @@
           >
             Metrics
           </a>
+          <a
+            href="/leaderboard"
+            onclick={(e) => { e.preventDefault(); navigate('/leaderboard'); }}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              isActive('/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+            }"
+          >
+            Leaderboards
+          </a>
         </div>
       {/if}
 
@@ -721,7 +705,7 @@
         <span>Builders</span>
       </button>
 
-      {#if getActiveSection() === 'builder'}
+      {#if getActiveSection() === 'builder' && $authState.isAuthenticated}
         <div class="pl-5">
           <a
             href="/builders/contributions"
@@ -731,15 +715,6 @@
             }"
           >
             Contributions
-          </a>
-          <a
-            href="/builders/leaderboard"
-            onclick={(e) => { e.preventDefault(); navigate('/builders/leaderboard'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-              isActive('/builders/leaderboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
-            }"
-          >
-            Leaderboard
           </a>
           <a
             href="/builders/resources"
@@ -767,7 +742,7 @@
         <span>Validators</span>
       </button>
 
-      {#if getActiveSection() === 'validator'}
+      {#if getActiveSection() === 'validator' && $authState.isAuthenticated}
         <div class="pl-5">
           <a
             href="/validators/contributions"
@@ -777,15 +752,6 @@
             }"
           >
             Contributions
-          </a>
-          <a
-            href="/validators/leaderboard"
-            onclick={(e) => { e.preventDefault(); navigate('/validators/leaderboard'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-              isActive('/validators/leaderboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
-            }"
-          >
-            Leaderboard
           </a>
           <a
             href="/validators/participants"
@@ -805,15 +771,6 @@
           >
             Wall of Shame
           </a>
-          <a
-            href="/validators/waitlist"
-            onclick={(e) => { e.preventDefault(); navigate('/validators/waitlist'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-              isActive('/validators/waitlist') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
-            }"
-          >
-            Waitlist
-          </a>
         </div>
       {/if}
 
@@ -831,7 +788,7 @@
         <span>Community</span>
       </button>
 
-      {#if getActiveSection() === 'community'}
+      {#if getActiveSection() === 'community' && $authState.isAuthenticated}
         <div class="pl-5">
           <a
             href="/community/contributions"
@@ -841,15 +798,6 @@
             }"
           >
             Contributions
-          </a>
-          <a
-            href="/community/leaderboard"
-            onclick={(e) => { e.preventDefault(); navigate('/community/leaderboard'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-              isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
-            }"
-          >
-            Leaderboard
           </a>
           <a
             href="/community/poaps"
@@ -989,13 +937,15 @@
       </svg>
       <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/how-it-works') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">How it works</span>
     </button>
-    <button
-      onclick={handleSubmitContribution}
-      class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"
-    >
-      <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
-      <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">Submit Contribution</span>
-    </button>
+    {#if $authState.isAuthenticated}
+      <button
+        onclick={handleSubmitContribution}
+        class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"
+      >
+        <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
+        <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">Submit Contribution</span>
+      </button>
+    {/if}
     {#if $authState.isAuthenticated}
       <button
         onclick={() => navigate('/my-submissions')}

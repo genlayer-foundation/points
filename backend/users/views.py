@@ -40,6 +40,22 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['date_joined', 'created_at']
 
+    def get_permissions(self):
+        public_actions = {'retrieve', 'by_address', 'user_highlights', 'search'}
+        if self.action in public_actions:
+            return [permissions.AllowAny()]
+        return super().get_permissions()
+
+    def get_throttles(self):
+        action = getattr(self, 'action', None)
+        if action in {'retrieve', 'by_address', 'user_highlights'}:
+            self.throttle_scope = 'public_user_profile'
+        elif action == 'search':
+            self.throttle_scope = 'public_user_search'
+        else:
+            self.throttle_scope = None
+        return super().get_throttles()
+
     def _can_view_user(self, user):
         request_user = self.request.user
         return bool(
@@ -117,6 +133,9 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         from contributions.serializers import ContributionHighlightSerializer
 
         user = get_object_or_404(User, address__iexact=address)
+        if not self._can_view_user(user):
+            raise Http404
+
         limit = int(request.query_params.get('limit', 5))
         category = request.query_params.get('category')
 
@@ -870,7 +889,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         from leaderboard.models import get_referral_breakdown
         return Response(get_referral_breakdown(request.user))
 
-    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def search(self, request):
         """Search visible users by public identifiers."""
         query = request.query_params.get('q', '').strip()

@@ -2,8 +2,6 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { Chart, registerables } from 'chart.js';
   import api from '../lib/api.js';
-  import { authState, verifyAuth } from '../lib/auth.js';
-  import { userStore } from '../lib/userStore.js';
   import CategoryIcon from '../components/portal/CategoryIcon.svelte';
 
   Chart.register(...registerables);
@@ -193,7 +191,6 @@
   }));
   let submissionsByCategory = $state(/** @type {Record<string, SubmissionsResponse>} */ ({}));
   let contributionTypes = $state(/** @type {ContributionType[]} */ ([]));
-  let canViewSubmissionAnalytics = $state(false);
 
   let submissionGroupBy = $state(/** @type {SubmissionGroupBy} */ ('week'));
   let submissionStartDate = $state('');
@@ -301,39 +298,11 @@
 
       participantsData = participantsResponse.data.data || [];
 
-      let isAuthenticated = $authState.isAuthenticated;
-      if (!isAuthenticated) {
-        try {
-          isAuthenticated = await verifyAuth();
-        } catch (err) {
-          isAuthenticated = false;
-        }
-      }
-
-      if (isAuthenticated) {
-        let activeUser = /** @type {any} */ ($userStore.user);
-
-        if (!activeUser) {
-          try {
-            activeUser = await userStore.loadUser();
-          } catch (err) {
-            // Keep public metrics usable even if the authenticated user payload is unavailable.
-          }
-        }
-
-        canViewSubmissionAnalytics = Boolean(activeUser?.steward);
-
-        const typesResponse = await api.get('/contribution-types/', { params: { page_size: 1000 } });
-        contributionTypes = normalizeContributionTypes(
-          typesResponse.data.results || typesResponse.data || []
-        );
-
-        if (canViewSubmissionAnalytics) {
-          await fetchSubmissionsData({ syncDates: true });
-        }
-      } else {
-        canViewSubmissionAnalytics = false;
-      }
+      const typesResponse = await api.get('/contribution-types/', { params: { page_size: 1000 } });
+      contributionTypes = normalizeContributionTypes(
+        typesResponse.data.results || typesResponse.data || []
+      );
+      await fetchSubmissionsData({ syncDates: true });
 
       loading = false;
       await tick();
@@ -1796,8 +1765,7 @@
       </div>
     </section>
 
-    {#if canViewSubmissionAnalytics}
-      <section class="portal-section">
+    <section class="portal-section">
         <div class="section-heading">
           <div>
             <h2>Portal contributions</h2>
@@ -1953,8 +1921,7 @@
             {/if}
           </div>
         </div>
-      </section>
-    {/if}
+    </section>
   </div>
 </div>
 

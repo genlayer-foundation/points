@@ -225,7 +225,7 @@ class StewardViewSet(viewsets.ModelViewSet):
         List all stewards with user details, role, and permitted categories.
         Allow public access to view steward list.
         """
-        stewards = self.get_queryset().select_related('user').prefetch_related(
+        stewards = self.get_queryset().filter(user__visible=True).select_related('user').prefetch_related(
             'permissions__contribution_type'
         )
         data = []

@@ -68,7 +68,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = ContributionType.objects.all()
     serializer_class = ContributionTypeSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
@@ -2355,17 +2355,33 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             status=status.HTTP_200_OK
         )
 
-    @action(detail=False, methods=['get'], url_path='stats')
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='stats',
+        permission_classes=[permissions.AllowAny],
+    )
     def stats(self, request):
         """Get statistics for steward dashboard."""
-        visible_qs = self._visible_submission_queryset()
-        total_pending = visible_qs.filter(state='pending').count()
+        is_steward_user = bool(
+            request.user
+            and request.user.is_authenticated
+            and hasattr(request.user, 'steward')
+        )
+        if is_steward_user:
+            visible_qs = self._visible_submission_queryset()
+            reviewed_qs = visible_qs.filter(reviewed_by=request.user).exclude(state='canceled')
+        else:
+            visible_qs = SubmittedContribution.objects.filter(user__visible=True)
+            reviewed_qs = visible_qs.filter(
+                state__in=['accepted', 'rejected', 'more_info_needed']
+            )
 
-        reviewed_qs = visible_qs.filter(reviewed_by=request.user).exclude(state='canceled')
+        total_pending = visible_qs.filter(state='pending').count()
         total_reviewed = reviewed_qs.count()
 
         # Get last review time
-        last_review = reviewed_qs.order_by('-reviewed_at').first()
+        last_review = reviewed_qs.filter(reviewed_at__isnull=False).order_by('-reviewed_at').first()
 
         last_review_time = last_review.reviewed_at if last_review else None
 
@@ -2388,7 +2404,13 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             'total_info_requested': total_info_requested
         })
 
-    @action(detail=False, methods=['get'], url_path='daily-metrics')
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='daily-metrics',
+        permission_classes=[permissions.AllowAny],
+        authentication_classes=[],
+    )
     def daily_metrics(self, request):
         """
         Get time-series metrics for submissions.
@@ -2414,9 +2436,10 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         """
         from datetime import datetime, timedelta
         from django.db.models import Min, Max
-        # Build base queryset with steward visibility and optional filters first
-        # (needed for date detection).
-        base_qs = self._visible_submission_queryset()
+        # Public aggregate metrics for the Overview > Metrics page. This action
+        # returns counts only; detailed steward review lists/actions remain
+        # protected by the viewset's default IsSteward permission.
+        base_qs = SubmittedContribution.objects.filter(user__visible=True)
 
         category = request.query_params.get('category')
         if category:

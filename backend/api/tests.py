@@ -661,14 +661,75 @@ class OverviewMetricsViewTests(TestCase):
         self.assertEqual(response.data['top_validators'][1]['name'], 'Validator One')
         self.assertEqual(response.data['top_validators'][1]['total_stake_gen'], 250)
 
-    def test_public_overview_without_aggregate_does_not_rebuild_live_payload(self):
+    def test_public_overview_without_aggregate_includes_live_portal_counts(self):
+        builder_user = self._create_user(
+            'overview-fallback-builder@example.com',
+            '0x0000000000000000000000000000000000001201',
+            'Fallback Builder',
+        )
+        validator_user = self._create_user(
+            'overview-fallback-validator@example.com',
+            '0x0000000000000000000000000000000000001202',
+            'Fallback Validator',
+        )
+        community_user = self._create_user(
+            'overview-fallback-community@example.com',
+            '0x0000000000000000000000000000000000001203',
+            'Fallback Community',
+        )
+        Validator.objects.create(user=validator_user)
+
+        builder_category, _ = Category.objects.get_or_create(
+            slug='builder',
+            defaults={'name': 'Builder'},
+        )
+        builder_type, _ = ContributionType.objects.get_or_create(
+            slug='overview-fallback-builder-work',
+            defaults={
+                'name': 'Fallback builder work',
+                'category': builder_category,
+                'is_submittable': True,
+            },
+        )
+        community_category, _ = Category.objects.get_or_create(
+            slug='community',
+            defaults={'name': 'Community'},
+        )
+        community_type, _ = ContributionType.objects.get_or_create(
+            slug='overview-fallback-community-post',
+            defaults={
+                'name': 'Fallback community post',
+                'category': community_category,
+                'is_submittable': True,
+            },
+        )
+        Contribution.objects.bulk_create([
+            Contribution(
+                user=builder_user,
+                contribution_type=builder_type,
+                points=10,
+                frozen_global_points=10,
+                contribution_date=timezone.now(),
+            ),
+            Contribution(
+                user=community_user,
+                contribution_type=community_type,
+                points=5,
+                frozen_global_points=5,
+                contribution_date=timezone.now(),
+            )
+        ])
         MetricSnapshot.objects.create(metric_key='discord_members', source='discord', value=111)
 
         response = self.client.get('/api/v1/metrics/overview/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['version'], 1)
-        self.assertIsNone(response.data['metrics']['discord_members'])
+        self.assertEqual(response.data['metrics']['builders']['value'], 1)
+        self.assertEqual(response.data['metrics']['validators']['value'], 1)
+        self.assertEqual(response.data['metrics']['community_members']['value'], 1)
+        self.assertEqual(response.data['metrics']['contributions']['value'], 2)
+        self.assertEqual(response.data['metrics']['discord_members']['value'], 111.0)
         self.assertEqual(response.data['top_validators'], [])
 
     @override_settings(CRON_SYNC_TOKEN='overview-secret')

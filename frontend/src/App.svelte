@@ -163,18 +163,18 @@
     // Global/Testnet Asimov routes
     // Overview and Testnet Asimov routes
     '/': Overview,
-    '/testnets': protectedRoute(GlobalDashboard),
+    '/testnets': GlobalDashboard,
     '/how-it-works': HowItWorks,
     '/contributions': protectedRoute(Contributions),
     '/all-contributions': protectedRoute(AllContributions),
-    '/leaderboard': protectedRoute(Leaderboard),
+    '/leaderboard': Leaderboard,
     '/participants': Validators,
     '/referrals': protectedRoute(Referrals),
-    '/community': protectedRoute(Dashboard),
+    '/community': Dashboard,
     '/community/contributions': protectedRoute(Contributions),
     '/community/all-contributions': protectedRoute(AllContributions),
     '/community/referrals': LegacyReferralRedirect,
-    '/community/leaderboard': protectedRoute(Leaderboard),
+    '/community/leaderboard': Leaderboard,
     '/community/poaps': CommunityPoaps,
     '/community/poaps/recover': PoapRecovery,
     '/community/poaps/:slug': PoapDetail,
@@ -186,10 +186,10 @@
     '/referral-program': ReferralProgram,
 
     // Builders routes
-    '/builders': protectedRoute(Dashboard),
+    '/builders': Dashboard,
     '/builders/contributions': protectedRoute(Contributions),
     '/builders/all-contributions': protectedRoute(AllContributions),
-    '/builders/leaderboard': protectedRoute(Leaderboard),
+    '/builders/leaderboard': Leaderboard,
 
     '/builders/resources': Resources,
     '/builders/projects/:slug/edit': protectedRoute(ProjectPageEditor),
@@ -198,10 +198,10 @@
     '/builders/startup-requests/:id': StartupRequestDetail,
     
     // Validators routes
-    '/validators': protectedRoute(Dashboard),
+    '/validators': Dashboard,
     '/validators/contributions': protectedRoute(Contributions),
     '/validators/all-contributions': protectedRoute(AllContributions),
-    '/validators/leaderboard': protectedRoute(Leaderboard),
+    '/validators/leaderboard': Leaderboard,
     '/validators/tasks': protectedRoute(SocialTasks),
     '/validators/participants': Validators,
     '/validators/wall-of-shame': WallOfShame,
@@ -210,7 +210,7 @@
     '/validators/waitlist/join': ValidatorWaitlist,
     
     // Shared routes
-    '/participant/:address': protectedRoute(Profile),
+    '/participant/:address': Profile,
     '/contribution/:id': protectedRoute(ContributionPreview),
     '/builders/contribution/:id': protectedRoute(ContributionPreview),
     '/validators/contribution/:id': protectedRoute(ContributionPreview),
@@ -226,9 +226,9 @@
 
     // Steward routes
     '/stewards': StewardDashboard,
-    '/stewards/submissions': StewardSubmissions,
-    '/stewards/feature-reviews': StewardFeatureReviews,
-    '/stewards/discord-xp': StewardDiscordXP,
+    '/stewards/submissions': protectedRoute(StewardSubmissions),
+    '/stewards/feature-reviews': protectedRoute(StewardFeatureReviews),
+    '/stewards/discord-xp': protectedRoute(StewardDiscordXP),
 
     // Legal routes
     '/terms-of-use': TermsOfUse,

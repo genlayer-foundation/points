@@ -93,6 +93,39 @@ class CanceledSubmissionMetricsTest(TestCase):
         self.assertEqual(response.data['totals']['rejected'], 1)
         self.assertEqual(response.data['totals']['canceled'], 1)
 
+    def test_daily_metrics_are_public_aggregate_counts(self):
+        self._create_submission(state='accepted', staff_reply='Accepted')
+        self.client.force_authenticate(user=None)
+
+        today = timezone.now().date().isoformat()
+        response = self.client.get(
+            '/api/v1/steward-submissions/daily-metrics/',
+            {
+                'group_by': 'day',
+                'start_date': today,
+                'end_date': today,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['totals']['accepted'], 1)
+
+    def test_steward_stats_are_public_aggregate_counts_for_anonymous_users(self):
+        self._create_submission(state='pending')
+        self._create_submission(state='accepted', staff_reply='Accepted')
+        self._create_submission(state='rejected', staff_reply='Rejected')
+        self._create_submission(state='canceled', staff_reply='Canceled by user')
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get('/api/v1/steward-submissions/stats/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['pending_count'], 1)
+        self.assertEqual(response.data['total_reviewed'], 2)
+        self.assertEqual(response.data['total_accepted'], 1)
+        self.assertEqual(response.data['total_rejected'], 1)
+        self.assertEqual(response.data['acceptance_rate'], 50.0)
+
     def test_canceled_submissions_are_not_reviewed_decisions(self):
         self._create_submission(state='rejected', staff_reply='Not valid')
         self._create_submission(state='canceled', staff_reply='Canceled by user')

@@ -69,15 +69,12 @@ class ContributionTypeIsSubmittableTest(TestCase):
         
         self.api_url = reverse('contributiontype-list')
 
-    def test_contribution_types_require_authentication(self):
+    def test_contribution_types_allow_public_read_access(self):
         self.client.force_authenticate(user=None)
 
         response = self.client.get(self.api_url)
 
-        self.assertIn(
-            response.status_code,
-            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
-        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
     
     def test_is_submittable_field_default_value(self):
         """Test that is_submittable defaults to True."""

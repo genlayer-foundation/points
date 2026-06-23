@@ -1,11 +1,15 @@
 """
 Tests for email security - authentication emails are only exposed to the owner.
 """
+from unittest.mock import patch
+
+from django.core.cache import cache
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework import status
+from rest_framework.throttling import SimpleRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from contributions.node_upgrade.models import TargetNodeVersion
 from leaderboard.models import LeaderboardEntry
@@ -20,6 +24,7 @@ class EmailSecurityTests(TestCase):
     
     def setUp(self):
         """Set up test client and users."""
+        cache.clear()
         self.client = APIClient()
         
         # Create a user with auto-generated email (unverified)
@@ -150,9 +155,11 @@ class EmailSecurityTests(TestCase):
         self.assertTrue(response.data['is_email_verified'])
     
     def test_unverified_email_not_exposed_in_public_profile(self):
-        """Test that user profile endpoint requires auth and hides email from other users."""
+        """Test that public user profile endpoint hides email fields."""
         response = self.client.get(f'/api/v1/users/by-address/{self.unverified_user.address}/')
-        self.assert_requires_authentication(response)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn('email', response.data)
+        self.assertNotIn('is_email_verified', response.data)
         
         self.authenticate(self.other_user)
         response = self.client.get(f'/api/v1/users/by-address/{self.unverified_user.address}/')
@@ -163,7 +170,18 @@ class EmailSecurityTests(TestCase):
     def test_verified_email_not_shown_in_public_profile(self):
         """Test that verified email is not exposed to anonymous or other users."""
         response = self.client.get(f'/api/v1/users/by-address/{self.verified_user.address}/')
-        self.assert_requires_authentication(response)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for field in [
+            'email',
+            'is_email_verified',
+            'is_banned',
+            'ban_reason',
+            'referral_code',
+            'referred_by_info',
+            'total_referrals',
+            'referral_details',
+        ]:
+            self.assertNotIn(field, response.data)
 
         self.authenticate(self.other_user)
         response = self.client.get(f'/api/v1/users/by-address/{self.verified_user.address}/')
@@ -251,10 +269,12 @@ class EmailSecurityTests(TestCase):
         self.assertEqual(response.data['email'], 'newemail@gmail.com')
         self.assertTrue(response.data['is_email_verified'])
         
-        # User endpoint should reject anonymous clients
+        # Public profile should not expose the authentication email.
         self.client.credentials()  # Clear authentication
         response = self.client.get(f'/api/v1/users/by-address/{self.unverified_user.address}/')
-        self.assert_requires_authentication(response)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn('email', response.data)
+        self.assertNotIn('is_email_verified', response.data)
     
     def test_no_email_field_leakage_in_list_view(self):
         """Test that auth emails are not exposed in authenticated user list view."""
@@ -333,15 +353,49 @@ class EmailSecurityTests(TestCase):
         response = self.client.get(f'/api/v1/users/by-address/{self.hidden_user.address}/')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+        self.client.credentials()
+        response = self.client.get(f'/api/v1/users/by-address/{self.hidden_user.address}/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        response = self.client.get(f'/api/v1/users/by-address/{self.hidden_user.address}/highlights/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
         self.authenticate(self.hidden_user)
         response = self.client.get('/api/v1/users/me/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['email'], 'hidden@example.com')
 
+    def test_public_profile_lookup_is_throttled(self):
+        """Test public profile reads are rate-limited for anonymous clients."""
+        cache.clear()
+        try:
+            with patch.dict(SimpleRateThrottle.THROTTLE_RATES, {'public_user_profile': '1/minute'}):
+                response = self.client.get(f'/api/v1/users/by-address/{self.verified_user.address}/')
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+                response = self.client.get(f'/api/v1/users/by-address/{self.unverified_user.address}/')
+                self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        finally:
+            cache.clear()
+
+    def test_public_search_is_throttled(self):
+        """Test public user search is rate-limited for anonymous clients."""
+        cache.clear()
+        try:
+            with patch.dict(SimpleRateThrottle.THROTTLE_RATES, {'public_user_search': '1/minute'}):
+                response = self.client.get('/api/v1/users/search/', {'q': 'Verified'})
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+                response = self.client.get('/api/v1/users/search/', {'q': 'Other'})
+                self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        finally:
+            cache.clear()
+
     def test_public_search_does_not_match_auth_email(self):
-        """Test that user search requires auth and cannot use auth email as a lookup key."""
+        """Test that public user search cannot use auth email as a lookup key."""
         response = self.client.get('/api/v1/users/search/', {'q': 'verified@example.com'})
-        self.assert_requires_authentication(response)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
 
         self.authenticate(self.other_user)
         response = self.client.get('/api/v1/users/search/', {'q': 'verified@example.com'})
@@ -373,7 +427,8 @@ class EmailSecurityTests(TestCase):
         )
 
         response = self.client.get('/api/v1/leaderboard/', {'search': 'verified@example.com'})
-        self.assert_requires_authentication(response)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
 
         self.authenticate(self.other_user)
         response = self.client.get('/api/v1/leaderboard/', {'search': 'verified@example.com'})

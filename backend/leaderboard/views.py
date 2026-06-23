@@ -60,7 +60,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = LeaderboardEntry.objects.filter(user__visible=True)
     serializer_class = LeaderboardEntrySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['user__name', 'user__address']
     ordering_fields = ['rank', 'total_points', 'updated_at']

@@ -194,6 +194,13 @@
     font-size: 0.875rem;
   }
 
+  .auth-button:not(.connected) {
+    min-width: 168px;
+    height: 44px;
+    padding: 0.625rem 1.25rem;
+    font-size: 0.9375rem;
+  }
+
   .auth-button:hover {
     background-color: #1a1a24;
   }

@@ -135,12 +135,12 @@ class LeaderboardStatsTest(TestCase):
             synced_at=now,
         )
 
-    def test_leaderboard_requires_authentication(self):
+    def test_leaderboard_allows_public_read_access(self):
         self.client.force_authenticate(user=None)
 
         response = self.client.get('/api/v1/leaderboard/')
 
-        self.assertIn(response.status_code, [401, 403])
+        self.assertEqual(response.status_code, 200)
 
     def test_community_member_count_uses_accepted_community_contributions(self):
         now = timezone.now()

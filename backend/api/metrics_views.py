@@ -19,6 +19,7 @@ from utils.dates import day_start
 from utils.pagination import SafePageNumberPagination
 from validators.permissions import IsCronToken
 from .overview_metrics import (
+    build_overview_payload,
     empty_network_activity_payload,
     empty_overview_payload,
     latest_network_activity,
@@ -39,7 +40,12 @@ class OverviewMetricsView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        return Response(latest_overview_payload() or empty_overview_payload())
+        try:
+            payload = latest_overview_payload() or build_overview_payload()
+        except Exception:
+            logger.exception("Failed to build public overview metrics payload")
+            payload = empty_overview_payload()
+        return Response(payload)
 
 
 class RefreshOverviewMetricsView(APIView):
