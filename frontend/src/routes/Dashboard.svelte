@@ -309,7 +309,7 @@
 
 <div class="space-y-8">
   <!-- 1. Hero Banner -->
-  <HeroBanner category={category} />
+  <HeroBanner category={category} compact={true} />
 
   <!-- 2. Live Dashboard Stats -->
   <div>
