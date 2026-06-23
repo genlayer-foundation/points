@@ -881,6 +881,15 @@ class UserSerializer(serializers.ModelSerializer):
             ]:
                 data.pop(field, None)
 
+        if self.context.get('public_profile', False):
+            for field in [
+                'referral_code',
+                'referred_by_info',
+                'total_referrals',
+                'referral_details',
+            ]:
+                data.pop(field, None)
+
         return data
 
 

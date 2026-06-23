@@ -153,6 +153,9 @@ class EmailSecurityTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['email'], 'verified@example.com')
         self.assertTrue(response.data['is_email_verified'])
+        self.verified_user.refresh_from_db()
+        self.assertEqual(response.data['referral_code'], self.verified_user.referral_code)
+        self.assertIsNotNone(response.data['referred_by_info'])
     
     def test_unverified_email_not_exposed_in_public_profile(self):
         """Test that public user profile endpoint hides email fields."""
@@ -227,7 +230,7 @@ class EmailSecurityTests(TestCase):
             self.assertNotIn(private_value, serialized)
 
     def test_verified_email_shown_on_own_public_profile_when_authenticated(self):
-        """Test that a user can see their own email on any profile endpoint."""
+        """Test that public profile endpoints do not include referral details."""
         self.authenticate(self.verified_user)
 
         response = self.client.get(f'/api/v1/users/by-address/{self.verified_user.address}/')
@@ -236,9 +239,13 @@ class EmailSecurityTests(TestCase):
         self.assertTrue(response.data['is_email_verified'])
         self.assertTrue(response.data['is_banned'])
         self.assertEqual(response.data['ban_reason'], 'private moderation note')
-        self.verified_user.refresh_from_db()
-        self.assertEqual(response.data['referral_code'], self.verified_user.referral_code)
-        self.assertIsNotNone(response.data['referred_by_info'])
+        for field in [
+            'referral_code',
+            'referred_by_info',
+            'total_referrals',
+            'referral_details',
+        ]:
+            self.assertNotIn(field, response.data)
         self.assertEqual(response.data['github_connection']['platform_username'], 'verified-gh')
         self.assertEqual(response.data['twitter_connection']['platform_username'], 'verified-x')
         self.assertEqual(response.data['discord_connection']['platform_username'], 'verified-discord')

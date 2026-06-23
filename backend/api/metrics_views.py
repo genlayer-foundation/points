@@ -35,7 +35,9 @@ class OverviewMetricsView(APIView):
     Public investor overview payload.
 
     Served from the latest composite ``overview_payload`` MetricSnapshot that the
-    cron persists. Public page reads never fetch or aggregate source providers.
+    cron persists. If no snapshot exists, the view performs a live overview
+    rebuild with ``build_overview_payload()`` and returns the empty payload only
+    if that fallback fails.
     """
     permission_classes = [permissions.AllowAny]
 

@@ -100,8 +100,9 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         context = super().get_serializer_context()
         # Use light serializers for list view, full for detail/by_address
         context['use_light_serializers'] = self.action == 'list'
-        # Include referral_details only for detail/by_address views
-        context['include_referral_details'] = self.action in ['retrieve', 'by_address']
+        # Referral breakdowns belong on owner-only endpoints such as /users/me/.
+        context['include_referral_details'] = False
+        context['public_profile'] = self.action in ['retrieve', 'by_address']
         return context
 
     @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)')
@@ -120,7 +121,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         # Override context for by_address to include full details
         context = self.get_serializer_context()
         context['use_light_serializers'] = False
-        context['include_referral_details'] = True
+        context['include_referral_details'] = False
         serializer = self.get_serializer(user, context=context)
         return Response(serializer.data)
     

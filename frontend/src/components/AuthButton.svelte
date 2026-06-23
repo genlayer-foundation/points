@@ -122,7 +122,7 @@
 
 <div class="auth-dropdown-container">
   <button 
-    class="auth-button {isAuthenticated ? 'connected' : ''}" 
+    class="auth-button {isAuthenticated ? 'connected' : '!min-w-[168px] !h-11 !px-5 !py-2.5 !text-[15px]'}"
     on:click={handleAuth}
     disabled={loading || storeLoading}
     data-auth-button
@@ -192,13 +192,6 @@
     min-width: 140px;
     height: 40px;
     font-size: 0.875rem;
-  }
-
-  .auth-button:not(.connected) {
-    min-width: 168px;
-    height: 44px;
-    padding: 0.625rem 1.25rem;
-    font-size: 0.9375rem;
   }
 
   .auth-button:hover {

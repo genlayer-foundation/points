@@ -219,7 +219,6 @@
             </a>
             <a
               href="/leaderboard"
-              onclick={(e) => { e.preventDefault(); navigate('/leaderboard'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               }"
@@ -676,7 +675,6 @@
           </a>
           <a
             href="/leaderboard"
-            onclick={(e) => { e.preventDefault(); navigate('/leaderboard'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             }"

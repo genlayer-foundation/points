@@ -110,6 +110,36 @@ class CanceledSubmissionMetricsTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['totals']['accepted'], 1)
 
+    def test_daily_metrics_rejects_inverted_date_range(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(
+            '/api/v1/steward-submissions/daily-metrics/',
+            {
+                'group_by': 'day',
+                'start_date': '2026-02-01',
+                'end_date': '2026-01-01',
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], 'start_date must be before or equal to end_date.')
+
+    def test_daily_metrics_rejects_too_large_public_date_range(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(
+            '/api/v1/steward-submissions/daily-metrics/',
+            {
+                'group_by': 'day',
+                'start_date': '2020-01-01',
+                'end_date': '2022-01-01',
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], 'Date range is too large for group_by=day.')
+
     def test_steward_stats_are_public_aggregate_counts_for_anonymous_users(self):
         self._create_submission(state='pending')
         self._create_submission(state='accepted', staff_reply='Accepted')

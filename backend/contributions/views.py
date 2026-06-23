@@ -2495,6 +2495,23 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             if end_date is None:
                 end_date = timezone.now().date()
 
+        if start_date > end_date:
+            return Response(
+                {'detail': 'start_date must be before or equal to end_date.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        max_days_by_group = {
+            'day': 366,
+            'week': 366 * 5,
+            'month': 366 * 10,
+        }
+        if (end_date - start_date).days > max_days_by_group[group_by]:
+            return Response(
+                {'detail': f'Date range is too large for group_by={group_by}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         start_datetime = day_start(start_date)
         end_datetime = day_start(end_date + timedelta(days=1))
 
