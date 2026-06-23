@@ -194,7 +194,6 @@ amplifyconfiguration*
 
 # conductor.build
 conductor.json
-conductor-*
 
 # Local dev files
 .cursorrules
