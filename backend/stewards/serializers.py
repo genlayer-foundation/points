@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from .models import WorkingGroup, WorkingGroupParticipant
 
@@ -12,7 +13,7 @@ def feature_candidate_user_data(user, include_id=False):
     def _get(related_name, serializer_class):
         try:
             connection = getattr(user, related_name)
-        except Exception:
+        except ObjectDoesNotExist:
             return None
         if connection is None:
             return None
