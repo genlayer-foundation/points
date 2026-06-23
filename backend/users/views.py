@@ -39,6 +39,26 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
     lookup_field = 'address'  # Change default lookup field from 'pk' to 'address'
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['date_joined', 'created_at']
+    public_highlights_default_limit = 5
+    public_highlights_max_limit = 20
+
+    def _parse_public_limit(self, default, max_limit):
+        raw_limit = self.request.query_params.get('limit', default)
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            return None, Response(
+                {'detail': 'limit must be a non-negative integer.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if limit < 0:
+            return None, Response(
+                {'detail': 'limit must be a non-negative integer.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return min(limit, max_limit), None
 
     def get_permissions(self):
         public_actions = {'retrieve', 'by_address', 'user_highlights', 'search'}
@@ -137,7 +157,12 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         if not self._can_view_user(user):
             raise Http404
 
-        limit = int(request.query_params.get('limit', 5))
+        limit, error_response = self._parse_public_limit(
+            self.public_highlights_default_limit,
+            self.public_highlights_max_limit,
+        )
+        if error_response is not None:
+            return error_response
         category = request.query_params.get('category')
 
         # Build the queryset for filtering

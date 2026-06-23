@@ -133,6 +133,46 @@ class EmailSecurityTests(TestCase):
             response.status_code,
             [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
         )
+
+    def create_public_highlights(self, count):
+        from contributions.models import (
+            Category,
+            Contribution,
+            ContributionHighlight,
+            ContributionType,
+        )
+        from leaderboard.models import GlobalLeaderboardMultiplier
+
+        category, _ = Category.objects.get_or_create(
+            slug='builder',
+            defaults={'name': 'Builder'},
+        )
+        contribution_type, _ = ContributionType.objects.get_or_create(
+            slug='public-highlight-test',
+            defaults={'name': 'Public Highlight Test', 'category': category},
+        )
+        GlobalLeaderboardMultiplier.objects.get_or_create(
+            contribution_type=contribution_type,
+            defaults={
+                'multiplier_value': 1,
+                'valid_from': timezone.now() - timezone.timedelta(days=1),
+                'description': 'Public highlight test multiplier',
+            },
+        )
+
+        for index in range(count):
+            contribution = Contribution.objects.create(
+                user=self.verified_user,
+                contribution_type=contribution_type,
+                points=1,
+                contribution_date=timezone.now(),
+                title=f'Contribution {index}',
+            )
+            ContributionHighlight.objects.create(
+                contribution=contribution,
+                title=f'Highlight {index}',
+                description='Public highlight test',
+            )
     
     def test_unverified_email_not_exposed_in_own_profile(self):
         """Test that unverified email is not exposed when user views own profile."""
@@ -371,6 +411,28 @@ class EmailSecurityTests(TestCase):
         response = self.client.get('/api/v1/users/me/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['email'], 'hidden@example.com')
+
+    def test_public_highlights_reject_malformed_limit(self):
+        """Test public profile highlights handle invalid limits without server errors."""
+        response = self.client.get(
+            f'/api/v1/users/by-address/{self.verified_user.address}/highlights/',
+            {'limit': 'invalid'},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], 'limit must be a non-negative integer.')
+
+    def test_public_highlights_cap_large_limit(self):
+        """Test public profile highlights enforce a maximum limit."""
+        self.create_public_highlights(21)
+
+        response = self.client.get(
+            f'/api/v1/users/by-address/{self.verified_user.address}/highlights/',
+            {'limit': '999'},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 20)
 
     def test_public_profile_lookup_is_throttled(self):
         """Test public profile reads are rate-limited for anonymous clients."""
