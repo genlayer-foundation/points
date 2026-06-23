@@ -59,6 +59,7 @@ from utils.dates import day_start
 import requests
 
 AI_STEWARD_EMAIL = 'genlayer-steward@genlayer.foundation'
+COMMUNITY_CATEGORY_SLUGS = ('community', 'creator')
 
 
 class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
@@ -2419,7 +2420,10 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
 
         category = request.query_params.get('category')
         if category:
-            base_qs = base_qs.filter(contribution_type__category__slug=category)
+            if category in COMMUNITY_CATEGORY_SLUGS:
+                base_qs = base_qs.filter(contribution_type__category__slug__in=COMMUNITY_CATEGORY_SLUGS)
+            else:
+                base_qs = base_qs.filter(contribution_type__category__slug=category)
 
         contribution_type_id = request.query_params.get('contribution_type')
         if contribution_type_id:
@@ -2534,7 +2538,10 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Apply category/type filters to points query if specified
         if category:
-            points_qs = points_qs.filter(contribution_type__category__slug=category)
+            if category in COMMUNITY_CATEGORY_SLUGS:
+                points_qs = points_qs.filter(contribution_type__category__slug__in=COMMUNITY_CATEGORY_SLUGS)
+            else:
+                points_qs = points_qs.filter(contribution_type__category__slug=category)
         if contribution_type_id:
             points_qs = points_qs.filter(contribution_type_id=contribution_type_id)
 

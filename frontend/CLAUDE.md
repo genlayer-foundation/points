@@ -398,7 +398,6 @@ const routes = {
   '/stewards': StewardDashboard,
   '/stewards/submissions': StewardSubmissions,
   '/stewards/discord-xp': StewardDiscordXP,   // Community XP rows: contributions + social task completions; actions keyed by state id (row.id)
-  '/stewards/manage-users': StewardManageUsers,
 
   // Legal
   '/terms-of-use': TermsOfUse,
@@ -722,7 +721,6 @@ Toasts appear in top-right corner, auto-dismiss after 5 seconds by default, and 
 Set in `.env` file:
 - `VITE_API_URL` - Backend API URL
 - `VITE_VALIDATOR_RPC_URL` - Blockchain RPC endpoint for Asimov testnet
-- `VITE_VALIDATOR_CONTRACT_ADDRESS` - Validator contract address
 - `VITE_EXPLORER_URL` - Blockchain explorer URL
 - `VITE_RECAPTCHA_SITE_KEY` - Google reCAPTCHA site key (required - use test key from .env.example for development)
 

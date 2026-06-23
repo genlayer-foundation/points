@@ -3,7 +3,8 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from contributions.models import Category, ContributionType, SubmittedContribution
+from contributions.models import Category, ContributionType, Evidence, EvidenceURLType, SubmittedContribution
+from social_connections.models import DiscordConnection, GitHubConnection, TwitterConnection
 from .models import FeatureCandidateScore, Steward
 
 
@@ -44,21 +45,51 @@ class StewardAPITestCase(APITestCase):
 
 class FeatureCandidateReviewAPITestCase(APITestCase):
     def setUp(self):
-        self.category = Category.objects.create(
-            name='Builder',
+        self.category, _ = Category.objects.get_or_create(
             slug='builder',
+            defaults={'name': 'Builder'},
         )
-        self.contribution_type = ContributionType.objects.create(
-            name='Projects',
+        self.contribution_type, _ = ContributionType.objects.get_or_create(
             slug='projects',
-            category=self.category,
-            min_points=0,
-            max_points=100,
+            defaults={
+                'name': 'Projects',
+                'category': self.category,
+                'min_points': 0,
+                'max_points': 100,
+                'review_flow': ContributionType.REVIEW_FLOW_BUILDER_PROJECT,
+            },
+        )
+        self.non_project_type, _ = ContributionType.objects.get_or_create(
+            slug='feature-review-non-project',
+            defaults={
+                'name': 'Feature Review Non Project',
+                'category': self.category,
+                'min_points': 0,
+                'max_points': 100,
+            },
         )
         self.submitter = User.objects.create_user(
             email='submitter@example.com',
             password='testpass123',
             name='Submitter',
+        )
+        GitHubConnection.objects.create(
+            user=self.submitter,
+            platform_user_id='gh-1',
+            platform_username='submitter-gh',
+            linked_at=timezone.now(),
+        )
+        TwitterConnection.objects.create(
+            user=self.submitter,
+            platform_user_id='x-1',
+            platform_username='submitter-x',
+            linked_at=timezone.now(),
+        )
+        DiscordConnection.objects.create(
+            user=self.submitter,
+            platform_user_id='discord-1',
+            platform_username='submitter-discord',
+            linked_at=timezone.now(),
         )
         self.submission = SubmittedContribution.objects.create(
             user=self.submitter,
@@ -66,7 +97,18 @@ class FeatureCandidateReviewAPITestCase(APITestCase):
             contribution_date=timezone.now(),
             title='Interesting project',
             notes='A GenLayer-native project.',
+            state='accepted',
             is_interesting=True,
+        )
+        self.evidence_type, _ = EvidenceURLType.objects.get_or_create(
+            slug='feature-review-test-url',
+            defaults={'name': 'Feature Review Test URL'},
+        )
+        Evidence.objects.create(
+            submitted_contribution=self.submission,
+            description='Project repository',
+            url='https://github.com/genlayer/example',
+            url_type=self.evidence_type,
         )
         self.uninteresting_submission = SubmittedContribution.objects.create(
             user=self.submitter,
@@ -74,7 +116,26 @@ class FeatureCandidateReviewAPITestCase(APITestCase):
             contribution_date=timezone.now(),
             title='Hidden project',
             notes='Not flagged.',
+            state='accepted',
             is_interesting=False,
+        )
+        self.pending_project_submission = SubmittedContribution.objects.create(
+            user=self.submitter,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            title='Pending project',
+            notes='Interesting but not accepted yet.',
+            state='pending',
+            is_interesting=True,
+        )
+        self.non_project_submission = SubmittedContribution.objects.create(
+            user=self.submitter,
+            contribution_type=self.non_project_type,
+            contribution_date=timezone.now(),
+            title='Accepted non-project',
+            notes='Interesting but not a project.',
+            state='accepted',
+            is_interesting=True,
         )
         self.reviewer_user = User.objects.create_user(
             email='reviewer@example.com',
@@ -106,7 +167,7 @@ class FeatureCandidateReviewAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {'can_review': True, 'can_admin': False})
 
-    def test_reviewer_list_is_blind_and_only_includes_interesting_submissions(self):
+    def test_reviewer_list_is_blind_and_only_includes_interesting_accepted_projects(self):
         other_user = User.objects.create_user(
             email='other-reviewer@example.com',
             password='testpass123',
@@ -129,11 +190,30 @@ class FeatureCandidateReviewAPITestCase(APITestCase):
         self.assertEqual(len(response.data['results']), 1)
         row = response.data['results'][0]
         self.assertEqual(row['id'], str(self.submission.id))
+        self.assertEqual(row['state'], 'accepted')
+        self.assertEqual(row['contribution_type_details']['slug'], 'projects')
         self.assertIsNone(row['own_score'])
         self.assertNotIn('id', row['user_details'])
-        self.assertNotIn('address', row['user_details'])
+        self.assertEqual(row['user_details']['address'], self.submitter.address)
+        self.assertEqual(row['user_details']['github_connection'], {'platform_username': 'submitter-gh'})
+        self.assertEqual(row['user_details']['twitter_connection'], {'platform_username': 'submitter-x'})
+        self.assertEqual(row['user_details']['discord_connection'], {'platform_username': 'submitter-discord'})
         self.assertNotIn('median_score', row)
         self.assertNotIn('reviewer_count', row)
+        self.assertEqual(row['evidence_items'][0]['url_type']['name'], 'Feature Review Test URL')
+
+    def test_reviewer_cannot_score_non_candidate_submissions(self):
+        self.client.force_authenticate(user=self.reviewer_user)
+
+        for submission in (self.pending_project_submission, self.non_project_submission):
+            with self.subTest(submission=submission.id):
+                response = self.client.post(
+                    f'/api/v1/stewards/feature-reviews/{submission.id}/score/',
+                    {'score': 2},
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertFalse(FeatureCandidateScore.objects.exists())
 
     def test_reviewer_can_create_and_edit_own_score(self):
         self.client.force_authenticate(user=self.reviewer_user)
@@ -179,7 +259,7 @@ class FeatureCandidateReviewAPITestCase(APITestCase):
             {'score': None},
         ):
             with self.subTest(payload=payload):
-                response = self.client.post(url, payload)
+                response = self.client.post(url, payload, format='json')
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
                 self.assertIn('score', response.data)
                 self.assertFalse(FeatureCandidateScore.objects.exists())

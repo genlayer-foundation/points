@@ -9,6 +9,7 @@ from rest_framework.test import APIClient
 
 from api.models import MetricSnapshot
 from builders.models import Builder
+from community_xp.models import Mee6CurrentXP, Mee6SyncRun
 from contributions.models import Category, Contribution, ContributionType
 from users.models import User
 from validators.models import Validator, ValidatorWallet
@@ -30,6 +31,10 @@ class ParticipantsGrowthViewTests(TestCase):
         self.builder_category, _ = Category.objects.get_or_create(
             slug='builder',
             defaults={'name': 'Builder'},
+        )
+        self.community_category, _ = Category.objects.get_or_create(
+            slug='community',
+            defaults={'name': 'Community'},
         )
         self.waitlist_type, _ = ContributionType.objects.get_or_create(
             slug='validator-waitlist',
@@ -66,6 +71,20 @@ class ParticipantsGrowthViewTests(TestCase):
                 'category': self.validator_category,
             },
         )
+        self.community_real_type, _ = ContributionType.objects.get_or_create(
+            slug='community-article',
+            defaults={
+                'name': 'Community Article',
+                'category': self.community_category,
+            },
+        )
+        self.community_link_type, _ = ContributionType.objects.get_or_create(
+            slug='community-link-x',
+            defaults={
+                'name': 'Link X Account',
+                'category': self.community_category,
+            },
+        )
 
     def test_participants_growth_allows_public_metrics_page(self):
         self.client.force_authenticate(user=None)
@@ -82,12 +101,76 @@ class ParticipantsGrowthViewTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def _create_user(self, email, address):
+    def _create_user(self, email, address, **extra_fields):
         return User.objects.create_user(
             email=email,
             password='pass',
-            address=address
+            address=address,
+            **extra_fields,
         )
+
+    def _create_current_mee6_xp(self, user, guild_id, discord_id, xp, synced_at):
+        run = Mee6SyncRun.objects.create(
+            guild_id=guild_id,
+            guild_name=f'Guild {guild_id}',
+            status=Mee6SyncRun.STATUS_SUCCESS,
+            page_size=1000,
+            pages_fetched=1,
+            players_fetched=1,
+            matched_players=1,
+            unmatched_players=0,
+            completed_at=synced_at,
+            applied_at=synced_at,
+        )
+        return Mee6CurrentXP.objects.create(
+            guild_id=guild_id,
+            discord_id=discord_id,
+            username=f'discord-{discord_id}',
+            rank=1,
+            xp=xp,
+            level=1,
+            message_count=3,
+            sync_run=run,
+            matched_user=user,
+            matched_at=synced_at,
+            synced_at=synced_at,
+        )
+
+    @override_settings(MEE6_GUILD_ID='main-guild', DISCORD_GUILD_ID='discord-guild')
+    def test_participants_growth_scopes_mee6_members_to_default_guild(self):
+        base = timezone.now() - timedelta(days=2)
+
+        default_guild_member = self._create_user(
+            'default-guild@example.com',
+            '0x0000000000000000000000000000000000000101',
+        )
+        other_guild_member = self._create_user(
+            'other-guild@example.com',
+            '0x0000000000000000000000000000000000000102',
+        )
+
+        self._create_current_mee6_xp(
+            default_guild_member,
+            'main-guild',
+            'discord-main',
+            10,
+            base,
+        )
+        self._create_current_mee6_xp(
+            other_guild_member,
+            'other-guild',
+            'discord-other',
+            25,
+            base,
+        )
+
+        response = self.client.get('/api/v1/metrics/participants-growth/')
+
+        self.assertEqual(response.status_code, 200)
+        final_point = response.data['data'][-1]
+        self.assertEqual(final_point['community_members'], 1)
+        self.assertEqual(final_point['unique_contributors'], 1)
+        self.assertEqual(final_point['total'], 1)
 
     def test_participants_growth_deduplicates_overlapping_roles(self):
         base = timezone.now() - timedelta(days=3)
@@ -97,6 +180,13 @@ class ParticipantsGrowthViewTests(TestCase):
         validator_only = self._create_user('validator@example.com', '0x0000000000000000000000000000000000000003')
         active_builder = self._create_user('builder@example.com', '0x0000000000000000000000000000000000000004')
         idle_builder = self._create_user('idle@example.com', '0x0000000000000000000000000000000000000005')
+        community_only = self._create_user('community@example.com', '0x0000000000000000000000000000000000000006')
+        link_only = self._create_user('link-only@example.com', '0x0000000000000000000000000000000000000007')
+        hidden_community = self._create_user(
+            'hidden-community@example.com',
+            '0x0000000000000000000000000000000000000008',
+            visible=False,
+        )
 
         Builder.objects.create(user=shared_user, created_at=base)
         Builder.objects.create(user=active_builder, created_at=base)
@@ -132,6 +222,15 @@ class ParticipantsGrowthViewTests(TestCase):
                 contribution_type=self.builder_real_type,
                 points=10,
                 frozen_global_points=10,
+                contribution_date=base + timedelta(days=2)
+            ),
+            # active_builder is also a community member, so the displayed
+            # "unique contributors" total must not count them twice.
+            Contribution(
+                user=active_builder,
+                contribution_type=self.community_real_type,
+                points=12,
+                frozen_global_points=12,
                 contribution_date=base + timedelta(days=2)
             ),
             # idle_builder only has the welcome auto-award, so they don't count.
@@ -173,6 +272,34 @@ class ParticipantsGrowthViewTests(TestCase):
                 frozen_global_points=0,
                 contribution_date=base + timedelta(days=2)
             ),
+            Contribution(
+                user=community_only,
+                contribution_type=self.community_real_type,
+                points=15,
+                frozen_global_points=15,
+                contribution_date=base + timedelta(days=1)
+            ),
+            Contribution(
+                user=shared_user,
+                contribution_type=self.community_real_type,
+                points=20,
+                frozen_global_points=20,
+                contribution_date=base + timedelta(days=2)
+            ),
+            Contribution(
+                user=link_only,
+                contribution_type=self.community_link_type,
+                points=5,
+                frozen_global_points=5,
+                contribution_date=base + timedelta(days=2)
+            ),
+            Contribution(
+                user=hidden_community,
+                contribution_type=self.community_real_type,
+                points=99,
+                frozen_global_points=99,
+                contribution_date=base + timedelta(days=2)
+            ),
         ])
 
         response = self.client.get('/api/v1/metrics/participants-growth/')
@@ -188,12 +315,17 @@ class ParticipantsGrowthViewTests(TestCase):
         # validator_only has real validator activity before graduation, but the
         # chart should only count validators from their graduation date.
         self.assertEqual(point_before_graduation['validators'], 0)
+        self.assertEqual(point_before_graduation['community_members'], 1)
         self.assertEqual(final_point['builders'], 1)
         self.assertEqual(final_point['validators'], 2)
         self.assertEqual(final_point['waitlist'], 2)
-        self.assertEqual(final_point['cohort_total'], 5)
-        self.assertEqual(final_point['total'], 4)
-        self.assertEqual(final_point['overlap_count'], 1)
+        self.assertEqual(final_point['community_members'], 3)
+        self.assertEqual(final_point['cohort_total'], 8)
+        self.assertEqual(final_point['total'], 5)
+        self.assertEqual(final_point['overlap_count'], 3)
+        self.assertEqual(final_point['unique_contributors'], 4)
+        self.assertEqual(final_point['contributor_cohort_total'], 6)
+        self.assertEqual(final_point['contributor_overlap_count'], 2)
 
 
 class CommunityContributionMetricsViewTests(TestCase):
@@ -350,6 +482,30 @@ class CommunityContributionMetricsViewTests(TestCase):
         self.assertEqual(response.data['count'], 1)
         self.assertEqual(response.data['totals']['points_awarded'], 10)
         self.assertEqual(response.data['results'][0]['title'], 'Community article')
+
+    def test_summary_only_returns_public_aggregate_totals_without_rows(self):
+        self._seed_contributions()
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(
+            '/api/v1/metrics/community-contributions/',
+            {'summary_only': 'true'},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 2)
+        self.assertEqual(response.data['totals']['contribution_count'], 2)
+        self.assertEqual(response.data['totals']['unique_contributors'], 2)
+        self.assertEqual(response.data['totals']['points_awarded'], 35)
+        self.assertNotIn('results', response.data)
+
+    def test_public_rows_still_require_authentication(self):
+        self._seed_contributions()
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get('/api/v1/metrics/community-contributions/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_rejects_invalid_filters(self):
         invalid_type = self.client.get(
