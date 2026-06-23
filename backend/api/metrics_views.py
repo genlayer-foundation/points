@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 
 import requests
 from rest_framework.views import APIView
@@ -11,6 +12,7 @@ from django.db.models import Count, Min, Sum
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from datetime import timedelta
+from community_xp.constants import COMMUNITY_MEMBER_EXCLUDED_TYPE_SLUGS
 from contributions.constants import METRICS_POINTS_EXCLUDED_TYPE_SLUGS
 from contributions.models import Contribution, ContributionType
 from utils.dates import day_start
@@ -233,7 +235,7 @@ class ContributionTypesStatsView(APIView):
 
 class ParticipantsGrowthView(APIView):
     """
-    Get time series data for validators, waitlist users, and builders growth over time.
+    Get time series data for validators, waitlist users, builders, and community members growth over time.
     Totals are deduplicated across cohorts so users present in multiple roles
     are only counted once in the overall participant total.
 
@@ -246,6 +248,87 @@ class ParticipantsGrowthView(APIView):
     permission_classes = [permissions.AllowAny]
 
     EXCLUDED_BUILDER_SLUGS = ('builder-welcome', 'builder')
+
+    def _add_first_seen(self, first_seen_by_user, user_id, seen_at):
+        if not user_id or not seen_at:
+            return
+
+        seen_date = seen_at.date() if hasattr(seen_at, 'date') else seen_at
+        current_date = first_seen_by_user.get(user_id)
+        if current_date is None or seen_date < current_date:
+            first_seen_by_user[user_id] = seen_date
+
+    def _community_members_by_date(self):
+        from creators.models import Creator
+        from community_xp.models import Mee6CurrentXP
+        from community_xp.services import get_default_guild_id
+        from poaps.models import PoapClaim
+
+        first_seen_by_user = {}
+        guild_id = str(get_default_guild_id())
+
+        contribution_members = (
+            Contribution.objects
+            .filter(
+                contribution_type__category__slug='community',
+                user__visible=True,
+            )
+            .exclude(contribution_type__slug__in=COMMUNITY_MEMBER_EXCLUDED_TYPE_SLUGS)
+            .exclude(contribution_date__isnull=True)
+            .values('user_id')
+            .annotate(first_contribution=Min('contribution_date'))
+        )
+        for entry in contribution_members:
+            self._add_first_seen(first_seen_by_user, entry['user_id'], entry['first_contribution'])
+
+        mee6_members = (
+            Mee6CurrentXP.objects
+            .filter(
+                guild_id=guild_id,
+                matched_user__visible=True,
+                matched_user_id__isnull=False,
+                xp__gt=0,
+            )
+            .values('matched_user_id')
+            .annotate(
+                first_matched=Min('matched_at'),
+                first_synced=Min('synced_at'),
+                first_created=Min('created_at'),
+            )
+        )
+        mee6_member_user_ids = set()
+        for entry in mee6_members:
+            user_id = entry['matched_user_id']
+            mee6_member_user_ids.add(user_id)
+            self._add_first_seen(
+                first_seen_by_user,
+                user_id,
+                entry['first_matched'] or entry['first_synced'] or entry['first_created'],
+            )
+
+        creator_members = (
+            Creator.objects
+            .filter(user__visible=True, user_id__in=mee6_member_user_ids)
+            .values('user_id')
+            .annotate(first_created=Min('created_at'))
+        )
+        for entry in creator_members:
+            self._add_first_seen(first_seen_by_user, entry['user_id'], entry['first_created'])
+
+        poap_members = (
+            PoapClaim.objects
+            .filter(user__isnull=False, user__visible=True)
+            .values('user_id')
+            .annotate(first_claimed=Min('claimed_at'))
+        )
+        for entry in poap_members:
+            self._add_first_seen(first_seen_by_user, entry['user_id'], entry['first_claimed'])
+
+        community_by_date = defaultdict(set)
+        for user_id, first_seen_date in first_seen_by_user.items():
+            community_by_date[first_seen_date].add(user_id)
+
+        return community_by_date
 
     def get(self, request):
         from django.db.models import Min
@@ -330,8 +413,15 @@ class ParticipantsGrowthView(APIView):
             for entry in qualifying_contributions:
                 builders_by_date[entry['first_contribution'].date()].add(entry['user_id'])
 
+        community_members_by_date = self._community_members_by_date()
+
         # Find date range across all sources
-        all_dates = set(validators_by_date.keys()) | set(waitlist_by_date.keys()) | set(builders_by_date.keys())
+        all_dates = (
+            set(validators_by_date.keys()) |
+            set(waitlist_by_date.keys()) |
+            set(builders_by_date.keys()) |
+            set(community_members_by_date.keys())
+        )
 
         if not all_dates:
             return Response({'data': []})
@@ -344,18 +434,36 @@ class ParticipantsGrowthView(APIView):
         current_validators = set()
         current_waitlist = set()
         current_builders = set()
+        current_community_members = set()
 
         current_date = start_date
         while current_date <= end_date:
             current_validators.update(validators_by_date.get(current_date, set()))
             current_waitlist.update(waitlist_by_date.get(current_date, set()))
             current_builders.update(builders_by_date.get(current_date, set()))
+            current_community_members.update(community_members_by_date.get(current_date, set()))
 
-            unique_participants = current_validators | current_waitlist | current_builders
+            unique_participants = (
+                current_validators |
+                current_waitlist |
+                current_builders |
+                current_community_members
+            )
+            unique_contributors = (
+                current_validators |
+                current_builders |
+                current_community_members
+            )
             cohort_total = (
                 len(current_validators) +
                 len(current_waitlist) +
-                len(current_builders)
+                len(current_builders) +
+                len(current_community_members)
+            )
+            contributor_cohort_total = (
+                len(current_validators) +
+                len(current_builders) +
+                len(current_community_members)
             )
 
             data.append({
@@ -363,9 +471,13 @@ class ParticipantsGrowthView(APIView):
                 'validators': len(current_validators),
                 'waitlist': len(current_waitlist),
                 'builders': len(current_builders),
+                'community_members': len(current_community_members),
+                'unique_contributors': len(unique_contributors),
                 'total': len(unique_participants),
                 'cohort_total': cohort_total,
-                'overlap_count': cohort_total - len(unique_participants)
+                'overlap_count': cohort_total - len(unique_participants),
+                'contributor_cohort_total': contributor_cohort_total,
+                'contributor_overlap_count': contributor_cohort_total - len(unique_contributors),
             })
 
             current_date += timedelta(days=1)
@@ -381,9 +493,9 @@ class CommunityContributionMetricsView(APIView):
     payloads for explorer pages. Metrics only needs the table fields below plus
     aggregate totals, so this view keeps the query to scalar values.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
-    CATEGORY_SLUG = 'community'
+    CATEGORY_SLUGS = ('community', 'creator')
     ALLOWED_ORDERING = (
         '-contribution_date',
         'contribution_date',
@@ -426,7 +538,7 @@ class CommunityContributionMetricsView(APIView):
             'contribution_type',
             'contribution_type__category',
         ).filter(
-            contribution_type__category__slug=self.CATEGORY_SLUG,
+            contribution_type__category__slug__in=self.CATEGORY_SLUGS,
             user__visible=True,
         ).exclude(
             contribution_type__slug__in=METRICS_POINTS_EXCLUDED_TYPE_SLUGS,
@@ -443,15 +555,34 @@ class CommunityContributionMetricsView(APIView):
 
     def get(self, request):
         queryset = self.get_queryset(request)
+        summary_only = request.query_params.get('summary_only') in ('1', 'true', 'True')
+
+        if not summary_only and not request.user.is_authenticated:
+            return Response(
+                {'detail': 'Authentication credentials were not provided.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        totals = queryset.aggregate(
+            contribution_count=Count('id'),
+            unique_contributors=Count('user_id', distinct=True),
+            points_awarded=Sum('frozen_global_points'),
+        )
+        response_totals = {
+            'contribution_count': totals['contribution_count'] or 0,
+            'unique_contributors': totals['unique_contributors'] or 0,
+            'points_awarded': totals['points_awarded'] or 0,
+        }
+
+        if summary_only:
+            return Response({
+                'count': response_totals['contribution_count'],
+                'totals': response_totals,
+            })
 
         ordering = request.query_params.get('ordering', '-contribution_date')
         if ordering not in self.ALLOWED_ORDERING:
             ordering = '-contribution_date'
-
-        totals = queryset.aggregate(
-            unique_contributors=Count('user_id', distinct=True),
-            points_awarded=Sum('frozen_global_points'),
-        )
 
         row_queryset = queryset.order_by(ordering, '-id').values(
             'id',
@@ -490,11 +621,7 @@ class CommunityContributionMetricsView(APIView):
         ]
 
         response = paginator.get_paginated_response(results)
-        response.data['totals'] = {
-            'contribution_count': response.data['count'],
-            'unique_contributors': totals['unique_contributors'] or 0,
-            'points_awarded': totals['points_awarded'] or 0,
-        }
+        response.data['totals'] = response_totals
         return response
 
 

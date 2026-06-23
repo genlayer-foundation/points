@@ -2,19 +2,88 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { Chart, registerables } from 'chart.js';
   import api from '../lib/api.js';
-  import { authState } from '../lib/auth.js';
+  import { authState, verifyAuth } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import CategoryIcon from '../components/portal/CategoryIcon.svelte';
 
   Chart.register(...registerables);
 
+  /**
+   * @typedef {Object} ParticipantPoint
+   * @property {number} builders
+   * @property {number} cohort_total
+   * @property {number} contributor_cohort_total
+   * @property {number} contributor_overlap_count
+   * @property {number} community_members
+   * @property {string} date
+   * @property {number} overlap_count
+   * @property {number} total
+   * @property {number} unique_contributors
+   * @property {number} validators
+   * @property {number} waitlist
+   *
+   * @typedef {Object} ContributionType
+   * @property {string | number} id
+   * @property {string} name
+   * @property {string} category
+   * @property {boolean} is_submittable
+   *
+   * @typedef {Object} SubmissionTotals
+   * @property {number} [accepted]
+   * @property {number} [canceled]
+   * @property {number} [ingress]
+   * @property {number} [more_info_requested]
+   * @property {number} [pending_review]
+   * @property {number} [points_awarded]
+   * @property {number} [rejected]
+   *
+   * @typedef {Object} SubmissionPoint
+   * @property {number} accepted
+   * @property {number} canceled
+   * @property {number} ingress
+   * @property {number} more_info_requested
+   * @property {number} pending_review
+   * @property {string} period
+   * @property {number} points_awarded
+   * @property {number} rejected
+   *
+   * @typedef {Object} SubmissionsResponse
+   * @property {SubmissionPoint[]} data
+   * @property {string} [end_date]
+   * @property {string} [group_by]
+   * @property {string} [start_date]
+   * @property {SubmissionTotals} totals
+   *
+   * @typedef {Object} SubmissionSummary
+   * @property {number} accepted
+   * @property {number} acceptanceRate
+   * @property {number} avgPointsPerAccepted
+   * @property {number} ingress
+   * @property {number} moreInfoRequested
+   * @property {number} pendingReview
+   * @property {number} pointsAwarded
+   * @property {number} rejected
+   * @property {number} reviewed
+   *
+   * @typedef {'day' | 'week' | 'month'} SubmissionGroupBy
+   * @typedef {'participants' | 'submissions' | 'submission-trends'} ExportKind
+   */
+
   const EXPORT_WIDTH = 1920;
   const EXPORT_HEIGHT = 1080;
   const EXPORT_FORMAT = 'image/png';
+  const COMMUNITY_CATEGORY_SLUGS = ['community', 'creator'];
+  const SUBMISSION_CATEGORY_ORDER = ['builder', 'validator', 'community'];
+  const SUBMISSION_DEFAULT_CATEGORIES = ['builder', 'validator', 'community'];
 
   const exportBackgroundPlugin = {
     id: 'exportBackground',
-    beforeDraw(chart, args, options) {
+    /**
+     * @param {import('chart.js').Chart} chart
+     * @param {unknown} _args
+     * @param {{ color?: string }} options
+     */
+    beforeDraw(chart, _args, options) {
       const { ctx, width, height } = chart;
       ctx.save();
       ctx.fillStyle = options?.color || '#ffffff';
@@ -23,241 +92,121 @@
     }
   };
 
+  /** @type {Record<string, string>} */
   const CATEGORY_LABELS = {
     builder: 'Builder',
     community: 'Community',
     creator: 'Community',
+    genlayer: 'Portal',
     steward: 'Steward',
     validator: 'Validator'
   };
 
   const participantPalette = {
     builders: {
-      border: 'rgb(234, 88, 12)',
-      fillTop: 'rgba(234, 88, 12, 0.24)',
-      fillBottom: 'rgba(234, 88, 12, 0.03)',
-      surface: 'from-orange-50 via-white to-orange-50/40',
-      text: 'text-orange-600',
-      track: 'bg-orange-100',
-      bar: 'bg-orange-500'
+      border: 'rgb(238, 133, 33)',
+      fillTop: 'rgba(238, 133, 33, 0.2)',
+      fillBottom: 'rgba(238, 133, 33, 0.02)',
+      text: 'text-[#d96816]'
     },
     validators: {
-      border: 'rgb(37, 99, 235)',
-      fillTop: 'rgba(37, 99, 235, 0.14)',
-      fillBottom: 'rgba(37, 99, 235, 0.02)',
-      surface: 'from-blue-50 via-white to-blue-50/40',
-      text: 'text-blue-700',
-      track: 'bg-blue-100',
-      bar: 'bg-blue-600'
+      border: 'rgb(56, 125, 232)',
+      fillTop: 'rgba(56, 125, 232, 0.16)',
+      fillBottom: 'rgba(56, 125, 232, 0.02)',
+      text: 'text-[#1f56f2]'
+    },
+    community: {
+      border: 'rgb(127, 82, 225)',
+      fillTop: 'rgba(127, 82, 225, 0.18)',
+      fillBottom: 'rgba(127, 82, 225, 0.02)',
+      text: 'text-[#6f35d7]'
+    },
+    total: {
+      border: 'rgb(16, 16, 16)',
+      text: 'text-[#101010]'
     }
   };
-
-  const ecosystemPalette = {
-    studio: {
-      label: 'Studio',
-      source: 'via Studio Pulse',
-      surface: 'from-violet-50 via-white to-violet-50/40',
-      text: 'text-violet-700',
-      chip: 'bg-violet-100 text-violet-700',
-      dot: 'bg-violet-500'
-    },
-    asimov: {
-      label: 'Asimov',
-      source: 'via GenScan',
-      surface: 'from-sky-50 via-white to-sky-50/40',
-      text: 'text-sky-700',
-      chip: 'bg-sky-100 text-sky-700',
-      dot: 'bg-sky-500'
-    },
-    bradbury: {
-      label: 'Bradbury',
-      source: 'via GenScan',
-      surface: 'from-emerald-50 via-white to-emerald-50/40',
-      text: 'text-emerald-700',
-      chip: 'bg-emerald-100 text-emerald-700',
-      dot: 'bg-emerald-500'
-    },
-    repository: {
-      label: 'Repositories',
-      source: 'via star-history.com',
-      dot: 'bg-amber-500'
-    },
-    discord: {
-      label: 'Discord',
-      source: 'via Discord',
-      surface: 'from-indigo-50 via-white to-indigo-50/40',
-      text: 'text-indigo-700',
-      dot: 'bg-indigo-500'
-    },
-    x: {
-      label: 'X',
-      source: 'via X',
-      surface: 'from-slate-50 via-white to-slate-50/40',
-      text: 'text-slate-900',
-      dot: 'bg-slate-900'
-    }
-  };
-
-  // Static social channel KPIs — refreshed manually until a live source is wired.
-  const DISCORD_KPIS = [
-    { label: 'Members', value: '86,319' },
-    { label: 'MAU',     value: '44%'    },
-    { label: 'DAU',     value: '30%'    }
-  ];
-
-  const X_KPIS = [
-    { label: 'Followers',   value: '75.1K' },
-    { label: 'Impressions', value: '432.4K', range: 'April' }
-  ];
-
-  const DISCORD_URL = 'https://discord.gg/A6jpkqrb';
-  const X_URL = 'https://x.com/GenLayer';
-  const COMMUNITY_CATEGORY_SLUGS = ['community', 'creator'];
-  const COMMUNITY_PAGE_SIZE = 10;
-  const SUBMISSION_CATEGORY_ORDER = ['builder', 'validator', 'community'];
-  const SUBMISSION_DEFAULT_CATEGORIES = ['builder', 'validator', 'community'];
-
-  const ONCHAIN_KPI_DEFS = [
-    { label: 'Decisions',           range: 'Last 7 days', primaryKey: 'decisions7d',         secondaryKey: 'decisionsAllTime',         compact: true  },
-    { label: 'Chain transactions',  range: 'Last 7 days', primaryKey: 'chainTx7d',           secondaryKey: 'chainTxAllTime',           compact: true  },
-    { label: 'Deployed contracts',  range: 'Last 7 days', primaryKey: 'deployedContracts7d', secondaryKey: 'deployedContractsAllTime', compact: false },
-    { label: 'Active contracts',                          primaryKey: 'activeContracts',                                               compact: false },
-    { label: 'Monthly active users',                      primaryKey: 'mau',                                                           compact: false },
-    { label: 'Daily active users',                        primaryKey: 'dau',                                                           compact: false }
-  ];
-
-  // GenScan exposes 7d for finalizations only — chain tx and contract counts
-  // are all-time. The remaining cards (validators, stake, TPS) are testnet-
-  // specific signals that don't have Studio equivalents.
-  const TESTNET_KPI_DEFS = [
-    { label: 'Decisions',          range: 'Last 7 days',  primaryKey: 'decisions7d',     secondaryKey: 'decisionsAllTime', compact: true  },
-    { label: 'Chain transactions',                        primaryKey: 'chainTxAllTime',                                    compact: true  },
-    { label: 'Contracts',                                 primaryKey: 'contractsAllTime',                                  compact: false },
-    { label: 'Validators',                                primaryKey: 'validators',                                        compact: false },
-    { label: 'GEN staked',                                primaryKey: 'genStaked',                                         compact: true  },
-    { label: 'Avg TPS',            range: 'Last 24 hours', primaryKey: 'avgTps',                                            compact: false }
-  ];
-
-  const STUDIO_PULSE_URL = 'https://studio-metrics-dashboard.vercel.app';
-  const BOILERPLATE_REPO = 'genlayerlabs/genlayer-project-boilerplate';
-
-  // Testnet explorers don't return CORS headers, so the browser can't fetch
-  // them directly. Django proxies and caches the aggregated KPIs at
-  // /api/v1/metrics/testnet-kpis/?network=<asimov|bradbury>.
-  const TESTNET_NETWORKS = ['asimov', 'bradbury'];
 
   const reviewPalette = {
     ingress: {
-      bg: 'rgba(79, 70, 229, 0.24)',
-      border: 'rgb(79, 70, 229)',
-      text: 'text-indigo-600',
-      surface: 'from-indigo-50 via-white to-indigo-50/40'
+      bg: 'rgba(127, 82, 225, 0.24)',
+      border: 'rgb(127, 82, 225)',
+      text: 'text-[#6f35d7]',
+      surface: 'from-[#f4efff] via-white to-[#fbf9ff]'
     },
     accepted: {
-      bg: 'rgba(16, 185, 129, 0.78)',
-      border: 'rgb(5, 150, 105)',
-      text: 'text-emerald-600',
-      surface: 'from-emerald-50 via-white to-emerald-50/40'
+      bg: 'rgba(25, 166, 99, 0.74)',
+      border: 'rgb(25, 166, 99)',
+      text: 'text-[#12814b]',
+      surface: 'from-[#effaf4] via-white to-[#f8fefa]'
     },
     moreInfo: {
-      bg: 'rgba(245, 158, 11, 0.74)',
-      border: 'rgb(217, 119, 6)',
-      text: 'text-amber-600',
-      surface: 'from-amber-50 via-white to-amber-50/40'
+      bg: 'rgba(238, 133, 33, 0.72)',
+      border: 'rgb(217, 104, 22)',
+      text: 'text-[#d96816]',
+      surface: 'from-[#fff4e8] via-white to-[#fffaf5]'
     },
     pending: {
-      border: 'rgb(59, 130, 246)',
-      text: 'text-blue-500',
-      surface: 'from-blue-50 via-white to-blue-50/40'
-    },
-    points: {
-      text: 'text-fuchsia-600',
-      surface: 'from-fuchsia-50 via-white to-fuchsia-50/40'
+      border: 'rgb(56, 125, 232)',
+      text: 'text-[#1f56f2]',
+      surface: 'from-[#edf4ff] via-white to-[#f8fbff]'
     }
   };
 
+  /** @type {ParticipantPoint} */
   const emptyParticipantsSnapshot = {
-    date: '',
     builders: 0,
+    cohort_total: 0,
+    contributor_cohort_total: 0,
+    contributor_overlap_count: 0,
+    community_members: 0,
+    date: '',
+    overlap_count: 0,
     total: 0,
-    validators: 0
+    unique_contributors: 0,
+    validators: 0,
+    waitlist: 0
   };
 
-  const emptyCommunityContributionTotals = {
-    contribution_count: 0,
-    points_awarded: 0,
-    unique_contributors: 0
-  };
-
-  let participantsChart;
-  let submissionsChart;
-  let submissionsTrendChart;
+  /** @type {import('chart.js').Chart | null} */
+  let participantsChart = null;
+  /** @type {import('chart.js').Chart | null} */
+  let submissionsChart = null;
+  /** @type {import('chart.js').Chart | null} */
+  let submissionsTrendChart = null;
 
   let loading = $state(true);
   let submissionsLoading = $state(false);
-  let pageError = $state(null);
-  let submissionError = $state(null);
+  let pageError = $state(/** @type {string | null} */ (null));
+  let submissionError = $state(/** @type {string | null} */ (null));
+  let chartExporting = $state('');
+  let chartExportError = $state(/** @type {string | null} */ (null));
+  let reduceChartMotion = $state(false);
 
-  let participantsData = $state([]);
-  let submissionsData = $state({
+  let participantsData = $state(/** @type {ParticipantPoint[]} */ ([]));
+  let submissionsData = $state(/** @type {SubmissionsResponse} */ ({
     data: [],
     end_date: '',
     group_by: 'week',
     start_date: '',
     totals: {}
-  });
-  let submissionsByCategory = $state({});
-  let contributionTypes = $state([]);
-  let communityContributions = $state([]);
-  let communityContributionsCount = $state(0);
-  let communityContributionTotals = $state({ ...emptyCommunityContributionTotals });
+  }));
+  let submissionsByCategory = $state(/** @type {Record<string, SubmissionsResponse>} */ ({}));
+  let contributionTypes = $state(/** @type {ContributionType[]} */ ([]));
+  let canViewSubmissionAnalytics = $state(false);
 
-  let submissionGroupBy = $state('week');
+  let submissionGroupBy = $state(/** @type {SubmissionGroupBy} */ ('week'));
   let submissionStartDate = $state('');
   let submissionEndDate = $state('');
   let selectedCategory = $state('');
   let selectedContributionType = $state('');
-  let communityContributionsLoading = $state(false);
-  let communityContributionsError = $state(null);
-  let communityContributionType = $state('');
-  let communityStartDate = $state('');
-  let communityEndDate = $state('');
-  let communitySortBy = $state('-contribution_date');
-  let communityPage = $state(1);
-  let communityContributionsLoaded = $state(false);
-  let appliedSubmissionFilters = $state({
+  let appliedSubmissionFilters = $state(/** @type {{ category: string, contributionType: string, endDate: string, groupBy: SubmissionGroupBy, startDate: string }} */ ({
     category: '',
     contributionType: '',
     endDate: '',
     groupBy: 'week',
     startDate: ''
-  });
-  let chartExporting = $state('');
-  let chartExportError = $state(null);
-
-  let studioMetrics = $state(null);
-  let studioLoading = $state(true);
-  let studioError = $state(null);
-
-  let asimovMetrics = $state(null);
-  let asimovLoading = $state(true);
-  let asimovError = $state(null);
-
-  let bradburyMetrics = $state(null);
-  let bradburyLoading = $state(true);
-  let bradburyError = $state(null);
-
-  let repoMetrics = $state(null);
-  let repoLoading = $state(true);
-  let repoError = $state(null);
-
-  let activeTab = $state('portal');
-
-  const TABS = [
-    { id: 'portal',    label: 'Portal',    dot: 'bg-orange-500' },
-    { id: 'networks',  label: 'Networks',  dot: 'bg-blue-500'   },
-    { id: 'community', label: 'Community', dot: 'bg-purple-500' }
-  ];
+  }));
 
   let availableCategories = $derived.by(() => getSubmissionCategories());
 
@@ -267,14 +216,10 @@
       return baseTypes;
     }
 
-    return baseTypes.filter((type) => type.category === selectedCategory);
+    return baseTypes.filter(
+      (type) => getCanonicalCategory(type.category) === getCanonicalCategory(selectedCategory)
+    );
   });
-
-  let communityContributionTypes = $derived.by(() =>
-    contributionTypes.filter((type) =>
-      type.is_submittable && COMMUNITY_CATEGORY_SLUGS.includes(type.category)
-    )
-  );
 
   let latestParticipantsSnapshot = $derived(
     participantsData.length > 0
@@ -282,9 +227,36 @@
       : emptyParticipantsSnapshot
   );
 
-  let communityTotalPages = $derived(
-    Math.max(1, Math.ceil(communityContributionsCount / COMMUNITY_PAGE_SIZE))
-  );
+  let participantCards = $derived.by(() => [
+    {
+      key: 'builders',
+      category: 'builder',
+      label: 'Builders',
+      value: latestParticipantsSnapshot.builders,
+      textClass: participantPalette.builders.text
+    },
+    {
+      key: 'validators',
+      category: 'validator',
+      label: 'Validators',
+      value: latestParticipantsSnapshot.validators,
+      textClass: participantPalette.validators.text
+    },
+    {
+      key: 'community_members',
+      category: 'community',
+      label: 'Community members',
+      value: latestParticipantsSnapshot.community_members,
+      textClass: participantPalette.community.text
+    },
+    {
+      key: 'total',
+      category: 'genlayer',
+      label: 'Unique contributors',
+      value: latestParticipantsSnapshot.unique_contributors,
+      textClass: participantPalette.total.text
+    }
+  ]);
 
   let submissionsSummary = $derived.by(() =>
     buildSubmissionsSummary(submissionsData.totals || {})
@@ -302,56 +274,17 @@
     }))
   );
 
-  function buildSubmissionsSummary(totals = {}) {
-    const ingress = Number(totals.ingress || 0);
-    const accepted = Number(totals.accepted || 0);
-    const rejected = Number(totals.rejected || 0);
-    const moreInfoRequested = Number(totals.more_info_requested || 0);
-    const pointsAwarded = Number(totals.points_awarded || 0);
-    const reviewed = accepted + rejected + moreInfoRequested;
-    // Pending review comes from the backend: submissions created in the
-    // selected range that are still in pending state. We can't derive it from
-    // ingress - reviewed because ingress is bucketed by created_at and reviews
-    // by reviewed_at, so they measure disjoint cohorts under any filter.
-    const pendingReview = Number(totals.pending_review || 0);
-
-    return {
-      accepted,
-      acceptanceRate: reviewed ? (accepted / reviewed) * 100 : 0,
-      avgPointsPerAccepted: accepted ? pointsAwarded / accepted : 0,
-      ingress,
-      moreInfoRequested,
-      pendingReview,
-      pointsAwarded,
-      rejected,
-      reviewed
-    };
-  }
-
-  let selectedContributionTypeLabel = $derived.by(() =>
-    getContributionTypeLabel(selectedContributionType)
-  );
-
   onMount(() => {
     const mainEl = document.querySelector('main');
     mainEl?.classList.add('metrics-scroll-container');
+    reduceChartMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || false;
 
     fetchMetricsData();
-    fetchStudioMetrics();
-    fetchRepoMetrics();
-    fetchTestnetMetrics('asimov');
-    fetchTestnetMetrics('bradbury');
 
     return () => {
       mainEl?.classList.remove('metrics-scroll-container');
       destroyCharts();
     };
-  });
-
-  $effect(() => {
-    if (activeTab === 'community') {
-      ensureCommunityContributionsLoaded();
-    }
   });
 
   onDestroy(() => {
@@ -368,132 +301,55 @@
 
       participantsData = participantsResponse.data.data || [];
 
-      if ($authState.isAuthenticated) {
-        if (!$userStore.user) {
+      let isAuthenticated = $authState.isAuthenticated;
+      if (!isAuthenticated) {
+        try {
+          isAuthenticated = await verifyAuth();
+        } catch (err) {
+          isAuthenticated = false;
+        }
+      }
+
+      if (isAuthenticated) {
+        let activeUser = /** @type {any} */ ($userStore.user);
+
+        if (!activeUser) {
           try {
-            await userStore.loadUser();
+            activeUser = await userStore.loadUser();
           } catch (err) {
             // Keep public metrics usable even if the authenticated user payload is unavailable.
           }
         }
+
+        canViewSubmissionAnalytics = Boolean(activeUser?.steward);
 
         const typesResponse = await api.get('/contribution-types/', { params: { page_size: 1000 } });
         contributionTypes = normalizeContributionTypes(
           typesResponse.data.results || typesResponse.data || []
         );
 
-        if ($userStore.user?.steward) {
+        if (canViewSubmissionAnalytics) {
           await fetchSubmissionsData({ syncDates: true });
         }
-
+      } else {
+        canViewSubmissionAnalytics = false;
       }
 
       loading = false;
       await tick();
       createCharts();
     } catch (err) {
-      pageError = err.message || 'Failed to load metrics data';
+      pageError = getErrorMessage(err, 'Failed to load metrics data');
       loading = false;
     }
   }
 
-  async function fetchStudioMetrics() {
-    try {
-      studioLoading = true;
-      studioError = null;
-
-      const response = await fetch(`${STUDIO_PULSE_URL}/api/metrics/executive?range=week`, {
-        headers: { Accept: 'application/json' }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Studio Pulse responded with ${response.status}`);
-      }
-
-      const payload = await response.json();
-      const byId = Object.fromEntries((payload?.metrics || []).map((entry) => [entry.id, entry]));
-
-      studioMetrics = {
-        decisions7d: Number(byId['total-decisions']?.value ?? 0),
-        decisionsAllTime: Number(byId['total-decisions']?.allTimeValue ?? 0),
-        chainTx7d: Number(byId['chain-transactions']?.value ?? 0),
-        chainTxAllTime: Number(byId['chain-transactions']?.allTimeValue ?? 0),
-        deployedContracts7d: Number(byId['deployed-contracts']?.value ?? 0),
-        deployedContractsAllTime: Number(byId['deployed-contracts']?.allTimeValue ?? 0),
-        activeContracts: Number(byId['active-contracts']?.value ?? 0),
-        mau: Number(byId['mau']?.value ?? 0),
-        dau: Number(byId['dau']?.value ?? 0)
-      };
-    } catch (err) {
-      studioError = err.message || 'Failed to load Studio metrics';
-    } finally {
-      studioLoading = false;
-    }
-  }
-
-  function setTestnetState(network, key, value) {
-    if (network === 'asimov') {
-      if (key === 'metrics') asimovMetrics = value;
-      else if (key === 'loading') asimovLoading = value;
-      else if (key === 'error') asimovError = value;
-    } else if (network === 'bradbury') {
-      if (key === 'metrics') bradburyMetrics = value;
-      else if (key === 'loading') bradburyLoading = value;
-      else if (key === 'error') bradburyError = value;
-    }
-  }
-
-  async function fetchTestnetMetrics(network) {
-    if (!TESTNET_NETWORKS.includes(network)) {
-      return;
-    }
-
-    try {
-      setTestnetState(network, 'loading', true);
-      setTestnetState(network, 'error', null);
-
-      const response = await api.get('/metrics/testnet-kpis/', { params: { network } });
-      setTestnetState(network, 'metrics', response.data);
-    } catch (err) {
-      const detail = err.response?.data?.error || err.message || `Failed to load ${network} metrics`;
-      setTestnetState(network, 'error', detail);
-    } finally {
-      setTestnetState(network, 'loading', false);
-    }
-  }
-
-  async function fetchRepoMetrics() {
-    try {
-      repoLoading = true;
-      repoError = null;
-
-      const response = await fetch(`https://api.github.com/repos/${BOILERPLATE_REPO}`, {
-        headers: { Accept: 'application/vnd.github+json' }
-      });
-
-      if (!response.ok) {
-        throw new Error(`GitHub responded with ${response.status}`);
-      }
-
-      const payload = await response.json();
-
-      repoMetrics = {
-        boilerplate: {
-          name: payload.name,
-          fullName: payload.full_name,
-          stars: Number(payload.stargazers_count ?? 0),
-          forks: Number(payload.forks_count ?? 0),
-          url: payload.html_url
-        }
-      };
-    } catch (err) {
-      repoError = err.message || 'Failed to load repository metrics';
-    } finally {
-      repoLoading = false;
-    }
-  }
-
+  /**
+   * @param {{ category?: string }} [options]
+   * @returns {Record<string, string>}
+   */
   function buildSubmissionMetricsParams({ category = selectedCategory } = {}) {
+    /** @type {Record<string, string>} */
     const params = {
       group_by: submissionGroupBy
     };
@@ -507,7 +363,7 @@
     }
 
     if (category) {
-      params.category = category;
+      params.category = getCanonicalCategory(category);
     }
 
     if (selectedContributionType) {
@@ -532,9 +388,10 @@
       )
     );
 
-    submissionsByCategory = Object.fromEntries(responses);
+    submissionsByCategory = /** @type {Record<string, SubmissionsResponse>} */ (Object.fromEntries(responses));
   }
 
+  /** @param {{ syncDates?: boolean }} [options] */
   async function fetchSubmissionsData({ syncDates = false } = {}) {
     const params = buildSubmissionMetricsParams();
 
@@ -563,55 +420,6 @@
     };
   }
 
-  async function fetchCommunityContributions() {
-    try {
-      communityContributionsLoading = true;
-      communityContributionsError = null;
-
-      const params = {
-        ordering: communitySortBy,
-        page: communityPage,
-        page_size: COMMUNITY_PAGE_SIZE
-      };
-
-      if (communityContributionType) {
-        params.contribution_type = communityContributionType;
-      }
-
-      if (communityStartDate) {
-        params.start_date = communityStartDate;
-      }
-
-      if (communityEndDate) {
-        params.end_date = communityEndDate;
-      }
-
-      const response = await api.get('/metrics/community-contributions/', { params });
-      communityContributions = response.data?.results || [];
-      communityContributionsCount = response.data?.count || 0;
-      communityContributionTotals = response.data?.totals || {
-        ...emptyCommunityContributionTotals,
-        contribution_count: communityContributionsCount
-      };
-    } catch (err) {
-      communityContributionsError = err.message || 'Failed to load community contributions';
-      communityContributions = [];
-      communityContributionsCount = 0;
-      communityContributionTotals = { ...emptyCommunityContributionTotals };
-    } finally {
-      communityContributionsLoaded = true;
-      communityContributionsLoading = false;
-    }
-  }
-
-  function ensureCommunityContributionsLoaded() {
-    if (!$authState.isAuthenticated || communityContributionsLoaded || communityContributionsLoading) {
-      return;
-    }
-
-    fetchCommunityContributions();
-  }
-
   async function applySubmissionFilters() {
     try {
       submissionsLoading = true;
@@ -622,7 +430,7 @@
       await tick();
       recreateSubmissionCharts();
     } catch (err) {
-      submissionError = err.message || 'Failed to load submission analytics';
+      submissionError = getErrorMessage(err, 'Failed to load contribution analytics');
     } finally {
       submissionsLoading = false;
     }
@@ -648,7 +456,7 @@
       await tick();
       recreateSubmissionCharts();
     } catch (err) {
-      submissionError = err.message || 'Failed to reset submission analytics';
+      submissionError = getErrorMessage(err, 'Failed to reset contribution analytics');
     } finally {
       submissionsLoading = false;
     }
@@ -658,25 +466,36 @@
     selectedContributionType = '';
   }
 
-  async function applyCommunityFilters() {
-    communityPage = 1;
-    await fetchCommunityContributions();
+  /**
+   * @param {Partial<SubmissionTotals>} [totals]
+   * @returns {SubmissionSummary}
+   */
+  function buildSubmissionsSummary(totals = {}) {
+    const ingress = Number(totals.ingress || 0);
+    const accepted = Number(totals.accepted || 0);
+    const rejected = Number(totals.rejected || 0);
+    const moreInfoRequested = Number(totals.more_info_requested || 0);
+    const pointsAwarded = Number(totals.points_awarded || 0);
+    const reviewed = accepted + rejected + moreInfoRequested;
+    const pendingReview = Number(totals.pending_review || 0);
+
+    return {
+      accepted,
+      acceptanceRate: reviewed ? (accepted / reviewed) * 100 : 0,
+      avgPointsPerAccepted: accepted ? pointsAwarded / accepted : 0,
+      ingress,
+      moreInfoRequested,
+      pendingReview,
+      pointsAwarded,
+      rejected,
+      reviewed
+    };
   }
 
-  async function clearCommunityFilters() {
-    communityContributionType = '';
-    communityStartDate = '';
-    communityEndDate = '';
-    communitySortBy = '-contribution_date';
-    communityPage = 1;
-    await fetchCommunityContributions();
-  }
-
-  async function setCommunityPage(nextPage) {
-    communityPage = Math.min(Math.max(1, nextPage), communityTotalPages);
-    await fetchCommunityContributions();
-  }
-
+  /**
+   * @param {ContributionType[]} types
+   * @returns {ContributionType[]}
+   */
   function normalizeContributionTypes(types) {
     return [...types]
       .filter((type) => type.is_submittable)
@@ -690,6 +509,10 @@
       });
   }
 
+  /**
+   * @param {Iterable<string>} categories
+   * @returns {string[]}
+   */
   function sortCategories(categories) {
     return [...categories].sort((left, right) => {
       const leftIndex = SUBMISSION_CATEGORY_ORDER.indexOf(getCanonicalCategory(left));
@@ -728,27 +551,54 @@
     return sortCategories(categories);
   }
 
+  /**
+   * @param {string | undefined | null} category
+   * @returns {string}
+   */
   function getCanonicalCategory(category) {
-    return COMMUNITY_CATEGORY_SLUGS.includes(category) ? 'community' : category;
+    return category && COMMUNITY_CATEGORY_SLUGS.includes(category) ? 'community' : (category || '');
   }
 
+  /**
+   * @param {SubmissionSummary} summary
+   * @param {string} metric
+   * @returns {number}
+   */
   function getMetricValue(summary, metric) {
     if (metric === 'ingress') return summary.ingress;
-    if (metric === 'reviewed') return summary.reviewed;
+    if (metric === 'accepted') return summary.accepted;
+    if (metric === 'moreInfoRequested') return summary.moreInfoRequested;
     if (metric === 'pendingReview') return summary.pendingReview;
+    if (metric === 'reviewed') return summary.reviewed;
     if (metric === 'acceptanceRate') return summary.acceptanceRate;
     if (metric === 'pointsAwarded') return summary.pointsAwarded;
     return 0;
   }
 
+  /**
+   * @param {SubmissionSummary} summary
+   * @param {string} metric
+   */
   function formatMetricValue(summary, metric) {
     const value = getMetricValue(summary, metric);
     return metric === 'acceptanceRate' ? formatPercent(value) : formatNumber(value);
   }
 
+  /**
+   * @param {SubmissionSummary} summary
+   * @param {string} metric
+   */
   function getMetricDetail(summary, metric) {
     if (metric === 'ingress') {
-      return 'Submissions created in the selected range.';
+      return 'Contributions submitted in the selected range.';
+    }
+
+    if (metric === 'accepted') {
+      return 'Accepted contributions in the selected range.';
+    }
+
+    if (metric === 'moreInfoRequested') {
+      return 'Contributions sent back for more info.';
     }
 
     if (metric === 'reviewed') {
@@ -756,7 +606,7 @@
     }
 
     if (metric === 'pendingReview') {
-      return 'Submissions in this range still awaiting a decision.';
+      return 'Pending contributions still awaiting a decision.';
     }
 
     if (metric === 'acceptanceRate') {
@@ -809,52 +659,74 @@
   }
 
   function createParticipantsChart() {
-    const participantsCanvas = document.getElementById('participantsChart');
+    const participantsCanvas = /** @type {HTMLCanvasElement | null} */ (document.getElementById('participantsChart'));
 
     if (!participantsCanvas || participantsData.length === 0) {
       return;
     }
 
     const ctx = participantsCanvas.getContext('2d');
-    const height = participantsCanvas.parentElement?.clientHeight || 320;
+    if (!ctx) {
+      return;
+    }
+    const height = participantsCanvas.parentElement?.clientHeight || 360;
 
     participantsChart = new Chart(ctx, buildParticipantsChartConfig(ctx, height));
   }
 
   function createSubmissionsChart() {
-    const submissionsCanvas = document.getElementById('submissionsChart');
+    const submissionsCanvas = /** @type {HTMLCanvasElement | null} */ (document.getElementById('submissionsChart'));
 
     if (!submissionsCanvas || !submissionsData.data?.length) {
       return;
     }
 
     const ctx = submissionsCanvas.getContext('2d');
+    if (!ctx) {
+      return;
+    }
 
     submissionsChart = new Chart(ctx, buildSubmissionsChartConfig());
   }
 
   function createSubmissionsTrendChart() {
-    const trendCanvas = document.getElementById('submissionsTrendChart');
+    const trendCanvas = /** @type {HTMLCanvasElement | null} */ (document.getElementById('submissionsTrendChart'));
 
     if (!trendCanvas || !submissionsData.data?.length) {
       return;
     }
 
     const ctx = trendCanvas.getContext('2d');
+    if (!ctx) {
+      return;
+    }
 
     submissionsTrendChart = new Chart(ctx, buildSubmissionsTrendChartConfig());
   }
 
-  function handleLegendClick(event, legendItem, legend) {
+  /**
+   * @param {unknown} _event
+   * @param {{ datasetIndex?: number }} legendItem
+   * @param {{ chart: import('chart.js').Chart }} legend
+   */
+  function handleLegendClick(_event, legendItem, legend) {
     const index = legendItem.datasetIndex;
     const chart = legend.chart;
+    if (index === undefined) {
+      return;
+    }
     const meta = chart.getDatasetMeta(index);
 
-    meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+    /** @type {any} */ (meta).hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
     chart.update();
   }
 
+  /**
+   * @param {{ interactive?: boolean, fontSize?: number, padding?: number }} [options]
+   * @returns {any}
+   */
   function getLegendOptions({ interactive = true, fontSize = 12, padding = 18 } = {}) {
+    /** @type {any} */
     const legend = {
       position: 'top',
       labels: {
@@ -873,6 +745,10 @@
     return legend;
   }
 
+  /**
+   * @param {import('chart.js').Chart | null} chart
+   * @returns {Set<string>}
+   */
   function getHiddenDatasetLabels(chart) {
     if (!chart) {
       return new Set();
@@ -881,10 +757,15 @@
     return new Set(
       chart.data.datasets
         .filter((_, index) => !chart.isDatasetVisible(index))
-        .map((dataset) => dataset.label)
+        .map((dataset) => String(dataset.label || ''))
     );
   }
 
+  /**
+   * @param {any[]} datasets
+   * @param {Set<string>} [hiddenLabels]
+   * @returns {any[]}
+   */
   function applyHiddenDatasets(datasets, hiddenLabels = new Set()) {
     return datasets.map((dataset) => ({
       ...dataset,
@@ -892,13 +773,19 @@
     }));
   }
 
+  /**
+   * @param {string} title
+   * @param {string} subtitle
+   * @param {boolean} forExport
+   * @returns {any}
+   */
   function getExportTitleOptions(title, subtitle, forExport) {
     return {
       title: {
         display: forExport,
         text: title,
         align: 'start',
-        color: '#0f172a',
+        color: '#101010',
         font: {
           size: 34,
           weight: '600'
@@ -911,7 +798,7 @@
         display: forExport && Boolean(subtitle),
         text: subtitle,
         align: 'start',
-        color: '#64748b',
+        color: '#6b6b6b',
         font: {
           size: 18,
           weight: '500'
@@ -923,6 +810,10 @@
     };
   }
 
+  /**
+   * @param {boolean} forExport
+   * @returns {any}
+   */
   function getChartLayoutOptions(forExport) {
     if (!forExport) {
       return {};
@@ -938,10 +829,85 @@
     };
   }
 
+  /**
+   * @param {boolean} forExport
+   * @param {number} pointCount
+   * @returns {any}
+   */
+  function getLineTraceAnimation(forExport, pointCount) {
+    if (forExport || reduceChartMotion) {
+      return false;
+    }
+
+    const totalDuration = Math.min(1500, Math.max(650, pointCount * 30));
+    const delayBetweenPoints = pointCount ? totalDuration / pointCount : 0;
+    /** @param {any} ctx */
+    const previousY = (ctx) => {
+      if (ctx.index === 0) {
+        const scale = ctx.chart.scales[ctx.dataset.yAxisID || 'y'];
+        return scale?.getPixelForValue(0);
+      }
+
+      return ctx.chart
+        .getDatasetMeta(ctx.datasetIndex)
+        .data[ctx.index - 1]
+        ?.getProps(['y'], true)
+        .y;
+    };
+
+    return {
+      x: {
+        type: 'number',
+        easing: 'easeOutCubic',
+        duration: delayBetweenPoints,
+        from: NaN,
+        /** @param {any} ctx */
+        delay(ctx) {
+          if (ctx.type !== 'data' || ctx.xStarted) return 0;
+          ctx.xStarted = true;
+          return ctx.index * delayBetweenPoints;
+        }
+      },
+      y: {
+        type: 'number',
+        easing: 'easeOutCubic',
+        duration: delayBetweenPoints,
+        from: previousY,
+        /** @param {any} ctx */
+        delay(ctx) {
+          if (ctx.type !== 'data' || ctx.yStarted) return 0;
+          ctx.yStarted = true;
+          return ctx.index * delayBetweenPoints;
+        }
+      }
+    };
+  }
+
+  /**
+   * @param {boolean} forExport
+   * @returns {any}
+   */
+  function getBarAnimation(forExport) {
+    if (forExport || reduceChartMotion) {
+      return false;
+    }
+
+    return {
+      duration: 850,
+      easing: 'easeOutQuart'
+    };
+  }
+
+  /**
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} height
+   * @param {{ forExport?: boolean, hiddenLabels?: Set<string> }} [options]
+   * @returns {any}
+   */
   function buildParticipantsChartConfig(ctx, height, { forExport = false, hiddenLabels = new Set() } = {}) {
     const exportTitle = getExportTitleOptions(
       'Portal participation growth',
-      'Builders over time and validators by graduation date',
+      'Builders, validators, and community members by category scale',
       forExport
     );
 
@@ -960,11 +926,13 @@
               participantPalette.builders.fillTop,
               participantPalette.builders.fillBottom
             ),
-            borderWidth: 2.5,
+            borderCapStyle: 'round',
+            borderJoinStyle: 'round',
+            borderWidth: forExport ? 4 : 2.75,
             fill: true,
             pointRadius: 0,
             pointHoverRadius: 4,
-            tension: 0.24,
+            tension: 0.32,
             yAxisID: 'yBuilders'
           },
           {
@@ -977,17 +945,38 @@
               participantPalette.validators.fillTop,
               participantPalette.validators.fillBottom
             ),
-            borderWidth: 2.5,
+            borderCapStyle: 'round',
+            borderJoinStyle: 'round',
+            borderWidth: forExport ? 4 : 2.75,
             fill: true,
             pointRadius: 0,
             pointHoverRadius: 4,
-            tension: 0.24,
+            tension: 0.32,
             yAxisID: 'yValidators'
+          },
+          {
+            label: 'Community members',
+            data: participantsData.map((point) => point.community_members || 0),
+            borderColor: participantPalette.community.border,
+            backgroundColor: createGradient(
+              ctx,
+              height,
+              participantPalette.community.fillTop,
+              participantPalette.community.fillBottom
+            ),
+            borderCapStyle: 'round',
+            borderJoinStyle: 'round',
+            borderWidth: forExport ? 4 : 2.75,
+            fill: true,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            tension: 0.32,
+            yAxisID: 'yCommunity'
           }
         ], hiddenLabels)
       },
       options: {
-        animation: forExport ? false : undefined,
+        animation: getLineTraceAnimation(forExport, participantsData.length),
         responsive: !forExport,
         maintainAspectRatio: false,
         interaction: {
@@ -1005,14 +994,16 @@
           tooltip: {
             enabled: !forExport,
             backgroundColor: 'rgba(255, 255, 255, 0.98)',
-            bodyColor: '#0f172a',
-            borderColor: 'rgba(148, 163, 184, 0.32)',
+            bodyColor: '#101010',
+            borderColor: 'rgba(16, 16, 16, 0.12)',
             borderWidth: 1,
             callbacks: {
+              /** @param {any[]} items */
               title: (items) => formatDate(items[0]?.label),
+              /** @param {any} context */
               label: (context) => `${context.dataset.label}: ${formatNumber(context.parsed.y)}`
             },
-            titleColor: '#0f172a'
+            titleColor: '#101010'
           }
         },
         scales: {
@@ -1021,9 +1012,10 @@
               display: false
             },
             ticks: {
-              color: '#64748b',
+              color: '#6b6b6b',
+              /** @param {string | number} value */
               callback: function(value) {
-                return formatParticipantAxisDate(this.getLabelForValue(value));
+                return formatParticipantAxisDate(/** @type {any} */ (this).getLabelForValue(value));
               },
               font: { size: forExport ? 18 : 12 },
               maxRotation: 0,
@@ -1034,18 +1026,19 @@
             type: 'linear',
             position: 'left',
             beginAtZero: true,
+            grid: {
+              color: 'rgba(16, 16, 16, 0.08)'
+            },
             title: {
               display: true,
               text: 'Builders',
               color: participantPalette.builders.border,
               font: { size: forExport ? 18 : 11 }
             },
-            grid: {
-              color: 'rgba(148, 163, 184, 0.12)'
-            },
             ticks: {
               color: participantPalette.builders.border,
               font: { size: forExport ? 18 : 12 },
+              /** @param {string | number} value */
               callback: (value) => formatNumber(value)
             }
           },
@@ -1053,20 +1046,44 @@
             type: 'linear',
             position: 'right',
             beginAtZero: true,
+            grid: {
+              drawOnChartArea: false
+            },
             title: {
               display: true,
               text: 'Validators',
               color: participantPalette.validators.border,
               font: { size: forExport ? 18 : 11 }
             },
-            grid: {
-              drawOnChartArea: false
-            },
             ticks: {
               color: participantPalette.validators.border,
               font: { size: forExport ? 18 : 12 },
+              maxTicksLimit: 6,
+              /** @param {string | number} value */
               callback: (value) => formatNumber(value)
             }
+          },
+          yCommunity: {
+            type: 'linear',
+            position: 'right',
+            beginAtZero: true,
+            grid: {
+              drawOnChartArea: false
+            },
+            title: {
+              display: true,
+              text: 'Community',
+              color: participantPalette.community.border,
+              font: { size: forExport ? 18 : 11 }
+            },
+            ticks: {
+              color: participantPalette.community.border,
+              font: { size: forExport ? 18 : 12 },
+              maxTicksLimit: 6,
+              /** @param {string | number} value */
+              callback: (value) => formatNumber(value)
+            },
+            weight: 2
           }
         }
       },
@@ -1074,13 +1091,17 @@
     };
   }
 
+  /**
+   * @param {{ forExport?: boolean, groupBy?: SubmissionGroupBy, hiddenLabels?: Set<string> }} [options]
+   * @returns {any}
+   */
   function buildSubmissionsChartConfig({
     forExport = false,
     groupBy = submissionGroupBy,
     hiddenLabels = new Set()
   } = {}) {
     const exportTitle = getExportTitleOptions(
-      'Submission intake vs reviewed outcomes',
+      'Contribution intake vs reviewed outcomes',
       getSubmissionExportSubtitle(),
       forExport
     );
@@ -1091,11 +1112,11 @@
         labels: submissionsData.data.map((point) => formatPeriodLabel(point.period, groupBy)),
         datasets: applyHiddenDatasets([
           {
-            label: 'Submitted',
+            label: 'Submission intake',
             data: submissionsData.data.map((point) => point.ingress),
             backgroundColor: reviewPalette.ingress.bg,
             borderColor: reviewPalette.ingress.border,
-            borderRadius: 10,
+            borderRadius: 8,
             borderWidth: 1,
             maxBarThickness: 22,
             stack: 'intake'
@@ -1105,17 +1126,17 @@
             data: submissionsData.data.map((point) => point.accepted),
             backgroundColor: reviewPalette.accepted.bg,
             borderColor: reviewPalette.accepted.border,
-            borderRadius: 10,
+            borderRadius: 8,
             borderWidth: 1,
             maxBarThickness: 22,
             stack: 'review'
           },
           {
-            label: 'More info requested',
+            label: 'More info',
             data: submissionsData.data.map((point) => point.more_info_requested),
             backgroundColor: reviewPalette.moreInfo.bg,
             borderColor: reviewPalette.moreInfo.border,
-            borderRadius: 10,
+            borderRadius: 8,
             borderWidth: 1,
             maxBarThickness: 22,
             stack: 'review'
@@ -1123,7 +1144,7 @@
         ], hiddenLabels)
       },
       options: {
-        animation: forExport ? false : undefined,
+        animation: getBarAnimation(forExport),
         responsive: !forExport,
         maintainAspectRatio: false,
         interaction: {
@@ -1141,11 +1162,13 @@
           tooltip: {
             enabled: !forExport,
             backgroundColor: 'rgba(255, 255, 255, 0.98)',
-            bodyColor: '#0f172a',
-            borderColor: 'rgba(148, 163, 184, 0.32)',
+            bodyColor: '#101010',
+            borderColor: 'rgba(16, 16, 16, 0.12)',
             borderWidth: 1,
             callbacks: {
+              /** @param {any[]} items */
               title: (items) => formatPeriodTooltip(submissionsData.data[items[0]?.dataIndex]?.period, groupBy),
+              /** @param {any[]} items */
               footer: (items) => {
                 const point = submissionsData.data[items[0]?.dataIndex];
                 const reviewed =
@@ -1153,11 +1176,12 @@
                   Number(point?.rejected || 0) +
                   Number(point?.more_info_requested || 0);
 
-                return `Reviewed decisions: ${formatNumber(reviewed)}`;
+                return `Reviewed contributions: ${formatNumber(reviewed)}`;
               },
+              /** @param {any} context */
               label: (context) => `${context.dataset.label}: ${formatNumber(context.parsed.y)}`
             },
-            titleColor: '#0f172a'
+            titleColor: '#101010'
           }
         },
         scales: {
@@ -1167,7 +1191,7 @@
               display: false
             },
             ticks: {
-              color: '#64748b',
+              color: '#6b6b6b',
               font: { size: forExport ? 18 : 12 },
               maxRotation: 0
             }
@@ -1176,11 +1200,12 @@
             beginAtZero: true,
             stacked: true,
             grid: {
-              color: 'rgba(148, 163, 184, 0.12)'
+              color: 'rgba(16, 16, 16, 0.08)'
             },
             ticks: {
-              color: '#64748b',
+              color: '#6b6b6b',
               font: { size: forExport ? 18 : 12 },
+              /** @param {string | number} value */
               callback: (value) => formatNumber(value)
             }
           }
@@ -1190,6 +1215,7 @@
     };
   }
 
+  /** @returns {{ pending: number, accepted: number, moreInfo: number }[]} */
   function getSubmissionsCumulativeData() {
     let cumIngress = 0;
     let cumAccepted = 0;
@@ -1211,6 +1237,10 @@
     });
   }
 
+  /**
+   * @param {{ forExport?: boolean, groupBy?: SubmissionGroupBy, hiddenLabels?: Set<string> }} [options]
+   * @returns {any}
+   */
   function buildSubmissionsTrendChartConfig({
     forExport = false,
     groupBy = submissionGroupBy,
@@ -1221,7 +1251,7 @@
     const hoverRadius = isDaily ? 3 : 5;
     const cumData = getSubmissionsCumulativeData();
     const exportTitle = getExportTitleOptions(
-      'Submission state trends',
+      'Contribution state trends',
       getSubmissionExportSubtitle(),
       forExport
     );
@@ -1232,10 +1262,12 @@
         labels: submissionsData.data.map((point) => formatPeriodLabel(point.period, groupBy)),
         datasets: applyHiddenDatasets([
           {
-            label: 'Pending review',
+            label: 'Pending contributions',
             data: cumData.map((point) => point.pending),
             borderColor: reviewPalette.pending.border,
-            backgroundColor: 'rgba(59, 130, 246, 0.08)',
+            backgroundColor: 'rgba(56, 125, 232, 0.08)',
+            borderCapStyle: 'round',
+            borderJoinStyle: 'round',
             borderWidth: isDaily ? 1.5 : 2.5,
             fill: true,
             pointRadius: dotRadius,
@@ -1247,7 +1279,9 @@
             label: 'Accepted',
             data: cumData.map((point) => point.accepted),
             borderColor: reviewPalette.accepted.border,
-            backgroundColor: 'rgba(5, 150, 105, 0.06)',
+            backgroundColor: 'rgba(25, 166, 99, 0.06)',
+            borderCapStyle: 'round',
+            borderJoinStyle: 'round',
             borderWidth: isDaily ? 1.5 : 2.5,
             fill: false,
             pointRadius: dotRadius,
@@ -1256,10 +1290,12 @@
             tension: 0.3
           },
           {
-            label: 'More info requested',
+            label: 'More info',
             data: cumData.map((point) => point.moreInfo),
             borderColor: reviewPalette.moreInfo.border,
-            backgroundColor: 'rgba(217, 119, 6, 0.06)',
+            backgroundColor: 'rgba(217, 104, 22, 0.06)',
+            borderCapStyle: 'round',
+            borderJoinStyle: 'round',
             borderWidth: isDaily ? 1.5 : 2,
             fill: false,
             pointRadius: dotRadius,
@@ -1270,7 +1306,7 @@
         ], hiddenLabels)
       },
       options: {
-        animation: forExport ? false : undefined,
+        animation: getLineTraceAnimation(forExport, submissionsData.data.length),
         responsive: !forExport,
         maintainAspectRatio: false,
         interaction: {
@@ -1288,14 +1324,16 @@
           tooltip: {
             enabled: !forExport,
             backgroundColor: 'rgba(255, 255, 255, 0.98)',
-            bodyColor: '#0f172a',
-            borderColor: 'rgba(148, 163, 184, 0.32)',
+            bodyColor: '#101010',
+            borderColor: 'rgba(16, 16, 16, 0.12)',
             borderWidth: 1,
             callbacks: {
+              /** @param {any[]} items */
               title: (items) => formatPeriodTooltip(submissionsData.data[items[0]?.dataIndex]?.period, groupBy),
+              /** @param {any} context */
               label: (context) => `${context.dataset.label}: ${formatNumber(context.parsed.y)}`
             },
-            titleColor: '#0f172a'
+            titleColor: '#101010'
           }
         },
         scales: {
@@ -1304,7 +1342,7 @@
               display: false
             },
             ticks: {
-              color: '#64748b',
+              color: '#6b6b6b',
               font: { size: forExport ? 18 : 12 },
               maxRotation: 0
             }
@@ -1312,11 +1350,12 @@
           y: {
             beginAtZero: true,
             grid: {
-              color: 'rgba(148, 163, 184, 0.12)'
+              color: 'rgba(16, 16, 16, 0.08)'
             },
             ticks: {
-              color: '#64748b',
+              color: '#6b6b6b',
               font: { size: forExport ? 18 : 12 },
+              /** @param {string | number} value */
               callback: (value) => formatNumber(value)
             }
           }
@@ -1326,6 +1365,10 @@
     };
   }
 
+  /**
+   * @param {string | number | undefined | null} typeId
+   * @returns {string}
+   */
   function getContributionTypeLabel(typeId) {
     if (!typeId) {
       return 'All contribution types';
@@ -1353,6 +1396,10 @@
     ].join(' | ');
   }
 
+  /**
+   * @param {string | number | undefined | null} value
+   * @returns {string}
+   */
   function slugify(value) {
     return String(value || '')
       .toLowerCase()
@@ -1360,6 +1407,10 @@
       .replace(/^-+|-+$/g, '') || 'all';
   }
 
+  /**
+   * @param {string} kind
+   * @returns {string}
+   */
   function getSubmissionExportFilename(kind) {
     const filters = appliedSubmissionFilters;
     const parts = [
@@ -1373,8 +1424,14 @@
     return `${parts.map(slugify).join('-')}-16x9.png`;
   }
 
+  /**
+   * @param {HTMLCanvasElement} canvas
+   * @param {string} filename
+   * @returns {Promise<void>}
+   */
   function downloadCanvas(canvas, filename) {
     return new Promise((resolve, reject) => {
+      /** @param {Blob | null} blob */
       canvas.toBlob((blob) => {
         if (!blob) {
           reject(new Error('Unable to export chart image'));
@@ -1389,16 +1446,21 @@
         link.click();
         link.remove();
         URL.revokeObjectURL(url);
-        resolve();
+        resolve(undefined);
       }, EXPORT_FORMAT);
     });
   }
 
+  /**
+   * @param {string} kind
+   * @returns {Promise<void>}
+   */
   async function exportPortalChart(kind) {
     if (chartExporting) {
       return;
     }
 
+    /** @type {import('chart.js').Chart | null} */
     let exportChart = null;
     chartExporting = kind;
     chartExportError = null;
@@ -1413,8 +1475,9 @@
         throw new Error('Unable to create export canvas');
       }
 
+      /** @type {any} */
       let config;
-      let filename;
+      let filename = '';
 
       if (kind === 'participants') {
         if (!participantsData.length) {
@@ -1454,10 +1517,10 @@
 
       exportChart = new Chart(ctx, config);
       exportChart.update('none');
-      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
       await downloadCanvas(exportCanvas, filename);
     } catch (err) {
-      chartExportError = err.message || 'Failed to export chart';
+      chartExportError = getErrorMessage(err, 'Failed to export chart');
     } finally {
       if (exportChart) {
         exportChart.destroy();
@@ -1466,6 +1529,13 @@
     }
   }
 
+  /**
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} height
+   * @param {string} topColor
+   * @param {string} bottomColor
+   * @returns {CanvasGradient}
+   */
   function createGradient(ctx, height, topColor, bottomColor) {
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
     gradient.addColorStop(0, topColor);
@@ -1473,6 +1543,10 @@
     return gradient;
   }
 
+  /**
+   * @param {string} dateStr
+   * @returns {string}
+   */
   function formatParticipantAxisDate(dateStr) {
     return new Date(dateStr).toLocaleDateString('en-US', {
       day: 'numeric',
@@ -1480,6 +1554,11 @@
     });
   }
 
+  /**
+   * @param {string} dateStr
+   * @param {SubmissionGroupBy | string} groupBy
+   * @returns {string}
+   */
   function formatPeriodLabel(dateStr, groupBy) {
     const date = new Date(dateStr);
 
@@ -1490,6 +1569,11 @@
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
+  /**
+   * @param {string | undefined} dateStr
+   * @param {SubmissionGroupBy | string} groupBy
+   * @returns {string}
+   */
   function formatPeriodTooltip(dateStr, groupBy) {
     if (!dateStr) {
       return 'Unknown';
@@ -1506,16 +1590,28 @@
       end.setDate(end.getDate() + 6);
       const startStr = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
       const endStr = end.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-      return `Week of ${startStr} – ${endStr}`;
+      return `Week of ${startStr} - ${endStr}`;
     }
 
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   }
 
+  /**
+   * @param {string | undefined | null} slug
+   * @returns {string}
+   */
   function getCategoryLabel(slug) {
-    return CATEGORY_LABELS[slug] || (slug ? slug[0].toUpperCase() + slug.slice(1) : 'Unknown');
+    if (!slug) {
+      return 'Unknown';
+    }
+
+    return CATEGORY_LABELS[slug] || slug[0].toUpperCase() + slug.slice(1);
   }
 
+  /**
+   * @param {SubmissionGroupBy | string} groupBy
+   * @returns {string}
+   */
   function getGroupingLabel(groupBy) {
     if (groupBy === 'day') {
       return 'Daily';
@@ -1528,6 +1624,10 @@
     return 'Weekly';
   }
 
+  /**
+   * @param {string | undefined | null} dateStr
+   * @returns {string}
+   */
   function formatDate(dateStr) {
     if (!dateStr) {
       return 'Unknown';
@@ -1540,755 +1640,877 @@
     });
   }
 
-  function formatAddress(address) {
-    if (!address) {
-      return 'Unknown';
-    }
-
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  }
-
-  function getContributionUserName(contribution) {
-    return contribution.user_details?.name || formatAddress(contribution.user_details?.address);
-  }
-
-  function getContributionTypeName(contribution) {
-    return contribution.contribution_type_details?.name || 'Community contribution';
-  }
-
-  function getContributionTitle(contribution) {
-    return contribution.title || getContributionTypeName(contribution);
-  }
-
+  /**
+   * @param {string | number | undefined | null} value
+   * @returns {string}
+   */
   function formatNumber(value) {
     return Number(value || 0).toLocaleString('en-US');
   }
 
-  function formatCompact(value) {
-    const number = Number(value || 0);
-    if (Math.abs(number) < 10000) {
-      return formatNumber(number);
-    }
-    return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(number);
-  }
-
+  /**
+   * @param {string | number | undefined | null} value
+   * @returns {string}
+   */
   function formatPercent(value) {
     return `${Number(value || 0).toFixed(1)}%`;
   }
+
+  /**
+   * @param {unknown} err
+   * @param {string} fallback
+   * @returns {string}
+   */
+  function getErrorMessage(err, fallback) {
+    return err instanceof Error ? err.message : fallback;
+  }
 </script>
 
-<div class="mx-auto max-w-[1480px] px-4 py-8 lg:px-6">
-  <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-    <div>
-      <p class="mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Portal Metrics</p>
-      <h1 class="text-3xl font-semibold tracking-tight text-slate-900">Metrics Dashboard</h1>
-    </div>
-    <nav>
-      <ul class="flex flex-wrap gap-2">
-        {#each TABS as tab (tab.id)}
-          <li>
-            <button
-              type="button"
-              onclick={() => (activeTab = tab.id)}
-              class="flex items-center gap-3 whitespace-nowrap rounded-full px-5 py-3 text-sm font-medium transition {activeTab === tab.id
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}"
-            >
-              <span class="h-2 w-2 rounded-full {tab.dot}"></span>
-              {tab.label}
-            </button>
-          </li>
-        {/each}
-      </ul>
-    </nav>
+<div class="metrics-view">
+  <div class="metrics-gradient-band" aria-hidden="true">
+    <div class="metrics-gradient-rainbow"></div>
+    <div class="metrics-gradient-wash"></div>
   </div>
 
-  {#if pageError}
-    <div class="mb-6 rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-rose-700 shadow-sm">
-      <span class="font-semibold">Error:</span> {pageError}
-    </div>
-  {/if}
-
-  {#if chartExportError}
-    <div class="mb-6 rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-rose-700 shadow-sm">
-      <span class="font-semibold">Export error:</span> {chartExportError}
-    </div>
-  {/if}
-
-  {#snippet kpiStrip(palette, defs, metrics, isLoading, isError)}
-      <div class="rounded-[24px] border border-slate-200 bg-slate-50/60 p-5 sm:p-6">
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <span class="h-2.5 w-2.5 rounded-full {palette.dot}"></span>
-            <h3 class="text-base font-semibold text-slate-900">{palette.label}</h3>
-            {#if !metrics && !isLoading && !isError}
-              <span class="rounded-full {palette.chip} px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]">Coming soon</span>
-            {/if}
+  <div class="metrics-shell">
+    <header class="metrics-header">
+      <div class="metrics-header-copy">
+        <div class="metrics-title-row">
+          <div class="metrics-header-icon">
+            <CategoryIcon category="genlayer" mode="hexagon" size={48} />
           </div>
-          <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{palette.source}</p>
+          <h1>Portal metrics</h1>
         </div>
-
-        {#if isLoading}
-          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-            {#each defs as _, i (i)}
-              <div class="h-[112px] animate-pulse rounded-2xl border border-slate-200 bg-white"></div>
-            {/each}
-          </div>
-        {:else if isError}
-          <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            <span class="font-semibold">Unavailable:</span> {isError}
-          </div>
-        {:else}
-          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-            {#each defs as def (def.primaryKey)}
-              <div class="flex flex-col rounded-2xl border border-slate-200 bg-gradient-to-br {palette.surface} p-4">
-                <p class="text-xs font-medium text-slate-600">{def.label}</p>
-                {#if def.range}
-                  <p class="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{def.range}</p>
-                {/if}
-                <p class="mt-2 text-2xl font-semibold {metrics ? palette.text : 'text-slate-300'}">
-                  {#if metrics}
-                    {def.compact ? formatCompact(metrics[def.primaryKey]) : formatNumber(metrics[def.primaryKey])}
-                  {:else}
-                    —
-                  {/if}
-                </p>
-                {#if def.secondaryKey}
-                  <p class="mt-1 text-[11px] text-slate-400">
-                    {#if metrics}
-                      {def.compact ? formatCompact(metrics[def.secondaryKey]) : formatNumber(metrics[def.secondaryKey])} all time
-                    {:else}
-                      — all time
-                    {/if}
-                  </p>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        {/if}
+        <p class="metrics-subtitle">
+          Participation growth and contribution flow across builders, validators, and community.
+        </p>
       </div>
+    </header>
+
+    {#if pageError}
+      <div class="mb-5 rounded-[8px] border border-rose-200 bg-rose-50 px-5 py-4 text-rose-700 shadow-sm">
+        <span class="font-semibold">Error:</span> {pageError}
+      </div>
+    {/if}
+
+    {#if chartExportError}
+      <div class="mb-5 rounded-[8px] border border-rose-200 bg-rose-50 px-5 py-4 text-rose-700 shadow-sm">
+        <span class="font-semibold">Export error:</span> {chartExportError}
+      </div>
+    {/if}
+
+    {#snippet exportButton(kind = 'participants', label = '', disabled = false)}
+      <button
+        type="button"
+        title={label}
+        aria-label={label}
+        onclick={() => exportPortalChart(kind)}
+        disabled={disabled || Boolean(chartExporting)}
+        class="export-button"
+      >
+        <svg viewBox="0 0 20 20" aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5"/>
+          <path d="M4 13.5V16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2.5"/>
+        </svg>
+        <span class="sr-only">{chartExporting === kind ? `Exporting ${label}` : label}</span>
+      </button>
     {/snippet}
 
-    {#snippet submissionMetricCard(title, metric, surface, textClass)}
-      <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {surface} p-5">
-        <p class="text-sm font-medium text-slate-500">{title}</p>
+    {#snippet submissionMetricCard(title = '', metric = '', surface = '', textClass = '')}
+      <div class="summary-card bg-gradient-to-br {surface}">
+        <p class="summary-label">{title}</p>
 
         {#if showSubmissionCategoryBreakdown}
           <div class="mt-4 space-y-2">
             {#each submissionCategoryBreakdown as item (item.category)}
-              <div class="flex min-h-[44px] items-center justify-between gap-3 rounded-2xl border border-white/80 bg-white/75 px-3 py-2 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+              <div class="summary-breakdown-row">
                 <div class="flex min-w-0 items-center gap-2.5">
                   <CategoryIcon category={getCanonicalCategory(item.category)} mode="hexagon" size={24} light={true} />
-                  <span class="truncate text-sm font-medium text-slate-600">{item.label}</span>
+                  <span class="truncate text-sm font-medium text-[#565656]">{item.label}</span>
                 </div>
-                <span class="shrink-0 text-lg font-semibold {textClass}">
+                <span class="shrink-0 text-lg font-semibold tabular-nums {textClass}">
                   {formatMetricValue(item.summary, metric)}
                 </span>
               </div>
             {/each}
           </div>
         {:else}
-          <p class="mt-3 text-3xl font-semibold {textClass}">
+          <p class="mt-3 text-3xl font-semibold tabular-nums {textClass}">
             {formatMetricValue(submissionsSummary, metric)}
           </p>
-          <p class="mt-2 text-xs leading-5 text-slate-500">
+          <p class="mt-2 text-xs leading-5 text-[#6b6b6b]">
             {getMetricDetail(submissionsSummary, metric)}
           </p>
         {/if}
       </div>
     {/snippet}
 
-    <div>
-      <div class="min-w-0">
-
-    <section class:hidden={activeTab !== 'community'} class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] lg:p-8">
-      <div class="mb-6">
-        <p class="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Community</p>
-        <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Open source and channels</h2>
+    <section class="portal-section">
+      <div class="section-heading">
+        <div>
+          <h2>Portal contributors</h2>
+        </div>
+        {#if latestParticipantsSnapshot.date}
+          <p class="section-meta">Updated {formatDate(latestParticipantsSnapshot.date)}</p>
+        {/if}
       </div>
 
-      <div class="space-y-4">
-        {#if $authState.isAuthenticated}
-        <div class="rounded-[24px] border border-slate-200 bg-slate-50/60 p-5 sm:p-6">
-          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div class="flex flex-wrap items-center gap-3">
-              <span class="h-2.5 w-2.5 rounded-full {ecosystemPalette.repository.dot}"></span>
-              <h3 class="text-base font-semibold text-slate-900">{ecosystemPalette.repository.label}</h3>
-              {#if repoMetrics?.boilerplate}
-                <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700">
-                  <span aria-hidden="true">★</span>
-                  {formatNumber(repoMetrics.boilerplate.stars)}
-                </span>
-                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700">
-                  <svg viewBox="0 0 16 16" aria-hidden="true" class="h-3.5 w-3.5" fill="currentColor">
-                    <path d="M5 3.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm0 2.122a2.25 2.25 0 1 0-1.5 0v.878A2.25 2.25 0 0 0 5.75 8.5h1.5v2.128a2.251 2.251 0 1 0 1.5 0V8.5h1.5a2.25 2.25 0 0 0 2.25-2.25v-.878a2.25 2.25 0 1 0-1.5 0v.878a.75.75 0 0 1-.75.75h-4.5A.75.75 0 0 1 5 6.25v-.878Zm3.75 7.378a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm3-8.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"/>
-                  </svg>
-                  {formatNumber(repoMetrics.boilerplate.forks)}
-                </span>
-                <a
-                  href={repoMetrics.boilerplate.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="text-sm font-medium text-slate-600 underline-offset-4 hover:text-amber-700 hover:underline"
-                >
-                  {repoMetrics.boilerplate.fullName} ↗
-                </a>
-              {/if}
+      <div class="stat-grid">
+        {#if loading}
+          {#each [0, 1, 2, 3] as _, i (i)}
+            <div class="stat-card skeleton-shimmer" aria-hidden="true"></div>
+          {/each}
+        {:else}
+          {#each participantCards as card (card.key)}
+            <div class="stat-card" data-category={card.category}>
+              <div class="stat-card-main">
+                <CategoryIcon category={card.category} mode="hexagon" size={48} />
+                <div class="min-w-0">
+                  <p class="stat-value tabular-nums {card.textClass}">{formatNumber(card.value)}</p>
+                  <p class="stat-label">{card.label}</p>
+                </div>
+              </div>
             </div>
-            <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{ecosystemPalette.repository.source}</p>
+          {/each}
+        {/if}
+      </div>
+
+      <div class="chart-card mt-5">
+        <div class="chart-heading">
+          <div>
+            <h3>Growth trajectory</h3>
+            <p>Daily cumulative contributors by Portal category.</p>
+          </div>
+          {@render exportButton('participants', 'Export growth trajectory as 16:9 PNG', loading || participantsData.length === 0)}
+        </div>
+
+        {#if loading}
+          <div class="chart-placeholder chart-placeholder--large skeleton-shimmer"></div>
+        {:else if participantsData.length > 0}
+          <div class="chart-canvas chart-canvas--large">
+            <canvas id="participantsChart"></canvas>
+          </div>
+        {:else}
+          <div class="chart-empty">No participant growth data available.</div>
+        {/if}
+      </div>
+    </section>
+
+    {#if canViewSubmissionAnalytics}
+      <section class="portal-section">
+        <div class="section-heading">
+          <div>
+            <h2>Portal contributions</h2>
           </div>
 
-          {#if repoLoading}
-            <div class="h-[320px] animate-pulse rounded-[20px] border border-slate-200 bg-white"></div>
-          {:else if repoError}
-            <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              <span class="font-semibold">Unavailable:</span> {repoError}
-            </div>
-          {:else if repoMetrics?.boilerplate}
-            <div class="flex items-center justify-center rounded-[20px] border border-slate-200 bg-white p-3">
-              <img
-                src={`https://api.star-history.com/svg?repos=${BOILERPLATE_REPO}&type=Date`}
-                alt={`Star history for ${BOILERPLATE_REPO}`}
-                loading="lazy"
-                class="block h-auto max-h-[320px] w-auto max-w-full"
-              />
-            </div>
+          {#if submissionsLoading}
+            <div class="refresh-pill">Refreshing analytics...</div>
           {/if}
         </div>
 
-        <div class="grid gap-4 lg:grid-cols-5">
-          <div class="rounded-[24px] border border-slate-200 bg-slate-50/60 p-5 sm:p-6 lg:col-span-3">
-            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div class="flex flex-wrap items-center gap-3">
-                <span class="h-2.5 w-2.5 rounded-full {ecosystemPalette.discord.dot}"></span>
-                <h3 class="text-base font-semibold text-slate-900">
-                  <a
-                    href={DISCORD_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="underline-offset-4 hover:text-indigo-700 hover:underline"
-                  >
-                    GenLayer Discord ↗
-                  </a>
-                </h3>
-              </div>
-              <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{ecosystemPalette.discord.source}</p>
-            </div>
-            <div class="grid grid-cols-3 gap-3">
-              {#each DISCORD_KPIS as kpi (kpi.label)}
-                <div class="flex flex-col rounded-2xl border border-slate-200 bg-gradient-to-br {ecosystemPalette.discord.surface} p-4">
-                  <p class="text-xs font-medium text-slate-600">{kpi.label}</p>
-                  <p class="mt-2 text-2xl font-semibold {ecosystemPalette.discord.text}">{kpi.value}</p>
-                </div>
-              {/each}
-            </div>
-          </div>
-
-          <div class="rounded-[24px] border border-slate-200 bg-slate-50/60 p-5 sm:p-6 lg:col-span-2">
-            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div class="flex flex-wrap items-center gap-3">
-                <span class="h-2.5 w-2.5 rounded-full {ecosystemPalette.x.dot}"></span>
-                <h3 class="text-base font-semibold text-slate-900">
-                  <a
-                    href={X_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="underline-offset-4 hover:text-slate-700 hover:underline"
-                  >
-                    GenLayer X ↗
-                  </a>
-                </h3>
-              </div>
-              <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{ecosystemPalette.x.source}</p>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              {#each X_KPIS as kpi (kpi.label)}
-                <div class="flex flex-col rounded-2xl border border-slate-200 bg-gradient-to-br {ecosystemPalette.x.surface} p-4">
-                  <p class="text-xs font-medium text-slate-600">{kpi.label}</p>
-                  {#if kpi.range}
-                    <p class="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{kpi.range}</p>
-                  {/if}
-                  <p class="mt-2 text-2xl font-semibold {ecosystemPalette.x.text}">{kpi.value}</p>
-                </div>
-              {/each}
-            </div>
-          </div>
-        </div>
-
-        <div class="rounded-[24px] border border-slate-200 bg-slate-50/60 p-5 sm:p-6">
-          <div class="mb-5 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+        <div class="filter-panel">
+          <div class="filter-grid">
             <div>
-              <p class="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Portal contributions</p>
-              <h3 class="text-base font-semibold text-slate-900">Community contributions</h3>
-            </div>
-            {#if communityContributionsLoading}
-              <div class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600">
-                Refreshing contributions...
-              </div>
-            {/if}
-          </div>
-
-          <div class="mb-5 grid gap-3 sm:grid-cols-3">
-            <div class="rounded-2xl border border-slate-200 bg-white p-4">
-              <p class="text-xs font-medium text-slate-500">Contributions</p>
-              <p class="mt-2 text-2xl font-semibold text-slate-900">
-                {formatNumber(communityContributionTotals.contribution_count)}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-white p-4">
-              <p class="text-xs font-medium text-slate-500">Contributors</p>
-              <p class="mt-2 text-2xl font-semibold text-slate-900">
-                {formatNumber(communityContributionTotals.unique_contributors)}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-white p-4">
-              <p class="text-xs font-medium text-slate-500">Points awarded</p>
-              <p class="mt-2 text-2xl font-semibold text-slate-900">
-                {formatNumber(communityContributionTotals.points_awarded)}
-              </p>
-            </div>
-          </div>
-
-          <div class="mb-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_200px_auto]">
-            <div>
-              <label for="community-start-date" class="mb-1.5 block text-sm font-medium text-slate-600">Start date</label>
+              <label for="submission-start-date" class="filter-label">Start date</label>
               <input
-                id="community-start-date"
+                id="submission-start-date"
                 type="date"
-                bind:value={communityStartDate}
-                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+                bind:value={submissionStartDate}
+                class="filter-control"
               />
             </div>
 
             <div>
-              <label for="community-end-date" class="mb-1.5 block text-sm font-medium text-slate-600">End date</label>
+              <label for="submission-end-date" class="filter-label">End date</label>
               <input
-                id="community-end-date"
+                id="submission-end-date"
                 type="date"
-                bind:value={communityEndDate}
-                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+                bind:value={submissionEndDate}
+                class="filter-control"
               />
             </div>
 
             <div>
-              <label for="community-type" class="mb-1.5 block text-sm font-medium text-slate-600">Contribution type</label>
+              <label for="submission-category" class="filter-label">Category</label>
               <select
-                id="community-type"
-                bind:value={communityContributionType}
-                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+                id="submission-category"
+                bind:value={selectedCategory}
+                onchange={onCategoryChange}
+                class="filter-control"
               >
-                <option value="">All types</option>
-                {#each communityContributionTypes as type}
+                <option value="">All categories</option>
+                {#each availableCategories as category}
+                  <option value={category}>{getCategoryLabel(category)}</option>
+                {/each}
+              </select>
+            </div>
+
+            <div>
+              <label for="submission-type" class="filter-label">Contribution type</label>
+              <select
+                id="submission-type"
+                bind:value={selectedContributionType}
+                class="filter-control"
+              >
+                <option value="">All contribution types</option>
+                {#each filteredContributionTypes as type}
                   <option value={type.id}>{type.name}</option>
                 {/each}
               </select>
             </div>
 
             <div>
-              <label for="community-sort" class="mb-1.5 block text-sm font-medium text-slate-600">Sort by</label>
+              <label for="submission-group-by" class="filter-label">Group by</label>
               <select
-                id="community-sort"
-                bind:value={communitySortBy}
-                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+                id="submission-group-by"
+                bind:value={submissionGroupBy}
+                class="filter-control"
               >
-                <option value="-contribution_date">Newest</option>
-                <option value="contribution_date">Oldest</option>
-                <option value="-frozen_global_points">Highest points</option>
-                <option value="frozen_global_points">Lowest points</option>
+                <option value="day">Daily</option>
+                <option value="week">Weekly</option>
+                <option value="month">Monthly</option>
               </select>
             </div>
 
-            <div class="flex flex-wrap items-end gap-3">
+            <div class="filter-actions">
               <button
                 type="button"
-                onclick={applyCommunityFilters}
-                disabled={communityContributionsLoading}
-                class="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                onclick={applySubmissionFilters}
+                disabled={submissionsLoading}
+                class="primary-action"
               >
                 Apply filters
               </button>
               <button
                 type="button"
-                onclick={clearCommunityFilters}
-                disabled={communityContributionsLoading}
-                class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                onclick={clearSubmissionFilters}
+                disabled={submissionsLoading}
+                class="secondary-action"
               >
                 Reset
               </button>
             </div>
           </div>
 
-          {#if communityContributionsError}
-            <div class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              <span class="font-semibold">Community contributions error:</span> {communityContributionsError}
-            </div>
-          {/if}
-
-          {#if communityContributionsLoading && communityContributions.length === 0}
-            <div class="space-y-3">
-              {#each [0, 1, 2] as _, i (i)}
-                <div class="h-[72px] animate-pulse rounded-2xl border border-slate-200 bg-white"></div>
-              {/each}
-            </div>
-          {:else if communityContributions.length > 0}
-            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
-                  <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                    <tr>
-                      <th scope="col" class="px-4 py-3">Contribution</th>
-                      <th scope="col" class="px-4 py-3">Contributor</th>
-                      <th scope="col" class="px-4 py-3">Type</th>
-                      <th scope="col" class="px-4 py-3">Date</th>
-                      <th scope="col" class="px-4 py-3 text-right">Points</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-100">
-                    {#each communityContributions as contribution (contribution.id)}
-                      <tr class="align-top">
-                        <td class="max-w-[360px] px-4 py-3 font-medium text-slate-900">
-                          <span class="line-clamp-2">{getContributionTitle(contribution)}</span>
-                        </td>
-                        <td class="px-4 py-3 text-slate-600">{getContributionUserName(contribution)}</td>
-                        <td class="px-4 py-3 text-slate-600">{getContributionTypeName(contribution)}</td>
-                        <td class="px-4 py-3 text-slate-600">{formatDate(contribution.contribution_date)}</td>
-                        <td class="px-4 py-3 text-right font-semibold text-slate-900">
-                          {formatNumber(contribution.frozen_global_points)}
-                        </td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p class="text-sm text-slate-500">
-                {formatNumber(communityContributionsCount)} contribution{communityContributionsCount === 1 ? '' : 's'}
-              </p>
-              <div class="flex items-center gap-2">
-                <button
-                  type="button"
-                  onclick={() => setCommunityPage(communityPage - 1)}
-                  disabled={communityPage <= 1 || communityContributionsLoading}
-                  class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <span class="px-2 text-sm font-medium text-slate-500">
-                  Page {communityPage} of {communityTotalPages}
-                </span>
-                <button
-                  type="button"
-                  onclick={() => setCommunityPage(communityPage + 1)}
-                  disabled={communityPage >= communityTotalPages || communityContributionsLoading}
-                  class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          {:else}
-            <div class="flex min-h-[160px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm text-slate-500">
-              No community contributions matched the selected filters.
+          {#if submissionError}
+            <div class="mt-4 rounded-[8px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <span class="font-semibold">Contribution analytics error:</span> {submissionError}
             </div>
           {/if}
         </div>
-        {/if}
-      </div>
-    </section>
 
-    <section class:hidden={activeTab !== 'networks'} class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] lg:p-8">
-      <div class="mb-6 flex items-end justify-between gap-3">
-        <div>
-          <p class="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Networks</p>
-          <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Studio and testnets</h2>
-        </div>
-      </div>
-
-      <div class="space-y-4">
-        {@render kpiStrip(ecosystemPalette.studio, ONCHAIN_KPI_DEFS, studioMetrics, studioLoading, studioError)}
-        {@render kpiStrip(ecosystemPalette.asimov, TESTNET_KPI_DEFS, asimovMetrics, asimovLoading, asimovError)}
-        {@render kpiStrip(ecosystemPalette.bradbury, TESTNET_KPI_DEFS, bradburyMetrics, bradburyLoading, bradburyError)}
-      </div>
-    </section>
-
-    <section class:hidden={activeTab !== 'portal'} class="mb-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] lg:p-8">
-      <div class="mb-6">
-        <p class="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Portal Participation</p>
-        <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Validators and active builders</h2>
-      </div>
-
-      <div class="mb-6 grid gap-4 md:grid-cols-2">
-        {#if loading}
-          {#each [0, 1] as _, i (i)}
-            <div class="h-[110px] animate-pulse rounded-[24px] border border-slate-200 bg-slate-50"></div>
-          {/each}
-        {:else}
-          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {participantPalette.validators.surface} p-5">
-            <p class="text-sm font-medium text-slate-500">Validators</p>
-            <div class="mt-3 flex items-end justify-between gap-4">
-              <p class="text-3xl font-semibold {participantPalette.validators.text}">
-                {formatNumber(latestParticipantsSnapshot.validators)}
-              </p>
-              <p class="text-xs font-medium text-slate-500">Network operators</p>
-            </div>
-          </div>
-
-          <div class="rounded-[24px] border border-slate-200 bg-gradient-to-br {participantPalette.builders.surface} p-5">
-            <p class="text-sm font-medium text-slate-500">Builders</p>
-            <div class="mt-3 flex items-end justify-between gap-4">
-              <p class="text-3xl font-semibold {participantPalette.builders.text}">
-                {formatNumber(latestParticipantsSnapshot.builders)}
-              </p>
-              <p class="text-xs font-medium text-slate-500">Contributors</p>
-            </div>
-          </div>
-        {/if}
-      </div>
-
-      <div class="rounded-[28px] border border-slate-200 bg-slate-50/70 p-5 sm:p-6">
-        <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h3 class="text-lg font-semibold text-slate-900">Growth trajectory</h3>
-            <p class="mt-1 text-sm text-slate-500">Builders on the left axis, validators by graduation date on the right.</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-3">
-            <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Daily points</p>
-            <button
-              type="button"
-              title="Export 16:9 PNG"
-              aria-label="Export growth trajectory as 16:9 PNG"
-              onclick={() => exportPortalChart('participants')}
-              disabled={loading || participantsData.length === 0 || Boolean(chartExporting)}
-              class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-slate-400 transition hover:border-slate-200 hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <svg viewBox="0 0 20 20" aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5"/>
-                <path d="M4 13.5V16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2.5"/>
-              </svg>
-              <span class="sr-only">{chartExporting === 'participants' ? 'Exporting growth trajectory' : 'Export growth trajectory as 16:9 PNG'}</span>
-            </button>
-          </div>
-        </div>
-
-        {#if loading}
-          <div class="h-[360px] animate-pulse rounded-2xl border border-slate-200 bg-white"></div>
-        {:else if participantsData.length > 0}
-          <div class="h-[360px]">
-            <canvas id="participantsChart"></canvas>
-          </div>
-        {:else}
-          <div class="flex h-[360px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm text-slate-500">
-            No participant growth data available.
-          </div>
-        {/if}
-      </div>
-    </section>
-
-    {#if $userStore.user?.steward}
-      <section class:hidden={activeTab !== 'portal'} class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] lg:p-8">
-      <div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p class="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Submission Analytics</p>
-          <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Review flow and trends</h2>
-        </div>
-
-        {#if submissionsLoading}
-          <div class="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600">
-            Refreshing analytics...
-          </div>
-        {/if}
-      </div>
-
-      <div class="mb-6 rounded-[28px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50/50 p-5 sm:p-6">
-        <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_260px_170px_auto]">
-          <div>
-            <label for="submission-start-date" class="mb-1.5 block text-sm font-medium text-slate-600">Start date</label>
-            <input
-              id="submission-start-date"
-              type="date"
-              bind:value={submissionStartDate}
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-            />
-          </div>
-
-          <div>
-            <label for="submission-end-date" class="mb-1.5 block text-sm font-medium text-slate-600">End date</label>
-            <input
-              id="submission-end-date"
-              type="date"
-              bind:value={submissionEndDate}
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-            />
-          </div>
-
-          <div>
-            <label for="submission-category" class="mb-1.5 block text-sm font-medium text-slate-600">Category</label>
-            <select
-              id="submission-category"
-              bind:value={selectedCategory}
-              onchange={onCategoryChange}
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-            >
-              <option value="">All categories</option>
-              {#each availableCategories as category}
-                <option value={category}>{getCategoryLabel(category)}</option>
-              {/each}
-            </select>
-          </div>
-
-          <div>
-            <label for="submission-type" class="mb-1.5 block text-sm font-medium text-slate-600">Contribution type</label>
-            <select
-              id="submission-type"
-              bind:value={selectedContributionType}
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-            >
-              <option value="">All contribution types</option>
-              {#each filteredContributionTypes as type}
-                <option value={type.id}>{type.name}</option>
-              {/each}
-            </select>
-          </div>
-
-          <div>
-            <label for="submission-group-by" class="mb-1.5 block text-sm font-medium text-slate-600">Group by</label>
-            <select
-              id="submission-group-by"
-              bind:value={submissionGroupBy}
-              class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-            >
-              <option value="day">Daily</option>
-              <option value="week">Weekly</option>
-              <option value="month">Monthly</option>
-            </select>
-          </div>
-
-          <div class="flex flex-wrap items-end gap-3">
-            <button
-              onclick={applySubmissionFilters}
-              disabled={submissionsLoading}
-              class="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Apply filters
-            </button>
-            <button
-              onclick={clearSubmissionFilters}
-              disabled={submissionsLoading}
-              class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-
-        {#if submissionError}
-          <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            <span class="font-semibold">Submission analytics error:</span> {submissionError}
-          </div>
-        {/if}
-      </div>
-
-      <div class="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-        {#if loading || submissionsLoading}
-          {#each [0, 1, 2, 3, 4] as _, i (i)}
-            <div class="h-[124px] animate-pulse rounded-[24px] border border-slate-200 bg-slate-50"></div>
-          {/each}
-        {:else}
-          {@render submissionMetricCard('New submissions', 'ingress', reviewPalette.ingress.surface, reviewPalette.ingress.text)}
-          {@render submissionMetricCard('Reviewed', 'reviewed', 'from-slate-50 via-white to-slate-50/40', 'text-slate-900')}
-          {@render submissionMetricCard('Pending review', 'pendingReview', reviewPalette.pending.surface, reviewPalette.pending.text)}
-          {@render submissionMetricCard('Acceptance rate', 'acceptanceRate', reviewPalette.accepted.surface, reviewPalette.accepted.text)}
-          {@render submissionMetricCard('Points awarded', 'pointsAwarded', reviewPalette.points.surface, reviewPalette.points.text)}
-        {/if}
-      </div>
-
-      <div class="grid gap-6 xl:grid-cols-2">
-        <div class="rounded-[28px] border border-slate-200 bg-slate-50/70 p-5 sm:p-6">
-          <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h3 class="text-lg font-semibold text-slate-900">Submission intake vs reviewed outcomes</h3>
-              <p class="mt-1 text-sm text-slate-500">
-                Each period compares newly submitted work against the review decisions made in that same period.
-              </p>
-            </div>
-            <button
-              type="button"
-              title="Export 16:9 PNG"
-              aria-label="Export submission intake chart as 16:9 PNG"
-              onclick={() => exportPortalChart('submissions')}
-              disabled={loading || submissionsLoading || !submissionsData.data?.length || Boolean(chartExporting)}
-              class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-400 transition hover:border-slate-200 hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <svg viewBox="0 0 20 20" aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5"/>
-                <path d="M4 13.5V16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2.5"/>
-              </svg>
-              <span class="sr-only">{chartExporting === 'submissions' ? 'Exporting submission intake chart' : 'Export submission intake chart as 16:9 PNG'}</span>
-            </button>
-          </div>
-
+        <div class="summary-grid">
           {#if loading || submissionsLoading}
-            <div class="h-[320px] animate-pulse rounded-2xl border border-slate-200 bg-white"></div>
-          {:else if submissionsData.data?.length > 0}
-            <div class="h-[320px]">
-              <canvas id="submissionsChart"></canvas>
-            </div>
+            {#each [0, 1, 2, 3] as _, i (i)}
+              <div class="summary-card skeleton-shimmer" aria-hidden="true"></div>
+            {/each}
           {:else}
-            <div class="flex h-[320px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm text-slate-500">
-              No submissions matched the selected filters.
-            </div>
+            {@render submissionMetricCard('Pending contributions', 'pendingReview', reviewPalette.pending.surface, reviewPalette.pending.text)}
+            {@render submissionMetricCard('Accepted', 'accepted', reviewPalette.accepted.surface, reviewPalette.accepted.text)}
+            {@render submissionMetricCard('More info', 'moreInfoRequested', reviewPalette.moreInfo.surface, reviewPalette.moreInfo.text)}
+            {@render submissionMetricCard('Submission intake', 'ingress', reviewPalette.ingress.surface, reviewPalette.ingress.text)}
           {/if}
         </div>
 
-        <div class="rounded-[28px] border border-slate-200 bg-slate-50/70 p-5 sm:p-6">
-          <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h3 class="text-lg font-semibold text-slate-900">Submission state trends</h3>
-              <p class="mt-1 text-sm text-slate-500">
-                Pending, accepted, and more-info curves over time. Click a legend label to toggle its visibility.
-              </p>
+        <div class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-heading">
+              <div>
+                <h3>Contribution intake vs reviewed outcomes</h3>
+                <p>Each period compares newly submitted contributions against decisions made in that same period.</p>
+              </div>
+              {@render exportButton('submissions', 'Export contribution intake chart as 16:9 PNG', loading || submissionsLoading || !submissionsData.data?.length)}
             </div>
-            <button
-              type="button"
-              title="Export 16:9 PNG"
-              aria-label="Export submission state trends as 16:9 PNG"
-              onclick={() => exportPortalChart('submission-trends')}
-              disabled={loading || submissionsLoading || !submissionsData.data?.length || Boolean(chartExporting)}
-              class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-400 transition hover:border-slate-200 hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <svg viewBox="0 0 20 20" aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5"/>
-                <path d="M4 13.5V16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2.5"/>
-              </svg>
-              <span class="sr-only">{chartExporting === 'submission-trends' ? 'Exporting submission state trends' : 'Export submission state trends as 16:9 PNG'}</span>
-            </button>
+
+            {#if loading || submissionsLoading}
+              <div class="chart-placeholder skeleton-shimmer"></div>
+            {:else if submissionsData.data?.length > 0}
+              <div class="chart-canvas">
+                <canvas id="submissionsChart"></canvas>
+              </div>
+            {:else}
+              <div class="chart-empty">No contributions matched the selected filters.</div>
+            {/if}
           </div>
 
-          {#if loading || submissionsLoading}
-            <div class="h-[320px] animate-pulse rounded-2xl border border-slate-200 bg-white"></div>
-          {:else if submissionsData.data?.length > 0}
-            <div class="h-[320px]">
-              <canvas id="submissionsTrendChart"></canvas>
+          <div class="chart-card">
+            <div class="chart-heading">
+              <div>
+                <h3>Contribution state trends</h3>
+                <p>Pending, accepted, and more-info curves over time.</p>
+              </div>
+              {@render exportButton('submission-trends', 'Export contribution state trends as 16:9 PNG', loading || submissionsLoading || !submissionsData.data?.length)}
             </div>
-          {:else}
-            <div class="flex h-[320px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm text-slate-500">
-              No reviewed submissions are available for this selection.
-            </div>
-          {/if}
+
+            {#if loading || submissionsLoading}
+              <div class="chart-placeholder skeleton-shimmer"></div>
+            {:else if submissionsData.data?.length > 0}
+              <div class="chart-canvas">
+                <canvas id="submissionsTrendChart"></canvas>
+              </div>
+            {:else}
+              <div class="chart-empty">No reviewed contributions are available for this selection.</div>
+            {/if}
+          </div>
         </div>
-      </div>
       </section>
     {/if}
-
-      </div>
-    </div>
+  </div>
 </div>
 
 <style>
   :global(main.metrics-scroll-container) {
     overflow-x: hidden;
     overscroll-behavior: contain;
+  }
+
+  .metrics-view {
+    background-color: #fff;
+    background-image:
+      linear-gradient(180deg, rgba(248, 249, 252, 0.64) 0%, #fff 28rem),
+      radial-gradient(circle at 12% 0%, rgba(127, 82, 225, 0.055), transparent 26rem),
+      radial-gradient(circle at 88% 8%, rgba(238, 133, 33, 0.045), transparent 24rem);
+    background-position: center top, left top, right top;
+    background-repeat: no-repeat;
+    background-size: 100% 36rem, 42rem 30rem, 40rem 28rem;
+    margin: -12px;
+    min-height: 100%;
+    overflow: hidden;
+    padding: 28px 12px 52px;
+    position: relative;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .metrics-gradient-band {
+    height: 430px;
+    inset: -150px 0 auto;
+    overflow: hidden;
+    pointer-events: none;
+    position: absolute;
+    -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.6) 0%, #000 28%, transparent 100%);
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.6) 0%, #000 28%, transparent 100%);
+  }
+
+  .metrics-gradient-rainbow {
+    background: url('/assets/illustrations/welcome-gradient.png') center top / 1420px auto no-repeat;
+    inset: 0;
+    opacity: 0.38;
+    position: absolute;
+  }
+
+  .metrics-gradient-wash {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.82));
+    inset: 0;
+    position: absolute;
+  }
+
+  .metrics-shell {
+    margin: 0 auto;
+    max-width: 1480px;
+    padding: 0 clamp(4px, 1.4vw, 18px);
+    position: relative;
+    z-index: 1;
+  }
+
+  .metrics-header {
+    display: grid;
+    justify-items: start;
+    margin-bottom: 28px;
+    padding-top: 2px;
+    text-align: left;
+  }
+
+  .metrics-header-copy {
+    max-width: 760px;
+  }
+
+  .metrics-title-row {
+    align-items: center;
+    display: flex;
+    gap: 13px;
+    justify-content: flex-start;
+  }
+
+  .metrics-header-icon {
+    display: flex;
+    flex: 0 0 auto;
+  }
+
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+
+  h1 {
+    color: #101010;
+    font-family: var(--font-display, inherit);
+    font-size: clamp(34px, 4.6vw, 58px);
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 0.95;
+    text-wrap: balance;
+  }
+
+  .metrics-subtitle {
+    color: #3f4b5f;
+    font-size: 15px;
+    line-height: 1.55;
+    letter-spacing: 0.2px;
+    margin: 10px 0 0;
+    max-width: 700px;
+    text-wrap: pretty;
+  }
+
+  .portal-section {
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid #ececf0;
+    border-radius: 8px;
+    box-shadow: 0 18px 48px rgba(31, 42, 68, 0.06);
+    padding: clamp(18px, 2.2vw, 28px);
+  }
+
+  .portal-section + .portal-section {
+    margin-top: 20px;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+
+  .section-heading h2 {
+    color: #101010;
+    font-family: var(--font-display, inherit);
+    font-size: clamp(24px, 2.4vw, 34px);
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.08;
+    text-wrap: balance;
+  }
+
+  .section-meta {
+    color: #6b6b6b;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    max-width: 360px;
+    text-align: right;
+  }
+
+  .stat-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .stat-card {
+    align-items: center;
+    background: #fbfbfc;
+    border: 1px solid #eeeeef;
+    border-radius: 8px;
+    display: grid;
+    justify-items: start;
+    min-height: 104px;
+    overflow: hidden;
+    padding: 16px;
+    position: relative;
+  }
+
+  .stat-card::before {
+    content: '';
+    inset: 0;
+    opacity: 0.9;
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .stat-card > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .stat-card[data-category='builder'] {
+    border-color: rgba(238, 133, 33, 0.2);
+  }
+
+  .stat-card[data-category='builder']::before {
+    background: linear-gradient(135deg, rgba(238, 133, 33, 0.11), rgba(255, 209, 163, 0.04) 58%, transparent);
+  }
+
+  .stat-card[data-category='validator'] {
+    border-color: rgba(56, 125, 232, 0.2);
+  }
+
+  .stat-card[data-category='validator']::before {
+    background: linear-gradient(135deg, rgba(56, 125, 232, 0.11), rgba(184, 199, 255, 0.05) 58%, transparent);
+  }
+
+  .stat-card[data-category='community'] {
+    border-color: rgba(127, 82, 225, 0.2);
+  }
+
+  .stat-card[data-category='community']::before {
+    background: linear-gradient(135deg, rgba(127, 82, 225, 0.11), rgba(214, 195, 255, 0.05) 58%, transparent);
+  }
+
+  .stat-card[data-category='genlayer'] {
+    background:
+      linear-gradient(110deg, rgba(255, 255, 255, 0.93), rgba(255, 255, 255, 0.78)),
+      url('/assets/illustrations/welcome-gradient.png') center / cover;
+    border-color: rgba(127, 82, 225, 0.2);
+  }
+
+  .stat-card[data-category='genlayer']::before {
+    background: linear-gradient(135deg, rgba(127, 82, 225, 0.08), rgba(238, 133, 33, 0.06) 46%, rgba(56, 125, 232, 0.06));
+  }
+
+  .stat-card-main {
+    align-items: center;
+    display: flex;
+    gap: 14px;
+    justify-content: flex-start;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .stat-value {
+    font-family: var(--font-display, inherit);
+    font-size: 34px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1;
+  }
+
+  .stat-label {
+    color: #4d4d4d;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-top: 4px;
+  }
+
+  .chart-card,
+  .filter-panel,
+  .summary-card {
+    background: #fbfbfc;
+    border: 1px solid #eeeeef;
+    border-radius: 8px;
+  }
+
+  .chart-card {
+    padding: clamp(16px, 1.8vw, 22px);
+  }
+
+  .chart-heading {
+    align-items: flex-start;
+    display: flex;
+    gap: 14px;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .chart-heading h3 {
+    color: #101010;
+    font-size: 18px;
+    font-weight: 650;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  .chart-heading p {
+    color: #6b6b6b;
+    font-size: 13px;
+    line-height: 1.45;
+    margin-top: 5px;
+    max-width: 560px;
+    text-wrap: pretty;
+  }
+
+  .chart-canvas {
+    height: 320px;
+  }
+
+  .chart-canvas--large {
+    height: 380px;
+  }
+
+  .chart-placeholder--large {
+    height: 380px;
+  }
+
+  .chart-placeholder,
+  .chart-empty {
+    border: 1px solid #eeeeef;
+    border-radius: 8px;
+    height: 320px;
+  }
+
+  .chart-empty {
+    align-items: center;
+    background: #fff;
+    border-style: dashed;
+    color: #6b6b6b;
+    display: flex;
+    font-size: 14px;
+    justify-content: center;
+  }
+
+  .chart-canvas--large + .chart-empty {
+    height: 380px;
+  }
+
+  .export-button {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #eeeeef;
+    border-radius: 8px;
+    color: #6b6b6b;
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: 40px;
+    justify-content: center;
+    transition-duration: 160ms;
+    transition-property: background-color, border-color, color, transform;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    width: 40px;
+  }
+
+  .export-button:hover {
+    border-color: #d7d7dc;
+    color: #101010;
+  }
+
+  .export-button:active {
+    transform: scale(0.96);
+  }
+
+  .export-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+    transform: none;
+  }
+
+  .filter-panel {
+    margin-bottom: 18px;
+    padding: 16px;
+  }
+
+  .filter-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .filter-label {
+    color: #565656;
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .filter-control {
+    background: #fff;
+    border: 1px solid #dfdfe4;
+    border-radius: 8px;
+    color: #101010;
+    font-size: 14px;
+    height: 42px;
+    outline: none;
+    padding: 0 12px;
+    transition-duration: 160ms;
+    transition-property: border-color, box-shadow;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    width: 100%;
+  }
+
+  .filter-control:focus {
+    border-color: #8d81e1;
+    box-shadow: 0 0 0 3px rgba(141, 129, 225, 0.18);
+  }
+
+  .filter-actions {
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .primary-action,
+  .secondary-action {
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 650;
+    height: 42px;
+    padding: 0 16px;
+    transition-duration: 160ms;
+    transition-property: background-color, border-color, color, transform;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .primary-action {
+    background: #101010;
+    color: #fff;
+  }
+
+  .primary-action:hover {
+    background: #2a2a2a;
+  }
+
+  .secondary-action {
+    background: #fff;
+    border: 1px solid #dfdfe4;
+    color: #565656;
+  }
+
+  .secondary-action:hover {
+    border-color: #cfcfd5;
+    color: #101010;
+  }
+
+  .primary-action:active,
+  .secondary-action:active {
+    transform: scale(0.96);
+  }
+
+  .primary-action:disabled,
+  .secondary-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    transform: none;
+  }
+
+  .refresh-pill {
+    background: #fff;
+    border: 1px solid #eeeeef;
+    border-radius: 999px;
+    color: #565656;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 9px 13px;
+  }
+
+  .summary-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    margin-bottom: 22px;
+  }
+
+  .summary-card {
+    min-height: 132px;
+    padding: 16px;
+  }
+
+  .summary-label {
+    color: #565656;
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  .summary-breakdown-row {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.76);
+    border: 1px solid rgba(255, 255, 255, 0.88);
+    border-radius: 8px;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    min-height: 44px;
+    padding: 8px 10px;
+    box-shadow: 0 1px 0 rgba(16, 16, 16, 0.04);
+  }
+
+  .chart-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .skeleton-shimmer {
+    animation: metrics-shimmer 1.4s ease-in-out infinite;
+    background: linear-gradient(90deg, #f0f1f4 0%, #fafafb 48%, #f0f1f4 100%);
+    background-size: 220% 100%;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @keyframes metrics-shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  @media (min-width: 640px) {
+    .stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .summary-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .stat-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .filter-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 190px minmax(220px, 1fr) 150px auto;
+    }
+
+    .summary-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .chart-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .section-heading,
+    .chart-heading {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .section-meta {
+      max-width: none;
+      text-align: left;
+    }
+
+    .chart-canvas,
+    .chart-canvas--large,
+    .chart-placeholder,
+    .chart-empty {
+      height: 300px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-shimmer {
+      animation: none;
+    }
+
+    .export-button,
+    .filter-control,
+    .primary-action,
+    .secondary-action {
+      transition-duration: 0ms;
+    }
   }
 </style>
