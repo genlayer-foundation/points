@@ -43,6 +43,7 @@ class FeatureCandidateScore(BaseModel):
         help_text="0 = not interesting, 1 = weak, 2 = good, 3 = strong.",
     )
     reason = models.TextField(
+        max_length=2000,
         blank=True,
         default='',
         help_text="Reviewer note explaining what stood out for this score.",

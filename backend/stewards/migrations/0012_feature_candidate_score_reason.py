@@ -11,6 +11,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='featurecandidatescore',
             name='reason',
-            field=models.TextField(blank=True, default='', help_text='Reviewer note explaining what stood out for this score.'),
+            field=models.TextField(blank=True, default='', help_text='Reviewer note explaining what stood out for this score.', max_length=2000),
         ),
     ]

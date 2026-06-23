@@ -201,7 +201,11 @@
       }
       showSuccess('Score saved');
     } catch (err) {
-      showError(err.response?.data?.detail || err.response?.data?.score || err.response?.data?.reason || 'Failed to save score.');
+      const apiError = err.response?.data;
+      const scoreError = Array.isArray(apiError?.score) ? apiError.score[0] : apiError?.score;
+      const reasonError = Array.isArray(apiError?.reason) ? apiError.reason[0] : apiError?.reason;
+      const message = apiError?.detail || scoreError || reasonError || 'Failed to save score.';
+      showError(typeof message === 'string' ? message : 'Failed to save score.');
     } finally {
       saving.delete(candidate.id);
       saving = new Set(saving);

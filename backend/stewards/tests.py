@@ -266,13 +266,21 @@ class FeatureCandidateReviewAPITestCase(APITestCase):
             {'score': 'x'},
             {'score': 1.5},
             {'score': None},
-            {'score': 2, 'reason': 'x' * 2001},
         ):
             with self.subTest(payload=payload):
                 response = self.client.post(url, payload, format='json')
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-                self.assertTrue('score' in response.data or 'reason' in response.data)
+                self.assertIn('score', response.data)
                 self.assertFalse(FeatureCandidateScore.objects.exists())
+
+        response = self.client.post(
+            url,
+            {'score': 2, 'reason': 'x' * 2001},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('reason', response.data)
+        self.assertFalse(FeatureCandidateScore.objects.exists())
 
     def test_staff_admin_sees_aggregates_and_manual_review_flag(self):
         second_user = User.objects.create_user(
