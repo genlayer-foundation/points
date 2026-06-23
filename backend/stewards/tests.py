@@ -193,6 +193,7 @@ class FeatureCandidateReviewAPITestCase(APITestCase):
         self.assertEqual(row['state'], 'accepted')
         self.assertEqual(row['contribution_type_details']['slug'], 'projects')
         self.assertIsNone(row['own_score'])
+        self.assertEqual(row['own_score_reason'], '')
         self.assertNotIn('id', row['user_details'])
         self.assertEqual(row['user_details']['address'], self.submitter.address)
         self.assertEqual(row['user_details']['github_connection'], {'platform_username': 'submitter-gh'})
@@ -220,21 +221,29 @@ class FeatureCandidateReviewAPITestCase(APITestCase):
 
         create_response = self.client.post(
             f'/api/v1/stewards/feature-reviews/{self.submission.id}/score/',
-            {'score': 2},
+            {'score': 2, 'reason': 'Strong ecosystem fit, but the demo needs polish.'},
         )
         edit_response = self.client.post(
             f'/api/v1/stewards/feature-reviews/{self.submission.id}/score/',
-            {'score': 3},
+            {'score': 3, 'reason': 'The contract design and working demo stood out.'},
         )
 
         self.assertEqual(create_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(create_response.data['reason'], 'Strong ecosystem fit, but the demo needs polish.')
         self.assertEqual(edit_response.status_code, status.HTTP_200_OK)
         scores = FeatureCandidateScore.objects.filter(
             submission=self.submission,
             steward=self.reviewer_steward,
         )
         self.assertEqual(scores.count(), 1)
-        self.assertEqual(scores.get().score, 3)
+        score = scores.get()
+        self.assertEqual(score.score, 3)
+        self.assertEqual(score.reason, 'The contract design and working demo stood out.')
+
+        list_response = self.client.get('/api/v1/stewards/feature-reviews/')
+        row = list_response.data['results'][0]
+        self.assertEqual(row['own_score'], 3)
+        self.assertEqual(row['own_score_reason'], 'The contract design and working demo stood out.')
 
     def test_unpermitted_steward_cannot_score(self):
         self.client.force_authenticate(user=self.denied_user)
@@ -263,6 +272,15 @@ class FeatureCandidateReviewAPITestCase(APITestCase):
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
                 self.assertIn('score', response.data)
                 self.assertFalse(FeatureCandidateScore.objects.exists())
+
+        response = self.client.post(
+            url,
+            {'score': 2, 'reason': 'x' * 2001},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('reason', response.data)
+        self.assertFalse(FeatureCandidateScore.objects.exists())
 
     def test_staff_admin_sees_aggregates_and_manual_review_flag(self):
         second_user = User.objects.create_user(

@@ -63,7 +63,7 @@ class StewardPermissionAdmin(admin.ModelAdmin):
 
 @admin.register(FeatureCandidateScore)
 class FeatureCandidateScoreAdmin(admin.ModelAdmin):
-    list_display = ('submission', 'steward', 'score', 'created_at', 'updated_at')
+    list_display = ('submission', 'steward', 'score', 'reason_preview', 'created_at', 'updated_at')
     list_filter = ('score', 'created_at', 'updated_at')
     search_fields = (
         'submission__title',
@@ -75,6 +75,10 @@ class FeatureCandidateScoreAdmin(admin.ModelAdmin):
     autocomplete_fields = ['submission', 'steward']
     readonly_fields = ('created_at', 'updated_at')
     ordering = ('-updated_at',)
+
+    def reason_preview(self, obj):
+        return obj.reason[:80] + '...' if len(obj.reason) > 80 else obj.reason
+    reason_preview.short_description = 'Reason'
 
 
 @admin.register(ReviewTemplate)
