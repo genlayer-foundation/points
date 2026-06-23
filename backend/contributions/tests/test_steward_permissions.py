@@ -105,8 +105,8 @@ class StewardPermissionTest(TestCase):
         
         self.client = APIClient()
     
-    def test_non_authenticated_cannot_access_steward_endpoints(self):
-        """Test that non-authenticated users cannot access steward endpoints."""
+    def test_non_authenticated_user_can_view_stats_but_not_protected_steward_endpoints(self):
+        """Test that anonymous users can view stats but not protected steward endpoints."""
         # Try to access steward submissions list
         response = self.client.get('/api/v1/steward-submissions/')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -118,12 +118,14 @@ class StewardPermissionTest(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
-        # Steward stats require steward permission.
+        # Steward stats are public aggregate counts for the dashboard.
         response = self.client.get('/api/v1/steward-submissions/stats/')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['pending_count'], 1)
+        self.assertEqual(response.data['total_reviewed'], 0)
     
-    def test_regular_user_cannot_access_steward_endpoints(self):
-        """Test that regular users cannot access steward endpoints."""
+    def test_regular_user_can_view_stats_but_not_protected_steward_endpoints(self):
+        """Test that regular users can view stats but not protected steward endpoints."""
         # Authenticate as regular user
         self.client.force_authenticate(user=self.regular_user)
         
@@ -138,9 +140,11 @@ class StewardPermissionTest(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
-        # Steward stats require steward permission.
+        # Steward stats are public aggregate counts for the dashboard.
         response = self.client.get('/api/v1/steward-submissions/stats/')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['pending_count'], 1)
+        self.assertEqual(response.data['total_reviewed'], 0)
     
     def test_steward_can_access_steward_endpoints(self):
         """Test that stewards can access steward endpoints."""
@@ -214,9 +218,11 @@ class StewardPermissionTest(TestCase):
         response = self.client.get('/api/v1/steward-submissions/daily-metrics/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['totals']['pending_review'], 1)
-        self.assertEqual(response.data['totals']['accepted'], 0)
-        self.assertEqual(response.data['totals']['points_awarded'], 0)
+        # Daily metrics are public aggregate data for the Overview > Metrics
+        # page, so they are not scoped to the steward's review permissions.
+        self.assertEqual(response.data['totals']['pending_review'], 2)
+        self.assertEqual(response.data['totals']['accepted'], 1)
+        self.assertEqual(response.data['totals']['points_awarded'], accepted_contribution.frozen_global_points)
 
     def test_propose_only_steward_can_edit_active_proposal_note(self):
         """Proposal-only stewards can correct their generated note while pending."""

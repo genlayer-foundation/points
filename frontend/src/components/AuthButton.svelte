@@ -122,7 +122,7 @@
 
 <div class="auth-dropdown-container">
   <button 
-    class="auth-button {isAuthenticated ? 'connected' : ''}" 
+    class="auth-button {isAuthenticated ? 'connected' : '!min-w-[168px] !h-11 !px-5 !py-2.5 !text-[15px]'}"
     on:click={handleAuth}
     disabled={loading || storeLoading}
     data-auth-button

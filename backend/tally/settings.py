@@ -211,6 +211,9 @@ REST_FRAMEWORK = {
         'poap_claim_secret': '10/minute',
         # SIWE nonce/login are unauthenticated: bound per-IP brute force
         'siwe_auth': '30/minute',
+        # Public profile/search surfaces: allow normal browsing, bound scraping
+        'public_user_search': '30/minute',
+        'public_user_profile': '60/minute',
         # Wallet linking is a one-time action per validator
         'wallet_link': '10/hour',
     },

@@ -39,6 +39,42 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
     lookup_field = 'address'  # Change default lookup field from 'pk' to 'address'
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['date_joined', 'created_at']
+    public_highlights_default_limit = 5
+    public_highlights_max_limit = 20
+
+    def _parse_public_limit(self, default, max_limit):
+        raw_limit = self.request.query_params.get('limit', default)
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            return None, Response(
+                {'detail': 'limit must be a non-negative integer.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if limit < 0:
+            return None, Response(
+                {'detail': 'limit must be a non-negative integer.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return min(limit, max_limit), None
+
+    def get_permissions(self):
+        public_actions = {'retrieve', 'by_address', 'user_highlights', 'search'}
+        if self.action in public_actions:
+            return [permissions.AllowAny()]
+        return super().get_permissions()
+
+    def get_throttles(self):
+        action = getattr(self, 'action', None)
+        if action in {'retrieve', 'by_address', 'user_highlights'}:
+            self.throttle_scope = 'public_user_profile'
+        elif action == 'search':
+            self.throttle_scope = 'public_user_search'
+        else:
+            self.throttle_scope = None
+        return super().get_throttles()
 
     def _can_view_user(self, user):
         request_user = self.request.user
@@ -84,8 +120,9 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         context = super().get_serializer_context()
         # Use light serializers for list view, full for detail/by_address
         context['use_light_serializers'] = self.action == 'list'
-        # Include referral_details only for detail/by_address views
-        context['include_referral_details'] = self.action in ['retrieve', 'by_address']
+        # Referral breakdowns belong on owner-only endpoints such as /users/me/.
+        context['include_referral_details'] = False
+        context['public_profile'] = self.action in ['retrieve', 'by_address']
         return context
 
     @action(detail=False, methods=['get'], url_path='by-address/(?P<address>[^/.]+)')
@@ -104,7 +141,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         # Override context for by_address to include full details
         context = self.get_serializer_context()
         context['use_light_serializers'] = False
-        context['include_referral_details'] = True
+        context['include_referral_details'] = False
         serializer = self.get_serializer(user, context=context)
         return Response(serializer.data)
     
@@ -117,7 +154,15 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         from contributions.serializers import ContributionHighlightSerializer
 
         user = get_object_or_404(User, address__iexact=address)
-        limit = int(request.query_params.get('limit', 5))
+        if not self._can_view_user(user):
+            raise Http404
+
+        limit, error_response = self._parse_public_limit(
+            self.public_highlights_default_limit,
+            self.public_highlights_max_limit,
+        )
+        if error_response is not None:
+            return error_response
         category = request.query_params.get('category')
 
         # Build the queryset for filtering
@@ -870,7 +915,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         from leaderboard.models import get_referral_breakdown
         return Response(get_referral_breakdown(request.user))
 
-    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def search(self, request):
         """Search visible users by public identifiers."""
         query = request.query_params.get('q', '').strip()

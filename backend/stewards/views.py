@@ -69,17 +69,21 @@ class FeatureCandidateReviewViewSet(viewsets.ViewSet):
             queryset = queryset.prefetch_related('feature_candidate_scores')
         return queryset
 
-    def _own_score_map(self, request):
+    def _own_review_map(self, request):
         if not hasattr(request.user, 'steward'):
             return {}
-        return dict(
-            FeatureCandidateScore.objects.filter(
+        return {
+            review['submission_id']: {
+                'score': review['score'],
+                'reason': review['reason'] or '',
+            }
+            for review in FeatureCandidateScore.objects.filter(
                 steward=request.user.steward,
                 submission__is_interesting=True,
                 submission__state='accepted',
                 submission__contribution_type__slug='projects',
-            ).values_list('submission_id', 'score')
-        )
+            ).values('submission_id', 'score', 'reason')
+        }
 
     def _summary_map(self, submissions):
         result = {}
@@ -106,13 +110,13 @@ class FeatureCandidateReviewViewSet(viewsets.ViewSet):
             )
 
         submissions = list(self._interesting_queryset())
-        own_score_map = self._own_score_map(request)
+        own_review_map = self._own_review_map(request)
         serializer = FeatureCandidateSubmissionSerializer(
             submissions,
             many=True,
-            context={'own_score_map': own_score_map},
+            context={'own_review_map': own_review_map},
         )
-        scored_count = sum(1 for submission in submissions if submission.id in own_score_map)
+        scored_count = sum(1 for submission in submissions if submission.id in own_review_map)
         return Response({
             'results': serializer.data,
             'progress': {
@@ -129,21 +133,35 @@ class FeatureCandidateReviewViewSet(viewsets.ViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        errors = {}
         try:
             score = serializers.IntegerField(min_value=0, max_value=3).run_validation(
                 request.data.get('score')
             )
         except serializers.ValidationError as exc:
-            return Response({'score': exc.detail}, status=status.HTTP_400_BAD_REQUEST)
+            errors['score'] = exc.detail
+
+        try:
+            reason = serializers.CharField(
+                required=False,
+                allow_blank=True,
+                trim_whitespace=True,
+                max_length=2000,
+            ).run_validation(request.data.get('reason', ''))
+        except serializers.ValidationError as exc:
+            errors['reason'] = exc.detail
+
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
         submission = get_object_or_404(self._interesting_queryset(), pk=pk)
         FeatureCandidateScore.objects.update_or_create(
             submission=submission,
             steward=request.user.steward,
-            defaults={'score': score},
+            defaults={'score': score, 'reason': reason},
         )
 
-        return Response({'submission': str(submission.id), 'score': score})
+        return Response({'submission': str(submission.id), 'score': score, 'reason': reason})
 
     @action(detail=False, methods=['get'], url_path='admin')
     def admin(self, request):
@@ -154,7 +172,7 @@ class FeatureCandidateReviewViewSet(viewsets.ViewSet):
             )
 
         submissions = list(self._interesting_queryset(include_scores=True))
-        own_score_map = self._own_score_map(request)
+        own_review_map = self._own_review_map(request)
         summary_map = self._summary_map(submissions)
         submissions.sort(
             key=lambda submission: (
@@ -168,7 +186,7 @@ class FeatureCandidateReviewViewSet(viewsets.ViewSet):
         serializer = FeatureCandidateAdminSerializer(
             submissions,
             many=True,
-            context={'own_score_map': own_score_map, 'summary_map': summary_map},
+            context={'own_review_map': own_review_map, 'summary_map': summary_map},
         )
         return Response({'results': serializer.data})
 
@@ -225,7 +243,7 @@ class StewardViewSet(viewsets.ModelViewSet):
         List all stewards with user details, role, and permitted categories.
         Allow public access to view steward list.
         """
-        stewards = self.get_queryset().select_related('user').prefetch_related(
+        stewards = self.get_queryset().filter(user__visible=True).select_related('user').prefetch_related(
             'permissions__contribution_type'
         )
         data = []

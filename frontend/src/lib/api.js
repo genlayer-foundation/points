@@ -324,7 +324,7 @@ export const stewardAPI = {
   // Feature candidate scoring
   getFeatureReviewAccess: () => api.get('/stewards/feature-reviews/access/'),
   getFeatureReviewCandidates: () => api.get('/stewards/feature-reviews/'),
-  scoreFeatureReviewCandidate: (id, score) => api.post(`/stewards/feature-reviews/${id}/score/`, { score }),
+  scoreFeatureReviewCandidate: (id, score, reason = '') => api.post(`/stewards/feature-reviews/${id}/score/`, { score, reason }),
   getFeatureReviewAdmin: () => api.get('/stewards/feature-reviews/admin/')
 };
 

@@ -60,12 +60,22 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = LeaderboardEntry.objects.filter(user__visible=True)
     serializer_class = LeaderboardEntrySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['user__name', 'user__address']
     ordering_fields = ['rank', 'total_points', 'updated_at']
     ordering = ['rank']
     pagination_class = None  # Disable pagination to return all entries
+
+    def _can_view_user_stats(self, user):
+        request_user = self.request.user
+        return bool(
+            user.visible
+            or (
+                request_user.is_authenticated
+                and (request_user.id == user.id or request_user.is_staff)
+            )
+        )
 
     def get_queryset(self):
         """
@@ -626,6 +636,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             user = User.objects.get(pk=user_id)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=404)
+        if not self._can_view_user_stats(user):
+            return Response({'error': 'User not found'}, status=404)
         
         # Get category filter from query params
         category = request.query_params.get('category')
@@ -642,6 +654,8 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         try:
             user = User.objects.get(address__iexact=address)
         except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+        if not self._can_view_user_stats(user):
             return Response({'error': 'User not found'}, status=404)
         
         # Get category filter from query params

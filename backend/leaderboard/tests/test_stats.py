@@ -135,12 +135,42 @@ class LeaderboardStatsTest(TestCase):
             synced_at=now,
         )
 
-    def test_leaderboard_requires_authentication(self):
+    def test_leaderboard_allows_public_read_access(self):
         self.client.force_authenticate(user=None)
 
         response = self.client.get('/api/v1/leaderboard/')
 
-        self.assertIn(response.status_code, [401, 403])
+        self.assertEqual(response.status_code, 200)
+
+    def test_public_user_stats_do_not_expose_hidden_users(self):
+        hidden_user = self._create_user(
+            'hidden-stats@example.com',
+            '0x00000000000000000000000000000000000000aa',
+            visible=False,
+        )
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(f'/api/v1/leaderboard/user/{hidden_user.id}/')
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.get(
+            f'/api/v1/leaderboard/user_stats/by-address/{hidden_user.address}/'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_hidden_user_can_view_own_stats(self):
+        hidden_user = self._create_user(
+            'own-hidden-stats@example.com',
+            '0x00000000000000000000000000000000000000ab',
+            visible=False,
+        )
+        self.client.force_authenticate(user=hidden_user)
+
+        response = self.client.get(
+            f'/api/v1/leaderboard/user_stats/by-address/{hidden_user.address}/'
+        )
+
+        self.assertEqual(response.status_code, 200)
 
     def test_community_member_count_uses_accepted_community_contributions(self):
         now = timezone.now()
