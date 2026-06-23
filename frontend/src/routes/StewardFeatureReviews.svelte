@@ -9,13 +9,18 @@
 
   const TITLE_PREVIEW_LENGTH = 80;
   const DESCRIPTION_PREVIEW_LENGTH = 220;
+  const socialIconPaths = {
+    GitHub: 'M12 2C6.477 2 2 6.477 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.45-1.15-1.11-1.46-1.11-1.46-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z',
+    X: 'M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z',
+    Discord: 'M20.317 4.37A19.79 19.79 0 0 0 15.366 2.8a.074.074 0 0 0-.079.037c-.213.38-.45.875-.616 1.265a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.626-1.265.077.077 0 0 0-.079-.037 19.74 19.74 0 0 0-4.951 1.57.07.07 0 0 0-.032.026C.533 8.824-.319 13.144.079 17.41a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 6.073 3.075.078.078 0 0 0 .084-.027c.468-.638.885-1.312 1.24-2.02a.076.076 0 0 0-.041-.105 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.009c.12.099.246.198.373.292a.077.077 0 0 1-.007.128 12.3 12.3 0 0 1-1.873.891.077.077 0 0 0-.04.106c.36.707.777 1.381 1.238 2.019a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.082-3.075.077.077 0 0 0 .031-.055c.477-4.932-.8-9.216-3.419-13.015a.061.061 0 0 0-.031-.028ZM8.02 14.801c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.211 0 2.176 1.096 2.157 2.419 0 1.333-.955 2.419-2.157 2.419Zm7.975 0c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.211 0 2.176 1.096 2.157 2.419 0 1.333-.946 2.419-2.157 2.419Z',
+  };
   const scoreOptions = [
     {
       value: 0,
       label: 'Not interesting',
-      guideClass: 'border-gray-200 bg-gray-50 text-gray-700',
-      selectedClass: 'border-gray-700 bg-gray-800 text-white shadow-sm',
-      numberClass: 'bg-gray-200 text-gray-800',
+      guideClass: 'border-red-200 bg-red-50 text-red-700',
+      selectedClass: 'border-red-600 bg-red-600 text-white shadow-sm',
+      numberClass: 'bg-red-100 text-red-700',
     },
     {
       value: 1,
@@ -188,28 +193,35 @@
     if (github) {
       connections.push({
         platform: 'GitHub',
-        label: `GitHub ${github}`,
+        label: 'GitHub',
+        title: `GitHub ${github}`,
         href: `https://github.com/${encodeURIComponent(github)}`,
-        className: 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-400 hover:text-gray-950',
+        className: 'border-gray-200 bg-white text-gray-700 hover:border-gray-400 hover:text-gray-950',
       });
     }
     if (twitter) {
       connections.push({
         platform: 'X',
-        label: `X ${twitter}`,
+        label: 'X',
+        title: `X ${twitter}`,
         href: `https://x.com/${encodeURIComponent(twitter)}`,
-        className: 'border-sky-100 bg-sky-50 text-sky-700 hover:border-sky-300 hover:text-sky-900',
+        className: 'border-gray-200 bg-white text-gray-900 hover:border-gray-400',
       });
     }
     if (discord) {
       connections.push({
         platform: 'Discord',
-        label: `Discord ${discord}`,
+        label: 'Discord',
+        title: `Discord ${discord}`,
         href: '',
-        className: 'border-indigo-100 bg-indigo-50 text-indigo-700',
+        className: 'border-gray-200 bg-white text-indigo-600',
       });
     }
     return connections;
+  }
+
+  function socialIconPath(platform) {
+    return socialIconPaths[platform] || socialIconPaths.Discord;
   }
 
   function evidenceUrl(item) {
@@ -413,10 +425,9 @@
             {reviewFilterTab === 'scored' ? 'No scored candidates yet.' : 'All visible candidates have been scored.'}
           </div>
         {:else}
-          <div class="overflow-hidden rounded-lg border border-emerald-100 bg-white/90 shadow-sm">
-            <div class="divide-y divide-emerald-100/80">
+          <div class="space-y-3">
           {#each filteredCandidates as candidate}
-            <article class="grid gap-4 p-4 transition-colors hover:bg-emerald-50/30 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-start">
+            <article class="grid gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:border-emerald-200 hover:bg-emerald-50/20 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-start">
                   <div class="min-w-0">
                     <div class="flex items-start gap-2">
                       <h3 class="min-w-0 flex-1 whitespace-pre-wrap text-lg font-semibold leading-7 text-gray-950 {expandedTitles.has(candidate.id) ? '' : 'line-clamp-2'}">
@@ -442,23 +453,23 @@
                         <a
                           href={profileHref(candidate.user_details)}
                           onclick={(event) => { event.preventDefault(); goToProfile(candidate.user_details); }}
-                          class="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-[#137f4c] transition-colors hover:border-[#19A663] hover:bg-white"
+                          class="inline-flex items-center gap-2 text-sm font-semibold text-gray-950 transition-colors hover:text-[#137f4c]"
                         >
                           {#if candidate.user_details?.profile_image_url}
                             <img
                               src={candidate.user_details.profile_image_url}
                               alt=""
-                              class="h-5 w-5 rounded-full object-cover"
+                              class="h-7 w-7 rounded-full border border-gray-200 object-cover"
                             />
                           {:else}
-                            <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white text-[10px] font-bold text-[#137f4c]">
+                            <span class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-xs font-bold text-[#137f4c]">
                               {profileInitial(candidate.user_details)}
                             </span>
                           {/if}
                           <span>{displayName(candidate.user_details)}</span>
                         </a>
                       {:else}
-                        <span>by {displayName(candidate.user_details)}</span>
+                        <span class="text-sm font-semibold text-gray-950">by {displayName(candidate.user_details)}</span>
                       {/if}
 	                      {#each socialConnections(candidate.user_details) as social}
                         {#if social.href}
@@ -466,13 +477,23 @@
                             href={social.href}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors {social.className}"
+                            aria-label={social.title}
+                            title={social.title}
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors {social.className}"
                           >
-                            {social.label}
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path d={socialIconPath(social.platform)} />
+                            </svg>
                           </a>
                         {:else}
-                          <span class="rounded-full border px-2.5 py-1 text-xs font-semibold {social.className}">
-                            {social.label}
+                          <span
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-md border {social.className}"
+                            aria-label={social.title}
+                            title={social.title}
+                          >
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path d={socialIconPath(social.platform)} />
+                            </svg>
 	                          </span>
 	                        {/if}
 	                      {/each}
@@ -562,7 +583,6 @@
                   </div>
             </article>
 	          {/each}
-	        </div>
           </div>
         {/if}
 	      {/if}

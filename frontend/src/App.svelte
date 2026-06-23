@@ -262,13 +262,15 @@
     setRouteMeta($location);
   });
 
+  let normalizedLocation = $derived(($location || '/').replace(/\/+$/, '') || '/');
+
   // Pages that need full-bleed (no padding): immersive docs and full-width steward review surfaces
   let isFullBleedPage = $derived(
-    $location === '/how-it-works' ||
-    $location === '/stewards/feature-reviews' ||
-    $location.startsWith('/genesis') ||
-    $location.startsWith('/foundations') ||
-    $location === '/manifesto'
+    normalizedLocation === '/how-it-works' ||
+    normalizedLocation === '/stewards/feature-reviews' ||
+    normalizedLocation.startsWith('/genesis') ||
+    normalizedLocation.startsWith('/foundations') ||
+    normalizedLocation === '/manifesto'
   );
   
   // Function to hide tooltips - used for route changes
