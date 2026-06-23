@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
-import { OG_IMAGES, SITE_URL, STATIC_OG_ROUTES, resolveRouteMeta } from '../lib/routeMeta.js';
+import {
+  NOINDEX_ROBOTS,
+  OG_IMAGES,
+  ROUTE_META,
+  ROUTE_META_ALIASES,
+  SITE_URL,
+  STATIC_OG_ROUTES,
+  resolveRouteMeta,
+} from '../lib/routeMeta.js';
 
 const expectedRouteImages = {
   '/': '/assets/og/portal.png',
@@ -20,12 +28,48 @@ const expectedRouteImages = {
   '/builders/resources': '/assets/og/builders-resources.png',
   '/community/poaps': '/assets/og/community-poaps.png',
   '/participants': '/assets/og/participants.png',
+  '/validators': '/assets/og/validators-participants.png',
   '/validators/participants': '/assets/og/validators-participants.png',
   '/validators/waitlist/join': '/assets/og/validators-waitlist.png',
   '/validators/wall-of-shame': '/assets/og/validators-wall-of-shame.png',
   '/terms-of-use': '/assets/og/terms-of-use.png',
   '/privacy-policy': '/assets/og/privacy-policy.png',
 };
+
+const dynamicMetaRoutes = new Set([
+  '/builders/projects/:slug',
+  '/builders/startup-requests/:id',
+  '/community/poaps/:slug',
+  '/badge/:id',
+]);
+
+const routeParamSamples = {
+  address: '0x0000000000000000000000000000000000000000',
+  id: '42',
+  slug: 'sample-project',
+  token: 'sample-token',
+};
+
+function appRoutePaths() {
+  const app = readFileSync(path.join(process.cwd(), 'src', 'App.svelte'), 'utf8');
+  const routeBlock = app.match(/const routes = \{([\s\S]*?)\n\s*\};/)?.[1] || '';
+
+  return [...routeBlock.matchAll(/^\s*'([^']+)'\s*:/gm)]
+    .map((match) => match[1])
+    .filter((route) => route !== '*');
+}
+
+function concreteRoute(route) {
+  return route.replace(/:([A-Za-z0-9_]+)/g, (_, name) => routeParamSamples[name] || 'sample');
+}
+
+function hasSpecificRouteMeta(route) {
+  return (
+    Object.hasOwn(ROUTE_META, route) ||
+    Object.hasOwn(ROUTE_META_ALIASES, route) ||
+    dynamicMetaRoutes.has(route)
+  );
+}
 
 describe('route metadata', () => {
   it('uses final 1200x630 OG images instead of raw backdrops', () => {
@@ -46,9 +90,48 @@ describe('route metadata', () => {
     }
   });
 
+  it('registers and routes every finished top-level OG asset', () => {
+    const assetDir = path.join(process.cwd(), 'public', 'assets', 'og');
+    const finalAssets = readdirSync(assetDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.png'))
+      .map((entry) => `/assets/og/${entry.name}`)
+      .sort();
+    const registeredImages = new Set(
+      Object.values(OG_IMAGES).map((image) => new URL(image.src).pathname)
+    );
+    const routedImages = new Set(
+      Object.keys(ROUTE_META).map((route) => new URL(resolveRouteMeta(route).image).pathname)
+    );
+
+    expect([...registeredImages].sort()).toEqual(finalAssets);
+
+    for (const image of registeredImages) {
+      expect(routedImages.has(image)).toBe(true);
+    }
+  });
+
   it('resolves route-specific images for key portal routes', () => {
     for (const [route, imagePath] of Object.entries(expectedRouteImages)) {
       expect(resolveRouteMeta(route).image).toContain(imagePath);
+    }
+  });
+
+  it('resolves complete specific or default preview metadata for every app route', () => {
+    for (const route of appRoutePaths()) {
+      const meta = resolveRouteMeta(concreteRoute(route));
+
+      expect(meta.title, route).toBeTruthy();
+      expect(meta.description, route).toBeTruthy();
+      expect(meta.image, route).toMatch(/^https:\/\/portal\.genlayer\.foundation\/assets\/og\/.+\.png$/);
+      expect(meta.imageWidth, route).toBe('1200');
+      expect(meta.imageHeight, route).toBe('630');
+      expect(meta.url, route).toMatch(/^https:\/\/portal\.genlayer\.foundation\//);
+      expect(meta.url, route).not.toContain('#');
+      expect(meta.robots, route).toBeTruthy();
+
+      if (!hasSpecificRouteMeta(route)) {
+        expect(meta.robots, route).toBe(NOINDEX_ROBOTS);
+      }
     }
   });
 
@@ -83,6 +166,7 @@ describe('route metadata', () => {
       '/builders/resources',
       '/community/poaps',
       '/participants',
+      '/validators',
       '/validators/participants',
       '/validators/waitlist/join',
       '/validators/wall-of-shame',
@@ -129,5 +213,16 @@ describe('route metadata', () => {
 
     expect(robots).toContain('Allow: /community/poaps/');
     expect(robots).toContain('Disallow: /community/poaps/recover');
+  });
+
+  it('generates static OG pages for every sitemap route', () => {
+    const sitemap = readFileSync(path.join(process.cwd(), 'public', 'sitemap.xml'), 'utf8');
+    const sitemapRoutes = [...sitemap.matchAll(/<loc>https:\/\/portal\.genlayer\.foundation(.*?)<\/loc>/g)]
+      .map((match) => match[1] || '/');
+    const staticRoutes = new Set(['/', ...STATIC_OG_ROUTES]);
+
+    for (const route of sitemapRoutes) {
+      expect(staticRoutes.has(route)).toBe(true);
+    }
   });
 });

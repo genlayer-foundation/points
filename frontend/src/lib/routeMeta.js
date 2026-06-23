@@ -27,6 +27,7 @@ export const OG_IMAGES = {
   builderProject: ogImage('builder-project.png'),
   communityPoaps: ogImage('community-poaps.png'),
   participants: ogImage('participants.png'),
+  validators: ogImage('validators-participants.png'),
   validatorsParticipants: ogImage('validators-participants.png'),
   validatorsWaitlist: ogImage('validators-waitlist.png'),
   validatorsWallOfShame: ogImage('validators-wall-of-shame.png'),
@@ -231,6 +232,14 @@ export const ROUTE_META = {
     imageWidth: OG_IMAGES.participants.width,
     imageHeight: OG_IMAGES.participants.height,
   },
+  '/validators': {
+    title: 'GenLayer Validators',
+    description:
+      'Explore GenLayer validator programs, operator activity, contribution opportunities, leaderboards, and network reliability signals.',
+    image: OG_IMAGES.validators.src,
+    imageWidth: OG_IMAGES.validators.width,
+    imageHeight: OG_IMAGES.validators.height,
+  },
   '/validators/participants': {
     title: 'GenLayer Validator Participants',
     description:
@@ -300,6 +309,7 @@ export const STATIC_OG_ROUTES = [
   '/builders/resources',
   '/community/poaps',
   '/participants',
+  '/validators',
   '/validators/participants',
   '/validators/waitlist/join',
   '/validators/wall-of-shame',
