@@ -33,7 +33,7 @@
 </script>
 
 {#if loading || builds.length > 0}
-<div class:vertical-section={variant === 'vertical'}>
+<div class="max-w-full min-w-0" class:vertical-section={variant === 'vertical'}>
   <div class="flex items-end justify-between mb-3 gap-4">
     <div class="flex flex-col gap-1">
       <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: 0.4px;">{title}</h2>
@@ -51,7 +51,7 @@
   </div>
 
   {#if loading}
-    <div class={variant === 'vertical' ? 'vertical-project-grid' : 'flex gap-[10px] overflow-x-auto pb-2'} aria-busy="true">
+    <div class={variant === 'vertical' ? 'vertical-project-grid' : 'flex max-w-full min-w-0 gap-[10px] overflow-x-auto pb-2'} aria-busy="true">
       {#each [1, 2, 3, 4, 5] as _}
         <div class={variant === 'vertical' ? 'vertical-project-skeleton project-skeleton' : 'horizontal-project-skeleton project-skeleton'} aria-hidden="true">
           <div class="project-skeleton-arrow"></div>
@@ -67,7 +67,7 @@
     </div>
   {:else}
     <div
-      class={variant === 'vertical' ? 'vertical-project-grid' : 'flex gap-[10px] overflow-x-auto pb-2'}
+      class={variant === 'vertical' ? 'vertical-project-grid' : 'flex max-w-full min-w-0 gap-[10px] overflow-x-auto pb-2'}
       style={variant === 'vertical' ? '' : '-ms-overflow-style: none; scrollbar-width: none;'}
     >
       {#each builds as build}

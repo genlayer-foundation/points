@@ -25,17 +25,17 @@
   }
 </script>
 
-<div class="relative z-10 px-8 md:px-20 py-24 md:py-32 text-center">
+<div class="relative z-10 px-4 py-20 text-center sm:px-6 md:px-20 md:py-32">
   <h2 class="text-3xl md:text-[64px] font-medium text-gray-900 font-display leading-tight mb-4" style="letter-spacing: -1.28px;">
     {title}
   </h2>
-  <p class="text-[#6b6b6b] text-base max-w-2xl mx-auto mb-8 whitespace-nowrap">
+  <p class="mx-auto mb-8 max-w-2xl text-base leading-6 text-[#6b6b6b]">
     {description}
   </p>
-  <div class="flex items-center justify-center gap-4">
+  <div class="flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
     <button
       onclick={handlePrimaryClick}
-      class="inline-flex items-center gap-2 h-12 px-8 text-white font-medium rounded-full text-base transition-colors hover:opacity-90"
+      class="inline-flex h-12 w-full max-w-[280px] items-center justify-center gap-2 rounded-full px-8 text-base font-medium text-white transition-colors hover:opacity-90 sm:w-auto"
       style="background-color: {primaryButtonColor === 'dark' ? '#131214' : primaryButtonColor};"
     >
       {primaryButtonText}
@@ -43,7 +43,7 @@
     {#if secondaryLinkText && secondaryLinkPath}
       <button
         onclick={handleSecondaryClick}
-        class="inline-flex items-center gap-2 h-12 px-8 font-medium rounded-full text-base transition-colors border border-[#e0e0e0] text-[#131214] hover:bg-gray-50"
+        class="inline-flex h-12 w-full max-w-[280px] items-center justify-center gap-2 rounded-full border border-[#e0e0e0] px-8 text-base font-medium text-[#131214] transition-colors hover:bg-gray-50 sm:w-auto"
       >
         {secondaryLinkText}
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

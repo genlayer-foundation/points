@@ -16,6 +16,7 @@
     let communityRank: number | null = $state(null);
     let communityRankLoaded = $state(false);
     const DEFAULT_TAB_ORDER = ["Builders", "Validators", "Community"];
+    type RankStatus = "loading" | "ranked" | "unranked" | "unknown";
 
     // Role checks
     let isBuilder = $derived(!!participant?.builder);
@@ -71,6 +72,7 @@
     let activeTab: string | null = $state(null);
     let activeTabAddress: string | null = $state(null);
     let userSelectedTab = $state(false);
+    let tabRankStatus = $state<Record<string, RankStatus>>({});
 
     // Set initial tab when available tabs change
     $effect(() => {
@@ -79,6 +81,7 @@
         if (addr !== activeTabAddress) {
             activeTabAddress = addr;
             userSelectedTab = false;
+            tabRankStatus = {};
             activeTab = tabs[0] || null;
             return;
         }
@@ -105,6 +108,39 @@
             ...entry,
             _displayRank: getEntryRank(entry, fallback),
         };
+    }
+
+    function setTabRankStatus(tab: string, status: RankStatus) {
+        tabRankStatus = { ...tabRankStatus, [tab]: status };
+    }
+
+    function getApiTypeForTab(tab: string) {
+        if (tab === "Builders") return "builder";
+        if (tab === "Validators") return "validator";
+        if (tab === "Community") return "community";
+        return "builder";
+    }
+
+    function isContributionRankTab(tab: string | null) {
+        return tab === "Builders" || tab === "Community";
+    }
+
+    function getContributionPath(tab: string | null) {
+        return tab === "Community"
+            ? "/community/contributions"
+            : "/builders/contributions";
+    }
+
+    function getContributionCtaLabel(tab: string | null) {
+        return tab === "Community"
+            ? "Find community work"
+            : "Find builder work";
+    }
+
+    function getContributionCtaTitle(tab: string | null) {
+        return tab === "Community"
+            ? "Enter the community ranking"
+            : "Enter the builder ranking";
     }
 
     async function fetchCommunityProfileContext(address: string) {
@@ -167,31 +203,38 @@
         loading = true;
         error = null;
         activeList = [];
+        setTabRankStatus(tab, "loading");
 
         try {
-            let apiType;
-            if (tab === "Builders") apiType = "builder";
-            else if (tab === "Validators") apiType = "validator";
-            else if (tab === "Community") apiType = "community";
-            else apiType = "builder";
+            const apiType = getApiTypeForTab(tab);
+            const requestedAddress = participant?.address || null;
+            const topRes = await leaderboardAPI.getLeaderboard({
+                type: apiType,
+                limit: 4,
+            });
+            const top4 = (topRes.data?.results || topRes.data || []).map(
+                (u: any, i: number) => ({
+                    ...u,
+                    _displayRank: getEntryRank(u, i + 1),
+                }),
+            );
 
-            if (apiType === "community" && participant?.address) {
-                const requestedAddress = participant.address;
+            if (apiType === "community" && requestedAddress) {
                 const communityContext = await fetchCommunityProfileContext(
                     requestedAddress,
                 );
                 if (participant?.address !== requestedAddress) return;
                 communityRank = communityContext?.user_rank || null;
                 communityRankLoaded = true;
-                activeList = buildCommunityProfileList(communityContext);
+                if (communityRank) {
+                    setTabRankStatus(tab, "ranked");
+                    activeList = buildCommunityProfileList(communityContext);
+                } else {
+                    setTabRankStatus(tab, "unranked");
+                    activeList = top4;
+                }
                 return;
             }
-
-            const topRes = await leaderboardAPI.getLeaderboard({
-                type: apiType,
-                limit: 4,
-            });
-            const top4 = topRes.data?.results || topRes.data || [];
 
             const userInTop4 = top4.some(
                 (u: any) =>
@@ -199,14 +242,12 @@
                         u.user_address ||
                         u.user_details?.address ||
                         u.address
-                    )?.toLowerCase() === participant.address?.toLowerCase(),
+                    )?.toLowerCase() === requestedAddress?.toLowerCase(),
             );
 
             if (userInTop4 || !participant) {
-                activeList = top4.map((u: any, i: number) => ({
-                    ...u,
-                    _displayRank: i + 1,
-                }));
+                setTabRankStatus(tab, userInTop4 ? "ranked" : "unknown");
+                activeList = top4;
             } else {
                 let userRank = null;
                 try {
@@ -227,11 +268,13 @@
                 } catch {}
 
                 if (!userRank) {
-                    activeList = top4.map((u: any, i: number) => ({
-                        ...u,
-                        _displayRank: i + 1,
-                    }));
+                    setTabRankStatus(
+                        tab,
+                        isContributionRankTab(tab) ? "unranked" : "unknown",
+                    );
+                    activeList = top4;
                 } else {
+                    setTabRankStatus(tab, "ranked");
                     const targetIndex = userRank - 1;
                     const offset = Math.max(0, targetIndex - 1);
                     const limit = 3;
@@ -262,6 +305,7 @@
             }
         } catch (err) {
             console.error(err);
+            setTabRankStatus(tab, "unknown");
             error = "Failed to load leaderboard context";
         } finally {
             loading = false;
@@ -360,6 +404,15 @@
         ),
     });
 
+    let showContributionRankCta = $derived(
+        isOwnProfile &&
+            isContributionRankTab(activeTab) &&
+            tabRankStatus[activeTab || ""] === "unranked",
+    );
+    let ctaPreviewRows = $derived(
+        activeList.filter((row: any) => !row.isEllipsis).slice(0, 4),
+    );
+
     function scrollToJourneys() {
         const el = document.querySelector(".journey-actions-section");
         if (el) {
@@ -441,6 +494,102 @@
                     {:else if error}
                         <div class="text-sm text-gray-500 py-4 text-center">
                             {error}
+                        </div>
+                    {:else if showContributionRankCta}
+                        <div class="relative min-h-[268px] overflow-hidden rounded-[12px] bg-white">
+                            {#if ctaPreviewRows.length > 0}
+                                <div
+                                    class="pointer-events-none absolute inset-0 flex scale-[1.015] flex-col gap-[6px] p-2 opacity-65 blur-[5px]"
+                                    aria-hidden="true"
+                                >
+                                    {#each ctaPreviewRows as row}
+                                        <div
+                                            class="ranking-row flex items-center justify-between rounded-[10px] bg-white px-3 py-[10px] shadow-[0_8px_20px_rgba(17,24,39,0.06)]"
+                                        >
+                                            <div
+                                                class="flex min-w-0 items-center gap-[10px]"
+                                            >
+                                                <span
+                                                    class="min-w-[20px] text-center text-[13px] font-medium text-[#999]"
+                                                >
+                                                    {row._displayRank}
+                                                </span>
+                                                <Avatar
+                                                    user={getUserObj(row)}
+                                                    size="sm"
+                                                    clickable={false}
+                                                />
+                                                <span
+                                                    class="min-w-0 truncate text-[14px] font-medium text-black"
+                                                >
+                                                    {getDisplayName(row)}
+                                                </span>
+                                            </div>
+                                            <span
+                                                class="text-[13px] font-semibold {activeTab ===
+                                                'Builders'
+                                                    ? 'text-[#ee8521]'
+                                                    : 'text-[#7f52e1]'}"
+                                            >
+                                                {formatPoints(
+                                                    row.community_points ||
+                                                        row.points ||
+                                                        row.total_points ||
+                                                        0,
+                                                )}
+                                            </span>
+                                        </div>
+                                    {/each}
+                                </div>
+                            {/if}
+                            <div
+                                class="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.72),rgba(255,255,255,0.96)_58%,#fff_100%)]"
+                            ></div>
+                            <div
+                                class="relative z-10 flex min-h-[268px] flex-col items-center justify-center px-5 py-7 text-center"
+                            >
+                                <div
+                                    class="mb-4 flex h-12 w-12 items-center justify-center rounded-[14px] shadow-[0_12px_28px_rgba(17,24,39,0.13)]"
+                                    style={activeTab === "Community"
+                                        ? "background-color: #7f52e1;"
+                                        : "background-color: #ee8521;"}
+                                >
+                                    <img
+                                        src={activeTab === "Community"
+                                            ? "/assets/icons/group-white.svg"
+                                            : "/assets/icons/terminal-fill-white.svg"}
+                                        alt=""
+                                        class="h-[22px] w-[22px]"
+                                    />
+                                </div>
+                                <h3
+                                    class="max-w-[260px] text-[18px] font-semibold leading-[1.18] text-black"
+                                >
+                                    {getContributionCtaTitle(activeTab)}
+                                </h3>
+                                <p
+                                    class="mt-2 max-w-[300px] text-[13px] leading-[1.45] text-[#5f6877]"
+                                >
+                                    Contribute to the ecosystem to be counted
+                                    in this ranking.
+                                </p>
+                                <button
+                                    type="button"
+                                    onclick={() =>
+                                        push(getContributionPath(activeTab))}
+                                    class="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-[8px] px-4 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(17,24,39,0.15)] transition-transform active:scale-[0.96]"
+                                    style={activeTab === "Community"
+                                        ? "background-color: #7f52e1;"
+                                        : "background-color: #ee8521;"}
+                                >
+                                    {getContributionCtaLabel(activeTab)}
+                                    <img
+                                        src="/assets/icons/arrow-right-line-white.svg"
+                                        alt=""
+                                        class="h-4 w-4"
+                                    />
+                                </button>
+                            </div>
                         </div>
                     {:else if activeList.length === 0}
                         <div class="text-sm text-gray-500 py-4 text-center">
@@ -584,13 +733,17 @@
                                     >
                                 </div>
                             </div>
-                            <div
-                                class="text-[12px] font-medium text-[#6b6b6b] self-start mt-1"
-                            >
-                                Rank #{rightPanelStats.builder?.rank || "-"}
-                            </div>
-                        {/if}
-                    </div>
+                                <div
+                                    class="text-[12px] font-medium text-[#6b6b6b] self-start mt-1"
+                                >
+                                    {#if rightPanelStats.builder?.rank}
+                                        Rank #{rightPanelStats.builder.rank}
+                                    {:else}
+                                        Not ranked yet
+                                    {/if}
+                                </div>
+                            {/if}
+                        </div>
                 {:else if isOwnProfile}
                     <button
                         onclick={scrollToJourneys}
@@ -716,11 +869,11 @@
 
                 <!-- Community Points Stat -->
                 {#if isCreator}
-                    <div
-                        class="ranking-context-card flex items-center justify-between bg-[#fcfcfc] rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
-                    >
-                        {#if !communityRankLoaded && userCommunityPoints > 0}
-                            <div class="flex items-center gap-4 animate-pulse">
+                        <div
+                            class="ranking-context-card flex items-center justify-between bg-[#fcfcfc] rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
+                        >
+                            {#if !communityRankLoaded}
+                                <div class="flex items-center gap-4 animate-pulse">
                                 <div
                                     class="w-[48px] h-[48px] rounded-full bg-gray-200"
                                 ></div>
@@ -753,12 +906,16 @@
                                     >
                                 </div>
                             </div>
-                            <div
-                                class="text-[12px] font-medium text-[#6b6b6b] self-start mt-1"
-                            >
-                                Rank #{communityRank || "-"}
-                            </div>
-                        {/if}
+                                <div
+                                    class="text-[12px] font-medium text-[#6b6b6b] self-start mt-1"
+                                >
+                                    {#if communityRank}
+                                        Rank #{communityRank}
+                                    {:else}
+                                        Not ranked yet
+                                    {/if}
+                                </div>
+                            {/if}
                     </div>
                 {:else if isOwnProfile}
                     <button

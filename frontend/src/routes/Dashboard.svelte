@@ -264,12 +264,12 @@
   });
 </script>
 
-<div class="space-y-8">
+<div class="max-w-full overflow-x-hidden space-y-8">
   <!-- 1. Hero Banner -->
   <HeroBanner category={category} compact={true} />
 
   <!-- 2. Live Dashboard Stats -->
-  <div>
+  <div class="min-w-0">
     <SectionHeader
       title={dashboardTitle}
       subtitle=""
@@ -279,8 +279,8 @@
   </div>
 
   <!-- 3. Two-column: Top Contributors + Chart Placeholder -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <div>
+  <div class="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
+    <div class="min-w-0">
       <SectionHeader
         title={leaderboardTitle}
         subtitle={leaderboardSubtitle}
@@ -294,7 +294,7 @@
         valueLabel={valueLabel}
       />
     </div>
-    <div>
+    <div class="min-w-0">
       <SectionHeader
         title={podiumTitle}
         subtitle={podiumSubtitle}
@@ -311,7 +311,7 @@
   </div>
 
   <!-- 4. Newest Members -->
-  <div>
+  <div class="min-w-0">
       <SectionHeader
         title={newestTitle}
         subtitle="New"
@@ -329,7 +329,7 @@
 
   <!-- 6. Builder-only: Trending Contributors -->
   {#if isBuilder}
-    <div>
+    <div class="min-w-0">
       <SectionHeader
         title="Trending Contributors"
         subtitle="Highest Builder Points Contributions this week"
@@ -341,7 +341,7 @@
   {/if}
 
   <!-- 7. Highlighted Contributions -->
-  <div>
+  <div class="min-w-0">
     <SectionHeader
       title="Highlighted Contributions"
       subtitle="Latest standout contributions"
@@ -358,8 +358,8 @@
 
   <!-- 8. Community Recent Contributions -->
   {#if isCommunity}
-    <div class="grid grid-cols-1 gap-6">
-      <div>
+    <div class="grid min-w-0 grid-cols-1 gap-6">
+      <div class="min-w-0">
         <SectionHeader
           title="Recent Community Contributions"
           subtitle="Latest accepted community work"
@@ -367,11 +367,11 @@
           linkPath="/community/all-contributions"
           requiresAuth={true}
         />
-        <div class="relative">
+        <div class="relative min-w-0 overflow-hidden">
           {#if recentLoading}
-            <div class="flex gap-3 overflow-hidden pb-2">
+            <div class="flex max-w-full gap-3 overflow-hidden pb-2">
               {#each [1, 2, 3, 4, 5] as _}
-                <div class="w-[300px] h-[180px] flex-shrink-0 rounded-[8px] border border-[#f0f0f0] bg-white p-4 animate-pulse">
+                <div class="h-[180px] w-[300px] max-w-[82vw] flex-shrink-0 rounded-[8px] border border-[#f0f0f0] bg-white p-4 animate-pulse">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                       <div class="w-6 h-6 rounded-full bg-gray-200"></div>
@@ -399,7 +399,7 @@
             <div
               bind:this={recentSlider}
               onscroll={updateRecentArrows}
-              class="hide-scrollbar flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scroll-smooth"
+              class="hide-scrollbar flex max-w-full gap-3 overflow-x-auto px-1 pb-2 scroll-smooth"
             >
               {#each recentContributions as contribution (contribution.id)}
                 <div class="w-[300px] max-w-[82vw] flex-shrink-0">
@@ -416,7 +416,7 @@
                 type="button"
                 onclick={() => scrollRecent(-1)}
                 aria-label="Scroll recent contributions left"
-                class="absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#e6e6e6] bg-white shadow-md transition-all hover:bg-[#fafafa] hover:shadow-lg sm:flex"
+                class="absolute left-2 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-[#e6e6e6] bg-white shadow-md transition-all hover:bg-[#fafafa] hover:shadow-lg sm:flex"
               >
                 <img src="/assets/icons/arrow-left-s-line.svg" alt="" class="h-5 w-5" />
               </button>
@@ -426,7 +426,7 @@
                 type="button"
                 onclick={() => scrollRecent(1)}
                 aria-label="Scroll recent contributions right"
-                class="absolute right-0 top-1/2 z-10 hidden h-11 w-11 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#e6e6e6] bg-white shadow-md transition-all hover:bg-[#fafafa] hover:shadow-lg sm:flex"
+                class="absolute right-2 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-[#e6e6e6] bg-white shadow-md transition-all hover:bg-[#fafafa] hover:shadow-lg sm:flex"
               >
                 <img src="/assets/icons/arrow-right-s-line.svg" alt="" class="h-5 w-5" />
               </button>
@@ -438,7 +438,7 @@
   {/if}
 
   <!-- 9. CTA Section with gradient background -->
-  <div class="relative -mx-3 px-3 -mt-8 pt-8">
+  <div class="relative -mt-8 overflow-hidden pt-8">
     <!-- Gradient background — extends beyond container to cover main padding -->
     <div
       class="absolute -bottom-3 inset-x-0 top-0 pointer-events-none"
