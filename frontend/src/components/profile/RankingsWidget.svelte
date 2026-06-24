@@ -1,6 +1,7 @@
 <script lang="ts">
     import { push } from "svelte-spa-router";
     import { leaderboardAPI } from "../../lib/api";
+    import { showError, showWarning } from "../../lib/toastStore.js";
     import Avatar from "../Avatar.svelte";
     import CategoryIcon from "../portal/CategoryIcon.svelte";
 
@@ -292,8 +293,12 @@
                     if (!userRank && userEntries.length > 0) {
                         userRank = userEntries[0].rank;
                     }
-                } catch {
+                } catch (err) {
                     if (!isCurrentRequest()) return;
+                    console.error(err);
+                    showWarning(
+                        "Could not load this ranking; showing the top leaderboard.",
+                    );
                 }
 
                 if (!isCurrentRequest()) return;
@@ -344,6 +349,7 @@
         } catch (err) {
             if (!isCurrentRequest()) return;
             console.error(err);
+            showError("Failed to load leaderboard context");
             setTabRankStatus(requestedTab, "unknown");
             error = "Failed to load leaderboard context";
         } finally {
