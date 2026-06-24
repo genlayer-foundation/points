@@ -18,6 +18,10 @@ ONBOARDING_CONTRIBUTION_TYPE_SLUGS = [
     'community-link-discord',
 ]
 JOURNEY_AUTO_AWARD_SLUGS = ONBOARDING_CONTRIBUTION_TYPE_SLUGS
+BUILDER_RANKING_EXCLUDED_TYPE_SLUGS = [
+    'builder-welcome',
+    'builder',
+]
 
 
 class GlobalLeaderboardMultiplierViewSet(viewsets.ReadOnlyModelViewSet):
@@ -105,6 +109,13 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )
         )
 
+        eligible_builder_contributions = Contribution.objects.filter(
+            user_id=OuterRef('user_id'),
+            contribution_type__category__slug='builder',
+        ).exclude(
+            contribution_type__slug__in=BUILDER_RANKING_EXCLUDED_TYPE_SLUGS,
+        )
+
         # Filter by user address if provided
         user_address = self.request.query_params.get('user_address')
         if user_address:
@@ -113,6 +124,12 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             leaderboard_type = self.request.query_params.get('type')
             if leaderboard_type:
                 queryset = queryset.filter(type=leaderboard_type)
+                if leaderboard_type == 'builder':
+                    queryset = queryset.filter(Exists(eligible_builder_contributions))
+            else:
+                queryset = queryset.filter(
+                    ~Q(type='builder') | Exists(eligible_builder_contributions)
+                )
         else:
             # Get type from query params
             leaderboard_type = self.request.query_params.get('type')
@@ -124,12 +141,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 queryset = queryset.filter(type='validator')
 
             if leaderboard_type == 'builder':
-                eligible_builder_contributions = Contribution.objects.filter(
-                    user_id=OuterRef('user_id'),
-                    contribution_type__category__slug='builder',
-                ).exclude(
-                    contribution_type__slug__in=['builder-welcome', 'builder'],
-                )
                 queryset = queryset.filter(Exists(eligible_builder_contributions))
 
             # Handle network filtering for validators
@@ -761,7 +772,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         Supports limit/offset pagination and user_address lookup.
         """
         from users.serializers import LightUserSerializer
-        from community_xp.utils import effective_community_ranking_queryset
+        from community_xp.utils import (
+            build_effective_community_scores_queryset,
+            get_community_member_user_ids,
+        )
 
         try:
             limit = int(request.query_params.get('limit', 20))
@@ -774,7 +788,14 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         except (ValueError, TypeError):
             offset = 0
 
-        entries = effective_community_ranking_queryset(visible_only=True)
+        member_user_ids = get_community_member_user_ids(visible_only=True)
+        entries = (
+            build_effective_community_scores_queryset(
+                user_ids=member_user_ids,
+                visible_only=True,
+            )
+            .order_by('-total_points', 'community_sort_name', 'id')
+        )
         # Full ranking, kept unfiltered so search results keep their true ranks
         ranking_entries = entries
 

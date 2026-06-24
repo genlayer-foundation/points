@@ -3,7 +3,9 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from contributions.models import Category, Contribution, ContributionType
+from creators.models import Creator
 from leaderboard.models import GlobalLeaderboardMultiplier
+from poaps.models import PoapClaim, PoapDrop
 from users.models import User
 
 
@@ -91,3 +93,93 @@ class CommunityLeaderboardSearchTest(TestCase):
         context = response.data['context_results']
         self.assertEqual([r['user_name'] for r in context], ['Bob', 'Carol'])
         self.assertEqual([r['rank'] for r in context], [2, 3])
+
+    def test_list_uses_counted_members_not_creator_role(self):
+        creator_only = User.objects.create_user(
+            email='creator-only@example.com',
+            password='pass',
+            address='0x' + '4' * 40,
+            name='Creator Only',
+        )
+        Creator.objects.create(user=creator_only)
+
+        link_type, _ = ContributionType.objects.get_or_create(
+            slug='community-link-x',
+            defaults={
+                'name': 'Community Link X',
+                'category': Category.objects.get(slug='community'),
+            },
+        )
+        GlobalLeaderboardMultiplier.objects.get_or_create(
+            contribution_type=link_type,
+            defaults={
+                'multiplier_value': 1,
+                'valid_from': timezone.now() - timezone.timedelta(days=30),
+            },
+        )
+        link_only = User.objects.create_user(
+            email='link-only@example.com',
+            password='pass',
+            address='0x' + '5' * 40,
+            name='Link Only',
+        )
+        Contribution.objects.create(
+            user=link_only,
+            contribution_type=link_type,
+            points=500,
+            frozen_global_points=500,
+            contribution_date=timezone.now()
+        )
+
+        poap_user = User.objects.create_user(
+            email='poap-member@example.com',
+            password='pass',
+            address='0x' + '6' * 40,
+            name='POAP Member',
+        )
+        drop = PoapDrop.objects.create(
+            title='Community Call',
+            slug='community-call',
+            event_start_at=timezone.now(),
+            status=PoapDrop.STATUS_ACTIVE,
+        )
+        PoapClaim.objects.create(
+            drop=drop,
+            user=poap_user,
+            claim_method=PoapClaim.CLAIM_ADMIN,
+        )
+
+        response = self.client.get('/api/v1/leaderboard/community/')
+
+        self.assertEqual(response.status_code, 200)
+        names = [r['user_name'] for r in response.data['results']]
+        self.assertNotIn('Creator Only', names)
+        self.assertNotIn('Link Only', names)
+        self.assertIn('POAP Member', names)
+        self.assertEqual(response.data['count'], 4)
+
+        poap_entry = next(r for r in response.data['results'] if r['user_name'] == 'POAP Member')
+        self.assertEqual(poap_entry['rank'], 4)
+        self.assertEqual(poap_entry['total_points'], 0)
+
+    def test_creator_only_profile_context_has_no_rank(self):
+        creator_only = User.objects.create_user(
+            email='unranked-creator@example.com',
+            password='pass',
+            address='0x' + '7' * 40,
+            name='Unranked Creator',
+        )
+        Creator.objects.create(user=creator_only)
+
+        response = self.client.get(
+            '/api/v1/leaderboard/community/',
+            {
+                'user_address': creator_only.address,
+                'profile_context': 'true',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data['user_rank'])
+        self.assertEqual(response.data['context_results'], [])
+        self.assertEqual(response.data['top_entry']['user_name'], 'Alice')

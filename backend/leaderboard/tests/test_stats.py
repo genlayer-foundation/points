@@ -12,7 +12,7 @@ from contributions.models import (
 from builders.models import Builder
 from community_xp.models import Mee6CurrentXP, Mee6SyncRun
 from creators.models import Creator
-from leaderboard.models import GlobalLeaderboardMultiplier, ReferralPoints
+from leaderboard.models import GlobalLeaderboardMultiplier, LeaderboardEntry, ReferralPoints
 from poaps.models import PoapClaim, PoapDrop
 from social_connections.models import DiscordConnection
 from users.models import User
@@ -339,11 +339,12 @@ class LeaderboardStatsTest(TestCase):
             'social@example.com',
             '0x0000000000000000000000000000000000000009'
         )
+        link_points = self.community_link_x_type.max_points
         Contribution.objects.create(
             user=social_user,
             contribution_type=self.community_link_x_type,
-            points=20,
-            frozen_global_points=20,
+            points=link_points,
+            frozen_global_points=link_points,
             contribution_date=timezone.now()
         )
 
@@ -353,7 +354,63 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['community_member_count'], 0)
         self.assertEqual(response.data['participant_count'], 0)
         self.assertEqual(response.data['contribution_count'], 0)
-        self.assertEqual(response.data['total_points'], 20)
+        self.assertEqual(response.data['total_points'], link_points)
+
+    def test_builder_lookup_uses_real_builder_ranking_eligibility(self):
+        role_only_user = self._create_user(
+            'builder-role-only@example.com',
+            '0x0000000000000000000000000000000000000020'
+        )
+        ranked_builder = self._create_user(
+            'ranked-builder@example.com',
+            '0x0000000000000000000000000000000000000021'
+        )
+        Builder.objects.create(user=role_only_user)
+        Builder.objects.create(user=ranked_builder)
+
+        LeaderboardEntry.objects.update_or_create(
+            user=role_only_user,
+            type='builder',
+            defaults={'total_points': 0, 'rank': 2},
+        )
+        LeaderboardEntry.objects.update_or_create(
+            user=ranked_builder,
+            type='builder',
+            defaults={'total_points': 25, 'rank': 1},
+        )
+        Contribution.objects.create(
+            user=ranked_builder,
+            contribution_type=self.builder_type,
+            points=25,
+            frozen_global_points=25,
+            contribution_date=timezone.now()
+        )
+
+        list_response = self.client.get('/api/v1/leaderboard/', {'type': 'builder'})
+        role_lookup_response = self.client.get(
+            '/api/v1/leaderboard/',
+            {'type': 'builder', 'user_address': role_only_user.address},
+        )
+        all_entries_response = self.client.get(
+            '/api/v1/leaderboard/',
+            {'user_address': role_only_user.address},
+        )
+
+        self.assertEqual(list_response.status_code, 200)
+        listed_addresses = [
+            row['user_details']['address']
+            for row in list_response.data
+        ]
+        self.assertIn(ranked_builder.address, listed_addresses)
+        self.assertNotIn(role_only_user.address, listed_addresses)
+
+        self.assertEqual(role_lookup_response.status_code, 200)
+        self.assertEqual(role_lookup_response.data, [])
+
+        self.assertEqual(all_entries_response.status_code, 200)
+        self.assertFalse(
+            any(row['type'] == 'builder' for row in all_entries_response.data)
+        )
 
     def test_community_stats_use_effective_mee6_points_and_members(self):
         mee6_only_user = self._create_user(
@@ -413,7 +470,7 @@ class LeaderboardStatsTest(TestCase):
         Contribution.objects.create(
             user=link_only_user,
             contribution_type=self.community_link_x_type,
-            points=20,
+            points=self.community_link_x_type.max_points,
             contribution_date=timezone.now(),
         )
 
