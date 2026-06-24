@@ -33,7 +33,7 @@
 </script>
 
 {#if loading || builds.length > 0}
-<div class="max-w-full min-w-0" class:vertical-section={variant === 'vertical'}>
+<div class="max-w-full min-w-0">
   <div class="flex items-end justify-between mb-3 gap-4">
     <div class="flex flex-col gap-1">
       <h2 class="text-[20px] font-semibold text-black" style="letter-spacing: 0.4px;">{title}</h2>
@@ -118,10 +118,6 @@
 {/if}
 
 <style>
-  .vertical-section {
-    min-width: 0;
-  }
-
   .vertical-project-grid {
     display: grid;
     gap: 12px;

@@ -143,6 +143,16 @@
             : "Enter the builder ranking";
     }
 
+    function getContributionAccentClass(tab: string | null) {
+        return tab === "Community"
+            ? "bg-purple-600 hover:bg-purple-700"
+            : "bg-orange-500 hover:bg-orange-600";
+    }
+
+    function getContributionTextClass(tab: string | null) {
+        return tab === "Community" ? "text-purple-600" : "text-orange-600";
+    }
+
     async function fetchCommunityProfileContext(address: string) {
         if (communityContextCache.has(address)) {
             return communityContextCache.get(address);
@@ -200,18 +210,26 @@
     }
 
     async function loadTabLeaderboard(tab: string) {
+        const requestedTab = tab;
+        const requestedAddress = participant?.address || null;
+        const isCurrentRequest = () =>
+            activeTab === requestedTab &&
+            (participant?.address || null) === requestedAddress;
+
+        if (!isCurrentRequest()) return;
         loading = true;
         error = null;
         activeList = [];
-        setTabRankStatus(tab, "loading");
+        setTabRankStatus(requestedTab, "loading");
 
         try {
-            const apiType = getApiTypeForTab(tab);
-            const requestedAddress = participant?.address || null;
+            const apiType = getApiTypeForTab(requestedTab);
             const topRes = await leaderboardAPI.getLeaderboard({
                 type: apiType,
                 limit: 4,
             });
+            if (!isCurrentRequest()) return;
+
             const top4 = (topRes.data?.results || topRes.data || []).map(
                 (u: any, i: number) => ({
                     ...u,
@@ -223,14 +241,15 @@
                 const communityContext = await fetchCommunityProfileContext(
                     requestedAddress,
                 );
-                if (participant?.address !== requestedAddress) return;
+                if (!isCurrentRequest()) return;
+
                 communityRank = communityContext?.user_rank || null;
                 communityRankLoaded = true;
                 if (communityRank) {
-                    setTabRankStatus(tab, "ranked");
+                    setTabRankStatus(requestedTab, "ranked");
                     activeList = buildCommunityProfileList(communityContext);
                 } else {
-                    setTabRankStatus(tab, "unranked");
+                    setTabRankStatus(requestedTab, "unranked");
                     activeList = top4;
                 }
                 return;
@@ -246,15 +265,23 @@
             );
 
             if (userInTop4 || !participant) {
-                setTabRankStatus(tab, userInTop4 ? "ranked" : "unknown");
+                if (!isCurrentRequest()) return;
+                setTabRankStatus(
+                    requestedTab,
+                    userInTop4 ? "ranked" : "unknown",
+                );
                 activeList = top4;
             } else {
                 let userRank = null;
+                let userLookupSucceeded = false;
                 try {
                     const userEntryRes = await leaderboardAPI.getLeaderboard({
                         type: apiType,
                         user_address: participant.address,
                     });
+                    if (!isCurrentRequest()) return;
+                    userLookupSucceeded = true;
+
                     if (apiType === "community") {
                         userRank = userEntryRes.data?.user_rank || null;
                     }
@@ -265,16 +292,25 @@
                     if (!userRank && userEntries.length > 0) {
                         userRank = userEntries[0].rank;
                     }
-                } catch {}
+                } catch {
+                    if (!isCurrentRequest()) return;
+                }
 
-                if (!userRank) {
+                if (!isCurrentRequest()) return;
+
+                if (!userLookupSucceeded) {
+                    setTabRankStatus(requestedTab, "unknown");
+                    activeList = top4;
+                } else if (!userRank) {
                     setTabRankStatus(
-                        tab,
-                        isContributionRankTab(tab) ? "unranked" : "unknown",
+                        requestedTab,
+                        isContributionRankTab(requestedTab)
+                            ? "unranked"
+                            : "unknown",
                     );
                     activeList = top4;
                 } else {
-                    setTabRankStatus(tab, "ranked");
+                    setTabRankStatus(requestedTab, "ranked");
                     const targetIndex = userRank - 1;
                     const offset = Math.max(0, targetIndex - 1);
                     const limit = 3;
@@ -284,6 +320,8 @@
                         offset: offset,
                         limit: limit,
                     });
+                    if (!isCurrentRequest()) return;
+
                     const contextUsers =
                         contextRes.data?.results || contextRes.data || [];
 
@@ -304,11 +342,14 @@
                 }
             }
         } catch (err) {
+            if (!isCurrentRequest()) return;
             console.error(err);
-            setTabRankStatus(tab, "unknown");
+            setTabRankStatus(requestedTab, "unknown");
             error = "Failed to load leaderboard context";
         } finally {
-            loading = false;
+            if (isCurrentRequest()) {
+                loading = false;
+            }
         }
     }
 
@@ -496,7 +537,7 @@
                             {error}
                         </div>
                     {:else if showContributionRankCta}
-                        <div class="relative min-h-[268px] overflow-hidden rounded-[12px] bg-white">
+                        <div class="relative min-h-64 overflow-hidden rounded-xl bg-white">
                             {#if ctaPreviewRows.length > 0}
                                 <div
                                     class="pointer-events-none absolute inset-0 flex scale-[1.015] flex-col gap-[6px] p-2 opacity-65 blur-[5px]"
@@ -504,7 +545,7 @@
                                 >
                                     {#each ctaPreviewRows as row}
                                         <div
-                                            class="ranking-row flex items-center justify-between rounded-[10px] bg-white px-3 py-[10px] shadow-[0_8px_20px_rgba(17,24,39,0.06)]"
+                                            class="ranking-row flex items-center justify-between rounded-lg bg-white px-3 py-[10px] shadow-sm"
                                         >
                                             <div
                                                 class="flex min-w-0 items-center gap-[10px]"
@@ -526,10 +567,9 @@
                                                 </span>
                                             </div>
                                             <span
-                                                class="text-[13px] font-semibold {activeTab ===
-                                                'Builders'
-                                                    ? 'text-[#ee8521]'
-                                                    : 'text-[#7f52e1]'}"
+                                                class="text-[13px] font-semibold {getContributionTextClass(
+                                                    activeTab,
+                                                )}"
                                             >
                                                 {formatPoints(
                                                     row.community_points ||
@@ -543,16 +583,15 @@
                                 </div>
                             {/if}
                             <div
-                                class="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.72),rgba(255,255,255,0.96)_58%,#fff_100%)]"
+                                class="absolute inset-0 bg-gradient-to-b from-white/80 via-white/95 to-white"
                             ></div>
                             <div
-                                class="relative z-10 flex min-h-[268px] flex-col items-center justify-center px-5 py-7 text-center"
+                                class="relative z-10 flex min-h-64 flex-col items-center justify-center px-5 py-7 text-center"
                             >
                                 <div
-                                    class="mb-4 flex h-12 w-12 items-center justify-center rounded-[14px] shadow-[0_12px_28px_rgba(17,24,39,0.13)]"
-                                    style={activeTab === "Community"
-                                        ? "background-color: #7f52e1;"
-                                        : "background-color: #ee8521;"}
+                                    class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl shadow-lg {getContributionAccentClass(
+                                        activeTab,
+                                    )}"
                                 >
                                     <img
                                         src={activeTab === "Community"
@@ -573,14 +612,11 @@
                                     Contribute to the ecosystem to be counted
                                     in this ranking.
                                 </p>
-                                <button
-                                    type="button"
-                                    onclick={() =>
-                                        push(getContributionPath(activeTab))}
-                                    class="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-[8px] px-4 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(17,24,39,0.15)] transition-transform active:scale-[0.96]"
-                                    style={activeTab === "Community"
-                                        ? "background-color: #7f52e1;"
-                                        : "background-color: #ee8521;"}
+                                <a
+                                    href={getContributionPath(activeTab)}
+                                    class="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 text-[13px] font-semibold text-white shadow-md transition-transform active:scale-[0.96] {getContributionAccentClass(
+                                        activeTab,
+                                    )}"
                                 >
                                     {getContributionCtaLabel(activeTab)}
                                     <img
@@ -588,7 +624,7 @@
                                         alt=""
                                         class="h-4 w-4"
                                     />
-                                </button>
+                                </a>
                             </div>
                         </div>
                     {:else if activeList.length === 0}

@@ -339,11 +339,12 @@ class LeaderboardStatsTest(TestCase):
             'social@example.com',
             '0x0000000000000000000000000000000000000009'
         )
+        link_points = self.community_link_x_type.max_points
         Contribution.objects.create(
             user=social_user,
             contribution_type=self.community_link_x_type,
-            points=500,
-            frozen_global_points=500,
+            points=link_points,
+            frozen_global_points=link_points,
             contribution_date=timezone.now()
         )
 
@@ -353,7 +354,7 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['community_member_count'], 0)
         self.assertEqual(response.data['participant_count'], 0)
         self.assertEqual(response.data['contribution_count'], 0)
-        self.assertEqual(response.data['total_points'], 500)
+        self.assertEqual(response.data['total_points'], link_points)
 
     def test_builder_lookup_uses_real_builder_ranking_eligibility(self):
         role_only_user = self._create_user(
@@ -469,7 +470,7 @@ class LeaderboardStatsTest(TestCase):
         Contribution.objects.create(
             user=link_only_user,
             contribution_type=self.community_link_x_type,
-            points=500,
+            points=self.community_link_x_type.max_points,
             contribution_date=timezone.now(),
         )
 
