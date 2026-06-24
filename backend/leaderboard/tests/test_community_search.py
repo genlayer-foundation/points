@@ -126,8 +126,8 @@ class CommunityLeaderboardSearchTest(TestCase):
         Contribution.objects.create(
             user=link_only,
             contribution_type=link_type,
-            points=500,
-            frozen_global_points=500,
+            points=link_type.max_points,
+            frozen_global_points=link_type.max_points,
             contribution_date=timezone.now()
         )
 
