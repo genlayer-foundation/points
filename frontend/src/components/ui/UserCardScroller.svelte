@@ -75,7 +75,7 @@
 </script>
 
 {#if loading}
-  <div class="flex gap-[10px] overflow-x-auto" style="-ms-overflow-style: none; scrollbar-width: none;">
+  <div class="flex max-w-full min-w-0 gap-[10px] overflow-x-auto" style="-ms-overflow-style: none; scrollbar-width: none;">
     {#each [1, 2, 3, 4, 5, 6] as _}
       <div class="flex items-center flex-shrink-0 border border-[#f5f5f5] rounded-[8px] overflow-clip pr-[16px] animate-pulse">
         <div class="w-[80px] h-[80px] flex items-center justify-center">
@@ -91,7 +91,7 @@
 {:else if entries.length === 0}
   <div class="text-sm text-gray-500 py-4">No contributors yet</div>
 {:else}
-  <div class="flex gap-[10px] overflow-x-auto" style="-ms-overflow-style: none; scrollbar-width: none;">
+  <div class="flex max-w-full min-w-0 gap-[10px] overflow-x-auto" style="-ms-overflow-style: none; scrollbar-width: none;">
     {#each entries as entry}
       <button
         onclick={() => handleCardClick(entry)}
