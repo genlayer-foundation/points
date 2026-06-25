@@ -399,68 +399,14 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         # Create contract instance
         return w3.eth.contract(address=contract_address, abi=abi)
     
-    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
-    def start_builder_journey(self, request):
-        """
-        Mark the builder journey as started, POINT-FREE.
+    def _mark_journey_started(self, request, role):
+        """Mark a role journey as started with a 0-point `<role>-welcome` marker.
 
-        Creates a 0-point `builder-welcome` marker so the funnel and profile can
-        show the journey as in-progress and persist that across sessions. The old
-        +20 award was farmable and is gone — this grants NO points. Points come
-        only from the journey's verifiable tasks (starring the boilerplate).
-        Idempotent.
-        """
-        from contributions.models import Contribution, ContributionType, Category
-        from django.utils import timezone
-
-        user = request.user
-
-        builder_category = Category.objects.filter(slug='builder').first()
-        welcome_type, _ = ContributionType.objects.get_or_create(
-            slug='builder-welcome',
-            defaults={
-                'name': 'Builder Welcome',
-                'description': 'Started the builder journey',
-                'category': builder_category,
-                'is_submittable': False,
-                'min_points': 0,
-                'max_points': 0,
-            },
-        )
-
-        if Contribution.objects.filter(user=user, contribution_type=welcome_type).exists():
-            serializer = self.get_serializer(user)
-            return Response({
-                'message': 'Builder journey already started',
-                'user': serializer.data
-            }, status=status.HTTP_200_OK)
-
-        # ponytail: 0-point marker only — a row that says "started", not a reward.
-        Contribution.objects.create(
-            user=user,
-            contribution_type=welcome_type,
-            points=0,
-            contribution_date=timezone.now(),
-            notes='Started the builder journey',
-        )
-
-        serializer = self.get_serializer(user)
-        return Response({
-            'message': 'Builder journey started',
-            'user': serializer.data
-        }, status=status.HTTP_201_CREATED)
-
-    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
-    def start_role_journey(self, request):
-        """
-        Mark ANY role journey as started, POINT-FREE. Creates a 0-point
-        `<role>-welcome` marker so the funnel/profile show the journey
-        in-progress and persist it across sessions. No points (not farmable),
-        idempotent. `role` in {builder, validator, community}.
-
-        This is the lightweight "entered the journey" signal — distinct from a
-        role's deeper commitments (joining the validator waitlist, becoming a
-        creator), which keep their own contributions/profile rows.
+        Point-free (not farmable) and idempotent. `role` in {builder, validator,
+        community}. The marker persists "journey started" across sessions; points
+        come only from the journey's verifiable tasks. This is the lightweight
+        "entered the journey" signal, distinct from a role's deeper commitments
+        (validator waitlist, becoming a creator), which keep their own rows.
         """
         from contributions.models import Contribution, ContributionType, Category
         from django.utils import timezone
@@ -470,7 +416,6 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
             'validator': ('validator-welcome', 'validator', 'Validator Welcome'),
             'community': ('community-welcome', 'community', 'Community Welcome'),
         }
-        role = (request.data.get('role') or '').strip().lower()
         if role not in role_welcome:
             return Response(
                 {'error': "role must be one of: builder, validator, community"},
@@ -525,6 +470,17 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
             'message': f'{role} journey started',
             'user': serializer.data
         }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def start_builder_journey(self, request):
+        """Mark the builder journey as started, point-free. See _mark_journey_started."""
+        return self._mark_journey_started(request, 'builder')
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def start_role_journey(self, request):
+        """Mark any role journey as started, point-free. `role` in {builder, validator, community}."""
+        role = (request.data.get('role') or '').strip().lower()
+        return self._mark_journey_started(request, role)
 
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def start_validator_journey(self, request):
@@ -637,11 +593,12 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
-    def link_x_account(self, request):
-        """
-        Award points for linking an X (Twitter) account.
-        Requires that the user has a verified TwitterConnection via OAuth.
+    def _award_social_link_points(self, request, *, slug, connection_attr, label, oauth_label):
+        """Award the configured points for linking a social account.
+
+        Idempotent, and locks the user row so concurrent calls can't double-award.
+        `label` is the display name (X / Discord / GitHub); `oauth_label` is the
+        name shown in the connect prompt (X uses "X (Twitter)").
         """
         from contributions.models import Contribution, ContributionType
         from django.utils import timezone
@@ -650,16 +607,16 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         user = request.user
 
         try:
-            link_type = ContributionType.objects.get(slug='community-link-x')
+            link_type = ContributionType.objects.get(slug=slug)
         except ContributionType.DoesNotExist:
             return Response(
-                {'error': 'Community link X contribution type not configured'},
+                {'error': f'Community link {label} contribution type not configured'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        if not hasattr(user, 'twitterconnection'):
+        if not hasattr(user, connection_attr):
             return Response(
-                {'error': 'You must link your X (Twitter) account first'},
+                {'error': f'You must link your {oauth_label} account first'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -671,7 +628,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
 
                 if Contribution.objects.filter(user=user, contribution_type=link_type).exists():
                     return Response(
-                        {'message': 'You already earned points for linking your X account'},
+                        {'message': f'You already earned points for linking your {label} account'},
                         status=status.HTTP_200_OK
                     )
 
@@ -681,8 +638,8 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                         contribution_type=link_type,
                         multiplier_value=1.0,
                         valid_from=timezone.now() - timezone.timedelta(days=30),
-                        description='Default multiplier for Community Link X contributions',
-                        notes='Applied when users link their X account'
+                        description=f'Default multiplier for Community Link {label} contributions',
+                        notes=f'Applied when users link their {label} account'
                     )
 
                 Contribution.objects.create(
@@ -690,160 +647,54 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                     contribution_type=link_type,
                     points=link_type.min_points,
                     contribution_date=timezone.now(),
-                    notes='Linked X (Twitter) account to GenLayer profile'
+                    notes=f'Linked {oauth_label} account to GenLayer profile'
                 )
 
             serializer = self.get_serializer(user)
             return Response({
-                'message': f'X account linked successfully! {link_type.min_points} points awarded.',
+                'message': f'{label} account linked successfully! {link_type.min_points} points awarded.',
                 'user': serializer.data
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
-            logger.error(f"Failed to award X link points: {str(e)}")
+            logger.error(f"Failed to award {label} link points: {str(e)}")
             return Response(
                 {'error': 'Failed to award points. Please try again later.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def link_x_account(self, request):
+        """Award points for linking an X (Twitter) account (verified via OAuth)."""
+        return self._award_social_link_points(
+            request,
+            slug='community-link-x',
+            connection_attr='twitterconnection',
+            label='X',
+            oauth_label='X (Twitter)',
+        )
 
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def link_discord_account(self, request):
-        """
-        Award points for linking a Discord account.
-        Requires that the user has a verified DiscordConnection via OAuth.
-        """
-        from contributions.models import Contribution, ContributionType
-        from django.utils import timezone
-        from django.db import transaction
-
-        user = request.user
-
-        try:
-            link_type = ContributionType.objects.get(slug='community-link-discord')
-        except ContributionType.DoesNotExist:
-            return Response(
-                {'error': 'Community link Discord contribution type not configured'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-        if not hasattr(user, 'discordconnection'):
-            return Response(
-                {'error': 'You must link your Discord account first'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            with transaction.atomic():
-                # Lock the user row to serialize concurrent requests
-                from django.contrib.auth import get_user_model
-                get_user_model().objects.select_for_update().get(pk=user.pk)
-
-                if Contribution.objects.filter(user=user, contribution_type=link_type).exists():
-                    return Response(
-                        {'message': 'You already earned points for linking your Discord account'},
-                        status=status.HTTP_200_OK
-                    )
-
-                from leaderboard.models import GlobalLeaderboardMultiplier
-                if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=link_type).exists():
-                    GlobalLeaderboardMultiplier.objects.create(
-                        contribution_type=link_type,
-                        multiplier_value=1.0,
-                        valid_from=timezone.now() - timezone.timedelta(days=30),
-                        description='Default multiplier for Community Link Discord contributions',
-                        notes='Applied when users link their Discord account'
-                    )
-
-                Contribution.objects.create(
-                    user=user,
-                    contribution_type=link_type,
-                    points=link_type.min_points,
-                    contribution_date=timezone.now(),
-                    notes='Linked Discord account to GenLayer profile'
-                )
-
-            serializer = self.get_serializer(user)
-            return Response({
-                'message': f'Discord account linked successfully! {link_type.min_points} points awarded.',
-                'user': serializer.data
-            }, status=status.HTTP_201_CREATED)
-
-        except Exception as e:
-            logger.error(f"Failed to award Discord link points: {str(e)}")
-            return Response(
-                {'error': 'Failed to award points. Please try again later.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        """Award points for linking a Discord account (verified via OAuth)."""
+        return self._award_social_link_points(
+            request,
+            slug='community-link-discord',
+            connection_attr='discordconnection',
+            label='Discord',
+            oauth_label='Discord',
+        )
 
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def link_github_account(self, request):
-        """
-        Award points for linking a GitHub account.
-        Requires that the user has a verified GitHubConnection via OAuth.
-        Mirrors link_x_account / link_discord_account.
-        """
-        from contributions.models import Contribution, ContributionType
-        from django.utils import timezone
-        from django.db import transaction
-
-        user = request.user
-
-        try:
-            link_type = ContributionType.objects.get(slug='community-link-github')
-        except ContributionType.DoesNotExist:
-            return Response(
-                {'error': 'Community link GitHub contribution type not configured'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-        if not hasattr(user, 'githubconnection'):
-            return Response(
-                {'error': 'You must link your GitHub account first'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            with transaction.atomic():
-                # Lock the user row to serialize concurrent requests
-                from django.contrib.auth import get_user_model
-                get_user_model().objects.select_for_update().get(pk=user.pk)
-
-                if Contribution.objects.filter(user=user, contribution_type=link_type).exists():
-                    return Response(
-                        {'message': 'You already earned points for linking your GitHub account'},
-                        status=status.HTTP_200_OK
-                    )
-
-                from leaderboard.models import GlobalLeaderboardMultiplier
-                if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=link_type).exists():
-                    GlobalLeaderboardMultiplier.objects.create(
-                        contribution_type=link_type,
-                        multiplier_value=1.0,
-                        valid_from=timezone.now() - timezone.timedelta(days=30),
-                        description='Default multiplier for Community Link GitHub contributions',
-                        notes='Applied when users link their GitHub account'
-                    )
-
-                Contribution.objects.create(
-                    user=user,
-                    contribution_type=link_type,
-                    points=link_type.min_points,
-                    contribution_date=timezone.now(),
-                    notes='Linked GitHub account to GenLayer profile'
-                )
-
-            serializer = self.get_serializer(user)
-            return Response({
-                'message': f'GitHub account linked successfully! {link_type.min_points} points awarded.',
-                'user': serializer.data
-            }, status=status.HTTP_201_CREATED)
-
-        except Exception as e:
-            logger.error(f"Failed to award GitHub link points: {str(e)}")
-            return Response(
-                {'error': 'Failed to award points. Please try again later.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        """Award points for linking a GitHub account (verified via OAuth)."""
+        return self._award_social_link_points(
+            request,
+            slug='community-link-github',
+            connection_attr='githubconnection',
+            label='GitHub',
+            oauth_label='GitHub',
+        )
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def community_journey(self, request):

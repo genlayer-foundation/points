@@ -3,7 +3,6 @@
 
   const isWaitlisted = $derived(roleState === 'waitlisted');
   const primaryLabel = $derived(starting ? 'Starting...' : 'Run a Node');
-  const finalLabel = $derived(starting ? 'Starting...' : 'Run a Node');
 
   const comparisonCards = [
     {
@@ -44,6 +43,19 @@
 </svelte:head>
 
 <div class="role-landing validator-landing">
+  {#snippet waitlistBadge()}
+    <div class="waitlist-status">
+      <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path
+          fill-rule="evenodd"
+          d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.5 7.59a1 1 0 0 1-1.42.006L3.29 9.79a1 1 0 1 1 1.42-1.408l3.79 3.83 6.79-6.872a1 1 0 0 1 1.414-.06Z"
+          clip-rule="evenodd"
+        />
+      </svg>
+      You&apos;re on the waitlist
+    </div>
+  {/snippet}
+
   <section class="role-hero" aria-labelledby="validator-landing-title">
     <div class="hero-copy">
       <p class="role-eyebrow">Validators</p>
@@ -55,16 +67,7 @@
       <div class="cta-cluster">
         <div class="button-row">
           {#if isWaitlisted}
-            <div class="waitlist-status">
-              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path
-                  fill-rule="evenodd"
-                  d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.5 7.59a1 1 0 0 1-1.42.006L3.29 9.79a1 1 0 1 1 1.42-1.408l3.79 3.83 6.79-6.872a1 1 0 0 1 1.414-.06Z"
-                  clip-rule="evenodd"
-                />
-              </svg>
-              You&apos;re on the waitlist
-            </div>
+            {@render waitlistBadge()}
           {:else}
             <button
               type="button"
@@ -181,16 +184,7 @@
     <h2 id="validator-final-title">Run the node that reasons.</h2>
     <p>Join the validator path and prepare to resolve the agentic economy.</p>
     {#if isWaitlisted}
-      <div class="waitlist-status">
-        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-          <path
-            fill-rule="evenodd"
-            d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.5 7.59a1 1 0 0 1-1.42.006L3.29 9.79a1 1 0 1 1 1.42-1.408l3.79 3.83 6.79-6.872a1 1 0 0 1 1.414-.06Z"
-            clip-rule="evenodd"
-          />
-        </svg>
-        You&apos;re on the waitlist
-      </div>
+      {@render waitlistBadge()}
     {:else}
       <button
         type="button"
@@ -199,7 +193,7 @@
         disabled={starting}
         aria-busy={starting}
       >
-        <span>{finalLabel}</span>
+        <span>{primaryLabel}</span>
         <img src="/assets/icons/arrow-right-line-white.svg" alt="" />
       </button>
     {/if}

@@ -2,7 +2,6 @@
   let { state: roleState = 'unauthenticated', starting = false, onStart = () => {} } = $props();
 
   const primaryLabel = $derived(starting ? 'Starting...' : 'Grow the Community');
-  const finalLabel = $derived(starting ? 'Starting...' : 'Grow the Community');
   const isUnauthenticated = $derived(roleState === 'unauthenticated');
   const ctaHint = $derived(
     isUnauthenticated
@@ -175,7 +174,7 @@
       disabled={starting}
       aria-busy={starting}
     >
-      <span>{finalLabel}</span>
+      <span>{primaryLabel}</span>
       <img src="/assets/icons/arrow-right-line-white.svg" alt="" />
     </button>
   </section>
