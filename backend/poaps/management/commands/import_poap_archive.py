@@ -369,12 +369,6 @@ class Command(BaseCommand):
             if claims_to_create:
                 PoapClaim.objects.bulk_create(claims_to_create, batch_size=500)
 
-        from creators.utils import ensure_creator_status_for_users
-        ensure_creator_status_for_users(
-            [claim.user_id for claim in claims_to_update]
-            + [claim.user_id for claim in claims_to_create]
-        )
-
         batch.imported_count += imported_count
         batch.matched_count += matched_count
         batch.unmatched_count += unmatched_count

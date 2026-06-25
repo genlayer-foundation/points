@@ -1,52 +1,92 @@
 <script>
+  // @ts-nocheck
   import { onMount } from 'svelte';
-  import { push } from 'svelte-spa-router';
+  import { replace } from 'svelte-spa-router';
   import { authState } from '../lib/auth';
   import { getCurrentUser, journeyAPI } from '../lib/api';
-  import Icon from '../components/Icons.svelte';
-  
+  import { userStore } from '../lib/userStore.js';
+  import JourneyNotice from '../components/funnel/journeys/JourneyNotice.svelte';
+  import JourneyHeroCard from '../components/funnel/journeys/JourneyHeroCard.svelte';
+  import JourneyStepRow from '../components/funnel/journeys/JourneyStepRow.svelte';
+
+  const APPLICATION_FORM_URL = 'https://forms.gle/hdH5ssuQPAT9i6hg9';
+  const DISCORD_URL = 'https://discord.gg/genlayerlabs';
+
   let currentUser = $state(null);
   let hasFilledForm = $state(false);
   let isJoiningWaitlist = $state(false);
   let error = $state('');
   let loading = $state(true);
-  
+
+  let isAuthenticated = $derived($authState.isAuthenticated);
+  let noticeMessage = $derived(
+    error || (
+      hasFilledForm
+        ? 'Application checked. Enter the waitlist when you are ready.'
+        : 'Complete the validator application, then check it off in step one.'
+    )
+  );
+
+  const graduatedUnlocks = [
+    {
+      title: 'Decisions',
+      body: 'Get assigned real decisions and judge them as they come in.',
+      label: 'Earn a fee per decision',
+    },
+    {
+      title: 'Leaderboard',
+      body: 'Climb the validator ranks by accuracy and uptime.',
+      label: 'Compete for top validator',
+    },
+    {
+      title: 'Appeals',
+      body: 'Take part in appeals and Optimistic Democracy governance.',
+      label: 'Shape the protocol',
+    },
+  ];
+
   onMount(async () => {
     await loadData();
   });
-  
+
   async function loadData() {
     try {
-      // If authenticated, get user data
-      if ($authState.isAuthenticated) {
+      if (isAuthenticated) {
         currentUser = await getCurrentUser();
+        if (currentUser?.validator || currentUser?.has_validator_waitlist) {
+          replace('/validators');
+          return;
+        }
       }
     } catch (err) {
-      // Failed to load user data silently handled
+      // Keep the pre-join flow visible; submit will surface any auth/API error.
     } finally {
       loading = false;
     }
   }
-  
+
+  function triggerSignIn() {
+    document.querySelector('[data-auth-button]')?.click();
+  }
+
   async function handleJoinWaitlist() {
-    if (!$authState.isAuthenticated) {
-      // Show connect wallet prompt
-      document.querySelector('.auth-button')?.click();
+    if (!hasFilledForm || isJoiningWaitlist) {
       return;
     }
-    
-    if (!hasFilledForm) {
+
+    if (!isAuthenticated) {
+      triggerSignIn();
       return;
     }
-    
+
     isJoiningWaitlist = true;
     error = '';
-    
+
     try {
       await journeyAPI.startValidatorJourney();
-      // Store success message and redirect to profile
+      await userStore.loadUser?.();
       sessionStorage.setItem('journeySuccess', 'Successfully joined Validator Waitlist!');
-      push(`/participant/${$authState.address}`);
+      replace('/validators');
     } catch (err) {
       error = err.response?.data?.error || 'Failed to join waitlist';
       isJoiningWaitlist = false;
@@ -54,167 +94,445 @@
   }
 </script>
 
-<div class="space-y-6 sm:space-y-8">
-  <!-- Clean Header -->
-  <div>
-    <h1 class="text-2xl font-bold text-gray-900">Validator Waitlist</h1>
-    <p class="mt-1 text-sm text-gray-500">
-      Join the waitlist to become a validator on GenLayer Testnets
-    </p>
-  </div>
+<svelte:head>
+  <title>Validator Waitlist | GenLayer Portal</title>
+</svelte:head>
 
-  <!-- Main Card with Process -->
-  <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
-    <div class="p-6">
-      <!-- Three Steps -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <!-- Step 1: Join Waitlist -->
-        <div class="flex items-center">
-          <div class="flex items-center justify-center font-bold text-sky-600 flex-shrink-0 leading-10 mr-2" style="font-size: 2.25rem;">
-            1
-          </div>
-          <div class="flex items-center justify-center w-10 h-10 bg-sky-100 rounded-lg flex-shrink-0">
-            <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
-            </svg>
-          </div>
-          <div class="flex-1 ml-2">
-            <h3 class="font-semibold text-gray-900">Join Waitlist</h3>
-            <p class="text-sm text-gray-600">
-              Complete the <a 
-                href="https://forms.gle/hdH5ssuQPAT9i6hg9" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                class="text-sky-600 hover:text-sky-700 underline"
-              >form</a> and join
-            </p>
-          </div>
-        </div>
-        
-        <!-- Step 2: Contribute -->
-        <div class="flex items-center">
-          <div class="flex items-center justify-center font-bold text-sky-600 flex-shrink-0 leading-10 mr-2" style="font-size: 2.25rem;">
-            2
-          </div>
-          <div class="flex items-center justify-center w-10 h-10 bg-sky-100 rounded-lg flex-shrink-0">
-            <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-            </svg>
-          </div>
-          <div class="flex-1 ml-2">
-            <h3 class="font-semibold text-gray-900">Contribute</h3>
-            <p class="text-sm text-gray-600">Earn points to climb rankings</p>
-          </div>
-        </div>
-        
-        <!-- Step 3: Get Selected -->
-        <div class="flex items-center">
-          <div class="flex items-center justify-center font-bold text-sky-600 flex-shrink-0 leading-10 mr-2" style="font-size: 2.25rem;">
-            3
-          </div>
-          <div class="flex items-center justify-center w-10 h-10 bg-sky-100 rounded-lg flex-shrink-0">
-            <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </div>
-          <div class="flex-1 ml-2">
-            <h3 class="font-semibold text-gray-900">Get Selected</h3>
-            <p class="text-sm text-gray-600">Top contributors join Testnet</p>
-          </div>
-        </div>
-      </div>
+<div class="journey-page validator-journey">
+  <JourneyNotice
+    message={noticeMessage}
+    tone={error ? 'error' : 'default'}
+  />
 
-      <!-- Divider -->
-      <div class="border-t border-gray-100 pt-6">
-        <!-- Two Column Layout for Info -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- Ways to Contribute -->
-          <div>
-            <h3 class="text-sm font-semibold text-gray-900 mb-2">Ways to Contribute</h3>
-            <p class="text-sm text-gray-600 mb-2">
-              Earn points through <span class="font-medium">Technical</span> and <span class="font-medium">Ecosystem & Community</span> Contributions.
-            </p>
-            <a 
-              href="/contributions"
-              onclick={(e) => { e.preventDefault(); push('/contributions'); }}
-              class="text-sm text-sky-600 hover:text-sky-700 font-medium inline-flex items-center"
-            >
-              View all contribution types
-              <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-              </svg>
-            </a>
-          </div>
-          
-          <!-- Selection Info -->
-          <div>
-            <h3 class="text-sm font-semibold text-gray-900 mb-2">Selection Process</h3>
-            <p class="text-sm text-gray-600">
-              Validator selection is based on <span class="font-medium">leaderboard rankings</span>, prioritizing professionals with proven track records. 
-              Validators who bring unique value to the GenLayer ecosystem are also considered.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <JourneyHeroCard
+    role="validator"
+    iconHex="/assets/icons/hexagon-validator-light.svg"
+    iconGlyph="/assets/icons/folder-shield-line-blue.svg"
+    badgeIconHex="/assets/icons/hexagon-validator.svg"
+    badgeIconGlyph="/assets/icons/shield-white.svg"
+    heroBadge="icon"
+    showProgress={false}
+    eyebrow="Your validator waitlist"
+    titleRest="Enter the Validator waitlist"
+    description="Submit the application, confirm it in step one, and enter the waitlist for future GenLayer validator graduation."
+    primaryLabel={isJoiningWaitlist ? 'Entering...' : 'Enter the waitlist'}
+    primaryDisabled={loading || isJoiningWaitlist || !hasFilledForm}
+    primaryBusy={isJoiningWaitlist}
+    helper={hasFilledForm ? 'Step one is complete. Click to enter the waitlist.' : 'The waitlist unlocks after you check off the application.'}
+    onPrimary={handleJoinWaitlist}
+  />
 
-  <!-- Join Action Section -->
-  <div class="bg-white shadow-sm rounded-lg p-6 sm:p-8">
-    <h2 class="text-xl font-bold text-gray-900 mb-3">Start Your Validator Journey</h2>
-    
-    <p class="text-gray-700 mb-6">
-      First, complete the application form to provide your technical background and validator experience. 
-      Then join the waitlist to start contributing.
-    </p>
-    
-    <div class="space-y-4">
-      <div>
-        <a 
-          href="https://forms.gle/hdH5ssuQPAT9i6hg9" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          class="inline-flex items-center px-5 py-2.5 bg-sky-50 text-sky-700 border border-sky-300 rounded-lg hover:bg-sky-100 transition-colors font-medium"
-        >
-          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-          </svg>
-          Complete Application Form
-        </a>
-      </div>
-      
-      <div class="pt-2">
-        <div class="flex items-start space-x-3 mb-4">
-          <input 
-            type="checkbox" 
-            id="formCompleted" 
-            bind:checked={hasFilledForm}
-            class="mt-0.5 h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300 rounded"
-          />
-          <label for="formCompleted" class="text-sm text-gray-700">
-            I have completed the GenLayer Validator Application
+  <section class="steps-card" aria-label="Validator waitlist steps">
+    {#if loading}
+      <JourneyStepRow number={1} loading={true} />
+      <JourneyStepRow number={2} loading={true} />
+    {:else}
+      <div class="step-block">
+        <JourneyStepRow
+          number={1}
+          title="Complete validator application"
+          badge={hasFilledForm ? '' : 'Up next'}
+          detail={hasFilledForm ? 'application complete' : 'open the form, submit it, then check it off'}
+          status={hasFilledForm ? 'done' : 'active'}
+          actionLabel="Open Form"
+          actionHref={APPLICATION_FORM_URL}
+          actionExternal={true}
+          actionTone={hasFilledForm ? 'secondary' : 'accent'}
+        />
+
+        <div class="step-check-panel">
+          <label class="form-confirmation" for="formCompleted">
+            <input
+              type="checkbox"
+              id="formCompleted"
+              bind:checked={hasFilledForm}
+            />
+            <span>
+              <strong>I completed the GenLayer Validator Application</strong>
+              <small>Check this once the external form has been submitted.</small>
+            </span>
           </label>
         </div>
-        
-        <button
-          onclick={handleJoinWaitlist}
-          disabled={!hasFilledForm || isJoiningWaitlist}
-          class="inline-flex items-center px-8 py-3 bg-sky-600 text-white rounded-lg font-medium hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-        >
-          <Icon name="validator" className="mr-2 text-white" />
-          {#if !$authState.isAuthenticated}
-            Connect Wallet to Join Waitlist
-          {:else if isJoiningWaitlist}
-            Joining Waitlist...
-          {:else}
-            Join Validator Waitlist
-          {/if}
-        </button>
-        
-        {#if error}
-          <div class="mt-4 text-red-600 text-sm">{error}</div>
-        {/if}
       </div>
+
+      <JourneyStepRow
+        number={2}
+        title="Wait for graduation"
+        badge="Informational"
+        detail="the team reviews applications and graduates validators in cohorts"
+        status="locked"
+      />
+    {/if}
+  </section>
+
+  <section class="graduation-section" aria-labelledby="validator-graduation-title">
+    <div class="section-label">
+      <p id="validator-graduation-title">What unlocks once you're graduated</p>
+      <span></span>
     </div>
-  </div>
+
+    <div class="graduation-grid">
+      {#each graduatedUnlocks as item}
+        <article class="graduation-card">
+          <span class="lock-badge">Locked</span>
+          <div class="outline-hex" aria-hidden="true">
+            <img src="/assets/icons/hexagon-light.svg" alt="" />
+          </div>
+          <h2>{item.title}</h2>
+          <p>{item.body}</p>
+          <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer">{item.label}</a>
+        </article>
+      {/each}
+    </div>
+
+    <article class="contact-card">
+      <div class="contact-icon" aria-hidden="true">
+        <img src="/assets/icons/hexagon-validator-light.svg" alt="" />
+        <img src="/assets/icons/folder-shield-line-blue.svg" alt="" />
+      </div>
+
+      <div class="contact-copy">
+        <p class="role-eyebrow">While you wait</p>
+        <h2>Want to know more about being a validator?</h2>
+        <p>
+          Reach out to <strong>@validator-lead</strong> on Discord to learn what we look for,
+          ask about timing, or make your case for an earlier spot.
+        </p>
+      </div>
+
+      <a class="landing-button landing-button-accent" href={DISCORD_URL} target="_blank" rel="noopener noreferrer">
+        Contact the team
+      </a>
+    </article>
+  </section>
 </div>
+
+<style>
+  .journey-page {
+    --role-accent: #387de8;
+    --role-accent-hover: #2f6fd4;
+    --journey-active-bg: #f0f6ff;
+    --journey-black: #131214;
+    --journey-border: #ededed;
+    --journey-muted: #909090;
+    --journey-hero-bg: linear-gradient(163deg, #fff 40%, #f1f7ff 96%);
+    --journey-hero-border: #dceafe;
+    --journey-hero-glow: rgba(56, 125, 232, 0.17);
+    --journey-points-bg: #edf5ff;
+    --journey-complete-gradient: linear-gradient(135deg, #5c9af1 0%, #387de8 100%);
+    --journey-complete-shadow: rgba(56, 125, 232, 0.19);
+    color: #000;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    margin: 0 auto;
+    max-width: 940px;
+    padding: 20px 12px 80px;
+    width: 100%;
+  }
+
+  .journey-page :global(*) {
+    letter-spacing: 0;
+  }
+
+  .steps-card {
+    background: #fff;
+    border: 1px solid var(--journey-border);
+    border-radius: 14px;
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .step-block {
+    width: 100%;
+  }
+
+  .step-check-panel {
+    background: linear-gradient(90deg, var(--journey-active-bg) 0%, #fff 82%);
+    border-top: 1px solid #f0f0f0;
+    padding: 14px 18px 18px 58px;
+  }
+
+  .form-confirmation {
+    align-items: flex-start;
+    background: #fff;
+    border: 1px solid #dceafe;
+    border-radius: 12px;
+    color: var(--journey-black);
+    cursor: pointer;
+    display: flex;
+    font-family: var(--font-body);
+    gap: 11px;
+    max-width: 520px;
+    padding: 12px;
+  }
+
+  .form-confirmation input {
+    accent-color: var(--role-accent);
+    flex: 0 0 auto;
+    height: 16px;
+    margin: 2px 0 0;
+    width: 16px;
+  }
+
+  .form-confirmation span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .form-confirmation strong {
+    color: var(--journey-black);
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .form-confirmation small {
+    color: #737373;
+    font-size: 12.5px;
+    line-height: 19px;
+  }
+
+  .graduation-section {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding-top: 4px;
+  }
+
+  .section-label {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .section-label p {
+    color: #ababab;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 17px;
+    margin: 0;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .section-label span {
+    background: #e6e6e6;
+    flex: 1 1 auto;
+    height: 1px;
+  }
+
+  .graduation-grid {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .graduation-card {
+    background: #fff;
+    border: 1px solid var(--journey-border);
+    border-radius: 16px;
+    min-height: 236px;
+    padding: 24px 26px 26px;
+    position: relative;
+  }
+
+  .lock-badge {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #f0f0f0;
+    border-radius: 6px;
+    color: #b7b7b7;
+    display: inline-flex;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    height: 20px;
+    justify-content: center;
+    line-height: 16px;
+    min-width: 68px;
+    position: absolute;
+    right: 12px;
+    text-transform: uppercase;
+    top: 14px;
+  }
+
+  .outline-hex {
+    height: 48px;
+    margin-bottom: 18px;
+    width: 48px;
+  }
+
+  .outline-hex img {
+    height: 100%;
+    opacity: 0.9;
+    width: 100%;
+  }
+
+  .graduation-card h2,
+  .contact-card h2 {
+    color: var(--journey-black);
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 500;
+    line-height: 28px;
+    margin: 0;
+  }
+
+  .graduation-card p {
+    color: #737373;
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 24px;
+    margin: 10px 0 0;
+  }
+
+  .graduation-card a {
+    color: #5e7cf6;
+    display: inline-flex;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+    margin-top: 14px;
+    text-decoration: none;
+  }
+
+  .graduation-card a:hover {
+    color: var(--role-accent-hover);
+  }
+
+  .contact-card {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--journey-border);
+    border-radius: 18px;
+    display: grid;
+    gap: 18px;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    padding: 28px 30px;
+  }
+
+  .contact-icon {
+    height: 40px;
+    position: relative;
+    width: 40px;
+  }
+
+  .contact-icon img:first-child {
+    height: 100%;
+    width: 100%;
+  }
+
+  .contact-icon img:last-child {
+    height: 18px;
+    left: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 18px;
+  }
+
+  .contact-copy {
+    min-width: 0;
+  }
+
+  .role-eyebrow {
+    color: var(--role-accent);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 17px;
+    margin: 0 0 8px;
+    text-transform: uppercase;
+  }
+
+  .contact-copy p:not(.role-eyebrow) {
+    color: #3f3f3f;
+    font-family: var(--font-body);
+    font-size: 14.5px;
+    line-height: 23px;
+    margin: 8px 0 0;
+    max-width: 620px;
+  }
+
+  .contact-copy strong {
+    font-weight: 700;
+  }
+
+  .landing-button {
+    align-items: center;
+    border-radius: 20px;
+    display: inline-flex;
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 600;
+    height: 40px;
+    justify-content: center;
+    line-height: 20px;
+    padding: 0 20px;
+    text-decoration: none;
+    transition: background-color 160ms ease, opacity 160ms ease;
+    white-space: nowrap;
+  }
+
+  .landing-button-accent {
+    background: var(--role-accent);
+    color: #fff;
+  }
+
+  .landing-button-accent:hover {
+    background: var(--role-accent-hover);
+  }
+
+  @media (max-width: 900px) {
+    .graduation-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .contact-card {
+      align-items: flex-start;
+      grid-template-columns: 40px minmax(0, 1fr);
+    }
+
+    .contact-card .landing-button {
+      grid-column: 2;
+      justify-self: flex-start;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .journey-page {
+      gap: 20px;
+      padding: 12px 0 56px;
+    }
+
+    .step-check-panel {
+      padding: 14px;
+    }
+
+    .section-label {
+      padding: 0 2px;
+    }
+
+    .section-label p {
+      white-space: normal;
+    }
+
+    .graduation-card {
+      min-height: 0;
+      padding: 22px;
+    }
+
+    .contact-card {
+      grid-template-columns: 1fr;
+      padding: 22px;
+    }
+
+    .contact-card .landing-button {
+      grid-column: 1;
+      width: 100%;
+    }
+  }
+</style>

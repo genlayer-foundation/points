@@ -3,6 +3,8 @@
   import { push } from 'svelte-spa-router';
   import WhatsNewAnnouncementSurface from './whats-new-announcement-surface.svelte';
   import { authState } from '../lib/auth.js';
+  import { userStore } from '../lib/userStore.js';
+  import { hasAnyRoleOrJourney } from '../lib/roleState.js';
   import { followNotificationLink } from '../lib/notificationUtils.js';
   import { whatsNewStore } from '../lib/whatsNewStore.js';
   import { CAUGHT_UP_GRADIENT, normalizeWhatsNewItem } from '../lib/whatsNewPresentation.js';
@@ -151,6 +153,7 @@
   $effect(() => {
     const isAuthenticated = $authState.isAuthenticated;
     const address = $authState.address;
+    const user = $userStore.user;
 
     if (!isAuthenticated) {
       lastAuthKey = null;
@@ -158,6 +161,15 @@
       closeDialog({ clear: true });
       return;
     }
+
+    // Wait for the user object so we can tell a freshly-created account apart.
+    if (!user) return;
+
+    // Don't auto-open What's New for a brand-new account still in onboarding —
+    // it renders behind the profile-completion modal. Only greet members who
+    // have engaged: earned a role or started a journey. Once they do, the effect
+    // re-runs (userStore changes) and it shows.
+    if (!hasAnyRoleOrJourney(user)) return;
 
     const authKey = address || 'authenticated';
     if (authKey === lastAuthKey) return;

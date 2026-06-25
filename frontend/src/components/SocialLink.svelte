@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { authState } from '../lib/auth';
   import { API_BASE_URL } from '../lib/config.js';
-  import { getCurrentUser, socialAPI } from '../lib/api';
+  import { getCurrentUser, socialAPI, journeyAPI } from '../lib/api';
   import { showSuccess, showError } from '../lib/toastStore';
 
   let {
@@ -114,9 +114,21 @@
 
     if (success) {
       const userPromise = currentUser ? Promise.resolve(currentUser) : getCurrentUser();
-      userPromise.then((resolvedUser) => {
+      userPromise.then(async (resolvedUser) => {
+        let finalUser = resolvedUser;
+        // Linking GitHub counts as a contribution (like X / Discord). Award it
+        // here so it fires wherever GitHub is linked; idempotent + best-effort,
+        // so a failed reward never blocks the successful link.
+        if (platform === 'github' && !wasRefreshing) {
+          try {
+            await journeyAPI.linkGithubAccount();
+            finalUser = await getCurrentUser();
+          } catch {
+            // Link still succeeded; the reward is retried next time it's called.
+          }
+        }
         if (shouldToast) {
-          const connData = resolvedUser?.[`${platform}_connection`];
+          const connData = finalUser?.[`${platform}_connection`];
           const username = connData?.platform_username || '';
           if (wasRefreshing) {
             const previousUsername = connection?.platform_username || '';
@@ -129,7 +141,7 @@
             showSuccess(`${platformLabel} account linked successfully!${username ? ` (@${username})` : ''}`);
           }
         }
-        onLinked(resolvedUser);
+        onLinked(finalUser);
         isLinking = false;
         isRefreshing = false;
       }).catch(() => {

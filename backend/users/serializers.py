@@ -567,8 +567,11 @@ class UserSerializer(serializers.ModelSerializer):
     creator = CreatorSerializer(read_only=True)
     has_validator_waitlist = serializers.SerializerMethodField()
     has_builder_welcome = serializers.SerializerMethodField()
+    has_validator_welcome = serializers.SerializerMethodField()
+    has_community_welcome = serializers.SerializerMethodField()
     has_community_link_x = serializers.SerializerMethodField()
     has_community_link_discord = serializers.SerializerMethodField()
+    has_community_link_github = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
 
     # Referral system fields
@@ -596,7 +599,9 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward',
                   'creator', 'has_validator_waitlist', 'has_builder_welcome',
-                  'has_community_link_x', 'has_community_link_discord', 'created_at', 'updated_at',
+                  'has_validator_welcome', 'has_community_welcome',
+                  'has_community_link_x', 'has_community_link_discord', 'has_community_link_github',
+                  'created_at', 'updated_at',
                   # Profile fields
                   'description', 'banner_image_url', 'profile_image_url', 'website',
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
@@ -677,44 +682,43 @@ class UserSerializer(serializers.ModelSerializer):
         except ContributionType.DoesNotExist:
             return False
 
-    def get_has_builder_welcome(self, obj):
-        """
-        Check if user has the builder welcome badge (contribution).
+    def _has_contribution_type(self, obj, slug):
+        """Whether the user has any contribution of the given type slug.
+
         Skip for nested/list views to avoid N+1 queries.
         """
-        # Skip expensive queries for nested/list views
         if self.context.get('use_light_serializers', False):
             return False
-
         from contributions.models import Contribution, ContributionType
-
         try:
-            welcome_type = ContributionType.objects.get(slug='builder-welcome')
-            return Contribution.objects.filter(user=obj, contribution_type=welcome_type).exists()
+            contribution_type = ContributionType.objects.get(slug=slug)
+            return Contribution.objects.filter(user=obj, contribution_type=contribution_type).exists()
         except ContributionType.DoesNotExist:
             return False
-    
+
+    def get_has_builder_welcome(self, obj):
+        """Check if the user started the builder journey (point-free marker)."""
+        return self._has_contribution_type(obj, 'builder-welcome')
+
+    def get_has_validator_welcome(self, obj):
+        """Check if the user started the validator journey (point-free marker)."""
+        return self._has_contribution_type(obj, 'validator-welcome')
+
+    def get_has_community_welcome(self, obj):
+        """Check if the user started the community journey (point-free marker)."""
+        return self._has_contribution_type(obj, 'community-welcome')
+
     def get_has_community_link_x(self, obj):
         """Check if user has earned points for linking X account."""
-        if self.context.get('use_light_serializers', False):
-            return False
-        from contributions.models import Contribution, ContributionType
-        try:
-            link_type = ContributionType.objects.get(slug='community-link-x')
-            return Contribution.objects.filter(user=obj, contribution_type=link_type).exists()
-        except ContributionType.DoesNotExist:
-            return False
+        return self._has_contribution_type(obj, 'community-link-x')
 
     def get_has_community_link_discord(self, obj):
         """Check if user has earned points for linking Discord account."""
-        if self.context.get('use_light_serializers', False):
-            return False
-        from contributions.models import Contribution, ContributionType
-        try:
-            link_type = ContributionType.objects.get(slug='community-link-discord')
-            return Contribution.objects.filter(user=obj, contribution_type=link_type).exists()
-        except ContributionType.DoesNotExist:
-            return False
+        return self._has_contribution_type(obj, 'community-link-discord')
+
+    def get_has_community_link_github(self, obj):
+        """Check if user has earned points for linking GitHub account."""
+        return self._has_contribution_type(obj, 'community-link-github')
 
     def _can_view_private_user_data(self, obj):
         request = self.context.get('request')

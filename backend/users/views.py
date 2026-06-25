@@ -402,65 +402,130 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def start_builder_journey(self, request):
         """
-        Award the builder welcome contribution to start the builder journey.
-        This gives the user their first contribution without checking other requirements.
+        Mark the builder journey as started, POINT-FREE.
+
+        Creates a 0-point `builder-welcome` marker so the funnel and profile can
+        show the journey as in-progress and persist that across sessions. The old
+        +20 award was farmable and is gone — this grants NO points. Points come
+        only from the journey's verifiable tasks (starring the boilerplate).
+        Idempotent.
         """
-        from contributions.models import Contribution, ContributionType
+        from contributions.models import Contribution, ContributionType, Category
         from django.utils import timezone
-        from django.db import transaction
-        
+
         user = request.user
-        
-        # Check if user already has the contribution
-        try:
-            welcome_type = ContributionType.objects.get(slug='builder-welcome')
-        except ContributionType.DoesNotExist:
-            return Response(
-                {'error': 'Builder welcome contribution type not configured'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-        
+
+        builder_category = Category.objects.filter(slug='builder').first()
+        welcome_type, _ = ContributionType.objects.get_or_create(
+            slug='builder-welcome',
+            defaults={
+                'name': 'Builder Welcome',
+                'description': 'Started the builder journey',
+                'category': builder_category,
+                'is_submittable': False,
+                'min_points': 0,
+                'max_points': 0,
+            },
+        )
+
         if Contribution.objects.filter(user=user, contribution_type=welcome_type).exists():
-            return Response(
-                {'message': 'You already have the builder welcome contribution'},
-                status=status.HTTP_200_OK
-            )
-        
-        # Create the contribution to start the journey
-        try:
-            with transaction.atomic():
-                # Ensure multiplier exists for builder-welcome contribution type
-                from leaderboard.models import GlobalLeaderboardMultiplier
-                if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=welcome_type).exists():
-                    GlobalLeaderboardMultiplier.objects.create(
-                        contribution_type=welcome_type,
-                        multiplier_value=1.0,
-                        valid_from=timezone.now() - timezone.timedelta(days=30),
-                        description='Default multiplier for Builder Welcome contributions',
-                        notes='Applied when users start the builder journey'
-                    )
-                
-                contribution = Contribution.objects.create(
-                    user=user,
-                    contribution_type=welcome_type,
-                    points=20,
-                    contribution_date=timezone.now(),
-                    notes='Started builder journey - welcome to the GenLayer community!'
-                )
-            
             serializer = self.get_serializer(user)
             return Response({
-                'message': 'Builder journey started successfully!',
+                'message': 'Builder journey already started',
                 'user': serializer.data
-            }, status=status.HTTP_201_CREATED)
-            
-        except Exception as e:
-            logger.error(f"Failed to start builder journey: {str(e)}")
+            }, status=status.HTTP_200_OK)
+
+        # ponytail: 0-point marker only — a row that says "started", not a reward.
+        Contribution.objects.create(
+            user=user,
+            contribution_type=welcome_type,
+            points=0,
+            contribution_date=timezone.now(),
+            notes='Started the builder journey',
+        )
+
+        serializer = self.get_serializer(user)
+        return Response({
+            'message': 'Builder journey started',
+            'user': serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def start_role_journey(self, request):
+        """
+        Mark ANY role journey as started, POINT-FREE. Creates a 0-point
+        `<role>-welcome` marker so the funnel/profile show the journey
+        in-progress and persist it across sessions. No points (not farmable),
+        idempotent. `role` in {builder, validator, community}.
+
+        This is the lightweight "entered the journey" signal — distinct from a
+        role's deeper commitments (joining the validator waitlist, becoming a
+        creator), which keep their own contributions/profile rows.
+        """
+        from contributions.models import Contribution, ContributionType, Category
+        from django.utils import timezone
+
+        role_welcome = {
+            'builder': ('builder-welcome', 'builder', 'Builder Welcome'),
+            'validator': ('validator-welcome', 'validator', 'Validator Welcome'),
+            'community': ('community-welcome', 'community', 'Community Welcome'),
+        }
+        role = (request.data.get('role') or '').strip().lower()
+        if role not in role_welcome:
             return Response(
-                {'error': f'Failed to start journey: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {'error': "role must be one of: builder, validator, community"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-    
+
+        slug, category_slug, name = role_welcome[role]
+        user = request.user
+        category = Category.objects.filter(slug=category_slug).first()
+        welcome_type, _ = ContributionType.objects.get_or_create(
+            slug=slug,
+            defaults={
+                'name': name,
+                'description': f'Started the {role} journey',
+                'category': category,
+                'is_submittable': False,
+                'min_points': 0,
+                'max_points': 0,
+            },
+        )
+
+        if Contribution.objects.filter(user=user, contribution_type=welcome_type).exists():
+            serializer = self.get_serializer(user)
+            return Response({
+                'message': f'{role} journey already started',
+                'user': serializer.data
+            }, status=status.HTTP_200_OK)
+
+        # Contribution.clean() requires an active multiplier for the type, even
+        # for a 0-point marker. Ensure one exists (value is irrelevant at 0 pts).
+        from leaderboard.models import GlobalLeaderboardMultiplier
+        if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=welcome_type).exists():
+            GlobalLeaderboardMultiplier.objects.create(
+                contribution_type=welcome_type,
+                multiplier_value=1.0,
+                valid_from=timezone.now() - timezone.timedelta(days=30),
+                description=f'Default multiplier for {name} (0-point started marker)',
+                notes='Applied when users start a role journey',
+            )
+
+        # ponytail: 0-point marker only — "started", not a reward.
+        Contribution.objects.create(
+            user=user,
+            contribution_type=welcome_type,
+            points=0,
+            contribution_date=timezone.now(),
+            notes=f'Started the {role} journey',
+        )
+
+        serializer = self.get_serializer(user)
+        return Response({
+            'message': f'{role} journey started',
+            'user': serializer.data
+        }, status=status.HTTP_201_CREATED)
+
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def start_validator_journey(self, request):
         """
@@ -512,141 +577,66 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def complete_builder_journey(self, request):
         """
-        Check if user meets builder journey requirements and award the builder contribution.
-        Requirements:
-        1. Has at least one contribution (any type)
-        2. Has testnet balance > 0
+        Grant the Builder role once the journey is done.
 
-        Also creates Builder profile if it doesn't exist.
+        The journey is POINT-FREE: becoming a Builder awards no points. The old
+        `builder` (+50) contribution was self-serve and farmable, so it was
+        removed. Points come only from the verifiable task inside the journey
+        (starring the boilerplate repo, a builder-category social task).
+
+        Requirement: the user has completed the boilerplate-star social task
+        (`settings.BUILDER_JOURNEY_TASK_SLUG`), which itself requires a linked
+        GitHub account and a real star. That single check subsumes "connect
+        GitHub and star the repo".
         """
-        from contributions.models import Contribution, ContributionType
+        from django.conf import settings
         from builders.models import Builder
-        from django.utils import timezone
-        from django.db import transaction
-        from web3 import Web3
-        import requests
-        
+        from social_tasks.models import SocialTaskCompletion
+
         user = request.user
-        
-        # Check if user already has the BUILDER contribution (not builder-welcome)
-        try:
-            builder_type = ContributionType.objects.get(slug='builder')
-        except ContributionType.DoesNotExist:
-            # If builder contribution type doesn't exist, create it
-            from contributions.models import Category
-            try:
-                builder_category = Category.objects.get(slug='builder')
-            except Category.DoesNotExist:
-                builder_category = None
-            
-            builder_type = ContributionType.objects.create(
-                name='Builder',
-                slug='builder',
-                description='Awarded when becoming a GenLayer Builder',
-                category=builder_category
-            )
-        
-        if Contribution.objects.filter(user=user, contribution_type=builder_type).exists():
-            # User already has the builder contribution, just ensure they have a Builder profile
-            if not hasattr(user, 'builder'):
-                Builder.objects.create(user=user)
-            
+
+        # Idempotent: already a Builder.
+        if hasattr(user, 'builder'):
             serializer = self.get_serializer(user)
             return Response({
                 'message': 'You are already a GenLayer Builder',
                 'user': serializer.data
             }, status=status.HTTP_200_OK)
-        
-        # Check requirement 1: Has at least one contribution
-        has_contribution = Contribution.objects.filter(user=user).exists()
-        if not has_contribution:
+
+        # ponytail: role gate is the boilerplate-star task by slug. Renaming or
+        # deactivating that task blocks completion until it's restored.
+        starred = SocialTaskCompletion.objects.filter(
+            user=user, task__slug=settings.BUILDER_JOURNEY_TASK_SLUG
+        ).exists()
+        if not starred:
             return Response(
-                {'error': 'You need at least one contribution to complete the builder journey'},
+                {'error': 'Finish the builder journey first: connect GitHub and star the boilerplate repository.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        # Check requirement 2: Has testnet balance > 0
-        if not user.address:
-            return Response(
-                {'error': 'No wallet address associated with your account'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+
         try:
-            # Check testnet balance using Web3 with RPC URL from settings
-            from django.conf import settings
-            web3 = Web3(Web3.HTTPProvider(settings.VALIDATOR_RPC_URL))
-            checksum_address = Web3.to_checksum_address(user.address)
-            with trace_external('web3', 'get_balance'):
-                balance_wei = web3.eth.get_balance(checksum_address)
-            balance_eth = web3.from_wei(balance_wei, 'ether')
-            
-            if balance_eth <= 0:
-                return Response(
-                    {'error': 'You need testnet tokens to complete the builder journey. Visit the faucet to get tokens.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        except Exception as e:
-            logger.warning(f"Failed to check balance: {str(e)}")
-            # Fail closed: completing the journey awards points, so an RPC
-            # outage must not become a bypass of the balance requirement.
-            return Response(
-                {'error': 'Unable to verify your testnet balance right now. Please try again in a few minutes.'},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
-            )
-        
-        # All requirements met, create the BUILDER contribution and Builder profile atomically
-        try:
-            with transaction.atomic():
-                # First ensure the multiplier exists for the builder contribution type
-                from leaderboard.models import GlobalLeaderboardMultiplier
-                if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=builder_type).exists():
-                    # Create a default multiplier if it doesn't exist
-                    GlobalLeaderboardMultiplier.objects.create(
-                        contribution_type=builder_type,
-                        multiplier_value=1.0,
-                        valid_from=timezone.now() - timezone.timedelta(days=30),
-                        description='Default multiplier for Builder contributions',
-                        notes='Applied when users complete the builder journey'
-                    )
-                
-                # Create the BUILDER contribution (this is the actual achievement)
-                contribution = Contribution.objects.create(
-                    user=user,
-                    contribution_type=builder_type,
-                    points=50,  # Points for becoming a builder
-                    contribution_date=timezone.now(),
-                    notes='Became a GenLayer Builder - completed all requirements'
-                )
-                
-                # Create Builder profile if it doesn't exist
-                builder_created = False
-                if not hasattr(user, 'builder'):
-                    Builder.objects.create(user=user)
-                    builder_created = True
-            
-            # Ensure leaderboard is updated with fresh user state after transaction commits.
-            # The post_save signal on Contribution fires before the Builder profile exists,
-            # so we explicitly recalculate here with a fresh user that has the Builder relation.
+            Builder.objects.create(user=user)
+
+            # Recalculate leaderboard entries now that the Builder relation
+            # exists. The grant itself adds no points, but builder-category
+            # aggregation keys off the Builder profile being present.
             from leaderboard.models import update_user_leaderboard_entries
             fresh_user = type(user).objects.get(pk=user.pk)
             update_user_leaderboard_entries(fresh_user)
 
-            # Transaction successful, return response
             serializer = self.get_serializer(user)
             return Response({
-                'message': 'Builder journey completed successfully!',
+                'message': 'Welcome to GenLayer Builders!',
                 'user': serializer.data
             }, status=status.HTTP_201_CREATED)
-            
+
         except Exception as e:
-            # Transaction will be rolled back automatically
             logger.error(f"Failed to complete builder journey: {str(e)}")
             return Response(
                 {'error': f'Failed to complete journey: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-    
+
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def link_x_account(self, request):
         """
@@ -784,6 +774,221 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                 {'error': 'Failed to award points. Please try again later.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def link_github_account(self, request):
+        """
+        Award points for linking a GitHub account.
+        Requires that the user has a verified GitHubConnection via OAuth.
+        Mirrors link_x_account / link_discord_account.
+        """
+        from contributions.models import Contribution, ContributionType
+        from django.utils import timezone
+        from django.db import transaction
+
+        user = request.user
+
+        try:
+            link_type = ContributionType.objects.get(slug='community-link-github')
+        except ContributionType.DoesNotExist:
+            return Response(
+                {'error': 'Community link GitHub contribution type not configured'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        if not hasattr(user, 'githubconnection'):
+            return Response(
+                {'error': 'You must link your GitHub account first'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            with transaction.atomic():
+                # Lock the user row to serialize concurrent requests
+                from django.contrib.auth import get_user_model
+                get_user_model().objects.select_for_update().get(pk=user.pk)
+
+                if Contribution.objects.filter(user=user, contribution_type=link_type).exists():
+                    return Response(
+                        {'message': 'You already earned points for linking your GitHub account'},
+                        status=status.HTTP_200_OK
+                    )
+
+                from leaderboard.models import GlobalLeaderboardMultiplier
+                if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=link_type).exists():
+                    GlobalLeaderboardMultiplier.objects.create(
+                        contribution_type=link_type,
+                        multiplier_value=1.0,
+                        valid_from=timezone.now() - timezone.timedelta(days=30),
+                        description='Default multiplier for Community Link GitHub contributions',
+                        notes='Applied when users link their GitHub account'
+                    )
+
+                Contribution.objects.create(
+                    user=user,
+                    contribution_type=link_type,
+                    points=link_type.min_points,
+                    contribution_date=timezone.now(),
+                    notes='Linked GitHub account to GenLayer profile'
+                )
+
+            serializer = self.get_serializer(user)
+            return Response({
+                'message': f'GitHub account linked successfully! {link_type.min_points} points awarded.',
+                'user': serializer.data
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"Failed to award GitHub link points: {str(e)}")
+            return Response(
+                {'error': 'Failed to award points. Please try again later.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def community_journey(self, request):
+        """Community journey status: the 5 steps + completion + membership."""
+        from creators import community_journey as cj
+        return Response(cj.journey_status(request.user), status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def verify_community_post(self, request):
+        """Step 5: verify the user's X post (tags GenLayer + contains their code).
+
+        The post must be a well-formed X post URL from the user's linked X
+        account; we read its text via Sorsa /tweet-info and check the pattern.
+        """
+        from creators import community_journey as cj
+        from creators.models import CommunityPostProof
+        from contributions.url_utils import get_user_social_handle, normalize_url
+        from social_tasks.sorsa_client import get_default_client, SorsaError
+
+        user = request.user
+        post_url = (request.data.get('post_url') or '').strip()
+        if not post_url:
+            return Response(
+                {'error': 'missing_url', 'message': 'Provide the URL of your X post.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # The post must come from the user's linked X account.
+        if not hasattr(user, 'twitterconnection'):
+            return Response(
+                {'error': 'x_not_linked', 'message': 'Link your X account first.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        post_url = normalize_url(post_url)
+        url_handle, tweet_id = cj.parse_x_post(post_url)
+        if not tweet_id:
+            return Response(
+                {'error': 'invalid_url', 'message': 'That is not a valid X post URL.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        linked_handle = get_user_social_handle(user, 'twitter')
+        if not linked_handle:
+            # twitterconnection exists but carries no handle: cannot verify
+            # ownership, so fail closed rather than skip the check.
+            return Response(
+                {'error': 'x_not_linked', 'message': 'Reconnect your X account and try again.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if url_handle != linked_handle:
+            return Response(
+                {'error': 'account_mismatch', 'message': 'The post must come from your linked X account.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            tweet = get_default_client().get_tweet(tweet_id)
+        except SorsaError as exc:
+            logger.warning(f"Sorsa tweet-info failed: {exc}")
+            return Response(
+                {'error': 'verification_unavailable', 'message': 'Could not verify your post right now. Please try again shortly.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        if tweet is None:
+            return Response(
+                {'error': 'post_not_found', 'message': 'We could not find that post. Make sure it is public and the URL is correct.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Authoritative author check (Sorsa) against the linked handle. Fail
+        # closed: an absent/empty author must not pass the check.
+        author = (tweet['username'] or '').lower()
+        if not author:
+            return Response(
+                {'error': 'verification_unavailable', 'message': 'Could not verify your post right now. Please try again shortly.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        if author != linked_handle:
+            return Response(
+                {'error': 'account_mismatch', 'message': 'The post must come from your linked X account.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ok, error_code = cj.post_matches(tweet['full_text'], user)
+        if not ok:
+            message = (
+                f"Your post must @mention @{cj.genlayer_handle()}."
+                if error_code == 'tag_missing'
+                else 'Your post must include your verification code exactly as shown.'
+            )
+            return Response({'error': error_code, 'message': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        CommunityPostProof.objects.update_or_create(
+            user=user,
+            defaults={'post_url': post_url, 'tweet_id': tweet_id},
+        )
+        return Response(
+            {'status': 'verified', 'journey': cj.journey_status(user)},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def complete_community_journey(self, request):
+        """Grant the Creator (community) role once all 5 journey steps are done.
+        Point-free (steps 1-4 keep their own points)."""
+        from creators import community_journey as cj
+        from creators.models import Creator
+        from leaderboard.models import update_user_leaderboard_entries
+
+        user = request.user
+        journey = cj.journey_status(user)
+        if not journey['started']:
+            return Response(
+                {
+                    'error': 'not_started',
+                    'missing_steps': ['start'],
+                    'message': 'Start the community journey first.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not journey['complete']:
+            return Response(
+                {
+                    'error': 'incomplete',
+                    'missing_steps': journey['missing_steps'],
+                    'message': 'Complete all community journey steps first.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if hasattr(user, 'creator'):
+            return Response(
+                {'message': 'You are already a community member', 'user': self.get_serializer(user).data},
+                status=status.HTTP_200_OK,
+            )
+
+        Creator.objects.create(user=user)
+        fresh_user = type(user).objects.get(pk=user.pk)
+        update_user_leaderboard_entries(fresh_user)
+        return Response(
+            {'message': 'Welcome to the GenLayer community!', 'user': self.get_serializer(fresh_user).data},
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=False, methods=['get'])
     def validators(self, request):

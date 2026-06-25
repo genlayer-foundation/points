@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 # Code constants — wire shape lives next to the parser below so any change
 # to Sorsa's contract is a one-file diff.
 SORSA_FOLLOW_PATH = '/check-follow'
+SORSA_TWEET_INFO_PATH = '/tweet-info'
 SORSA_TIMEOUT_SECONDS = 8.0
 
 
@@ -118,6 +119,54 @@ class SorsaClient:
             'target_handle': payload['username_1'],
         }
         return is_following, audit
+
+    def get_tweet(self, tweet_link: str) -> dict[str, str] | None:
+        """Fetch a single tweet via POST /tweet-info.
+
+        `tweet_link` accepts a full tweet URL or a bare tweet id.
+        Returns {'full_text': str, 'username': str} (username without @), or
+        None when the tweet is not found / deleted (404 — a verification
+        failure, not an outage). Raises SorsaError on transport / auth / server
+        / parse failures so the caller can surface a retryable 503.
+        """
+        if not self.base_url or not self.api_key:
+            raise SorsaError('Sorsa is not configured (SORSA_API_BASE_URL / SORSA_API_KEY missing)')
+
+        url = f'{self.base_url}{SORSA_TWEET_INFO_PATH}'
+        headers = {
+            'ApiKey': self.api_key,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        }
+
+        try:
+            with trace_external('sorsa', 'tweet_info'):
+                response = self._session.post(
+                    url, json={'tweet_link': tweet_link}, headers=headers, timeout=self.timeout
+                )
+        except requests.RequestException as exc:
+            raise SorsaError(f'Sorsa request failed: {exc}') from exc
+
+        if response.status_code == 404:
+            return None
+        if response.status_code >= 500:
+            raise SorsaError(f'Sorsa returned {response.status_code}')
+        if response.status_code in (401, 403):
+            raise SorsaError(f'Sorsa auth failed ({response.status_code})')
+
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise SorsaError('Sorsa returned non-JSON response') from exc
+
+        if response.status_code >= 400:
+            raise SorsaError(f'Sorsa error {response.status_code}: {data}')
+
+        full_text = data.get('full_text')
+        if not isinstance(full_text, str):
+            raise SorsaError('Unexpected tweet-info response (no full_text)')
+        username = ((data.get('user') or {}).get('username') or '').lstrip('@')
+        return {'full_text': full_text, 'username': username}
 
 
 _default_client: SorsaClient | None = None

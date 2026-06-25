@@ -12,6 +12,9 @@
   import { location } from 'svelte-spa-router';
   import { setRouteMeta } from './lib/meta.js';
   import { authState, verifyAuth } from './lib/auth.js';
+  import { userStore } from './lib/userStore.js';
+  import { journeyAPI } from './lib/api.js';
+  import { hasEarnedRole, journeyPath, rolePath } from './lib/roleState.js';
   import { installLinkInterceptor } from './lib/router.js';
 
   // Early OAuth result detection — runs before routes mount.
@@ -63,7 +66,6 @@
   }
   
   import Overview from './routes/Overview.svelte';
-  import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import AllContributions from './routes/AllContributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
@@ -114,6 +116,9 @@
   import GlobalDashboard from './components/GlobalDashboard.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
   import SocialTasks from './routes/SocialTasks.svelte';
+  import RoleFunnel from './components/funnel/RoleFunnel.svelte';
+  import BuilderJourney from './routes/BuilderJourney.svelte';
+  import CommunityJourney from './routes/CommunityJourney.svelte';
 
   async function requireAuthForRoute({ location, querystring }) {
     const state = authState.get();
@@ -157,6 +162,48 @@
     conditions: [requireAuthForRoute],
   });
 
+  // Role-gated subsection: must be authenticated AND have earned the role, else
+  // bounce to the role's main route (the funnel) so the user can start there.
+  async function hasSubsectionAccess(user, category) {
+    if (category !== 'community') {
+      return hasEarnedRole(user, category);
+    }
+
+    if (!user?.creator) return false;
+
+    try {
+      const res = await journeyAPI.communityJourney();
+      return Boolean(res.data?.is_member && res.data?.complete);
+    } catch {
+      return false;
+    }
+  }
+
+  function requireRoleForRoute(category) {
+    return async (detail) => {
+      const authed = await requireAuthForRoute(detail);
+      if (!authed) return false;
+
+      let user = userStore.getUser();
+      if (!user) {
+        try { user = await userStore.loadUser(); } catch { user = null; }
+      }
+      if (await hasSubsectionAccess(user, category)) return true;
+
+      // Stale-navigation guard: only redirect if still on the guarded route.
+      const normalizePath = (value) => (value || '/').replace(/\/+$/, '') || '/';
+      const guarded = `${normalizePath(detail.location)}${detail.querystring ? `?${detail.querystring}` : ''}`;
+      const here = `${normalizePath(window.location.pathname)}${window.location.search || ''}`;
+      if (here === guarded) replace(category === 'community' ? journeyPath(category) : rolePath(category));
+      return false;
+    };
+  }
+
+  const roleGatedRoute = (component, category) => wrap({
+    component,
+    conditions: [requireRoleForRoute(category)],
+  });
+
   // Define routes
   const routes = {
 
@@ -170,39 +217,42 @@
     '/leaderboard': Leaderboard,
     '/participants': Validators,
     '/referrals': protectedRoute(Referrals),
-    '/community': Dashboard,
-    '/community/contributions': protectedRoute(Contributions),
-    '/community/all-contributions': protectedRoute(AllContributions),
+    '/community': RoleFunnel,
+    '/community/journey': protectedRoute(CommunityJourney),
+    '/community/contributions': roleGatedRoute(Contributions, 'community'),
+    '/community/all-contributions': roleGatedRoute(AllContributions, 'community'),
     '/community/referrals': LegacyReferralRedirect,
-    '/community/leaderboard': Leaderboard,
-    '/community/poaps': CommunityPoaps,
-    '/community/poaps/recover': PoapRecovery,
-    '/community/poaps/:slug': PoapDetail,
-    '/community/tasks': protectedRoute(SocialTasks),
-    '/community/contribution/:id': protectedRoute(ContributionPreview),
+    '/community/leaderboard': roleGatedRoute(Leaderboard, 'community'),
+    '/community/poaps': roleGatedRoute(CommunityPoaps, 'community'),
+    '/community/poaps/recover': roleGatedRoute(PoapRecovery, 'community'),
+    '/community/poaps/:slug': roleGatedRoute(PoapDetail, 'community'),
+    '/community/tasks': roleGatedRoute(SocialTasks, 'community'),
+    '/community/contribution/:id': roleGatedRoute(ContributionPreview, 'community'),
     '/claim/poap/:token': PoapClaim,
     '/hackathon': Hackathon,
     '/hackathon-winners': HackathonWinners,
     '/referral-program': ReferralProgram,
 
     // Builders routes
-    '/builders': Dashboard,
-    '/builders/contributions': protectedRoute(Contributions),
+    '/builders': RoleFunnel,
+    '/builders/journey': protectedRoute(BuilderJourney),
+    '/builders/contributions': roleGatedRoute(Contributions, 'builder'),
     '/builders/all-contributions': protectedRoute(AllContributions),
     '/builders/leaderboard': Leaderboard,
 
     '/builders/resources': Resources,
     '/builders/projects/:slug/edit': protectedRoute(ProjectPageEditor),
     '/builders/projects/:slug': ProjectDetail,
-    '/builders/tasks': protectedRoute(SocialTasks),
+    '/builders/tasks': roleGatedRoute(SocialTasks, 'builder'),
     '/builders/startup-requests/:id': StartupRequestDetail,
     
     // Validators routes
-    '/validators': Dashboard,
-    '/validators/contributions': protectedRoute(Contributions),
+    '/validators': RoleFunnel,
+    '/validators/journey': ValidatorWaitlist,
+    '/validators/contributions': roleGatedRoute(Contributions, 'validator'),
     '/validators/all-contributions': protectedRoute(AllContributions),
     '/validators/leaderboard': Leaderboard,
-    '/validators/tasks': protectedRoute(SocialTasks),
+    '/validators/tasks': roleGatedRoute(SocialTasks, 'validator'),
     '/validators/participants': Validators,
     '/validators/wall-of-shame': WallOfShame,
     '/validators/waitlist': protectedRoute(Waitlist),

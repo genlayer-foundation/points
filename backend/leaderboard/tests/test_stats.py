@@ -256,7 +256,7 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['creator_count'], 2)
         self.assertEqual(response.data['builder_count'], 1)
 
-    def test_poap_claim_grants_role_and_counts_as_member_metric(self):
+    def test_poap_claim_counts_as_member_metric_without_granting_role(self):
         poap_user = self._create_user(
             'poap@example.com',
             '0x0000000000000000000000000000000000000007'
@@ -279,7 +279,7 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['community_member_count'], 1)
         self.assertEqual(response.data['creator_count'], 1)
-        self.assertTrue(Creator.objects.filter(user=poap_user).exists())
+        self.assertFalse(Creator.objects.filter(user=poap_user).exists())
 
     def test_validator_count_uses_visible_validator_table_rows(self):
         validator_user = self._create_user(
@@ -546,7 +546,7 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(stats_response.data['community_member_count'], 1)
         self.assertEqual(stats_response.data['new_community_members_count'], 1)
         self.assertEqual(stats_response.data['contribution_count'], 1)
-        self.assertTrue(Creator.objects.filter(user=contributor).exists())
+        self.assertFalse(Creator.objects.filter(user=contributor).exists())
 
         self.assertEqual(monthly_response.status_code, 200)
         self.assertEqual(monthly_response.data[0]['user'], contributor.id)

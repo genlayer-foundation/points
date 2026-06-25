@@ -2,7 +2,9 @@
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { updateUserProfile } from '../lib/api.js';
-  import { push } from 'svelte-spa-router';
+  import { push, location } from 'svelte-spa-router';
+  import { detectCategoryFromRoute } from '../stores/category.js';
+  import { rolePath, roleForCategory } from '../lib/roleState.js';
 
   // Form state
   let email = $state('');
@@ -13,6 +15,22 @@
   // Track which fields were pre-filled
   let hasExistingName = $state(false);
   let hasExistingEmail = $state(false);
+
+  // Role selection. Preselected from the entry route; once the user clicks a
+  // role we stop overriding it. Drives the post-completion redirect only (it is
+  // not persisted — the role is earned later via the journey).
+  const ROLE_OPTIONS = [
+    { value: 'builder', label: 'Builder' },
+    { value: 'validator', label: 'Validator' },
+    { value: 'community', label: 'Community' },
+  ];
+  let selectedRole = $state('community');
+  let roleTouched = $state(false);
+
+  function selectRole(value) {
+    selectedRole = value;
+    roleTouched = true;
+  }
 
   // Determine if profile is incomplete
   let showGuard = $derived.by(() => {
@@ -33,6 +51,17 @@
                        user.email.endsWith('@ethereum.address');
 
     return needsName || needsEmail;
+  });
+
+  // Preselect the role from where the user started auth (captured at sign-in,
+  // before the post-login redirect), falling back to the current route. Holds
+  // until the user picks one.
+  $effect(() => {
+    if (showGuard && !roleTouched) {
+      let stored = null;
+      try { stored = sessionStorage.getItem('onboardingRole'); } catch {}
+      selectedRole = stored || roleForCategory(detectCategoryFromRoute($location));
+    }
   });
 
   // Pre-fill form fields when user data is available
@@ -89,8 +118,10 @@
       // Reload user data to ensure we have the latest
       await userStore.loadUser();
 
-      // Redirect first-time users to How it works page
-      push('/how-it-works');
+      // Send first-time users to their selected role's main route, where the
+      // funnel offers "Start the journey".
+      try { sessionStorage.removeItem('onboardingRole'); } catch {}
+      push(rolePath(selectedRole));
     } catch (err) {
       // Handle field-specific errors from Django REST Framework
       if (err.response?.data) {
@@ -183,6 +214,22 @@
               disabled={submittingProfile}
             />
             <p class="text-xs text-gray-500 mt-1">We'll use this to send you important updates about your contributions</p>
+          </div>
+
+          <div class="form-group">
+            <span class="form-label">I'm here as a…</span>
+            <div class="role-options">
+              {#each ROLE_OPTIONS as option}
+                <button
+                  type="button"
+                  class="role-option {selectedRole === option.value ? 'role-option-selected' : ''}"
+                  onclick={() => selectRole(option.value)}
+                  disabled={submittingProfile}
+                >
+                  {option.label}
+                </button>
+              {/each}
+            </div>
           </div>
 
           <button
@@ -318,6 +365,40 @@
 
   .form-input::placeholder {
     color: #9CA3AF;
+  }
+
+  .role-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+
+  .role-option {
+    padding: 0.625rem 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    background-color: #FAFAFA;
+    border: 1px solid #E5E7EB;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .role-option:hover:not(:disabled) {
+    border-color: #93C5FD;
+  }
+
+  .role-option-selected {
+    color: #1D4ED8;
+    background-color: #EFF6FF;
+    border-color: #2563EB;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  .role-option:disabled {
+    opacity: 0.6;
+    cursor: default;
   }
 
   .profile-submit-button {
