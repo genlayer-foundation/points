@@ -5,6 +5,14 @@
   import { journeyAPI, socialTasksAPI } from '../lib/api.js';
   import { userStore } from '../lib/userStore.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
+  import {
+    getAnalyticsContext,
+    getFunnelDurationMs,
+    getLifecycleDurations,
+    markLifecycleTime,
+    markFunnelTime,
+    trackEvent,
+  } from '../lib/analytics.js';
   import SocialLink from '../components/SocialLink.svelte';
   import SocialTaskCard from '../components/social-tasks/SocialTaskCard.svelte';
   import JourneyWelcome from '../components/funnel/journeys/JourneyWelcome.svelte';
@@ -17,6 +25,23 @@
   const JOIN_DISCORD_TASK_SLUG = 'join-genlayer-discord';
 
   const STEP_IDS = ['link_x', 'link_discord', 'follow_x', 'join_discord', 'x_post'];
+  const VERIFICATION_MODES = {
+    link_x: 'oauth_x',
+    link_discord: 'oauth_discord',
+    follow_x: 'social_task',
+    join_discord: 'social_task',
+    x_post: 'sorsa_tweet_info',
+  };
+  const POST_VERIFICATION_RESULTS = new Set([
+    'success',
+    'invalid_url',
+    'account_mismatch',
+    'post_not_found',
+    'code_missing',
+    'tag_missing',
+    'verification_unavailable',
+    'unknown_error',
+  ]);
 
   let journey = $state(null);
   let tasks = $state([]);
@@ -28,6 +53,9 @@
   let linkingDiscord = $state(false);
   let verifyingPost = $state(false);
   let postUrl = $state('');
+  let lastJourneyViewKey = $state('');
+  let lastStepViewKey = $state('');
+  let lastJourneyExitKey = $state('');
 
   let user = $derived($userStore.user);
   let twitterConnection = $derived(user?.twitter_connection || null);
@@ -83,15 +111,68 @@
   ];
 
   onMount(() => {
+    markFunnelTime('journey_visible:community');
+    const handlePageHide = () => trackJourneyExit('pagehide');
+    window.addEventListener('pagehide', handlePageHide);
+
     if (!user?.has_community_welcome) {
       journeyAPI
         .startRoleJourney('community')
-        .then(() => userStore.loadUser?.())
-        .catch(() => {
+        .then(() => {
+          markFunnelTime('journey_start:community');
+          markLifecycleTime('first_journey_start:community');
+          trackEvent('journey_started', getAnalyticsContext({
+            role_context: 'community',
+            selected_role: 'community',
+            surface: 'journey',
+            journey_state: 'started',
+            time_from_role_landing_ms: getFunnelDurationMs('role_landing:community'),
+            time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+            time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
+            time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
+          }));
+          userStore.loadUser?.();
+        })
+        .catch((err) => {
+          trackEvent('journey_start_error', getAnalyticsContext({
+            role_context: 'community',
+            selected_role: 'community',
+            surface: 'journey',
+            error_stage: err.response?.status ? 'backend' : 'network',
+          }));
           showError('Could not start your creator journey. Try refreshing in a moment.');
         });
     }
     loadJourney({ showLoading: true });
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      trackJourneyExit('route_leave');
+    };
+  });
+
+  $effect(() => {
+    if (loading) return;
+    const viewKey = `community:${completedSteps}:${complete}`;
+    if (viewKey === lastJourneyViewKey) return;
+    lastJourneyViewKey = viewKey;
+    trackEvent('journey_view', getAnalyticsContext({
+      role_context: 'community',
+      selected_role: 'community',
+      role_funnel_state: user?.creator ? 'earned' : 'started',
+      journey_state: user?.creator ? 'earned' : (complete ? 'completed' : 'started'),
+      surface: 'journey',
+      completed_step_count: completedSteps,
+      total_step_count: TOTAL_STEPS,
+    }));
+  });
+
+  $effect(() => {
+    if (loading || !activeStepId || activeStepId === 'done') return;
+    const viewKey = `community:${activeStepId}`;
+    if (viewKey === lastStepViewKey) return;
+    lastStepViewKey = viewKey;
+    markFunnelTime(`journey_step_visible:community:${activeStepId}`);
+    trackCommunityStepEvent('journey_step_view', activeStepId);
   });
 
   function stepDone(id) {
@@ -106,6 +187,55 @@
 
   function isActive(id) {
     return statusFor(id) === 'active';
+  }
+
+  function stepIndex(stepId) {
+    return STEP_IDS.indexOf(stepId) + 1;
+  }
+
+  function trackCommunityStepEvent(name, stepId, extra = {}) {
+    trackEvent(name, getAnalyticsContext({
+      role_context: 'community',
+      selected_role: 'community',
+      surface: 'journey',
+      step_id: stepId,
+      step_index: stepIndex(stepId),
+      step_required: true,
+      verification_mode: VERIFICATION_MODES[stepId] || 'unknown',
+      completed_step_count: completedSteps,
+      total_step_count: TOTAL_STEPS,
+      ...extra,
+    }));
+  }
+
+  function trackJourneyExit(exitReason) {
+    if (loading || user?.creator) return;
+    const stepId = activeStepId || 'unknown';
+    const exitKey = `${stepId}:${completedSteps}:${complete}`;
+    if (exitKey === lastJourneyExitKey) return;
+    lastJourneyExitKey = exitKey;
+    trackEvent('journey_exit', getAnalyticsContext({
+      role_context: 'community',
+      selected_role: 'community',
+      surface: 'journey',
+      exit_reason: exitReason,
+      step_id: stepId,
+      step_index: stepIndex(stepId),
+      step_required: stepId !== 'done',
+      journey_state: complete ? 'claim_ready' : 'started',
+      completed_step_count: completedSteps,
+      total_step_count: TOTAL_STEPS,
+      time_on_journey_ms: getFunnelDurationMs('journey_visible:community'),
+      time_on_step_ms: getFunnelDurationMs(`journey_step_visible:community:${stepId}`),
+    }));
+  }
+
+  function postVerificationResult(err) {
+    const code = String(err?.response?.data?.error || '').toLowerCase();
+    if (POST_VERIFICATION_RESULTS.has(code)) return code;
+    if (err?.response?.status === 503) return 'verification_unavailable';
+    if (err?.response?.status === 404) return 'post_not_found';
+    return 'unknown_error';
   }
 
   async function loadJourney({ showLoading = false } = {}) {
@@ -148,6 +278,7 @@
     const isX = kind === 'x';
     const stepId = isX ? 'link_x' : 'link_discord';
     if ((isX && linkingX) || (!isX && linkingDiscord)) return;
+    trackCommunityStepEvent('journey_step_action_click', stepId);
     if (isX) linkingX = true;
     else linkingDiscord = true;
     actionError = '';
@@ -156,11 +287,16 @@
       const res = isX ? await journeyAPI.linkXAccount() : await journeyAPI.linkDiscordAccount();
       if (res.data?.user) userStore.updateUser(res.data.user);
       else await userStore.loadUser?.();
+      trackCommunityStepEvent('journey_step_verified', stepId);
       markStepDone(stepId);
       showSuccess(isX ? 'X account linked for community points.' : 'Discord account linked for community points.');
       await loadJourney({ showLoading: false });
       markStepDone(stepId);
     } catch (err) {
+      trackCommunityStepEvent('journey_step_error', stepId, {
+        error_code: err.response?.status ? 'backend_error' : 'unknown_error',
+        error_stage: err.response?.status ? 'backend' : 'network',
+      });
       actionError = err.response?.data?.message || err.response?.data?.error || `Could not confirm your ${isX ? 'X' : 'Discord'} account.`;
       showError(actionError);
     } finally {
@@ -196,6 +332,13 @@
   async function copyShareText() {
     const text = xPost.share_text || '';
     if (!text) return;
+    trackEvent('community_post_copy_click', getAnalyticsContext({
+      role_context: 'community',
+      selected_role: 'community',
+      surface: 'journey',
+      step_id: 'x_post',
+      verification_mode: 'sorsa_tweet_info',
+    }));
     try {
       await navigator.clipboard.writeText(text);
       showSuccess('Post text copied.');
@@ -216,8 +359,28 @@
 
   async function verifyPost() {
     if (verifyingPost) return;
+    trackEvent('community_post_verify_attempt', getAnalyticsContext({
+      role_context: 'community',
+      selected_role: 'community',
+      surface: 'journey',
+      step_id: 'x_post',
+      verification_mode: 'sorsa_tweet_info',
+    }));
+    trackCommunityStepEvent('journey_step_action_click', 'x_post');
     const trimmedUrl = postUrl.trim();
     if (!trimmedUrl) {
+      trackEvent('community_post_verify_error', getAnalyticsContext({
+        role_context: 'community',
+        selected_role: 'community',
+        surface: 'journey',
+        verification_result: 'invalid_url',
+        error_code: 'invalid_url',
+        verification_mode: 'sorsa_tweet_info',
+      }));
+      trackCommunityStepEvent('journey_step_error', 'x_post', {
+        error_code: 'invalid_url',
+        error_stage: 'validation',
+      });
       actionError = 'Paste the URL of your X post first.';
       showError(actionError);
       return;
@@ -228,9 +391,30 @@
     try {
       const res = await journeyAPI.verifyCommunityPost(trimmedUrl);
       if (res.data?.journey) journey = res.data.journey;
+      trackEvent('community_post_verify_success', getAnalyticsContext({
+        role_context: 'community',
+        selected_role: 'community',
+        surface: 'journey',
+        verification_result: 'success',
+        verification_mode: 'sorsa_tweet_info',
+      }));
+      trackCommunityStepEvent('journey_step_verified', 'x_post');
       showSuccess('Community post verified.');
       await loadJourney({ showLoading: false });
     } catch (err) {
+      const verificationResult = postVerificationResult(err);
+      trackEvent('community_post_verify_error', getAnalyticsContext({
+        role_context: 'community',
+        selected_role: 'community',
+        surface: 'journey',
+        verification_result: verificationResult,
+        error_code: verificationResult,
+        verification_mode: 'sorsa_tweet_info',
+      }));
+      trackCommunityStepEvent('journey_step_error', 'x_post', {
+        error_code: verificationResult,
+        error_stage: err.response?.status ? 'backend' : 'network',
+      });
       actionError = err.response?.data?.message || err.response?.data?.error || 'Could not verify your X post.';
       showError(actionError);
     } finally {
@@ -240,15 +424,44 @@
 
   async function completeJourney() {
     if (completing || !complete) return;
+    const claimParams = {
+      role_context: 'community',
+      selected_role: 'community',
+      surface: 'journey',
+      completed_step_count: completedSteps,
+      total_step_count: TOTAL_STEPS,
+      time_from_role_landing_ms: getFunnelDurationMs('role_landing:community'),
+      time_from_journey_start_ms: getFunnelDurationMs('journey_start:community'),
+      ...getLifecycleDurations('community'),
+    };
+    trackEvent('community_role_claim_attempt', getAnalyticsContext(claimParams));
     completing = true;
     actionError = '';
     try {
       const res = await journeyAPI.completeCommunityJourney();
       if (res.data?.user) userStore.updateUser(res.data.user);
       await userStore.loadUser?.();
+      markLifecycleTime('role_unlocked:community');
+      trackEvent('community_role_claim_success', getAnalyticsContext(claimParams));
+      trackEvent('journey_completed', getAnalyticsContext({
+        ...claimParams,
+        journey_state: 'completed',
+      }));
+      trackEvent('role_unlocked', getAnalyticsContext({
+        ...claimParams,
+        role_context: 'community',
+        selected_role: 'community',
+        surface: 'journey',
+        unlock_source: 'journey',
+      }));
       showSuccess('Welcome to the GenLayer community!');
       replace('/community');
     } catch (err) {
+      trackEvent('community_role_claim_error', getAnalyticsContext({
+        ...claimParams,
+        error_code: err.response?.status ? 'backend_error' : 'unknown_error',
+        error_stage: err.response?.status ? 'backend' : 'network',
+      }));
       actionError = err.response?.data?.message || err.response?.data?.error || 'Complete all creator journey steps first.';
       showError(actionError);
       await loadJourney({ showLoading: false });
@@ -457,6 +670,13 @@
                   href={xPost.intent_url || 'https://x.com/intent/post'}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onclick={() => trackEvent('community_post_intent_click', getAnalyticsContext({
+                    role_context: 'community',
+                    selected_role: 'community',
+                    surface: 'journey',
+                    step_id: 'x_post',
+                    verification_mode: 'sorsa_tweet_info',
+                  }))}
                 >
                   Post on X
                 </a>

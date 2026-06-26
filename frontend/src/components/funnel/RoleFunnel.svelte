@@ -11,6 +11,13 @@
   import { userStore } from '../../lib/userStore.js';
   import { currentCategory } from '../../stores/category.js';
   import { roleFunnelState } from '../../lib/roleState.js';
+  import {
+    getAnalyticsContext,
+    getLifecycleDurations,
+    markLifecycleTime,
+    trackEvent,
+    trackEventOnce,
+  } from '../../lib/analytics.js';
   import Dashboard from '../../routes/Dashboard.svelte';
   import RoleLanding from './RoleLanding.svelte';
   import BuilderJourney from '../../routes/BuilderJourney.svelte';
@@ -25,6 +32,30 @@
   let isChecking = $derived(!$authState.hasVerified);
   let user = $derived($userStore.user);
   let funnelState = $derived(roleFunnelState(isAuth, user, category));
+  let lastDashboardView = $state('');
+
+  $effect(() => {
+    if (funnelState !== 'earned') {
+      lastDashboardView = '';
+      return;
+    }
+    const viewKey = `${category}:earned`;
+    if (viewKey === lastDashboardView) return;
+    lastDashboardView = viewKey;
+    const dashboardParams = {
+      role_context: category,
+      selected_role: category,
+      role_funnel_state: 'earned',
+      journey_state: 'earned',
+      surface: 'dashboard',
+      ...getLifecycleDurations(category),
+    };
+    trackEvent('role_dashboard_view', getAnalyticsContext(dashboardParams));
+    trackEventOnce('first_dashboard_view', 'first_dashboard_view', getAnalyticsContext(dashboardParams));
+    trackEventOnce(`first_dashboard_view:${category}`, 'first_role_dashboard_view', getAnalyticsContext(dashboardParams));
+    markLifecycleTime('first_dashboard');
+    markLifecycleTime(`first_dashboard:${category}`);
+  });
 </script>
 
 {#if isChecking || (isAuth && !user)}

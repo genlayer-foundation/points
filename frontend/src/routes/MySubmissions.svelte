@@ -6,6 +6,14 @@
   import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
   import SubmissionCard from '../components/SubmissionCard.svelte';
   import { showSuccess, showError } from '../lib/toastStore';
+  import {
+    getAnalyticsContext,
+    getLifecycleDurationMs,
+    getLifecycleDurations,
+    markLifecycleTime,
+    trackEvent,
+    trackEventOnce,
+  } from '../lib/analytics.js';
 
   let submissions = $state([]);
   let loading = $state(true);
@@ -16,6 +24,7 @@
   let stateFilter = $state('');
   let authChecked = $state(false);
   let highlightedSubmissionId = $state('');
+  let lastLifecycleSnapshotKey = $state('');
 
   const validStateFilters = new Set([
     'pending',
@@ -57,6 +66,101 @@
       });
     }, 100);
   }
+
+  function contributionPoints(submission) {
+    const value =
+      submission?.contribution?.frozen_global_points ??
+      submission?.contribution?.points ??
+      submission?.proposed_points ??
+      0;
+    const points = Number(value);
+    return Number.isFinite(points) && points > 0 ? Math.round(points) : 0;
+  }
+
+  function lifecycleSnapshotParams() {
+    const counts = submissions.reduce((acc, submission) => {
+      const state = submission?.state || 'unknown';
+      acc[state] = (acc[state] || 0) + 1;
+      return acc;
+    }, {});
+    const acceptedSubmissions = submissions.filter((submission) => submission?.state === 'accepted');
+    const reviewedSubmissions = submissions.filter((submission) =>
+      ['accepted', 'rejected', 'more_info_needed'].includes(submission?.state)
+    );
+    const visiblePointsAwarded = acceptedSubmissions.reduce(
+      (sum, submission) => sum + contributionPoints(submission),
+      0
+    );
+    return {
+      surface: 'dashboard',
+      filtered_state: stateFilter || 'all',
+      visible_submission_count: submissions.length,
+      total_submission_count: totalCount,
+      pending_submission_count: counts.pending || 0,
+      accepted_submission_count: counts.accepted || 0,
+      rejected_submission_count: counts.rejected || 0,
+      more_info_submission_count: counts.more_info_needed || 0,
+      canceled_submission_count: counts.canceled || 0,
+      reviewed_submission_count: reviewedSubmissions.length,
+      visible_points_awarded: visiblePointsAwarded,
+      time_from_first_contribution_ms: getLifecycleDurationMs('first_contribution_submitted'),
+      ...getLifecycleDurations(),
+    };
+  }
+
+  function trackContributionLifecycleSnapshot() {
+    if (!$authState.isAuthenticated) return;
+    const params = lifecycleSnapshotParams();
+    const snapshotKey = [
+      params.filtered_state,
+      params.visible_submission_count,
+      params.total_submission_count,
+      params.pending_submission_count,
+      params.accepted_submission_count,
+      params.rejected_submission_count,
+      params.more_info_submission_count,
+      params.canceled_submission_count,
+      params.visible_points_awarded,
+    ].join(':');
+    if (snapshotKey !== lastLifecycleSnapshotKey) {
+      lastLifecycleSnapshotKey = snapshotKey;
+      trackEvent('contribution_lifecycle_snapshot', getAnalyticsContext(params));
+    }
+
+    if (totalCount > 0 && markLifecycleTime('known_contribution_history')) {
+      trackEvent('contribution_history_detected', getAnalyticsContext({
+        ...params,
+        lifecycle_scope: 'browser',
+      }));
+    }
+
+    const firstReviewed = submissions.find((submission) =>
+      ['accepted', 'rejected', 'more_info_needed'].includes(submission?.state)
+    );
+    if (firstReviewed) {
+      trackEventOnce(
+        'first_contribution_review_seen',
+        'first_contribution_review_seen',
+        getAnalyticsContext({
+          ...params,
+          review_state: firstReviewed.state,
+          points_awarded: firstReviewed.state === 'accepted' ? contributionPoints(firstReviewed) : 0,
+          lifecycle_scope: 'browser',
+        })
+      );
+    }
+
+    if (params.visible_points_awarded > 0) {
+      trackEventOnce(
+        'contribution_points_awarded_seen',
+        'contribution_points_awarded_seen',
+        getAnalyticsContext({
+          ...params,
+          lifecycle_scope: 'browser',
+        })
+      );
+    }
+  }
   
   // Load submissions when authenticated
   async function loadSubmissions() {
@@ -86,6 +190,7 @@
       const response = await api.get('/submissions/my/', { params });
       submissions = response.data.results || response.data;
       totalCount = response.data.count || submissions.length;
+      trackContributionLifecycleSnapshot();
       scrollToHighlightedSubmission();
     } catch (err) {
       error = 'Failed to load submissions';
@@ -119,6 +224,9 @@
   });
   
   onMount(async () => {
+    trackEvent('my_submissions_view', getAnalyticsContext({
+      surface: 'dashboard',
+    }));
     syncSubmissionDeepLink($querystring);
 
     // Check for success message from edit submission
@@ -150,6 +258,13 @@
     loadSubmissions();
   }
 
+  function handleSubmitNewContribution() {
+    trackEvent('submit_contribution_click', getAnalyticsContext({
+      surface: 'dashboard',
+    }));
+    push('/submit-contribution');
+  }
+
   async function handleAppeal(submissionId, reason) {
     try {
       const response = await submissionsAPI.appeal(submissionId, reason);
@@ -175,7 +290,7 @@
   <div class="flex justify-between items-center mb-6">
     <h1 class="text-2xl font-bold">My Submissions</h1>
     <button
-      onclick={() => push('/submit-contribution')}
+      onclick={handleSubmitNewContribution}
       class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
     >
       Submit New Contribution
@@ -229,7 +344,7 @@
     <div class="text-center py-12">
       <p class="text-gray-600 mb-4">You haven't submitted any contributions yet.</p>
       <button
-        onclick={() => push('/submit-contribution')}
+        onclick={handleSubmitNewContribution}
         class="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
       >
         Submit Your First Contribution
