@@ -1,41 +1,67 @@
 <script>
+  import { onMount } from 'svelte';
+  import { validatorsAPI } from '../../lib/api.js';
+  import CategoryIcon from '../portal/CategoryIcon.svelte';
+
   let { state: roleState = 'unauthenticated', starting = false, onStart = () => {} } = $props();
 
   const isWaitlisted = $derived(roleState === 'waitlisted');
   const primaryLabel = $derived(starting ? 'Starting...' : 'Join the Waitlist');
+  let professionalValidatorCount = $state(null);
 
   const comparisonCards = [
     {
+      icon: 'attest',
       title: 'Traditional validator',
       value: 'Attest',
       body: 'Passive infrastructure with capped single-digit yields.',
     },
     {
+      icon: 'genlayer',
       title: 'GenLayer validator',
       value: 'Reason',
-      body: 'Run an AI model, participate in Optimistic Democracy, and earn per decision.',
+      body: 'Run an LLM-backed validator, evaluate evidence through Optimistic Democracy, and finalize accepted outcomes on-chain.',
     },
   ];
 
   const economics = [
-    'Paid per decision, with each decision composed of 15+ transactions.',
-    'With gas enabled, GenLayer activity would already rank Top-15 among all chains by daily fees.',
-    'Fee potential scales with reasoning demand, not passive uptime alone.',
+    'Paid per decision, with each decision recorded through 15+ on-chain transactions.',
+    'On mainnet, the same activity profile would already rank GenLayer Top-15 among all chains by daily fees.',
   ];
 
-  const proofStats = [
-    { value: '3.8', suffix: 'K', label: 'Decisions per day' },
+  const proofStats = $derived([
     { value: '4,097', label: 'Peak-day decisions' },
-    { value: '150', label: 'Professional validators live' },
+    { value: formatMetricNumber(professionalValidatorCount), label: 'Professional validators live' },
     { value: 'Q4', suffix: '2026', label: 'Mainnet target' },
-  ];
+  ]);
 
   const workflow = [
-    'Verifiable random selection',
-    'One validator proposes',
-    'Others verify',
-    'Appeals resolve disagreement',
+    'Random selection assigns a proposer',
+    'Proposer runs an LLM-backed evaluation',
+    'Validators independently verify',
+    'Appeals settle disputes on-chain',
   ];
+
+  function formatMetricNumber(value) {
+    if (value == null || value === '') return '—';
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '—';
+    return n.toLocaleString();
+  }
+
+  onMount(async () => {
+    try {
+      const response = await validatorsAPI.getAllValidatorWallets();
+      const active = response.data?.stats?.active;
+      if (active != null && active !== '') {
+        professionalValidatorCount = active;
+        return;
+      }
+      professionalValidatorCount = null;
+    } catch {
+      professionalValidatorCount = null;
+    }
+  });
 </script>
 
 <svelte:head>
@@ -58,11 +84,14 @@
 
   <section class="role-hero" aria-labelledby="validator-landing-title">
     <div class="hero-copy">
-      <p class="role-eyebrow">Validators</p>
+      <div class="role-badge">
+        <CategoryIcon category="validator" mode="hexagon" size={40} />
+        <span>Validators</span>
+      </div>
       <h1 id="validator-landing-title">Don&apos;t Validate Blocks.<br />Adjudicate the Agentic Economy.</h1>
       <p>
-        GenLayer validators don&apos;t rubber-stamp transactions - they reason,
-        judge, and resolve real disputes. And they earn more for it.
+        GenLayer validators run LLM-backed nodes that inspect web data, evaluate
+        evidence, and commit accepted judgments on-chain.
       </p>
       <div class="cta-cluster">
         <div class="button-row">
@@ -81,7 +110,7 @@
             </button>
           {/if}
         </div>
-        <p class="cta-hint">Reason through real outcomes, participate in consensus, and earn for judgment.</p>
+        <p class="cta-hint">A selected validator proposes an answer, others verify it, and appeals resolve disagreements before finality.</p>
       </div>
     </div>
 
@@ -89,19 +118,27 @@
   </section>
 
   <section class="comparison-section" aria-labelledby="validator-comparison-title">
-    <div class="section-header">
+    <div class="section-header centered">
       <h2 id="validator-comparison-title">From Passive Infrastructure to Active Judgment</h2>
-      <p>
-        On GenLayer, each validator runs an AI model and participates in Optimistic Democracy -
-        proposing, verifying, and appealing real decisions.
-      </p>
     </div>
     <div class="comparison-grid">
-      {#each comparisonCards as card}
+      {#each comparisonCards as card, index}
+        {#if index === 1}
+          <div class="versus-badge" aria-hidden="true"><span>vs.</span></div>
+        {/if}
         <article class="feature-card">
           <div class="feature-heading">
             <span class="feature-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M12 3v18M5 6h14M7 6l-4 7h8L7 6ZM17 6l-4 7h8l-4-7ZM8 21h8"></path></svg>
+              {#if card.icon === 'genlayer'}
+                <CategoryIcon category="genlayer" mode="hexagon" size={36} />
+              {:else}
+                <svg viewBox="0 0 24 24">
+                  <rect x="4" y="4" width="6" height="6" rx="1.5"></rect>
+                  <rect x="14" y="4" width="6" height="6" rx="1.5"></rect>
+                  <rect x="9" y="14" width="6" height="6" rx="1.5"></rect>
+                  <path d="M10 7h4M12 10v4"></path>
+                </svg>
+              {/if}
             </span>
             <h3>{card.title}</h3>
           </div>
@@ -122,10 +159,6 @@
   <section class="earn-banner" id="validator-economics" aria-labelledby="validator-economics-title">
     <div class="earn-copy">
       <h2 id="validator-economics-title">Higher Fees Per Transaction Than Anywhere Else</h2>
-      <p>
-        With gas enabled, GenLayer&apos;s current activity would already rank it Top-15
-        among all chains by daily fees - ahead of Avalanche, Cardano, and Near.
-      </p>
     </div>
     <div class="economics-list">
       {#each economics as item}
@@ -138,7 +171,7 @@
   </section>
 
   <section class="stack-section" aria-labelledby="validator-demand-title">
-    <h2 id="validator-demand-title">Thousands of decisions. Every day. Growing.</h2>
+    <h2 id="validator-demand-title">On-chain activity and operator readiness.</h2>
     <div class="stack-grid">
       {#each proofStats as stat}
         <article class="stack-card">
@@ -152,11 +185,12 @@
   </section>
 
   <section class="workflow-section" aria-labelledby="validator-workflow-title">
-    <div class="section-header">
+    <div class="section-header centered">
       <h2 id="validator-workflow-title">How It Works</h2>
       <p>
-        Verifiable random selection chooses who proposes. Other validators verify.
-        Disagreement escalates through appeals until finality - in minutes.
+        A proposer produces a judgment with an LLM-backed validator. Other
+        validators verify independently, and appeals settle disagreements before
+        the result is finalized on-chain.
       </p>
     </div>
     <div class="project-chip-row" aria-label="Validator workflow">
@@ -264,10 +298,13 @@
     gap: 24px;
   }
 
-  .role-eyebrow {
+  .role-badge {
+    align-items: center;
     color: var(--role-accent);
+    display: inline-flex;
     font-family: var(--font-mono);
     font-size: 13px;
+    gap: 10px;
     letter-spacing: 0.8px;
     line-height: 20px;
     margin: 0;
@@ -407,6 +444,12 @@
     justify-content: space-between;
   }
 
+  .section-header.centered {
+    align-items: center;
+    flex-direction: column;
+    text-align: center;
+  }
+
   .section-header h2,
   .stack-section > h2 {
     font-size: 40px;
@@ -423,31 +466,81 @@
     max-width: 590px;
   }
 
+  .section-header.centered h2,
+  .section-header.centered p {
+    max-width: 760px;
+  }
+
   .comparison-grid {
+    align-items: stretch;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) 88px minmax(0, 1fr);
     width: 100%;
   }
 
+  .versus-badge {
+    align-items: center;
+    align-self: stretch;
+    display: flex;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  .versus-badge::before {
+    background: linear-gradient(180deg, transparent, rgba(var(--role-accent-rgb), 0.3), transparent);
+    bottom: 22px;
+    content: '';
+    left: 50%;
+    position: absolute;
+    top: 22px;
+    transform: translateX(-50%);
+    width: 1px;
+  }
+
+  .versus-badge span {
+    align-items: center;
+    background: #fff;
+    border: 1px solid rgba(var(--role-accent-rgb), 0.28);
+    border-radius: 999px;
+    box-shadow: 0 10px 24px rgba(var(--role-accent-rgb), 0.12);
+    color: var(--role-accent);
+    display: inline-flex;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    height: 42px;
+    justify-content: center;
+    min-width: 52px;
+    padding: 0 14px;
+    position: relative;
+    text-transform: uppercase;
+  }
+
   .feature-card {
+    align-items: center;
     border: 1px solid var(--role-border);
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 18px;
+    text-align: center;
   }
 
   .feature-heading {
     align-items: center;
     display: flex;
     gap: 12px;
+    justify-content: center;
   }
 
   .feature-icon {
+    align-items: center;
     color: var(--role-accent);
     display: inline-flex;
-    height: 24px;
-    width: 24px;
+    height: 36px;
+    justify-content: center;
+    width: 36px;
   }
 
   .feature-icon svg {
@@ -581,7 +674,7 @@
   .stack-grid {
     display: grid;
     gap: 25px;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     width: 100%;
   }
 
@@ -669,6 +762,22 @@
     .role-hero,
     .comparison-grid {
       grid-template-columns: 1fr;
+    }
+
+    .versus-badge {
+      height: 58px;
+      width: 100%;
+    }
+
+    .versus-badge::before {
+      background: linear-gradient(90deg, transparent, rgba(var(--role-accent-rgb), 0.3), transparent);
+      bottom: auto;
+      height: 1px;
+      left: 12%;
+      right: 12%;
+      top: 50%;
+      transform: translateY(-50%);
+      width: auto;
     }
 
     .role-hero {

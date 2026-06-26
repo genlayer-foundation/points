@@ -1,4 +1,6 @@
 <script>
+  import CategoryIcon from '../portal/CategoryIcon.svelte';
+
   let { state: roleState = 'unauthenticated', starting = false, onStart = () => {} } = $props();
 
   const primaryLabel = $derived(starting ? 'Starting...' : 'Become a Creator');
@@ -11,18 +13,22 @@
 
   const contributionCards = [
     {
+      icon: 'protocol',
       title: 'Test the protocol',
-      body: 'Try projects, explore flows, and help make the network stronger before mainnet.',
+      body: 'Try live flows, test project behavior, and help harden the network before mainnet.',
     },
     {
+      icon: 'bug',
       title: 'Surface bugs',
       body: 'Catch edge cases, report issues, and turn product feedback into contribution credit.',
     },
     {
+      icon: 'content',
       title: 'Create content',
-      body: "Explain the adjudication layer, teach new users, and expand GenLayer's reach.",
+      body: "Explain agentic commerce, teach new users, and expand GenLayer's reach.",
     },
     {
+      icon: 'ecosystem',
       title: 'Grow the ecosystem',
       body: 'Bring builders, validators, and contributors into the network from day one.',
     },
@@ -38,8 +44,8 @@
       body: 'Take the project beyond its borders with content, distribution, and community action.',
     },
     {
-      title: 'Portal record',
-      body: 'Every contribution builds your public record of helping GenLayer from the earliest days.',
+      title: 'Portal Passport',
+      body: 'Your passport records verified contributions across tasks, content, and ecosystem work.',
     },
   ];
 
@@ -57,10 +63,13 @@
 <div class="role-landing community-landing">
   <section class="role-hero" aria-labelledby="community-landing-title">
     <div class="hero-copy">
-      <p class="role-eyebrow">Creators</p>
-      <h1 id="community-landing-title">+100,000 Strong.<br />Building the Court of the Internet.</h1>
+      <div class="role-badge">
+        <CategoryIcon category="community" mode="hexagon" size={40} />
+        <span>Creators</span>
+      </div>
+      <h1 id="community-landing-title">+100,000 Strong.<br />Building the Adjudication Layer for Agentic Commerce.</h1>
       <p>
-        Join the creators pushing the adjudication layer of the agentic economy
+        Join the creators pushing the adjudication layer for agentic commerce
         and get rewarded for every contribution.
       </p>
       <div class="cta-cluster">
@@ -84,19 +93,23 @@
   </section>
 
   <section class="feature-section" aria-labelledby="community-contribution-title">
-    <div class="section-header">
+    <div class="section-header centered">
       <h2 id="community-contribution-title">This Isn&apos;t a Spectator Community</h2>
-      <p>
-        Test the protocol. Surface bugs. Create content. Grow the ecosystem.
-        On GenLayer, creator work is tracked on the Portal and rewarded.
-      </p>
     </div>
     <div class="feature-grid">
       {#each contributionCards as card}
         <article class="feature-card">
           <div class="feature-heading">
             <span class="feature-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M12 3v18M4 8h16M6 21h12M7 8c0 4.5 2 7 5 7s5-2.5 5-7M8 3h8"></path></svg>
+              {#if card.icon === 'protocol'}
+                <svg viewBox="0 0 24 24"><path d="M12 3 4.5 7v5.5c0 4.1 2.6 7.1 7.5 8.5 4.9-1.4 7.5-4.4 7.5-8.5V7L12 3Z"></path><path d="m9 12 2 2 4-5"></path></svg>
+              {:else if card.icon === 'bug'}
+                <svg viewBox="0 0 24 24"><path d="M8 8.5A4 4 0 0 1 16 8.5V16a4 4 0 0 1-8 0V8.5Z"></path><path d="M3 13h5M16 13h5M5 19l3-3M16 16l3 3M5 6l3 3M16 9l3-3M9 4l1.5 2M15 4l-1.5 2"></path></svg>
+              {:else if card.icon === 'content'}
+                <svg viewBox="0 0 24 24"><path d="M4 19.5 5.5 15 16 4.5a2.1 2.1 0 0 1 3 3L8.5 18 4 19.5Z"></path><path d="m14.5 6 3.5 3.5M12 20h8"></path></svg>
+              {:else}
+                <svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-8 0"></path><path d="M3 20a7 7 0 0 1 18 0M18 8a3 3 0 0 1 2.5 4.7M6 8a3 3 0 0 0-2.5 4.7"></path></svg>
+              {/if}
             </span>
             <h3>{card.title}</h3>
           </div>
@@ -115,11 +128,10 @@
 
   <section class="points-banner" id="community-points" aria-labelledby="community-points-title">
     <div class="points-copy">
-      <h2 id="community-points-title">Become a Creator, Then Earn Through Tasks</h2>
+      <h2 id="community-points-title">Join the Community, Then Earn Through Tasks</h2>
       <p>
-        Completing the journey grants you the Creator role. From there,
-        specific verifiable tasks earn GenLayer Points, building your record of
-        helping the network from the earliest days.
+        Complete the community journey to activate your Portal Passport. From
+        there, verified tasks earn GenLayer Points tied to the work you did.
       </p>
     </div>
     <div class="points-grid">
@@ -134,18 +146,17 @@
 
   <section class="why-section" aria-labelledby="community-why-title">
     <div class="section-header">
-      <h2 id="community-why-title">The Missing Layer of the Internet Is Being Built in the Open</h2>
+      <h2 id="community-why-title">The next revolution of the internet is being built.</h2>
       <p>
-        Mainnet is coming. The contributors of today are the foundation of the
-        network tomorrow. Position yourself in the next revolution of the internet,
-        the agentic economy.
+        Early contributors are shaping agentic commerce, reputation, and dispute
+        resolution before mainnet arrives.
       </p>
     </div>
     <div class="stack-grid">
       {#each stats as stat}
         <article class="stack-card">
           <p class="stack-value">
-            <span>{stat.value}</span>{#if stat.suffix}<em>{stat.suffix}</em>{/if}
+            <span class:stack-symbol={stat.value === '∞'}>{stat.value}</span>{#if stat.suffix}<em>{stat.suffix}</em>{/if}
           </p>
           <p class="stack-label">{stat.label}</p>
         </article>
@@ -154,8 +165,7 @@
   </section>
 
   <section class="final-cta" aria-labelledby="community-final-title">
-    <h2 id="community-final-title">Become a creator.</h2>
-    <p>Complete the journey to unlock the Creator role, then earn points through tasks and help grow the network from day one.</p>
+    <h2 id="community-final-title">Join the Community</h2>
     <button
       type="button"
       class="landing-button landing-button-primary"
@@ -247,10 +257,13 @@
     gap: 24px;
   }
 
-  .role-eyebrow {
+  .role-badge {
+    align-items: center;
     color: var(--role-accent);
+    display: inline-flex;
     font-family: var(--font-mono);
     font-size: 13px;
+    gap: 10px;
     letter-spacing: 0.8px;
     line-height: 20px;
     margin: 0;
@@ -271,8 +284,7 @@
     line-height: 52px;
   }
 
-  .hero-copy > p,
-  .final-cta > p {
+  .hero-copy > p {
     color: var(--role-muted);
     font-family: var(--font-mono);
     font-size: 16px;
@@ -379,11 +391,21 @@
     justify-content: space-between;
   }
 
+  .section-header.centered {
+    align-items: center;
+    flex-direction: column;
+    text-align: center;
+  }
+
   .section-header h2 {
     font-size: 40px;
     letter-spacing: -1.2px;
     line-height: 48px;
     max-width: 570px;
+  }
+
+  .section-header.centered h2 {
+    max-width: 780px;
   }
 
   .section-header p {
@@ -401,34 +423,44 @@
   }
 
   .feature-card {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.78);
     border: 1px solid var(--role-border);
+    border-radius: 8px;
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 18px;
+    text-align: center;
   }
 
   .feature-heading {
     align-items: center;
     display: flex;
+    flex-direction: column;
     gap: 12px;
   }
 
   .feature-icon {
+    align-items: center;
+    background: rgba(var(--role-accent-rgb), 0.08);
+    border: 1px solid rgba(var(--role-accent-rgb), 0.14);
+    border-radius: 999px;
     color: var(--role-accent);
-    display: inline-flex;
-    height: 24px;
-    width: 24px;
+    display: flex;
+    height: 42px;
+    justify-content: center;
+    width: 42px;
   }
 
   .feature-icon svg {
     fill: none;
-    height: 24px;
+    height: 22px;
     stroke: currentColor;
     stroke-linecap: round;
     stroke-linejoin: round;
     stroke-width: 1.8;
-    width: 24px;
+    width: 22px;
   }
 
   .feature-card h3 {
@@ -559,6 +591,12 @@
     color: var(--role-accent);
     font-style: normal;
     margin-left: 2px;
+  }
+
+  .stack-symbol {
+    display: inline-block;
+    font-size: 1.35em;
+    line-height: 0.75;
   }
 
   .stack-label {
