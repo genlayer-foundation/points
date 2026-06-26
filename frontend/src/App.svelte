@@ -257,12 +257,12 @@
     '/contribution-type/:id': protectedRoute(ContributionTypeDetail),
     '/mission/:id': protectedRoute(MissionDetail),
     '/badge/:id': BadgeDetail,
-    '/submit-contribution': SubmitContribution,
-    '/my-submissions': MySubmissions,
-    '/contributions/:id': EditSubmission,
+    '/submit-contribution': protectedRoute(SubmitContribution),
+    '/my-submissions': protectedRoute(MySubmissions),
+    '/contributions/:id': protectedRoute(EditSubmission),
     '/metrics': Metrics,
-    '/profile': ProfileEdit,
-    '/notifications': Notifications,  // Full notification feed (authenticated only; renders a signed-out state otherwise)
+    '/profile': protectedRoute(ProfileEdit),
+    '/notifications': protectedRoute(Notifications),  // Full notification feed (authenticated only)
 
     // Steward routes
     '/stewards': StewardDashboard,
@@ -488,9 +488,9 @@
 
 <div class="h-screen flex flex-col bg-white">
   <Navbar {toggleSidebar} {sidebarOpen} />
-  <div class="flex-1 flex overflow-hidden">
+  <div class="flex-1 min-h-0 flex overflow-hidden">
     <Sidebar bind:isOpen={sidebarOpen} bind:collapsed={sidebarCollapsed} />
-    <main class="flex-1 overflow-y-auto {isFullBleedPage ? '' : 'px-3 py-3'}">
+    <main class="flex-1 min-h-0 min-w-0 overflow-y-auto {isFullBleedPage ? '' : 'px-3 py-3'}">
       <SystemAlerts />
       <Router
         {routes}

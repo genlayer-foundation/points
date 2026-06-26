@@ -111,21 +111,26 @@
 
   let activeStep = $derived(stepStates.find((step) => !step.done) || null);
   let activeStepId = $derived(activeStep?.id || 'done');
-  let activeStepNumber = $derived(activeStep ? stepStates.findIndex((step) => step.id === activeStep.id) + 1 : TOTAL_STEPS);
   let completedSteps = $derived(stepStates.filter((step) => step.done).length);
-  let remainingSteps = $derived(Math.max(0, TOTAL_STEPS - completedSteps));
-  let allStepsComplete = $derived(completedSteps === TOTAL_STEPS);
+  // Only connecting GitHub and starring the boilerplate gate the Builder role:
+  // this mirrors the backend (complete_builder_journey checks the star task,
+  // which itself requires the GitHub link). Wallet is implied by being signed
+  // in; networks, top-up, and deploy are recommended onboarding, not role gates.
+  const REQUIRED_STEP_IDS = ['wallet', 'github', 'star'];
+  let requiredStepsComplete = $derived(
+    stepStates.filter((step) => REQUIRED_STEP_IDS.includes(step.id)).every((step) => step.done)
+  );
   let noticeMessage = $derived(
     loadError && activeStepId === 'star'
       ? loadError
-      : allStepsComplete
-        ? 'Builder journey complete. Click to finish.'
-        : `There ${remainingSteps === 1 ? 'is' : 'are'} ${remainingSteps} ${remainingSteps === 1 ? 'step' : 'steps'} left to the Builder role.`
+      : requiredStepsComplete
+        ? 'You can claim the Builder role now. The remaining steps are recommended next steps.'
+        : 'Connect your GitHub and star the boilerplate repo to claim the Builder role.'
   );
   let heroHelper = $derived(
-    allStepsComplete
-      ? 'Click to finish.'
-      : `There ${remainingSteps === 1 ? 'is' : 'are'} ${remainingSteps} ${remainingSteps === 1 ? 'step' : 'steps'} left to the Builder role. Step ${activeStepNumber} is highlighted below.`
+    requiredStepsComplete
+      ? 'Ready to claim. The remaining steps are recommended, not required.'
+      : 'Connect GitHub and star the boilerplate repo to unlock the Builder role. The other steps are recommended.'
   );
 
   const unlocks = [
@@ -438,7 +443,7 @@
   }
 
   async function completeJourney() {
-    if (completing || !allStepsComplete || user?.builder) return;
+    if (completing || !requiredStepsComplete || user?.builder) return;
     completing = true;
     try {
       await journeyAPI.completeBuilderJourney();
@@ -473,11 +478,11 @@
     eyebrow="Your builder journey"
     accentValue={TOTAL_STEPS}
     titleRest=" steps to become a Builder"
-    description="Complete every step to claim the Builder role. Connect GitHub, verify the boilerplate star, prepare your wallet, and deploy once. Only the GitHub link and repo star award BP."
+    description="Connect GitHub and star the boilerplate repo to claim the Builder role. Adding networks, getting testnet GEN, and deploying are recommended next steps, not requirements. Only the GitHub link and repo star award BP."
     completed={loading ? 0 : completedSteps}
     total={TOTAL_STEPS}
     primaryLabel={completing ? 'Claiming...' : 'Claim Builder Role'}
-    primaryDisabled={loading || completing || !allStepsComplete}
+    primaryDisabled={loading || completing || !requiredStepsComplete}
     primaryBusy={completing}
     helper={heroHelper}
     onPrimary={completeJourney}
@@ -569,7 +574,7 @@
         <JourneyStepRow
           number={4}
           title="Add GenLayer networks"
-          contributionLabel={isActive('networks') ? 'Up next' : ''}
+          contributionLabel="Recommended"
           detail={networkDetail}
           status={statusFor('networks')}
           actionLabel={isActive('networks') ? 'Add Missing' : ''}
@@ -646,7 +651,7 @@
         <JourneyStepRow
           number={5}
           title="Top-up with Testnet GEN"
-          contributionLabel={isActive('topup') ? 'Up next' : ''}
+          contributionLabel="Recommended"
           detail={balanceDetail}
           status={statusFor('topup')}
           actionLabel={isActive('topup') ? 'Get Tokens' : ''}
@@ -679,7 +684,7 @@
         <JourneyStepRow
           number={6}
           title="Deploy your first contract"
-          contributionLabel={isActive('deploy') ? 'Up next' : ''}
+          contributionLabel="Recommended"
           detail={hasDeployedContract ? 'Studio deployment verified' : deploymentError || 'Deploy an intelligent contract in Studio'}
           status={statusFor('deploy')}
           actionLabel={isActive('deploy') ? 'Open Studio' : ''}
@@ -708,11 +713,11 @@
         {/if}
       </div>
 
-      {#if allStepsComplete}
+      {#if requiredStepsComplete}
         <div class="completion-panel">
           <div>
-            <p>Builder journey complete</p>
-            <span>Click to finish.</span>
+            <p>Ready to claim the Builder role</p>
+            <span>The remaining steps are recommended, not required.</span>
           </div>
         </div>
       {/if}
