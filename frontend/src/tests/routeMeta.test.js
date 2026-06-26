@@ -14,6 +14,7 @@ import {
 
 const expectedRouteImages = {
   '/': '/assets/og/portal.png',
+  '/builders': '/assets/og/builders.png',
   '/how-it-works': '/assets/og/how-it-works.png',
   '/referral-program': '/assets/og/referral-program.png',
   '/hackathon': '/assets/og/hackathon.png',
@@ -26,9 +27,10 @@ const expectedRouteImages = {
   '/gen-news': '/assets/og/gen-news.png',
   '/ecosystem-partners': '/assets/og/ecosystem-partners.png',
   '/builders/resources': '/assets/og/builders-resources.png',
+  '/community': '/assets/og/community.png',
   '/community/poaps': '/assets/og/community-poaps.png',
   '/participants': '/assets/og/participants.png',
-  '/validators': '/assets/og/validators-participants.png',
+  '/validators': '/assets/og/validators.png',
   '/validators/participants': '/assets/og/validators-participants.png',
   '/validators/waitlist/join': '/assets/og/validators-waitlist.png',
   '/validators/wall-of-shame': '/assets/og/validators-wall-of-shame.png',
@@ -152,6 +154,7 @@ describe('route metadata', () => {
 
   it('only generates static OG pages for canonical route paths', () => {
     expect(STATIC_OG_ROUTES).toEqual([
+      '/builders',
       '/how-it-works',
       '/referral-program',
       '/hackathon',
@@ -165,6 +168,7 @@ describe('route metadata', () => {
       '/ecosystem-partners',
       '/builders/resources',
       '/community/poaps',
+      '/community',
       '/participants',
       '/validators',
       '/validators/participants',

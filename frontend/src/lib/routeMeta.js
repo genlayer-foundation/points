@@ -12,6 +12,9 @@ const ogImage = (fileName) => ({
 
 export const OG_IMAGES = {
   portal: ogImage('portal.png'),
+  builders: ogImage('builders.png'),
+  validators: ogImage('validators.png'),
+  community: ogImage('community.png'),
   howItWorks: ogImage('how-it-works.png'),
   referral: ogImage('referral-program.png'),
   hackathon: ogImage('hackathon.png'),
@@ -27,7 +30,6 @@ export const OG_IMAGES = {
   builderProject: ogImage('builder-project.png'),
   communityPoaps: ogImage('community-poaps.png'),
   participants: ogImage('participants.png'),
-  validators: ogImage('validators-participants.png'),
   validatorsParticipants: ogImage('validators-participants.png'),
   validatorsWaitlist: ogImage('validators-waitlist.png'),
   validatorsWallOfShame: ogImage('validators-wall-of-shame.png'),
@@ -38,7 +40,7 @@ export const OG_IMAGES = {
 export const DEFAULT_META = {
   title: 'GenLayer Portal',
   description:
-    'Track GenLayer contributions, points, validators, builders, community activity, events, and ecosystem programs.',
+    'The front page of network progress across builders, validators, community, and stewards.',
   image: OG_IMAGES.portal.src,
   imageWidth: OG_IMAGES.portal.width,
   imageHeight: OG_IMAGES.portal.height,
@@ -103,6 +105,14 @@ export const ROUTE_META = {
     image: OG_IMAGES.referral.src,
     imageWidth: OG_IMAGES.referral.width,
     imageHeight: OG_IMAGES.referral.height,
+  },
+  '/builders': {
+    title: 'Build Contracts That Can Think | GenLayer Portal',
+    description:
+      'Create Intelligent Contracts that read the web, reason, and resolve outcomes on GenLayer.',
+    image: OG_IMAGES.builders.src,
+    imageWidth: OG_IMAGES.builders.width,
+    imageHeight: OG_IMAGES.builders.height,
   },
   '/hackathon': {
     title: 'Testnet Bradbury Hackathon',
@@ -200,6 +210,14 @@ export const ROUTE_META = {
     imageWidth: OG_IMAGES.builderProject.width,
     imageHeight: OG_IMAGES.builderProject.height,
   },
+  '/community': {
+    title: 'Grow the Adjudication Layer for the Agentic Economy | GenLayer Portal',
+    description:
+      'Test, create, report, and grow the GenLayer network from day one.',
+    image: OG_IMAGES.community.src,
+    imageWidth: OG_IMAGES.community.width,
+    imageHeight: OG_IMAGES.community.height,
+  },
   '/community/poaps': {
     title: 'GenLayer Community POAPs',
     description:
@@ -233,9 +251,9 @@ export const ROUTE_META = {
     imageHeight: OG_IMAGES.participants.height,
   },
   '/validators': {
-    title: 'GenLayer Validators',
+    title: 'Adjudicate the Agentic Economy | GenLayer Portal',
     description:
-      'Explore GenLayer validator programs, operator activity, contribution opportunities, leaderboards, and network reliability signals.',
+      'Run AI models, reason through disputes, and earn for judgment as a GenLayer validator.',
     image: OG_IMAGES.validators.src,
     imageWidth: OG_IMAGES.validators.width,
     imageHeight: OG_IMAGES.validators.height,
@@ -295,6 +313,7 @@ const NOINDEX_ROUTE_PATHS = new Set([
 ]);
 
 export const STATIC_OG_ROUTES = [
+  '/builders',
   '/how-it-works',
   '/referral-program',
   '/hackathon',
@@ -308,6 +327,7 @@ export const STATIC_OG_ROUTES = [
   '/ecosystem-partners',
   '/builders/resources',
   '/community/poaps',
+  '/community',
   '/participants',
   '/validators',
   '/validators/participants',
