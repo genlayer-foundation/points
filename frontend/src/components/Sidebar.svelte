@@ -4,7 +4,7 @@
   import { currentCategory } from '../stores/category.js';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
-  import { contributionsAPI, journeyAPI, stewardAPI } from '../lib/api.js';
+  import { contributionsAPI, stewardAPI } from '../lib/api.js';
   import { stewardPermissions } from '../lib/stewardPermissions.js';
   import { hasEarnedRole, journeyPath, rolePath } from '../lib/roleState.js';
   import Avatar from './Avatar.svelte';
@@ -12,8 +12,6 @@
   let { isOpen = $bindable(false), collapsed = $bindable(false) } = $props();
   let stewardPermissionMap = $state({});
   let communityContributionTypes = $state([]);
-  let communityJourneyComplete = $state(false);
-  let communityJourneyKey = $state('');
   let featureReviewAccess = $state({ can_review: false, can_admin: false });
   let stewardNavPermissionsLoaded = $state(false);
 
@@ -64,36 +62,6 @@
     }
   });
 
-  async function loadCommunityJourneyLockState(key) {
-    try {
-      const res = await journeyAPI.communityJourney();
-      // A response from a previous user/auth key must not overwrite the
-      // current sidebar state (mirrors RoleFunnel.loadCommunityJourney).
-      if (key !== communityJourneyKey) return;
-      communityJourneyComplete = Boolean(res.data?.is_member && res.data?.complete);
-    } catch {
-      if (key !== communityJourneyKey) return;
-      communityJourneyComplete = false;
-    }
-  }
-
-  $effect(() => {
-    const user = $userStore.user;
-    const key = $authState.isAuthenticated
-      ? `${user?.id || user?.address || ''}:${user?.creator ? 1 : 0}:${user?.has_community_welcome ? 1 : 0}:${user?.has_community_link_x ? 1 : 0}:${user?.has_community_link_discord ? 1 : 0}`
-      : '';
-
-    if (key === communityJourneyKey) return;
-    communityJourneyKey = key;
-
-    if (!$authState.isAuthenticated || !user?.creator) {
-      communityJourneyComplete = false;
-      return;
-    }
-
-    loadCommunityJourneyLockState(key);
-  });
-
   // Track previous location to detect route changes
   let previousLocation = $state($location);
 
@@ -123,9 +91,6 @@
   // A signed-in user who has not earned this category's role: the role's
   // subsections are shown but locked.
   function isRoleLocked(category) {
-    if (category === 'community') {
-      return $authState.isAuthenticated && !communityJourneyComplete;
-    }
     return $authState.isAuthenticated && !hasEarnedRole($userStore.user, category);
   }
 

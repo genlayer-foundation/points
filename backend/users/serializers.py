@@ -891,16 +891,24 @@ class UserSerializer(serializers.ModelSerializer):
                 'referred_by_info',
                 'total_referrals',
                 'referral_details',
-                # In-progress funnel state must not leak on public retrieve/by_address.
-                # (has_validator_waitlist stays: the waitlist is already public.)
-                'has_builder_welcome',
-                'has_validator_welcome',
-                'has_community_welcome',
-                'has_community_link_x',
-                'has_community_link_discord',
-                'has_community_link_github',
             ]:
                 data.pop(field, None)
+
+            # In-progress funnel state is owner-only: it must not leak to other
+            # viewers on a public profile, but the owner viewing their own public
+            # profile keeps it so their grey "only you can see this" in-progress
+            # badge still renders. (has_validator_waitlist stays for everyone:
+            # the waitlist is already public.)
+            if not self._can_view_private_user_data(instance):
+                for field in [
+                    'has_builder_welcome',
+                    'has_validator_welcome',
+                    'has_community_welcome',
+                    'has_community_link_x',
+                    'has_community_link_discord',
+                    'has_community_link_github',
+                ]:
+                    data.pop(field, None)
 
         return data
 

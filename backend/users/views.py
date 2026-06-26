@@ -502,6 +502,9 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         from django.utils import timezone
         
         user = request.user
+        started_response = self._mark_journey_started(request, 'validator')
+        if started_response.status_code >= 400:
+            return started_response
         
         # Check if user already has the contribution
         try:
@@ -828,6 +831,15 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         from leaderboard.models import update_user_leaderboard_entries
 
         user = request.user
+
+        # Existing members are grandfathered in: the journey only applies to
+        # newcomers, so never funnel a Creator back through the steps.
+        if hasattr(user, 'creator'):
+            return Response(
+                {'message': 'You are already a community member', 'user': self.get_serializer(user).data},
+                status=status.HTTP_200_OK,
+            )
+
         journey = cj.journey_status(user)
         if not journey['started']:
             return Response(
@@ -846,12 +858,6 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                     'message': 'Complete all community journey steps first.',
                 },
                 status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if hasattr(user, 'creator'):
-            return Response(
-                {'message': 'You are already a community member', 'user': self.get_serializer(user).data},
-                status=status.HTTP_200_OK,
             )
 
         from django.db import transaction

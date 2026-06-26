@@ -656,42 +656,18 @@ def update_referrer_points(contribution):
 
 def ensure_builder_status(user, _reference_date):
     """
-    Create missing builder-welcome, builder contributions and Builder profile.
-    Used to auto-grant builder status to users who have builder contributions.
+    Ensure a Builder profile exists for a user with accepted builder
+    contributions (steward-accept and leaderboard recalc paths).
+
+    Point-free: the builder-welcome (+20) and builder (+50) point grants were
+    removed as farming. The role itself is granted (a steward accepting a
+    builder contribution is a strong, human-gated signal), but the journey is
+    the only path that awards points, and those only via verifiable tasks.
     """
     from builders.models import Builder
 
-    try:
-        welcome_type = ContributionType.objects.get(slug='builder-welcome')
-        builder_type = ContributionType.objects.get(slug='builder')
-    except ContributionType.DoesNotExist:
-        return
-
     if not hasattr(user, 'builder'):
         Builder.objects.create(user=user)
-
-    contributions_to_create = []
-
-    if not Contribution.objects.filter(user=user, contribution_type=welcome_type).exists():
-        contributions_to_create.append(Contribution(
-            user=user,
-            contribution_type=welcome_type,
-            points=20,
-            contribution_date=timezone.now(),
-            frozen_global_points=20
-        ))
-
-    if not Contribution.objects.filter(user=user, contribution_type=builder_type).exists():
-        contributions_to_create.append(Contribution(
-            user=user,
-            contribution_type=builder_type,
-            points=50,
-            contribution_date=timezone.now(),
-            frozen_global_points=50
-        ))
-
-    if contributions_to_create:
-        Contribution.objects.bulk_create(contributions_to_create)
 
 
 @transaction.atomic

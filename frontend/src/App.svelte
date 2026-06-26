@@ -13,7 +13,6 @@
   import { setRouteMeta } from './lib/meta.js';
   import { authState, verifyAuth } from './lib/auth.js';
   import { userStore } from './lib/userStore.js';
-  import { journeyAPI } from './lib/api.js';
   import { hasEarnedRole, journeyPath, rolePath } from './lib/roleState.js';
   import { installLinkInterceptor } from './lib/router.js';
 
@@ -162,21 +161,12 @@
     conditions: [requireAuthForRoute],
   });
 
-  // Role-gated subsection: must be authenticated AND have earned the role, else
-  // bounce to the role's main route (the funnel) so the user can start there.
-  async function hasSubsectionAccess(user, category) {
-    if (category !== 'community') {
-      return hasEarnedRole(user, category);
-    }
-
-    if (!user?.creator) return false;
-
-    try {
-      const res = await journeyAPI.communityJourney();
-      return Boolean(res.data?.is_member && res.data?.complete);
-    } catch {
-      return false;
-    }
+  // Role-gated subsection: must be authenticated AND hold the role, else bounce
+  // to the role's main route (the funnel) so the user can start there. Role
+  // membership (user.builder/validator/creator) is authoritative for all three
+  // categories: existing members are grandfathered, the journey gates newcomers.
+  function hasSubsectionAccess(user, category) {
+    return hasEarnedRole(user, category);
   }
 
   function requireRoleForRoute(category) {

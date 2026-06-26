@@ -242,14 +242,18 @@ class CommunityJourneyTests(TestCase):
         self.assertEqual(second.status_code, status.HTTP_200_OK)
         self.assertEqual(Creator.objects.filter(user=self.user).count(), 1)
 
-    def test_existing_creator_does_not_bypass_incomplete_journey(self):
-        self.start_journey()
+    def test_existing_creator_is_grandfathered(self):
+        # A pre-existing community member (Creator) who never went through the
+        # new journey is grandfathered in: treated as a complete member and
+        # never re-funneled through the steps. Journeys only apply to newcomers.
         Creator.objects.create(user=self.user)
         status_res = self.client.get('/api/v1/users/community_journey/')
-        self.assertFalse(status_res.data['is_member'])
+        self.assertTrue(status_res.data['is_member'])
+        self.assertTrue(status_res.data['complete'])
+        self.assertTrue(status_res.data['started'])
         res = self.client.post('/api/v1/users/complete_community_journey/')
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(res.data['error'], 'incomplete')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn('already a community member', res.data['message'])
 
     def test_legacy_creator_join_requires_completed_journey(self):
         res = self.client.post('/api/v1/creators/join/')

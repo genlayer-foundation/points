@@ -103,8 +103,12 @@ def step_states(user) -> dict:
 
 
 def journey_status(user) -> dict:
+    # Existing community members (the Creator role) are grandfathered in: the
+    # journey only applies to newcomers, so a member is always treated as
+    # started/complete regardless of the newer welcome-marker + step records.
+    is_creator = hasattr(user, 'creator')
     states = step_states(user)
-    started = is_started(user)
+    started = is_creator or is_started(user)
     missing_steps = [key for key, done in states.items() if not done]
     proof = getattr(user, 'community_post_proof', None)
     return {
@@ -123,6 +127,6 @@ def journey_status(user) -> dict:
             },
         },
         'missing_steps': missing_steps,
-        'complete': started and not missing_steps,
-        'is_member': hasattr(user, 'creator') and started and not missing_steps,
+        'complete': is_creator or (started and not missing_steps),
+        'is_member': is_creator,
     }
