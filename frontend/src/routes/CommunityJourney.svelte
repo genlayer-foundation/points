@@ -78,7 +78,12 @@
 
   onMount(() => {
     if (!user?.has_community_welcome) {
-      journeyAPI.startRoleJourney('community').then(() => userStore.loadUser?.()).catch(() => {});
+      journeyAPI
+        .startRoleJourney('community')
+        .then(() => userStore.loadUser?.())
+        .catch(() => {
+          showError('Could not start your community journey. Try refreshing in a moment.');
+        });
     }
     loadJourney({ showLoading: true });
   });
@@ -178,9 +183,10 @@
       textarea.style.left = '-9999px';
       document.body.appendChild(textarea);
       textarea.select();
-      document.execCommand('copy');
+      const copied = document.execCommand('copy');
       document.body.removeChild(textarea);
-      showSuccess('Post text copied.');
+      if (copied) showSuccess('Post text copied.');
+      else showError('Could not copy the post text. Please copy it manually.');
     }
   }
 
@@ -265,7 +271,7 @@
         <JourneyStepRow
           number={1}
           title="Link X"
-          badge={isActive('link_x') ? 'Up next' : ''}
+          contributionLabel={isActive('link_x') ? 'Up next' : ''}
           detail={stepDone('link_x') ? twitterConnection?.platform_username ? `@${twitterConnection.platform_username}` : 'X account confirmed' : 'Connect X to verify community actions'}
           status={statusFor('link_x')}
           actionLabel={isActive('link_x') && twitterConnection && !stepDone('link_x') ? 'Confirm' : ''}
@@ -308,7 +314,7 @@
         <JourneyStepRow
           number={2}
           title="Link Discord"
-          badge={isActive('link_discord') ? 'Up next' : ''}
+          contributionLabel={isActive('link_discord') ? 'Up next' : ''}
           detail={stepDone('link_discord') ? discordConnection?.platform_username || 'Discord account confirmed' : 'Connect Discord to verify server membership'}
           status={statusFor('link_discord')}
           actionLabel={isActive('link_discord') && discordConnection && !stepDone('link_discord') ? 'Confirm' : ''}
@@ -351,7 +357,7 @@
         <JourneyStepRow
           number={3}
           title="Follow @genlayer"
-          badge={isActive('follow_x') ? 'Up next' : ''}
+          contributionLabel={isActive('follow_x') ? 'Up next' : ''}
           detail={stepDone('follow_x') ? '@genlayer follow verified' : 'Follow GenLayer on X'}
           status={statusFor('follow_x')}
         />
@@ -378,7 +384,7 @@
         <JourneyStepRow
           number={4}
           title="Join Discord"
-          badge={isActive('join_discord') ? 'Up next' : ''}
+          contributionLabel={isActive('join_discord') ? 'Up next' : ''}
           detail={stepDone('join_discord') ? 'GenLayer Discord membership verified' : 'Join the GenLayer Discord'}
           status={statusFor('join_discord')}
         />
@@ -405,7 +411,7 @@
         <JourneyStepRow
           number={5}
           title="Post your community code"
-          badge={isActive('x_post') ? 'Up next' : ''}
+          contributionLabel={isActive('x_post') ? 'Up next' : ''}
           detail={stepDone('x_post') ? 'X post verified' : xPost.verification_code || 'Share your unique verification code'}
           status={statusFor('x_post')}
         />

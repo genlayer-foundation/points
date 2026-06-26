@@ -240,7 +240,7 @@
     '/builders/all-contributions': protectedRoute(AllContributions),
     '/builders/leaderboard': Leaderboard,
 
-    '/builders/resources': Resources,
+    '/builders/resources': roleGatedRoute(Resources, 'builder'),
     '/builders/projects/:slug/edit': protectedRoute(ProjectPageEditor),
     '/builders/projects/:slug': ProjectDetail,
     '/builders/tasks': roleGatedRoute(SocialTasks, 'builder'),

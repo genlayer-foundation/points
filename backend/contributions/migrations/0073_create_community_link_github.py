@@ -19,6 +19,8 @@ def apply(apps, schema_editor):
     ContributionType = apps.get_model('contributions', 'ContributionType')
 
     builder_category = Category.objects.filter(slug='builder').first()
+    if builder_category is None:
+        raise RuntimeError('builder category missing; cannot seed community-link-github')
     ContributionType.objects.update_or_create(
         slug='community-link-github',
         defaults={

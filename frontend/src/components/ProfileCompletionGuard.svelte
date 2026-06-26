@@ -24,6 +24,7 @@
     { value: 'validator', label: 'Validator' },
     { value: 'community', label: 'Community' },
   ];
+  const ROLE_VALUES = new Set(ROLE_OPTIONS.map((option) => option.value));
   let selectedRole = $state('community');
   let roleTouched = $state(false);
 
@@ -60,7 +61,11 @@
     if (showGuard && !roleTouched) {
       let stored = null;
       try { stored = sessionStorage.getItem('onboardingRole'); } catch {}
-      selectedRole = stored || roleForCategory(detectCategoryFromRoute($location));
+      // The stored value is untrusted (may be stale/invalid) — only honor it
+      // when it's a known role, otherwise fall back to the current route.
+      selectedRole = ROLE_VALUES.has(stored)
+        ? stored
+        : roleForCategory(detectCategoryFromRoute($location));
     }
   });
 
@@ -119,9 +124,13 @@
       await userStore.loadUser();
 
       // Send first-time users to their selected role's main route, where the
-      // funnel offers "Start the journey".
+      // funnel offers "Start the journey". Guard against a stale/invalid role
+      // value so the redirect never falls back to '/'.
+      const targetRole = ROLE_VALUES.has(selectedRole)
+        ? selectedRole
+        : roleForCategory(detectCategoryFromRoute($location));
       try { sessionStorage.removeItem('onboardingRole'); } catch {}
-      push(rolePath(selectedRole));
+      push(rolePath(targetRole));
     } catch (err) {
       // Handle field-specific errors from Django REST Framework
       if (err.response?.data) {

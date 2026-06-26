@@ -116,6 +116,7 @@
       const userPromise = currentUser ? Promise.resolve(currentUser) : getCurrentUser();
       userPromise.then(async (resolvedUser) => {
         let finalUser = resolvedUser;
+        let rewardFailed = false;
         // Linking GitHub counts as a contribution (like X / Discord). Award it
         // here so it fires wherever GitHub is linked; idempotent + best-effort,
         // so a failed reward never blocks the successful link.
@@ -124,7 +125,10 @@
             await journeyAPI.linkGithubAccount();
             finalUser = await getCurrentUser();
           } catch {
-            // Link still succeeded; the reward is retried next time it's called.
+            // The OAuth link succeeded, but recording the contribution did not.
+            // Surface a retryable error so the user re-triggers the marker
+            // instead of seeing a false success.
+            rewardFailed = true;
           }
         }
         if (shouldToast) {
@@ -137,6 +141,8 @@
                 ? `${platformLabel} username updated to ${username}`
                 : `${platformLabel} username is already up to date`
             );
+          } else if (rewardFailed) {
+            showError('GitHub account linked, but we could not record the contribution. Please try again.');
           } else {
             showSuccess(`${platformLabel} account linked successfully!${username ? ` (@${username})` : ''}`);
           }

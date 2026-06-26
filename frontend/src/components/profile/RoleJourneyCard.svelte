@@ -1,5 +1,4 @@
 <script>
-  import { push } from "svelte-spa-router";
   import { journeyPath, rolePath } from "../../lib/roleState.js";
 
   let { role = "builder", participant = null } = $props();
@@ -83,10 +82,10 @@
 
   <p class="journey-reminder__copy">{description}</p>
 
-  <button type="button" class="journey-reminder__button" onclick={() => push(ctaPath)}>
+  <a href={ctaPath} class="journey-reminder__button">
     {ctaText}
     <img src="/assets/icons/arrow-right-line-white.svg" alt="" />
-  </button>
+  </a>
 </section>
 
 <style>
@@ -213,6 +212,7 @@
     line-height: 20px;
     padding: 0 16px;
     position: relative;
+    text-decoration: none;
     transition: background 0.16s ease, transform 0.16s ease;
     z-index: 1;
   }

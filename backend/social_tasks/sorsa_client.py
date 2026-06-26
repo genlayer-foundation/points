@@ -165,7 +165,10 @@ class SorsaClient:
         full_text = data.get('full_text')
         if not isinstance(full_text, str):
             raise SorsaError('Unexpected tweet-info response (no full_text)')
-        username = ((data.get('user') or {}).get('username') or '').lstrip('@')
+        user_payload = data.get('user')
+        if not isinstance(user_payload, dict):
+            raise SorsaError('Unexpected tweet-info response (no user object)')
+        username = (user_payload.get('username') or '').lstrip('@')
         return {'full_text': full_text, 'username': username}
 
 

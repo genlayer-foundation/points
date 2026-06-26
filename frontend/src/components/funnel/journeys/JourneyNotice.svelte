@@ -24,7 +24,6 @@
     {/if}
   </span>
   <p>{message}</p>
-  <span class="notice-dismiss" aria-hidden="true">x</span>
 </div>
 
 <style>
@@ -60,14 +59,6 @@
   .notice-icon svg {
     height: 16px;
     width: 16px;
-  }
-
-  .notice-dismiss {
-    color: #ababab;
-    flex: 0 0 auto;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    line-height: 1;
   }
 
   .notice-error {

@@ -127,10 +127,11 @@
 
   <section class="points-banner" id="community-points" aria-labelledby="community-points-title">
     <div class="points-copy">
-      <h2 id="community-points-title">Earn GenLayer Points for Everything You Do</h2>
+      <h2 id="community-points-title">Join the Community, Then Earn Through Tasks</h2>
       <p>
-        Every contribution earns GenLayer Points, your record of helping build
-        the network from the earliest days.
+        Completing the journey grants you the Community role. From there,
+        specific verifiable tasks earn GenLayer Points, building your record of
+        helping the network from the earliest days.
       </p>
     </div>
     <div class="points-grid">
@@ -165,8 +166,8 @@
   </section>
 
   <section class="final-cta" aria-labelledby="community-final-title">
-    <h2 id="community-final-title">Join and start earning.</h2>
-    <p>Start contributing, collect community points, and help grow the network from day one.</p>
+    <h2 id="community-final-title">Join the community.</h2>
+    <p>Complete the journey to unlock the Community role, then earn points through tasks and help grow the network from day one.</p>
     <button
       type="button"
       class="landing-button landing-button-primary"

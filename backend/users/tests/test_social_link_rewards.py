@@ -26,6 +26,13 @@ class SocialLinkRewardTests(TestCase):
                 'description': 'Community contributions',
             },
         )
+        self.builder, _ = Category.objects.get_or_create(
+            slug='builder',
+            defaults={
+                'name': 'Builder',
+                'description': 'Builder contributions',
+            },
+        )
         self.link_x_type, _ = ContributionType.objects.update_or_create(
             slug='community-link-x',
             defaults={
@@ -53,7 +60,7 @@ class SocialLinkRewardTests(TestCase):
             defaults={
                 'name': 'Link GitHub Account',
                 'description': 'Linked GitHub account',
-                'category': self.community,
+                'category': self.builder,
                 'min_points': 25,
                 'max_points': 25,
                 'is_submittable': False,

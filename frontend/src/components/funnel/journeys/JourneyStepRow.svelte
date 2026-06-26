@@ -4,7 +4,7 @@
     number = 1,
     title = '',
     detail = '',
-    badge = '',
+    contributionLabel = '',
     points = null,
     pointsLabel = '',
     status = 'pending',
@@ -72,8 +72,8 @@
     <div class="step-copy">
       <p>
         <span>{title}</span>
-        {#if badge}
-          <em>{badge}</em>
+        {#if contributionLabel}
+          <em>{contributionLabel}</em>
         {/if}
         {#if detail}
           <small>{detail}</small>

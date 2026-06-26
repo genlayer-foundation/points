@@ -28,7 +28,7 @@ class CommunityPostProof(BaseModel):
     )
     post_url = models.URLField()
     tweet_id = models.CharField(max_length=40, blank=True)
-    verified_at = models.DateTimeField(auto_now_add=True)
+    verified_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.user.email} - community X post"

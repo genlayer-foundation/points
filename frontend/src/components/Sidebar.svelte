@@ -64,11 +64,15 @@
     }
   });
 
-  async function loadCommunityJourneyLockState() {
+  async function loadCommunityJourneyLockState(key) {
     try {
       const res = await journeyAPI.communityJourney();
+      // A response from a previous user/auth key must not overwrite the
+      // current sidebar state (mirrors RoleFunnel.loadCommunityJourney).
+      if (key !== communityJourneyKey) return;
       communityJourneyComplete = Boolean(res.data?.is_member && res.data?.complete);
     } catch {
+      if (key !== communityJourneyKey) return;
       communityJourneyComplete = false;
     }
   }
@@ -87,7 +91,7 @@
       return;
     }
 
-    loadCommunityJourneyLockState();
+    loadCommunityJourneyLockState(key);
   });
 
   // Track previous location to detect route changes

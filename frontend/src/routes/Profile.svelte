@@ -123,6 +123,16 @@
   let communityJourneyComplete = $derived(
     Boolean(communityJourney?.complete && communityJourney?.is_member),
   );
+  // Only a LOADED journey response that says "started but not yet complete"
+  // counts as in-progress here. Holding the Creator role alone is NOT enough:
+  // pre-existing creators from the old backfill never went through the new
+  // journey, so they have no started-but-incomplete state and must not be
+  // forced into the grey "in progress" view.
+  let communityJourneyStartedIncomplete = $derived(
+    Boolean(communityJourney) &&
+      communityJourney.started === true &&
+      !communityJourneyComplete,
+  );
   let communityJourneyHasLocalSignal = $derived(
     Boolean(
       participant?.has_community_welcome ||
@@ -134,9 +144,7 @@
     isOwnProfile &&
       (hasStartedJourney(participant, "community") ||
         communityJourneyHasLocalSignal ||
-        (Boolean(participant?.creator) &&
-          !communityJourneyComplete &&
-          !communityJourneyCheckFailed)),
+        communityJourneyStartedIncomplete),
   );
   let profileRoleParticipant = $derived.by(() => {
     if (!participant || !communityInProgress || !participant.creator) return participant;

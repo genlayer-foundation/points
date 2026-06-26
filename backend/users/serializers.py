@@ -891,6 +891,14 @@ class UserSerializer(serializers.ModelSerializer):
                 'referred_by_info',
                 'total_referrals',
                 'referral_details',
+                # In-progress funnel state must not leak on public retrieve/by_address.
+                # (has_validator_waitlist stays: the waitlist is already public.)
+                'has_builder_welcome',
+                'has_validator_welcome',
+                'has_community_welcome',
+                'has_community_link_x',
+                'has_community_link_discord',
+                'has_community_link_github',
             ]:
                 data.pop(field, None)
 

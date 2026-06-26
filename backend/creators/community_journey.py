@@ -72,7 +72,8 @@ def post_matches(full_text: str, user):
     text = (full_text or '').lower()
     if verification_code(user).lower() not in text:
         return False, 'code_missing'
-    if f'@{genlayer_handle()}' not in text:
+    handle_re = re.compile(rf'(^|[^a-z0-9_])@{re.escape(genlayer_handle())}(?![a-z0-9_])')
+    if not handle_re.search(text):
         return False, 'tag_missing'
     return True, None
 

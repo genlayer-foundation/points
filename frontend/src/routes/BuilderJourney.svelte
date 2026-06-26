@@ -185,7 +185,9 @@
           if (res.data?.user) userStore.updateUser(res.data.user);
           else userStore.loadUser?.();
         })
-        .catch(() => {});
+        .catch(() => {
+          showWarning('Could not start your builder journey. Try refreshing in a moment.');
+        });
     }
     loadTasks({ showLoading: true });
   });
@@ -503,7 +505,7 @@
         <JourneyStepRow
           number={2}
           title="Connect your GitHub"
-          badge={isActive('github') ? 'Up next' : ''}
+          contributionLabel={isActive('github') ? 'Up next' : ''}
           detail={githubStepDone ? githubHandle : githubConnection ? `${githubHandle} connected - claim BP` : 'Link GitHub to verify builder tasks'}
           points={POINTS_PER_GITHUB_STEP}
           pointsLabel="BP"
@@ -537,7 +539,7 @@
         <JourneyStepRow
           number={3}
           title="Star the Boilerplate repo"
-          badge={isActive('star') ? 'Up next' : ''}
+          contributionLabel={isActive('star') ? 'Up next' : ''}
           detail={starred ? 'genlayerlabs/genlayer-project-boilerplate verified' : 'genlayerlabs/genlayer-project-boilerplate'}
           points={POINTS_PER_GITHUB_STEP}
           pointsLabel="BP"
@@ -567,7 +569,7 @@
         <JourneyStepRow
           number={4}
           title="Add GenLayer networks"
-          badge={isActive('networks') ? 'Up next' : ''}
+          contributionLabel={isActive('networks') ? 'Up next' : ''}
           detail={networkDetail}
           status={statusFor('networks')}
           actionLabel={isActive('networks') ? 'Add Missing' : ''}
@@ -644,7 +646,7 @@
         <JourneyStepRow
           number={5}
           title="Top-up with Testnet GEN"
-          badge={isActive('topup') ? 'Up next' : ''}
+          contributionLabel={isActive('topup') ? 'Up next' : ''}
           detail={balanceDetail}
           status={statusFor('topup')}
           actionLabel={isActive('topup') ? 'Get Tokens' : ''}
@@ -677,7 +679,7 @@
         <JourneyStepRow
           number={6}
           title="Deploy your first contract"
-          badge={isActive('deploy') ? 'Up next' : ''}
+          contributionLabel={isActive('deploy') ? 'Up next' : ''}
           detail={hasDeployedContract ? 'Studio deployment verified' : deploymentError || 'Deploy an intelligent contract in Studio'}
           status={statusFor('deploy')}
           actionLabel={isActive('deploy') ? 'Open Studio' : ''}

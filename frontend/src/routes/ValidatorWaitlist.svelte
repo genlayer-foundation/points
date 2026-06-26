@@ -5,6 +5,7 @@
   import { authState } from '../lib/auth';
   import { getCurrentUser, journeyAPI } from '../lib/api';
   import { userStore } from '../lib/userStore.js';
+  import { showError } from '../lib/toastStore.js';
   import JourneyNotice from '../components/funnel/journeys/JourneyNotice.svelte';
   import JourneyHeroCard from '../components/funnel/journeys/JourneyHeroCard.svelte';
   import JourneyStepRow from '../components/funnel/journeys/JourneyStepRow.svelte';
@@ -85,10 +86,15 @@
     try {
       await journeyAPI.startValidatorJourney();
       await userStore.loadUser?.();
-      sessionStorage.setItem('journeySuccess', 'Successfully joined Validator Waitlist!');
+      try {
+        sessionStorage.setItem('journeySuccess', 'Successfully joined Validator Waitlist!');
+      } catch {
+        // Storing the success banner is best-effort; the join already succeeded.
+      }
       replace('/validators');
     } catch (err) {
       error = err.response?.data?.error || 'Failed to join waitlist';
+      showError(error);
       isJoiningWaitlist = false;
     }
   }
@@ -108,9 +114,9 @@
     role="validator"
     iconHex="/assets/icons/hexagon-validator-light.svg"
     iconGlyph="/assets/icons/folder-shield-line-blue.svg"
-    badgeIconHex="/assets/icons/hexagon-validator.svg"
-    badgeIconGlyph="/assets/icons/shield-white.svg"
-    heroBadge="icon"
+    contributionIconHex="/assets/icons/hexagon-validator.svg"
+    contributionIconGlyph="/assets/icons/shield-white.svg"
+    heroContribution="icon"
     showProgress={false}
     eyebrow="Your validator waitlist"
     titleRest="Enter the Validator waitlist"
@@ -131,7 +137,7 @@
         <JourneyStepRow
           number={1}
           title="Complete validator application"
-          badge={hasFilledForm ? '' : 'Up next'}
+          contributionLabel={hasFilledForm ? '' : 'Up next'}
           detail={hasFilledForm ? 'application complete' : 'open the form, submit it, then check it off'}
           status={hasFilledForm ? 'done' : 'active'}
           actionLabel="Open Form"
@@ -158,7 +164,7 @@
       <JourneyStepRow
         number={2}
         title="Wait for graduation"
-        badge="Informational"
+        contributionLabel="Informational"
         detail="the team reviews applications and graduates validators in cohorts"
         status="locked"
       />

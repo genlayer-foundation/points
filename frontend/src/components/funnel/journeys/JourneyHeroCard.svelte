@@ -17,9 +17,9 @@
     primaryDisabled = false,
     primaryBusy = false,
     helper = '',
-    heroBadge = 'progress',
-    badgeIconHex = '',
-    badgeIconGlyph = '',
+    heroContribution = 'progress',
+    contributionIconHex = '',
+    contributionIconGlyph = '',
     showProgress = true,
     onPrimary = () => {},
   } = $props();
@@ -30,8 +30,8 @@
   let kickerHex = $derived(kickerIconHex || iconHex);
   let kickerGlyph = $derived(kickerIconGlyph || iconGlyph);
   let showKickerIcon = $derived(iconPlacement !== 'title' || Boolean(kickerIconHex || kickerIconGlyph));
-  let heroBadgeHex = $derived(badgeIconHex || iconHex);
-  let heroBadgeGlyph = $derived(badgeIconGlyph || iconGlyph);
+  let heroBadgeHex = $derived(contributionIconHex || iconHex);
+  let heroBadgeGlyph = $derived(contributionIconGlyph || iconGlyph);
 </script>
 
 <section class="journey-hero" aria-labelledby={`${role}-journey-title`}>
@@ -65,7 +65,7 @@
 
     {#if showProgress}
       <div class="progress-track" aria-hidden="true">
-        <span style={`width: ${progressPercent}%`}></span>
+        <span class:has-progress={progressPercent > 0} style={`width: ${progressPercent}%`}></span>
       </div>
     {/if}
 
@@ -88,7 +88,7 @@
     </div>
   </div>
 
-  {#if heroBadge === 'icon'}
+  {#if heroContribution === 'icon'}
     <div class="hero-role-badge" aria-hidden="true">
       <img src={heroBadgeHex} alt="" />
       <img src={heroBadgeGlyph} alt="" />
@@ -228,8 +228,11 @@
     border-radius: inherit;
     display: block;
     height: 100%;
-    min-width: 8px;
     transition: width 180ms ease;
+  }
+
+  .progress-track span.has-progress {
+    min-width: 8px;
   }
 
   .hero-action {

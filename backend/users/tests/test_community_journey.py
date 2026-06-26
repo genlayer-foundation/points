@@ -83,7 +83,7 @@ class CommunityJourneyTests(TestCase):
         self.mark_task(self.join_task)
 
     def good_tweet(self):
-        return {'full_text': f'Joining the @genlayer community! {cj.verification_code(self.user)}',
+        return {'full_text': f'Joining the @{cj.genlayer_handle()} community! {cj.verification_code(self.user)}',
                 'username': 'social_user'}
 
     # --- status ---
@@ -170,7 +170,7 @@ class CommunityJourneyTests(TestCase):
     @patch('social_tasks.sorsa_client.SorsaClient.get_tweet')
     def test_verify_post_code_missing(self, mock_get_tweet):
         self.link_x('social_user')
-        mock_get_tweet.return_value = {'full_text': 'Joining the @genlayer community!', 'username': 'social_user'}
+        mock_get_tweet.return_value = {'full_text': f'Joining the @{cj.genlayer_handle()} community!', 'username': 'social_user'}
         res = self.client.post('/api/v1/users/verify_community_post/', {'post_url': POST_URL})
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(res.data['error'], 'code_missing')
@@ -186,7 +186,7 @@ class CommunityJourneyTests(TestCase):
     @patch('social_tasks.sorsa_client.SorsaClient.get_tweet')
     def test_verify_post_author_mismatch(self, mock_get_tweet):
         self.link_x('social_user')
-        mock_get_tweet.return_value = {'full_text': f'@genlayer {cj.verification_code(self.user)}', 'username': 'imposter'}
+        mock_get_tweet.return_value = {'full_text': f'@{cj.genlayer_handle()} {cj.verification_code(self.user)}', 'username': 'imposter'}
         res = self.client.post('/api/v1/users/verify_community_post/', {'post_url': POST_URL})
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(res.data['error'], 'account_mismatch')

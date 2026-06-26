@@ -4,6 +4,7 @@
   import { journeyPath } from '../../lib/roleState.js';
   import { journeyAPI } from '../../lib/api.js';
   import { userStore } from '../../lib/userStore.js';
+  import { showError } from '../../lib/toastStore.js';
   import BuilderLanding from './BuilderLanding.svelte';
   import ValidatorLanding from './ValidatorLanding.svelte';
   import CommunityLanding from './CommunityLanding.svelte';
@@ -24,12 +25,12 @@
     try {
       await journeyAPI.startRoleJourney(role);
       await userStore.loadUser?.();
+      push(journeyPath(role));
     } catch {
-      // best-effort: still let the user into the journey view
+      showError('Could not start this journey. Please try again.');
     } finally {
       starting = false;
     }
-    push(journeyPath(role));
   }
 </script>
 

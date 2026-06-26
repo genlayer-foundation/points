@@ -437,33 +437,40 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
             },
         )
 
-        if Contribution.objects.filter(user=user, contribution_type=welcome_type).exists():
-            serializer = self.get_serializer(user)
-            return Response({
-                'message': f'{role} journey already started',
-                'user': serializer.data
-            }, status=status.HTTP_200_OK)
-
-        # Contribution.clean() requires an active multiplier for the type, even
-        # for a 0-point marker. Ensure one exists (value is irrelevant at 0 pts).
+        from django.db import transaction
+        from django.contrib.auth import get_user_model
         from leaderboard.models import GlobalLeaderboardMultiplier
-        if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=welcome_type).exists():
-            GlobalLeaderboardMultiplier.objects.create(
-                contribution_type=welcome_type,
-                multiplier_value=1.0,
-                valid_from=timezone.now() - timezone.timedelta(days=30),
-                description=f'Default multiplier for {name} (0-point started marker)',
-                notes='Applied when users start a role journey',
-            )
 
-        # ponytail: 0-point marker only — "started", not a reward.
-        Contribution.objects.create(
-            user=user,
-            contribution_type=welcome_type,
-            points=0,
-            contribution_date=timezone.now(),
-            notes=f'Started the {role} journey',
-        )
+        with transaction.atomic():
+            # Lock the user row to serialize concurrent requests
+            get_user_model().objects.select_for_update().get(pk=user.pk)
+
+            if Contribution.objects.filter(user=user, contribution_type=welcome_type).exists():
+                serializer = self.get_serializer(user)
+                return Response({
+                    'message': f'{role} journey already started',
+                    'user': serializer.data
+                }, status=status.HTTP_200_OK)
+
+            # Contribution.clean() requires an active multiplier for the type, even
+            # for a 0-point marker. Ensure one exists (value is irrelevant at 0 pts).
+            if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=welcome_type).exists():
+                GlobalLeaderboardMultiplier.objects.create(
+                    contribution_type=welcome_type,
+                    multiplier_value=1.0,
+                    valid_from=timezone.now() - timezone.timedelta(days=30),
+                    description=f'Default multiplier for {name} (0-point started marker)',
+                    notes='Applied when users start a role journey',
+                )
+
+            # ponytail: 0-point marker only — "started", not a reward.
+            Contribution.objects.create(
+                user=user,
+                contribution_type=welcome_type,
+                points=0,
+                contribution_date=timezone.now(),
+                notes=f'Started the {role} journey',
+            )
 
         serializer = self.get_serializer(user)
         return Response({
@@ -571,14 +578,22 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
             )
 
         try:
-            Builder.objects.create(user=user)
+            from django.db import transaction
+            from django.contrib.auth import get_user_model
 
-            # Recalculate leaderboard entries now that the Builder relation
-            # exists. The grant itself adds no points, but builder-category
-            # aggregation keys off the Builder profile being present.
-            from leaderboard.models import update_user_leaderboard_entries
-            fresh_user = type(user).objects.get(pk=user.pk)
-            update_user_leaderboard_entries(fresh_user)
+            with transaction.atomic():
+                # Lock the user row so two concurrent requests can't both pass
+                # the hasattr check above and race into a OneToOne IntegrityError.
+                get_user_model().objects.select_for_update().get(pk=user.pk)
+                _, created = Builder.objects.get_or_create(user=user)
+
+                if created:
+                    # Recalculate leaderboard entries now that the Builder relation
+                    # exists. The grant itself adds no points, but builder-category
+                    # aggregation keys off the Builder profile being present.
+                    from leaderboard.models import update_user_leaderboard_entries
+                    fresh_user = type(user).objects.get(pk=user.pk)
+                    update_user_leaderboard_entries(fresh_user)
 
             serializer = self.get_serializer(user)
             return Response({
@@ -833,9 +848,24 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_200_OK,
             )
 
-        Creator.objects.create(user=user)
-        fresh_user = type(user).objects.get(pk=user.pk)
-        update_user_leaderboard_entries(fresh_user)
+        from django.db import transaction
+        from django.contrib.auth import get_user_model
+
+        with transaction.atomic():
+            # Lock the user row so two concurrent requests can't both pass the
+            # hasattr check above and race into a OneToOne IntegrityError.
+            get_user_model().objects.select_for_update().get(pk=user.pk)
+            _, created = Creator.objects.get_or_create(user=user)
+
+            if not created:
+                return Response(
+                    {'message': 'You are already a community member', 'user': self.get_serializer(user).data},
+                    status=status.HTTP_200_OK,
+                )
+
+            fresh_user = type(user).objects.get(pk=user.pk)
+            update_user_leaderboard_entries(fresh_user)
+
         return Response(
             {'message': 'Welcome to the GenLayer community!', 'user': self.get_serializer(fresh_user).data},
             status=status.HTTP_201_CREATED,

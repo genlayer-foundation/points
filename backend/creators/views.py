@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -40,14 +41,16 @@ def join_creator_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    if hasattr(user, 'creator'):
-        serializer = CreatorSerializer(user.creator)
+    with transaction.atomic():
+        creator, created = Creator.objects.get_or_create(user=user)
+
+    if not created:
+        serializer = CreatorSerializer(creator)
         return Response({
             'message': 'You are already a community member!',
             'creator': serializer.data,
         }, status=status.HTTP_200_OK)
 
-    creator = Creator.objects.create(user=user)
     from leaderboard.models import update_user_leaderboard_entries
     update_user_leaderboard_entries(user)
     serializer = CreatorSerializer(creator)
