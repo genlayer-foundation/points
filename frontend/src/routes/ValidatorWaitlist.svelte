@@ -6,7 +6,7 @@
   import { getCurrentUser, journeyAPI } from '../lib/api';
   import { userStore } from '../lib/userStore.js';
   import { showError } from '../lib/toastStore.js';
-  import JourneyNotice from '../components/funnel/journeys/JourneyNotice.svelte';
+  import JourneyWelcome from '../components/funnel/journeys/JourneyWelcome.svelte';
   import JourneyHeroCard from '../components/funnel/journeys/JourneyHeroCard.svelte';
   import JourneyStepRow from '../components/funnel/journeys/JourneyStepRow.svelte';
 
@@ -20,12 +20,20 @@
   let loading = $state(true);
 
   let isAuthenticated = $derived($authState.isAuthenticated);
-  let noticeMessage = $derived(
-    error || (
-      hasFilledForm
-        ? 'Application checked. Enter the waitlist when you are ready.'
-        : 'Complete the validator application, then check it off in step one.'
-    )
+  let completedSteps = $derived(hasFilledForm ? 1 : 0);
+  let displayName = $derived(currentUser?.name?.trim() || $userStore.user?.name?.trim() || '');
+  let welcomeTitle = $derived(displayName ? `Welcome, ${displayName}` : 'Welcome to your Validator journey');
+  let welcomeMessage = $derived(
+    hasFilledForm
+      ? 'Your application step is checked. Enter the waitlist when you are ready and the team will review validators in cohorts.'
+      : 'Start with the validator application. Once it is submitted, check off step one to enter the waitlist.'
+  );
+  let welcomeChips = $derived(
+    [
+      { label: 'Progress', value: `${completedSteps}/2` },
+      { label: 'Application', value: hasFilledForm ? 'Checked' : 'Open' },
+      { label: 'Next', value: hasFilledForm ? 'Enter waitlist' : 'Submit form' },
+    ]
   );
 
   const graduatedUnlocks = [
@@ -128,9 +136,12 @@
 </svelte:head>
 
 <div class="journey-page validator-journey">
-  <JourneyNotice
-    message={noticeMessage}
-    tone={error ? 'error' : 'default'}
+  <JourneyWelcome
+    role="validator"
+    title={welcomeTitle}
+    message={welcomeMessage}
+    chips={welcomeChips}
+    alert={error}
   />
 
   <JourneyHeroCard

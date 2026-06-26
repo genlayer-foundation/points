@@ -11,7 +11,7 @@
   import { getValidatorBalance } from '../lib/blockchain.js';
   import SocialLink from '../components/SocialLink.svelte';
   import SocialTaskCard from '../components/social-tasks/SocialTaskCard.svelte';
-  import JourneyNotice from '../components/funnel/journeys/JourneyNotice.svelte';
+  import JourneyWelcome from '../components/funnel/journeys/JourneyWelcome.svelte';
   import JourneyHeroCard from '../components/funnel/journeys/JourneyHeroCard.svelte';
   import JourneyStepRow from '../components/funnel/journeys/JourneyStepRow.svelte';
   import JourneyUnlockCard from '../components/funnel/journeys/JourneyUnlockCard.svelte';
@@ -112,6 +112,7 @@
   let activeStep = $derived(stepStates.find((step) => !step.done) || null);
   let activeStepId = $derived(activeStep?.id || 'done');
   let completedSteps = $derived(stepStates.filter((step) => step.done).length);
+  let remainingSteps = $derived(Math.max(0, TOTAL_STEPS - completedSteps));
   // Only connecting GitHub and starring the boilerplate gate the Builder role:
   // this mirrors the backend (complete_builder_journey checks the star task,
   // which itself requires the GitHub link). Wallet is implied by being signed
@@ -120,13 +121,19 @@
   let requiredStepsComplete = $derived(
     stepStates.filter((step) => REQUIRED_STEP_IDS.includes(step.id)).every((step) => step.done)
   );
-  let noticeMessage = $derived(
-    loadError && activeStepId === 'star'
-      ? loadError
-      : requiredStepsComplete
-        ? 'You can claim the Builder role now. The remaining steps are recommended next steps.'
-        : 'Connect your GitHub and star the boilerplate repo to claim the Builder role.'
+  let displayName = $derived(user?.name?.trim() || '');
+  let welcomeTitle = $derived(displayName ? `Welcome, ${displayName}` : 'Welcome to your Builder journey');
+  let welcomeMessage = $derived(
+    requiredStepsComplete
+      ? 'Your Builder role is ready to claim. The remaining setup steps are optional, but they will help you ship faster once you are in.'
+      : 'Start with your GitHub account and the boilerplate repo. The journey will guide you through each setup step from here.'
   );
+  let welcomeAlert = $derived(loadError && activeStepId === 'star' ? loadError : '');
+  let welcomeChips = $derived([
+    { label: 'Progress', value: `${completedSteps}/${TOTAL_STEPS}` },
+    { label: 'Left', value: remainingSteps === 1 ? '1 step' : `${remainingSteps} steps` },
+    { label: 'Next', value: activeStep?.title || 'Claim role' },
+  ]);
   let heroHelper = $derived(
     requiredStepsComplete
       ? 'Ready to claim. The remaining steps are recommended, not required.'
@@ -463,9 +470,12 @@
 </svelte:head>
 
 <div class="journey-page builder-journey">
-  <JourneyNotice
-    message={noticeMessage}
-    tone={loadError && activeStepId === 'star' ? 'error' : 'default'}
+  <JourneyWelcome
+    role="builder"
+    title={welcomeTitle}
+    message={welcomeMessage}
+    chips={welcomeChips}
+    alert={welcomeAlert}
   />
 
   <JourneyHeroCard

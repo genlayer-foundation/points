@@ -1,10 +1,10 @@
 <script>
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
-  import { updateUserProfile } from '../lib/api.js';
+  import { journeyAPI, updateUserProfile } from '../lib/api.js';
   import { push, location } from 'svelte-spa-router';
   import { detectCategoryFromRoute } from '../stores/category.js';
-  import { rolePath, roleForCategory } from '../lib/roleState.js';
+  import { journeyPath, roleForCategory } from '../lib/roleState.js';
 
   // Form state
   let email = $state('');
@@ -17,8 +17,8 @@
   let hasExistingEmail = $state(false);
 
   // Role selection. Preselected from the entry route; once the user clicks a
-  // role we stop overriding it. Drives the post-completion redirect only (it is
-  // not persisted — the role is earned later via the journey).
+  // role we stop overriding it. Drives the post-completion journey start and
+  // redirect only; the role itself is earned later via the journey.
   const ROLE_OPTIONS = [
     {
       value: 'builder',
@@ -40,8 +40,8 @@
     },
     {
       value: 'community',
-      label: 'Creator',
-      eyebrow: 'Grow',
+      label: 'Community',
+      eyebrow: 'Connect',
       description: 'Create content, test flows, and expand the network.',
       icon: '/assets/illustrations/community-badge-small.svg',
       accent: '#7f52e1',
@@ -144,17 +144,26 @@
       // Update the user store
       userStore.updateUser(updateData);
 
-      // Reload user data to ensure we have the latest
-      await userStore.loadUser();
-
-      // Send first-time users to their selected role's main route, where the
-      // funnel offers "Start the journey". Guard against a stale/invalid role
-      // value so the redirect never falls back to '/'.
+      // Start the selected journey immediately, then send first-time users
+      // straight to it. If the marker request fails, the route will retry on
+      // mount so a transient error does not strand the user after saving.
       const targetRole = ROLE_VALUES.has(selectedRole)
         ? selectedRole
         : roleForCategory(detectCategoryFromRoute($location));
+      try {
+        const startRes = targetRole === 'builder'
+          ? await journeyAPI.startBuilderJourney()
+          : await journeyAPI.startRoleJourney(targetRole);
+        if (startRes.data?.user) userStore.updateUser(startRes.data.user);
+      } catch {
+        // Best-effort; each journey route also marks itself started.
+      }
+
+      // Reload user data to ensure we have the latest.
+      await userStore.loadUser();
+
       try { sessionStorage.removeItem('onboardingRole'); } catch {}
-      push(rolePath(targetRole));
+      push(journeyPath(targetRole));
     } catch (err) {
       // Handle field-specific errors from Django REST Framework
       if (err.response?.data) {
