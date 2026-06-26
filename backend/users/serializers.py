@@ -897,7 +897,7 @@ class UserSerializer(serializers.ModelSerializer):
             # In-progress funnel state is owner-only: it must not leak to other
             # viewers on a public profile, but the owner viewing their own public
             # profile keeps it so their grey "only you can see this" in-progress
-            # badge still renders. (has_validator_waitlist stays for everyone:
+            # indicator still renders. (has_validator_waitlist stays for everyone:
             # the waitlist is already public.)
             if not self._can_view_private_user_data(instance):
                 for field in [

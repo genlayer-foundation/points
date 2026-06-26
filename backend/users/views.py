@@ -500,13 +500,14 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         """
         from contributions.models import Contribution, ContributionType
         from django.utils import timezone
-        
+        from django.db import transaction
+
         user = request.user
-        started_response = self._mark_journey_started(request, 'validator')
-        if started_response.status_code >= 400:
-            return started_response
-        
-        # Check if user already has the contribution
+
+        # Preflight the waitlist type BEFORE marking the journey started, so a
+        # misconfigured type can't leave the user "started" without the single
+        # waitlist step. The marker and the waitlist contribution then share one
+        # transaction, so if either write fails the whole start rolls back.
         try:
             waitlist_type = ContributionType.objects.get(slug='validator-waitlist')
         except ContributionType.DoesNotExist:
@@ -514,34 +515,26 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                 {'error': 'Validator waitlist contribution type not configured'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        
-        if Contribution.objects.filter(user=user, contribution_type=waitlist_type).exists():
-            return Response(
-                {'message': 'You already have the validator waitlist contribution'},
-                status=status.HTTP_200_OK
-            )
-        
-        # Create the contribution to start the journey
-        try:
-            contribution = Contribution.objects.create(
-                user=user,
-                contribution_type=waitlist_type,
-                points=0,
-                contribution_date=timezone.now(),
-                notes='Joined the validator waitlist'
-            )
-            
-            serializer = self.get_serializer(user)
-            return Response({
-                'message': 'Validator journey started successfully!',
-                'user': serializer.data
-            }, status=status.HTTP_201_CREATED)
-            
-        except Exception as e:
-            return Response(
-                {'error': f'Failed to start journey: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+
+        with transaction.atomic():
+            started_response = self._mark_journey_started(request, 'validator')
+            if started_response.status_code >= 400:
+                return started_response
+
+            if not Contribution.objects.filter(user=user, contribution_type=waitlist_type).exists():
+                Contribution.objects.create(
+                    user=user,
+                    contribution_type=waitlist_type,
+                    points=0,
+                    contribution_date=timezone.now(),
+                    notes='Joined the validator waitlist'
+                )
+
+        serializer = self.get_serializer(user)
+        return Response({
+            'message': 'Validator journey started successfully!',
+            'user': serializer.data
+        }, status=status.HTTP_201_CREATED)
     
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def complete_builder_journey(self, request):

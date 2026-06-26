@@ -19,13 +19,17 @@
 
   let category = $derived($currentCategory);
   let isAuth = $derived($authState.isAuthenticated);
+  // authState defaults to unauthenticated and verifyAuth() is async, so until
+  // the session is verified we must not render the signed-out landing or a
+  // logged-in user briefly sees it flash before their dashboard loads.
+  let isChecking = $derived(!$authState.hasVerified);
   let user = $derived($userStore.user);
   let funnelState = $derived(roleFunnelState(isAuth, user, category));
 </script>
 
-{#if isAuth && !user}
-  <!-- Authenticated but user not loaded yet: avoid flashing the landing for an
-       earned-role user before /users/me/ resolves. -->
+{#if isChecking || (isAuth && !user)}
+  <!-- Session still verifying, or authenticated but /users/me/ not loaded yet:
+       show a neutral spinner instead of flashing the signed-out landing. -->
   <div class="flex justify-center p-16">
     <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-400"></div>
   </div>
