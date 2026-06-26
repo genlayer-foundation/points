@@ -454,6 +454,9 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
 
             # Contribution.clean() requires an active multiplier for the type, even
             # for a 0-point marker. Ensure one exists (value is irrelevant at 0 pts).
+            # Lock the shared type row so concurrent requests for DIFFERENT users
+            # can't both pass the exists() check and duplicate the default row.
+            ContributionType.objects.select_for_update().get(pk=welcome_type.pk)
             if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=welcome_type).exists():
                 GlobalLeaderboardMultiplier.objects.create(
                     contribution_type=welcome_type,
@@ -648,6 +651,9 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                     )
 
                 from leaderboard.models import GlobalLeaderboardMultiplier
+                # Lock the shared type row so concurrent requests for DIFFERENT users
+                # can't both pass the exists() check and duplicate the default row.
+                ContributionType.objects.select_for_update().get(pk=link_type.pk)
                 if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=link_type).exists():
                     GlobalLeaderboardMultiplier.objects.create(
                         contribution_type=link_type,

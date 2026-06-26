@@ -24,8 +24,10 @@
     starting = true;
     try {
       await journeyAPI.startRoleJourney(role);
-      await userStore.loadUser?.();
+      // Journey marker created server-side — navigate now. The user refresh is
+      // best-effort and must not block (or fail) entering the journey.
       push(journeyPath(role));
+      userStore.loadUser?.()?.catch(() => {});
     } catch {
       showError('Could not start this journey. Please try again.');
     } finally {

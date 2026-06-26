@@ -85,18 +85,21 @@
 
     try {
       await journeyAPI.startValidatorJourney();
-      await userStore.loadUser?.();
-      try {
-        sessionStorage.setItem('journeySuccess', 'Successfully joined Validator Waitlist!');
-      } catch {
-        // Storing the success banner is best-effort; the join already succeeded.
-      }
-      replace('/validators');
     } catch (err) {
       error = err.response?.data?.error || 'Failed to join waitlist';
       showError(error);
       isJoiningWaitlist = false;
+      return;
     }
+    // Joined server-side. The user refresh and success-banner write are both
+    // best-effort and must not block (or undo) the success redirect.
+    userStore.loadUser?.()?.catch(() => {});
+    try {
+      sessionStorage.setItem('journeySuccess', 'Successfully joined Validator Waitlist!');
+    } catch {
+      // Storing the success banner is best-effort; the join already succeeded.
+    }
+    replace('/validators');
   }
 </script>
 
