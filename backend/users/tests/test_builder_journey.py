@@ -8,10 +8,12 @@ are gone.
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from contributions.models import Category, Contribution
+from contributions.models import Category, Contribution, ContributionType
+from leaderboard.models import GlobalLeaderboardMultiplier
 from social_tasks.models import SocialTask, SocialTaskCompletion
 
 User = get_user_model()
@@ -106,6 +108,47 @@ class BuilderJourneyTests(TestCase):
     def test_start_role_journey_rejects_unknown_role(self):
         resp = self.client.post('/api/v1/users/start_role_journey/', {'role': 'steward'})
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_start_validator_journey_also_marks_journey_started(self):
+        validator_cat, _ = Category.objects.get_or_create(
+            slug='validator',
+            defaults={'name': 'Validator', 'description': 'Validator tasks.'},
+        )
+        waitlist_type, _ = ContributionType.objects.update_or_create(
+            slug='validator-waitlist',
+            defaults={
+                'name': 'Validator Waitlist',
+                'category': validator_cat,
+                'is_submittable': False,
+                'min_points': 0,
+                'max_points': 0,
+            },
+        )
+        GlobalLeaderboardMultiplier.objects.get_or_create(
+            contribution_type=waitlist_type,
+            defaults={
+                'multiplier_value': 1.0,
+                'valid_from': timezone.now() - timezone.timedelta(days=1),
+            },
+        )
+
+        resp = self.client.post('/api/v1/users/start_validator_journey/')
+
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            Contribution.objects.filter(
+                user=self.user,
+                contribution_type__slug='validator-welcome',
+                points=0,
+            ).exists()
+        )
+        self.assertTrue(
+            Contribution.objects.filter(
+                user=self.user,
+                contribution_type__slug='validator-waitlist',
+                points=0,
+            ).exists()
+        )
 
     def test_complete_requires_starring_the_boilerplate(self):
         response = self.client.post('/api/v1/users/complete_builder_journey/')

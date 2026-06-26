@@ -202,3 +202,17 @@ setup.sh
 
 # gstack security reports
 .gstack/
+
+# Playwright artifacts
+playwright-report/
+test-results/
+.playwright/
+**/playwright-report/
+**/test-results/
+**/.playwright/
+**/playwright/.cache/
+**/playwright/.auth/
+playwright*.yml
+playwright*.yaml
+**/playwright/*.yml
+**/playwright/*.yaml

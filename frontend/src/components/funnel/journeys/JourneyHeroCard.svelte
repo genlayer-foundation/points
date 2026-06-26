@@ -105,7 +105,9 @@
     background: var(--journey-hero-bg, linear-gradient(163deg, #fff 40%, #fff7ec 96%));
     border: 1px solid var(--journey-hero-border, #f3e4cb);
     border-radius: 16px;
+    box-sizing: border-box;
     min-height: 320px;
+    min-width: 0;
     overflow: hidden;
     padding: 28px;
     position: relative;
@@ -122,6 +124,7 @@
 
   .hero-content {
     max-width: 725px;
+    min-width: 0;
     position: relative;
     z-index: 1;
   }
@@ -181,6 +184,7 @@
     letter-spacing: -0.72px;
     line-height: 40px;
     margin: 8px 0 0;
+    text-wrap: balance;
   }
 
   h1 .accent-value {
@@ -238,6 +242,7 @@
   .hero-action {
     align-items: center;
     display: flex;
+    flex-wrap: wrap;
     gap: 13px;
     margin-top: 18px;
   }
@@ -262,6 +267,7 @@
     justify-content: center;
     letter-spacing: 0.28px;
     line-height: 21px;
+    max-width: 100%;
     padding: 0 16px;
     transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease;
     white-space: nowrap;
@@ -350,7 +356,7 @@
     }
 
     .hero-content {
-      max-width: calc(100% - 96px);
+      max-width: min(725px, calc(100% - 104px));
     }
 
     h1 {
@@ -359,13 +365,35 @@
     }
   }
 
+  @media (max-width: 760px) {
+    .hero-content {
+      max-width: 100%;
+    }
+
+    .progress-ring,
+    .hero-role-badge {
+      height: 64px;
+      margin-top: 20px;
+      position: relative;
+      right: auto;
+      top: auto;
+      width: 64px;
+    }
+
+    .hero-role-badge img:first-child {
+      height: 64px;
+      width: 58px;
+    }
+
+    .hero-role-badge img:last-child {
+      height: 24px;
+      width: 24px;
+    }
+  }
+
   @media (max-width: 640px) {
     .journey-hero {
       padding: 20px;
-    }
-
-    .hero-content {
-      max-width: 100%;
     }
 
     h1 {
@@ -386,11 +414,7 @@
     .progress-ring,
     .hero-role-badge {
       height: 58px;
-      position: relative;
-      right: auto;
-      top: auto;
       width: 58px;
-      margin-top: 20px;
     }
 
     .hero-role-badge img:first-child {

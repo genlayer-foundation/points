@@ -24,9 +24,6 @@
     let isValidator = $derived(!!participant?.validator);
     let hasValidatorPoints = $derived((validatorStats?.totalPoints ?? 0) > 0);
     let isCreator = $derived(!!participant?.creator);
-    let isValidatorWaitlist = $derived(
-        !!participant?.has_validator_waitlist && !participant?.validator,
-    );
 
     function getTabForRoleKey(roleKey: string) {
         if (roleKey === "builder") return "Builders";
@@ -67,7 +64,7 @@
     });
 
     let hasAnyRankableRole = $derived(
-        isBuilder || isCreator || isValidatorWaitlist || hasValidatorPoints,
+        isBuilder || isCreator || (isValidator && hasValidatorPoints),
     );
 
     let activeTab: string | null = $state(null);
@@ -460,12 +457,6 @@
         activeList.filter((row: any) => !row.isEllipsis).slice(0, 4),
     );
 
-    function scrollToJourneys() {
-        const el = document.querySelector(".journey-actions-section");
-        if (el) {
-            el.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-    }
 </script>
 
 {#if hasAnyRankableRole}
@@ -786,32 +777,6 @@
                                 </div>
                             {/if}
                         </div>
-                {:else if isOwnProfile}
-                    <button
-                        onclick={scrollToJourneys}
-                        class="ranking-context-card flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm hover:bg-[#fafafa] transition-colors text-left w-full"
-                    >
-                        <div class="flex items-center gap-4">
-                            <CategoryIcon
-                                category="builder"
-                                mode="hexagon"
-                                size={48}
-                            />
-                            <div class="flex flex-col">
-                                <span class="text-[14px] font-medium text-black"
-                                    >Start as a Builder</span
-                                >
-                                <span class="text-[12px] text-[#6b6b6b]"
-                                    >Complete the builder journey to get ranked</span
-                                >
-                            </div>
-                        </div>
-                        <img
-                            src="/assets/icons/arrow-right-line.svg"
-                            alt=""
-                            class="w-4 h-4 opacity-40"
-                        />
-                    </button>
                 {/if}
 
                 <!-- Validator Stat -->
@@ -861,52 +826,6 @@
                             </div>
                         {/if}
                     </div>
-                {:else if isValidatorWaitlist}
-                    <div
-                        class="ranking-context-card flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
-                    >
-                        <div class="flex items-center gap-4 min-w-0">
-                            <CategoryIcon
-                                category="validator"
-                                mode="hexagon"
-                                size={48}
-                            />
-                            <div class="flex flex-col min-w-0">
-                                <span class="text-[14px] font-medium text-black"
-                                    >Validator Waitlist</span
-                                >
-                                <span class="text-[12px] text-[#6b6b6b]"
-                                    >Awaiting graduation to validator</span
-                                >
-                            </div>
-                        </div>
-                    </div>
-                {:else if isOwnProfile}
-                    <button
-                        onclick={scrollToJourneys}
-                        class="ranking-context-card flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm hover:bg-[#fafafa] transition-colors text-left w-full"
-                    >
-                        <div class="flex items-center gap-4">
-                            <CategoryIcon
-                                category="validator"
-                                mode="hexagon"
-                                size={48}
-                            />
-                            <div class="flex flex-col">
-                                <span class="text-[14px] font-medium text-black"
-                                    >Become a Validator</span
-                                >
-                                <span class="text-[12px] text-[#6b6b6b]"
-                                    >Join the waitlist to start earning points</span
-                                >
-                            </div>
-                        </div>
-                        <img
-                            src="/assets/icons/arrow-right-line.svg"
-                            alt=""
-                            class="w-4 h-4 opacity-40"
-                        />
-                    </button>
                 {/if}
 
                 <!-- Community Points Stat -->
@@ -959,32 +878,6 @@
                                 </div>
                             {/if}
                     </div>
-                {:else if isOwnProfile}
-                    <button
-                        onclick={scrollToJourneys}
-                        class="ranking-context-card flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm hover:bg-[#fafafa] transition-colors text-left w-full"
-                    >
-                        <div class="flex items-center gap-4">
-                            <CategoryIcon
-                                category="community"
-                                mode="hexagon"
-                                size={48}
-                            />
-                            <div class="flex flex-col">
-                                <span class="text-[14px] font-medium text-black"
-                                    >Join the community</span
-                                >
-                                <span class="text-[12px] text-[#6b6b6b]"
-                                    >Link socials and submit community contributions</span
-                                >
-                            </div>
-                        </div>
-                        <img
-                            src="/assets/icons/arrow-right-line.svg"
-                            alt=""
-                            class="w-4 h-4 opacity-40"
-                        />
-                    </button>
                 {/if}
             </div>
         </div>

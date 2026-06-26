@@ -126,9 +126,11 @@
     align-items: center;
     background: #fff;
     border-top: 1px solid #f0f0f0;
+    box-sizing: border-box;
     display: flex;
     gap: 14px;
     min-height: 64px;
+    min-width: 0;
     padding: 13px 18px;
     position: relative;
     width: 100%;
@@ -245,6 +247,7 @@
     flex: 0 0 auto;
     gap: 13px;
     justify-content: flex-end;
+    min-width: 0;
   }
 
   .points-pill {
@@ -290,6 +293,7 @@
     height: 38px;
     justify-content: center;
     line-height: 18px;
+    max-width: 100%;
     padding: 0 16px;
     transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease;
     white-space: nowrap;
@@ -382,6 +386,7 @@
       align-items: center;
       flex-basis: 100%;
       flex-direction: row;
+      flex-wrap: wrap;
       justify-content: space-between;
       padding-left: 40px;
     }
@@ -389,6 +394,23 @@
     .step-action {
       flex: 0 1 auto;
       min-width: 0;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .step-meta {
+      align-items: stretch;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+
+    .step-action {
+      width: 100%;
+    }
+
+    .status-label {
+      min-width: 0;
+      text-align: left;
     }
   }
 </style>

@@ -2,7 +2,7 @@
   let { state: roleState = 'unauthenticated', starting = false, onStart = () => {} } = $props();
 
   const isWaitlisted = $derived(roleState === 'waitlisted');
-  const primaryLabel = $derived(starting ? 'Starting...' : 'Run a Node');
+  const primaryLabel = $derived(starting ? 'Starting...' : 'Join a Validator List');
 
   const comparisonCards = [
     {
@@ -85,21 +85,7 @@
       </div>
     </div>
 
-    <div class="hero-visual" aria-hidden="true">
-      <div class="visual-track">
-        <div class="visual-pill muted">Block attestation</div>
-        <div class="visual-arrow">-></div>
-        <div class="visual-pill active">AI judgment</div>
-      </div>
-      <div class="decision-card">
-        <span>Decision flow</span>
-        <strong>Propose -> Verify -> Appeal -> Finality</strong>
-      </div>
-      <div class="visual-stat">
-        <strong>15+</strong>
-        <span>transactions per decision</span>
-      </div>
-    </div>
+    <div class="hero-media" aria-hidden="true"></div>
   </section>
 
   <section class="comparison-section" aria-labelledby="validator-comparison-title">
@@ -225,6 +211,9 @@
     gap: 32px;
     isolation: isolate;
     margin: -12px;
+    min-height: calc(100vh - 57px);
+    min-height: calc(100dvh - 57px);
+    min-width: 0;
     overflow: hidden;
     padding: 12px 12px 0;
     position: relative;
@@ -250,6 +239,8 @@
   }
 
   .role-landing > section {
+    box-sizing: border-box;
+    min-width: 0;
     position: relative;
     z-index: 1;
   }
@@ -347,6 +338,12 @@
     white-space: nowrap;
   }
 
+  .landing-button span,
+  .waitlist-status {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .landing-button img,
   .waitlist-status svg {
     height: 16px;
@@ -379,98 +376,11 @@
     color: var(--role-accent);
   }
 
-  .hero-visual {
-    align-content: center;
+  .hero-media {
     aspect-ratio: 16 / 9;
-    background:
-      radial-gradient(circle at 80% 20%, rgba(var(--role-accent-rgb), 0.24), transparent 32%),
-      linear-gradient(135deg, #f8fbff 0%, #edf4ff 100%);
-    border: 1px solid rgba(var(--role-accent-rgb), 0.18);
+    background: #cbcbcb;
     border-radius: 8px;
-    display: grid;
-    gap: 18px;
-    padding: 28px;
     width: 100%;
-  }
-
-  .visual-track,
-  .decision-card,
-  .visual-stat {
-    background: rgba(255, 255, 255, 0.84);
-    border: 1px solid rgba(var(--role-accent-rgb), 0.16);
-    border-radius: 8px;
-    box-shadow: 0 14px 30px rgba(50, 87, 142, 0.12);
-  }
-
-  .visual-track {
-    align-items: center;
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    padding: 12px;
-  }
-
-  .visual-pill {
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 8px 12px;
-    text-transform: uppercase;
-  }
-
-  .visual-pill.muted {
-    background: #f1f4f9;
-    color: #667085;
-  }
-
-  .visual-pill.active {
-    background: var(--role-gradient);
-    color: #fff;
-  }
-
-  .visual-arrow {
-    color: var(--role-accent);
-    font-family: var(--font-mono);
-    font-weight: 700;
-  }
-
-  .decision-card {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 18px;
-  }
-
-  .decision-card span,
-  .visual-stat span {
-    color: #6b7280;
-    font-size: 13px;
-    font-weight: 600;
-    text-transform: uppercase;
-  }
-
-  .decision-card strong {
-    color: #111827;
-    font-family: var(--font-display);
-    font-size: 24px;
-    font-weight: 500;
-    line-height: 30px;
-  }
-
-  .visual-stat {
-    align-items: center;
-    display: flex;
-    gap: 14px;
-    justify-content: center;
-    padding: 14px;
-  }
-
-  .visual-stat strong {
-    color: var(--role-accent);
-    font-family: var(--font-display);
-    font-size: 48px;
-    font-weight: 500;
-    line-height: 1;
   }
 
   .comparison-section,
@@ -809,6 +719,13 @@
 
     .earn-banner {
       padding: 32px 20px;
+    }
+
+    .project-chip-row span {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      text-align: center;
+      white-space: normal;
     }
 
     .stack-grid {

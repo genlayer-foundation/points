@@ -757,12 +757,16 @@
     --journey-complete-border: var(--builder-orange-gradient-border);
     --journey-complete-color: var(--builder-orange-gradient-ink);
     --journey-complete-shadow: rgba(238, 133, 33, 0.14);
+    box-sizing: border-box;
     color: #000;
     display: flex;
     flex-direction: column;
     gap: 24px;
     margin: 0 auto;
-    max-width: 940px;
+    max-width: 1120px;
+    min-height: calc(100vh - 81px);
+    min-height: calc(100dvh - 81px);
+    min-width: 0;
     padding: 20px 12px 80px;
     width: 100%;
   }
@@ -788,7 +792,7 @@
     border-top: 1px solid #f0f0f0;
     display: grid;
     gap: 16px;
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 380px);
     padding: 16px 18px 18px 58px;
   }
 
@@ -1024,6 +1028,7 @@
     justify-content: center;
     letter-spacing: 0.28px;
     line-height: 21px;
+    max-width: 100%;
     padding: 0 16px;
     transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease;
     white-space: nowrap;
@@ -1091,7 +1096,7 @@
 
   @media (max-width: 1180px) {
     .journey-page {
-      max-width: 920px;
+      max-width: 100%;
     }
   }
 
@@ -1125,6 +1130,16 @@
     .task-panel,
     .compact-panel {
       padding: 14px;
+    }
+
+    .network-item {
+      grid-template-columns: 24px minmax(0, 1fr);
+    }
+
+    .network-item em,
+    .network-button {
+      grid-column: 2;
+      justify-self: flex-start;
     }
 
     .section-label {

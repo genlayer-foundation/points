@@ -11,7 +11,7 @@
   const isUnauthenticated = $derived(roleState === 'unauthenticated');
   const primaryDisabled = $derived(starting);
   const primaryLabel = $derived(
-    isUnauthenticated ? 'Start Contributing' : starting ? 'Starting Journey...' : 'Start Journey'
+    starting ? 'Starting Journey...' : 'Become a Builder'
   );
   const ctaHint = $derived(
     isUnauthenticated
@@ -248,6 +248,9 @@
     gap: 32px;
     isolation: isolate;
     margin: -12px;
+    min-height: calc(100vh - 57px);
+    min-height: calc(100dvh - 57px);
+    min-width: 0;
     overflow: hidden;
     padding: 12px 12px 0;
     position: relative;
@@ -280,6 +283,8 @@
   }
 
   .builder-landing > section {
+    box-sizing: border-box;
+    min-width: 0;
     position: relative;
     z-index: 1;
   }
@@ -337,6 +342,7 @@
   .button-row {
     align-items: flex-start;
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
   }
 
@@ -378,6 +384,11 @@
     transition-duration: 160ms;
     transition-timing-function: ease;
     white-space: nowrap;
+  }
+
+  .landing-button span {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .landing-button img {
@@ -824,7 +835,11 @@
     .project-chip-row span {
       font-size: 13px;
       line-height: 22px;
+      max-width: 100%;
+      overflow-wrap: anywhere;
       padding: 10px 14px;
+      text-align: center;
+      white-space: normal;
     }
 
     .earn-banner {

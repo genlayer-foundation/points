@@ -146,7 +146,7 @@
                   <span class="block grayscale opacity-50"><CategoryIcon category="community" mode="hexagon" size={32} /></span>
                   <div class="badge-tooltip">
                     <span class="badge-tooltip-title">Community</span>
-                    <span class="badge-tooltip-desc">Journey in progress · only you can see this</span>
+                    <span class="badge-tooltip-desc">Journey in progress</span>
                   </div>
                 </div>
               {/if}
@@ -164,7 +164,7 @@
                   <span class="block grayscale opacity-50"><CategoryIcon category="builder" mode="hexagon" size={32} /></span>
                   <div class="badge-tooltip">
                     <span class="badge-tooltip-title">Builder</span>
-                    <span class="badge-tooltip-desc">Journey in progress · only you can see this</span>
+                    <span class="badge-tooltip-desc">Journey in progress</span>
                   </div>
                 </div>
               {/if}
@@ -182,7 +182,7 @@
                   <span class="block grayscale opacity-50"><CategoryIcon category="validator" mode="hexagon" size={32} /></span>
                   <div class="badge-tooltip">
                     <span class="badge-tooltip-title">Validator</span>
-                    <span class="badge-tooltip-desc">On the validator waitlist · only you can see this</span>
+                    <span class="badge-tooltip-desc">Journey in progress</span>
                   </div>
                 </div>
               {/if}

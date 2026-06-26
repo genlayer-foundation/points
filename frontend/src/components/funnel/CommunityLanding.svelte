@@ -80,19 +80,7 @@
       </div>
     </div>
 
-    <div class="hero-visual" aria-hidden="true">
-      <div class="community-orbit">
-        <span>Test</span>
-        <span>Create</span>
-        <strong>Portal</strong>
-        <span>Grow</span>
-        <span>Earn</span>
-      </div>
-      <div class="visual-card">
-        <span>Contribution tracked</span>
-        <strong>Points, tasks, referrals, and ecosystem action</strong>
-      </div>
-    </div>
+    <div class="hero-media" aria-hidden="true"></div>
   </section>
 
   <section class="feature-section" aria-labelledby="community-contribution-title">
@@ -206,6 +194,9 @@
     gap: 32px;
     isolation: isolate;
     margin: -12px;
+    min-height: calc(100vh - 57px);
+    min-height: calc(100dvh - 57px);
+    min-width: 0;
     overflow: hidden;
     padding: 12px 12px 0;
     position: relative;
@@ -231,6 +222,8 @@
   }
 
   .role-landing > section {
+    box-sizing: border-box;
+    min-width: 0;
     position: relative;
     z-index: 1;
   }
@@ -327,6 +320,11 @@
     white-space: nowrap;
   }
 
+  .landing-button span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .landing-button img {
     height: 16px;
     width: 16px;
@@ -352,75 +350,11 @@
     transform: scale(0.96);
   }
 
-  .hero-visual {
-    align-content: center;
+  .hero-media {
     aspect-ratio: 16 / 9;
-    background:
-      radial-gradient(circle at 80% 20%, rgba(var(--role-accent-rgb), 0.24), transparent 32%),
-      linear-gradient(135deg, #fbf8ff 0%, #f3edff 100%);
-    border: 1px solid rgba(var(--role-accent-rgb), 0.18);
+    background: #cbcbcb;
     border-radius: 8px;
-    display: grid;
-    gap: 18px;
-    padding: 28px;
     width: 100%;
-  }
-
-  .community-orbit {
-    align-items: center;
-    display: grid;
-    gap: 10px;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-
-  .community-orbit span,
-  .community-orbit strong,
-  .visual-card {
-    background: rgba(255, 255, 255, 0.86);
-    border: 1px solid rgba(var(--role-accent-rgb), 0.16);
-    border-radius: 8px;
-    box-shadow: 0 14px 30px rgba(74, 46, 128, 0.12);
-  }
-
-  .community-orbit span,
-  .community-orbit strong {
-    align-items: center;
-    display: flex;
-    font-size: 12px;
-    font-weight: 700;
-    justify-content: center;
-    min-height: 54px;
-    padding: 10px;
-    text-align: center;
-    text-transform: uppercase;
-  }
-
-  .community-orbit strong {
-    background: var(--role-gradient);
-    color: #fff;
-    min-height: 76px;
-  }
-
-  .visual-card {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 18px;
-  }
-
-  .visual-card span {
-    color: #6b7280;
-    font-size: 13px;
-    font-weight: 600;
-    text-transform: uppercase;
-  }
-
-  .visual-card strong {
-    color: #111827;
-    font-family: var(--font-display);
-    font-size: 24px;
-    font-weight: 500;
-    line-height: 30px;
   }
 
   .feature-section,
@@ -715,13 +649,5 @@
       padding: 32px 20px;
     }
 
-    .community-orbit {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .community-orbit strong {
-      grid-column: 1 / -1;
-      order: -1;
-    }
   }
 </style>

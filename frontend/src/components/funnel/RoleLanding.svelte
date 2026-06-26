@@ -8,6 +8,7 @@
   import BuilderLanding from './BuilderLanding.svelte';
   import ValidatorLanding from './ValidatorLanding.svelte';
   import CommunityLanding from './CommunityLanding.svelte';
+  import AuthenticatedRoleLanding from './AuthenticatedRoleLanding.svelte';
 
   let { category = 'community', state: roleState = 'unauthenticated' } = $props();
 
@@ -36,7 +37,9 @@
   }
 </script>
 
-{#if category === 'builder'}
+{#if roleState !== 'unauthenticated'}
+  <AuthenticatedRoleLanding {category} state={roleState} {starting} onStart={() => handleStart(category)} />
+{:else if category === 'builder'}
   <BuilderLanding state={roleState} {starting} onStart={() => handleStart('builder')} />
 {:else if category === 'validator'}
   <ValidatorLanding state={roleState} {starting} onStart={() => handleStart('validator')} />

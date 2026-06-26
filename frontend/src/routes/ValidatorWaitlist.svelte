@@ -54,15 +54,35 @@
     try {
       if (isAuthenticated) {
         currentUser = await getCurrentUser();
+        if (currentUser?.has_validator_waitlist && !currentUser?.has_validator_welcome) {
+          await markValidatorJourneyStarted();
+        }
         if (currentUser?.validator || currentUser?.has_validator_waitlist) {
           replace('/validators');
           return;
+        }
+        if (!currentUser?.has_validator_welcome) {
+          await markValidatorJourneyStarted();
         }
       }
     } catch (err) {
       // Keep the pre-join flow visible; submit will surface any auth/API error.
     } finally {
       loading = false;
+    }
+  }
+
+  async function markValidatorJourneyStarted() {
+    try {
+      const response = await journeyAPI.startRoleJourney('validator');
+      if (response.data?.user) {
+        currentUser = response.data.user;
+        userStore.setUser(response.data.user);
+      } else {
+        currentUser = await userStore.loadUser?.();
+      }
+    } catch (_) {
+      showError('Could not start your validator journey. Try refreshing in a moment.');
     }
   }
 
@@ -230,12 +250,16 @@
     --journey-points-bg: #edf5ff;
     --journey-complete-gradient: linear-gradient(135deg, #5c9af1 0%, #387de8 100%);
     --journey-complete-shadow: rgba(56, 125, 232, 0.19);
+    box-sizing: border-box;
     color: #000;
     display: flex;
     flex-direction: column;
     gap: 24px;
     margin: 0 auto;
-    max-width: 940px;
+    max-width: 1120px;
+    min-height: calc(100vh - 81px);
+    min-height: calc(100dvh - 81px);
+    min-width: 0;
     padding: 20px 12px 80px;
     width: 100%;
   }
@@ -480,6 +504,7 @@
     height: 40px;
     justify-content: center;
     line-height: 20px;
+    max-width: 100%;
     padding: 0 20px;
     text-decoration: none;
     transition: background-color 160ms ease, opacity 160ms ease;
