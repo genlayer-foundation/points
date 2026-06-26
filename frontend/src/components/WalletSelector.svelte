@@ -245,7 +245,7 @@
     loading = false;
   }
   
-  let connectionAborted = $state(false);
+  let connectionDismissed = $state(false);
   let connectionController = null;
   let isConnecting = $state(false);
   
@@ -268,8 +268,8 @@
       return;
     }
     
-    // Reset abort flag and set connecting state
-    connectionAborted = false;
+    // Reset dismiss flag and set connecting state
+    connectionDismissed = false;
     connectingWallet = wallet;
     isConnecting = true;
     
@@ -280,8 +280,8 @@
       // Get the provider (now async)
       const provider = await wallet.getProvider();
 
-      // Check if user aborted
-      if (connectionAborted) {
+      // Check if user dismissed the local connection view
+      if (connectionDismissed) {
         return;
       }
       
@@ -312,20 +312,21 @@
         return;
       }
       
-      // Check again if user aborted before calling onSelect
-      if (connectionAborted) {
+      // Check again if user dismissed before calling onSelect
+      if (connectionDismissed) {
         return;
       }
       
       // Call onSelect with abort signal support
       const connectionPromise = onSelect(provider, wallet.name);
       
-      // Race between connection and abort signal
+      // Race between connection and local UI dismissal. This does not cancel
+      // wallet-provider work already started by onSelect.
       await Promise.race([
         connectionPromise,
         new Promise((_, reject) => {
           connectionController.signal.addEventListener('abort', () => {
-            reject(new Error('Connection aborted by user'));
+            reject(new Error('Connection view closed by user'));
           });
         })
       ]);
@@ -336,23 +337,23 @@
                              error?.message?.includes('User rejected') || 
                              error?.message?.includes('User denied');
       
-      // Only show error if not aborted and not user rejection
-      if (!connectionAborted && !isUserRejection && error?.message !== 'Connection aborted by user') {
+      // Only show error if not dismissed and not user rejection
+      if (!connectionDismissed && !isUserRejection && error?.message !== 'Connection view closed by user') {
         showError('Failed to connect wallet. Please try again.');
       }
     } finally {
       // Always clear connecting state
       connectingWallet = null;
-      connectionAborted = false;
+      connectionDismissed = false;
       connectionController = null;
       isConnecting = false;
     }
   }
   
-  function cancelConnection() {
-    connectionAborted = true;
+  function closeConnectionView() {
+    connectionDismissed = true;
 
-    // Abort the connection controller if it exists
+    // Stop the local loading race if it exists. Provider prompts may continue.
     if (connectionController) {
       connectionController.abort();
     }
@@ -371,7 +372,7 @@
 
   function handleKeyDown(e) {
     // Don't close if currently connecting
-    if (e.key === 'Escape' && !connectingWallet) {
+    if (isOpen && e.key === 'Escape' && !connectingWallet) {
       isOpen = false;
     }
   }
@@ -419,14 +420,14 @@
   </svg>
 {/snippet}
 
+<svelte:window onkeydown={handleKeyDown} />
+
 {#if isOpen}
   <div
     bind:this={portalEl}
     class="wallet-selector-backdrop"
     onclick={handleBackdropClick}
-    onkeydown={handleKeyDown}
-    role="button"
-    tabindex="-1"
+    role="presentation"
   >
     <div class="wallet-selector-modal" role="dialog" aria-modal="true" aria-labelledby="wallet-selector-title">
       <div class="wallet-selector-hero">
@@ -475,8 +476,8 @@
               </div>
               <p class="connecting-title">Connecting to {connectingWallet.name}...</p>
               <p class="connecting-copy">Confirm the signature request in your wallet.</p>
-              <button type="button" class="cancel-connect" onclick={cancelConnection}>
-                Cancel
+              <button type="button" class="cancel-connect" onclick={closeConnectionView}>
+                Close
               </button>
             </div>
           </div>

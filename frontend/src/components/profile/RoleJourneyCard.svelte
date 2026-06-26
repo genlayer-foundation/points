@@ -30,7 +30,7 @@
       rgb: "141, 129, 225",
       glyph: "/assets/icons/group-3-line-purple.svg",
       description:
-        "Finish the required community steps, then claim your Creator role.",
+        "Finish the required Creator steps, then claim your Creator role.",
     },
   };
 

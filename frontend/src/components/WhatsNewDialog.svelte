@@ -181,7 +181,7 @@
     // Don't auto-open What's New for a brand-new account in the same login
     // session. If the session began with no role/journey, wait until the user
     // logs out and back in, even if they start a journey moments later.
-    if (!engaged || !sessionStartedEngaged) return;
+    if (!sessionStartedEngaged) return;
 
     if (authKey === lastAuthKey) return;
 

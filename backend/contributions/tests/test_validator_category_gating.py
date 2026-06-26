@@ -242,6 +242,27 @@ class ValidatorCategorySubmitGatingTest(TestCase):
         submission.refresh_from_db()
         self.assertEqual(submission.contribution_type, self.unrestricted_type)
 
+    def test_plain_user_can_edit_unchanged_legacy_community_submission(self):
+        submission = SubmittedContribution.objects.create(
+            user=self.plain_user,
+            contribution_type=self.community_type,
+            contribution_date=timezone.now(),
+            notes='Original legacy community submission',
+            state='more_info_needed',
+        )
+        self.client.force_authenticate(user=self.plain_user)
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'notes': 'Updated legacy community submission'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        self.assertEqual(submission.notes, 'Updated legacy community submission')
+        self.assertEqual(submission.contribution_type, self.community_type)
+
     def test_plain_user_cannot_edit_submission_into_mission_only_type(self):
         submission = self._pending_submission()
         self.client.force_authenticate(user=self.plain_user)

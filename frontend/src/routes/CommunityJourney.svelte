@@ -46,7 +46,7 @@
     actionError || loadError || (
       complete
         ? 'Creator journey complete. Click to finish.'
-        : `There ${remainingSteps === 1 ? 'is' : 'are'} ${remainingSteps} ${remainingSteps === 1 ? 'step' : 'steps'} left to join the community.`
+        : `There ${remainingSteps === 1 ? 'is' : 'are'} ${remainingSteps} ${remainingSteps === 1 ? 'step' : 'steps'} left to become a creator.`
     )
   );
   let heroHelper = $derived(
@@ -250,11 +250,11 @@
     iconGlyph="/assets/icons/group-3-line-purple.svg"
     eyebrow="Your creator journey"
     accentValue={TOTAL_STEPS}
-    titleRest=" steps to join the community"
+    titleRest=" steps to become a creator"
     description="Link your social accounts, verify the GenLayer creator actions, and share your unique X post before claiming the Creator role."
     completed={loading ? 0 : completedSteps}
     total={TOTAL_STEPS}
-    primaryLabel={completing ? 'Joining...' : 'Join the community'}
+    primaryLabel={completing ? 'Completing...' : 'Become a Creator'}
     primaryDisabled={loading || completing || !complete}
     primaryBusy={completing}
     helper={heroHelper}

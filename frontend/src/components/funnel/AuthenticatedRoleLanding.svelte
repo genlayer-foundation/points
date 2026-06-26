@@ -64,7 +64,7 @@
   style={`--role-accent: ${config.accent}; --role-accent-rgb: ${config.accentRgb}; --role-gradient: ${config.gradient};`}
 >
   <section class="start-panel" aria-labelledby="authenticated-role-title">
-    <div class="role-emblem" aria-hidden="true">
+    <div class="mb-[-6px] flex h-[118px] w-[118px] items-center justify-center drop-shadow-[0_22px_34px_rgba(var(--role-accent-rgb),0.22)]" aria-hidden="true">
       <CategoryIcon category={visualCategory} mode="hexagon" size={118} />
     </div>
     <p class="role-eyebrow">{config.eyebrow}</p>
@@ -177,16 +177,6 @@
     line-height: 20px;
     margin: 0;
     text-transform: uppercase;
-  }
-
-  .role-emblem {
-    align-items: center;
-    display: flex;
-    filter: drop-shadow(0 22px 34px rgba(var(--role-accent-rgb), 0.22));
-    height: 118px;
-    justify-content: center;
-    margin-bottom: -6px;
-    width: 118px;
   }
 
   h1 {
