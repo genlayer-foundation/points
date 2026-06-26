@@ -242,7 +242,7 @@
       <!-- The user opened the link: verifying is now the primary action. -->
       <button
         type="button"
-        onclick={callComplete}
+        onclick={() => callComplete({ trackAction: false })}
         disabled={busy}
         class="text-xs font-semibold text-black transition-colors hover:opacity-70 disabled:opacity-50 disabled:cursor-not-allowed"
       >
@@ -296,7 +296,7 @@
         {#if requiresVerification || opened}
           <button
             type="button"
-            onclick={callComplete}
+            onclick={() => callComplete({ trackAction: !opened })}
             disabled={busy}
             aria-label={requiresVerification ? 'Verify completion' : 'Claim now'}
             title={requiresVerification ? 'Verify completion' : 'Claim now'}

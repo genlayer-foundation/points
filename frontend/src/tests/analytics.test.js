@@ -119,8 +119,14 @@ describe('analytics helper', () => {
       address: '0x1234567890abcdef1234567890abcdef12345678',
       email: 'person@example.com',
       username: 'raw-user',
+      id: 'raw-id',
+      slug: 'raw-slug',
+      token: 'raw-token',
+      user: 'raw-user',
       post_url: 'https://x.com/user/status/123',
+      embedded_url: 'opened https://x.com/user/status/123',
       error_message: 'backend included raw details',
+      source_route: '/participant/0x1234567890abcdef1234567890abcdef12345678',
       cta_id: 'builder_start',
       step_id: 'x_post',
       long_value: 'x'.repeat(160),
@@ -132,11 +138,13 @@ describe('analytics helper', () => {
 
     expect(sanitized).toEqual({
       route: '/community/poaps/:slug',
+      source_route: '/participant/:address',
       cta_id: 'builder_start',
       step_id: 'x_post',
       long_value: 'x'.repeat(100),
       completed_step_count: 2,
     });
+    expect(analytics.templateRoute('/badge/legacy')).toBe('/contribution/:id');
   });
 
   it('persists funnel timers in session storage', async () => {
@@ -195,7 +203,8 @@ describe('analytics helper', () => {
     window.history.pushState({}, '', '/builders/journey');
     const analytics = await loadAnalytics();
 
-    expect(analytics.getAnalyticsContext()).toMatchObject({
+    const context = analytics.getAnalyticsContext();
+    expect(context).toMatchObject({
       route: '/builders/journey',
       auth_state: 'authenticated',
       role_context: 'builder',
@@ -203,5 +212,8 @@ describe('analytics helper', () => {
       role_funnel_state: 'earned',
       journey_state: 'earned',
     });
+    expect(context).not.toHaveProperty('user');
+    expect(context).not.toHaveProperty('email');
+    expect(context).not.toHaveProperty('address');
   });
 });

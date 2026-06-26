@@ -10,6 +10,7 @@
     getFunnelDurationMs,
     markLifecycleTime,
     markFunnelTime,
+    templateRoute,
     trackEvent,
   } from '../lib/analytics.js';
 
@@ -67,7 +68,7 @@
       selected_role: value,
       preselected_role: preselectedRole,
       selection_source: 'user',
-      source_route: $location,
+      source_route: templateRoute($location),
     }));
     selectedRole = value;
     roleTouched = true;
@@ -124,7 +125,7 @@
       preselected_role: preselectedRole,
       selected_role: selectedRole,
       selection_source: preselectedSource,
-      source_route: $location,
+      source_route: templateRoute($location),
     }));
   });
 

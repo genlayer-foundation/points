@@ -476,11 +476,11 @@
         if (!silent) showSuccess(`${network.chainName} already exists in your wallet.`);
         return true;
       }
+      trackBuilderStepEvent('journey_step_error', 'networks', {
+        error_code: error?.code === 4001 ? 'user_rejected' : 'wallet_error',
+        error_stage: 'wallet_add_chain',
+      });
       if (error?.code !== 4001) {
-        trackBuilderStepEvent('journey_step_error', 'networks', {
-          error_code: error?.code === 4001 ? 'user_rejected' : 'wallet_error',
-          error_stage: 'wallet_add_chain',
-        });
         showError(`Failed to add ${network.chainName}. Please try manually.`);
       }
       return false;

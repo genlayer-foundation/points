@@ -22,6 +22,10 @@ const ROUTE_PARAM_KEYS = new Set([
 
 const SAFE_ID_KEYS = new Set(['cta_id', 'step_id']);
 const FORBIDDEN_KEYS = new Set([
+  'id',
+  'slug',
+  'token',
+  'user',
   'address',
   'wallet_address',
   'email',
@@ -44,6 +48,7 @@ const FORBIDDEN_KEYS = new Set([
 const ADDRESS_RE = /\b0x[a-fA-F0-9]{40}\b/;
 const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const URL_RE = /^https?:\/\//i;
+const URL_VALUE_RE = /https?:\/\/\S+/i;
 
 let initialized = false;
 let scriptRequested = false;
@@ -93,7 +98,7 @@ export function templateRoute(path) {
     [/^\/contributions\/[^/]+$/, '/contributions/:id'],
     [/^\/contribution-type\/[^/]+$/, '/contribution-type/:id'],
     [/^\/mission\/[^/]+$/, '/mission/:id'],
-    [/^\/badge\/[^/]+$/, '/badge/:id'],
+    [/^\/badge\/[^/]+$/, '/contribution/:id'],
     [/^\/builders\/projects\/[^/]+\/edit$/, '/builders/projects/:slug/edit'],
     [/^\/builders\/projects\/[^/]+$/, '/builders/projects/:slug'],
     [/^\/builders\/startup-requests\/[^/]+$/, '/builders/startup-requests/:id'],
@@ -181,7 +186,7 @@ function sanitizeString(key, value) {
   }
   if (ROUTE_PARAM_KEYS.has(key)) return templateRoute(value);
   if (ADDRESS_RE.test(value) || EMAIL_RE.test(value)) return undefined;
-  if (URL_RE.test(value)) return undefined;
+  if (URL_VALUE_RE.test(value)) return undefined;
   return value.slice(0, MAX_STRING_LENGTH);
 }
 
