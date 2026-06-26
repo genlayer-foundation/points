@@ -12,6 +12,8 @@
   import { location } from 'svelte-spa-router';
   import { setRouteMeta } from './lib/meta.js';
   import { authState, verifyAuth } from './lib/auth.js';
+  import { userStore } from './lib/userStore.js';
+  import { hasEarnedRole, journeyPath, rolePath } from './lib/roleState.js';
   import { installLinkInterceptor } from './lib/router.js';
 
   // Early OAuth result detection — runs before routes mount.
@@ -63,7 +65,6 @@
   }
   
   import Overview from './routes/Overview.svelte';
-  import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import AllContributions from './routes/AllContributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
@@ -114,6 +115,9 @@
   import GlobalDashboard from './components/GlobalDashboard.svelte';
   import SystemAlerts from './components/portal/SystemAlerts.svelte';
   import SocialTasks from './routes/SocialTasks.svelte';
+  import RoleFunnel from './components/funnel/RoleFunnel.svelte';
+  import BuilderJourney from './routes/BuilderJourney.svelte';
+  import CommunityJourney from './routes/CommunityJourney.svelte';
 
   async function requireAuthForRoute({ location, querystring }) {
     const state = authState.get();
@@ -157,6 +161,39 @@
     conditions: [requireAuthForRoute],
   });
 
+  // Role-gated subsection: must be authenticated AND hold the role, else bounce
+  // to the role's main route (the funnel) so the user can start there. Role
+  // membership (user.builder/validator/creator) is authoritative for all three
+  // categories: existing members are grandfathered, the journey gates newcomers.
+  function hasSubsectionAccess(user, category) {
+    return hasEarnedRole(user, category);
+  }
+
+  function requireRoleForRoute(category) {
+    return async (detail) => {
+      const authed = await requireAuthForRoute(detail);
+      if (!authed) return false;
+
+      let user = userStore.getUser();
+      if (!user) {
+        try { user = await userStore.loadUser(); } catch { user = null; }
+      }
+      if (await hasSubsectionAccess(user, category)) return true;
+
+      // Stale-navigation guard: only redirect if still on the guarded route.
+      const normalizePath = (value) => (value || '/').replace(/\/+$/, '') || '/';
+      const guarded = `${normalizePath(detail.location)}${detail.querystring ? `?${detail.querystring}` : ''}`;
+      const here = `${normalizePath(window.location.pathname)}${window.location.search || ''}`;
+      if (here === guarded) replace(category === 'community' ? journeyPath(category) : rolePath(category));
+      return false;
+    };
+  }
+
+  const roleGatedRoute = (component, category) => wrap({
+    component,
+    conditions: [requireRoleForRoute(category)],
+  });
+
   // Define routes
   const routes = {
 
@@ -170,41 +207,44 @@
     '/leaderboard': Leaderboard,
     '/participants': Validators,
     '/referrals': protectedRoute(Referrals),
-    '/community': Dashboard,
-    '/community/contributions': protectedRoute(Contributions),
-    '/community/all-contributions': protectedRoute(AllContributions),
+    '/community': RoleFunnel,
+    '/community/journey': protectedRoute(CommunityJourney),
+    '/community/contributions': roleGatedRoute(Contributions, 'community'),
+    '/community/all-contributions': roleGatedRoute(AllContributions, 'community'),
     '/community/referrals': LegacyReferralRedirect,
-    '/community/leaderboard': Leaderboard,
-    '/community/poaps': CommunityPoaps,
-    '/community/poaps/recover': PoapRecovery,
-    '/community/poaps/:slug': PoapDetail,
-    '/community/tasks': protectedRoute(SocialTasks),
-    '/community/contribution/:id': protectedRoute(ContributionPreview),
+    '/community/leaderboard': roleGatedRoute(Leaderboard, 'community'),
+    '/community/poaps': roleGatedRoute(CommunityPoaps, 'community'),
+    '/community/poaps/recover': roleGatedRoute(PoapRecovery, 'community'),
+    '/community/poaps/:slug': roleGatedRoute(PoapDetail, 'community'),
+    '/community/tasks': roleGatedRoute(SocialTasks, 'community'),
+    '/community/contribution/:id': roleGatedRoute(ContributionPreview, 'community'),
     '/claim/poap/:token': PoapClaim,
     '/hackathon': Hackathon,
     '/hackathon-winners': HackathonWinners,
     '/referral-program': ReferralProgram,
 
     // Builders routes
-    '/builders': Dashboard,
-    '/builders/contributions': protectedRoute(Contributions),
-    '/builders/all-contributions': protectedRoute(AllContributions),
+    '/builders': RoleFunnel,
+    '/builders/journey': protectedRoute(BuilderJourney),
+    '/builders/contributions': roleGatedRoute(Contributions, 'builder'),
+    '/builders/all-contributions': roleGatedRoute(AllContributions, 'builder'),
     '/builders/leaderboard': Leaderboard,
 
-    '/builders/resources': Resources,
+    '/builders/resources': roleGatedRoute(Resources, 'builder'),
     '/builders/projects/:slug/edit': protectedRoute(ProjectPageEditor),
     '/builders/projects/:slug': ProjectDetail,
-    '/builders/tasks': protectedRoute(SocialTasks),
+    '/builders/tasks': roleGatedRoute(SocialTasks, 'builder'),
     '/builders/startup-requests/:id': StartupRequestDetail,
     
     // Validators routes
-    '/validators': Dashboard,
-    '/validators/contributions': protectedRoute(Contributions),
-    '/validators/all-contributions': protectedRoute(AllContributions),
+    '/validators': RoleFunnel,
+    '/validators/journey': ValidatorWaitlist,
+    '/validators/contributions': roleGatedRoute(Contributions, 'validator'),
+    '/validators/all-contributions': roleGatedRoute(AllContributions, 'validator'),
     '/validators/leaderboard': Leaderboard,
-    '/validators/tasks': protectedRoute(SocialTasks),
-    '/validators/participants': Validators,
-    '/validators/wall-of-shame': WallOfShame,
+    '/validators/tasks': roleGatedRoute(SocialTasks, 'validator'),
+    '/validators/participants': roleGatedRoute(Validators, 'validator'),
+    '/validators/wall-of-shame': roleGatedRoute(WallOfShame, 'validator'),
     '/validators/waitlist': protectedRoute(Waitlist),
     '/validators/waitlist/participants': protectedRoute(WaitlistParticipants),
     '/validators/waitlist/join': ValidatorWaitlist,
@@ -217,12 +257,12 @@
     '/contribution-type/:id': protectedRoute(ContributionTypeDetail),
     '/mission/:id': protectedRoute(MissionDetail),
     '/badge/:id': BadgeDetail,
-    '/submit-contribution': SubmitContribution,
-    '/my-submissions': MySubmissions,
-    '/contributions/:id': EditSubmission,
+    '/submit-contribution': protectedRoute(SubmitContribution),
+    '/my-submissions': protectedRoute(MySubmissions),
+    '/contributions/:id': protectedRoute(EditSubmission),
     '/metrics': Metrics,
-    '/profile': ProfileEdit,
-    '/notifications': Notifications,  // Full notification feed (authenticated only; renders a signed-out state otherwise)
+    '/profile': protectedRoute(ProfileEdit),
+    '/notifications': protectedRoute(Notifications),  // Full notification feed (authenticated only)
 
     // Steward routes
     '/stewards': StewardDashboard,
@@ -448,9 +488,9 @@
 
 <div class="h-screen flex flex-col bg-white">
   <Navbar {toggleSidebar} {sidebarOpen} />
-  <div class="flex-1 flex overflow-hidden">
+  <div class="flex-1 min-h-0 flex overflow-hidden">
     <Sidebar bind:isOpen={sidebarOpen} bind:collapsed={sidebarCollapsed} />
-    <main class="flex-1 overflow-y-auto {isFullBleedPage ? '' : 'px-3 py-3'}">
+    <main class="flex-1 min-h-0 min-w-0 overflow-y-auto {isFullBleedPage ? '' : 'px-3 py-3'}">
       <SystemAlerts />
       <Router
         {routes}

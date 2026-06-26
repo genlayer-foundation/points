@@ -206,18 +206,16 @@ export const journeyAPI = {
   startValidatorJourney: () => api.post('/users/start_validator_journey/'),
   startBuilderJourney: () => api.post('/users/start_builder_journey/'),
   completeBuilderJourney: () => api.post('/users/complete_builder_journey/'),
+  deploymentStatus: () => api.get('/users/deployment_status/'),
   linkXAccount: () => api.post('/users/link_x_account/'),
-  linkDiscordAccount: () => api.post('/users/link_discord_account/')
-};
-
-// Community API (backend uses 'creator' terminology)
-export const creatorAPI = {
-  joinAsCreator: () => api.post('/creators/join/')
-};
-
-// GitHub OAuth API
-export const githubAPI = {
-  checkStar: () => api.get('/users/github/check-star/')
+  linkDiscordAccount: () => api.post('/users/link_discord_account/'),
+  linkGithubAccount: () => api.post('/users/link_github_account/'),
+  // Point-free "started" marker for any role (builder|validator|community).
+  startRoleJourney: (role) => api.post('/users/start_role_journey/', { role }),
+  // Community journey (5 steps -> Creator role)
+  communityJourney: () => api.get('/users/community_journey/'),
+  verifyCommunityPost: (postUrl) => api.post('/users/verify_community_post/', { post_url: postUrl }),
+  completeCommunityJourney: () => api.post('/users/complete_community_journey/')
 };
 
 // Social connections API

@@ -371,6 +371,9 @@ GET    /api/v1/users/by-address/{address}/ (requires auth)
 GET    /api/v1/users/validators/   (requires auth)
 POST   /api/v1/users/link_x_account/       (requires auth, awards configured points for linking X)
 POST   /api/v1/users/link_discord_account/  (requires auth, awards configured points for linking Discord)
+POST   /api/v1/users/link_github_account/   (requires auth, awards community-link-github points; auto-fired by SocialLink.svelte on GitHub link)
+POST   /api/v1/users/start_builder_journey/    (requires auth, no-op: no longer awards points)
+POST   /api/v1/users/complete_builder_journey/ (requires auth, grants Builder role point-free; gated on the star-boilerplate social task)
 
 # Social Tasks
 GET    /api/v1/social-tasks/                     (?status=active|completed&category=community|builder|validator)

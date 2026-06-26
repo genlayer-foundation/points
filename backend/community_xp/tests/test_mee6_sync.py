@@ -90,13 +90,15 @@ class Mee6SyncTest(TestCase):
             max_points=1_000_000,
             is_submittable=True,
         )
-        self.discord_link_type = ContributionType.objects.create(
-            name='Link Discord Account',
+        self.discord_link_type, _ = ContributionType.objects.update_or_create(
             slug='community-link-discord',
-            category=self.community_category,
-            min_points=20,
-            max_points=20,
-            is_submittable=False,
+            defaults={
+                'name': 'Link Discord Account',
+                'category': self.community_category,
+                'min_points': 20,
+                'max_points': 20,
+                'is_submittable': False,
+            },
         )
         GlobalLeaderboardMultiplier.objects.create(
             contribution_type=self.community_type,
@@ -326,7 +328,7 @@ class Mee6SyncTest(TestCase):
         self.assertEqual(breakdown['pending_portal_points'], 50)
         self.assertEqual(breakdown['tracked_portal_points_all_time'], 50)
         self.assertEqual(breakdown['total_points'], 150)
-        self.assertTrue(Creator.objects.filter(user=self.user).exists())
+        self.assertFalse(Creator.objects.filter(user=self.user).exists())
 
     def test_post_baseline_distributed_points_count_until_next_mee6_baseline(self):
         self.link_discord(self.user)
@@ -360,6 +362,7 @@ class Mee6SyncTest(TestCase):
         self.assertEqual(Contribution.objects.count(), 2)
 
     def test_unmatched_snapshot_is_stored_without_creating_user(self):
+        user_count = User.objects.count()
         run = self.fetch_mee6_run([mee6_player('unmatched-discord', 77)])
 
         snapshot = Mee6PlayerSnapshot.objects.get(discord_id='unmatched-discord')
@@ -370,9 +373,9 @@ class Mee6SyncTest(TestCase):
         current = Mee6CurrentXP.objects.get(discord_id='unmatched-discord')
 
         self.assertIsNone(current.matched_user)
-        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(User.objects.count(), user_count)
 
-    def test_late_discord_link_matches_current_xp_and_creates_creator_profile(self):
+    def test_late_discord_link_matches_current_xp_without_creating_creator_profile(self):
         run = self.fetch_mee6_run([mee6_player('late-discord', 77)])
         late_user = User.objects.create_user(
             email='late@example.com',
@@ -389,7 +392,7 @@ class Mee6SyncTest(TestCase):
         breakdown = get_effective_community_points(late_user)
 
         self.assertEqual(current.matched_user, late_user)
-        self.assertTrue(Creator.objects.filter(user=late_user).exists())
+        self.assertFalse(Creator.objects.filter(user=late_user).exists())
         self.assertEqual(breakdown['discord_xp'], 77)
         self.assertEqual(breakdown['total_points'], 77)
 

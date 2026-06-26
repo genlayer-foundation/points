@@ -8,7 +8,7 @@
   import { getCategoryPillColors } from '../../lib/categoryColors.js';
   import SocialLink from '../SocialLink.svelte';
 
-  let { task, onCompleted = () => {} } = $props();
+  let { task, onCompleted = () => {}, pointsLabel = 'pts' } = $props();
 
   // ~5 seconds after a click-through user opens the link, we credit them.
   const CLICK_THROUGH_DELAY_MS = 5000 + Math.floor(Math.random() * 500);
@@ -83,9 +83,9 @@
       const data = res.data;
       const points = data?.points_awarded ?? task.points;
       if (data?.status === 'already_completed') {
-        showSuccess(`Already completed (${points} pts).`);
+        showSuccess(`Already completed (${points} ${pointsLabel}).`);
       } else {
-        showSuccess(`Nice. ${points} points awarded.`);
+        showSuccess(`Nice. ${points} ${pointsLabel} awarded.`);
       }
       onCompleted({ task, completion: data });
     } catch (err) {
@@ -141,7 +141,7 @@
       style="background: {colors.pillBg}; color: {colors.pillText};"
     >
       <!-- Completed tasks show the frozen snapshot, not the task's current value -->
-      +{isCompleted ? (task.points_awarded ?? task.points) : task.points} pts
+      +{isCompleted ? (task.points_awarded ?? task.points) : task.points} {pointsLabel}
     </span>
   </div>
 
