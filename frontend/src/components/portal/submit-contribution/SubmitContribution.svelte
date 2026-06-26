@@ -16,6 +16,7 @@
 
   let isValidator = $derived(!!$userStore.user?.validator);
   let isBuilder = $derived(!!$userStore.user?.builder);
+  let isCreator = $derived(!!$userStore.user?.creator);
 
   // reCAPTCHA state
   let recaptchaToken = $state("");
@@ -30,6 +31,7 @@
   let canSubmitCurrentCategory = $derived.by(() => {
     if (selectedCategory === "validator") return isValidator;
     if (selectedCategory === "builder") return isBuilder;
+    if (selectedCategory === "community") return isCreator;
     return true;
   });
 
@@ -872,6 +874,14 @@
       return;
     }
 
+    if (!canSubmitCurrentCategory) {
+      error =
+        selectedCategory === "community"
+          ? "Complete the Creator journey to become a creator before submitting community contributions."
+          : "Complete this role journey before submitting to this category.";
+      return;
+    }
+
     // Clear any previous inline URL errors
     requiredEvidenceSlot.error = "";
     for (const s of evidenceSlots) s.error = "";
@@ -1156,6 +1166,19 @@
                 href={journeysHref}
                 class="text-sm font-medium underline {gatingTheme.link} mt-1"
                 >Go to your journeys</a
+              >
+            {:else if selectedCategory === "community"}
+              <p class="text-sm font-semibold {gatingTheme.title}">
+                Creators only
+              </p>
+              <p class="text-sm {gatingTheme.body}">
+                Complete the Creator journey to become a creator and unlock
+                community submissions.
+              </p>
+              <a
+                href="/community/journey"
+                class="text-sm font-medium underline {gatingTheme.link} mt-1"
+                >Go to Creator journey</a
               >
             {/if}
           </div>

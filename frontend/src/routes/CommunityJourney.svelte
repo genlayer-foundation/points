@@ -45,7 +45,7 @@
   let noticeMessage = $derived(
     actionError || loadError || (
       complete
-        ? 'Community journey complete. Click to finish.'
+        ? 'Creator journey complete. Click to finish.'
         : `There ${remainingSteps === 1 ? 'is' : 'are'} ${remainingSteps} ${remainingSteps === 1 ? 'step' : 'steps'} left to join the community.`
     )
   );
@@ -82,7 +82,7 @@
         .startRoleJourney('community')
         .then(() => userStore.loadUser?.())
         .catch(() => {
-          showError('Could not start your community journey. Try refreshing in a moment.');
+          showError('Could not start your creator journey. Try refreshing in a moment.');
         });
     }
     loadJourney({ showLoading: true });
@@ -115,7 +115,7 @@
       const existingPostUrl = journeyRes.data?.steps?.x_post?.post_url || '';
       if (existingPostUrl && !postUrl) postUrl = existingPostUrl;
     } catch (err) {
-      loadError = err.response?.data?.message || err.response?.data?.error || 'Could not load your community journey.';
+      loadError = err.response?.data?.message || err.response?.data?.error || 'Could not load your creator journey.';
       if (showLoading) {
         journey = null;
         tasks = [];
@@ -225,7 +225,7 @@
       showSuccess('Welcome to the GenLayer community!');
       replace('/community');
     } catch (err) {
-      actionError = err.response?.data?.message || err.response?.data?.error || 'Complete all community journey steps first.';
+      actionError = err.response?.data?.message || err.response?.data?.error || 'Complete all creator journey steps first.';
       showError(actionError);
       await loadJourney({ showLoading: false });
     } finally {
@@ -248,10 +248,10 @@
     role="community"
     iconHex="/assets/icons/hexagon-community-light.svg"
     iconGlyph="/assets/icons/group-3-line-purple.svg"
-    eyebrow="Your community journey"
+    eyebrow="Your creator journey"
     accentValue={TOTAL_STEPS}
     titleRest=" steps to join the community"
-    description="Link your social accounts, verify the GenLayer community actions, and share your unique X post before claiming the community role."
+    description="Link your social accounts, verify the GenLayer creator actions, and share your unique X post before claiming the Creator role."
     completed={loading ? 0 : completedSteps}
     total={TOTAL_STEPS}
     primaryLabel={completing ? 'Joining...' : 'Join the community'}
@@ -261,7 +261,7 @@
     onPrimary={completeJourney}
   />
 
-  <section class="steps-card" aria-label="Community journey steps">
+  <section class="steps-card" aria-label="Creator journey steps">
     {#if loading}
       {#each Array(TOTAL_STEPS) as _, i}
         <JourneyStepRow number={i + 1} loading={true} />
@@ -460,7 +460,7 @@
       {#if complete}
         <div class="completion-panel">
           <div>
-            <p>Community journey complete</p>
+            <p>Creator journey complete</p>
             <span>Click to finish.</span>
           </div>
         </div>

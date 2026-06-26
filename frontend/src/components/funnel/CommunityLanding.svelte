@@ -1,11 +1,11 @@
 <script>
   let { state: roleState = 'unauthenticated', starting = false, onStart = () => {} } = $props();
 
-  const primaryLabel = $derived(starting ? 'Starting...' : 'Grow the Community');
+  const primaryLabel = $derived(starting ? 'Starting...' : 'Become a Creator');
   const isUnauthenticated = $derived(roleState === 'unauthenticated');
   const ctaHint = $derived(
     isUnauthenticated
-      ? 'Connect to start tracking your community contributions and points.'
+      ? 'Connect to start your creator journey, contributions, and points.'
       : 'Start contributing across tasks, content, testing, and ecosystem growth.'
   );
 
@@ -51,16 +51,16 @@
 </script>
 
 <svelte:head>
-  <title>Community | GenLayer Portal</title>
+  <title>Creators | GenLayer Portal</title>
 </svelte:head>
 
 <div class="role-landing community-landing">
   <section class="role-hero" aria-labelledby="community-landing-title">
     <div class="hero-copy">
-      <p class="role-eyebrow">Community</p>
+      <p class="role-eyebrow">Creators</p>
       <h1 id="community-landing-title">+100,000 Strong.<br />Building the Court of the Internet.</h1>
       <p>
-        Join the community pushing the adjudication layer of the agentic economy
+        Join the creators pushing the adjudication layer of the agentic economy
         and get rewarded for every contribution.
       </p>
       <div class="cta-cluster">
@@ -88,7 +88,7 @@
       <h2 id="community-contribution-title">This Isn&apos;t a Spectator Community</h2>
       <p>
         Test the protocol. Surface bugs. Create content. Grow the ecosystem.
-        On GenLayer, community work is tracked on the Portal and rewarded.
+        On GenLayer, creator work is tracked on the Portal and rewarded.
       </p>
     </div>
     <div class="feature-grid">
@@ -115,9 +115,9 @@
 
   <section class="points-banner" id="community-points" aria-labelledby="community-points-title">
     <div class="points-copy">
-      <h2 id="community-points-title">Join the Community, Then Earn Through Tasks</h2>
+      <h2 id="community-points-title">Become a Creator, Then Earn Through Tasks</h2>
       <p>
-        Completing the journey grants you the Community role. From there,
+        Completing the journey grants you the Creator role. From there,
         specific verifiable tasks earn GenLayer Points, building your record of
         helping the network from the earliest days.
       </p>
@@ -154,8 +154,8 @@
   </section>
 
   <section class="final-cta" aria-labelledby="community-final-title">
-    <h2 id="community-final-title">Join the community.</h2>
-    <p>Complete the journey to unlock the Community role, then earn points through tasks and help grow the network from day one.</p>
+    <h2 id="community-final-title">Become a creator.</h2>
+    <p>Complete the journey to unlock the Creator role, then earn points through tasks and help grow the network from day one.</p>
     <button
       type="button"
       class="landing-button landing-button-primary"

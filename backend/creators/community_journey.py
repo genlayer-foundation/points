@@ -1,4 +1,4 @@
-"""Community journey logic: the 5 steps to become a Creator (community member).
+"""Community journey logic: the 5 steps to become a Creator.
 
 1. Link X            -> `community-link-x` contribution (existing reward)
 2. Link Discord      -> `community-link-discord` contribution (existing reward)
@@ -103,7 +103,7 @@ def step_states(user) -> dict:
 
 
 def journey_status(user) -> dict:
-    # Existing community members (the Creator role) are grandfathered in: the
+    # Existing creators are grandfathered in: the Creator role means the
     # journey only applies to newcomers, so a member is always treated as
     # started/complete regardless of the newer welcome-marker + step records.
     is_creator = hasattr(user, 'creator')

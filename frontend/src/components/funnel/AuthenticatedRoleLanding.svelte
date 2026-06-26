@@ -1,4 +1,6 @@
 <script>
+  import CategoryIcon from '../portal/CategoryIcon.svelte';
+
   let { category = 'community', state = 'none', starting = false, onStart = () => {} } = $props();
 
   const VALIDATOR_CONTACT_URL = 'https://discord.gg/genlayerlabs';
@@ -22,18 +24,18 @@
       eyebrow: 'Validator journey',
       title: 'Run a node that reasons.',
       body: 'Join the validator path, enter the waitlist, and prepare to adjudicate real Intelligent Contract decisions.',
-      button: 'Join a Validator List',
+      button: 'Join the Waitlist',
       waitlistBody: 'Your validator waitlist spot is active. Graduation unlocks the next step.',
     },
     community: {
       accent: '#7f52e1',
       accentRgb: '127, 82, 225',
       gradient: 'linear-gradient(168deg, #be8ff5 15%, #a86ff0 50%, #7f52e1 85%)',
-      label: 'Community',
-      eyebrow: 'Community journey',
+      label: 'Creators',
+      eyebrow: 'Creator journey',
       title: 'Grow the network before mainnet.',
-      body: 'Start your contributor path, link your channels, and turn ecosystem action into a visible GenLayer record.',
-      button: 'Grow the Community',
+      body: 'Start your creator path, link your channels, and turn ecosystem action into a visible GenLayer record.',
+      button: 'Become a Creator',
     },
   };
 
@@ -47,6 +49,7 @@
   }
 
   const config = $derived(getRoleConfig(category));
+  const visualCategory = $derived(category === 'builder' || category === 'validator' ? category : 'community');
   const isWaitlisted = $derived(state === 'waitlisted');
   const body = $derived(isWaitlisted && category === 'validator' ? roleConfig.validator.waitlistBody : config.body);
   const buttonLabel = $derived(starting ? 'Starting...' : config.button);
@@ -61,6 +64,9 @@
   style={`--role-accent: ${config.accent}; --role-accent-rgb: ${config.accentRgb}; --role-gradient: ${config.gradient};`}
 >
   <section class="start-panel" aria-labelledby="authenticated-role-title">
+    <div class="role-emblem" aria-hidden="true">
+      <CategoryIcon category={visualCategory} mode="hexagon" size={118} />
+    </div>
     <p class="role-eyebrow">{config.eyebrow}</p>
     <h1 id="authenticated-role-title">{config.title}</h1>
     <p class="role-body">{body}</p>
@@ -171,6 +177,16 @@
     line-height: 20px;
     margin: 0;
     text-transform: uppercase;
+  }
+
+  .role-emblem {
+    align-items: center;
+    display: flex;
+    filter: drop-shadow(0 22px 34px rgba(var(--role-accent-rgb), 0.22));
+    height: 118px;
+    justify-content: center;
+    margin-bottom: -6px;
+    width: 118px;
   }
 
   h1 {

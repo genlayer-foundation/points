@@ -91,7 +91,7 @@
     }
     if (cat === 'community') {
       return [
-        { value: data.community_member_count ?? data.creator_count ?? data.participant_count, label: 'Community Members', delta: data.new_community_members_count || '', category: 'community' },
+        { value: data.community_member_count ?? data.creator_count ?? data.participant_count, label: 'Creators', delta: data.new_community_members_count || '', category: 'community' },
         { value: data.total_points, label: 'Community points earned', delta: data.new_points_count || '', category: 'genlayer', hexCategory: 'community' },
         { value: data.contribution_count, label: 'Community Contributions', delta: data.new_contributions_count || '', category: 'community' },
       ];

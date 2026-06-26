@@ -224,7 +224,7 @@ class ParticipantsGrowthViewTests(TestCase):
                 frozen_global_points=10,
                 contribution_date=base + timedelta(days=2)
             ),
-            # active_builder is also a community member, so the displayed
+            # active_builder is also a creator, so the displayed
             # "unique contributors" total must not count them twice.
             Contribution(
                 user=active_builder,

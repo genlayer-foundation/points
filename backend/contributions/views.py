@@ -656,6 +656,11 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                     {'error': 'Only validators can submit validator contributions. Join the Validator Waitlist to be considered for selection.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
+            if contribution_type.category.slug == 'community' and not hasattr(user, 'creator'):
+                return Response(
+                    {'error': 'Only creators can submit community contributions. Complete the Creator journey to become a creator.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
         if contribution_type.required_social_accounts:
             connection_map = {

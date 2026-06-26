@@ -42,6 +42,10 @@
 
   /** @type {string | null} */
   let lastAuthKey = null;
+  /** @type {string | null} */
+  let sessionAuthKey = null;
+  /** @type {boolean | null} */
+  let sessionStartedEngaged = null;
 
   async function loadUnseen({ auto = false } = {}) {
     if (!$authState.isAuthenticated) return;
@@ -157,6 +161,8 @@
 
     if (!isAuthenticated) {
       lastAuthKey = null;
+      sessionAuthKey = null;
+      sessionStartedEngaged = null;
       whatsNewStore.reset();
       closeDialog({ clear: true });
       return;
@@ -165,13 +171,18 @@
     // Wait for the user object so we can tell a freshly-created account apart.
     if (!user) return;
 
-    // Don't auto-open What's New for a brand-new account still in onboarding —
-    // it renders behind the profile-completion modal. Only greet members who
-    // have engaged: earned a role or started a journey. Once they do, the effect
-    // re-runs (userStore changes) and it shows.
-    if (!hasAnyRoleOrJourney(user)) return;
-
     const authKey = address || 'authenticated';
+    const engaged = hasAnyRoleOrJourney(user);
+    if (sessionAuthKey !== authKey) {
+      sessionAuthKey = authKey;
+      sessionStartedEngaged = engaged;
+    }
+
+    // Don't auto-open What's New for a brand-new account in the same login
+    // session. If the session began with no role/journey, wait until the user
+    // logs out and back in, even if they start a journey moments later.
+    if (!engaged || !sessionStartedEngaged) return;
+
     if (authKey === lastAuthKey) return;
 
     lastAuthKey = authKey;

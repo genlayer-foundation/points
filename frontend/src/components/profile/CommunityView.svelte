@@ -48,7 +48,7 @@
             <span
                 class="text-[12px] font-medium text-[#ac6df3] tracking-[0.24px] leading-[16px]"
             >
-                Community Member
+                Creator
             </span>
         {/if}
     </div>
