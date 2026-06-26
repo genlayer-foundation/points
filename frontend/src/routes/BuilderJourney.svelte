@@ -9,6 +9,15 @@
   import { STAR_BOILERPLATE_TASK_SLUG } from '../lib/roleState.js';
   import { FAUCET_URL } from '../lib/config.js';
   import { getValidatorBalance } from '../lib/blockchain.js';
+  import {
+    getAnalyticsContext,
+    getFunnelDurationMs,
+    getLifecycleDurations,
+    markLifecycleTime,
+    markFunnelTime,
+    setConnectWalletIntent,
+    trackEvent,
+  } from '../lib/analytics.js';
   import SocialLink from '../components/SocialLink.svelte';
   import SocialTaskCard from '../components/social-tasks/SocialTaskCard.svelte';
   import JourneyNotice from '../components/funnel/journeys/JourneyNotice.svelte';
@@ -19,6 +28,15 @@
   const TOTAL_STEPS = 6;
   const POINTS_PER_GITHUB_STEP = 25;
   const STUDIO_URL = 'https://studio.genlayer.com';
+  const REQUIRED_STEP_IDS = ['wallet', 'github', 'star'];
+  const VERIFICATION_MODES = {
+    wallet: 'wallet_session',
+    github: 'oauth_github',
+    star: 'social_task',
+    networks: 'wallet_client',
+    topup: 'client_balance',
+    deploy: 'backend_deployment_status',
+  };
 
   const BRADBURY_NETWORK = {
     chainId: '0x107D',
@@ -69,6 +87,9 @@
   let hasDeployedContract = $state(false);
   let deploymentLoading = $state(false);
   let deploymentError = $state('');
+  let lastJourneyViewKey = $state('');
+  let lastStepViewKey = $state('');
+  let lastJourneyExitKey = $state('');
 
   let user = $derived($userStore.user);
   let address = $derived($authState.address);
@@ -116,9 +137,11 @@
   // this mirrors the backend (complete_builder_journey checks the star task,
   // which itself requires the GitHub link). Wallet is implied by being signed
   // in; networks, top-up, and deploy are recommended onboarding, not role gates.
-  const REQUIRED_STEP_IDS = ['wallet', 'github', 'star'];
   let requiredStepsComplete = $derived(
     stepStates.filter((step) => REQUIRED_STEP_IDS.includes(step.id)).every((step) => step.done)
+  );
+  let recommendedStepsComplete = $derived(
+    stepStates.filter((step) => !REQUIRED_STEP_IDS.includes(step.id) && step.done).length
   );
   let noticeMessage = $derived(
     loadError && activeStepId === 'star'
@@ -182,19 +205,70 @@
     persistCurrentStep();
   });
 
+  $effect(() => {
+    if (loading) return;
+    const viewKey = `builder:${completedSteps}:${requiredStepsComplete}`;
+    if (viewKey === lastJourneyViewKey) return;
+    lastJourneyViewKey = viewKey;
+    trackEvent('journey_view', getAnalyticsContext({
+      role_context: 'builder',
+      selected_role: 'builder',
+      role_funnel_state: user?.builder ? 'earned' : 'started',
+      journey_state: user?.builder ? 'earned' : (requiredStepsComplete ? 'completed' : 'started'),
+      surface: 'journey',
+      completed_step_count: completedSteps,
+      total_step_count: TOTAL_STEPS,
+    }));
+  });
+
+  $effect(() => {
+    if (loading || !activeStepId || activeStepId === 'done') return;
+    const viewKey = `builder:${activeStepId}`;
+    if (viewKey === lastStepViewKey) return;
+    lastStepViewKey = viewKey;
+    markFunnelTime(`journey_step_visible:builder:${activeStepId}`);
+    trackBuilderStepEvent('journey_step_view', activeStepId);
+  });
+
   onMount(() => {
+    markFunnelTime('journey_visible:builder');
+    const handlePageHide = () => trackJourneyExit('pagehide');
+    window.addEventListener('pagehide', handlePageHide);
+
     if (!user?.has_builder_welcome && !user?.builder) {
       journeyAPI
         .startBuilderJourney()
         .then((res) => {
           if (res.data?.user) userStore.updateUser(res.data.user);
           else userStore.loadUser?.();
+          markFunnelTime('journey_start:builder');
+          markLifecycleTime('first_journey_start:builder');
+          trackEvent('journey_started', getAnalyticsContext({
+            role_context: 'builder',
+            selected_role: 'builder',
+            surface: 'journey',
+            journey_state: 'started',
+            time_from_role_landing_ms: getFunnelDurationMs('role_landing:builder'),
+            time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+            time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
+            time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
+          }));
         })
-        .catch(() => {
+        .catch((err) => {
+          trackEvent('journey_start_error', getAnalyticsContext({
+            role_context: 'builder',
+            selected_role: 'builder',
+            surface: 'journey',
+            error_stage: err.response?.status ? 'backend' : 'network',
+          }));
           showWarning('Could not start your builder journey. Try refreshing in a moment.');
         });
     }
     loadTasks({ showLoading: true });
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      trackJourneyExit('route_leave');
+    };
   });
 
   function isPositiveBalance(result) {
@@ -255,6 +329,62 @@
 
   function isLocked(id) {
     return statusFor(id) === 'locked';
+  }
+
+  function stepIndex(stepId) {
+    return stepStates.findIndex((step) => step.id === stepId) + 1;
+  }
+
+  function stepRequired(stepId) {
+    return REQUIRED_STEP_IDS.includes(stepId);
+  }
+
+  function trackBuilderStepEvent(name, stepId, extra = {}) {
+    trackEvent(name, getAnalyticsContext({
+      role_context: 'builder',
+      selected_role: 'builder',
+      surface: 'journey',
+      step_id: stepId,
+      step_index: stepIndex(stepId),
+      step_required: stepRequired(stepId),
+      verification_mode: VERIFICATION_MODES[stepId] || 'unknown',
+      completed_step_count: completedSteps,
+      total_step_count: TOTAL_STEPS,
+      ...extra,
+    }));
+  }
+
+  function trackJourneyExit(exitReason) {
+    if (loading || user?.builder) return;
+    const stepId = activeStepId || 'unknown';
+    const exitKey = `${stepId}:${completedSteps}:${requiredStepsComplete}`;
+    if (exitKey === lastJourneyExitKey) return;
+    lastJourneyExitKey = exitKey;
+    trackEvent('journey_exit', getAnalyticsContext({
+      role_context: 'builder',
+      selected_role: 'builder',
+      surface: 'journey',
+      exit_reason: exitReason,
+      step_id: stepId,
+      step_index: stepIndex(stepId),
+      step_required: stepRequired(stepId),
+      journey_state: requiredStepsComplete ? 'claim_ready' : 'started',
+      completed_step_count: completedSteps,
+      total_step_count: TOTAL_STEPS,
+      required_steps_complete: REQUIRED_STEP_IDS.filter((id) => stepStates.find((step) => step.id === id)?.done).length,
+      recommended_steps_complete: recommendedStepsComplete,
+      time_on_journey_ms: getFunnelDurationMs('journey_visible:builder'),
+      time_on_step_ms: getFunnelDurationMs(`journey_step_visible:builder:${stepId}`),
+    }));
+  }
+
+  function journeyErrorCode(err) {
+    const value = String(err?.response?.data?.error || '').toLowerCase();
+    if (['social_account_not_linked', 'token_invalid_relink_required', 'verification_failed', 'verification_unavailable'].includes(value)) {
+      return value;
+    }
+    if (err?.response?.status) return 'backend_error';
+    return 'unknown_error';
   }
 
   function networkDone(kind) {
@@ -328,6 +458,10 @@
     if (kind === 'asimov') isAddingAsimov = true;
     if (kind === 'studio') isAddingStudio = true;
 
+    if (!silent) {
+      trackBuilderStepEvent('journey_step_action_click', 'networks');
+    }
+
     try {
       await walletProvider.request({
         method: 'wallet_addEthereumChain',
@@ -343,6 +477,10 @@
         return true;
       }
       if (error?.code !== 4001) {
+        trackBuilderStepEvent('journey_step_error', 'networks', {
+          error_code: error?.code === 4001 ? 'user_rejected' : 'wallet_error',
+          error_stage: 'wallet_add_chain',
+        });
         showError(`Failed to add ${network.chainName}. Please try manually.`);
       }
       return false;
@@ -355,6 +493,7 @@
 
   async function addMissingNetworks() {
     if (isAddingAllNetworks) return;
+    trackBuilderStepEvent('journey_step_action_click', 'networks');
     isAddingAllNetworks = true;
     try {
       for (const network of NETWORKS) {
@@ -363,7 +502,10 @@
           if (!added) break;
         }
       }
-      if (NETWORKS.every((network) => networkDone(network.kind))) showSuccess('GenLayer networks added.');
+      if (NETWORKS.every((network) => networkDone(network.kind))) {
+        trackBuilderStepEvent('journey_step_verified', 'networks');
+        showSuccess('GenLayer networks added.');
+      }
     } finally {
       isAddingAllNetworks = false;
     }
@@ -371,15 +513,25 @@
 
   async function refreshBalance({ notify = false } = {}) {
     if (!address) return;
+    if (notify) trackBuilderStepEvent('journey_step_action_click', 'topup');
     balanceLoading = true;
     balanceError = '';
     try {
       testnetBalance = await getValidatorBalance(address);
+      if (notify && isPositiveBalance(testnetBalance)) {
+        trackBuilderStepEvent('journey_step_verified', 'topup');
+      }
       if (notify && !isPositiveBalance(testnetBalance)) {
         showWarning('No Testnet GEN found yet.');
       }
     } catch {
       balanceError = 'Balance check unavailable';
+      if (notify) {
+        trackBuilderStepEvent('journey_step_error', 'topup', {
+          error_code: 'verification_unavailable',
+          error_stage: 'balance_check',
+        });
+      }
       if (notify) showError('Could not check your Testnet GEN balance.');
     } finally {
       balanceLoading = false;
@@ -387,17 +539,27 @@
   }
 
   async function refreshDeploymentStatus({ notify = false } = {}) {
+    if (notify) trackBuilderStepEvent('journey_step_action_click', 'deploy');
     deploymentLoading = true;
     deploymentError = '';
     try {
       const res = await journeyAPI.deploymentStatus();
       hasDeployedContract = Boolean(res.data?.has_deployments);
+      if (notify && hasDeployedContract) {
+        trackBuilderStepEvent('journey_step_verified', 'deploy');
+      }
       if (notify && !hasDeployedContract) {
         showWarning('No deployed contract found yet.');
       }
     } catch {
       hasDeployedContract = false;
       deploymentError = 'Deployment check unavailable';
+      if (notify) {
+        trackBuilderStepEvent('journey_step_error', 'deploy', {
+          error_code: 'verification_unavailable',
+          error_stage: 'deployment_status',
+        });
+      }
       if (notify) showError('Could not check Studio deployments.');
     } finally {
       deploymentLoading = false;
@@ -406,13 +568,19 @@
 
   async function claimGithubReward() {
     if (claimingGithub || !githubConnection) return;
+    trackBuilderStepEvent('journey_step_action_click', 'github');
     claimingGithub = true;
     try {
       const res = await journeyAPI.linkGithubAccount();
       if (res.data?.user) userStore.updateUser(res.data.user);
       else await userStore.loadUser?.();
+      trackBuilderStepEvent('journey_step_verified', 'github');
       showSuccess('GitHub linked. 25 BP awarded.');
     } catch (err) {
+      trackBuilderStepEvent('journey_step_error', 'github', {
+        error_code: journeyErrorCode(err),
+        error_stage: err.response?.status ? 'backend' : 'network',
+      });
       showError(err.response?.data?.error || 'Could not claim GitHub BP yet.');
     } finally {
       claimingGithub = false;
@@ -439,18 +607,55 @@
   }
 
   function triggerWalletConnect() {
+    trackBuilderStepEvent('journey_step_action_click', 'wallet');
+    setConnectWalletIntent({
+      surface: 'journey',
+      cta_id: 'builder_wallet_step',
+      selected_role: 'builder',
+    });
     document.querySelector('[data-auth-button]')?.click();
   }
 
   async function completeJourney() {
     if (completing || !requiredStepsComplete || user?.builder) return;
+    const claimParams = {
+      role_context: 'builder',
+      selected_role: 'builder',
+      surface: 'journey',
+      required_steps_complete: REQUIRED_STEP_IDS.filter((id) => stepStates.find((step) => step.id === id)?.done).length,
+      recommended_steps_complete: recommendedStepsComplete,
+      completed_step_count: completedSteps,
+      total_step_count: TOTAL_STEPS,
+      time_from_role_landing_ms: getFunnelDurationMs('role_landing:builder'),
+      time_from_journey_start_ms: getFunnelDurationMs('journey_start:builder'),
+      ...getLifecycleDurations('builder'),
+    };
+    trackEvent('builder_role_claim_attempt', getAnalyticsContext(claimParams));
     completing = true;
     try {
       await journeyAPI.completeBuilderJourney();
       await userStore.loadUser();
+      markLifecycleTime('role_unlocked:builder');
+      trackEvent('builder_role_claim_success', getAnalyticsContext(claimParams));
+      trackEvent('journey_completed', getAnalyticsContext({
+        ...claimParams,
+        journey_state: 'completed',
+      }));
+      trackEvent('role_unlocked', getAnalyticsContext({
+        ...claimParams,
+        role_context: 'builder',
+        selected_role: 'builder',
+        surface: 'journey',
+        unlock_source: 'journey',
+      }));
       showSuccess('Builder role claimed.');
       replace('/builders');
     } catch (err) {
+      trackEvent('builder_role_claim_error', getAnalyticsContext({
+        ...claimParams,
+        error_code: journeyErrorCode(err),
+        error_stage: err.response?.status ? 'backend' : 'network',
+      }));
       showError(err.response?.data?.error || 'Could not complete the builder journey yet.');
     } finally {
       completing = false;

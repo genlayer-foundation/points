@@ -7,6 +7,7 @@
   import { contributionsAPI, stewardAPI } from '../lib/api.js';
   import { stewardPermissions } from '../lib/stewardPermissions.js';
   import { hasEarnedRole, journeyPath, rolePath } from '../lib/roleState.js';
+  import { getAnalyticsContext, setConnectWalletIntent, trackEvent } from '../lib/analytics.js';
   import Avatar from './Avatar.svelte';
 
   let { isOpen = $bindable(false), collapsed = $bindable(false) } = $props();
@@ -75,8 +76,34 @@
     }
   });
 
-  function navigate(path, requiresAuth = false) {
+  function roleContextForCategory(category) {
+    if (['builder', 'validator', 'community', 'steward'].includes(category)) return category;
+    if (['partners', 'gentv', 'gennews', 'foundations'].includes(category)) return 'ecosystem';
+    return 'overview';
+  }
+
+  function trackSidebarNav(path, { locked = false, roleContext = null } = {}) {
+    trackEvent('nav_item_click', getAnalyticsContext({
+      surface: 'sidebar',
+      target_route: path,
+      role_context: roleContext || roleContextForCategory(getActiveSection() || 'global'),
+      locked,
+    }));
+  }
+
+  function navigate(path, requiresAuth = false, options = {}) {
+    if (options.track !== false) {
+      trackSidebarNav(path, {
+        locked: Boolean(options.locked),
+        roleContext: options.roleContext,
+      });
+    }
     if (requiresAuth && !$authState.isAuthenticated) {
+      setConnectWalletIntent({
+        surface: 'sidebar',
+        cta_id: 'protected_nav',
+        target_route: path,
+      });
       sessionStorage.setItem('redirectAfterLogin', path);
       const authButton = document.querySelector('[data-auth-button]');
       if (authButton) authButton.click();
@@ -97,13 +124,31 @@
   // Clicking a locked role subsection nudges the user to that role's funnel
   // instead of the (route-gated) subsection.
   function openRoleSection(path, category) {
-    navigate(isRoleLocked(category) ? (category === 'community' ? journeyPath(category) : rolePath(category)) : path);
+    const locked = isRoleLocked(category);
+    const redirectTarget = locked ? (category === 'community' ? journeyPath(category) : rolePath(category)) : path;
+    trackSidebarNav(path, { locked, roleContext: category });
+    if (locked) {
+      trackEvent('role_locked_redirect', getAnalyticsContext({
+        role_context: category,
+        target_route: path,
+        redirect_target: redirectTarget,
+        surface: 'sidebar',
+      }));
+    }
+    navigate(redirectTarget, false, { track: false });
   }
 
   function handleSubmitContribution() {
+    trackEvent('submit_contribution_click', getAnalyticsContext({
+      surface: 'sidebar',
+    }));
     if ($authState.isAuthenticated) {
-      navigate('/submit-contribution');
+      navigate('/submit-contribution', false, { track: false });
     } else {
+      setConnectWalletIntent({
+        surface: 'sidebar',
+        cta_id: 'submit_contribution',
+      });
       sessionStorage.setItem('redirectAfterLogin', '/submit-contribution');
       const authButton = document.querySelector('[data-auth-button]');
       if (authButton) authButton.click();
@@ -112,8 +157,13 @@
 
   function handleProfileClick() {
     if ($authState.isAuthenticated) {
+      trackSidebarNav(`/participant/${$authState.address || ':address'}`, { roleContext: 'overview' });
       push(`/participant/${$authState.address}`);
     } else {
+      setConnectWalletIntent({
+        surface: 'sidebar',
+        cta_id: 'profile',
+      });
       const authButton = document.querySelector('[data-auth-button]');
       if (authButton) authButton.click();
     }
@@ -146,6 +196,7 @@
 
   function changeCategory(category, path) {
     currentCategory.set(category);
+    trackSidebarNav(path, { roleContext: roleContextForCategory(category) });
     push(path);
     if (window.innerWidth < 768) {
       isOpen = false;
@@ -232,6 +283,7 @@
             </a>
             <a
               href="/leaderboard"
+              onclick={(e) => { e.preventDefault(); navigate('/leaderboard'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               }"
@@ -455,6 +507,7 @@
             {#if canAccessFeatureReviews}
               <a
                 href="/stewards/feature-reviews"
+                onclick={(e) => { e.preventDefault(); navigate('/stewards/feature-reviews'); }}
                 class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                   isActive('/stewards/feature-reviews') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
                 }"
@@ -716,6 +769,7 @@
           </a>
           <a
             href="/leaderboard"
+            onclick={(e) => { e.preventDefault(); navigate('/leaderboard'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             }"
@@ -904,10 +958,11 @@
             Contribution Submissions
           </a>
           {#if canAccessFeatureReviews}
-            <a
-              href="/stewards/feature-reviews"
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-                isActive('/stewards/feature-reviews') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
+              <a
+                href="/stewards/feature-reviews"
+                onclick={(e) => { e.preventDefault(); navigate('/stewards/feature-reviews'); }}
+                class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                  isActive('/stewards/feature-reviews') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
               }"
             >
               Feature Scoring

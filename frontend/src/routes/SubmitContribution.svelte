@@ -2,6 +2,7 @@
   import { querystring } from "svelte-spa-router";
   import { authState } from "../lib/auth.js";
   import { onMount } from "svelte";
+  import { setConnectWalletIntent } from "../lib/analytics.js";
   import SubmitContributionForm from "../components/portal/submit-contribution/SubmitContribution.svelte";
 
   let authChecked = $state(false);
@@ -59,7 +60,13 @@
           Please connect your wallet to submit contributions.
         </p>
         <button
-          onclick={() => document.querySelector(".auth-button")?.click()}
+          onclick={() => {
+            setConnectWalletIntent({
+              surface: "form",
+              cta_id: "submit_contribution_auth_prompt",
+            });
+            document.querySelector(".auth-button")?.click();
+          }}
           class="bg-[#9e4bf6] text-white px-[20px] h-[40px] rounded-[20px] font-['Switzer'] font-medium text-[14px] hover:bg-[#8b3ced] transition-colors"
         >
           Connect Wallet

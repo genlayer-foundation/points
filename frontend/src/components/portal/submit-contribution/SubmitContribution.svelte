@@ -7,6 +7,13 @@
   import { getMissions } from "../../../lib/missionsStore.js";
   import { authState } from "../../../lib/auth.js";
   import { userStore } from "../../../lib/userStore";
+  import {
+    getAnalyticsContext,
+    getLifecycleDurationMs,
+    getLifecycleDurations,
+    markLifecycleTime,
+    trackEvent,
+  } from "../../../lib/analytics.js";
 
   // Props for routing/initialization state
   let { missionId = null, initialTypeId = null } = $props();
@@ -214,6 +221,12 @@
     } finally {
       loadingTypes = false;
     }
+
+    trackEvent("contribution_form_view", getAnalyticsContext({
+      surface: "form",
+      role_context: selectedCategory,
+      contribution_category: selectedCategory,
+    }));
 
     // Initialize reCAPTCHA
     const checkRecaptcha = () => {
@@ -851,8 +864,19 @@
   // Submission
   async function handleSubmit(e) {
     e.preventDefault();
+    trackEvent("contribution_submit_attempt", getAnalyticsContext({
+      surface: "form",
+      role_context: selectedCategory,
+      contribution_category: selectedCategory,
+    }));
 
     if (!formData.contribution_type) {
+      trackEvent("contribution_submit_error", getAnalyticsContext({
+        surface: "form",
+        role_context: selectedCategory,
+        contribution_category: selectedCategory,
+        error_stage: "validation",
+      }));
       error = "Please select a contribution type";
       return;
     }
@@ -991,12 +1015,35 @@
 
       await api.post("/submissions/", submissionData);
 
+      const firstContribution = markLifecycleTime("first_contribution_submitted");
+      const successParams = {
+        surface: "form",
+        role_context: selectedCategory,
+        contribution_category: selectedCategory,
+        lifecycle_scope: "browser",
+        contribution_sequence: firstContribution ? "first_known" : "repeat_known",
+        time_from_first_contribution_ms: getLifecycleDurationMs("first_contribution_submitted"),
+        ...getLifecycleDurations(selectedCategory),
+      };
+      trackEvent("contribution_submit_success", getAnalyticsContext(successParams));
+      trackEvent("contribution_submitted", getAnalyticsContext(successParams));
+      if (firstContribution) {
+        trackEvent("first_contribution_submitted", getAnalyticsContext(successParams));
+      } else {
+        trackEvent("repeat_contribution_submitted", getAnalyticsContext(successParams));
+      }
       sessionStorage.setItem(
         "submissionUpdateSuccess",
         "Your contribution has been submitted successfully and is pending review.",
       );
       push("/my-submissions");
     } catch (err) {
+      trackEvent("contribution_submit_error", getAnalyticsContext({
+        surface: "form",
+        role_context: selectedCategory,
+        contribution_category: selectedCategory,
+        error_stage: err.response?.status ? "backend" : "network",
+      }));
       if (err.response?.data?.recaptcha) {
         error = Array.isArray(err.response.data.recaptcha)
           ? err.response.data.recaptcha[0]

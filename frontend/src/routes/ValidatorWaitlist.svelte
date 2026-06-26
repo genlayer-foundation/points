@@ -6,6 +6,15 @@
   import { getCurrentUser, journeyAPI } from '../lib/api';
   import { userStore } from '../lib/userStore.js';
   import { showError } from '../lib/toastStore.js';
+  import {
+    getAnalyticsContext,
+    getFunnelDurationMs,
+    getLifecycleDurations,
+    markLifecycleTime,
+    markFunnelTime,
+    setConnectWalletIntent,
+    trackEvent,
+  } from '../lib/analytics.js';
   import JourneyNotice from '../components/funnel/journeys/JourneyNotice.svelte';
   import JourneyHeroCard from '../components/funnel/journeys/JourneyHeroCard.svelte';
   import JourneyStepRow from '../components/funnel/journeys/JourneyStepRow.svelte';
@@ -18,6 +27,8 @@
   let isJoiningWaitlist = $state(false);
   let error = $state('');
   let loading = $state(true);
+  let lastViewKey = $state('');
+  let lastJourneyExitKey = $state('');
 
   let isAuthenticated = $derived($authState.isAuthenticated);
   let noticeMessage = $derived(
@@ -46,9 +57,69 @@
     },
   ];
 
-  onMount(async () => {
-    await loadData();
+  onMount(() => {
+    markFunnelTime('journey_visible:validator');
+    const handlePageHide = () => trackJourneyExit('pagehide');
+    window.addEventListener('pagehide', handlePageHide);
+    loadData();
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      trackJourneyExit('route_leave');
+    };
   });
+
+  $effect(() => {
+    if (loading) return;
+    const viewKey = `validator:${hasFilledForm}:${isAuthenticated}`;
+    if (viewKey === lastViewKey) return;
+    lastViewKey = viewKey;
+    trackEvent('journey_view', getAnalyticsContext({
+      role_context: 'validator',
+      selected_role: 'validator',
+      role_funnel_state: currentUser?.has_validator_waitlist ? 'waitlisted' : 'started',
+      journey_state: currentUser?.has_validator_waitlist ? 'waitlisted' : 'started',
+      surface: 'journey',
+      completed_step_count: hasFilledForm ? 1 : 0,
+      total_step_count: 2,
+    }));
+    const stepId = currentStepId();
+    markFunnelTime(`journey_step_visible:validator:${stepId}`);
+    trackEvent('journey_step_view', getAnalyticsContext({
+      role_context: 'validator',
+      selected_role: 'validator',
+      surface: 'journey',
+      step_id: stepId,
+      step_index: hasFilledForm ? 2 : 1,
+      step_required: !hasFilledForm,
+      verification_mode: hasFilledForm ? 'manual_review' : 'self_attested',
+    }));
+  });
+
+  function currentStepId() {
+    return hasFilledForm ? 'wait_for_graduation' : 'application_form';
+  }
+
+  function trackJourneyExit(exitReason) {
+    if (loading || isJoiningWaitlist || currentUser?.validator || currentUser?.has_validator_waitlist) return;
+    const stepId = currentStepId();
+    const exitKey = `${stepId}:${hasFilledForm}`;
+    if (exitKey === lastJourneyExitKey) return;
+    lastJourneyExitKey = exitKey;
+    trackEvent('journey_exit', getAnalyticsContext({
+      role_context: 'validator',
+      selected_role: 'validator',
+      surface: 'journey',
+      exit_reason: exitReason,
+      step_id: stepId,
+      step_index: hasFilledForm ? 2 : 1,
+      step_required: !hasFilledForm,
+      journey_state: hasFilledForm ? 'claim_ready' : 'started',
+      completed_step_count: hasFilledForm ? 1 : 0,
+      total_step_count: 2,
+      time_on_journey_ms: getFunnelDurationMs('journey_visible:validator'),
+      time_on_step_ms: getFunnelDurationMs(`journey_step_visible:validator:${stepId}`),
+    }));
+  }
 
   async function loadData() {
     try {
@@ -58,6 +129,13 @@
           await markValidatorJourneyStarted();
         }
         if (currentUser?.validator || currentUser?.has_validator_waitlist) {
+          trackEvent('validator_waitlist_status_view', getAnalyticsContext({
+            role_context: 'validator',
+            selected_role: 'validator',
+            role_funnel_state: currentUser?.validator ? 'earned' : 'waitlisted',
+            journey_state: currentUser?.validator ? 'earned' : 'waitlisted',
+            surface: 'journey',
+          }));
           replace('/validators');
           return;
         }
@@ -73,6 +151,11 @@
   }
 
   async function markValidatorJourneyStarted() {
+    trackEvent('journey_start_attempt', getAnalyticsContext({
+      role_context: 'validator',
+      selected_role: 'validator',
+      surface: 'journey',
+    }));
     try {
       const response = await journeyAPI.startRoleJourney('validator');
       if (response.data?.user) {
@@ -81,13 +164,74 @@
       } else {
         currentUser = await userStore.loadUser?.();
       }
+      markFunnelTime('journey_start:validator');
+      markLifecycleTime('first_journey_start:validator');
+      trackEvent('journey_started', getAnalyticsContext({
+        role_context: 'validator',
+        selected_role: 'validator',
+        surface: 'journey',
+        journey_state: 'started',
+        time_from_role_landing_ms: getFunnelDurationMs('role_landing:validator'),
+        time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+        time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
+        time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
+      }));
     } catch (_) {
+      trackEvent('journey_start_error', getAnalyticsContext({
+        role_context: 'validator',
+        selected_role: 'validator',
+        surface: 'journey',
+        error_stage: 'backend',
+      }));
       showError('Could not start your validator journey. Try refreshing in a moment.');
     }
   }
 
   function triggerSignIn() {
+    setConnectWalletIntent({
+      surface: 'journey',
+      cta_id: 'validator_waitlist_auth',
+      selected_role: 'validator',
+    });
     document.querySelector('[data-auth-button]')?.click();
+  }
+
+  function handleApplicationOpen() {
+    trackEvent('validator_application_open', getAnalyticsContext({
+      role_context: 'validator',
+      selected_role: 'validator',
+      surface: 'journey',
+      verification_mode: 'self_attested',
+    }));
+    trackEvent('journey_step_action_click', getAnalyticsContext({
+      role_context: 'validator',
+      selected_role: 'validator',
+      surface: 'journey',
+      step_id: 'application_form',
+      step_index: 1,
+      step_required: true,
+      verification_mode: 'self_attested',
+    }));
+  }
+
+  function handleApplicationChecked(event) {
+    hasFilledForm = event.currentTarget.checked;
+    if (!hasFilledForm) return;
+    trackEvent('validator_application_checked', getAnalyticsContext({
+      role_context: 'validator',
+      selected_role: 'validator',
+      surface: 'journey',
+      verification_mode: 'self_attested',
+    }));
+    trackEvent('journey_step_verified', getAnalyticsContext({
+      role_context: 'validator',
+      selected_role: 'validator',
+      surface: 'journey',
+      step_id: 'application_form',
+      step_index: 1,
+      step_required: true,
+      verification_mode: 'self_attested',
+    }));
   }
 
   async function handleJoinWaitlist() {
@@ -100,12 +244,29 @@
       return;
     }
 
+    trackEvent('validator_waitlist_attempt', getAnalyticsContext({
+      role_context: 'validator',
+      selected_role: 'validator',
+      surface: 'journey',
+      verification_mode: 'self_attested',
+      time_from_role_landing_ms: getFunnelDurationMs('role_landing:validator'),
+      time_from_journey_start_ms: getFunnelDurationMs('journey_start:validator'),
+      ...getLifecycleDurations('validator'),
+    }));
     isJoiningWaitlist = true;
     error = '';
 
     try {
       await journeyAPI.startValidatorJourney();
     } catch (err) {
+      trackEvent('validator_waitlist_error', getAnalyticsContext({
+        role_context: 'validator',
+        selected_role: 'validator',
+        surface: 'journey',
+        verification_mode: 'self_attested',
+        error_code: err.response?.status ? 'backend_error' : 'unknown_error',
+        error_stage: err.response?.status ? 'backend' : 'network',
+      }));
       error = err.response?.data?.error || 'Failed to join waitlist';
       showError(error);
       isJoiningWaitlist = false;
@@ -114,6 +275,18 @@
     // Joined server-side. The user refresh and success-banner write are both
     // best-effort and must not block (or undo) the success redirect.
     userStore.loadUser?.()?.catch(() => {});
+    markLifecycleTime('validator_waitlist_joined');
+    trackEvent('validator_waitlist_joined', getAnalyticsContext({
+      role_context: 'validator',
+      selected_role: 'validator',
+      role_funnel_state: 'waitlisted',
+      journey_state: 'waitlisted',
+      surface: 'journey',
+      verification_mode: 'self_attested',
+      time_from_role_landing_ms: getFunnelDurationMs('role_landing:validator'),
+      time_from_journey_start_ms: getFunnelDurationMs('journey_start:validator'),
+      ...getLifecycleDurations('validator'),
+    }));
     try {
       sessionStorage.setItem('journeySuccess', 'Successfully joined Validator Waitlist!');
     } catch {
@@ -167,6 +340,7 @@
           actionHref={APPLICATION_FORM_URL}
           actionExternal={true}
           actionTone={hasFilledForm ? 'secondary' : 'accent'}
+          onAction={handleApplicationOpen}
         />
 
         <div class="step-check-panel">
@@ -175,6 +349,7 @@
               type="checkbox"
               id="formCompleted"
               bind:checked={hasFilledForm}
+              onchange={handleApplicationChecked}
             />
             <span>
               <strong>I completed the GenLayer Validator Application</strong>
