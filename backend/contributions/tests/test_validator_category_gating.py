@@ -5,6 +5,7 @@ from rest_framework.test import APIClient
 from rest_framework import status
 
 from contributions.models import Contribution, ContributionType, Category, SubmittedContribution
+from creators.models import Creator
 from leaderboard.models import GlobalLeaderboardMultiplier
 from validators.models import Validator
 
@@ -64,8 +65,18 @@ class ValidatorCategorySubmitGatingTest(TestCase):
             slug='community-test',
             defaults={
                 'name': 'Community Test',
-                'description': 'Unrestricted test type',
+                'description': 'Creator restricted test type',
                 'category': self.community_category,
+                'min_points': 1,
+                'max_points': 10,
+            },
+        )
+        self.unrestricted_type, _ = ContributionType.objects.get_or_create(
+            slug='unrestricted-test',
+            defaults={
+                'name': 'Unrestricted Test',
+                'description': 'Unrestricted test type',
+                'category': None,
                 'min_points': 1,
                 'max_points': 10,
             },
@@ -75,7 +86,7 @@ class ValidatorCategorySubmitGatingTest(TestCase):
             defaults={
                 'name': 'Capacity Limited Test',
                 'description': 'Capacity-limited unrestricted test type',
-                'category': self.community_category,
+                'category': None,
                 'min_points': 1,
                 'max_points': 10,
                 'max_submissions': 1,
@@ -86,7 +97,7 @@ class ValidatorCategorySubmitGatingTest(TestCase):
             defaults={
                 'name': 'Mission Only Test',
                 'description': 'Mission-only test type',
-                'category': self.community_category,
+                'category': None,
                 'min_points': 1,
                 'max_points': 10,
                 'is_submittable': False,
@@ -97,6 +108,7 @@ class ValidatorCategorySubmitGatingTest(TestCase):
             self.node_running_type,
             self.builder_type,
             self.community_type,
+            self.unrestricted_type,
             self.capacity_limited_type,
             self.mission_only_type,
         ]:
@@ -122,6 +134,12 @@ class ValidatorCategorySubmitGatingTest(TestCase):
             password='testpass123',
         )
         Validator.objects.create(user=self.validator_user)
+        self.creator_user = User.objects.create_user(
+            email='creator@test.com',
+            address='0x4444444444444444444444444444444444444444',
+            password='testpass123',
+        )
+        Creator.objects.create(user=self.creator_user)
 
         Contribution.objects.create(
             user=self.waitlist_user,
@@ -162,10 +180,20 @@ class ValidatorCategorySubmitGatingTest(TestCase):
         # May be 201 or 400 depending on recaptcha config, but must not be 403
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_user_without_creator_profile_is_blocked_from_community_category(self):
+        response = self._post_submission(self.plain_user, self.community_type)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn('Only creators', response.data['error'])
+
+    def test_user_with_creator_profile_passes_community_gating(self):
+        response = self._post_submission(self.creator_user, self.community_type)
+        # May be 201 or 400 depending on recaptcha config, but must not be 403
+        self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def _pending_submission(self, user=None):
         return SubmittedContribution.objects.create(
             user=user or self.plain_user,
-            contribution_type=self.community_type,
+            contribution_type=self.unrestricted_type,
             contribution_date=timezone.now(),
             notes='Original unrestricted submission',
             state='pending',
@@ -183,7 +211,7 @@ class ValidatorCategorySubmitGatingTest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         submission.refresh_from_db()
-        self.assertEqual(submission.contribution_type, self.community_type)
+        self.assertEqual(submission.contribution_type, self.unrestricted_type)
 
     def test_plain_user_cannot_edit_submission_into_builder_type(self):
         submission = self._pending_submission()
@@ -197,6 +225,42 @@ class ValidatorCategorySubmitGatingTest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         submission.refresh_from_db()
+        self.assertEqual(submission.contribution_type, self.unrestricted_type)
+
+    def test_plain_user_cannot_edit_submission_into_community_type(self):
+        submission = self._pending_submission()
+        self.client.force_authenticate(user=self.plain_user)
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'contribution_type': self.community_type.id},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn('Only creators', response.data['error'])
+        submission.refresh_from_db()
+        self.assertEqual(submission.contribution_type, self.unrestricted_type)
+
+    def test_plain_user_can_edit_unchanged_legacy_community_submission(self):
+        submission = SubmittedContribution.objects.create(
+            user=self.plain_user,
+            contribution_type=self.community_type,
+            contribution_date=timezone.now(),
+            notes='Original legacy community submission',
+            state='more_info_needed',
+        )
+        self.client.force_authenticate(user=self.plain_user)
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'notes': 'Updated legacy community submission'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        self.assertEqual(submission.notes, 'Updated legacy community submission')
         self.assertEqual(submission.contribution_type, self.community_type)
 
     def test_plain_user_cannot_edit_submission_into_mission_only_type(self):
@@ -211,7 +275,7 @@ class ValidatorCategorySubmitGatingTest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         submission.refresh_from_db()
-        self.assertEqual(submission.contribution_type, self.community_type)
+        self.assertEqual(submission.contribution_type, self.unrestricted_type)
 
     def test_user_can_edit_submission_when_unchanged_type_is_full(self):
         submission = SubmittedContribution.objects.create(

@@ -24,13 +24,13 @@
         "Complete the application to enter the validator waitlist.",
     },
     community: {
-      title: "Community",
-      journeyLabel: "Community journey",
+      title: "Creator",
+      journeyLabel: "Creator journey",
       accent: "#8d81e1",
       rgb: "141, 129, 225",
       glyph: "/assets/icons/group-3-line-purple.svg",
       description:
-        "Finish the required community steps, then claim your Community role.",
+        "Finish the required Creator steps, then claim your Creator role.",
     },
   };
 
@@ -197,9 +197,14 @@
 
   .journey-reminder__button {
     align-items: center;
-    background: #131214;
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 42%),
+      linear-gradient(135deg, rgba(var(--role-accent-rgb), 0.86), var(--role-accent));
     border: 0;
     border-radius: 20px;
+    box-shadow:
+      0 12px 24px rgba(var(--role-accent-rgb), 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.24);
     color: #fff;
     cursor: pointer;
     display: inline-flex;
@@ -213,13 +218,22 @@
     padding: 0 16px;
     position: relative;
     text-decoration: none;
-    transition: background 0.16s ease, transform 0.16s ease;
+    transition-duration: 160ms;
+    transition-property: box-shadow, filter, transform;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
     z-index: 1;
   }
 
   .journey-reminder__button:hover {
-    background: #2a292c;
+    box-shadow:
+      0 16px 30px rgba(var(--role-accent-rgb), 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    filter: saturate(1.08) brightness(1.02);
     transform: translateY(-1px);
+  }
+
+  .journey-reminder__button:active {
+    transform: scale(0.96);
   }
 
   .journey-reminder__button img {
