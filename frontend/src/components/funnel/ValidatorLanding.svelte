@@ -2,7 +2,7 @@
   let { state: roleState = 'unauthenticated', starting = false, onStart = () => {} } = $props();
 
   const isWaitlisted = $derived(roleState === 'waitlisted');
-  const primaryLabel = $derived(starting ? 'Starting...' : 'Join a Validator List');
+  const primaryLabel = $derived(starting ? 'Starting...' : 'Join the Waitlist');
 
   const comparisonCards = [
     {

@@ -627,6 +627,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         contribution_type,
         mission=None,
         skip_capacity_check=False,
+        allow_existing_community_submission=False,
     ):
         """Validate role, category, and requirement gates for submissions."""
         if mission and contribution_type.id != mission.contribution_type_id:
@@ -654,6 +655,15 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             if contribution_type.category.slug == 'validator' and not hasattr(user, 'validator'):
                 return Response(
                     {'error': 'Only validators can submit validator contributions. Join the Validator Waitlist to be considered for selection.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            if (
+                contribution_type.category.slug == 'community'
+                and not hasattr(user, 'creator')
+                and not allow_existing_community_submission
+            ):
+                return Response(
+                    {'error': 'Only creators can submit community contributions. Complete the Creator journey to become a creator.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
@@ -920,6 +930,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             contribution_type,
             mission,
             skip_capacity_check=keeps_same_contribution_type,
+            allow_existing_community_submission=keeps_same_contribution_type,
         )
         if contribution_type_error is not None:
             return contribution_type_error

@@ -690,7 +690,7 @@
             </a>
             <a class="res" href="/">
               <span class="res-name">Foundation Portal</span>
-              <span class="res-desc">Contribute as a builder, validator, or community member.</span>
+              <span class="res-desc">Contribute as a builder, validator, or creator.</span>
             </a>
             <a class="res" href="https://internetcourt.org" target="_blank" rel="noopener">
               <span class="res-name">Internet Court</span>

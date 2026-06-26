@@ -767,7 +767,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def community(self, request):
         """
-        Get community statistics and paginated community members.
+        Get community statistics and paginated creators.
         Returns users sorted by effective community points.
         Supports limit/offset pagination and user_address lookup.
         """

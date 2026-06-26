@@ -212,7 +212,7 @@ export const journeyAPI = {
   linkGithubAccount: () => api.post('/users/link_github_account/'),
   // Point-free "started" marker for any role (builder|validator|community).
   startRoleJourney: (role) => api.post('/users/start_role_journey/', { role }),
-  // Community journey (5 steps -> Creator role)
+  // Creator journey (5 steps -> Creator role)
   communityJourney: () => api.get('/users/community_journey/'),
   verifyCommunityPost: (postUrl) => api.post('/users/verify_community_post/', { post_url: postUrl }),
   completeCommunityJourney: () => api.post('/users/complete_community_journey/')

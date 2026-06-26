@@ -715,7 +715,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def community_journey(self, request):
-        """Community journey status: the 5 steps + completion + membership."""
+        """Creator journey status: the 5 steps + completion + Creator role."""
         from creators import community_journey as cj
         return Response(cj.journey_status(request.user), status=status.HTTP_200_OK)
 
@@ -829,7 +829,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         # newcomers, so never funnel a Creator back through the steps.
         if hasattr(user, 'creator'):
             return Response(
-                {'message': 'You are already a community member', 'user': self.get_serializer(user).data},
+                {'message': 'You are already a creator', 'user': self.get_serializer(user).data},
                 status=status.HTTP_200_OK,
             )
 
@@ -839,7 +839,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                 {
                     'error': 'not_started',
                     'missing_steps': ['start'],
-                    'message': 'Start the community journey first.',
+                    'message': 'Start the Creator journey first.',
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -848,7 +848,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                 {
                     'error': 'incomplete',
                     'missing_steps': journey['missing_steps'],
-                    'message': 'Complete all community journey steps first.',
+                    'message': 'Complete all Creator journey steps first.',
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -864,7 +864,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
 
             if not created:
                 return Response(
-                    {'message': 'You are already a community member', 'user': self.get_serializer(user).data},
+                    {'message': 'You are already a creator', 'user': self.get_serializer(user).data},
                     status=status.HTTP_200_OK,
                 )
 

@@ -27,7 +27,7 @@ def join_creator_view(request):
             {
                 'error': 'not_started',
                 'missing_steps': ['start'],
-                'message': 'Start the community journey first.',
+                'message': 'Start the Creator journey first.',
             },
             status=status.HTTP_400_BAD_REQUEST
         )
@@ -36,7 +36,7 @@ def join_creator_view(request):
             {
                 'error': 'incomplete',
                 'missing_steps': journey['missing_steps'],
-                'message': 'Complete all community journey steps first.',
+                'message': 'Complete all Creator journey steps first.',
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
@@ -47,7 +47,7 @@ def join_creator_view(request):
     if not created:
         serializer = CreatorSerializer(creator)
         return Response({
-            'message': 'You are already a community member!',
+            'message': 'You are already a creator!',
             'creator': serializer.data,
         }, status=status.HTTP_200_OK)
 

@@ -28,7 +28,7 @@
   const cards = $derived([
     { label: 'Builders', category: 'builder', value: metrics?.builders?.value },
     { label: 'Validators', category: 'validator', value: metrics?.validators?.value },
-    { label: 'Community members', category: 'community', value: metrics?.community_members?.value },
+    { label: 'Creators', category: 'community', value: metrics?.community_members?.value },
     { label: 'Contributions', category: 'genlayer', value: metrics?.contributions?.value },
   ]);
 </script>
@@ -36,7 +36,7 @@
 <div class="panel portal-panel" aria-busy={loading}>
   <div class="panel-head">
     <h2>Portal contributors</h2>
-    <p>Builders, validators and community on the portal</p>
+    <p>Builders, validators and creators on the portal</p>
   </div>
 
   <div class="metric-col">

@@ -49,7 +49,7 @@
     },
     {
       key: 'community_member_count',
-      label: 'Community Members',
+      label: 'Creators',
       value: stats ? formatNumber(stats.community_member_count ?? stats.creator_count ?? stats.participant_count) : '—',
       delta: '+15%',
       category: 'community',
