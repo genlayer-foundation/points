@@ -15,7 +15,7 @@
   } from '../lib/analytics.js';
   import SocialLink from '../components/SocialLink.svelte';
   import SocialTaskCard from '../components/social-tasks/SocialTaskCard.svelte';
-  import JourneyNotice from '../components/funnel/journeys/JourneyNotice.svelte';
+  import JourneyWelcome from '../components/funnel/journeys/JourneyWelcome.svelte';
   import JourneyHeroCard from '../components/funnel/journeys/JourneyHeroCard.svelte';
   import JourneyStepRow from '../components/funnel/journeys/JourneyStepRow.svelte';
   import JourneyUnlockCard from '../components/funnel/journeys/JourneyUnlockCard.svelte';
@@ -70,13 +70,19 @@
   let activeStepNumber = $derived(activeStep ? STEP_IDS.indexOf(activeStep) + 1 : TOTAL_STEPS);
   let followTask = $derived(tasks.find((task) => task.slug === FOLLOW_X_TASK_SLUG) || null);
   let discordTask = $derived(tasks.find((task) => task.slug === JOIN_DISCORD_TASK_SLUG) || null);
-  let noticeMessage = $derived(
-    actionError || loadError || (
-      complete
-        ? 'Creator journey complete. Click to finish.'
-        : `There ${remainingSteps === 1 ? 'is' : 'are'} ${remainingSteps} ${remainingSteps === 1 ? 'step' : 'steps'} left to become a creator.`
-    )
+  let displayName = $derived(user?.name?.trim() || '');
+  let welcomeTitle = $derived(displayName ? `Welcome, ${displayName}` : 'Welcome to your Community journey');
+  let welcomeMessage = $derived(
+    complete
+      ? 'Your community steps are complete. Finish the journey to unlock the Creator role and start submitting community work.'
+      : 'Connect your social accounts, verify the community actions, and post your unique code to unlock the Creator role.'
   );
+  let welcomeAlert = $derived(actionError || loadError || '');
+  let welcomeChips = $derived([
+    { label: 'Progress', value: `${completedSteps}/${TOTAL_STEPS}` },
+    { label: 'Left', value: remainingSteps === 1 ? '1 step' : `${remainingSteps} steps` },
+    { label: 'Next', value: complete ? 'Finish journey' : `Step ${activeStepNumber}` },
+  ]);
   let heroHelper = $derived(
     complete
       ? 'Click to finish.'
@@ -255,10 +261,23 @@
     }
   }
 
+  function markStepDone(id) {
+    journey = {
+      ...(journey || {}),
+      steps: {
+        ...(journey?.steps || {}),
+        [id]: {
+          ...(journey?.steps?.[id] || {}),
+          done: true,
+        },
+      },
+    };
+  }
+
   async function claimLinkedAccount(kind) {
     const isX = kind === 'x';
-    if ((isX && linkingX) || (!isX && linkingDiscord)) return;
     const stepId = isX ? 'link_x' : 'link_discord';
+    if ((isX && linkingX) || (!isX && linkingDiscord)) return;
     trackCommunityStepEvent('journey_step_action_click', stepId);
     if (isX) linkingX = true;
     else linkingDiscord = true;
@@ -269,8 +288,10 @@
       if (res.data?.user) userStore.updateUser(res.data.user);
       else await userStore.loadUser?.();
       trackCommunityStepEvent('journey_step_verified', stepId);
+      markStepDone(stepId);
       showSuccess(isX ? 'X account linked for community points.' : 'Discord account linked for community points.');
       await loadJourney({ showLoading: false });
+      markStepDone(stepId);
     } catch (err) {
       trackCommunityStepEvent('journey_step_error', stepId, {
         error_code: err.response?.status ? 'backend_error' : 'unknown_error',
@@ -284,11 +305,13 @@
     }
   }
 
-  async function handleXLinked() {
+  async function handleXLinked(updatedUser) {
+    if (updatedUser) userStore.updateUser(updatedUser);
     await claimLinkedAccount('x');
   }
 
-  async function handleDiscordLinked() {
+  async function handleDiscordLinked(updatedUser) {
+    if (updatedUser) userStore.updateUser(updatedUser);
     await claimLinkedAccount('discord');
   }
 
@@ -453,9 +476,12 @@
 </svelte:head>
 
 <div class="journey-page community-journey">
-  <JourneyNotice
-    message={noticeMessage}
-    tone={actionError || loadError ? 'error' : 'default'}
+  <JourneyWelcome
+    role="community"
+    title={welcomeTitle}
+    message={welcomeMessage}
+    chips={welcomeChips}
+    alert={welcomeAlert}
   />
 
   <JourneyHeroCard

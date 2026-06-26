@@ -1,10 +1,10 @@
 <script>
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
-  import { updateUserProfile } from '../lib/api.js';
+  import { journeyAPI, updateUserProfile } from '../lib/api.js';
   import { push, location } from 'svelte-spa-router';
   import { detectCategoryFromRoute } from '../stores/category.js';
-  import { rolePath, roleForCategory } from '../lib/roleState.js';
+  import { journeyPath, roleForCategory } from '../lib/roleState.js';
   import {
     getAnalyticsContext,
     getFunnelDurationMs,
@@ -25,8 +25,8 @@
   let hasExistingEmail = $state(false);
 
   // Role selection. Preselected from the entry route; once the user clicks a
-  // role we stop overriding it. Drives the post-completion redirect only (it is
-  // not persisted — the role is earned later via the journey).
+  // role we stop overriding it. Drives the post-completion journey start and
+  // redirect only; the role itself is earned later via the journey.
   const ROLE_OPTIONS = [
     {
       value: 'builder',
@@ -48,8 +48,8 @@
     },
     {
       value: 'community',
-      label: 'Creator',
-      eyebrow: 'Grow',
+      label: 'Community',
+      eyebrow: 'Connect',
       description: 'Create content, test flows, and expand the network.',
       icon: '/assets/illustrations/community-badge-small.svg',
       accent: '#7f52e1',
@@ -193,16 +193,12 @@
       // Update the user store
       userStore.updateUser(updateData);
 
-      // Reload user data to ensure we have the latest
-      await userStore.loadUser();
-
-      // Send first-time users to their selected role's main route, where the
-      // funnel offers "Start the journey". Guard against a stale/invalid role
-      // value so the redirect never falls back to '/'.
+      // Start the selected journey immediately, then send first-time users
+      // straight to it. If the marker request fails, the route will retry on
+      // mount so a transient error does not strand the user after saving.
       const targetRole = ROLE_VALUES.has(selectedRole)
         ? selectedRole
         : roleForCategory(detectCategoryFromRoute($location));
-      try { sessionStorage.removeItem('onboardingRole'); } catch {}
       markFunnelTime('profile_completion');
       markLifecycleTime('first_profile_completion');
       trackEvent('profile_completion_success', getAnalyticsContext({
@@ -211,7 +207,43 @@
         time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
         time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
       }));
-      push(rolePath(targetRole));
+
+      trackEvent('journey_start_attempt', getAnalyticsContext({
+        role_context: targetRole,
+        selected_role: targetRole,
+        surface: 'profile_completion',
+      }));
+      try {
+        const startRes = targetRole === 'builder'
+          ? await journeyAPI.startBuilderJourney()
+          : await journeyAPI.startRoleJourney(targetRole);
+        if (startRes.data?.user) userStore.updateUser(startRes.data.user);
+        markFunnelTime(`journey_start:${targetRole}`);
+        markLifecycleTime(`first_journey_start:${targetRole}`);
+        trackEvent('journey_started', getAnalyticsContext({
+          role_context: targetRole,
+          selected_role: targetRole,
+          surface: 'profile_completion',
+          journey_state: 'started',
+          time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+          time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
+          time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
+        }));
+      } catch (startErr) {
+        trackEvent('journey_start_error', getAnalyticsContext({
+          role_context: targetRole,
+          selected_role: targetRole,
+          surface: 'profile_completion',
+          error_stage: startErr.response?.status ? 'backend' : 'network',
+        }));
+        // Best-effort; each journey route also marks itself started.
+      }
+
+      // Reload user data to ensure we have the latest.
+      await userStore.loadUser();
+
+      try { sessionStorage.removeItem('onboardingRole'); } catch {}
+      push(journeyPath(targetRole));
     } catch (err) {
       trackEvent('profile_completion_error', getAnalyticsContext({
         selected_role: selectedRole,

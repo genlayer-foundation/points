@@ -138,23 +138,6 @@
     navigate(redirectTarget, false, { track: false });
   }
 
-  function handleSubmitContribution() {
-    trackEvent('submit_contribution_click', getAnalyticsContext({
-      surface: 'sidebar',
-    }));
-    if ($authState.isAuthenticated) {
-      navigate('/submit-contribution', false, { track: false });
-    } else {
-      setConnectWalletIntent({
-        surface: 'sidebar',
-        cta_id: 'submit_contribution',
-      });
-      sessionStorage.setItem('redirectAfterLogin', '/submit-contribution');
-      const authButton = document.querySelector('[data-auth-button]');
-      if (authButton) authButton.click();
-    }
-  }
-
   function handleProfileClick() {
     if ($authState.isAuthenticated) {
       trackSidebarNav(`/participant/${$authState.address || ':address'}`, { roleContext: 'overview' });
@@ -219,10 +202,10 @@
 
 <!-- Desktop Sidebar -->
 <aside
-  class="hidden md:flex flex-col justify-between bg-white border-r border-[#e6e6e6] h-full transition-all duration-300 ease-in-out flex-shrink-0 p-3 relative {collapsed ? 'w-16' : 'w-56'}"
+  class="hidden md:flex flex-col bg-white border-r border-[#e6e6e6] h-full min-h-0 overflow-hidden transition-all duration-300 ease-in-out flex-shrink-0 p-3 relative {collapsed ? 'w-16' : 'w-56'}"
 >
   <!-- Top section: Collapse toggle + Navigation -->
-  <div>
+  <div class="min-h-0 flex-1 overflow-y-auto pb-2">
     <!-- Collapse toggle - absolutely positioned on border -->
     <button
       onclick={() => (collapsed = !collapsed)}
@@ -621,7 +604,7 @@
   </div>
 
   <!-- Bottom pinned area -->
-  <div class="space-y-2">
+  <div class="flex-shrink-0 space-y-2 pt-2">
     <!-- How it works link -->
     {#if !collapsed}
       <button
@@ -643,27 +626,6 @@
           <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
         </svg>
       </button>
-    {/if}
-
-    <!-- Submit Contribution link -->
-    {#if $authState.isAuthenticated}
-      {#if !collapsed}
-        <button
-          onclick={handleSubmitContribution}
-          class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"
-        >
-          <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
-          <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">Submit Contribution</span>
-        </button>
-      {:else}
-        <button
-          onclick={handleSubmitContribution}
-          class="w-full flex px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors"
-          title="Submit Contribution"
-        >
-          <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
-        </button>
-      {/if}
     {/if}
 
     <!-- My Submissions link (authenticated only) -->
@@ -729,8 +691,8 @@
 ></div>
 
 <!-- Mobile Sidebar -->
-<aside class="md:hidden fixed top-16 left-0 right-0 bottom-0 z-40 bg-white border-r border-[#e6e6e6] transform transition-transform duration-300 ease-in-out flex flex-col overflow-y-auto {isOpen ? 'translate-y-0' : '-translate-y-full'}">
-  <div class="p-3 flex-1">
+<aside class="md:hidden fixed top-16 left-0 right-0 bottom-0 z-40 bg-white border-r border-[#e6e6e6] transform transition-transform duration-300 ease-in-out flex flex-col overflow-hidden {isOpen ? 'translate-y-0' : '-translate-y-full'}">
+  <div class="min-h-0 flex-1 overflow-y-auto p-3">
     <nav class="space-y-1">
 
       <!-- Overview -->
@@ -1049,7 +1011,7 @@
   </div>
 
   <!-- Bottom pinned area (mobile) -->
-  <div class="p-3 space-y-2">
+  <div class="flex-shrink-0 p-3 space-y-2">
     <button
       onclick={() => navigate('/how-it-works')}
       class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-left {isActive('/how-it-works') ? 'bg-[#eeedfb]' : 'hover:bg-[#f5f5f5]'}"
@@ -1059,15 +1021,6 @@
       </svg>
       <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/how-it-works') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">How it works</span>
     </button>
-    {#if $authState.isAuthenticated}
-      <button
-        onclick={handleSubmitContribution}
-        class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"
-      >
-        <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
-        <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">Submit Contribution</span>
-      </button>
-    {/if}
     {#if $authState.isAuthenticated}
       <button
         onclick={() => navigate('/my-submissions')}

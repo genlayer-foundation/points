@@ -1,12 +1,23 @@
 <script>
   import { onMount } from 'svelte';
+  import { projectsAPI } from '../../lib/api.js';
+  import { resolvePortalLink } from '../../lib/links.js';
+  import CategoryIcon from '../portal/CategoryIcon.svelte';
 
   let { state: roleState = 'unauthenticated', starting = false, onStart = () => {} } = $props();
 
   const BOILERPLATE_REPO = 'genlayerlabs/genlayer-project-boilerplate';
   const INITIAL_BOILERPLATE_STARS = 13852;
   const docsUrl = 'https://docs.genlayer.com';
+  const FALLBACK_PROJECTS = [
+    { title: 'Rally', href: '/builders/projects/rally', external: false },
+    { title: 'MergeProof', href: '/builders/projects/mergeproof', external: false },
+    { title: 'FUD.markets', href: '/builders/projects/fudmarkets', external: false },
+    { title: 'AutoBounty', href: '/builders/projects/autobounty', external: false },
+    { title: 'Shipyard', href: '/builders/projects/shipyard', external: false },
+  ];
   let boilerplateStars = $state(INITIAL_BOILERPLATE_STARS);
+  let projects = $state(FALLBACK_PROJECTS);
 
   const isUnauthenticated = $derived(roleState === 'unauthenticated');
   const primaryDisabled = $derived(starting);
@@ -25,38 +36,27 @@
     {
       icon: 'globe',
       title: 'Native Web Access',
-      body: 'Your contracts read live internet data. No oracles, no middleman.',
+      body: 'Read APIs, websites, and live events directly during contract execution.',
     },
     {
       icon: 'translate',
       title: 'Natural Language Logic',
-      body: 'Real contract terms, finally programmable.',
+      body: 'Write rules in plain language and let validators evaluate the meaning.',
     },
     {
       icon: 'scales',
       title: 'Subjective Resolution',
-      body: 'Validator consensus decides ambiguous outcomes deterministically.',
+      body: 'Resolve outcomes that require judgment, evidence, and context.',
     },
     {
       icon: 'bolt',
       title: 'Machine-Speed Finality',
-      body: 'Decisions in minutes for cents, not months for thousands.',
+      body: 'Settle disputes in minutes with on-chain finality for agent workflows.',
     },
   ];
 
-  const projects = [
-    'RALLY',
-    'MergeProof',
-    'FudMarkets',
-    'AutoBounty',
-    'Shipyard',
-    'Hopscothc',
-    'Precog',
-    'Argue.fun',
-  ];
-
   const stats = $derived([
-    { title: 'The Codebase', value: githubStarsDisplay, suffix: 'k+', label: 'GitHub Stars' },
+    { title: 'The Codebase', value: githubStarsDisplay, suffix: 'K+', label: 'GitHub Stars' },
     { title: 'The Core Team', value: '1', center: ':', suffix: '1', label: 'Access to the builders of GenLayer' },
     { title: 'The Distribution', value: '100', suffix: 'K+', label: 'Community Reach' },
   ]);
@@ -70,7 +70,7 @@
     return (stars / 1000).toFixed(1).replace('.', ',');
   }
 
-  onMount(async () => {
+  async function fetchBoilerplateStars() {
     try {
       const response = await fetch(`https://api.github.com/repos/${BOILERPLATE_REPO}`, {
         headers: { Accept: 'application/vnd.github+json' },
@@ -83,6 +83,32 @@
     } catch {
       // Keep the latest verified fallback if GitHub is unavailable.
     }
+  }
+
+  async function fetchOverviewProjects() {
+    try {
+      const response = await projectsAPI.list({ show_in_overview: true, limit: 5 });
+      const rows = Array.isArray(response.data) ? response.data : [];
+      const overviewProjects = rows
+        .slice(0, 5)
+        .map((project) => {
+          const link = resolvePortalLink(project.link || project.url || (project.slug ? `/builders/projects/${project.slug}` : '#'));
+          return {
+            title: project.title,
+            href: link.href,
+            external: link.external,
+          };
+        })
+        .filter((project) => project.title && project.href);
+      projects = overviewProjects.length > 0 ? overviewProjects : FALLBACK_PROJECTS;
+    } catch {
+      projects = FALLBACK_PROJECTS;
+    }
+  }
+
+  onMount(() => {
+    fetchBoilerplateStars();
+    fetchOverviewProjects();
   });
 </script>
 
@@ -93,6 +119,10 @@
 <div class="builder-landing">
   <section class="builder-hero" aria-labelledby="builder-hero-title">
     <div class="hero-copy">
+      <div class="role-badge">
+        <CategoryIcon category="builder" mode="hexagon" size={40} />
+        <span>Builders</span>
+      </div>
       <h1 id="builder-hero-title">Build Contracts<br />That Can Think</h1>
       <p>
         Smart contracts execute. Intelligent Contracts reason: they read the web,
@@ -164,9 +194,15 @@
         not competing in it.
       </p>
     </div>
-    <div class="project-chip-row" aria-label="Example builder project categories">
+    <div class="project-chip-row" aria-label="Featured builder projects">
       {#each projects as project}
-        <span>{project}</span>
+        <a
+          href={project.href}
+          target={project.external ? '_blank' : undefined}
+          rel={project.external ? 'noopener noreferrer' : undefined}
+        >
+          {project.title}
+        </a>
       {/each}
     </div>
   </section>
@@ -181,8 +217,11 @@
       </p>
     </div>
     <div class="earn-stat">
-      <strong>20%</strong>
-      <span>Of transaction fees, back to you</span>
+      <div class="earn-stat-value">
+        <span class="earn-stat-prefix">Up to</span>
+        <strong>20%</strong>
+      </div>
+      <span class="earn-stat-label">Of transaction fees, back to you</span>
     </div>
   </section>
 
@@ -203,7 +242,6 @@
 
   <section class="final-cta" aria-labelledby="builder-final-title">
     <h2 id="builder-final-title">Ship your first<br />Intelligent Contract.</h2>
-    <p>Get your own builder journey: wallet, Github, first contribution. Tracked from day one.</p>
     <div class="cta-cluster cta-cluster-centered">
       <div class="button-row">
         <button
@@ -308,6 +346,19 @@
     justify-content: center;
   }
 
+  .role-badge {
+    align-items: center;
+    color: var(--builder-orange);
+    display: inline-flex;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    gap: 10px;
+    letter-spacing: 0.8px !important;
+    line-height: 20px;
+    margin: 0;
+    text-transform: uppercase;
+  }
+
   .hero-copy h1,
   .capability-section h2,
   .statement-section h2,
@@ -326,8 +377,7 @@
     margin: 0;
   }
 
-  .hero-copy > p,
-  .final-cta > p {
+  .hero-copy > p {
     color: var(--builder-muted);
     font-family: var(--font-mono);
     font-size: 16px;
@@ -470,16 +520,19 @@
   }
 
   .feature-card {
+    align-items: center;
     border: 1px solid var(--builder-border);
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 16px;
+    text-align: center;
   }
 
   .feature-heading {
     align-items: center;
     display: flex;
+    flex-direction: column;
     gap: 12px;
   }
 
@@ -503,13 +556,13 @@
 
   .feature-card h3 {
     font-family: var(--font-display);
-    font-size: 24px;
+    font-size: clamp(18px, 1.55vw, 24px);
     font-weight: 500;
     letter-spacing: -0.48px !important;
-    line-height: 32px;
+    line-height: 1.2;
     margin: 0;
-    text-transform: capitalize;
-    overflow-wrap: anywhere;
+    text-transform: none;
+    white-space: nowrap;
   }
 
   .feature-card p {
@@ -574,18 +627,27 @@
     width: 100%;
   }
 
-  .project-chip-row span {
+  .project-chip-row a {
     border: 1px solid var(--builder-border);
     border-radius: 32px;
     color: #000;
+    display: inline-flex;
     font-family: var(--font-mono);
     font-size: 16px;
     font-weight: 400;
     letter-spacing: -0.32px !important;
     line-height: 32px;
     padding: 16px 24px;
+    text-decoration: none;
     text-transform: none;
+    transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
     white-space: nowrap;
+  }
+
+  .project-chip-row a:hover {
+    border-color: rgba(238, 133, 33, 0.5);
+    color: var(--builder-orange);
+    transform: translateY(-1px);
   }
 
   .earn-banner {
@@ -644,6 +706,24 @@
     z-index: 1;
   }
 
+  .earn-stat-value {
+    align-items: baseline;
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .earn-stat-prefix {
+    color: rgba(255, 255, 255, 0.86);
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: 0.36px !important;
+    line-height: 24px;
+    text-transform: uppercase;
+  }
+
   .earn-stat strong {
     color: #fff;
     font-family: var(--font-display);
@@ -653,7 +733,7 @@
     line-height: 128px;
   }
 
-  .earn-stat span {
+  .earn-stat-label {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 16px;
     color: #fff;
@@ -749,10 +829,6 @@
     margin: 0;
   }
 
-  .final-cta > p {
-    max-width: 590px;
-  }
-
   @media (max-width: 1180px) {
     .feature-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -765,6 +841,11 @@
     .earn-stat strong {
       font-size: 96px;
       line-height: 100px;
+    }
+
+    .earn-stat-prefix {
+      font-size: 16px;
+      line-height: 22px;
     }
   }
 
@@ -832,7 +913,7 @@
       grid-template-columns: 1fr;
     }
 
-    .project-chip-row span {
+    .project-chip-row a {
       font-size: 13px;
       line-height: 22px;
       max-width: 100%;
@@ -851,7 +932,16 @@
       line-height: 84px;
     }
 
-    .earn-stat span {
+    .earn-stat-value {
+      gap: 8px;
+    }
+
+    .earn-stat-prefix {
+      font-size: 14px;
+      line-height: 20px;
+    }
+
+    .earn-stat-label {
       white-space: normal;
     }
 
