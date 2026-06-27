@@ -1,4 +1,8 @@
+from io import StringIO
+
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from eth_account import Account
@@ -162,3 +166,68 @@ class EthereumAuthNoncePurposeTests(TestCase):
         self.assertEqual(response.status_code, 400)
         nonce.refresh_from_db()
         self.assertFalse(nonce.used)
+
+
+class CleanupNoncesCommandTests(TestCase):
+    def _nonce(self, value, *, used=False, expires_delta=None, created_delta=None):
+        now = timezone.now()
+        return Nonce.objects.create(
+            value=value,
+            used=used,
+            created_at=now + (created_delta or timezone.timedelta()),
+            expires_at=now + expires_delta,
+        )
+
+    def test_cleanup_nonces_deletes_only_stale_used_or_expired_nonces(self):
+        old_expired = self._nonce(
+            'oldExpiredNonce',
+            expires_delta=timezone.timedelta(hours=-3),
+        )
+        old_used = self._nonce(
+            'oldUsedNonce',
+            used=True,
+            created_delta=timezone.timedelta(hours=-2),
+            expires_delta=timezone.timedelta(minutes=5),
+        )
+        recent_expired = self._nonce(
+            'recentExpiredNonce',
+            expires_delta=timezone.timedelta(minutes=-15),
+        )
+        recent_used = self._nonce(
+            'recentUsedNonce',
+            used=True,
+            created_delta=timezone.timedelta(minutes=-15),
+            expires_delta=timezone.timedelta(minutes=5),
+        )
+        active = self._nonce(
+            'activeNonce',
+            expires_delta=timezone.timedelta(minutes=5),
+        )
+
+        output = StringIO()
+        call_command('cleanup_nonces', hours=1, stdout=output)
+
+        self.assertIn('Deleted 2 stale nonce(s).', output.getvalue())
+        self.assertFalse(Nonce.objects.filter(pk=old_expired.pk).exists())
+        self.assertFalse(Nonce.objects.filter(pk=old_used.pk).exists())
+        self.assertTrue(Nonce.objects.filter(pk=recent_expired.pk).exists())
+        self.assertTrue(Nonce.objects.filter(pk=recent_used.pk).exists())
+        self.assertTrue(Nonce.objects.filter(pk=active.pk).exists())
+
+    def test_cleanup_nonces_dry_run_reports_without_deleting(self):
+        old_expired = self._nonce(
+            'dryRunExpiredNonce',
+            expires_delta=timezone.timedelta(hours=-3),
+        )
+
+        output = StringIO()
+        call_command('cleanup_nonces', hours=1, dry_run=True, stdout=output)
+
+        self.assertIn('Dry run: 1 stale nonce(s) would be deleted.', output.getvalue())
+        self.assertTrue(Nonce.objects.filter(pk=old_expired.pk).exists())
+
+    def test_cleanup_nonces_rejects_invalid_retention_window(self):
+        for invalid_hours in (-1, float('nan'), float('inf'), float('-inf'), 1e20):
+            with self.subTest(hours=invalid_hours):
+                with self.assertRaises(CommandError):
+                    call_command('cleanup_nonces', hours=invalid_hours)
