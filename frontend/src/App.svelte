@@ -5,16 +5,18 @@
   import { onMount } from 'svelte';
   import Navbar from './components/Navbar.svelte';
   import Sidebar from './components/Sidebar.svelte';
+  import AnalyticsConsentBanner from './components/AnalyticsConsentBanner.svelte';
   import ToastContainer from './components/ToastContainer.svelte';
   import ProfileCompletionGuard from './components/ProfileCompletionGuard.svelte';
   import WhatsNewDialog from './components/WhatsNewDialog.svelte';
   import { currentCategory, detectCategoryFromRoute } from './stores/category.js';
-  import { location } from 'svelte-spa-router';
+  import { location, querystring } from 'svelte-spa-router';
   import { setRouteMeta } from './lib/meta.js';
   import { authState, verifyAuth } from './lib/auth.js';
   import { userStore } from './lib/userStore.js';
   import { hasEarnedRole, journeyPath, rolePath } from './lib/roleState.js';
   import { installLinkInterceptor } from './lib/router.js';
+  import { analyticsConsent, getAnalyticsContext, setConnectWalletIntent, templateRoute, trackEvent, trackPageView } from './lib/analytics.js';
 
   // Early OAuth result detection — runs before routes mount.
   // Backend redirects here with ?oauth_platform=X&oauth_verified=true/false&oauth_error=...
@@ -142,12 +144,23 @@
       `${location || '/'}${querystring ? `?${querystring}` : ''}`
     );
 
+    trackEvent('protected_route_redirect', getAnalyticsContext({
+      guarded_route: guarded,
+      redirect_target: '/',
+      surface: 'route_guard',
+    }));
+
     // replace, not push: a pushed redirect leaves the protected URL in
     // history, so the back button bounces off it and re-redirects forever.
     replace('/');
 
     setTimeout(() => {
       const authButton = document.querySelector('[data-auth-button]');
+      setConnectWalletIntent({
+        surface: 'route_guard',
+        cta_id: 'protected_route_prompt',
+        target_route: guarded,
+      });
       if (authButton) {
         authButton.click();
       }
@@ -184,7 +197,16 @@
       const normalizePath = (value) => (value || '/').replace(/\/+$/, '') || '/';
       const guarded = `${normalizePath(detail.location)}${detail.querystring ? `?${detail.querystring}` : ''}`;
       const here = `${normalizePath(window.location.pathname)}${window.location.search || ''}`;
-      if (here === guarded) replace(category === 'community' ? journeyPath(category) : rolePath(category));
+      if (here === guarded) {
+        const redirectTarget = category === 'community' ? journeyPath(category) : rolePath(category);
+        trackEvent('role_locked_redirect', getAnalyticsContext({
+          role_context: category,
+          target_route: guarded,
+          redirect_target: redirectTarget,
+          surface: 'route_guard',
+        }));
+        replace(redirectTarget);
+      }
       return false;
     };
   }
@@ -300,6 +322,17 @@
     const category = detectCategoryFromRoute($location);
     currentCategory.set(category);
     setRouteMeta($location);
+  });
+
+  let lastTrackedPageKey = '';
+
+  $effect(() => {
+    if (!$authState.hasVerified) return;
+    if ($analyticsConsent !== 'granted') return;
+    const pageKey = `${$location || '/'}?${$querystring || ''}`;
+    if (pageKey === lastTrackedPageKey) return;
+    lastTrackedPageKey = pageKey;
+    trackPageView($location, getAnalyticsContext());
   });
 
   let normalizedLocation = $derived(($location || '/').replace(/\/+$/, '') || '/');
@@ -506,3 +539,4 @@
 <!-- Profile Completion Guard - Shows on all pages until profile is complete -->
 <ProfileCompletionGuard />
 <WhatsNewDialog />
+<AnalyticsConsentBanner />

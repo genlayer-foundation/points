@@ -4,6 +4,7 @@
   import { API_BASE_URL } from '../lib/config.js';
   import { getCurrentUser, socialAPI, journeyAPI } from '../lib/api';
   import { showSuccess, showError } from '../lib/toastStore';
+  import { getAnalyticsContext, setConnectWalletIntent, trackEvent } from '../lib/analytics.js';
 
   let {
     platform = '',
@@ -59,6 +60,29 @@
     return isLinking || isRefreshing || sessionStorage.getItem(pendingFlag) === '1';
   }
 
+  function oauthErrorCode(value) {
+    const code = String(value || '').toLowerCase();
+    if (['already_linked', 'account_mismatch', 'authorization_failed'].includes(code)) return code;
+    return code ? 'oauth_error' : undefined;
+  }
+
+  function trackOAuthResult(success, oauthError, wasRefreshing) {
+    const meta = oauthStepMeta();
+    trackEvent('oauth_link_result', getAnalyticsContext({
+      role_context: meta?.role,
+      selected_role: meta?.role,
+      surface: meta ? 'journey' : 'form',
+      platform,
+      oauth_mode: wasRefreshing ? 'refresh_username' : 'link',
+      result_state: success ? 'success' : 'error',
+      error_code: success ? undefined : oauthErrorCode(oauthError),
+      step_id: meta?.step,
+      step_index: meta?.index,
+      step_required: meta ? true : undefined,
+      verification_mode: meta?.verification,
+    }));
+  }
+
   // --- Event handlers ---
 
   // Primary: postMessage from the OAuth popup
@@ -109,6 +133,7 @@
     const wasRefreshing = isRefreshing || sessionStorage.getItem(modeFlag) === 'refresh_username';
     clearPopupMonitor();
     clearOAuthPending();
+    trackOAuthResult(success, oauthError, wasRefreshing);
 
     const shouldToast = reserveToastSlot();
 
@@ -308,12 +333,47 @@
     }
   }
 
+  function oauthStepMeta() {
+    const path = (window.location.pathname || '').replace(/\/+$/, '') || '/';
+    if (path === '/builders/journey' && platform === 'github') {
+      return { role: 'builder', step: 'github', index: 2, verification: 'oauth_github' };
+    }
+    if (path === '/community/journey' && platform === 'twitter') {
+      return { role: 'community', step: 'link_x', index: 1, verification: 'oauth_x' };
+    }
+    if (path === '/community/journey' && platform === 'discord') {
+      return { role: 'community', step: 'link_discord', index: 2, verification: 'oauth_discord' };
+    }
+    return null;
+  }
+
+  function trackOAuthAction() {
+    const meta = oauthStepMeta();
+    if (!meta) return;
+    trackEvent('journey_step_action_click', getAnalyticsContext({
+      role_context: meta.role,
+      selected_role: meta.role,
+      surface: 'journey',
+      step_id: meta.step,
+      step_index: meta.index,
+      step_required: true,
+      verification_mode: meta.verification,
+    }));
+  }
+
   async function linkAccount({ refreshUsername = false } = {}) {
     if (!$authState.isAuthenticated) {
+      const meta = oauthStepMeta();
+      setConnectWalletIntent({
+        surface: meta ? 'journey' : 'form',
+        cta_id: meta ? `${meta.step}_oauth_auth` : `${platform}_oauth_auth`,
+        selected_role: meta?.role,
+      });
       document.querySelector('.auth-button')?.click();
       return;
     }
 
+    if (!refreshUsername) trackOAuthAction();
     handledOAuthResult = false;
     isLinking = !refreshUsername;
     isRefreshing = refreshUsername;

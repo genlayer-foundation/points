@@ -8,6 +8,7 @@
   import { authState } from '../lib/auth.js';
   import { currentCategory } from '../stores/category.js';
   import { metricsAPI } from '../lib/api.js';
+  import { getAnalyticsContext, setConnectWalletIntent, trackEvent } from '../lib/analytics.js';
   
   let { toggleSidebar, sidebarOpen = false } = $props();
   
@@ -73,11 +74,28 @@
     push(path);
     isMenuOpen = false;
   }
+
+  function handleLogoClick(event) {
+    event.preventDefault();
+    trackEvent('nav_item_click', getAnalyticsContext({
+      surface: 'navbar',
+      target_route: '/',
+      locked: false,
+    }));
+    navigate('/');
+  }
   
   function handleSubmitContribution() {
+    trackEvent('submit_contribution_click', getAnalyticsContext({
+      surface: 'navbar',
+    }));
     if ($authState.isAuthenticated) {
       navigate('/submit-contribution');
     } else {
+      setConnectWalletIntent({
+        surface: 'navbar',
+        cta_id: 'submit_contribution',
+      });
       // Store the intended destination
       sessionStorage.setItem('redirectAfterLogin', '/submit-contribution');
       // Trigger login by programmatically clicking the auth button
@@ -110,7 +128,7 @@
   <div class="navbar-inner flex items-center justify-between p-3">
     <!-- Left: Logo -->
     <div class="navbar-logo-wrap flex items-center gap-1 px-1 min-w-0">
-      <a href="/" onclick={(e) => { e.preventDefault(); navigate('/'); }} class="flex items-center">
+      <a href="/" onclick={handleLogoClick} class="flex items-center">
         <img src="/assets/genlayer-portal-logo.svg" alt="GenLayer Portal" class="portal-logo h-[32px] w-auto">
       </a>
       {#if visibleSocialLinks.length}

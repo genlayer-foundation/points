@@ -5,6 +5,14 @@
   import { push, location } from 'svelte-spa-router';
   import { detectCategoryFromRoute } from '../stores/category.js';
   import { journeyPath, roleForCategory } from '../lib/roleState.js';
+  import {
+    getAnalyticsContext,
+    getFunnelDurationMs,
+    markLifecycleTime,
+    markFunnelTime,
+    templateRoute,
+    trackEvent,
+  } from '../lib/analytics.js';
 
   // Form state
   let email = $state('');
@@ -51,8 +59,17 @@
   const ROLE_VALUES = new Set(ROLE_OPTIONS.map((option) => option.value));
   let selectedRole = $state('community');
   let roleTouched = $state(false);
+  let preselectedRole = $state('community');
+  let preselectedSource = $state('route');
+  let lastProfileViewKey = $state('');
 
   function selectRole(value) {
+    trackEvent('onboarding_role_selected', getAnalyticsContext({
+      selected_role: value,
+      preselected_role: preselectedRole,
+      selection_source: 'user',
+      source_route: templateRoute($location),
+    }));
     selectedRole = value;
     roleTouched = true;
   }
@@ -87,10 +104,29 @@
       try { stored = sessionStorage.getItem('onboardingRole'); } catch {}
       // The stored value is untrusted (may be stale/invalid) — only honor it
       // when it's a known role, otherwise fall back to the current route.
-      selectedRole = ROLE_VALUES.has(stored)
+      const nextRole = ROLE_VALUES.has(stored)
         ? stored
         : roleForCategory(detectCategoryFromRoute($location));
+      selectedRole = nextRole;
+      preselectedRole = nextRole;
+      preselectedSource = ROLE_VALUES.has(stored) ? 'session' : 'route';
     }
+  });
+
+  $effect(() => {
+    if (!showGuard) {
+      lastProfileViewKey = '';
+      return;
+    }
+    const viewKey = `${preselectedRole}:${$location}`;
+    if (viewKey === lastProfileViewKey) return;
+    lastProfileViewKey = viewKey;
+    trackEvent('profile_completion_view', getAnalyticsContext({
+      preselected_role: preselectedRole,
+      selected_role: selectedRole,
+      selection_source: preselectedSource,
+      source_route: templateRoute($location),
+    }));
   });
 
   // Pre-fill form fields when user data is available
@@ -118,13 +154,26 @@
   });
 
   async function handleProfileSubmit() {
+    trackEvent('profile_completion_submit', getAnalyticsContext({
+      selected_role: selectedRole,
+      preselected_role: preselectedRole,
+    }));
+
     // Validate inputs
     if (!email || !name) {
+      trackEvent('profile_completion_error', getAnalyticsContext({
+        selected_role: selectedRole,
+        error_stage: 'validation',
+      }));
       profileError = 'Please provide both email and display name';
       return;
     }
 
     if (!isValidEmail(email)) {
+      trackEvent('profile_completion_error', getAnalyticsContext({
+        selected_role: selectedRole,
+        error_stage: 'validation',
+      }));
       profileError = 'Please enter a valid email address';
       return;
     }
@@ -150,12 +199,43 @@
       const targetRole = ROLE_VALUES.has(selectedRole)
         ? selectedRole
         : roleForCategory(detectCategoryFromRoute($location));
+      markFunnelTime('profile_completion');
+      markLifecycleTime('first_profile_completion');
+      trackEvent('profile_completion_success', getAnalyticsContext({
+        selected_role: targetRole,
+        preselected_role: preselectedRole,
+        time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+        time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
+      }));
+
+      trackEvent('journey_start_attempt', getAnalyticsContext({
+        role_context: targetRole,
+        selected_role: targetRole,
+        surface: 'profile_completion',
+      }));
       try {
         const startRes = targetRole === 'builder'
           ? await journeyAPI.startBuilderJourney()
           : await journeyAPI.startRoleJourney(targetRole);
         if (startRes.data?.user) userStore.updateUser(startRes.data.user);
-      } catch {
+        markFunnelTime(`journey_start:${targetRole}`);
+        markLifecycleTime(`first_journey_start:${targetRole}`);
+        trackEvent('journey_started', getAnalyticsContext({
+          role_context: targetRole,
+          selected_role: targetRole,
+          surface: 'profile_completion',
+          journey_state: 'started',
+          time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+          time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
+          time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
+        }));
+      } catch (startErr) {
+        trackEvent('journey_start_error', getAnalyticsContext({
+          role_context: targetRole,
+          selected_role: targetRole,
+          surface: 'profile_completion',
+          error_stage: startErr.response?.status ? 'backend' : 'network',
+        }));
         // Best-effort; each journey route also marks itself started.
       }
 
@@ -165,6 +245,10 @@
       try { sessionStorage.removeItem('onboardingRole'); } catch {}
       push(journeyPath(targetRole));
     } catch (err) {
+      trackEvent('profile_completion_error', getAnalyticsContext({
+        selected_role: selectedRole,
+        error_stage: err.response?.status ? 'backend' : 'network',
+      }));
       // Handle field-specific errors from Django REST Framework
       if (err.response?.data) {
         const data = err.response.data;
