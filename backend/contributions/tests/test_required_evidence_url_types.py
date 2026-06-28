@@ -42,7 +42,7 @@ class RequiredEvidenceURLTypesTest(TestCase):
             password='testpass123',
         )
 
-        # update_or_create by slug: migrations 0050/0074 already seed these
+        # update_or_create by slug: migrations 0050/0075 already seed these
         # rows in the test DB, so plain create() collides on the unique name.
         # ownership_social_account='' overrides the seeded github 'github'
         # value so these tests don't hit handle-ownership validation.

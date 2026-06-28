@@ -1,4 +1,4 @@
-from django.db import migrations
+from django.db import migrations, models
 
 
 EXPLORER = {
@@ -37,9 +37,14 @@ def backwards(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('contributions', '0075_contributiontype_required_evidence_url_type_groups'),
+        ('contributions', '0074_update_creator_category_descriptions'),
     ]
 
     operations = [
+        migrations.AddField(
+            model_name='contributiontype',
+            name='required_evidence_url_type_groups',
+            field=models.JSONField(blank=True, default=list, help_text='List of EvidenceURLType slug groups, e.g. [["studio-contract", "github-repo"], ["genlayer-explorer-contract"]]. A submission must have at least one evidence URL matching each group (AND across groups, OR within a group). Empty = no group requirement.'),
+        ),
         migrations.RunPython(forwards, backwards),
     ]

@@ -35,7 +35,7 @@ class RequiredEvidenceURLTypeGroupsTest(TestCase):
             address='0x1234567890123456789012345678901234567890',
             password='testpass123',
         )
-        # update_or_create by slug: migrations 0050/0074 already seed these
+        # update_or_create by slug: migrations 0050/0075 already seed these
         # rows in the test DB, so plain create() collides on the unique name.
         EvidenceURLType.objects.update_or_create(slug='github-repo', defaults=dict(
             name='GitHub Repository',
