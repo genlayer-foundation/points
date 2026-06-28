@@ -51,7 +51,11 @@ def verification_code(user) -> str:
 
 
 def share_text(user) -> str:
-    return f"I'm joining the @{genlayer_handle()} community! {verification_code(user)}"
+    return (
+        f"I'm setting up my GenLayer Portal profile and joining the "
+        f"@{genlayer_handle()} community of builders, validators, and creators. "
+        f"{verification_code(user)}"
+    )
 
 
 def intent_url(user) -> str:

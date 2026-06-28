@@ -83,7 +83,7 @@ class CommunityJourneyTests(TestCase):
         self.mark_task(self.join_task)
 
     def good_tweet(self):
-        return {'full_text': f'Joining the @{cj.genlayer_handle()} community! {cj.verification_code(self.user)}',
+        return {'full_text': cj.share_text(self.user),
                 'username': 'social_user'}
 
     # --- status ---
@@ -96,6 +96,9 @@ class CommunityJourneyTests(TestCase):
         self.assertFalse(res.data['complete'])
         # step 5 ships the code + share/intent affordances
         self.assertTrue(steps['x_post']['verification_code'].startswith('GL-'))
+        self.assertIn('GenLayer Portal profile', steps['x_post']['share_text'])
+        self.assertIn(f'@{cj.genlayer_handle()}', steps['x_post']['share_text'])
+        self.assertIn(steps['x_post']['verification_code'], steps['x_post']['share_text'])
         self.assertIn('intent/post', steps['x_post']['intent_url'])
         self.assertEqual(steps['link_x']['points'], 500)
         self.assertEqual(steps['link_discord']['points'], 500)

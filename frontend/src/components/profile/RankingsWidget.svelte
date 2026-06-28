@@ -1,6 +1,10 @@
 <script lang="ts">
     import { push } from "svelte-spa-router";
     import { leaderboardAPI } from "../../lib/api";
+    import {
+        COMMUNITY_RANKING_MIN_POINTS,
+        shouldShowRankingPreviewCta,
+    } from "../../lib/profileRanking.js";
     import { showError, showWarning } from "../../lib/toastStore.js";
     import Avatar from "../Avatar.svelte";
     import CategoryIcon from "../portal/CategoryIcon.svelte";
@@ -18,11 +22,24 @@
     let communityRankLoaded = $state(false);
     const DEFAULT_TAB_ORDER = ["Builders", "Validators", "Community"];
     type RankStatus = "loading" | "ranked" | "unranked" | "unknown";
+    const CTA_PREVIEW_ROWS: Record<string, any[]> = {
+        Builders: [
+            { _displayRank: 1, user_name: "Studio Nova", total_points: 18420 },
+            { _displayRank: 2, user_name: "Chainwright", total_points: 12780 },
+            { _displayRank: 3, user_name: "Proof Lab", total_points: 9340 },
+            { _displayRank: 4, user_name: "Dev Atlas", total_points: 6810 },
+        ],
+        Community: [
+            { _displayRank: 1, user_name: "Signal Desk", community_points: 21400 },
+            { _displayRank: 2, user_name: "Portal Notes", community_points: 16850 },
+            { _displayRank: 3, user_name: "Consensus Club", community_points: 11290 },
+            { _displayRank: 4, user_name: "Layer Dispatch", community_points: 7460 },
+        ],
+    };
 
     // Role checks
     let isBuilder = $derived(!!participant?.builder);
     let isValidator = $derived(!!participant?.validator);
-    let hasValidatorPoints = $derived((validatorStats?.totalPoints ?? 0) > 0);
     let isCreator = $derived(!!participant?.creator);
 
     function getTabForRoleKey(roleKey: string) {
@@ -53,6 +70,7 @@
     let availableTabs = $derived.by(() => {
         const tabs: string[] = [];
         if (isBuilder) tabs.push("Builders");
+        if (isValidator) tabs.push("Validators");
         if (isCreator) tabs.push("Community");
 
         const preferred = topRoleTabs.filter((tab) => tabs.includes(tab));
@@ -63,9 +81,7 @@
         return [...preferred, ...remaining];
     });
 
-    let hasAnyRankableRole = $derived(
-        isBuilder || isCreator || (isValidator && hasValidatorPoints),
-    );
+    let hasAnyRankableRole = $derived(availableTabs.length > 0);
 
     let activeTab: string | null = $state(null);
     let activeTabAddress: string | null = $state(null);
@@ -126,19 +142,25 @@
     function getContributionPath(tab: string | null) {
         return tab === "Community"
             ? "/community/contributions"
-            : "/builders/contributions";
+            : "/submit-contribution";
     }
 
     function getContributionCtaLabel(tab: string | null) {
         return tab === "Community"
-            ? "Find community work"
-            : "Find builder work";
+            ? `Reach ${COMMUNITY_RANKING_MIN_POINTS.toLocaleString()} community points`
+            : "Submit your first contribution";
     }
 
     function getContributionCtaTitle(tab: string | null) {
         return tab === "Community"
-            ? "Enter the community ranking"
-            : "Enter the builder ranking";
+            ? "Reach the community ranking"
+            : "Get your first contribution accepted";
+    }
+
+    function getContributionCtaBody(tab: string | null) {
+        return tab === "Community"
+            ? `Earn ${COMMUNITY_RANKING_MIN_POINTS.toLocaleString()} community points to unlock your ranking.`
+            : "Accepted builder submissions unlock your ranking.";
     }
 
     function getContributionAccentClass(tab: string | null) {
@@ -394,7 +416,6 @@
         if (t !== activeTab) {
             userSelectedTab = true;
             activeTab = t;
-            loadTabLeaderboard(t);
         }
     }
 
@@ -438,6 +459,9 @@
     }
 
     let userCommunityPoints = $derived(communityStats?.totalPoints || 0);
+    let activeTabRankStatus = $derived(
+        activeTab ? tabRankStatus[activeTab] || null : null,
+    );
 
     let rightPanelStats = $derived({
         builder: participant?.leaderboard_entries?.find(
@@ -449,12 +473,14 @@
     });
 
     let showContributionRankCta = $derived(
-        isOwnProfile &&
-            isContributionRankTab(activeTab) &&
-            tabRankStatus[activeTab || ""] === "unranked",
+        shouldShowRankingPreviewCta({
+            isOwnProfile,
+            tab: activeTab,
+            rankStatus: activeTabRankStatus,
+        }),
     );
     let ctaPreviewRows = $derived(
-        activeList.filter((row: any) => !row.isEllipsis).slice(0, 4),
+        CTA_PREVIEW_ROWS[activeTab || ""] || [],
     );
 
 </script>
@@ -606,8 +632,7 @@
                                 <p
                                     class="mt-2 max-w-[300px] text-[13px] leading-[1.45] text-[#5f6877]"
                                 >
-                                    Contribute to the ecosystem to be counted
-                                    in this ranking.
+                                    {getContributionCtaBody(activeTab)}
                                 </p>
                                 <a
                                     href={getContributionPath(activeTab)}
@@ -780,7 +805,7 @@
                 {/if}
 
                 <!-- Validator Stat -->
-                {#if isValidator && hasValidatorPoints}
+                {#if isValidator}
                     <div
                         class="ranking-context-card flex items-center justify-between bg-white rounded-[12px] border border-[#f0f0f0] p-5 h-[92px] shadow-sm"
                     >

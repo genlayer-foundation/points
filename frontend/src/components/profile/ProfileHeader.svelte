@@ -181,8 +181,8 @@
                 <div class="flex-shrink-0 relative badge-tooltip-wrap">
                   <span class="block grayscale opacity-50"><CategoryIcon category="validator" mode="hexagon" size={32} /></span>
                   <div class="badge-tooltip">
-                    <span class="badge-tooltip-title">Validator</span>
-                    <span class="badge-tooltip-desc">Journey in progress</span>
+                    <span class="badge-tooltip-title">{participant?.has_validator_waitlist ? 'Validator Waitlist' : 'Validator'}</span>
+                    <span class="badge-tooltip-desc">{participant?.has_validator_waitlist ? 'Waiting for graduation to Validator' : 'Journey in progress'}</span>
                   </div>
                 </div>
               {/if}
