@@ -242,7 +242,7 @@
     {
       key: 'community_members',
       category: 'community',
-      label: 'Community members',
+      label: 'Creators',
       value: latestParticipantsSnapshot.community_members,
       textClass: participantPalette.community.text
     },
@@ -876,7 +876,7 @@
   function buildParticipantsChartConfig(ctx, height, { forExport = false, hiddenLabels = new Set() } = {}) {
     const exportTitle = getExportTitleOptions(
       'Portal participation growth',
-      'Builders, validators, and community members by category scale',
+      'Builders, validators, and creators by category scale',
       forExport
     );
 
@@ -924,7 +924,7 @@
             yAxisID: 'yValidators'
           },
           {
-            label: 'Community members',
+            label: 'Creators',
             data: participantsData.map((point) => point.community_members || 0),
             borderColor: participantPalette.community.border,
             backgroundColor: createGradient(

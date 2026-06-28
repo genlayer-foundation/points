@@ -6,6 +6,8 @@
   import { userStore } from '../lib/userStore.js';
   import { contributionsAPI, stewardAPI } from '../lib/api.js';
   import { stewardPermissions } from '../lib/stewardPermissions.js';
+  import { hasEarnedRole, journeyPath, rolePath } from '../lib/roleState.js';
+  import { getAnalyticsContext, setConnectWalletIntent, trackEvent } from '../lib/analytics.js';
   import Avatar from './Avatar.svelte';
 
   let { isOpen = $bindable(false), collapsed = $bindable(false) } = $props();
@@ -74,8 +76,34 @@
     }
   });
 
-  function navigate(path, requiresAuth = false) {
+  function roleContextForCategory(category) {
+    if (['builder', 'validator', 'community', 'steward'].includes(category)) return category;
+    if (['partners', 'gentv', 'gennews', 'foundations'].includes(category)) return 'ecosystem';
+    return 'overview';
+  }
+
+  function trackSidebarNav(path, { locked = false, roleContext = null } = {}) {
+    trackEvent('nav_item_click', getAnalyticsContext({
+      surface: 'sidebar',
+      target_route: path,
+      role_context: roleContext || roleContextForCategory(getActiveSection() || 'global'),
+      locked,
+    }));
+  }
+
+  function navigate(path, requiresAuth = false, options = {}) {
+    if (options.track !== false) {
+      trackSidebarNav(path, {
+        locked: Boolean(options.locked),
+        roleContext: options.roleContext,
+      });
+    }
     if (requiresAuth && !$authState.isAuthenticated) {
+      setConnectWalletIntent({
+        surface: 'sidebar',
+        cta_id: 'protected_nav',
+        target_route: path,
+      });
       sessionStorage.setItem('redirectAfterLogin', path);
       const authButton = document.querySelector('[data-auth-button]');
       if (authButton) authButton.click();
@@ -87,20 +115,38 @@
     }
   }
 
-  function handleSubmitContribution() {
-    if ($authState.isAuthenticated) {
-      navigate('/submit-contribution');
-    } else {
-      sessionStorage.setItem('redirectAfterLogin', '/submit-contribution');
-      const authButton = document.querySelector('[data-auth-button]');
-      if (authButton) authButton.click();
+  // A signed-in user who has not earned this category's role: the role's
+  // subsections are shown but locked.
+  function isRoleLocked(category) {
+    return $authState.isAuthenticated && !hasEarnedRole($userStore.user, category);
+  }
+
+  // Clicking a locked role subsection nudges the user to that role's funnel
+  // instead of the (route-gated) subsection.
+  function openRoleSection(path, category) {
+    const locked = isRoleLocked(category);
+    const redirectTarget = locked ? (category === 'community' ? journeyPath(category) : rolePath(category)) : path;
+    trackSidebarNav(path, { locked, roleContext: category });
+    if (locked) {
+      trackEvent('role_locked_redirect', getAnalyticsContext({
+        role_context: category,
+        target_route: path,
+        redirect_target: redirectTarget,
+        surface: 'sidebar',
+      }));
     }
+    navigate(redirectTarget, false, { track: false });
   }
 
   function handleProfileClick() {
     if ($authState.isAuthenticated) {
+      trackSidebarNav(`/participant/${$authState.address || ':address'}`, { roleContext: 'overview' });
       push(`/participant/${$authState.address}`);
     } else {
+      setConnectWalletIntent({
+        surface: 'sidebar',
+        cta_id: 'profile',
+      });
       const authButton = document.querySelector('[data-auth-button]');
       if (authButton) authButton.click();
     }
@@ -133,6 +179,7 @@
 
   function changeCategory(category, path) {
     currentCategory.set(category);
+    trackSidebarNav(path, { roleContext: roleContextForCategory(category) });
     push(path);
     if (window.innerWidth < 768) {
       isOpen = false;
@@ -155,10 +202,10 @@
 
 <!-- Desktop Sidebar -->
 <aside
-  class="hidden md:flex flex-col justify-between bg-white border-r border-[#e6e6e6] h-full transition-all duration-300 ease-in-out flex-shrink-0 p-3 relative {collapsed ? 'w-16' : 'w-56'}"
+  class="hidden md:flex flex-col bg-white border-r border-[#e6e6e6] h-full min-h-0 overflow-hidden transition-all duration-300 ease-in-out flex-shrink-0 p-3 relative {collapsed ? 'w-16' : 'w-56'}"
 >
   <!-- Top section: Collapse toggle + Navigation -->
-  <div>
+  <div class="min-h-0 flex-1 overflow-y-auto pb-2">
     <!-- Collapse toggle - absolutely positioned on border -->
     <button
       onclick={() => (collapsed = !collapsed)}
@@ -219,6 +266,7 @@
             </a>
             <a
               href="/leaderboard"
+              onclick={(e) => { e.preventDefault(); navigate('/leaderboard'); }}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               }"
@@ -262,21 +310,29 @@
           <div class="pl-5">
             <a
               href="/builders/contributions"
-              onclick={(e) => { e.preventDefault(); navigate('/builders/contributions'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              onclick={(e) => { e.preventDefault(); openRoleSection('/builders/contributions', 'builder'); }}
+              class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
                 isActive('/builders/contributions') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
-              }"
+              } {isRoleLocked('builder') ? 'text-gray-400' : 'text-black'}"
+              title={isRoleLocked('builder') ? 'Become a builder to unlock' : ''}
             >
-              Contributions
+              <span>Contributions</span>
+              {#if isRoleLocked('builder')}
+                <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              {/if}
             </a>
             <a
               href="/builders/resources"
-              onclick={(e) => { e.preventDefault(); navigate('/builders/resources'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              onclick={(e) => { e.preventDefault(); openRoleSection('/builders/resources', 'builder'); }}
+              class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
                 isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
-              }"
+              } {isRoleLocked('builder') ? 'text-gray-400' : 'text-black'}"
+              title={isRoleLocked('builder') ? 'Become a builder to unlock' : ''}
             >
-              Resources
+              <span>Resources</span>
+              {#if isRoleLocked('builder')}
+                <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              {/if}
             </a>
           </div>
         {/if}
@@ -306,30 +362,42 @@
           <div class="pl-5">
             <a
               href="/validators/contributions"
-              onclick={(e) => { e.preventDefault(); navigate('/validators/contributions'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              onclick={(e) => { e.preventDefault(); openRoleSection('/validators/contributions', 'validator'); }}
+              class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
                 isActive('/validators/contributions') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
-              }"
+              } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
+              title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
             >
-              Contributions
+              <span>Contributions</span>
+              {#if isRoleLocked('validator')}
+                <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              {/if}
             </a>
             <a
               href="/validators/participants"
-              onclick={(e) => { e.preventDefault(); navigate('/validators/participants'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              onclick={(e) => { e.preventDefault(); openRoleSection('/validators/participants', 'validator'); }}
+              class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
                 isActive('/validators/participants') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
-              }"
+              } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
+              title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
             >
-              Participants
+              <span>Participants</span>
+              {#if isRoleLocked('validator')}
+                <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              {/if}
             </a>
             <a
               href="/validators/wall-of-shame"
-              onclick={(e) => { e.preventDefault(); navigate('/validators/wall-of-shame'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              onclick={(e) => { e.preventDefault(); openRoleSection('/validators/wall-of-shame', 'validator'); }}
+              class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
                 isActive('/validators/wall-of-shame') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
-              }"
+              } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
+              title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
             >
-              Wall of Shame
+              <span>Wall of Shame</span>
+              {#if isRoleLocked('validator')}
+                <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              {/if}
             </a>
           </div>
         {/if}
@@ -359,21 +427,29 @@
           <div class="pl-5">
             <a
               href="/community/contributions"
-              onclick={(e) => { e.preventDefault(); navigate('/community/contributions'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              onclick={(e) => { e.preventDefault(); openRoleSection('/community/contributions', 'community'); }}
+              class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
                 isActive('/community/contributions') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
-              }"
+              } {isRoleLocked('community') ? 'text-gray-400' : 'text-black'}"
+              title={isRoleLocked('community') ? 'Join the community to unlock' : ''}
             >
-              Contributions
+              <span>Contributions</span>
+              {#if isRoleLocked('community')}
+                <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              {/if}
             </a>
             <a
               href="/community/poaps"
-              onclick={(e) => { e.preventDefault(); navigate('/community/poaps'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              onclick={(e) => { e.preventDefault(); openRoleSection('/community/poaps', 'community'); }}
+              class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
                 isActive('/community/poaps') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
-              }"
+              } {isRoleLocked('community') ? 'text-gray-400' : 'text-black'}"
+              title={isRoleLocked('community') ? 'Join the community to unlock' : ''}
             >
-              POAPs
+              <span>POAPs</span>
+              {#if isRoleLocked('community')}
+                <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              {/if}
             </a>
           </div>
         {/if}
@@ -414,6 +490,7 @@
             {#if canAccessFeatureReviews}
               <a
                 href="/stewards/feature-reviews"
+                onclick={(e) => { e.preventDefault(); navigate('/stewards/feature-reviews'); }}
                 class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                   isActive('/stewards/feature-reviews') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
                 }"
@@ -527,7 +604,7 @@
   </div>
 
   <!-- Bottom pinned area -->
-  <div class="space-y-2">
+  <div class="flex-shrink-0 space-y-2 pt-2">
     <!-- How it works link -->
     {#if !collapsed}
       <button
@@ -549,27 +626,6 @@
           <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
         </svg>
       </button>
-    {/if}
-
-    <!-- Submit Contribution link -->
-    {#if $authState.isAuthenticated}
-      {#if !collapsed}
-        <button
-          onclick={handleSubmitContribution}
-          class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"
-        >
-          <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
-          <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">Submit Contribution</span>
-        </button>
-      {:else}
-        <button
-          onclick={handleSubmitContribution}
-          class="w-full flex px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors"
-          title="Submit Contribution"
-        >
-          <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
-        </button>
-      {/if}
     {/if}
 
     <!-- My Submissions link (authenticated only) -->
@@ -635,8 +691,8 @@
 ></div>
 
 <!-- Mobile Sidebar -->
-<aside class="md:hidden fixed top-16 left-0 right-0 bottom-0 z-40 bg-white border-r border-[#e6e6e6] transform transition-transform duration-300 ease-in-out flex flex-col overflow-y-auto {isOpen ? 'translate-y-0' : '-translate-y-full'}">
-  <div class="p-3 flex-1">
+<aside class="md:hidden fixed top-16 left-0 right-0 bottom-0 z-40 bg-white border-r border-[#e6e6e6] transform transition-transform duration-300 ease-in-out flex flex-col overflow-hidden {isOpen ? 'translate-y-0' : '-translate-y-full'}">
+  <div class="min-h-0 flex-1 overflow-y-auto p-3">
     <nav class="space-y-1">
 
       <!-- Overview -->
@@ -675,6 +731,7 @@
           </a>
           <a
             href="/leaderboard"
+            onclick={(e) => { e.preventDefault(); navigate('/leaderboard'); }}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             }"
@@ -707,21 +764,29 @@
         <div class="pl-5">
           <a
             href="/builders/contributions"
-            onclick={(e) => { e.preventDefault(); navigate('/builders/contributions'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+            onclick={(e) => { e.preventDefault(); openRoleSection('/builders/contributions', 'builder'); }}
+            class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
               isActive('/builders/contributions') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
-            }"
+            } {isRoleLocked('builder') ? 'text-gray-400' : 'text-black'}"
+            title={isRoleLocked('builder') ? 'Become a builder to unlock' : ''}
           >
-            Contributions
+            <span>Contributions</span>
+            {#if isRoleLocked('builder')}
+              <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            {/if}
           </a>
           <a
             href="/builders/resources"
-            onclick={(e) => { e.preventDefault(); navigate('/builders/resources'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+            onclick={(e) => { e.preventDefault(); openRoleSection('/builders/resources', 'builder'); }}
+            class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
               isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
-            }"
+            } {isRoleLocked('builder') ? 'text-gray-400' : 'text-black'}"
+            title={isRoleLocked('builder') ? 'Become a builder to unlock' : ''}
           >
-            Resources
+            <span>Resources</span>
+            {#if isRoleLocked('builder')}
+              <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            {/if}
           </a>
         </div>
       {/if}
@@ -744,30 +809,42 @@
         <div class="pl-5">
           <a
             href="/validators/contributions"
-            onclick={(e) => { e.preventDefault(); navigate('/validators/contributions'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+            onclick={(e) => { e.preventDefault(); openRoleSection('/validators/contributions', 'validator'); }}
+            class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
               isActive('/validators/contributions') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
-            }"
+            } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
+            title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
           >
-            Contributions
+            <span>Contributions</span>
+            {#if isRoleLocked('validator')}
+              <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            {/if}
           </a>
           <a
             href="/validators/participants"
-            onclick={(e) => { e.preventDefault(); navigate('/validators/participants'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+            onclick={(e) => { e.preventDefault(); openRoleSection('/validators/participants', 'validator'); }}
+            class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
               isActive('/validators/participants') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
-            }"
+            } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
+            title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
           >
-            Participants
+            <span>Participants</span>
+            {#if isRoleLocked('validator')}
+              <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            {/if}
           </a>
           <a
             href="/validators/wall-of-shame"
-            onclick={(e) => { e.preventDefault(); navigate('/validators/wall-of-shame'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+            onclick={(e) => { e.preventDefault(); openRoleSection('/validators/wall-of-shame', 'validator'); }}
+            class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
               isActive('/validators/wall-of-shame') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
-            }"
+            } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
+            title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
           >
-            Wall of Shame
+            <span>Wall of Shame</span>
+            {#if isRoleLocked('validator')}
+              <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            {/if}
           </a>
         </div>
       {/if}
@@ -790,21 +867,29 @@
         <div class="pl-5">
           <a
             href="/community/contributions"
-            onclick={(e) => { e.preventDefault(); navigate('/community/contributions'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+            onclick={(e) => { e.preventDefault(); openRoleSection('/community/contributions', 'community'); }}
+            class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
               isActive('/community/contributions') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
-            }"
+            } {isRoleLocked('community') ? 'text-gray-400' : 'text-black'}"
+            title={isRoleLocked('community') ? 'Join the community to unlock' : ''}
           >
-            Contributions
+            <span>Contributions</span>
+            {#if isRoleLocked('community')}
+              <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            {/if}
           </a>
           <a
             href="/community/poaps"
-            onclick={(e) => { e.preventDefault(); navigate('/community/poaps'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+            onclick={(e) => { e.preventDefault(); openRoleSection('/community/poaps', 'community'); }}
+            class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
               isActive('/community/poaps') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
-            }"
+            } {isRoleLocked('community') ? 'text-gray-400' : 'text-black'}"
+            title={isRoleLocked('community') ? 'Join the community to unlock' : ''}
           >
-            POAPs
+            <span>POAPs</span>
+            {#if isRoleLocked('community')}
+              <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            {/if}
           </a>
         </div>
       {/if}
@@ -835,10 +920,11 @@
             Contribution Submissions
           </a>
           {#if canAccessFeatureReviews}
-            <a
-              href="/stewards/feature-reviews"
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-                isActive('/stewards/feature-reviews') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
+              <a
+                href="/stewards/feature-reviews"
+                onclick={(e) => { e.preventDefault(); navigate('/stewards/feature-reviews'); }}
+                class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                  isActive('/stewards/feature-reviews') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
               }"
             >
               Feature Scoring
@@ -925,7 +1011,7 @@
   </div>
 
   <!-- Bottom pinned area (mobile) -->
-  <div class="p-3 space-y-2">
+  <div class="flex-shrink-0 p-3 space-y-2">
     <button
       onclick={() => navigate('/how-it-works')}
       class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-left {isActive('/how-it-works') ? 'bg-[#eeedfb]' : 'hover:bg-[#f5f5f5]'}"
@@ -935,15 +1021,6 @@
       </svg>
       <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/how-it-works') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">How it works</span>
     </button>
-    {#if $authState.isAuthenticated}
-      <button
-        onclick={handleSubmitContribution}
-        class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"
-      >
-        <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
-        <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">Submit Contribution</span>
-      </button>
-    {/if}
     {#if $authState.isAuthenticated}
       <button
         onclick={() => navigate('/my-submissions')}

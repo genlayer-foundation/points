@@ -40,6 +40,7 @@ ROLE_HEXAGONS = {
     "builder": ASSETS / "icons" / "hexagon-builder.svg",
     "validator": ASSETS / "icons" / "hexagon-validator.svg",
     "community": ASSETS / "icons" / "hexagon-community.svg",
+    "steward": ASSETS / "icons" / "hexagon-steward.svg",
 }
 
 ROLE_INNER_ICONS = {
@@ -47,6 +48,7 @@ ROLE_INNER_ICONS = {
     "builder": ASSETS / "icons" / "terminal-fill-white.svg",
     "validator": ASSETS / "icons" / "shield-white.svg",
     "community": ASSETS / "icons" / "group-white.svg",
+    "steward": ASSETS / "icons" / "seedling-line-white.svg",
 }
 
 LOGO_SYMBOLS = {
@@ -58,12 +60,46 @@ LOGO_SYMBOLS = {
 CARDS = [
     {
         "file": "portal",
-        "backdrop": "portal",
+        "backdrop": "portal-overview",
         "theme": "dark",
-        "eyebrow": "GenLayer Portal",
-        "title": "GenLayer Portal",
-        "description": "Track contributions, points, validators, builders, community activity, events, and ecosystem programs.",
-        "roles": ["genlayer", "builder", "validator", "community"],
+        "eyebrow": "Overview",
+        "title": "Gateway to the Ecosystem",
+        "description": "Builders, validators, community, and stewards in one view.",
+        "brand": "GenLayer Portal",
+        "roles": ["genlayer", "builder", "validator", "community", "steward"],
+    },
+    {
+        "file": "builders",
+        "backdrop": "builders",
+        "theme": "dark",
+        "eyebrow": "Builders",
+        "title": "Build Contracts That Can Think",
+        "description": "Create Intelligent Contracts that read the web, reason, and resolve outcomes.",
+        "brand": "GenLayer Portal",
+        "roles": ["builder"],
+    },
+    {
+        "file": "validators",
+        "backdrop": "validators-landing",
+        "theme": "dark",
+        "eyebrow": "Validators",
+        "title": "Adjudicate the Agentic Economy",
+        "description": "Run AI models, reason through disputes, and earn for judgment.",
+        "brand": "GenLayer Portal",
+        "roles": ["validator"],
+    },
+    {
+        "file": "community",
+        "backdrop": "community",
+        "theme": "dark",
+        "eyebrow": "Community",
+        "title": "Grow the Adjudication Layer for the Agentic Economy",
+        "description": "Test, create, report, and grow the GenLayer network from day one.",
+        "brand": "GenLayer Portal",
+        "title_max_lines": 4,
+        "title_max_size": 64,
+        "title_max_width": 620,
+        "roles": ["community"],
     },
     {
         "file": "how-it-works",
@@ -318,8 +354,14 @@ def wrap_text(text: str, draw: ImageDraw.ImageDraw, text_font: ImageFont.FreeTyp
     return lines
 
 
-def fit_title(draw: ImageDraw.ImageDraw, text: str, max_width: int, max_lines: int) -> tuple[ImageFont.FreeTypeFont, list[str]]:
-    for size in range(84, 55, -2):
+def fit_title(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    max_width: int,
+    max_lines: int,
+    max_size: int = 84,
+) -> tuple[ImageFont.FreeTypeFont, list[str]]:
+    for size in range(max_size, 55, -2):
         title_font = font(TITLE_FONT_PATH, size)
         lines = wrap_text(text, draw, title_font, max_width)
         if len(lines) <= max_lines:
@@ -344,7 +386,7 @@ def draw_multiline(
     return y
 
 
-def draw_brand(base: Image.Image, theme: str) -> None:
+def draw_brand(base: Image.Image, theme: str, label: str = "GenLayer") -> None:
     palette = THEMES[theme]
     logo_color = palette["logo"]
     symbol = render_svg(LOGO_SYMBOLS[logo_color], 42)
@@ -354,7 +396,7 @@ def draw_brand(base: Image.Image, theme: str) -> None:
 
     draw = ImageDraw.Draw(base)
     brand_font = font(BODY_FONT_PATH, 36)
-    draw.text((x + 54, y + 1), "GenLayer", font=brand_font, fill=palette["accent"])
+    draw.text((x + 54, y + 1), label, font=brand_font, fill=palette["accent"])
 
 
 def draw_role_hexes(base: Image.Image, roles: list[str]) -> None:
@@ -365,7 +407,7 @@ def draw_role_hexes(base: Image.Image, roles: list[str]) -> None:
     gap = 12
     x = 72
     y = HEIGHT - 110
-    for role in roles[:4]:
+    for role in roles[:5]:
         icon_path = ROLE_HEXAGONS.get(role)
         if not icon_path:
             continue
@@ -390,13 +432,19 @@ def render_card(card: dict[str, object]) -> None:
     base = base.filter(ImageFilter.UnsharpMask(radius=1, percent=105, threshold=3))
     add_readability_overlay(base, theme)
 
-    draw_brand(base, theme)
+    draw_brand(base, theme, str(card.get("brand", "GenLayer")))
     draw = ImageDraw.Draw(base)
 
     eyebrow_font = font(BODY_FONT_PATH, 24)
     draw.text((72, 150), str(card["eyebrow"]).upper(), font=eyebrow_font, fill=palette["muted"])
 
-    title_font, title_lines = fit_title(draw, str(card["title"]), 690, 3)
+    title_font, title_lines = fit_title(
+        draw,
+        str(card["title"]),
+        int(card.get("title_max_width", 690)),
+        int(card.get("title_max_lines", 3)),
+        int(card.get("title_max_size", 84)),
+    )
     title_bottom = draw_multiline(draw, (72, 190), title_lines, title_font, palette["title"], 6)
 
     body_font = font(BODY_FONT_PATH, 27)

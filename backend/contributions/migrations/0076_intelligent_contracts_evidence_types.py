@@ -37,7 +37,7 @@ def backwards(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('contributions', '0073_contributiontype_required_evidence_url_type_groups'),
+        ('contributions', '0075_contributiontype_required_evidence_url_type_groups'),
     ]
 
     operations = [

@@ -150,7 +150,7 @@
         {/if}
       </div>
       <p class="mt-2 text-[13px] sm:text-[14px] text-[#506078]">
-        Open-ended contribution paths for builders, validators, and community members.
+        Open-ended contribution paths for builders, validators, and creators.
       </p>
     </div>
 

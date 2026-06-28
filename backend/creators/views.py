@@ -1,7 +1,10 @@
+from django.db import transaction
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+from creators import community_journey as cj
 from .models import Creator
 from users.serializers import CreatorSerializer
 
@@ -10,17 +13,46 @@ from users.serializers import CreatorSerializer
 @permission_classes([IsAuthenticated])
 def join_creator_view(request):
     """
-    Allow authenticated users to join the community program.
+    Legacy creator join endpoint.
+
+    Keep the route for old clients, but do not let it bypass the community
+    journey. The Creator row is granted only after the journey has started and
+    all required steps are complete.
     """
     user = request.user
 
-    if hasattr(user, 'creator'):
+    journey = cj.journey_status(user)
+    if not journey['started']:
         return Response(
-            {'message': 'You are already a community member!'},
+            {
+                'error': 'not_started',
+                'missing_steps': ['start'],
+                'message': 'Start the Creator journey first.',
+            },
             status=status.HTTP_400_BAD_REQUEST
         )
+    if not journey['complete']:
+        return Response(
+            {
+                'error': 'incomplete',
+                'missing_steps': journey['missing_steps'],
+                'message': 'Complete all Creator journey steps first.',
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    creator = Creator.objects.create(user=user)
+    with transaction.atomic():
+        creator, created = Creator.objects.get_or_create(user=user)
+
+    if not created:
+        serializer = CreatorSerializer(creator)
+        return Response({
+            'message': 'You are already a creator!',
+            'creator': serializer.data,
+        }, status=status.HTTP_200_OK)
+
+    from leaderboard.models import update_user_leaderboard_entries
+    update_user_leaderboard_entries(user)
     serializer = CreatorSerializer(creator)
 
     return Response({

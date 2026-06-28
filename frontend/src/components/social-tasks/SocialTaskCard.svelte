@@ -6,9 +6,10 @@
   import { userStore } from '../../lib/userStore.js';
   import { showSuccess, showError } from '../../lib/toastStore.js';
   import { getCategoryPillColors } from '../../lib/categoryColors.js';
+  import { getAnalyticsContext, setConnectWalletIntent, trackEvent } from '../../lib/analytics.js';
   import SocialLink from '../SocialLink.svelte';
 
-  let { task, onCompleted = () => {} } = $props();
+  let { task, onCompleted = () => {}, pointsLabel = 'pts' } = $props();
 
   // ~5 seconds after a click-through user opens the link, we credit them.
   const CLICK_THROUGH_DELAY_MS = 5000 + Math.floor(Math.random() * 500);
@@ -39,6 +40,11 @@
   // Display names for connection platforms; unknown ones fall back to the
   // raw slug so a new backend connection type still renders something sane.
   const PLATFORM_LABELS = { twitter: 'X', discord: 'Discord', github: 'GitHub' };
+  const STEP_BY_TASK_SLUG = {
+    'star-genlayer-boilerplate': { role: 'builder', step: 'star', index: 3, required: true },
+    'follow-genlayer-x': { role: 'community', step: 'follow_x', index: 3, required: true },
+    'join-genlayer-discord': { role: 'community', step: 'join_discord', index: 4, required: true },
+  };
   let requiredPlatform = $derived(task.required_connection || null);
   let platformLabel = $derived(
     requiredPlatform ? (PLATFORM_LABELS[requiredPlatform] ?? requiredPlatform) : ''
@@ -74,21 +80,60 @@
     }
   }
 
-  async function callComplete() {
+  function taskStepMeta() {
+    return STEP_BY_TASK_SLUG[task.slug] || {
+      role: category,
+      step: task.slug,
+      index: 0,
+      required: false,
+    };
+  }
+
+  function taskErrorCode(err) {
+    const code = String(err?.response?.data?.error || '').toLowerCase();
+    if (['social_account_not_linked', 'token_invalid_relink_required', 'verification_failed', 'verification_unavailable'].includes(code)) {
+      return code;
+    }
+    if (err?.response?.status === 410) return 'task_inactive';
+    if (err?.response?.status) return 'backend_error';
+    return 'unknown_error';
+  }
+
+  function trackTaskStepEvent(name, extra = {}) {
+    const meta = taskStepMeta();
+    trackEvent(name, getAnalyticsContext({
+      role_context: meta.role,
+      selected_role: ['builder', 'validator', 'community'].includes(meta.role) ? meta.role : undefined,
+      surface: 'journey',
+      step_id: meta.step,
+      step_index: meta.index,
+      step_required: meta.required,
+      verification_mode: requiresVerification ? 'social_task' : 'click_through',
+      ...extra,
+    }));
+  }
+
+  async function callComplete({ trackAction = true } = {}) {
     if (busy || isCompleted) return;
     clearClickThroughTimer();
+    if (trackAction) trackTaskStepEvent('journey_step_action_click');
     busy = true;
     try {
       const res = await socialTasksAPI.complete(task.slug);
       const data = res.data;
       const points = data?.points_awarded ?? task.points;
       if (data?.status === 'already_completed') {
-        showSuccess(`Already completed (${points} pts).`);
+        showSuccess(`Already completed (${points} ${pointsLabel}).`);
       } else {
-        showSuccess(`Nice. ${points} points awarded.`);
+        showSuccess(`Nice. ${points} ${pointsLabel} awarded.`);
       }
+      trackTaskStepEvent('journey_step_verified');
       onCompleted({ task, completion: data });
     } catch (err) {
+      trackTaskStepEvent('journey_step_error', {
+        error_code: taskErrorCode(err),
+        error_stage: err?.response?.status ? 'backend' : 'network',
+      });
       handleError(err);
     } finally {
       busy = false;
@@ -102,6 +147,7 @@
   // Direct-gesture anchor navigation is not popup-blocked.
   function handleOpened() {
     opened = true;
+    trackTaskStepEvent('journey_step_action_click');
 
     if (!requiresVerification && isAuthenticated) {
       clearClickThroughTimer();
@@ -109,12 +155,18 @@
       clickThroughTimer = setTimeout(() => {
         clickThroughTimer = null;
         pendingClickThrough = false;
-        callComplete();
+        callComplete({ trackAction: false });
       }, CLICK_THROUGH_DELAY_MS);
     }
   }
 
   function triggerSignIn() {
+    const meta = taskStepMeta();
+    setConnectWalletIntent({
+      surface: 'journey',
+      cta_id: `${meta.step}_social_task_auth`,
+      selected_role: ['builder', 'validator', 'community'].includes(meta.role) ? meta.role : undefined,
+    });
     document.querySelector('[data-auth-button]')?.click();
   }
 
@@ -141,7 +193,7 @@
       style="background: {colors.pillBg}; color: {colors.pillText};"
     >
       <!-- Completed tasks show the frozen snapshot, not the task's current value -->
-      +{isCompleted ? (task.points_awarded ?? task.points) : task.points} pts
+      +{isCompleted ? (task.points_awarded ?? task.points) : task.points} {pointsLabel}
     </span>
   </div>
 
@@ -190,7 +242,7 @@
       <!-- The user opened the link: verifying is now the primary action. -->
       <button
         type="button"
-        onclick={callComplete}
+        onclick={() => callComplete({ trackAction: false })}
         disabled={busy}
         class="text-xs font-semibold text-black transition-colors hover:opacity-70 disabled:opacity-50 disabled:cursor-not-allowed"
       >
@@ -244,7 +296,7 @@
         {#if requiresVerification || opened}
           <button
             type="button"
-            onclick={callComplete}
+            onclick={() => callComplete({ trackAction: !opened })}
             disabled={busy}
             aria-label={requiresVerification ? 'Verify completion' : 'Claim now'}
             title={requiresVerification ? 'Verify completion' : 'Claim now'}

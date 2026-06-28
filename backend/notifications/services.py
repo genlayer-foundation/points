@@ -685,7 +685,7 @@ def broadcast_social_task(task, actor=None, message=''):
     """Announce a social task to the role its category targets.
 
     Builder tasks go to builders, validator tasks to validators, community
-    tasks to community members (Creator profiles) — never to everyone.
+    tasks to creators (Creator profiles) — never to everyone.
     """
     category_slug = task.category.slug
     audience = SOCIAL_TASK_AUDIENCES.get(category_slug)

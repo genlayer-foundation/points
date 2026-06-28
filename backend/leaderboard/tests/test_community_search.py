@@ -108,6 +108,7 @@ class CommunityLeaderboardSearchTest(TestCase):
             defaults={
                 'name': 'Community Link X',
                 'category': Category.objects.get(slug='community'),
+                'max_points': 500,
             },
         )
         GlobalLeaderboardMultiplier.objects.get_or_create(

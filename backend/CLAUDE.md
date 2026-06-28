@@ -264,7 +264,7 @@ backend/
 - **Registry**: `notifications/registry.py` - Single source of truth for event types (category, priority, default audience, future channels). **Adding a new notification = register an EventType here + emit it from the producer.**
 - **Services**: `notifications/services.py`
   - Core: `notify()` (personal), `broadcast()` (audience-wide single row), `recall_broadcast()` (delete a source object's broadcast row), `feed_for(user)`, `mark_notification_read()`, `mark_all_read()`
-  - Producers: `notify_submission_review`, `notify_contribution_highlighted` (via post_save receiver), `notify_referral_joined` (ethereum_auth login), `notify_validator_graduated` (users admin action), `broadcast_featured_content/partner/alert/contribution_type/mission/stream/poap/target_node_version`, `broadcast_social_task` (audience derived from the task's category: builder→builders, validator→validators, community→community members)
+  - Producers: `notify_submission_review`, `notify_contribution_highlighted` (via post_save receiver), `notify_referral_joined` (ethereum_auth login), `notify_validator_graduated` (users admin action), `broadcast_featured_content/partner/alert/contribution_type/mission/stream/poap/target_node_version`, `broadcast_social_task` (audience derived from the task's category: builder→builders, validator→validators, community→creators)
 - **Admin mixin**: `notifications/admin_mixins.py` - `BroadcastNotificationAdminMixin` adds an off-by-default "Broadcast notification now" checkbox + bulk action, plus recall checkbox/action, to any ModelAdmin (`broadcast_event_slug`, `broadcast_service`, `broadcast_eligible` config). Applied to FeaturedContent, Alert, ContributionType, Mission, Partner, Stream, PoapDrop, TargetNodeVersion, SocialTask admins. Saving/activating stays silent unless explicitly checked.
 - **Views**: `notifications/views.py`
   - `/api/v1/notifications/` - Auth-required feed (reverse-chronological; `?unread=true`, `?category=` filters)
@@ -371,6 +371,9 @@ GET    /api/v1/users/by-address/{address}/ (requires auth)
 GET    /api/v1/users/validators/   (requires auth)
 POST   /api/v1/users/link_x_account/       (requires auth, awards configured points for linking X)
 POST   /api/v1/users/link_discord_account/  (requires auth, awards configured points for linking Discord)
+POST   /api/v1/users/link_github_account/   (requires auth, awards community-link-github points; auto-fired by SocialLink.svelte on GitHub link)
+POST   /api/v1/users/start_builder_journey/    (requires auth, no-op: no longer awards points)
+POST   /api/v1/users/complete_builder_journey/ (requires auth, grants Builder role point-free; gated on the star-boilerplate social task)
 
 # Social Tasks
 GET    /api/v1/social-tasks/                     (?status=active|completed&category=community|builder|validator)

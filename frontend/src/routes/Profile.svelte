@@ -6,23 +6,20 @@
     statsAPI,
     leaderboardAPI,
     journeyAPI,
-    creatorAPI,
-    getCurrentUser,
-    githubAPI,
     validatorsAPI,
     poapsAPI,
   } from "../lib/api";
   import { authState } from "../lib/auth";
   import { getValidatorBalance } from "../lib/blockchain";
-  import { showSuccess, showWarning, showError } from "../lib/toastStore";
+  import { showSuccess, showWarning } from "../lib/toastStore";
   import { parseMarkdown } from "../lib/markdownLoader.js";
   import { getTopRole } from "../lib/profileRole.js";
+  import { hasStartedJourney } from "../lib/roleState.js";
 
   import ProfileHeader from "../components/profile/ProfileHeader.svelte";
   import RankingsWidget from "../components/profile/RankingsWidget.svelte";
-  import JourneyActions from "../components/profile/JourneyActions.svelte";
-  import ProgressJourney from "../components/profile/ProgressJourney.svelte";
   import RoleView from "../components/profile/RoleView.svelte";
+  import RoleJourneyCard from "../components/profile/RoleJourneyCard.svelte";
   import StewardView from "../components/profile/StewardView.svelte";
   import CommunityView from "../components/profile/CommunityView.svelte";
   import ReferralsView from "../components/profile/ReferralsView.svelte";
@@ -66,27 +63,22 @@
   let balance = $state(null);
   let testnetBalance = $state(null);
   let loadingBalance = $state(false);
-  let hasDeployedContract = $state(false);
   let isRefreshingBalance = $state(false);
-  let isClaimingBuilderBadge = $state(false);
-  let hasStarredRepo = $state(false);
-  let repoToStar = $state("genlayerlabs/genlayer-project-boilerplate");
-  let isCheckingRepoStar = $state(false);
-  let isCompletingJourney = $state(false);
   let referralData = $state(null);
   let loadingReferrals = $state(false);
   let hasShownStatsErrorToast = $state(false);
   let validatorWallets = $state([]);
   let loadingValidatorWallets = $state(false);
   let referralPoints = $state({ builder_points: 0, validator_points: 0 });
-  let isClaimingX = $state(false);
-  let isClaimingDiscord = $state(false);
   let contributionStatsLoaded = $state(false);
   let builderStatsLoaded = $state(false);
   let validatorStatsLoaded = $state(false);
   let communityStatsLoaded = $state(false);
   let poapCount = $state(0);
   let poapCountLoaded = $state(false);
+  let communityJourney: any = $state(null);
+  let communityJourneyCheckKey = $state("");
+  let communityJourneyCheckFailed = $state(false);
 
   // Check if this is the current user's profile
   let isOwnProfile = $derived(
@@ -120,8 +112,47 @@
       !participant.has_builder_welcome,
   );
 
+  // In-progress role journeys are shown only on the owner's own profile.
+  let builderInProgress = $derived(isOwnProfile && hasStartedJourney(participant, "builder"));
+  let validatorWaitlistPending = $derived(
+    isOwnProfile && participant?.has_validator_waitlist && !participant?.validator,
+  );
+  let validatorInProgress = $derived(
+    isOwnProfile && (hasStartedJourney(participant, "validator") || validatorWaitlistPending),
+  );
+  let communityJourneyComplete = $derived(
+    Boolean(communityJourney?.complete && communityJourney?.is_member),
+  );
+  // Only a LOADED journey response that says "started but not yet complete"
+  // counts as in-progress here. Holding the Creator role alone is NOT enough:
+  // pre-existing creators from the old backfill never went through the new
+  // journey, so they have no started-but-incomplete state and must not be
+  // forced into the grey "in progress" view.
+  let communityJourneyStartedIncomplete = $derived(
+    Boolean(communityJourney) &&
+      communityJourney.started === true &&
+      !communityJourneyComplete,
+  );
+  let communityJourneyHasLocalSignal = $derived(
+    Boolean(
+      participant?.has_community_welcome ||
+        participant?.has_community_link_x ||
+        participant?.has_community_link_discord,
+    ),
+  );
+  let communityInProgress = $derived(
+    isOwnProfile &&
+      (hasStartedJourney(participant, "community") ||
+        communityJourneyHasLocalSignal ||
+        communityJourneyStartedIncomplete),
+  );
+  let profileRoleParticipant = $derived.by(() => {
+    if (!participant || !communityInProgress || !participant.creator) return participant;
+    return { ...participant, creator: false };
+  });
+
   let topRole = $derived(
-    getTopRole(participant, {
+    getTopRole(profileRoleParticipant, {
       builderStats,
       validatorStats,
       communityStats,
@@ -140,7 +171,7 @@
 
   let showReferralsSection = $derived(isOwnProfile || hasReferralData);
   let showCommunitySection = $derived(
-    Boolean(participant && (participant.creator || poapCount > 0)),
+    Boolean(participant && !communityInProgress && (participant.creator || poapCount > 0)),
   );
   let hasValidatorPoints = $derived((validatorStats?.totalPoints ?? 0) > 0);
 
@@ -177,6 +208,58 @@
     }
   });
 
+  $effect(() => {
+    const key = getCommunityJourneyStatusKey();
+    if (key === communityJourneyCheckKey) return;
+
+    communityJourneyCheckKey = key;
+    communityJourney = null;
+    communityJourneyCheckFailed = false;
+
+    if (key) {
+      loadCommunityJourneyStatus(key);
+    }
+  });
+
+  function getCommunityJourneyStatusKey() {
+    const participantAddress = participant?.address ? String(participant.address).toLowerCase() : "";
+    const authAddress = $authState.address ? String($authState.address).toLowerCase() : "";
+    const ownProfile =
+      $authState.isAuthenticated &&
+      participantAddress &&
+      authAddress === participantAddress;
+    if (!ownProfile) return "";
+
+    const hasCommunitySignal =
+      participant?.creator ||
+      participant?.has_community_welcome ||
+      participant?.has_community_link_x ||
+      participant?.has_community_link_discord;
+    if (!hasCommunitySignal) return "";
+
+    return [
+      participantAddress,
+      participant.creator ? 1 : 0,
+      participant.has_community_welcome ? 1 : 0,
+      participant.has_community_link_x ? 1 : 0,
+      participant.has_community_link_discord ? 1 : 0,
+    ].join(":");
+  }
+
+  async function loadCommunityJourneyStatus(key = communityJourneyCheckKey) {
+    if (!key) return;
+    communityJourneyCheckFailed = false;
+    try {
+      const response = await journeyAPI.communityJourney();
+      if (key !== communityJourneyCheckKey) return;
+      communityJourney = response.data || null;
+    } catch (_) {
+      if (key === communityJourneyCheckKey) {
+        communityJourneyCheckFailed = true;
+      }
+    }
+  }
+
   async function refreshBalance() {
     if (!participant?.address) return;
     isRefreshingBalance = true;
@@ -205,70 +288,6 @@
     }
   }
 
-  async function claimBuilderWelcome() {
-    if (!$authState.isAuthenticated) {
-      document.querySelector(".auth-button")?.click();
-      return;
-    }
-    isClaimingBuilderBadge = true;
-    try {
-      await journeyAPI.startBuilderJourney();
-      participant = await getCurrentUser();
-      // Wait for the DOM to render the builder journey section, then scroll to it
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          const el = document.getElementById("builder-journey-section");
-          if (el) {
-            el.scrollIntoView({ behavior: "smooth", block: "start" });
-          }
-        }, 50);
-      });
-    } catch (err) {
-    } finally {
-      isClaimingBuilderBadge = false;
-    }
-  }
-
-  async function startCreatorJourney() {
-    if (!$authState.isAuthenticated) return;
-    error = null;
-    try {
-      const response = await creatorAPI.joinAsCreator();
-      if (response.status === 201 || response.status === 200) {
-        showSuccess(
-          "You are now a Community Member! Start contributing to the community.",
-        );
-        participant = await getCurrentUser();
-      }
-    } catch (err) {
-      error = err.response?.data?.message || "Failed to join the community";
-    }
-  }
-
-  async function handleGitHubLinked(updatedUser) {
-    participant = updatedUser;
-  }
-
-  async function checkRepoStar() {
-    if (!participant?.github_connection?.platform_username) return;
-    isCheckingRepoStar = true;
-    try {
-      const response = await githubAPI.checkStar();
-      hasStarredRepo = response.data.has_starred;
-      repoToStar =
-        response.data.repo || "genlayerlabs/genlayer-project-boilerplate";
-    } catch (err) {
-      hasStarredRepo = false;
-    } finally {
-      isCheckingRepoStar = false;
-    }
-  }
-
-  function openStudio() {
-    hasDeployedContract = true;
-    window.open("https://studio.genlayer.com", "_blank", "noopener,noreferrer");
-  }
-
   async function refreshBuilderStats() {
     const address = participant?.address;
     if (!address) return;
@@ -284,42 +303,6 @@
     } catch (_) {}
   }
 
-  async function completeBuilderJourney() {
-    if (!$authState.isAuthenticated || isCompletingJourney) return;
-    isCompletingJourney = true;
-    try {
-      const response = await journeyAPI.completeBuilderJourney();
-      if (response.status === 201 || response.status === 200) {
-        if (response.data?.user) {
-          participant = response.data.user;
-        }
-        showSuccess("Congratulations! 🎉 You are now a GenLayer Builder!");
-        refreshBuilderStats();
-      }
-    } catch (err) {
-      if (err.response?.status === 200) {
-        if (err.response.data?.user) participant = err.response.data.user;
-        showSuccess("Congratulations! 🎉 You are now a GenLayer Builder!");
-        refreshBuilderStats();
-      } else if (err.response?.status === 400) {
-        showError(
-          err.response?.data?.error || "Some requirements are not yet met.",
-        );
-      } else {
-        showError("Something went wrong. Please try again later.");
-      }
-    } finally {
-      isCompletingJourney = false;
-    }
-  }
-
-  async function refreshCommunityStats() {
-    if (!participant?.address) return;
-    try {
-      const res = await statsAPI.getUserStats(participant.address, "community");
-      if (res.data) communityStats = res.data;
-    } catch (_) {}
-  }
 
   async function fetchPoapCount(participantAddress: string) {
     const isCurrentRequest = () =>
@@ -347,42 +330,13 @@
     }
   }
 
-  async function handleClaimX() {
-    if (!$authState.isAuthenticated || isClaimingX) return;
-    isClaimingX = true;
-    try {
-      await journeyAPI.linkXAccount();
-      participant = await getCurrentUser();
-      refreshCommunityStats();
-    } catch (err) {
-      showError(err.response?.data?.error || 'Failed to claim X linking reward');
-    } finally {
-      isClaimingX = false;
-    }
-  }
-
-  async function handleClaimDiscord() {
-    if (!$authState.isAuthenticated || isClaimingDiscord) return;
-    isClaimingDiscord = true;
-    try {
-      await journeyAPI.linkDiscordAccount();
-      participant = await getCurrentUser();
-      refreshCommunityStats();
-    } catch (err) {
-      showError(err.response?.data?.error || 'Failed to claim Discord linking reward');
-    } finally {
-      isClaimingDiscord = false;
-    }
-  }
-
-  async function handleCommunityLinked(updatedUser) {
-    participant = updatedUser;
-  }
-
   async function fetchParticipantData(participantAddress) {
     try {
       loading = true;
       error = null;
+      communityJourney = null;
+      communityJourneyCheckKey = "";
+      communityJourneyCheckFailed = false;
       contributionStatsLoaded = false;
       builderStatsLoaded = false;
       validatorStatsLoaded = false;
@@ -688,7 +642,12 @@
       {error}
     </div>
   {:else if participant}
-    <ProfileHeader {participant} {isOwnProfile} onParticipantUpdated={(updatedUser) => { participant = { ...participant, ...updatedUser }; }} />
+    <ProfileHeader
+      {participant}
+      {isOwnProfile}
+      communityJourneyInProgress={communityInProgress}
+      onParticipantUpdated={(updatedUser) => { participant = { ...participant, ...updatedUser }; }}
+    />
 
     {#if !isValidatorOnly}
       <div class="mb-10 mt-6 w-full px-0 mx-0">
@@ -879,60 +838,9 @@
             loading={!builderStatsLoaded}
           />
         </div>
-      {:else if participant?.has_builder_welcome && isOwnProfile}
-        <div
-          id="builder-journey-section"
-          class="w-full mb-16 pt-10 border-t border-gray-100 mt-10"
-        >
-          <div class="w-full flex flex-col items-start mt-8">
-            <!-- Header (same as RoleView) -->
-            <div class="flex items-center gap-[10px] mb-4">
-              <div
-                class="relative flex-shrink-0"
-                style="width: 32px; height: 32px;"
-              >
-                <img
-                  src="/assets/icons/hexagon-builder-light.svg"
-                  alt=""
-                  class="w-full h-full"
-                />
-                <img
-                  src="/assets/icons/terminal-line-orange.svg"
-                  alt=""
-                  class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-                  style="width: 16px; height: 16px;"
-                />
-              </div>
-              <h2
-                class="text-[20px] font-semibold text-black"
-                style="letter-spacing: 0.4px;"
-              >
-                Builder Journey
-              </h2>
-            </div>
-
-            <!-- Progress Journey Steps -->
-            <div class="w-full">
-              <ProgressJourney
-                {testnetBalance}
-                hasBuilderWelcome={participant?.has_builder_welcome || false}
-                {hasDeployedContract}
-                githubUsername={participant?.github_connection?.platform_username || ""}
-                {hasStarredRepo}
-                {repoToStar}
-                onClaimBuilderBadge={claimBuilderWelcome}
-                {isClaimingBuilderBadge}
-                onRefreshBalance={refreshBalance}
-                {isRefreshingBalance}
-                onGitHubLinked={handleGitHubLinked}
-                onCheckRepoStar={checkRepoStar}
-                {isCheckingRepoStar}
-                onOpenStudio={openStudio}
-                onCompleteJourney={completeBuilderJourney}
-                {isCompletingJourney}
-              />
-            </div>
-          </div>
+      {:else if builderInProgress}
+        <div class="w-full mb-16 pt-10 border-t border-gray-100 mt-10">
+          <RoleJourneyCard role="builder" {participant} />
         </div>
       {/if}
 
@@ -954,6 +862,10 @@
             loading={!validatorStatsLoaded}
           />
         </div>
+      {:else if validatorInProgress}
+        <div class="w-full mb-16 pt-10 border-t border-gray-100 mt-10">
+          <RoleJourneyCard role="validator" {participant} />
+        </div>
       {/if}
 
       <!-- Community Section -->
@@ -966,12 +878,11 @@
             communityStatsLoading={!communityStatsLoaded}
             {poapCount}
             poapCountLoading={!poapCountLoaded}
-            onSocialLinked={handleCommunityLinked}
-            onClaimX={handleClaimX}
-            onClaimDiscord={handleClaimDiscord}
-            {isClaimingX}
-            {isClaimingDiscord}
           />
+        </div>
+      {:else if communityInProgress}
+        <div class="w-full mb-16 pt-10 border-t border-gray-100 mt-10">
+          <RoleJourneyCard role="community" {participant} />
         </div>
       {/if}
 
@@ -988,18 +899,6 @@
         </div>
       {/if}
 
-      <!-- Footer action steps component -->
-      {#if isOwnProfile}
-        <div
-          class="border-t border-gray-100 pt-10 mt-10 w-full pb-10 journey-actions-section"
-        >
-          <JourneyActions
-            {participant}
-            onJoinCommunity={startCreatorJourney}
-            onApplyBuilder={claimBuilderWelcome}
-          />
-        </div>
-      {/if}
 
       <div class="w-auto -mx-3 -mb-3">
         <CTABanner variant="dark" {participant} {referralData} {topRole} />

@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('contributions', '0072_submittedcontribution_gate_reviewed'),
+        ('contributions', '0074_update_creator_category_descriptions'),
     ]
 
     operations = [

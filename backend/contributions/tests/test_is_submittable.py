@@ -259,8 +259,11 @@ class StewardModeTest(TestCase):
     
     def test_steward_can_see_all_types_without_filter(self):
         """Test that when no is_submittable filter is provided, all types are returned."""
-        # This simulates steward mode where they don't send the is_submittable filter
-        response = self.client.get(self.api_url)
+        # This simulates steward mode where they don't send the is_submittable filter.
+        # Request a large page so all test types stay on one page (the default
+        # page size is 10; new system contribution types must not push them onto
+        # page 2 and break this count).
+        response = self.client.get(self.api_url, {'page_size': 100})
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()

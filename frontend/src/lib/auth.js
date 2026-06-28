@@ -4,6 +4,8 @@ import { writable } from 'svelte/store';
 import { userStore } from './userStore';
 import { API_BASE_URL } from './config.js';
 import { attachCsrfToken } from './csrf.js';
+import { detectCategoryFromRoute } from '../stores/category.js';
+import { roleForCategory } from './roleState.js';
 
 // Create a Svelte store for authentication state
 const createAuthStore = () => {
@@ -274,6 +276,17 @@ Issued At: ${new Date().toISOString()}`;
 export async function signInWithEthereum(provider = null, walletName = 'wallet', skipRedirect = false) {
   authState.setLoading(true);
   authState.setError(null);
+
+  // Capture the role implied by the page the user started auth from (e.g. the
+  // builder landing), BEFORE the post-login redirect moves them. The
+  // profile-completion guard uses it to preselect the role for first-time users,
+  // regardless of where connect was triggered (sidebar / navbar / landing).
+  try {
+    sessionStorage.setItem(
+      'onboardingRole',
+      roleForCategory(detectCategoryFromRoute(window.location.pathname)),
+    );
+  } catch {}
 
   try {
     // Connect to wallet and get address

@@ -44,7 +44,7 @@ class Notification(BaseModel):
         (AUDIENCE_VALIDATORS, 'Validators'),
         (AUDIENCE_STEWARDS, 'Stewards'),
         (AUDIENCE_BUILDERS, 'Builders'),
-        (AUDIENCE_COMMUNITY, 'Community members'),
+        (AUDIENCE_COMMUNITY, 'Creators'),
     ]
 
     recipient = models.ForeignKey(

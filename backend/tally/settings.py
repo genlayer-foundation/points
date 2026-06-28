@@ -261,12 +261,19 @@ GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET', '')
 GITHUB_REDIRECT_URI = f"{BACKEND_URL}/api/auth/github/callback/"
 GITHUB_ENCRYPTION_KEY = os.environ.get('GITHUB_ENCRYPTION_KEY', '')
 GITHUB_REPO_TO_STAR = os.environ.get('GITHUB_REPO_TO_STAR', 'genlayerlabs/genlayer-project-boilerplate')
+# Slug of the social task that gates the (point-free) builder role grant. Keep in
+# sync with the seed in social_tasks migration 0004; renaming/deactivating that
+# task blocks builder completion until it's restored.
+BUILDER_JOURNEY_TASK_SLUG = os.environ.get('BUILDER_JOURNEY_TASK_SLUG', 'star-genlayer-boilerplate')
 
 # Twitter/X OAuth settings
 TWITTER_CLIENT_ID = os.environ.get('TWITTER_CLIENT_ID', '')
 TWITTER_CLIENT_SECRET = os.environ.get('TWITTER_CLIENT_SECRET', '')
 TWITTER_REDIRECT_URI = os.environ.get('TWITTER_REDIRECT_URI', f"{BACKEND_URL}/api/auth/twitter/callback/")
 X_METRICS_USERNAME = os.environ.get('X_METRICS_USERNAME', 'GenLayer')
+# Handle the community-journey X post must @mention (without @). Used to verify
+# the post tags GenLayer.
+GENLAYER_X_HANDLE = os.environ.get('GENLAYER_X_HANDLE', 'genlayer')
 
 # Discord OAuth settings
 DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', '')

@@ -243,7 +243,7 @@ class ContributionTypesStatsView(APIView):
 
 class ParticipantsGrowthView(APIView):
     """
-    Get time series data for validators, waitlist users, builders, and community members growth over time.
+    Get time series data for validators, waitlist users, builders, and creators growth over time.
     Totals are deduplicated across cohorts so users present in multiple roles
     are only counted once in the overall participant total.
 

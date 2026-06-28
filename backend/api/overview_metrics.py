@@ -722,7 +722,7 @@ def build_overview_payload():
             'validators': overview_count_metric('validators', 'Validators', counts['validators'], generated_at),
             'community_members': overview_count_metric(
                 'community_members',
-                'Community members',
+                'Creators',
                 counts['community_members'],
                 generated_at,
             ),
