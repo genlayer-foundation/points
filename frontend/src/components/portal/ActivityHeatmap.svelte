@@ -1,5 +1,5 @@
 <script>
-  let { activity = [], loading = false } = $props();
+  let { activity = [], activityWindow = null, loading = false } = $props();
 
   const MS_PER_DAY = 24 * 60 * 60 * 1000;
   const MONTH_FORMAT = new Intl.DateTimeFormat(undefined, { month: 'short' });
@@ -36,7 +36,7 @@
     return `${formatNumber(value)} ${word}${Number(value) === 1 ? '' : 's'}`;
   }
 
-  function buildHeatmap(rows) {
+  function buildHeatmap(rows, window) {
     const entries = rows
       .map((row) => ({ row, date: parseDay(row?.date) }))
       .filter((entry) => entry.date)
@@ -46,8 +46,10 @@
       return { weeks: [], monthLabels: [], max: 0 };
     }
 
-    const first = entries[0].date;
-    const last = entries[entries.length - 1].date;
+    // Prefer the backend's declared window so the grid bounds follow the
+    // six-month contract even if leading/trailing zero days are ever omitted.
+    const first = parseDay(window?.start) || entries[0].date;
+    const last = parseDay(window?.end) || entries[entries.length - 1].date;
     const rangeLabel = `${DATE_FORMAT.format(first)} - ${DATE_FORMAT.format(last)}`;
     const start = startOfWeek(first);
     const end = endOfWeek(last);
@@ -102,7 +104,7 @@
     return { weeks, monthLabels, max, rangeLabel };
   }
 
-  const heatmap = $derived(buildHeatmap(activity));
+  const heatmap = $derived(buildHeatmap(activity, activityWindow));
 </script>
 
 <div class="activity-wrap">

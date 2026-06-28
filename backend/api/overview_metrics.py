@@ -715,6 +715,7 @@ def latest_network_activity():
     payload['version'] = NETWORK_ACTIVITY_PAYLOAD_VERSION
     payload.setdefault('activity', [])
     payload.setdefault('activity_window', None)
+    payload.setdefault('latest_week_by_source', {})
     # ISO string so the response is identical whether served fresh or from cache,
     # regardless of the cache backend's (de)serialization.
     payload['generated_at'] = snap.observed_at.isoformat()

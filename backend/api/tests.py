@@ -1047,6 +1047,7 @@ class NetworkActivityViewTests(TestCase):
         self.assertEqual(resp.data['version'], 5)
         self.assertEqual(resp.data['series'][0]['values'], [42])
         self.assertEqual(resp.data['activity'], [])
+        self.assertEqual(resp.data['latest_week_by_source'], {})
         mock_get.assert_not_called()
 
     @patch('api.overview_metrics.requests.get')

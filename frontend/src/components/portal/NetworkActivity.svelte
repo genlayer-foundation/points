@@ -77,11 +77,11 @@
         <h2>Network activity</h2>
         <p>{viewCopy}</p>
       </div>
-      <div class="view-tabs" aria-label="Network activity view">
-        <button type="button" class:active={activeView === 'graph'} onclick={() => (activeView = 'graph')}>
+      <div class="view-tabs" role="group" aria-label="Network activity view">
+        <button type="button" aria-pressed={activeView === 'graph'} class:active={activeView === 'graph'} onclick={() => (activeView = 'graph')}>
           Graph
         </button>
-        <button type="button" class:active={activeView === 'activity'} onclick={() => (activeView = 'activity')}>
+        <button type="button" aria-pressed={activeView === 'activity'} class:active={activeView === 'activity'} onclick={() => (activeView = 'activity')}>
           Activity
         </button>
       </div>
@@ -104,7 +104,7 @@
     </div>
 
     {#if activeView === 'activity'}
-      <ActivityHeatmap activity={data?.activity || []} {loading} />
+      <ActivityHeatmap activity={data?.activity || []} activityWindow={data?.activity_window || null} {loading} />
     {:else}
       <DecisionsChart labels={data?.labels || []} series={data?.series || []} {loading} />
     {/if}
