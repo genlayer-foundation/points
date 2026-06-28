@@ -17,106 +17,29 @@
 </script>
 
 {#if visible}
-  <section class="analytics-consent" aria-label="Analytics consent">
-    <div class="consent-copy">
-      <strong>Analytics</strong>
+  <section
+    class="fixed bottom-3 left-3 right-3 z-[70] flex max-w-none flex-col items-stretch gap-3 rounded-[8px] border border-[#e6e6e6] bg-white p-3.5 shadow-[0_14px_40px_rgba(19,18,20,0.14)] sm:bottom-4 sm:left-auto sm:right-4 sm:max-w-[520px] sm:flex-row sm:items-center sm:gap-4"
+    aria-label="Analytics consent"
+  >
+    <div class="min-w-0 space-y-[3px] text-[13px] leading-[1.35] text-[#4f4f54]">
+      <strong class="block text-sm leading-tight text-[#131214]">Analytics</strong>
       <span>Help us understand Portal usage with Google Analytics. It only runs if you accept.</span>
     </div>
-    <div class="consent-actions">
-      <button type="button" class="consent-button consent-button-secondary" onclick={decline}>
+    <div class="flex shrink-0 justify-end gap-2">
+      <button
+        type="button"
+        class="h-[34px] min-w-[76px] cursor-pointer rounded-md border border-[#dedee2] bg-white px-3 text-[13px] font-semibold text-[#4f4f54] transition-colors hover:border-[#c9c9cf] hover:text-[#131214]"
+        onclick={decline}
+      >
         Decline
       </button>
-      <button type="button" class="consent-button consent-button-primary" onclick={accept}>
+      <button
+        type="button"
+        class="h-[34px] min-w-[76px] cursor-pointer rounded-md border border-transparent bg-[#131214] px-3 text-[13px] font-semibold text-white transition-colors hover:bg-[#242326]"
+        onclick={accept}
+      >
         Accept
       </button>
     </div>
   </section>
 {/if}
-
-<style>
-  .analytics-consent {
-    position: fixed;
-    right: 16px;
-    bottom: 16px;
-    z-index: 70;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    max-width: min(520px, calc(100vw - 32px));
-    padding: 14px;
-    border: 1px solid #e6e6e6;
-    border-radius: 8px;
-    background: #ffffff;
-    box-shadow: 0 14px 40px rgba(19, 18, 20, 0.14);
-  }
-
-  .consent-copy {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    min-width: 0;
-    color: #4f4f54;
-    font-size: 13px;
-    line-height: 1.35;
-  }
-
-  .consent-copy strong {
-    color: #131214;
-    font-size: 14px;
-    line-height: 1.2;
-  }
-
-  .consent-actions {
-    display: flex;
-    flex-shrink: 0;
-    gap: 8px;
-  }
-
-  .consent-button {
-    min-width: 76px;
-    height: 34px;
-    padding: 0 12px;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-  }
-
-  .consent-button-primary {
-    background: #131214;
-    color: #ffffff;
-  }
-
-  .consent-button-primary:hover {
-    background: #242326;
-  }
-
-  .consent-button-secondary {
-    border-color: #dedee2;
-    background: #ffffff;
-    color: #4f4f54;
-  }
-
-  .consent-button-secondary:hover {
-    border-color: #c9c9cf;
-    color: #131214;
-  }
-
-  @media (max-width: 640px) {
-    .analytics-consent {
-      right: 12px;
-      bottom: 12px;
-      left: 12px;
-      max-width: none;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 12px;
-    }
-
-    .consent-actions {
-      justify-content: flex-end;
-    }
-  }
-</style>
