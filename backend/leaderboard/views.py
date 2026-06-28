@@ -580,6 +580,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         contribution_count = contributions.count()
         social_count = social_completions.count()
         total_count = contribution_count + social_count
+        submittable_contribution_count = contributions.filter(
+            contribution_type__is_submittable=True,
+        ).count()
 
         avg_points = total_points / total_count if total_count > 0 else 0
 
@@ -615,6 +618,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             'totalPoints': total_points,
             'averagePoints': avg_points,
             'contributionTypes': contribution_types,
+            'submittableContributionCount': submittable_contribution_count,
             # Separate bucket so the frontend can render social-task earnings
             # next to the contribution breakdown without breaking the existing
             # ContributionBreakdown component (which expects entries to be real

@@ -96,6 +96,9 @@ class CommunityJourneyTests(TestCase):
         self.assertFalse(res.data['complete'])
         # step 5 ships the code + share/intent affordances
         self.assertTrue(steps['x_post']['verification_code'].startswith('GL-'))
+        self.assertIn('GenLayer Portal profile', steps['x_post']['share_text'])
+        self.assertIn(f'@{cj.genlayer_handle()}', steps['x_post']['share_text'])
+        self.assertIn(steps['x_post']['verification_code'], steps['x_post']['share_text'])
         self.assertIn('intent/post', steps['x_post']['intent_url'])
         self.assertEqual(steps['link_x']['points'], 500)
         self.assertEqual(steps['link_discord']['points'], 500)

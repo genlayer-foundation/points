@@ -412,6 +412,47 @@ class LeaderboardStatsTest(TestCase):
             any(row['type'] == 'builder' for row in all_entries_response.data)
         )
 
+    def test_user_stats_report_submittable_contribution_count(self):
+        builder_user = self._create_user(
+            'builder-stats@example.com',
+            '0x0000000000000000000000000000000000000022'
+        )
+        non_submittable_type = ContributionType.objects.create(
+            name='Builder Welcome',
+            slug='builder-welcome-test',
+            category=self.builder_category,
+            is_submittable=False,
+        )
+        GlobalLeaderboardMultiplier.objects.create(
+            contribution_type=non_submittable_type,
+            multiplier_value=1,
+            valid_from=timezone.now() - timezone.timedelta(days=30),
+        )
+
+        Contribution.objects.create(
+            user=builder_user,
+            contribution_type=non_submittable_type,
+            points=0,
+            frozen_global_points=0,
+            contribution_date=timezone.now(),
+        )
+        Contribution.objects.create(
+            user=builder_user,
+            contribution_type=self.builder_type,
+            points=25,
+            frozen_global_points=25,
+            contribution_date=timezone.now(),
+        )
+
+        response = self.client.get(
+            f'/api/v1/leaderboard/user_stats/by-address/{builder_user.address}/',
+            {'category': 'builder'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['totalContributions'], 2)
+        self.assertEqual(response.data['submittableContributionCount'], 1)
+
     def test_community_stats_use_effective_mee6_points_and_members(self):
         mee6_only_user = self._create_user(
             'mee6-only@example.com',
