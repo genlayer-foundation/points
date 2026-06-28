@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -103,6 +104,17 @@ class RequiredEvidenceURLTypeGroupsTest(TestCase):
         self.ctype.save()
         result = self._validate([{'url': GITHUB_URL, 'description': 'Repo'}])
         self.assertEqual(len(result), 1)
+
+    def test_malformed_groups_rejected_on_clean(self):
+        """A flat list (not list-of-lists) is rejected at save time."""
+        self.ctype.required_evidence_url_type_groups = ['github-repo']
+        with self.assertRaises(DjangoValidationError):
+            self.ctype.full_clean()
+
+    def test_unknown_group_slug_rejected_on_clean(self):
+        self.ctype.required_evidence_url_type_groups = [['does-not-exist']]
+        with self.assertRaises(DjangoValidationError):
+            self.ctype.full_clean()
 
     def test_grouped_types_implicitly_accepted_with_whitelist(self):
         """A non-empty accepted whitelist must not reject grouped URLs that

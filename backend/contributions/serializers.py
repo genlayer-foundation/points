@@ -699,6 +699,7 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
         accepted_types = None
         required_type_ids = set()
         required_type_names = []
+        grouped_type_names = []
         if contribution_type:
             accepted_qs = contribution_type.accepted_evidence_url_types.all()
             required_qs = contribution_type.required_evidence_url_types.all()
@@ -711,10 +712,9 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
                     s for g in (contribution_type.required_evidence_url_type_groups or [])
                     for s in g
                 }
-                group_type_ids = set(
-                    EvidenceURLType.objects.filter(slug__in=group_slugs)
-                    .values_list('id', flat=True)
-                ) if group_slugs else set()
+                group_qs = EvidenceURLType.objects.filter(slug__in=group_slugs)
+                group_type_ids = set(group_qs.values_list('id', flat=True))
+                grouped_type_names = list(group_qs.values_list('name', flat=True))
                 accepted_types = set(
                     accepted_qs.values_list('id', flat=True)
                 ) | required_type_ids | group_type_ids
@@ -747,8 +747,8 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
                     contribution_type.accepted_evidence_url_types
                     .values_list('name', flat=True)
                 )
-                # Include required types in the accepted list shown to users
-                for n in required_type_names:
+                # Include implicitly accepted types in the list shown to users
+                for n in [*required_type_names, *grouped_type_names]:
                     if n not in accepted_names:
                         accepted_names.append(n)
                 errors.append({

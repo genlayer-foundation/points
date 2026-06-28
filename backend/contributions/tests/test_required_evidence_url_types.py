@@ -60,7 +60,10 @@ class RequiredEvidenceURLTypesTest(TestCase):
             slug='studio-contract',
             defaults=dict(
                 name='Studio Contract',
-                url_patterns=[r'^https?://studio\.genlayer\.com/'],
+                # Match the tightened production pattern (migration 0075).
+                url_patterns=[
+                    r'^https?://studio\.genlayer\.com/contracts\?(?:[^#]*&)?import-contract=0x[0-9a-fA-F]{40}\b'
+                ],
                 is_generic=False,
                 order=2,
                 ownership_social_account='',
@@ -132,7 +135,8 @@ class RequiredEvidenceURLTypesTest(TestCase):
         result = self._validate([
             {'url': 'https://github.com/foo/bar', 'description': 'Repo'},
             {
-                'url': 'https://studio.genlayer.com/contract/abc',
+                'url': ('https://studio.genlayer.com/contracts?import-contract='
+                        '0x44bD99017b81B2FC044f3b4DD24C0bfA9715301D'),
                 'description': 'Deployed contract',
             },
         ])

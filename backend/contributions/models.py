@@ -201,10 +201,35 @@ class ContributionType(BaseModel):
     def clean(self):
         """Validate the contribution type data."""
         super().clean()
-        
+
         # Ensure max_points is greater than or equal to min_points
         if self.max_points < self.min_points:
             raise ValidationError("Maximum points must be greater than or equal to minimum points")
+
+        # required_evidence_url_type_groups must be a list of non-empty slug
+        # lists; the submission validator iterates it as list[list[str]], so a
+        # flat list or stray string would silently create impossible rules.
+        groups = self.required_evidence_url_type_groups or []
+        if not isinstance(groups, list) or any(
+            not isinstance(group, list) or not group
+            or any(not isinstance(slug, str) or not slug for slug in group)
+            for group in groups
+        ):
+            raise ValidationError({
+                'required_evidence_url_type_groups':
+                    'Expected a list of non-empty EvidenceURLType slug lists.'
+            })
+        flat_slugs = {slug for group in groups for slug in group}
+        known = set(
+            EvidenceURLType.objects.filter(slug__in=flat_slugs)
+            .values_list('slug', flat=True)
+        )
+        unknown = sorted(flat_slugs - known)
+        if unknown:
+            raise ValidationError({
+                'required_evidence_url_type_groups':
+                    f'Unknown EvidenceURLType slugs: {", ".join(unknown)}'
+            })
 
 
 class Contribution(BaseModel):
