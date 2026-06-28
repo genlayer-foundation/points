@@ -27,9 +27,11 @@
   let clickThroughTimer = null;
 
   let isCompleted = $derived(task.status === 'completed');
+  let isLocked = $derived(!isCompleted && (task.status === 'locked' || task.can_complete === false));
   let requiresVerification = $derived(task.requires_verification === true);
   let category = $derived(task.category_slug || 'community');
   let colors = $derived(getCategoryPillColors(category));
+  let lockedMessage = $derived(task.eligibility?.message || 'Meet this task requirement first.');
 
   let isAuthenticated = $derived($authState.isAuthenticated);
   let user = $derived($userStore?.user || null);
@@ -68,6 +70,8 @@
     if (code === 'social_account_not_linked' || code === 'token_invalid_relink_required') {
       needsRelink = true;
       showError(`Reconnect your ${platformLabel || 'social'} account and try again.`);
+    } else if (code === 'eligibility_failed') {
+      showError(err.response.data.message || 'Meet this task requirement first.');
     } else if (code === 'verification_failed') {
       showError(err.response.data.message || 'We did not see the action yet. Try again in a moment.');
     } else if (code === 'verification_unavailable') {
@@ -91,7 +95,7 @@
 
   function taskErrorCode(err) {
     const code = String(err?.response?.data?.error || '').toLowerCase();
-    if (['social_account_not_linked', 'token_invalid_relink_required', 'verification_failed', 'verification_unavailable'].includes(code)) {
+    if (['social_account_not_linked', 'token_invalid_relink_required', 'eligibility_failed', 'verification_failed', 'verification_unavailable'].includes(code)) {
       return code;
     }
     if (err?.response?.status === 410) return 'task_inactive';
@@ -114,7 +118,7 @@
   }
 
   async function callComplete({ trackAction = true } = {}) {
-    if (busy || isCompleted) return;
+    if (busy || isCompleted || isLocked) return;
     clearClickThroughTimer();
     if (trackAction) trackTaskStepEvent('journey_step_action_click');
     busy = true;
@@ -227,6 +231,10 @@
       >
         Sign in to earn →
       </button>
+    {:else if isLocked}
+      <span class="line-clamp-2 text-[11px] font-medium leading-snug text-[#6b7280]">
+        {lockedMessage}
+      </span>
     {:else if requiredPlatform && (!hasRequiredConnection || needsRelink)}
       <div class="w-full">
         <SocialLink

@@ -57,6 +57,15 @@ class SocialTaskAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
         (None, {
             'fields': ('name', 'slug', 'description', 'category', 'points', 'order'),
         }),
+        ('Eligibility', {
+            'fields': ('eligibility_requirements',),
+            'description': (
+                'Optional JSON gate checked before completion. Use '
+                '{"type":"accepted_submittable_contribution","category":"task","minimum":1} '
+                'to require accepted work in this task category, or an "any" list '
+                'to allow alternatives such as community points.'
+            ),
+        }),
         ('Action', {
             'fields': ('action_url', 'cta_text'),
             'description': (

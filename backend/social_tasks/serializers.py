@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from .eligibility import evaluate_task_eligibility
 from .models import SocialTask
 from .verifiers import required_connection_for, requires_verification_for
 
@@ -25,6 +26,8 @@ class SocialTaskSerializer(serializers.ModelSerializer):
     points_awarded = serializers.SerializerMethodField()
     requires_verification = serializers.SerializerMethodField()
     required_connection = serializers.SerializerMethodField()
+    can_complete = serializers.SerializerMethodField()
+    eligibility = serializers.SerializerMethodField()
 
     class Meta:
         model = SocialTask
@@ -38,6 +41,8 @@ class SocialTaskSerializer(serializers.ModelSerializer):
             'required_connection',
             'action_url',
             'cta_text',
+            'can_complete',
+            'eligibility',
             'category_slug',
             'category_name',
             'order',
@@ -50,7 +55,9 @@ class SocialTaskSerializer(serializers.ModelSerializer):
 
     def get_status(self, obj):
         completion = self._completion_for(obj)
-        return 'completed' if completion else 'active'
+        if completion:
+            return 'completed'
+        return 'active' if self._eligibility_for(obj).eligible else 'locked'
 
     def get_completed_at(self, obj):
         completion = self._completion_for(obj)
@@ -65,6 +72,17 @@ class SocialTaskSerializer(serializers.ModelSerializer):
 
     def get_required_connection(self, obj):
         return required_connection_for(obj.verification_type)
+
+    def get_can_complete(self, obj):
+        return self.get_status(obj) == 'active'
+
+    def get_eligibility(self, obj):
+        result = self._eligibility_for(obj)
+        return {
+            'eligible': result.eligible,
+            'message': result.message,
+            **(result.details or {}),
+        }
 
     def _completion_for(self, obj):
         """Pull the prefetched completion for the request user (if any).
@@ -81,3 +99,12 @@ class SocialTaskSerializer(serializers.ModelSerializer):
         if request is None or not request.user.is_authenticated:
             return None
         return SocialTaskCompletion.objects.filter(user=request.user, task=obj).first()
+
+    def _eligibility_for(self, obj):
+        cached = getattr(obj, '_eligibility_result', None)
+        if cached is not None:
+            return cached
+        request = self.context.get('request') if self.context else None
+        user = request.user if request and request.user.is_authenticated else None
+        obj._eligibility_result = evaluate_task_eligibility(obj, user)
+        return obj._eligibility_result
