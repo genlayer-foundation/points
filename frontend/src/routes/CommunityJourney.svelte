@@ -108,6 +108,10 @@
     return statusFor(id) === 'active';
   }
 
+  function stepPoints(id) {
+    return steps?.[id]?.points ?? null;
+  }
+
   async function loadJourney({ showLoading = false } = {}) {
     if (showLoading) loading = true;
     loadError = '';
@@ -300,6 +304,8 @@
           title="Link X"
           contributionLabel={isActive('link_x') ? 'Up next' : ''}
           detail={stepDone('link_x') ? twitterConnection?.platform_username ? `@${twitterConnection.platform_username}` : 'X account confirmed' : 'Connect X to verify community actions'}
+          points={stepPoints('link_x')}
+          pointsLabel="CP"
           status={statusFor('link_x')}
           actionLabel={isActive('link_x') && twitterConnection && !stepDone('link_x') ? 'Confirm' : ''}
           actionTone="accent"
@@ -343,6 +349,8 @@
           title="Link Discord"
           contributionLabel={isActive('link_discord') ? 'Up next' : ''}
           detail={stepDone('link_discord') ? discordConnection?.platform_username || 'Discord account confirmed' : 'Connect Discord to verify server membership'}
+          points={stepPoints('link_discord')}
+          pointsLabel="CP"
           status={statusFor('link_discord')}
           actionLabel={isActive('link_discord') && discordConnection && !stepDone('link_discord') ? 'Confirm' : ''}
           actionTone="accent"
@@ -386,6 +394,8 @@
           title="Follow @genlayer"
           contributionLabel={isActive('follow_x') ? 'Up next' : ''}
           detail={stepDone('follow_x') ? '@genlayer follow verified' : 'Follow GenLayer on X'}
+          points={stepPoints('follow_x') ?? followTask?.points}
+          pointsLabel="CP"
           status={statusFor('follow_x')}
         />
 
@@ -396,7 +406,7 @@
             </div>
             <div class="task-card-frame">
               {#if followTask}
-                <SocialTaskCard task={followTask} onCompleted={handleTaskCompleted} />
+                <SocialTaskCard task={followTask} pointsLabel="CP" onCompleted={handleTaskCompleted} />
               {:else}
                 <button type="button" class="landing-button landing-button-secondary" onclick={() => loadJourney({ showLoading: false })}>
                   Reload task
@@ -413,6 +423,8 @@
           title="Join Discord"
           contributionLabel={isActive('join_discord') ? 'Up next' : ''}
           detail={stepDone('join_discord') ? 'GenLayer Discord membership verified' : 'Join the GenLayer Discord'}
+          points={stepPoints('join_discord') ?? discordTask?.points}
+          pointsLabel="CP"
           status={statusFor('join_discord')}
         />
 
@@ -423,7 +435,7 @@
             </div>
             <div class="task-card-frame">
               {#if discordTask}
-                <SocialTaskCard task={discordTask} onCompleted={handleTaskCompleted} />
+                <SocialTaskCard task={discordTask} pointsLabel="CP" onCompleted={handleTaskCompleted} />
               {:else}
                 <button type="button" class="landing-button landing-button-secondary" onclick={() => loadJourney({ showLoading: false })}>
                   Reload task
