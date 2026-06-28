@@ -1,9 +1,10 @@
-import { get } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 import { authState } from './auth.js';
 import { userStore } from './userStore.js';
 import { hasEarnedRole, hasStartedJourney, roleFunnelState } from './roleState.js';
 
 const ANALYTICS_SCRIPT_ID = 'google-analytics-gtag';
+const ANALYTICS_CONSENT_KEY = 'ga_analytics_consent';
 const TIMER_PREFIX = 'ga_funnel_timer:';
 const LIFECYCLE_TIME_PREFIX = 'ga_lifecycle_time:';
 const LIFECYCLE_FLAG_PREFIX = 'ga_lifecycle_flag:';
@@ -57,8 +58,38 @@ function trackingId() {
   return import.meta.env.VITE_GOOGLE_ANALYTICS_ID || '';
 }
 
+export function isAnalyticsConfigured() {
+  return Boolean(trackingId());
+}
+
 function canUseBrowser() {
   return typeof window !== 'undefined' && typeof document !== 'undefined';
+}
+
+function isDoNotTrackEnabled() {
+  if (!canUseBrowser()) return false;
+  return (
+    window.navigator?.doNotTrack === '1' ||
+    window.navigator?.doNotTrack === 'yes' ||
+    window.navigator?.globalPrivacyControl === true
+  );
+}
+
+function storedAnalyticsConsent() {
+  try {
+    if (!canUseBrowser()) return 'unknown';
+    if (isDoNotTrackEnabled()) return 'denied';
+    const value = localStorage.getItem(ANALYTICS_CONSENT_KEY);
+    return value === 'granted' || value === 'denied' ? value : 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+export const analyticsConsent = writable(storedAnalyticsConsent());
+
+function hasAnalyticsConsent() {
+  return get(analyticsConsent) === 'granted' && !isDoNotTrackEnabled();
 }
 
 function safeNow() {
@@ -222,7 +253,7 @@ export function sanitizeAnalyticsParams(params = {}) {
 export function initializeAnalytics() {
   try {
     const id = trackingId();
-    if (!id || !canUseBrowser()) return false;
+    if (!id || !canUseBrowser() || !hasAnalyticsConsent()) return false;
 
     window.dataLayer = window.dataLayer || [];
     window.gtag = window.gtag || function gtag() {
@@ -253,6 +284,7 @@ export function initializeAnalytics() {
 export function trackEvent(name, params = {}) {
   try {
     if (!name || typeof name !== 'string') return false;
+    if (!hasAnalyticsConsent()) return false;
     if (!initializeAnalytics() || !window.gtag) return false;
     const safeName = name.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 40);
     window.gtag('event', safeName, sanitizeAnalyticsParams(params));
@@ -421,7 +453,23 @@ export function getAnalyticsContext(extra = {}) {
   }
 }
 
-export function setAnalyticsConsent(_granted) {
-  // No consent manager is wired yet. This public API intentionally does not
-  // change runtime behavior until the product has a consent source of truth.
+export function setAnalyticsConsent(granted) {
+  try {
+    const status = granted && !isDoNotTrackEnabled() ? 'granted' : 'denied';
+    if (canUseBrowser()) {
+      localStorage.setItem(ANALYTICS_CONSENT_KEY, status);
+      if (window.gtag) {
+        window.gtag('consent', 'update', {
+          analytics_storage: status === 'granted' ? 'granted' : 'denied',
+        });
+      }
+    }
+    analyticsConsent.set(status);
+    if (status === 'granted') initializeAnalytics();
+    return status === 'granted';
+  } catch {
+    analyticsConsent.set(granted ? 'granted' : 'denied');
+    if (granted) initializeAnalytics();
+    return Boolean(granted);
+  }
 }

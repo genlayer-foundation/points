@@ -8,7 +8,8 @@
 
   let {
     isOpen = $bindable(false),
-    onSelect = () => {}
+    onSelect = () => {},
+    onDismiss = () => {},
   } = $props();
   
   let availableWallets = $state([]);
@@ -351,6 +352,7 @@
   }
   
   function closeConnectionView() {
+    const providerType = connectingWallet?.id;
     connectionDismissed = true;
 
     // Stop the local loading race if it exists. Provider prompts may continue.
@@ -361,19 +363,26 @@
     connectingWallet = null;
     isConnecting = false;
     isOpen = false;
+    onDismiss({ reason: 'connection_view_close', providerType, connecting: true });
+  }
+
+  function closeSelector(reason) {
+    if (!isOpen || connectingWallet) return;
+    isOpen = false;
+    onDismiss({ reason, connecting: false });
   }
 
   function handleBackdropClick(e) {
     // Don't close if currently connecting
     if (e.target === e.currentTarget && !connectingWallet) {
-      isOpen = false;
+      closeSelector('backdrop');
     }
   }
 
   function handleKeyDown(e) {
     // Don't close if currently connecting
     if (isOpen && e.key === 'Escape' && !connectingWallet) {
-      isOpen = false;
+      closeSelector('escape');
     }
   }
 
@@ -445,7 +454,7 @@
           class="wallet-selector-close"
           onclick={() => {
             if (!connectingWallet) {
-              isOpen = false;
+              closeSelector('close_button');
             }
           }}
           disabled={connectingWallet !== null}

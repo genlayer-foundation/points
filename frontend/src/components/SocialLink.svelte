@@ -60,6 +60,29 @@
     return isLinking || isRefreshing || sessionStorage.getItem(pendingFlag) === '1';
   }
 
+  function oauthErrorCode(value) {
+    const code = String(value || '').toLowerCase();
+    if (['already_linked', 'account_mismatch', 'authorization_failed'].includes(code)) return code;
+    return code ? 'oauth_error' : undefined;
+  }
+
+  function trackOAuthResult(success, oauthError, wasRefreshing) {
+    const meta = oauthStepMeta();
+    trackEvent('oauth_link_result', getAnalyticsContext({
+      role_context: meta?.role,
+      selected_role: meta?.role,
+      surface: meta ? 'journey' : 'form',
+      platform,
+      oauth_mode: wasRefreshing ? 'refresh_username' : 'link',
+      result_state: success ? 'success' : 'error',
+      error_code: success ? undefined : oauthErrorCode(oauthError),
+      step_id: meta?.step,
+      step_index: meta?.index,
+      step_required: meta ? true : undefined,
+      verification_mode: meta?.verification,
+    }));
+  }
+
   // --- Event handlers ---
 
   // Primary: postMessage from the OAuth popup
@@ -110,6 +133,7 @@
     const wasRefreshing = isRefreshing || sessionStorage.getItem(modeFlag) === 'refresh_username';
     clearPopupMonitor();
     clearOAuthPending();
+    trackOAuthResult(success, oauthError, wasRefreshing);
 
     const shouldToast = reserveToastSlot();
 

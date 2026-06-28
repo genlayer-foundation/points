@@ -26,6 +26,7 @@
   let showDropdown = false;
   let showWalletSelector = false;
   let isMobileViewport = false;
+  let walletSelectorContext = {};
 
   $: authButtonLabel = isMobileViewport ? formatAddress(address) : (userName || formatAddress(address));
 
@@ -65,6 +66,7 @@
     });
     markFunnelTime('wallet_click');
     trackEvent('connect_wallet_click', context);
+    walletSelectorContext = context;
 
     // Show wallet selector modal
     showWalletSelector = true;
@@ -94,6 +96,17 @@
     if (message.includes('network')) return 'network';
     if (error?.response?.status) return 'backend';
     return 'unknown';
+  }
+
+  function handleWalletSelectorDismiss(detail = {}) {
+    trackEvent('wallet_selector_dismissed', getAnalyticsContext({
+      ...walletSelectorContext,
+      surface: 'modal',
+      dismiss_reason: detail.reason || 'unknown',
+      provider_type: detail.providerType,
+      wallet_connection_state: detail.connecting ? 'connecting' : 'idle',
+      time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+    }));
   }
 
   async function handleWalletSelected(provider, walletName) {
@@ -232,6 +245,7 @@
 <WalletSelector
   bind:isOpen={showWalletSelector}
   onSelect={handleWalletSelected}
+  onDismiss={handleWalletSelectorDismiss}
 />
 
 <style>

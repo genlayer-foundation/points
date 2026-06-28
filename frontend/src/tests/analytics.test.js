@@ -81,15 +81,28 @@ describe('analytics helper', () => {
   it('no-ops when GA is not configured', async () => {
     const analytics = await loadAnalytics();
 
+    analytics.setAnalyticsConsent(true);
     expect(analytics.initializeAnalytics()).toBe(false);
     expect(analytics.trackEvent('role_landing_view')).toBe(false);
     expect(document.querySelectorAll('script[src*="googletagmanager"]').length).toBe(0);
+  });
+
+  it('does not load or send analytics before consent', async () => {
+    vi.stubEnv('VITE_GOOGLE_ANALYTICS_ID', 'G-TEST123');
+    const analytics = await loadAnalytics();
+
+    expect(analytics.initializeAnalytics()).toBe(false);
+    expect(analytics.trackEvent('role_landing_view')).toBe(false);
+    expect(document.querySelectorAll('#google-analytics-gtag').length).toBe(0);
+    expect(dataLayerCalls()).toEqual([]);
   });
 
   it('initializes once and disables automatic config page views', async () => {
     vi.stubEnv('VITE_GOOGLE_ANALYTICS_ID', 'G-TEST123');
     const analytics = await loadAnalytics();
 
+    expect(analytics.initializeAnalytics()).toBe(false);
+    expect(analytics.setAnalyticsConsent(true)).toBe(true);
     expect(analytics.initializeAnalytics()).toBe(true);
     expect(analytics.initializeAnalytics()).toBe(true);
 
@@ -104,6 +117,7 @@ describe('analytics helper', () => {
     vi.stubEnv('VITE_GOOGLE_ANALYTICS_ID', 'G-TEST123');
     const analytics = await loadAnalytics();
 
+    analytics.setAnalyticsConsent(true);
     analytics.trackPageView('/participant/0x1234567890abcdef1234567890abcdef12345678?ref=ABC');
 
     const eventCall = dataLayerCalls().find((call) => call[0] === 'event' && call[1] === 'page_view');
@@ -163,6 +177,7 @@ describe('analytics helper', () => {
     vi.useFakeTimers();
     vi.setSystemTime(10_000);
     const analytics = await loadAnalytics();
+    analytics.setAnalyticsConsent(true);
 
     expect(analytics.markLifecycleTime('first_wallet_auth_success')).toBe(true);
     expect(analytics.markLifecycleTime('first_wallet_auth_success')).toBe(false);
