@@ -433,7 +433,7 @@ class LeaderboardStatsTest(TestCase):
         self.assertIn(ranked_builder.address, listed_addresses)
         self.assertNotIn(role_only_user.address, listed_addresses)
         self.assertNotIn(non_submittable_user.address, listed_addresses)
-        self.assertEqual(list_response.data[0]['rank'], 1)
+        self.assertEqual(list_response.data[0]['rank'], 3)
 
         self.assertEqual(role_lookup_response.status_code, 200)
         self.assertEqual(role_lookup_response.data, [])

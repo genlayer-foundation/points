@@ -85,44 +85,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             contribution_type__is_submittable=True,
         )
 
-    def _get_order_fields_for_type(self, leaderboard_type):
-        config = LEADERBOARD_CONFIG.get(leaderboard_type, {})
-        ranking_order = config.get('ranking_order', 'rank')
-
-        if ranking_order == '-graduation_date':
-            return ['-graduation_date', 'user__name']
-        if ranking_order == '-total_points':
-            return ['-total_points', 'user__name']
-        return [ranking_order, 'user__name']
-
-    def _public_rank_map(self, leaderboard_type):
-        if leaderboard_type != 'builder':
-            return {}
-
-        ranked_ids = (
-            LeaderboardEntry.objects
-            .filter(user__visible=True, type=leaderboard_type)
-            .filter(Exists(self._builder_ranking_contributions()))
-            .order_by(*self._get_order_fields_for_type(leaderboard_type))
-            .values_list('id', flat=True)
-        )
-        return {
-            entry_id: rank
-            for rank, entry_id in enumerate(ranked_ids, start=1)
-        }
-
-    def _apply_public_ranks(self, entries, leaderboard_type=None):
-        if leaderboard_type != 'builder' and not any(
-            getattr(entry, 'type', None) == 'builder' for entry in entries
-        ):
-            return entries
-
-        builder_ranks = self._public_rank_map('builder')
-        for entry in entries:
-            if getattr(entry, 'type', None) == 'builder':
-                entry.public_rank = builder_ranks.get(entry.id)
-        return entries
-
     def get_queryset(self):
         """
         Filter leaderboard by type, user address, and handle ordering.
@@ -231,11 +193,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         elif offset > 0:
             queryset = list(queryset[offset:])
 
-        entries = list(queryset)
-        leaderboard_type = request.query_params.get('type')
-        self._apply_public_ranks(entries, leaderboard_type=leaderboard_type)
-
-        serializer = self.get_serializer(entries, many=True)
+        serializer = self.get_serializer(queryset, many=True)
         if include_count:
             return Response({
                 'count': total_count,
