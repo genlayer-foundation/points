@@ -77,7 +77,7 @@
           decisions,
           transactions,
           level,
-          inRange: Boolean(row) && isPastOrToday,
+          inRange: date >= first && date <= last && isPastOrToday,
           title: `${label}: ${plural(decisions, 'decision')}, ${plural(transactions, 'transaction')}`,
         });
       }
