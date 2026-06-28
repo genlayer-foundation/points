@@ -4,6 +4,7 @@
     import {
         COMMUNITY_RANKING_MIN_POINTS,
         getRankingRequirement,
+        shouldShowRankingPreviewCta,
     } from "../../lib/profileRanking.js";
     import { showError, showWarning } from "../../lib/toastStore.js";
     import Avatar from "../Avatar.svelte";
@@ -397,16 +398,6 @@
                 setTabRankStatus(activeTab, "loading");
                 return;
             }
-            if (
-                isContributionRankTab(activeTab) &&
-                !activeTabMeetsRequirement
-            ) {
-                loading = false;
-                error = null;
-                activeList = [];
-                setTabRankStatus(activeTab, "unranked");
-                return;
-            }
             loadTabLeaderboard(activeTab);
         }
     });
@@ -489,6 +480,9 @@
     let activeRequirementKey = $derived(
         `${activeTab || "none"}:${activeTabMeetsRequirement ? "met" : "gated"}:${activeRequirement.current}:${activeRequirement.target}`,
     );
+    let activeTabRankStatus = $derived(
+        activeTab ? tabRankStatus[activeTab] || null : null,
+    );
     let activeStatsLoaded = $derived(
         activeTab === "Builders"
             ? builderStatsLoaded
@@ -507,11 +501,12 @@
     });
 
     let showContributionRankCta = $derived(
-        isOwnProfile &&
-            isContributionRankTab(activeTab) &&
-            activeStatsLoaded &&
-            (!activeTabMeetsRequirement ||
-                tabRankStatus[activeTab || ""] === "unranked"),
+        shouldShowRankingPreviewCta({
+            isOwnProfile,
+            tab: activeTab,
+            statsLoaded: activeStatsLoaded,
+            rankStatus: activeTabRankStatus,
+        }),
     );
     let ctaPreviewRows = $derived(
         CTA_PREVIEW_ROWS[activeTab || ""] || [],

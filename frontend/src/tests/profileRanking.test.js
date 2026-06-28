@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   COMMUNITY_RANKING_MIN_POINTS,
   getRankingRequirement,
+  shouldShowRankingPreviewCta,
 } from "../lib/profileRanking.js";
 
 describe("profile ranking requirements", () => {
@@ -44,6 +45,26 @@ describe("profile ranking requirements", () => {
       getRankingRequirement("Validators", {
         participant: { validator: {} },
       }).met,
+    ).toBe(true);
+  });
+
+  it("does not show the ranking CTA for users with a real rank", () => {
+    expect(
+      shouldShowRankingPreviewCta({
+        isOwnProfile: true,
+        tab: "Community",
+        statsLoaded: true,
+        rankStatus: "ranked",
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldShowRankingPreviewCta({
+        isOwnProfile: true,
+        tab: "Community",
+        statsLoaded: true,
+        rankStatus: "unranked",
+      }),
     ).toBe(true);
   });
 });
