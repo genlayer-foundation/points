@@ -39,7 +39,8 @@ class LeaderboardStatsTest(TestCase):
         self.community_type = ContributionType.objects.create(
             name='Community Post',
             slug='community-post',
-            category=self.community_category
+            category=self.community_category,
+            max_points=10000,
         )
         self.builder_type = ContributionType.objects.create(
             name='Builder Submission',
@@ -361,22 +362,50 @@ class LeaderboardStatsTest(TestCase):
             'builder-role-only@example.com',
             '0x0000000000000000000000000000000000000020'
         )
+        non_submittable_user = self._create_user(
+            'builder-non-submittable@example.com',
+            '0x0000000000000000000000000000000000000023'
+        )
         ranked_builder = self._create_user(
             'ranked-builder@example.com',
             '0x0000000000000000000000000000000000000021'
         )
         Builder.objects.create(user=role_only_user)
+        Builder.objects.create(user=non_submittable_user)
         Builder.objects.create(user=ranked_builder)
 
         LeaderboardEntry.objects.update_or_create(
             user=role_only_user,
             type='builder',
-            defaults={'total_points': 0, 'rank': 2},
+            defaults={'total_points': 100, 'rank': 1},
+        )
+        LeaderboardEntry.objects.update_or_create(
+            user=non_submittable_user,
+            type='builder',
+            defaults={'total_points': 50, 'rank': 2},
         )
         LeaderboardEntry.objects.update_or_create(
             user=ranked_builder,
             type='builder',
-            defaults={'total_points': 25, 'rank': 1},
+            defaults={'total_points': 25, 'rank': 3},
+        )
+        non_submittable_type = ContributionType.objects.create(
+            name='Builder Welcome',
+            slug='builder-welcome-lookup-test',
+            category=self.builder_category,
+            is_submittable=False,
+        )
+        GlobalLeaderboardMultiplier.objects.create(
+            contribution_type=non_submittable_type,
+            multiplier_value=1,
+            valid_from=timezone.now() - timezone.timedelta(days=30),
+        )
+        Contribution.objects.create(
+            user=non_submittable_user,
+            contribution_type=non_submittable_type,
+            points=50,
+            frozen_global_points=50,
+            contribution_date=timezone.now()
         )
         Contribution.objects.create(
             user=ranked_builder,
@@ -403,6 +432,8 @@ class LeaderboardStatsTest(TestCase):
         ]
         self.assertIn(ranked_builder.address, listed_addresses)
         self.assertNotIn(role_only_user.address, listed_addresses)
+        self.assertNotIn(non_submittable_user.address, listed_addresses)
+        self.assertEqual(list_response.data[0]['rank'], 1)
 
         self.assertEqual(role_lookup_response.status_code, 200)
         self.assertEqual(role_lookup_response.data, [])
@@ -530,12 +561,12 @@ class LeaderboardStatsTest(TestCase):
             'generic-portal@example.com',
             '0x0000000000000000000000000000000000000013'
         )
-        self._create_current_mee6_xp(mee6_user, 'discord-generic-mee6', 100)
+        self._create_current_mee6_xp(mee6_user, 'discord-generic-mee6', 5000)
         Contribution.objects.create(
             user=portal_user,
             contribution_type=self.community_type,
-            points=80,
-            frozen_global_points=80,
+            points=3000,
+            frozen_global_points=3000,
             contribution_date=timezone.now()
         )
 
@@ -544,9 +575,9 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['count'], 2)
         self.assertEqual(response.data['results'][0]['user_address'], mee6_user.address)
-        self.assertEqual(response.data['results'][0]['total_points'], 100)
+        self.assertEqual(response.data['results'][0]['total_points'], 5000)
         self.assertEqual(response.data['results'][1]['user_address'], portal_user.address)
-        self.assertEqual(response.data['results'][1]['total_points'], 80)
+        self.assertEqual(response.data['results'][1]['total_points'], 3000)
 
     def test_mission_backed_non_submittable_community_contribution_is_reflected(self):
         contributor = self._create_user(

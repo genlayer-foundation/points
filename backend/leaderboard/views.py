@@ -18,10 +18,7 @@ ONBOARDING_CONTRIBUTION_TYPE_SLUGS = [
     'community-link-discord',
 ]
 JOURNEY_AUTO_AWARD_SLUGS = ONBOARDING_CONTRIBUTION_TYPE_SLUGS
-BUILDER_RANKING_EXCLUDED_TYPE_SLUGS = [
-    'builder-welcome',
-    'builder',
-]
+COMMUNITY_RANKING_MIN_POINTS = 2500
 
 
 class GlobalLeaderboardMultiplierViewSet(viewsets.ReadOnlyModelViewSet):
@@ -81,6 +78,51 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )
         )
 
+    def _builder_ranking_contributions(self):
+        return Contribution.objects.filter(
+            user_id=OuterRef('user_id'),
+            contribution_type__category__slug='builder',
+            contribution_type__is_submittable=True,
+        )
+
+    def _get_order_fields_for_type(self, leaderboard_type):
+        config = LEADERBOARD_CONFIG.get(leaderboard_type, {})
+        ranking_order = config.get('ranking_order', 'rank')
+
+        if ranking_order == '-graduation_date':
+            return ['-graduation_date', 'user__name']
+        if ranking_order == '-total_points':
+            return ['-total_points', 'user__name']
+        return [ranking_order, 'user__name']
+
+    def _public_rank_map(self, leaderboard_type):
+        if leaderboard_type != 'builder':
+            return {}
+
+        ranked_ids = (
+            LeaderboardEntry.objects
+            .filter(user__visible=True, type=leaderboard_type)
+            .filter(Exists(self._builder_ranking_contributions()))
+            .order_by(*self._get_order_fields_for_type(leaderboard_type))
+            .values_list('id', flat=True)
+        )
+        return {
+            entry_id: rank
+            for rank, entry_id in enumerate(ranked_ids, start=1)
+        }
+
+    def _apply_public_ranks(self, entries, leaderboard_type=None):
+        if leaderboard_type != 'builder' and not any(
+            getattr(entry, 'type', None) == 'builder' for entry in entries
+        ):
+            return entries
+
+        builder_ranks = self._public_rank_map('builder')
+        for entry in entries:
+            if getattr(entry, 'type', None) == 'builder':
+                entry.public_rank = builder_ranks.get(entry.id)
+        return entries
+
     def get_queryset(self):
         """
         Filter leaderboard by type, user address, and handle ordering.
@@ -109,12 +151,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )
         )
 
-        eligible_builder_contributions = Contribution.objects.filter(
-            user_id=OuterRef('user_id'),
-            contribution_type__category__slug='builder',
-        ).exclude(
-            contribution_type__slug__in=BUILDER_RANKING_EXCLUDED_TYPE_SLUGS,
-        )
+        eligible_builder_contributions = self._builder_ranking_contributions()
 
         # Filter by user address if provided
         user_address = self.request.query_params.get('user_address')
@@ -194,7 +231,11 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         elif offset > 0:
             queryset = list(queryset[offset:])
 
-        serializer = self.get_serializer(queryset, many=True)
+        entries = list(queryset)
+        leaderboard_type = request.query_params.get('type')
+        self._apply_public_ranks(entries, leaderboard_type=leaderboard_type)
+
+        serializer = self.get_serializer(entries, many=True)
         if include_count:
             return Response({
                 'count': total_count,
@@ -798,9 +839,11 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 user_ids=member_user_ids,
                 visible_only=True,
             )
+            .filter(total_points__gte=COMMUNITY_RANKING_MIN_POINTS)
             .order_by('-total_points', 'community_sort_name', 'id')
         )
-        # Full ranking, kept unfiltered so search results keep their true ranks
+        # Full public ranking, kept unfiltered by search so search results keep
+        # their true ranks within the eligible leaderboard surface.
         ranking_entries = entries
 
         search = request.query_params.get('search', '').strip().lower()

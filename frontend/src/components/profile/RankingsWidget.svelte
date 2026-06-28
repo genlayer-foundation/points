@@ -3,7 +3,6 @@
     import { leaderboardAPI } from "../../lib/api";
     import {
         COMMUNITY_RANKING_MIN_POINTS,
-        getRankingRequirement,
         shouldShowRankingPreviewCta,
     } from "../../lib/profileRanking.js";
     import { showError, showWarning } from "../../lib/toastStore.js";
@@ -17,8 +16,6 @@
         builderStats = null,
         validatorStats = null,
         communityStats = null,
-        builderStatsLoaded = true,
-        communityStatsLoaded = true,
     } = $props();
 
     let communityRank: number | null = $state(null);
@@ -388,16 +385,9 @@
         const addr = participant?.address;
         if (!addr || !hasAnyRankableRole || !activeTab) return;
 
-        const key = `${addr}:${activeTab}:${activeRequirementKey}:${activeStatsLoaded ? "stats-loaded" : "stats-loading"}`;
+        const key = `${addr}:${activeTab}`;
         if (key !== loadedLeaderboardKey) {
             loadedLeaderboardKey = key;
-            if (isContributionRankTab(activeTab) && !activeStatsLoaded) {
-                loading = true;
-                error = null;
-                activeList = [];
-                setTabRankStatus(activeTab, "loading");
-                return;
-            }
             loadTabLeaderboard(activeTab);
         }
     });
@@ -469,26 +459,8 @@
     }
 
     let userCommunityPoints = $derived(communityStats?.totalPoints || 0);
-    let activeRequirement = $derived(
-        getRankingRequirement(activeTab, {
-            participant,
-            builderStats,
-            communityStats,
-        }),
-    );
-    let activeTabMeetsRequirement = $derived(activeRequirement.met);
-    let activeRequirementKey = $derived(
-        `${activeTab || "none"}:${activeTabMeetsRequirement ? "met" : "gated"}:${activeRequirement.current}:${activeRequirement.target}`,
-    );
     let activeTabRankStatus = $derived(
         activeTab ? tabRankStatus[activeTab] || null : null,
-    );
-    let activeStatsLoaded = $derived(
-        activeTab === "Builders"
-            ? builderStatsLoaded
-            : activeTab === "Community"
-              ? communityStatsLoaded
-              : true,
     );
 
     let rightPanelStats = $derived({
@@ -504,7 +476,6 @@
         shouldShowRankingPreviewCta({
             isOwnProfile,
             tab: activeTab,
-            statsLoaded: activeStatsLoaded,
             rankStatus: activeTabRankStatus,
         }),
     );

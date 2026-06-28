@@ -26,7 +26,8 @@ class CommunityLeaderboardSearchTest(TestCase):
         community_type = ContributionType.objects.create(
             name='Community Post',
             slug='community-post',
-            category=community_category
+            category=community_category,
+            max_points=10000,
         )
         GlobalLeaderboardMultiplier.objects.get_or_create(
             contribution_type=community_type,
@@ -37,9 +38,9 @@ class CommunityLeaderboardSearchTest(TestCase):
         )
 
         for index, (name, points) in enumerate([
-            ('Alice', 90),
-            ('Bob', 60),
-            ('Carol', 30),
+            ('Alice', 9000),
+            ('Bob', 6000),
+            ('Carol', 3000),
         ]):
             user = User.objects.create_user(
                 email=f'community-{index}@example.com',
@@ -94,7 +95,7 @@ class CommunityLeaderboardSearchTest(TestCase):
         self.assertEqual([r['user_name'] for r in context], ['Bob', 'Carol'])
         self.assertEqual([r['rank'] for r in context], [2, 3])
 
-    def test_list_uses_counted_members_not_creator_role(self):
+    def test_list_uses_public_ranking_floor_not_member_role(self):
         creator_only = User.objects.create_user(
             email='creator-only@example.com',
             password='pass',
@@ -156,12 +157,36 @@ class CommunityLeaderboardSearchTest(TestCase):
         names = [r['user_name'] for r in response.data['results']]
         self.assertNotIn('Creator Only', names)
         self.assertNotIn('Link Only', names)
-        self.assertIn('POAP Member', names)
-        self.assertEqual(response.data['count'], 4)
+        self.assertNotIn('POAP Member', names)
+        self.assertEqual(response.data['count'], 3)
 
-        poap_entry = next(r for r in response.data['results'] if r['user_name'] == 'POAP Member')
-        self.assertEqual(poap_entry['rank'], 4)
-        self.assertEqual(poap_entry['total_points'], 0)
+    def test_low_point_member_profile_context_has_no_rank(self):
+        low_point_user = User.objects.create_user(
+            email='low-point-community@example.com',
+            password='pass',
+            address='0x' + '8' * 40,
+            name='Low Point Member',
+        )
+        Contribution.objects.create(
+            user=low_point_user,
+            contribution_type=ContributionType.objects.get(slug='community-post'),
+            points=1200,
+            frozen_global_points=1200,
+            contribution_date=timezone.now()
+        )
+
+        response = self.client.get(
+            '/api/v1/leaderboard/community/',
+            {
+                'user_address': low_point_user.address,
+                'profile_context': 'true',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data['user_rank'])
+        self.assertEqual(response.data['context_results'], [])
+        self.assertEqual(response.data['top_entry']['user_name'], 'Alice')
 
     def test_creator_only_profile_context_has_no_rank(self):
         creator_only = User.objects.create_user(

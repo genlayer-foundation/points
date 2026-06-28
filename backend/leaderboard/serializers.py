@@ -18,6 +18,7 @@ class LeaderboardEntrySerializer(serializers.ModelSerializer):
     user_details = serializers.SerializerMethodField()
     referral_points = serializers.SerializerMethodField()
     active_validators_count = serializers.SerializerMethodField()
+    rank = serializers.SerializerMethodField()
 
     class Meta:
         model = LeaderboardEntry
@@ -71,3 +72,10 @@ class LeaderboardEntrySerializer(serializers.ModelSerializer):
             operator=obj.user.validator,
             status='active'
         ).count()
+
+    def get_rank(self, obj):
+        """
+        Public leaderboard ranks can differ from stored LeaderboardEntry ranks
+        when the API filters out entries that are tracked but not rank-eligible.
+        """
+        return getattr(obj, 'public_rank', obj.rank)

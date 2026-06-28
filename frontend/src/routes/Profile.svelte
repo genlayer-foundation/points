@@ -805,8 +805,6 @@
           {builderStats}
           {validatorStats}
           {communityStats}
-          {builderStatsLoaded}
-          {communityStatsLoaded}
         />
       </div>
 
