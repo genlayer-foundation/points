@@ -4,6 +4,7 @@ from django.db import models
 from django.utils import timezone
 
 from utils.models import BaseModel
+from .eligibility import validate_eligibility_requirements
 
 # Categories with a user-facing task surface (Contributions-page slider +
 # /<category>/tasks route). clean() rejects others so tasks cannot be created
@@ -74,6 +75,18 @@ class SocialTask(BaseModel):
     )
     cta_text = models.CharField(max_length=50, default='Complete')
 
+    eligibility_requirements = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            'Optional completion gate. Examples: '
+            '{"type":"accepted_submittable_contribution","category":"task","minimum":1} '
+            'or {"any":[{"type":"community_points","minimum":100},'
+            '{"type":"accepted_submittable_contribution","category":"task","minimum":1}]}. '
+            'Use category "task" to target this task category.'
+        ),
+    )
+
     # Derived from the verifier in save(); not admin-editable.
     platform = models.CharField(max_length=20, default='generic', editable=False)
 
@@ -122,6 +135,13 @@ class SocialTask(BaseModel):
 
         if self.starts_at and self.ends_at and self.ends_at <= self.starts_at:
             errors['ends_at'] = 'Must be after starts_at — an inverted window is never active.'
+
+        try:
+            validate_eligibility_requirements(self.eligibility_requirements)
+        except ValidationError as exc:
+            errors.update(exc.message_dict if hasattr(exc, 'message_dict') else {
+                'eligibility_requirements': exc.messages
+            })
 
         if self.category_id is not None and self.category.slug not in SURFACED_CATEGORY_SLUGS:
             errors['category'] = (

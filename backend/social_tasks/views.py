@@ -8,6 +8,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 
+from .eligibility import evaluate_task_eligibility
 from .models import SocialTask, SocialTaskCompletion
 from .serializers import SocialTaskSerializer
 from .verifiers import verify
@@ -54,6 +55,7 @@ class SocialTaskViewSet(viewsets.GenericViewSet):
         for task in qs:
             completion = completions_by_task_id.get(task.id)
             task._user_completion = completion if completion else False
+            task._eligibility_result = evaluate_task_eligibility(task, user)
             if completion:
                 completed_tasks.append(task)
             elif task.is_currently_active(now):
@@ -106,6 +108,10 @@ class SocialTaskViewSet(viewsets.GenericViewSet):
                 status=status.HTTP_410_GONE,
             )
 
+        eligibility = evaluate_task_eligibility(task, user)
+        if not eligibility.eligible:
+            return self._eligibility_error_response(eligibility)
+
         # Snapshot the type that is actually verified: an admin could edit the
         # task during the (possibly slow) external verification, and the
         # completion row must record what ran, not the new config.
@@ -131,6 +137,10 @@ class SocialTaskViewSet(viewsets.GenericViewSet):
                         {'error': 'task_unavailable', 'message': 'This task is not currently active.'},
                         status=status.HTTP_410_GONE,
                     )
+
+                eligibility = evaluate_task_eligibility(task, user)
+                if not eligibility.eligible:
+                    return self._eligibility_error_response(eligibility)
 
                 completion = SocialTaskCompletion.objects.create(
                     user=user,
@@ -212,4 +222,18 @@ class SocialTaskViewSet(viewsets.GenericViewSet):
         return Response(
             {'error': error_code or 'verification_failed'},
             status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    def _eligibility_error_response(self, eligibility):
+        return Response(
+            {
+                'error': 'eligibility_failed',
+                'message': eligibility.message or 'Meet this task requirement first.',
+                'eligibility': {
+                    'eligible': eligibility.eligible,
+                    'message': eligibility.message,
+                    **(eligibility.details or {}),
+                },
+            },
+            status=status.HTTP_403_FORBIDDEN,
         )
