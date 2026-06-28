@@ -86,7 +86,7 @@ class NetworkActivityView(APIView):
     the short TTL just smooths repeated reads between cron runs.
     """
     permission_classes = [permissions.AllowAny]
-    CACHE_KEY = 'overview_network_activity_weekly_v3'
+    CACHE_KEY = 'overview_network_activity_weekly_v5'
     CACHE_TTL_SECONDS = 120
 
     def get(self, request):

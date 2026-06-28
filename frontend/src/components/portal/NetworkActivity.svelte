@@ -1,11 +1,13 @@
 <script>
   import { onMount } from 'svelte';
   import { metricsAPI } from '../../lib/api.js';
+  import ActivityHeatmap from './ActivityHeatmap.svelte';
   import DecisionsChart from './DecisionsChart.svelte';
   import PortalStats from './PortalStats.svelte';
 
   let data = $state(null);
   let loading = $state(true);
+  let activeView = $state('graph');
 
   onMount(async () => {
     try {
@@ -56,6 +58,12 @@
       unit: 'per second',
     },
   ]);
+
+  const viewCopy = $derived(
+    activeView === 'activity'
+      ? 'Daily decisions and transactions across Studio and the testnets'
+      : 'Decisions/week across Studio and the testnets · last 12 aligned weeks',
+  );
 </script>
 
 <section class="network-activity" aria-busy={loading}>
@@ -67,7 +75,15 @@
     <div class="panel-head">
       <div>
         <h2>Network activity</h2>
-        <p>Decisions/week across Studio and the testnets · last 12 aligned weeks</p>
+        <p>{viewCopy}</p>
+      </div>
+      <div class="view-tabs" aria-label="Network activity view">
+        <button type="button" class:active={activeView === 'graph'} onclick={() => (activeView = 'graph')}>
+          Graph
+        </button>
+        <button type="button" class:active={activeView === 'activity'} onclick={() => (activeView = 'activity')}>
+          Activity
+        </button>
       </div>
     </div>
 
@@ -87,7 +103,11 @@
       {/each}
     </div>
 
-    <DecisionsChart labels={data?.labels || []} series={data?.series || []} {loading} />
+    {#if activeView === 'activity'}
+      <ActivityHeatmap activity={data?.activity || []} {loading} />
+    {:else}
+      <DecisionsChart labels={data?.labels || []} series={data?.series || []} {loading} />
+    {/if}
   </div>
 </section>
 
@@ -132,6 +152,48 @@
     font-size: 13px;
     line-height: 17px;
     margin-top: 3px;
+  }
+
+  .chart-panel .panel-head {
+    align-items: flex-start;
+    display: flex;
+    gap: 14px;
+    justify-content: space-between;
+  }
+
+  .view-tabs {
+    background: #f4f5f7;
+    border: 1px solid #ececf0;
+    border-radius: 8px;
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 2px;
+    padding: 3px;
+  }
+
+  .view-tabs button {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    color: #6b7280;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    padding: 6px 10px;
+    transition: background 160ms ease, box-shadow 160ms ease, color 160ms ease;
+  }
+
+  .view-tabs button.active {
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(31, 42, 68, 0.1);
+    color: #101010;
+  }
+
+  .view-tabs button:focus-visible {
+    outline: 2px solid rgba(56, 125, 232, 0.55);
+    outline-offset: 2px;
   }
 
   /* KPI strip */
@@ -226,6 +288,15 @@
 
     .kpi-strip {
       grid-template-columns: 1fr;
+    }
+
+    .chart-panel .panel-head {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .view-tabs {
+      width: fit-content;
     }
   }
 </style>
