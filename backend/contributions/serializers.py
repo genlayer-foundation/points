@@ -699,15 +699,25 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
         accepted_types = None
         required_type_ids = set()
         required_type_names = []
+        grouped_type_names = []
         if contribution_type:
             accepted_qs = contribution_type.accepted_evidence_url_types.all()
             required_qs = contribution_type.required_evidence_url_types.all()
             required_type_ids = set(required_qs.values_list('id', flat=True))
             required_type_names = list(required_qs.values_list('name', flat=True))
             if accepted_qs.exists():
+                # Required types AND grouped types are implicitly accepted, so a
+                # whitelist never rejects a URL the group rule needs.
+                group_slugs = {
+                    s for g in (contribution_type.required_evidence_url_type_groups or [])
+                    for s in g
+                }
+                group_qs = EvidenceURLType.objects.filter(slug__in=group_slugs)
+                group_type_ids = set(group_qs.values_list('id', flat=True))
+                grouped_type_names = list(group_qs.values_list('name', flat=True))
                 accepted_types = set(
                     accepted_qs.values_list('id', flat=True)
-                ) | required_type_ids
+                ) | required_type_ids | group_type_ids
 
         errors = []
         has_required_match = not required_type_ids  # satisfied if none required
@@ -737,8 +747,8 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
                     contribution_type.accepted_evidence_url_types
                     .values_list('name', flat=True)
                 )
-                # Include required types in the accepted list shown to users
-                for n in required_type_names:
+                # Include implicitly accepted types in the list shown to users
+                for n in [*required_type_names, *grouped_type_names]:
                     if n not in accepted_names:
                         accepted_names.append(n)
                 errors.append({
@@ -786,6 +796,29 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
                     ),
                 }
             )
+
+        # --- Required URL-type groups (AND across groups, OR within a group) ---
+        # ponytail: matched by slug against the types already detected above;
+        # a group with an unknown slug simply never matches (admin typo surfaces
+        # as a failed submission). Empty list = no group requirement.
+        groups = (contribution_type.required_evidence_url_type_groups
+                  if contribution_type else None) or []
+        if groups:
+            detected_slugs = {
+                item['_detected_url_type'].slug
+                for item in evidence_validated
+                if item.get('_detected_url_type')
+            }
+            missing = [g for g in groups if not set(g) & detected_slugs]
+            if missing:
+                raise serializers.ValidationError({
+                    'evidence_items': (
+                        "Missing required evidence. Provide a URL for each of: "
+                        + ' AND '.join(
+                            '(' + ' or '.join(g) + ')' for g in missing
+                        )
+                    ),
+                })
 
         return evidence_validated
 
