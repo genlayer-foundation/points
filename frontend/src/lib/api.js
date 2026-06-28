@@ -286,6 +286,10 @@ export const stewardAPI = {
   toggleInteresting: (id, isInteresting) =>
     api.post(`/steward-submissions/${id}/toggle-interesting/`, { is_interesting: isInteresting }),
 
+  // Change a pending submission's contribution type without reviewing it
+  changeSubmissionType: (id, contributionType) =>
+    api.post(`/steward-submissions/${id}/change-type/`, { contribution_type: contributionType }),
+
   // Bulk reject multiple submissions
   bulkRejectSubmissions: (submissionIds, staffReply) =>
     api.post('/steward-submissions/bulk-reject/', { submission_ids: submissionIds, staff_reply: staffReply }),

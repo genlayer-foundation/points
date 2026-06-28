@@ -45,12 +45,14 @@
     onAddNote = null,
     onUpdateNote = null,
     onToggleInteresting = null,
+    onContributionTypeUpdate = null,
     onRequestUsers = null,
     onAppeal = null,
     currentUserId = null,
     acceptedEdit = null,
     canEditAccepted = false,
     acceptedUpdating = false,
+    contributionTypeUpdating = false,
     onAcceptedEditChange = null,
     onAcceptedUpdate = null,
     enableRubricReview = false
@@ -142,6 +144,11 @@
   );
   let canPropose = $derived(
     showReviewForm && permissions[submission.contribution_type]?.includes('propose')
+  );
+  let canChangeContributionType = $derived(
+    showReviewForm &&
+    (permissions[submission.contribution_type]?.includes('accept') ||
+      permissions[submission.contribution_type]?.includes('reject'))
   );
   let canEditActiveProposalNote = $derived(
     canPropose &&
@@ -446,8 +453,23 @@
     }
   });
 
-  function handleContributionSelectionChange(category, contributionType) {
-    // Handle contribution selection change
+  function canReviewContributionType(typeId) {
+    return permissions[typeId]?.includes('accept') || permissions[typeId]?.includes('reject');
+  }
+
+  async function handleContributionSelectionChange(category, contributionType) {
+    if (!contributionType || contributionTypeUpdating) return;
+    if (String(contributionType.id) === String(submission.contribution_type)) return;
+    if (!onContributionTypeUpdate || !canChangeContributionType) return;
+    if (!canReviewContributionType(contributionType.id)) {
+      showError('You need accept or reject permission on the selected type.');
+      selectedType = submission.contribution_type;
+      selectedContributionTypeObj = contributionTypes.find(
+        type => String(type.id) === String(submission.contribution_type)
+      ) || null;
+      return;
+    }
+    await onContributionTypeUpdate(submission.id, contributionType.id);
   }
 
   function getStateClass(state) {
@@ -1441,9 +1463,14 @@
                     </div>
 
                     <div>
-                      <p class="block text-sm font-medium text-gray-700 mb-2">
-                        Contribution Type
-                      </p>
+                      <div class="mb-2 flex items-center justify-between gap-3">
+                        <p class="block text-sm font-medium text-gray-700">
+                          Contribution Type
+                        </p>
+                        {#if contributionTypeUpdating}
+                          <span class="text-xs font-medium text-gray-500">Saving...</span>
+                        {/if}
+                      </div>
                       <ContributionSelection
                         bind:selectedCategory
                         bind:selectedContributionType={selectedContributionTypeObj}

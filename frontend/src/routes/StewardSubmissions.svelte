@@ -36,6 +36,7 @@
 
   // Review states
   let processingSubmissions = $state(new Set());
+  let changingTypeSubmissions = $state(new Set());
   let multipliers = $state({});
   let reviewData = $state({});
 
@@ -416,6 +417,39 @@
     } catch (err) {
       showError('Failed to update flag: ' + (err.response?.data?.detail || err.message));
       throw err;
+    }
+  }
+
+  async function handleContributionTypeUpdate(submissionId, contributionTypeId) {
+    changingTypeSubmissions.add(submissionId);
+    changingTypeSubmissions = new Set(changingTypeSubmissions);
+
+    try {
+      const response = await stewardAPI.changeSubmissionType(submissionId, contributionTypeId);
+      const updatedSub = response.data;
+      const idx = submissions.findIndex(s => s.id === submissionId);
+      if (idx !== -1) {
+        submissions[idx] = updatedSub;
+        submissions = [...submissions];
+      }
+      reviewData[submissionId] = {
+        action: 'accept',
+        user: updatedSub.user,
+        contribution_type: updatedSub.contribution_type,
+        points: updatedSub.proposed_points || updatedSub.contribution_type_details?.min_points || 0,
+        staff_reply: '',
+        create_highlight: false,
+        highlight_title: '',
+        highlight_description: ''
+      };
+      reviewData = { ...reviewData };
+      loadNotes(submissionId);
+      showSuccess('Contribution type updated');
+    } catch (err) {
+      showError('Failed to update contribution type: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      changingTypeSubmissions.delete(submissionId);
+      changingTypeSubmissions = new Set(changingTypeSubmissions);
     }
   }
 
@@ -921,11 +955,13 @@
             onAddNote={handleAddNote}
             onUpdateNote={handleUpdateNote}
             onToggleInteresting={handleToggleInteresting}
+            onContributionTypeUpdate={handleContributionTypeUpdate}
             onRequestUsers={ensureUsersLoaded}
             currentUserId={$userStore.user?.id}
             acceptedEdit={acceptedEdits[submission.id] || null}
             canEditAccepted={Boolean(submission.state === 'accepted' && submission.contribution && acceptedEdits[submission.id] && canEditAcceptedSubmission(submission))}
             acceptedUpdating={updatingAccepted.has(submission.id)}
+            contributionTypeUpdating={changingTypeSubmissions.has(submission.id)}
             onAcceptedEditChange={handleAcceptedEditChange}
             onAcceptedUpdate={handleAcceptedUpdate}
             enableRubricReview={true}

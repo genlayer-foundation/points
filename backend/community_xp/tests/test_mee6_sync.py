@@ -496,19 +496,19 @@ class Mee6SyncTest(TestCase):
             name='Other User',
         )
 
-        self.fetch_and_apply_mee6_run([mee6_player('discord-1', 100)])
-        self.add_community_contribution(other, 80)
+        self.fetch_and_apply_mee6_run([mee6_player('discord-1', 5000)])
+        self.add_community_contribution(other, 3000)
 
         response = self.api_client.get('/api/v1/leaderboard/community-contributors/')
 
         self.assertEqual(response.status_code, 200)
         results = response.json()['results']
         self.assertEqual(results[0]['user_address'], self.user.address)
-        self.assertEqual(results[0]['total_points'], 100)
-        self.assertEqual(results[0]['discord_xp'], 100)
+        self.assertEqual(results[0]['total_points'], 5000)
+        self.assertEqual(results[0]['discord_xp'], 5000)
         self.assertEqual(results[1]['user_address'], other.address)
-        self.assertEqual(results[1]['total_points'], 80)
-        self.assertEqual(results[1]['pending_portal_points'], 80)
+        self.assertEqual(results[1]['total_points'], 3000)
+        self.assertEqual(results[1]['pending_portal_points'], 3000)
 
     def test_pending_pre_snapshot_contribution_counts_on_top_of_mee6_baseline(self):
         self.link_discord(self.user, discord_id='discord-1')

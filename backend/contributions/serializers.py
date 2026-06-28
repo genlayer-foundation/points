@@ -1194,6 +1194,15 @@ class StewardAcceptedSubmissionUpdateSerializer(serializers.Serializer):
         return data
 
 
+class StewardSubmissionTypeUpdateSerializer(serializers.Serializer):
+    """Serializer for changing a pending submission's contribution type."""
+    contribution_type = serializers.PrimaryKeyRelatedField(
+        queryset=ContributionType.objects.all(),
+        required=True,
+        help_text="New contribution type for the submission"
+    )
+
+
 class SubmissionNoteSerializer(serializers.ModelSerializer):
     """Serializer for CRM notes on submissions."""
     user_name = serializers.SerializerMethodField()
