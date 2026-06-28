@@ -882,8 +882,9 @@ class NetworkActivityViewTests(TestCase):
         from api.overview_metrics import build_network_activity
         payload = build_network_activity()
 
-        self.assertEqual(payload['version'], 3)
+        self.assertEqual(payload['version'], 5)
         self.assertEqual(payload['interval'], 'week')
+        self.assertEqual(payload['activity_window'], {'start': '2026-01-01', 'end': '2026-06-30'})
         self.assertEqual([s['key'] for s in payload['series']], ['studio', 'asimov', 'bradbury'])
         self.assertEqual(payload['labels'], ['May 22-29', 'May 29 - Jun 5', 'Jun 5-12', 'Jun 12-19'])
         for s in payload['series']:
@@ -896,8 +897,18 @@ class NetworkActivityViewTests(TestCase):
         self.assertEqual(payload['totals']['daily_decisions_made'], 267)
         self.assertEqual(payload['totals']['daily_chain_transactions'], 467)
         self.assertAlmostEqual(payload['totals']['transactions_per_second'], 3269 / (7 * 24 * 60 * 60))
+        self.assertEqual(len(payload['activity']), 181)
+        self.assertEqual(payload['activity'][0]['date'], '2026-01-01')
+        self.assertEqual(payload['activity'][0]['decisions_made'], 0)
+        self.assertEqual(payload['activity'][-1]['date'], '2026-06-30')
+        self.assertEqual(payload['activity'][-1]['decisions_made'], 0)
+        latest_observed = next(day for day in payload['activity'] if day['date'] == '2026-06-19')
+        self.assertEqual(latest_observed['decisions_made'], 276)
+        self.assertEqual(latest_observed['chain_transactions'], 476)
+        self.assertEqual(latest_observed['sources']['studio']['decisions_made'], 26)
+        self.assertEqual(latest_observed['sources']['asimov']['chain_transactions'], 225)
         studio_call = next(call for call in mock_get.call_args_list if 'executive' in call.args[0])
-        self.assertEqual(studio_call.kwargs['params'], {'instanceId': 'all', 'range': 'quarter'})
+        self.assertEqual(studio_call.kwargs['params'], {'instanceId': 'all', 'range': 'year'})
         history_calls = [call for call in mock_get.call_args_list if 'kpi-histories' in call.args[0]]
         self.assertEqual(len(history_calls), 4)
         self.assertEqual(
@@ -909,7 +920,7 @@ class NetworkActivityViewTests(TestCase):
                 'total_rollup_transactions',
             ],
         )
-        expected_from = int(self.fixed_now.timestamp()) - 84 * 86400
+        expected_from = int(datetime(2026, 1, 1, tzinfo=dt_timezone.utc).timestamp())
         for call in history_calls:
             self.assertEqual(call.kwargs['params']['interval'], 'D1')
             self.assertEqual(call.kwargs['params']['from_timestamp'], expected_from)
@@ -959,7 +970,7 @@ class NetworkActivityViewTests(TestCase):
 
         self.assertEqual(snap.metric_key, 'network_activity')
         self.assertEqual(snap.status, MetricSnapshot.STATUS_OK)
-        self.assertEqual(snap.raw_payload['version'], 3)
+        self.assertEqual(snap.raw_payload['version'], 5)
         self.assertEqual(snap.raw_payload['interval'], 'week')
         self.assertEqual([s['key'] for s in snap.raw_payload['series']], ['studio', 'asimov', 'bradbury'])
         self.assertEqual(snap.raw_payload['totals']['decisions_made'], 1869)
@@ -972,8 +983,17 @@ class NetworkActivityViewTests(TestCase):
         stored = {
             'labels': ['Jun 1-7', 'Jun 8-14', 'Jun 15-21'],
             'series': [{'key': 'studio', 'label': 'Studio', 'values': [None, 5, 9]}],
-            'version': 3,
+            'version': 5,
             'interval': 'week',
+            'activity_window': {'start': '2026-01-01', 'end': '2026-06-30'},
+            'activity': [
+                {
+                    'date': '2026-06-15',
+                    'decisions_made': 5,
+                    'chain_transactions': 2,
+                    'sources': {'studio': {'label': 'Studio', 'decisions_made': 5, 'chain_transactions': 2}},
+                },
+            ],
             'latest_week': {'week_start': '2026-06-15', 'week_end': '2026-06-21', 'label': 'Jun 15-21'},
             'totals': {
                 'decisions_made': 4242,
@@ -992,10 +1012,42 @@ class NetworkActivityViewTests(TestCase):
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data['interval'], 'week')
-        self.assertEqual(resp.data['version'], 3)
+        self.assertEqual(resp.data['version'], 5)
         self.assertEqual(resp.data['totals']['decisions_made'], 4242)
         self.assertEqual([s['key'] for s in resp.data['series']], ['studio'])
         self.assertEqual(resp.data['series'][0]['values'], [None, 5, 9])  # null padding preserved
+        self.assertEqual(resp.data['activity'][0]['date'], '2026-06-15')
+        mock_get.assert_not_called()
+
+    @patch('api.overview_metrics.requests.get')
+    def test_v3_weekly_snapshot_keeps_graph_available_until_v4_refresh(self, mock_get):
+        mock_get.side_effect = AssertionError('public read must not fetch upstreams')
+        stored = {
+            'labels': ['Jun 1-7'],
+            'series': [{'key': 'studio', 'label': 'Studio', 'values': [42]}],
+            'version': 3,
+            'interval': 'week',
+            'latest_week': {'week_start': '2026-06-01', 'week_end': '2026-06-07', 'label': 'Jun 1-7'},
+            'totals': {
+                'decisions_made': 42,
+                'chain_transactions': 7,
+                'daily_decisions_made': 6,
+                'daily_chain_transactions': 1,
+                'transactions_per_second': 7 / (7 * 24 * 60 * 60),
+            },
+        }
+        MetricSnapshot.objects.create(
+            metric_key='network_activity', source='composite', value=42,
+            unit='count', raw_payload=stored,
+        )
+
+        resp = self.client.get('/api/v1/metrics/overview/network-activity/')
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data['version'], 5)
+        self.assertEqual(resp.data['series'][0]['values'], [42])
+        self.assertEqual(resp.data['activity'], [])
+        self.assertEqual(resp.data['latest_week_by_source'], {})
         mock_get.assert_not_called()
 
     @patch('api.overview_metrics.requests.get')
@@ -1005,7 +1057,7 @@ class NetworkActivityViewTests(TestCase):
         resp = self.client.get('/api/v1/metrics/overview/network-activity/')
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(resp.data['version'], 3)
+        self.assertEqual(resp.data['version'], 5)
         self.assertEqual(resp.data['interval'], 'week')
         self.assertEqual(resp.data['labels'], [])
         self.assertEqual(resp.data['series'], [])
@@ -1042,8 +1094,9 @@ class NetworkActivityViewTests(TestCase):
         good = {
             'labels': ['Jun 1'],
             'series': [{'key': 'studio', 'label': 'Studio', 'values': [7]}],
-            'version': 3,
+            'version': 4,
             'interval': 'week',
+            'activity': [],
             'latest_week': {'week_start': '2026-05-26', 'week_end': '2026-06-01', 'label': 'May 26 - Jun 1'},
             'totals': {
                 'decisions_made': 1234,
@@ -1126,8 +1179,9 @@ class NetworkActivityViewTests(TestCase):
         mock_get.side_effect = AssertionError('served from DB, no upstream calls expected')
         first = {
             'labels': ['Jun 1'], 'series': [{'key': 'studio', 'label': 'Studio', 'values': [1]}],
-            'version': 3,
+            'version': 4,
             'interval': 'week',
+            'activity': [],
             'latest_week': {'week_start': '2026-05-26', 'week_end': '2026-06-01', 'label': 'May 26 - Jun 1'},
             'totals': {
                 'decisions_made': 100,
@@ -1146,8 +1200,9 @@ class NetworkActivityViewTests(TestCase):
         # A newer snapshot lands (as the cron would persist it).
         second = {
             'labels': ['Jun 2'], 'series': [{'key': 'studio', 'label': 'Studio', 'values': [2]}],
-            'version': 3,
+            'version': 4,
             'interval': 'week',
+            'activity': [],
             'latest_week': {'week_start': '2026-05-27', 'week_end': '2026-06-02', 'label': 'May 27 - Jun 2'},
             'totals': {
                 'decisions_made': 200,

@@ -19,11 +19,11 @@ EXPLORER_BASE_URLS = {
     'bradbury': 'https://explorer-bradbury.genlayer.com',
 }
 NETWORK_ACTIVITY_WEEKS = 12
-NETWORK_ACTIVITY_DAYS = NETWORK_ACTIVITY_WEEKS * 7
+NETWORK_ACTIVITY_MONTHS = 6
 NETWORK_ACTIVITY_INTERVAL = 'week'
-NETWORK_ACTIVITY_PAYLOAD_VERSION = 3
+NETWORK_ACTIVITY_PAYLOAD_VERSION = 5
 NETWORK_ACTIVITY_SECONDS_PER_WEEK = 7 * 24 * 60 * 60
-STUDIO_NETWORK_ACTIVITY_RANGE = 'quarter'
+STUDIO_NETWORK_ACTIVITY_RANGE = 'year'
 OVERVIEW_PAYLOAD_METRIC_KEY = 'overview_payload'
 OVERVIEW_PAYLOAD_VERSION = 1
 
@@ -395,6 +395,21 @@ def _utc_midnight_ts(d):
     return int(datetime(d.year, d.month, d.day, tzinfo=dt_timezone.utc).timestamp())
 
 
+def _shift_months(d, months):
+    month = d.month - 1 + months
+    year = d.year + month // 12
+    month = month % 12 + 1
+    return d.replace(year=year, month=month)
+
+
+def _activity_window(anchor_date):
+    current_month_start = anchor_date.replace(day=1)
+    start_date = _shift_months(current_month_start, -(NETWORK_ACTIVITY_MONTHS - 1))
+    next_month_start = _shift_months(current_month_start, 1)
+    end_date = next_month_start - timedelta(days=1)
+    return start_date, end_date
+
+
 def _weekly_points(points, limit=NETWORK_ACTIVITY_WEEKS, anchor_date=None):
     anchor_date = anchor_date or timezone.now().date()
     buckets = {}
@@ -448,8 +463,9 @@ def _fetch_explorer_history(base, metric, frm, now):
 
 def fetch_explorer_activity(network, frm, now, anchor_date):
     base = EXPLORER_BASE_URLS[network]
+    decision_points = _fetch_explorer_history(base, 'total_finalized_transactions', frm, now)
     decisions_weekly = _weekly_points(
-        _fetch_explorer_history(base, 'total_finalized_transactions', frm, now),
+        decision_points,
         anchor_date=anchor_date,
     )
     try:
@@ -461,6 +477,8 @@ def fetch_explorer_activity(network, frm, now, anchor_date):
     return {
         'points': decisions_weekly,
         'chain_points': chain_weekly,
+        'daily_points': decision_points,
+        'chain_daily_points': chain_points,
         'labels': [point['label'] for point in decisions_weekly],
         'values': [point['value'] for point in decisions_weekly],
     }
@@ -483,11 +501,15 @@ def fetch_studio_activity(now, anchor_date):
     chain = metrics.get('chain-transactions', {})
     decision_values = [round(float(v or 0)) for v in (decisions.get('sparkline') or [])]
     chain_values = [round(float(v or 0)) for v in (chain.get('sparkline') or [])]
-    weekly = _weekly_points(_daily_points_from_values(decision_values, now), anchor_date=anchor_date)
-    chain_weekly = _weekly_points(_daily_points_from_values(chain_values, now), anchor_date=anchor_date)
+    decision_points = _daily_points_from_values(decision_values, now)
+    chain_points = _daily_points_from_values(chain_values, now)
+    weekly = _weekly_points(decision_points, anchor_date=anchor_date)
+    chain_weekly = _weekly_points(chain_points, anchor_date=anchor_date)
     return {
         'points': weekly,
         'chain_points': chain_weekly,
+        'daily_points': decision_points,
+        'chain_daily_points': chain_points,
         'labels': [point['label'] for point in weekly],
         'values': [point['value'] for point in weekly],
     }
@@ -495,6 +517,14 @@ def fetch_studio_activity(now, anchor_date):
 
 def _values_by_week(points):
     return {point['week_start']: int(point.get('value') or 0) for point in points}
+
+
+def _values_by_day(points):
+    values = {}
+    for ts, value in points:
+        day = datetime.fromtimestamp(int(ts), tz=dt_timezone.utc).date().isoformat()
+        values[day] = values.get(day, 0) + int(value or 0)
+    return values
 
 
 def _latest_week_meta(source_activity, week_key):
@@ -515,8 +545,9 @@ def build_network_activity():
     Each source degrades independently; a failed upstream is just omitted.
     """
     now = int(timezone.now().timestamp())
-    frm = now - NETWORK_ACTIVITY_DAYS * 86400
     anchor_date = datetime.fromtimestamp(now, tz=dt_timezone.utc).date()
+    activity_start, activity_end = _activity_window(anchor_date)
+    frm = _utc_midnight_ts(activity_start)
 
     source_activity = []
 
@@ -529,6 +560,8 @@ def build_network_activity():
                 'label': 'Studio',
                 'points': studio['points'],
                 'chain_points': studio['chain_points'],
+                'daily_points': studio['daily_points'],
+                'chain_daily_points': studio['chain_daily_points'],
             })
     except Exception as exc:
         logger.warning('Network activity: studio source failed: %s', exc)
@@ -545,6 +578,8 @@ def build_network_activity():
                 'label': network.title(),
                 'points': net['points'],
                 'chain_points': net['chain_points'],
+                'daily_points': net['daily_points'],
+                'chain_daily_points': net['chain_daily_points'],
             })
 
     week_keys = sorted({
@@ -562,10 +597,14 @@ def build_network_activity():
     latest_week_key = week_keys[-1] if week_keys else None
     latest_week = _latest_week_meta(source_activity, latest_week_key) if latest_week_key else None
     latest_week_by_source = {}
+    daily_values_by_source = {}
+    daily_chain_values_by_source = {}
 
     for item in source_activity:
         decision_values_by_week = _values_by_week(item['points'])
         chain_values_by_week = _values_by_week(item['chain_points'])
+        daily_values_by_source[item['key']] = _values_by_day(item.get('daily_points') or [])
+        daily_chain_values_by_source[item['key']] = _values_by_day(item.get('chain_daily_points') or [])
         values = [decision_values_by_week.get(key) for key in week_keys]
         if any(value is not None for value in values):
             series.append({'key': item['key'], 'label': item['label'], 'values': values})
@@ -584,11 +623,43 @@ def build_network_activity():
         if latest_week_key
         else None
     )
+    day_keys = []
+    if source_activity:
+        day_keys = [
+            (activity_start + timedelta(days=offset)).isoformat()
+            for offset in range((activity_end - activity_start).days + 1)
+        ]
+    activity = []
+    for day_key in day_keys:
+        sources = {}
+        decisions_day_total = 0
+        chain_day_total = 0
+        for item in source_activity:
+            decisions = daily_values_by_source.get(item['key'], {}).get(day_key, 0)
+            chain = daily_chain_values_by_source.get(item['key'], {}).get(day_key, 0)
+            decisions_day_total += decisions
+            chain_day_total += chain
+            sources[item['key']] = {
+                'label': item['label'],
+                'decisions_made': decisions,
+                'chain_transactions': chain,
+            }
+        activity.append({
+            'date': day_key,
+            'decisions_made': decisions_day_total,
+            'chain_transactions': chain_day_total,
+            'sources': sources,
+        })
 
     return {
         'version': NETWORK_ACTIVITY_PAYLOAD_VERSION,
         'labels': labels,
         'series': series,
+        'activity': activity,
+        'activity_window': {
+            'start': activity_start.isoformat(),
+            'end': activity_end.isoformat(),
+        },
         'interval': NETWORK_ACTIVITY_INTERVAL,
         'latest_week': latest_week,
         'totals': {
@@ -633,13 +704,18 @@ def latest_network_activity():
         return None
     snap, payload = latest
     # The public overview must not keep serving older snapshots whose totals used
-    # different semantics. Returning None makes the read view rebuild live once;
-    # the cron then persists a fresh snapshot.
+    # different semantics. Versions 3 and 4 already have the same weekly graph
+    # semantics; they just lack the v5 six-month heatmap window, so keep serving
+    # the graph while the cron catches up and normalize the missing fields below.
     if (
         payload.get('interval') != NETWORK_ACTIVITY_INTERVAL
-        or payload.get('version') != NETWORK_ACTIVITY_PAYLOAD_VERSION
+        or payload.get('version') not in (3, 4, NETWORK_ACTIVITY_PAYLOAD_VERSION)
     ):
         return None
+    payload['version'] = NETWORK_ACTIVITY_PAYLOAD_VERSION
+    payload.setdefault('activity', [])
+    payload.setdefault('activity_window', None)
+    payload.setdefault('latest_week_by_source', {})
     # ISO string so the response is identical whether served fresh or from cache,
     # regardless of the cache backend's (de)serialization.
     payload['generated_at'] = snap.observed_at.isoformat()
@@ -651,6 +727,8 @@ def empty_network_activity_payload():
         'version': NETWORK_ACTIVITY_PAYLOAD_VERSION,
         'labels': [],
         'series': [],
+        'activity': [],
+        'activity_window': None,
         'interval': NETWORK_ACTIVITY_INTERVAL,
         'latest_week': None,
         'totals': {
