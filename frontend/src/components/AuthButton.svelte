@@ -5,6 +5,14 @@
   import { authState, signInWithEthereum, logout } from '../lib/auth';
   import { userStore } from '../lib/userStore';
   import { showError, showWarning } from '../lib/toastStore';
+  import {
+    consumeConnectWalletIntent,
+    getAnalyticsContext,
+    getFunnelDurationMs,
+    markLifecycleTime,
+    markFunnelTime,
+    trackEvent,
+  } from '../lib/analytics.js';
   import WalletSelector from './WalletSelector.svelte';
 
   // Use $: to access the store values reactively
@@ -18,6 +26,7 @@
   let showDropdown = false;
   let showWalletSelector = false;
   let isMobileViewport = false;
+  let walletSelectorContext = {};
 
   $: authButtonLabel = isMobileViewport ? formatAddress(address) : (userName || formatAddress(address));
 
@@ -41,7 +50,7 @@
     }
     authState.setError(null);
   }
-  
+
   async function handleAuth() {
     if (isAuthenticated) {
       // If authenticated, clicking the button should toggle the dropdown
@@ -49,13 +58,67 @@
       return;
     }
 
+    const intent = consumeConnectWalletIntent();
+    const context = getAnalyticsContext({
+      surface: intent.surface || 'navbar',
+      cta_id: intent.cta_id || 'auth_button',
+      target_route: intent.target_route,
+    });
+    markFunnelTime('wallet_click');
+    trackEvent('connect_wallet_click', context);
+    walletSelectorContext = context;
+
     // Show wallet selector modal
     showWalletSelector = true;
+    trackEvent('wallet_selector_view', {
+      ...context,
+      surface: 'modal',
+    });
+  }
+
+  function providerType(walletName) {
+    const value = String(walletName || '').toLowerCase();
+    if (value.includes('metamask')) return 'metamask';
+    if (value.includes('phantom')) return 'phantom';
+    if (value.includes('trust')) return 'trust';
+    if (value.includes('coinbase')) return 'coinbase';
+    return 'other';
+  }
+
+  function walletErrorStage(error) {
+    const message = String(error?.message || '').toLowerCase();
+    if (error?.code === 4001 || message.includes('user rejected') || message.includes('user denied')) {
+      return 'user_rejected';
+    }
+    if (message.includes('no wallet') || message.includes('provider')) return 'provider_unavailable';
+    if (message.includes('signature') || message.includes('sign')) return 'signature';
+    if (message.includes('nonce')) return 'nonce';
+    if (message.includes('network')) return 'network';
+    if (error?.response?.status) return 'backend';
+    return 'unknown';
+  }
+
+  function handleWalletSelectorDismiss(detail = {}) {
+    trackEvent('wallet_selector_dismissed', getAnalyticsContext({
+      ...walletSelectorContext,
+      surface: 'modal',
+      dismiss_reason: detail.reason || 'unknown',
+      provider_type: detail.providerType,
+      wallet_connection_state: detail.connecting ? 'connecting' : 'idle',
+      time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+    }));
   }
 
   async function handleWalletSelected(provider, walletName) {
     // Start the connection process with selected wallet
     loading = true;
+    const provider_type = providerType(walletName);
+    const context = getAnalyticsContext({
+      surface: 'modal',
+      provider_type,
+    });
+    trackEvent('wallet_provider_selected', context);
+    trackEvent('wallet_auth_started', context);
 
     try {
       preserveCurrentRouteForLogin();
@@ -65,10 +128,22 @@
 
       // Close wallet selector modal
       showWalletSelector = false;
+      markFunnelTime('wallet_auth_success');
+      markLifecycleTime('first_wallet_auth_success');
+      trackEvent('wallet_auth_success', getAnalyticsContext({
+        surface: 'modal',
+        provider_type,
+        time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+      }));
 
       // ProfileCompletionGuard will automatically show if profile is incomplete
       // Otherwise user continues to their profile or intended destination
     } catch (err) {
+      trackEvent('wallet_auth_failed', getAnalyticsContext({
+        surface: 'modal',
+        provider_type,
+        error_stage: walletErrorStage(err),
+      }));
       // Error is already handled by the reactive statement that watches storeError
       // No need to show toast here to avoid duplicate notifications
       // Keep modal open on error so user can try again
@@ -170,6 +245,7 @@
 <WalletSelector
   bind:isOpen={showWalletSelector}
   onSelect={handleWalletSelected}
+  onDismiss={handleWalletSelectorDismiss}
 />
 
 <style>

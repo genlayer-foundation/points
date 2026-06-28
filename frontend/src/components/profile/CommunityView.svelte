@@ -2,7 +2,6 @@
     import { push } from "svelte-spa-router";
     import ProfileHighlights from "./ProfileHighlights.svelte";
     import ProfileRecentContributions from "./ProfileRecentContributions.svelte";
-    import CommunityProgressJourney from "./CommunityProgressJourney.svelte";
     import ProfilePoaps from "../poaps/ProfilePoaps.svelte";
 
     let {
@@ -12,18 +11,8 @@
         communityStatsLoading = false,
         poapCount = 0,
         poapCountLoading = false,
-        onSocialLinked = () => {},
-        onClaimX = () => {},
-        onClaimDiscord = () => {},
-        isClaimingX = false,
-        isClaimingDiscord = false,
     } = $props();
 
-    let showJourney = $derived(
-        isOwnProfile &&
-        participant?.creator &&
-        !(participant?.has_community_link_x && participant?.has_community_link_discord)
-    );
     let showCommunityActivity = $derived(Boolean(participant?.creator));
     let showPoaps = $derived(poapCount > 0);
 </script>
@@ -59,24 +48,10 @@
             <span
                 class="text-[12px] font-medium text-[#ac6df3] tracking-[0.24px] leading-[16px]"
             >
-                Community Member
+                Creator
             </span>
         {/if}
     </div>
-
-    <!-- Social Link Journey (conditional) -->
-    {#if showJourney}
-        <div class="w-full mb-4">
-            <CommunityProgressJourney
-                {participant}
-                onSocialLinked={onSocialLinked}
-                {onClaimX}
-                {onClaimDiscord}
-                {isClaimingX}
-                {isClaimingDiscord}
-            />
-        </div>
-    {/if}
 
     <!-- Metrics Row: 2 cards -->
     <div class="community-metrics flex flex-col md:flex-row gap-4 w-full">

@@ -316,7 +316,7 @@
               Share with your friends
             </h3>
             <p class="text-[15px] md:text-[17px] text-[#656567]">
-              Send your link to developers, node operators, and community members. The more they contribute, the more you earn.
+              Send your link to developers, node operators, and creators. The more they contribute, the more you earn.
             </p>
             <ul class="space-y-3">
               <li class="flex items-center gap-3">

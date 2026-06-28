@@ -21,7 +21,7 @@ TARGET_FIELDS = tuple(
 @admin.register(SocialTask)
 class SocialTaskAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
     # Broadcast goes only to the role the task's category targets
-    # (builders/validators/community members), resolved in the service.
+    # (builders/validators/creators), resolved in the service.
     broadcast_event_slug = 'social_task.published'
     broadcast_service = staticmethod(notification_services.broadcast_social_task)
     broadcast_eligible = staticmethod(lambda obj: obj.is_currently_active())
@@ -56,6 +56,15 @@ class SocialTaskAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
     fieldsets = (
         (None, {
             'fields': ('name', 'slug', 'description', 'category', 'points', 'order'),
+        }),
+        ('Eligibility', {
+            'fields': ('eligibility_requirements',),
+            'description': (
+                'Optional JSON gate checked before completion. Use '
+                '{"type":"accepted_submittable_contribution","category":"task","minimum":1} '
+                'to require accepted work in this task category, or an "any" list '
+                'to allow alternatives such as community points.'
+            ),
         }),
         ('Action', {
             'fields': ('action_url', 'cta_text'),

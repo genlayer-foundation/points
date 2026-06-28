@@ -3,6 +3,8 @@
   import { push } from 'svelte-spa-router';
   import WhatsNewAnnouncementSurface from './whats-new-announcement-surface.svelte';
   import { authState } from '../lib/auth.js';
+  import { userStore } from '../lib/userStore.js';
+  import { hasAnyRoleOrJourney } from '../lib/roleState.js';
   import { followNotificationLink } from '../lib/notificationUtils.js';
   import { whatsNewStore } from '../lib/whatsNewStore.js';
   import { CAUGHT_UP_GRADIENT, normalizeWhatsNewItem } from '../lib/whatsNewPresentation.js';
@@ -40,6 +42,10 @@
 
   /** @type {string | null} */
   let lastAuthKey = null;
+  /** @type {string | null} */
+  let sessionAuthKey = null;
+  /** @type {boolean | null} */
+  let sessionStartedEngaged = null;
 
   async function loadUnseen({ auto = false } = {}) {
     if (!$authState.isAuthenticated) return;
@@ -151,15 +157,32 @@
   $effect(() => {
     const isAuthenticated = $authState.isAuthenticated;
     const address = $authState.address;
+    const user = $userStore.user;
 
     if (!isAuthenticated) {
       lastAuthKey = null;
+      sessionAuthKey = null;
+      sessionStartedEngaged = null;
       whatsNewStore.reset();
       closeDialog({ clear: true });
       return;
     }
 
+    // Wait for the user object so we can tell a freshly-created account apart.
+    if (!user) return;
+
     const authKey = address || 'authenticated';
+    const engaged = hasAnyRoleOrJourney(user);
+    if (sessionAuthKey !== authKey) {
+      sessionAuthKey = authKey;
+      sessionStartedEngaged = engaged;
+    }
+
+    // Don't auto-open What's New for a brand-new account in the same login
+    // session. If the session began with no role/journey, wait until the user
+    // logs out and back in, even if they start a journey moments later.
+    if (!sessionStartedEngaged) return;
+
     if (authKey === lastAuthKey) return;
 
     lastAuthKey = authKey;

@@ -4,11 +4,12 @@
   import Avatar from "../Avatar.svelte";
   import CategoryIcon from "../portal/CategoryIcon.svelte";
   import SocialLink from "../SocialLink.svelte";
+  import { hasStartedJourney } from "../../lib/roleState.js";
 
   let {
     participant = null,
     isOwnProfile = false,
-    isValidatorOnly = false,
+    communityJourneyInProgress = false,
     onParticipantUpdated = () => {},
   } = $props();
 
@@ -35,6 +36,12 @@
         participant.has_validator_waitlist ||
         participant.has_builder_welcome),
   );
+
+  // In-progress (started, not earned) role journeys: the badge is greyed and
+  // shown only to the profile owner — it is not public until the role is earned.
+  let builderStarted = $derived(hasStartedJourney(participant, "builder"));
+  let validatorStarted = $derived(hasStartedJourney(participant, "validator"));
+  let communityStarted = $derived(hasStartedJourney(participant, "community"));
   let discordRoles = $derived.by(() => {
     const roles = participant?.discord_connection?.roles || [];
     return [...roles].sort((a, b) => (b.position || 0) - (a.position || 0) || String(a.name).localeCompare(String(b.name)));
@@ -103,8 +110,7 @@
               class="profile-name text-[40px] font-semibold text-black leading-[40px] min-w-0"
               style="letter-spacing: -0.8px; font-family: 'F37 Lineca', 'Geist', sans-serif;"
             >
-              {participant?.name ||
-                (isValidatorOnly ? "Validator" : "Participant")}
+              {participant?.name || "Participant"}
             </h1>
 
             <div class="profile-badges flex items-start gap-[5px] mt-1">
@@ -127,7 +133,7 @@
                 </div>
               {/if}
               <!-- Community -->
-              {#if participant?.creator}
+              {#if participant?.creator && !communityJourneyInProgress}
                 <div class="flex-shrink-0 relative badge-tooltip-wrap">
                   <CategoryIcon category="community" mode="hexagon" size={32} />
                   <div class="badge-tooltip">
@@ -135,24 +141,48 @@
                     <span class="badge-tooltip-desc">Contributing to the GenLayer community</span>
                   </div>
                 </div>
+              {:else if isOwnProfile && (communityStarted || communityJourneyInProgress)}
+                <div class="flex-shrink-0 relative badge-tooltip-wrap">
+                  <span class="block grayscale opacity-50"><CategoryIcon category="community" mode="hexagon" size={32} /></span>
+                  <div class="badge-tooltip">
+                    <span class="badge-tooltip-title">Community</span>
+                    <span class="badge-tooltip-desc">Journey in progress</span>
+                  </div>
+                </div>
               {/if}
               <!-- Builder -->
-              {#if participant?.builder || participant?.has_builder_welcome}
+              {#if participant?.builder}
                 <div class="flex-shrink-0 relative badge-tooltip-wrap">
                   <CategoryIcon category="builder" mode="hexagon" size={32} />
                   <div class="badge-tooltip">
                     <span class="badge-tooltip-title">Builder</span>
-                    <span class="badge-tooltip-desc">{participant?.builder ? 'Deploying contracts and contributing code' : 'Builder journey in progress'}</span>
+                    <span class="badge-tooltip-desc">Deploying contracts and contributing code</span>
+                  </div>
+                </div>
+              {:else if isOwnProfile && builderStarted}
+                <div class="flex-shrink-0 relative badge-tooltip-wrap">
+                  <span class="block grayscale opacity-50"><CategoryIcon category="builder" mode="hexagon" size={32} /></span>
+                  <div class="badge-tooltip">
+                    <span class="badge-tooltip-title">Builder</span>
+                    <span class="badge-tooltip-desc">Journey in progress</span>
                   </div>
                 </div>
               {/if}
               <!-- Validator -->
-              {#if participant?.validator || participant?.has_validator_waitlist}
+              {#if participant?.validator}
                 <div class="flex-shrink-0 relative badge-tooltip-wrap">
                   <CategoryIcon category="validator" mode="hexagon" size={32} />
                   <div class="badge-tooltip">
                     <span class="badge-tooltip-title">Validator</span>
-                    <span class="badge-tooltip-desc">{participant?.validator ? 'Securing the network through consensus' : 'On the validator waitlist'}</span>
+                    <span class="badge-tooltip-desc">Securing the network through consensus</span>
+                  </div>
+                </div>
+              {:else if isOwnProfile && validatorStarted}
+                <div class="flex-shrink-0 relative badge-tooltip-wrap">
+                  <span class="block grayscale opacity-50"><CategoryIcon category="validator" mode="hexagon" size={32} /></span>
+                  <div class="badge-tooltip">
+                    <span class="badge-tooltip-title">Validator</span>
+                    <span class="badge-tooltip-desc">Journey in progress</span>
                   </div>
                 </div>
               {/if}

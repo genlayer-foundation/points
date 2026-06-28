@@ -16,18 +16,25 @@
   let contributions = $state([]);
   let loading = $state(true);
   let error = $state(null);
+  const hiddenContributionTypeSlugs = new Set(['builder-welcome']);
+
+  function contributionTypeSlug(contribution) {
+    return contribution?.contribution_type_details?.slug || contribution?.contribution_type?.slug || '';
+  }
 
   async function fetchContributions() {
     try {
       loading = true;
       const params = {
-        limit,
+        limit: limit + hiddenContributionTypeSlugs.size,
         ordering: '-created_at',
       };
       if (userId) params.user_address = userId;
       if (category) params.category = category;
       const response = await contributionsAPI.getContributions(params);
-      contributions = response.data.results || [];
+      contributions = (response.data.results || [])
+        .filter((contribution) => !hiddenContributionTypeSlugs.has(contributionTypeSlug(contribution)))
+        .slice(0, limit);
     } catch (err) {
       error = err.message || 'Failed to load contributions';
     } finally {

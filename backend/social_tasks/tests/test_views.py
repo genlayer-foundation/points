@@ -5,7 +5,8 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from contributions.models import Category
+from contributions.models import Category, Contribution, ContributionType
+from leaderboard.models import GlobalLeaderboardMultiplier
 from social_connections.encryption import encrypt_token
 from social_connections.models import DiscordConnection, TwitterConnection
 from social_tasks.models import SocialTask, SocialTaskCompletion
@@ -20,6 +21,23 @@ def _make_user(email):
     user.set_password('x')
     user.save()
     return user
+
+
+def _make_contribution_type(category, slug, is_submittable=True, points=10):
+    contribution_type = ContributionType.objects.create(
+        name=slug.replace('-', ' ').title(),
+        slug=slug,
+        category=category,
+        min_points=points,
+        max_points=points,
+        is_submittable=is_submittable,
+    )
+    GlobalLeaderboardMultiplier.objects.create(
+        contribution_type=contribution_type,
+        multiplier_value=1.0,
+        valid_from=timezone.now() - timezone.timedelta(days=1),
+    )
+    return contribution_type
 
 
 @override_settings(
@@ -321,3 +339,110 @@ class SocialTaskViewSetTest(TestCase):
         with self.assertRaises(ValidationError) as cm:
             bad.full_clean()
         self.assertIn('target_handle', cm.exception.message_dict)
+
+    def test_list_marks_task_locked_until_required_category_contribution_exists(self):
+        self.click_task.eligibility_requirements = {
+            'type': 'accepted_submittable_contribution',
+            'category': 'task',
+            'minimum': 1,
+        }
+        self.click_task.save()
+
+        response = self.client.get('/api/v1/social-tasks/')
+        by_slug = {t['slug']: t for t in response.json()}
+        self.assertEqual(by_slug[self.click_task.slug]['status'], 'locked')
+        self.assertFalse(by_slug[self.click_task.slug]['can_complete'])
+        self.assertFalse(by_slug[self.click_task.slug]['eligibility']['eligible'])
+
+        non_submittable_type = _make_contribution_type(
+            self.category, 'community-internal', is_submittable=False
+        )
+        Contribution.objects.create(
+            user=self.user,
+            contribution_type=non_submittable_type,
+            points=10,
+            contribution_date=timezone.now(),
+        )
+        response = self.client.get('/api/v1/social-tasks/')
+        by_slug = {t['slug']: t for t in response.json()}
+        self.assertEqual(by_slug[self.click_task.slug]['status'], 'locked')
+
+        submittable_type = _make_contribution_type(
+            self.category, 'community-submittable', is_submittable=True
+        )
+        Contribution.objects.create(
+            user=self.user,
+            contribution_type=submittable_type,
+            points=10,
+            contribution_date=timezone.now(),
+        )
+        response = self.client.get('/api/v1/social-tasks/')
+        by_slug = {t['slug']: t for t in response.json()}
+        self.assertEqual(by_slug[self.click_task.slug]['status'], 'active')
+        self.assertTrue(by_slug[self.click_task.slug]['can_complete'])
+
+    def test_complete_locked_task_returns_403_before_verification(self):
+        self.click_task.eligibility_requirements = {
+            'type': 'accepted_submittable_contribution',
+            'category': 'task',
+            'minimum': 1,
+        }
+        self.click_task.save()
+
+        response = self.client.post(f'/api/v1/social-tasks/{self.click_task.slug}/complete/')
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()['error'], 'eligibility_failed')
+        self.assertFalse(
+            SocialTaskCompletion.objects.filter(user=self.user, task=self.click_task).exists()
+        )
+
+    def test_any_requirement_allows_community_points_or_accepted_contribution(self):
+        self.click_task.eligibility_requirements = {
+            'any': [
+                {'type': 'community_points', 'minimum': 20},
+                {
+                    'type': 'accepted_submittable_contribution',
+                    'category': 'task',
+                    'minimum': 1,
+                },
+            ],
+        }
+        self.click_task.save()
+
+        response = self.client.get('/api/v1/social-tasks/')
+        by_slug = {t['slug']: t for t in response.json()}
+        self.assertEqual(by_slug[self.click_task.slug]['status'], 'locked')
+
+        non_submittable_type = _make_contribution_type(
+            self.category,
+            'community-points-only',
+            is_submittable=False,
+            points=25,
+        )
+        Contribution.objects.create(
+            user=self.user,
+            contribution_type=non_submittable_type,
+            points=25,
+            contribution_date=timezone.now(),
+        )
+
+        response = self.client.get('/api/v1/social-tasks/')
+        by_slug = {t['slug']: t for t in response.json()}
+        self.assertEqual(by_slug[self.click_task.slug]['status'], 'active')
+
+    def test_clean_rejects_unknown_eligibility_rule(self):
+        from django.core.exceptions import ValidationError
+
+        bad = SocialTask(
+            name='Bad gate task',
+            slug='bad-gate-task',
+            category=self.category,
+            points=5,
+            verification_type='click_through',
+            action_url='https://example.com',
+            eligibility_requirements={'type': 'made_up_gate'},
+        )
+        with self.assertRaises(ValidationError) as cm:
+            bad.full_clean()
+        self.assertIn('eligibility_requirements', cm.exception.message_dict)
