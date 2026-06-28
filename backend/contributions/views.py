@@ -39,6 +39,7 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          SubmittedEvidenceSerializer, ContributionHighlightSerializer,
                          StewardSubmissionSerializer, StewardSubmissionReviewSerializer,
                          StewardAcceptedSubmissionUpdateSerializer,
+                         StewardSubmissionTypeUpdateSerializer,
                          SubmissionNoteSerializer, SubmissionProposeSerializer,
                          MissionSerializer, StartupRequestListSerializer, StartupRequestDetailSerializer,
                          FeaturedContentSerializer, AlertSerializer,
@@ -2828,6 +2829,109 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
 
         serializer = self.get_serializer(submission)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='change-type', permission_classes=[IsSteward])
+    @transaction.atomic
+    def change_type(self, request, pk=None):
+        """Change a pending submission's contribution type without reviewing it."""
+        submission = get_object_or_404(
+            self._visible_submission_queryset(
+                SubmittedContribution.objects.select_for_update(of=('self',))
+            ).select_related(
+                'contribution_type',
+                'contribution_type__category',
+                'mission',
+                'project_contribution',
+            ),
+            pk=pk,
+        )
+
+        if submission.state not in ['pending', 'more_info_needed']:
+            return Response(
+                {'detail': 'Only pending submissions or submissions awaiting more information can change contribution type.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        current_type = submission.contribution_type
+        serializer = StewardSubmissionTypeUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        next_type = serializer.validated_data['contribution_type']
+
+        review_actions = ['accept', 'reject']
+        if not any(steward_has_permission(request.user, current_type.id, action) for action in review_actions):
+            return Response(
+                {'detail': 'You do not have permission to change submissions of this contribution type.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if not any(steward_has_permission(request.user, next_type.id, action) for action in review_actions):
+            return Response(
+                {'detail': 'You do not have permission to review submissions of the selected contribution type.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if next_type != current_type:
+            submission.contribution_type = next_type
+            submission.gate_reviewed = False
+
+            if not is_milestone_contribution_type(next_type):
+                submission.project_contribution = None
+                submission.milestone_version = None
+
+            # Existing proposals and rubric rows are tied to the previous type.
+            submission.proposed_action = None
+            submission.proposed_points = None
+            submission.proposed_contribution_type = None
+            submission.proposed_user = None
+            submission.proposed_staff_reply = ''
+            submission.proposed_create_highlight = False
+            submission.proposed_highlight_title = ''
+            submission.proposed_highlight_description = ''
+            submission.proposed_by = None
+            submission.proposed_at = None
+            submission.proposed_confidence = None
+            submission.proposed_template = None
+
+            submission.save(update_fields=[
+                'contribution_type',
+                'project_contribution',
+                'milestone_version',
+                'gate_reviewed',
+                'proposed_action',
+                'proposed_points',
+                'proposed_contribution_type',
+                'proposed_user',
+                'proposed_staff_reply',
+                'proposed_create_highlight',
+                'proposed_highlight_title',
+                'proposed_highlight_description',
+                'proposed_by',
+                'proposed_at',
+                'proposed_confidence',
+                'proposed_template',
+                'updated_at',
+            ])
+            ProjectMilestoneReview.objects.filter(submitted_contribution=submission).delete()
+
+            reviewer_name = request.user.name or request.user.address[:10] + '...'
+            SubmissionNote.objects.create(
+                submitted_contribution=submission,
+                user=request.user,
+                message=(
+                    f"Changed contribution type from **{current_type.name}** "
+                    f"to **{next_type.name}** by {reviewer_name}"
+                ),
+                is_proposal=False,
+                data={
+                    'action': 'change_type',
+                    'from_contribution_type': current_type.id,
+                    'to_contribution_type': next_type.id,
+                },
+            )
+
+        return Response(
+            self.get_serializer(submission).data,
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=['post'], url_path='bulk-reject')
     def bulk_reject(self, request):
