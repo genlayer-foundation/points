@@ -97,6 +97,11 @@ class CommunityJourneyTests(TestCase):
         # step 5 ships the code + share/intent affordances
         self.assertTrue(steps['x_post']['verification_code'].startswith('GL-'))
         self.assertIn('intent/post', steps['x_post']['intent_url'])
+        self.assertEqual(steps['link_x']['points'], 500)
+        self.assertEqual(steps['link_discord']['points'], 500)
+        self.assertEqual(steps['follow_x']['points'], self.follow_task.points)
+        self.assertEqual(steps['join_discord']['points'], self.join_task.points)
+        self.assertNotIn('points', steps['x_post'])
 
         self.start_journey()
         self.complete_steps_1_to_4()

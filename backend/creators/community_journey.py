@@ -83,9 +83,48 @@ def _has_contribution(user, slug) -> bool:
     return Contribution.objects.filter(user=user, contribution_type__slug=slug).exists()
 
 
+def _contribution_points(user, slug):
+    """Current reward, or the user's awarded snapshot once completed."""
+    from contributions.models import Contribution, ContributionType
+
+    contribution = (
+        Contribution.objects
+        .filter(user=user, contribution_type__slug=slug)
+        .order_by('-created_at')
+        .first()
+    )
+    if contribution:
+        return contribution.points
+
+    contribution_type = ContributionType.objects.filter(slug=slug).first()
+    if contribution_type is None:
+        return None
+    return contribution_type.min_points
+
+
 def _has_task_completion(user, slug) -> bool:
     from social_tasks.models import SocialTaskCompletion
     return SocialTaskCompletion.objects.filter(user=user, task__slug=slug).exists()
+
+
+def _task_points(user, slug):
+    """Current task reward, or the user's awarded snapshot once completed."""
+    from social_tasks.models import SocialTask, SocialTaskCompletion
+
+    completion = (
+        SocialTaskCompletion.objects
+        .filter(user=user, task__slug=slug)
+        .select_related('task')
+        .order_by('-completed_at')
+        .first()
+    )
+    if completion:
+        return completion.points_awarded
+
+    task = SocialTask.objects.filter(slug=slug).first()
+    if task is None:
+        return None
+    return task.points
 
 
 def is_started(user) -> bool:
@@ -114,10 +153,22 @@ def journey_status(user) -> dict:
     return {
         'started': started,
         'steps': {
-            'link_x': {'done': states['link_x']},
-            'link_discord': {'done': states['link_discord']},
-            'follow_x': {'done': states['follow_x']},
-            'join_discord': {'done': states['join_discord']},
+            'link_x': {
+                'done': states['link_x'],
+                'points': _contribution_points(user, LINK_X_SLUG),
+            },
+            'link_discord': {
+                'done': states['link_discord'],
+                'points': _contribution_points(user, LINK_DISCORD_SLUG),
+            },
+            'follow_x': {
+                'done': states['follow_x'],
+                'points': _task_points(user, FOLLOW_TASK_SLUG),
+            },
+            'join_discord': {
+                'done': states['join_discord'],
+                'points': _task_points(user, JOIN_DISCORD_TASK_SLUG),
+            },
             'x_post': {
                 'done': states['x_post'],
                 'verification_code': verification_code(user),
