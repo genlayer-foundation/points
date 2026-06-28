@@ -158,6 +158,16 @@ class ContributionType(BaseModel):
             "these types. Required types are implicitly accepted."
         ),
     )
+    required_evidence_url_type_groups = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "List of EvidenceURLType slug groups, e.g. "
+            '[["studio-contract", "github-repo"], ["genlayer-explorer-contract"]]. '
+            "A submission must have at least one evidence URL matching each group "
+            "(AND across groups, OR within a group). Empty = no group requirement."
+        ),
+    )
 
     class Meta:
         ordering = ['category__name', 'name']

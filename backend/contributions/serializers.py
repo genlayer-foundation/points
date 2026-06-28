@@ -705,9 +705,19 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
             required_type_ids = set(required_qs.values_list('id', flat=True))
             required_type_names = list(required_qs.values_list('name', flat=True))
             if accepted_qs.exists():
+                # Required types AND grouped types are implicitly accepted, so a
+                # whitelist never rejects a URL the group rule needs.
+                group_slugs = {
+                    s for g in (contribution_type.required_evidence_url_type_groups or [])
+                    for s in g
+                }
+                group_type_ids = set(
+                    EvidenceURLType.objects.filter(slug__in=group_slugs)
+                    .values_list('id', flat=True)
+                ) if group_slugs else set()
                 accepted_types = set(
                     accepted_qs.values_list('id', flat=True)
-                ) | required_type_ids
+                ) | required_type_ids | group_type_ids
 
         errors = []
         has_required_match = not required_type_ids  # satisfied if none required
@@ -786,6 +796,29 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
                     ),
                 }
             )
+
+        # --- Required URL-type groups (AND across groups, OR within a group) ---
+        # ponytail: matched by slug against the types already detected above;
+        # a group with an unknown slug simply never matches (admin typo surfaces
+        # as a failed submission). Empty list = no group requirement.
+        groups = (contribution_type.required_evidence_url_type_groups
+                  if contribution_type else None) or []
+        if groups:
+            detected_slugs = {
+                item['_detected_url_type'].slug
+                for item in evidence_validated
+                if item.get('_detected_url_type')
+            }
+            missing = [g for g in groups if not set(g) & detected_slugs]
+            if missing:
+                raise serializers.ValidationError({
+                    'evidence_items': (
+                        "Missing required evidence. Provide a URL for each of: "
+                        + ' AND '.join(
+                            '(' + ' or '.join(g) + ')' for g in missing
+                        )
+                    ),
+                })
 
         return evidence_validated
 

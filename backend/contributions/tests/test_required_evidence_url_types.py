@@ -42,26 +42,38 @@ class RequiredEvidenceURLTypesTest(TestCase):
             password='testpass123',
         )
 
-        self.github_repo_type = EvidenceURLType.objects.create(
-            name='GitHub Repository',
+        # update_or_create by slug: migrations 0050/0074 already seed these
+        # rows in the test DB, so plain create() collides on the unique name.
+        # ownership_social_account='' overrides the seeded github 'github'
+        # value so these tests don't hit handle-ownership validation.
+        self.github_repo_type, _ = EvidenceURLType.objects.update_or_create(
             slug='github-repo',
-            url_patterns=[r'^https?://github\.com/[^/]+/[^/]+/?$'],
-            is_generic=False,
-            order=1,
+            defaults=dict(
+                name='GitHub Repository',
+                url_patterns=[r'^https?://github\.com/[^/]+/[^/]+/?$'],
+                is_generic=False,
+                order=1,
+                ownership_social_account='',
+            ),
         )
-        self.studio_type = EvidenceURLType.objects.create(
-            name='Studio Contract',
+        self.studio_type, _ = EvidenceURLType.objects.update_or_create(
             slug='studio-contract',
-            url_patterns=[r'^https?://studio\.genlayer\.com/'],
-            is_generic=False,
-            order=2,
+            defaults=dict(
+                name='Studio Contract',
+                url_patterns=[r'^https?://studio\.genlayer\.com/'],
+                is_generic=False,
+                order=2,
+                ownership_social_account='',
+            ),
         )
-        self.other_type = EvidenceURLType.objects.create(
-            name='Other',
+        self.other_type, _ = EvidenceURLType.objects.update_or_create(
             slug='other',
-            url_patterns=[],
-            is_generic=True,
-            order=99,
+            defaults=dict(
+                name='Other',
+                url_patterns=[],
+                is_generic=True,
+                order=99,
+            ),
         )
 
         self.ctype.required_evidence_url_types.set(
