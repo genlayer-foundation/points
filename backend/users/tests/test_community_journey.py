@@ -83,7 +83,7 @@ class CommunityJourneyTests(TestCase):
         self.mark_task(self.join_task)
 
     def good_tweet(self):
-        return {'full_text': f'Joining the @{cj.genlayer_handle()} community! {cj.verification_code(self.user)}',
+        return {'full_text': cj.share_text(self.user),
                 'username': 'social_user'}
 
     # --- status ---
