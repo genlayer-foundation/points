@@ -18,10 +18,7 @@ ONBOARDING_CONTRIBUTION_TYPE_SLUGS = [
     'community-link-discord',
 ]
 JOURNEY_AUTO_AWARD_SLUGS = ONBOARDING_CONTRIBUTION_TYPE_SLUGS
-BUILDER_RANKING_EXCLUDED_TYPE_SLUGS = [
-    'builder-welcome',
-    'builder',
-]
+COMMUNITY_RANKING_MIN_POINTS = 2500
 
 
 class GlobalLeaderboardMultiplierViewSet(viewsets.ReadOnlyModelViewSet):
@@ -81,6 +78,13 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )
         )
 
+    def _builder_ranking_contributions(self):
+        return Contribution.objects.filter(
+            user_id=OuterRef('user_id'),
+            contribution_type__category__slug='builder',
+            contribution_type__is_submittable=True,
+        )
+
     def get_queryset(self):
         """
         Filter leaderboard by type, user address, and handle ordering.
@@ -109,12 +113,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )
         )
 
-        eligible_builder_contributions = Contribution.objects.filter(
-            user_id=OuterRef('user_id'),
-            contribution_type__category__slug='builder',
-        ).exclude(
-            contribution_type__slug__in=BUILDER_RANKING_EXCLUDED_TYPE_SLUGS,
-        )
+        eligible_builder_contributions = self._builder_ranking_contributions()
 
         # Filter by user address if provided
         user_address = self.request.query_params.get('user_address')
@@ -580,6 +579,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         contribution_count = contributions.count()
         social_count = social_completions.count()
         total_count = contribution_count + social_count
+        submittable_contribution_count = contributions.filter(
+            contribution_type__is_submittable=True,
+        ).count()
 
         avg_points = total_points / total_count if total_count > 0 else 0
 
@@ -615,6 +617,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             'totalPoints': total_points,
             'averagePoints': avg_points,
             'contributionTypes': contribution_types,
+            'submittableContributionCount': submittable_contribution_count,
             # Separate bucket so the frontend can render social-task earnings
             # next to the contribution breakdown without breaking the existing
             # ContributionBreakdown component (which expects entries to be real
@@ -794,9 +797,11 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 user_ids=member_user_ids,
                 visible_only=True,
             )
+            .filter(total_points__gte=COMMUNITY_RANKING_MIN_POINTS)
             .order_by('-total_points', 'community_sort_name', 'id')
         )
-        # Full ranking, kept unfiltered so search results keep their true ranks
+        # Full public ranking, kept unfiltered by search so search results keep
+        # their true ranks within the eligible leaderboard surface.
         ranking_entries = entries
 
         search = request.query_params.get('search', '').strip().lower()

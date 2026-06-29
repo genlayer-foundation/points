@@ -228,7 +228,11 @@
 
 <style>
   .hero-frame {
+    box-sizing: border-box;
     height: 480px;
+    max-width: 100%;
+    min-width: 0;
+    width: 100%;
   }
 
   .hero-frame--compact {

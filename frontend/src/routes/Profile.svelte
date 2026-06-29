@@ -142,17 +142,13 @@
   );
   let communityInProgress = $derived(
     isOwnProfile &&
+      !participant?.creator &&
       (hasStartedJourney(participant, "community") ||
         communityJourneyHasLocalSignal ||
         communityJourneyStartedIncomplete),
   );
-  let profileRoleParticipant = $derived.by(() => {
-    if (!participant || !communityInProgress || !participant.creator) return participant;
-    return { ...participant, creator: false };
-  });
-
   let topRole = $derived(
-    getTopRole(profileRoleParticipant, {
+    getTopRole(participant, {
       builderStats,
       validatorStats,
       communityStats,

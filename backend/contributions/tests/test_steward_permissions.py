@@ -161,6 +161,88 @@ class StewardPermissionTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['pending_count'], 1)
 
+    def test_steward_can_change_pending_submission_type_without_reviewing(self):
+        """Stewards can save a new type before making a review decision."""
+        StewardPermission.objects.create(
+            steward=self.steward,
+            contribution_type=self.other_contribution_type,
+            action='accept'
+        )
+        self.submission.proposed_action = 'accept'
+        self.submission.proposed_points = 50
+        self.submission.proposed_contribution_type = self.contribution_type
+        self.submission.proposed_by = self.steward_user
+        self.submission.proposed_at = timezone.now()
+        self.submission.save()
+
+        self.client.force_authenticate(user=self.steward_user)
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/change-type/',
+            {'contribution_type': self.other_contribution_type.id},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.contribution_type, self.other_contribution_type)
+        self.assertEqual(self.submission.state, 'pending')
+        self.assertIsNone(self.submission.reviewed_by)
+        self.assertIsNone(self.submission.reviewed_at)
+        self.assertIsNone(self.submission.converted_contribution)
+        self.assertIsNone(self.submission.proposed_action)
+        self.assertTrue(
+            SubmissionNote.objects.filter(
+                submitted_contribution=self.submission,
+                data__action='change_type',
+            ).exists()
+        )
+
+    def test_steward_needs_review_permission_on_target_type_to_change_submission_type(self):
+        """Changing type cannot move work into a type the steward cannot review."""
+        self.client.force_authenticate(user=self.steward_user)
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/change-type/',
+            {'contribution_type': self.other_contribution_type.id},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.contribution_type, self.contribution_type)
+
+    def test_steward_cannot_change_type_after_submission_is_accepted(self):
+        """Accepted awards must use accepted-submission correction flows."""
+        StewardPermission.objects.create(
+            steward=self.steward,
+            contribution_type=self.other_contribution_type,
+            action='accept'
+        )
+        accepted_contribution = Contribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            points=50,
+        )
+        self.submission.state = 'accepted'
+        self.submission.converted_contribution = accepted_contribution
+        self.submission.reviewed_by = self.steward_user
+        self.submission.reviewed_at = timezone.now()
+        self.submission.save()
+
+        self.client.force_authenticate(user=self.steward_user)
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/change-type/',
+            {'contribution_type': self.other_contribution_type.id},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.contribution_type, self.contribution_type)
+
     def test_propose_only_steward_only_sees_pending_permitted_submissions(self):
         """Proposal-only stewards cannot browse non-pending review history."""
         StewardPermission.objects.filter(steward=self.steward).delete()
