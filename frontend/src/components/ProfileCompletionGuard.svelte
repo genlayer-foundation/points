@@ -318,6 +318,8 @@
           nextError = data.name;
         } else if (data.code || data.token) {
           nextError = data.code || data.token;
+        } else if (data.detail) {
+          nextError = data.detail;
         } else if (data.error) {
           nextError = data.error;
         }
