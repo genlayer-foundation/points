@@ -13,6 +13,7 @@
     templateRoute,
     trackEvent,
   } from '../lib/analytics.js';
+  import { showError } from '../lib/toastStore.js';
   import Turnstile from './Turnstile.svelte';
 
   // Form state
@@ -308,22 +309,21 @@
         error_stage: err.response?.status ? 'backend' : 'network',
       }));
       // Handle field-specific errors from Django REST Framework
+      let nextError = err.message || 'Failed to update profile';
       if (err.response?.data) {
         const data = err.response.data;
         if (data.email) {
-          profileError = data.email;
+          nextError = data.email;
         } else if (data.name) {
-          profileError = data.name;
+          nextError = data.name;
         } else if (data.code || data.token) {
-          profileError = data.code || data.token;
+          nextError = data.code || data.token;
         } else if (data.error) {
-          profileError = data.error;
-        } else {
-          profileError = err.message || 'Failed to update profile';
+          nextError = data.error;
         }
-      } else {
-        profileError = err.message || 'Failed to update profile';
       }
+      profileError = Array.isArray(nextError) ? nextError.join(' ') : String(nextError);
+      showError(profileError);
       if ($authState.pendingSignup && !pendingCodeSent) {
         turnstileToken = '';
         turnstileWidget?.reset?.();
@@ -432,8 +432,8 @@
                   <span>Verification code</span>
                   <span class="field-state">Sent</span>
                 </label>
-                <div class="verification-code-status">
-                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <div class="verification-code-status flex min-h-12 items-center gap-2.5 rounded-[8px] border border-[#ccebd8] bg-[#f6fbf8] p-3 text-[13px] font-semibold leading-[1.45] text-[#19683a]">
+                  <svg class="h-5 w-5 flex-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M4 6.5h16v11H4v-11ZM5 8l7 5 7-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                   <span>Code sent to {email.trim()}.</span>
@@ -447,7 +447,7 @@
                   value={verificationCode}
                   oninput={handleVerificationCodeInput}
                   placeholder="000000"
-                  class="verification-code-input"
+                  class="verification-code-input mt-2.5 h-[52px] w-full rounded-[8px] border border-[#d9d9dd] bg-white px-[15px] pl-[22px] text-center font-mono text-2xl font-extrabold tracking-[10px] text-[#131214] transition-colors duration-150 [font-variant-numeric:tabular-nums] placeholder:text-[#c7c7cc] focus:border-[#131214] focus:bg-white focus:outline-none focus:ring-[3px] focus:ring-black/10"
                   disabled={submittingProfile}
                 />
                 <button
@@ -788,58 +788,6 @@
     line-height: 1.45;
     margin: 7px 0 0;
     text-wrap: pretty;
-  }
-
-  .verification-code-status {
-    align-items: center;
-    background: #f6fbf8;
-    border: 1px solid #ccebd8;
-    border-radius: 8px;
-    color: #19683a;
-    display: flex;
-    gap: 10px;
-    font-size: 13px;
-    font-weight: 650;
-    line-height: 1.45;
-    min-height: 48px;
-    padding: 12px;
-  }
-
-  .verification-code-status svg {
-    flex: 0 0 auto;
-    height: 20px;
-    width: 20px;
-  }
-
-  .verification-code-input {
-    background: #fff;
-    border: 1px solid #d9d9dd;
-    border-radius: 8px;
-    color: #131214;
-    font-family: var(--font-mono);
-    font-size: 24px;
-    font-variant-numeric: tabular-nums;
-    font-weight: 800;
-    height: 52px;
-    letter-spacing: 10px;
-    margin-top: 10px;
-    padding: 0 15px 0 22px;
-    text-align: center;
-    transition-duration: 160ms;
-    transition-property: border-color, box-shadow, background-color;
-    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
-    width: 100%;
-  }
-
-  .verification-code-input:focus {
-    background: #fff;
-    border-color: #131214;
-    box-shadow: 0 0 0 3px rgba(19, 18, 20, 0.08);
-    outline: none;
-  }
-
-  .verification-code-input::placeholder {
-    color: #c7c7cc;
   }
 
   .role-options {

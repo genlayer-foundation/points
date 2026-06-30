@@ -289,14 +289,16 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertEqual(len(mail.outbox), 0)
         self.assertEqual(EmailVerificationToken.objects.count(), 0)
 
-    @patch('ethereum_auth.email_verification._generate_verification_code', return_value='123456')
+    @patch(
+        'ethereum_auth.email_verification._generate_verification_code',
+        new=Mock(return_value='123456'),
+    )
     @patch('ethereum_auth.email_verification.validate_email')
     @patch('ethereum_auth.email_verification.requests.post')
     def test_pending_signup_email_confirm_creates_user_after_valid_token(
         self,
         mock_post,
         mock_validate_email,
-        _mock_generate_verification_code,
     ):
         pending = self._pending_signup()
         mock_post.return_value = Mock(json=lambda: {'success': True, 'hostname': 'localhost'})
@@ -331,14 +333,16 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertTrue(user.is_email_verified)
         self.assertIsNotNone(user.email_verified_at)
 
-    @patch('ethereum_auth.email_verification._generate_verification_code', return_value='234567')
+    @patch(
+        'ethereum_auth.email_verification._generate_verification_code',
+        new=Mock(return_value='234567'),
+    )
     @patch('ethereum_auth.email_verification.validate_email')
     @patch('ethereum_auth.email_verification.requests.post')
     def test_pending_signup_email_confirm_requires_same_pending_session(
         self,
         mock_post,
         mock_validate_email,
-        _mock_generate_verification_code,
     ):
         pending = self._pending_signup()
         mock_post.return_value = Mock(json=lambda: {'success': True, 'hostname': 'localhost'})
@@ -430,16 +434,20 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertEqual(len(mail.outbox), 0)
         self.assertEqual(EmailVerificationToken.objects.count(), 0)
 
-    @patch('ethereum_auth.email_verification._generate_verification_code', return_value='678901')
-    @patch('ethereum_auth.email_verification.EmailMultiAlternatives.send', side_effect=Exception('SMTP down'))
+    @patch(
+        'ethereum_auth.email_verification._generate_verification_code',
+        new=Mock(return_value='678901'),
+    )
+    @patch(
+        'ethereum_auth.email_verification.EmailMultiAlternatives.send',
+        new=Mock(side_effect=Exception('SMTP down')),
+    )
     @patch('ethereum_auth.email_verification.validate_email')
     @patch('ethereum_auth.email_verification.requests.post')
     def test_pending_signup_mail_send_failure_rolls_back_token_and_cooldown(
         self,
         mock_post,
         mock_validate_email,
-        _mock_send_mail,
-        _mock_generate_verification_code,
     ):
         pending = self._pending_signup()
         mock_post.return_value = Mock(json=lambda: {'success': True, 'hostname': 'localhost'})
@@ -477,14 +485,16 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertEqual(len(mail.outbox), 0)
         self.assertEqual(EmailVerificationToken.objects.count(), 0)
 
-    @patch('ethereum_auth.email_verification._generate_verification_code', return_value='789012')
+    @patch(
+        'ethereum_auth.email_verification._generate_verification_code',
+        new=Mock(return_value='789012'),
+    )
     @patch('ethereum_auth.email_verification.validate_email')
     @patch('ethereum_auth.email_verification.requests.post')
     def test_existing_user_email_confirm_updates_email(
         self,
         mock_post,
         mock_validate_email,
-        _mock_generate_verification_code,
     ):
         user = User.objects.create_user(
             email='old@example.com',
@@ -553,14 +563,16 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertEqual(user.email, 'changed-token@example.com')
         self.assertTrue(user.is_email_verified)
 
-    @patch('ethereum_auth.email_verification._generate_verification_code', return_value='890123')
+    @patch(
+        'ethereum_auth.email_verification._generate_verification_code',
+        new=Mock(return_value='890123'),
+    )
     @patch('ethereum_auth.email_verification.validate_email')
     @patch('ethereum_auth.email_verification.requests.post')
     def test_existing_user_reused_token_fails(
         self,
         mock_post,
         mock_validate_email,
-        _mock_generate_verification_code,
     ):
         user = User.objects.create_user(
             email='old-reuse@example.com',
