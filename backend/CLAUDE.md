@@ -238,6 +238,7 @@ backend/
   - `/api/v1/validators/wallets/sync/` - POST cron-protected background sync trigger with DB-backed lock (on-chain validator sync)
   - `/api/v1/validators/wallets/sync-grafana/` - POST cron-protected background sync trigger for Grafana observability cross-check (separate SyncLock row `grafana_status_sync` so it can run alongside the on-chain sync)
   - `/api/v1/validators/wallets/wall-of-shame/` - Public read-only endpoint listing active validator wallets with `metrics_status` / `logs_status`. SHAME rows sort first. Cached 60s. Optional `?network=asimov|bradbury` filter.
+  - `/api/v1/validators/wallets/grafana/` - Public minimal roster for the Grafana Infinity datasource (`GrafanaValidatorSerializer`). Flat array, one row per wallet across ALL statuses; fields: `network` (Grafana label value e.g. `asimov-phase5`), `node` (on-chain validator address == Prometheus `genlayer_node_info` `node` label, lowercased), `name`, `status`, `operator`, `account`/`account_name` (only for visible operators), `explorer_url`. Excludes observability/shame fields by design. Cached 60s. Optional `?network=asimov|bradbury` filter.
 
 ### Partners (Ecosystem Partners)
 - **Models**: `partners/models.py`
@@ -410,6 +411,7 @@ GET    /api/v1/multiplier-periods/
 # Validators - Wall of Shame
 POST   /api/v1/validators/wallets/sync-grafana/    (cron-protected, X-Cron-Token, background)
 GET    /api/v1/validators/wallets/wall-of-shame/   (public, cached 60s, ?network= filter)
+GET    /api/v1/validators/wallets/grafana/         (public, cached 60s, ?network= filter; minimal Infinity roster)
 
 # Steward Submissions
 GET    /api/v1/steward-submissions/stats/           (requires steward)
