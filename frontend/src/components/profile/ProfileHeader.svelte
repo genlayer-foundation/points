@@ -231,6 +231,21 @@
                 {/if}
               </button>
             {/if}
+            <button
+              type="button"
+              class="email-verification-badge {participant?.is_email_verified ? 'is-verified' : 'is-unverified'}"
+              title={participant?.is_email_verified ? 'Email verified' : 'Email has not been verified'}
+              onclick={() => {
+                if (isOwnProfile && !participant?.is_email_verified) push('/profile');
+              }}
+              disabled={!isOwnProfile || participant?.is_email_verified}
+            >
+              {#if participant?.is_email_verified}
+                Email verified
+              {:else}
+                Email not verified
+              {/if}
+            </button>
           </div>
         </div>
       </div>
@@ -356,6 +371,31 @@
 </div>
 
 <style>
+  .email-verification-badge {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 6px 9px;
+    white-space: nowrap;
+  }
+
+  .email-verification-badge.is-verified {
+    background: #eefaf2;
+    border-color: #cbeed6;
+    color: #1f7a43;
+  }
+
+  .email-verification-badge.is-unverified {
+    background: #fff7ed;
+    border-color: #fed7aa;
+    color: #b45309;
+  }
+
+  .email-verification-badge:not(:disabled) {
+    cursor: pointer;
+  }
   .badge-tooltip-wrap .badge-tooltip {
     display: none;
     position: absolute;

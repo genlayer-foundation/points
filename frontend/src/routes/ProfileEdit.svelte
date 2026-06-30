@@ -2,11 +2,12 @@
   import { onDestroy, onMount } from "svelte";
   import { push } from "svelte-spa-router";
   import { getCurrentUser, updateUserProfile, imageAPI, socialAPI, validatorsAPI } from "../lib/api";
-  import { authState } from "../lib/auth";
+  import { authState, startEmailVerification } from "../lib/auth";
   import ImageCropper from "../components/ImageCropper.svelte";
   import { userStore } from "../lib/userStore";
   import { showSuccess, showError } from "../lib/toastStore";
   import SocialLink from "../components/SocialLink.svelte";
+  import Turnstile from "../components/Turnstile.svelte";
 
   // State management
   let user = $state(null);
@@ -14,6 +15,7 @@
   let loading = $state(true);
   let error = $state("");
   let isSaving = $state(false);
+  let isSendingEmailLink = $state(false);
 
   // Form fields
   let name = $state("");
@@ -65,6 +67,8 @@
   // Validation state
   let nameError = $state("");
   let emailError = $state("");
+  let emailLinkSent = $state(false);
+  let emailTurnstileToken = $state("");
 
   // Track if any field has changed
   let hasChanges = $derived(
@@ -72,7 +76,6 @@
       (name !== (user.name || "") ||
         (user.validator && nodeVersionAsimov !== (user.validator?.node_version_asimov || "")) ||
         (user.validator && nodeVersionBradbury !== (user.validator?.node_version_bradbury || "")) ||
-        email !== (user.email || "") ||
         description !== (user.description || "") ||
         website !== (user.website || "") ||
         telegramHandle !== (user.telegram_handle || "") ||
@@ -81,7 +84,7 @@
 
   // Form validation
   let isFormValid = $derived(
-    !nameError && !emailError && name.trim() !== "" && email.trim() !== "",
+    !nameError && name.trim() !== "",
   );
 
   // Set once unmounted, so a delayed loadUserData doesn't redirect after leaving.
@@ -187,9 +190,8 @@
 
     // Validate required fields
     const nameValid = validateName();
-    const emailValid = validateEmail();
 
-    if (!nameValid || !emailValid) {
+    if (!nameValid) {
       return; // Don't save if validation fails
     }
 
@@ -204,12 +206,6 @@
         telegram_handle: telegramHandle.trim(),
         linkedin_handle: linkedinHandle.trim(),
       };
-
-      // Only include email if it has changed
-      const trimmedEmail = email.trim();
-      if (trimmedEmail && trimmedEmail !== user.email) {
-        updateData.email = trimmedEmail;
-      }
 
       // Only include node versions if they have changed
       if (nodeVersionAsimov !== (user.validator?.node_version_asimov || "")) {
@@ -236,7 +232,7 @@
 
         // Check for field-specific errors and set appropriate error state
         if (data.email) {
-          emailError = data.email; // Shows under email field with red border
+          error = data.email;
         } else if (data.name) {
           nameError = data.name; // Shows under name field with red border
         } else {
@@ -248,6 +244,30 @@
       }
 
       isSaving = false;
+    }
+  }
+
+  async function handleSendEmailLink() {
+    if (!validateEmail()) return;
+    if (!emailTurnstileToken) {
+      emailError = "Complete verification first";
+      return;
+    }
+
+    isSendingEmailLink = true;
+    emailError = "";
+    try {
+      await startEmailVerification({
+        email: email.trim(),
+        turnstile_token: emailTurnstileToken,
+      });
+      emailLinkSent = true;
+      showSuccess("Verification link sent");
+    } catch (err) {
+      const data = err.response?.data;
+      emailError = data?.email || data?.detail || data?.turnstile_token || "Failed to send verification email";
+    } finally {
+      isSendingEmailLink = false;
     }
   }
 
@@ -608,18 +628,36 @@
                       ? 'border-red-300 focus:ring-red-500 rounded-[8px]'
                       : 'border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black'} transition-colors"
                     placeholder="Enter your email"
-                    disabled={isSaving}
+                    disabled={isSaving || isSendingEmailLink || emailLinkSent}
                   />
                   {#if emailError}
                     <p class="mt-1 text-sm text-red-600">{emailError}</p>
-                  {:else if user.email && user.email.endsWith("@ethereum.address")}
-                    <p class="mt-1 text-xs text-orange-500">
-                      Your current email is auto-generated. Enter a real email.
-                    </p>
-                  {:else if !user.is_email_verified}
-                    <p class="mt-1 text-xs text-orange-500">
-                      Email not verified
-                    </p>
+                  {:else if user.is_email_verified}
+                    <p class="mt-1 text-xs text-green-600">Email verified</p>
+                  {:else}
+                    <p class="mt-1 text-xs text-orange-500">Email not verified</p>
+                  {/if}
+
+                  {#if !emailLinkSent}
+                    <div class="mt-3">
+                      <Turnstile
+                        disabled={isSendingEmailLink}
+                        onVerify={(token) => (emailTurnstileToken = token)}
+                        onExpire={() => (emailTurnstileToken = "")}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onclick={handleSendEmailLink}
+                      disabled={isSendingEmailLink || !email.trim() || !emailTurnstileToken}
+                      class="mt-3 px-4 py-2 bg-black text-white rounded-[8px] hover:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                    >
+                      {isSendingEmailLink ? "Sending..." : user.is_email_verified ? "Change email" : "Verify email"}
+                    </button>
+                  {:else}
+                    <div class="mt-3 rounded-[8px] border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
+                      Verification link sent. Open it to update your email.
+                    </div>
                   {/if}
                 </div>
 

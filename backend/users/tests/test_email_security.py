@@ -198,17 +198,19 @@ class EmailSecurityTests(TestCase):
         self.assertIsNotNone(response.data['referred_by_info'])
     
     def test_unverified_email_not_exposed_in_public_profile(self):
-        """Test that public user profile endpoint hides email fields."""
+        """Test that public profile exposes only verification state."""
         response = self.client.get(f'/api/v1/users/by-address/{self.unverified_user.address}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotIn('email', response.data)
-        self.assertNotIn('is_email_verified', response.data)
+        self.assertNotIn('email_verified_at', response.data)
+        self.assertFalse(response.data['is_email_verified'])
         
         self.authenticate(self.other_user)
         response = self.client.get(f'/api/v1/users/by-address/{self.unverified_user.address}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotIn('email', response.data)
-        self.assertNotIn('is_email_verified', response.data)
+        self.assertNotIn('email_verified_at', response.data)
+        self.assertFalse(response.data['is_email_verified'])
     
     def test_verified_email_not_shown_in_public_profile(self):
         """Test that verified email is not exposed to anonymous or other users."""
@@ -216,7 +218,7 @@ class EmailSecurityTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         for field in [
             'email',
-            'is_email_verified',
+            'email_verified_at',
             'is_banned',
             'ban_reason',
             'referral_code',
@@ -225,13 +227,14 @@ class EmailSecurityTests(TestCase):
             'referral_details',
         ]:
             self.assertNotIn(field, response.data)
+        self.assertTrue(response.data['is_email_verified'])
 
         self.authenticate(self.other_user)
         response = self.client.get(f'/api/v1/users/by-address/{self.verified_user.address}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         for field in [
             'email',
-            'is_email_verified',
+            'email_verified_at',
             'is_banned',
             'ban_reason',
             'referral_code',
@@ -240,6 +243,7 @@ class EmailSecurityTests(TestCase):
             'referral_details',
         ]:
             self.assertNotIn(field, response.data)
+        self.assertTrue(response.data['is_email_verified'])
 
     def test_public_profile_only_exposes_public_social_identifiers(self):
         """Test that authenticated profile lookup does not expose social credentials or internals."""
@@ -275,7 +279,8 @@ class EmailSecurityTests(TestCase):
 
         response = self.client.get(f'/api/v1/users/by-address/{self.verified_user.address}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['email'], 'verified@example.com')
+        self.assertNotIn('email', response.data)
+        self.assertNotIn('email_verified_at', response.data)
         self.assertTrue(response.data['is_email_verified'])
         self.assertTrue(response.data['is_banned'])
         self.assertEqual(response.data['ban_reason'], 'private moderation note')
@@ -298,30 +303,26 @@ class EmailSecurityTests(TestCase):
         self.assertNotIn('refresh_token', serialized)
     
     def test_email_becomes_visible_after_verification(self):
-        """Test that email becomes visible once it's verified."""
+        """Test that real saved unverified emails are visible only to the owner."""
         self.authenticate(self.unverified_user)
         
-        # Initially, email should not be exposed
         response = self.client.get('/api/v1/users/me/')
         self.assertEqual(response.data['email'], '')
-        
-        # User updates their email (which marks it as verified)
-        response = self.client.patch('/api/v1/users/me/', {
-            'email': 'newemail@gmail.com'
-        })
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        # Now email should be visible to the owner
+
+        self.unverified_user.email = 'newemail@gmail.com'
+        self.unverified_user.is_email_verified = False
+        self.unverified_user.save(update_fields=['email', 'is_email_verified'])
+
         response = self.client.get('/api/v1/users/me/')
         self.assertEqual(response.data['email'], 'newemail@gmail.com')
-        self.assertTrue(response.data['is_email_verified'])
+        self.assertFalse(response.data['is_email_verified'])
         
-        # Public profile should not expose the authentication email.
         self.client.credentials()  # Clear authentication
         response = self.client.get(f'/api/v1/users/by-address/{self.unverified_user.address}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotIn('email', response.data)
-        self.assertNotIn('is_email_verified', response.data)
+        self.assertNotIn('email_verified_at', response.data)
+        self.assertFalse(response.data['is_email_verified'])
     
     def test_no_email_field_leakage_in_list_view(self):
         """Test that auth emails are not exposed in authenticated user list view."""

@@ -216,6 +216,12 @@ REST_FRAMEWORK = {
         'public_user_profile': '60/minute',
         # Wallet linking is a one-time action per validator
         'wallet_link': '10/hour',
+        'pending_email_start': '10/hour',
+        'pending_email_resend': '10/hour',
+        'pending_email_confirm': '30/hour',
+        'existing_email_start': '10/hour',
+        'existing_email_resend': '10/hour',
+        'existing_email_confirm': '30/hour',
     },
     'PAGE_SIZE': 10,
 }
@@ -313,6 +319,30 @@ SORSA_API_KEY = os.environ.get('SORSA_API_KEY', '')
 
 # Frontend URL for OAuth redirects
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173').strip().rstrip('/')
+
+# Email verification delivery and bot protection.
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'email-smtp.us-east-1.amazonaws.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587') or '587')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@example.com')
+
+TURNSTILE_SITE_KEY = os.environ.get('TURNSTILE_SITE_KEY', '')
+TURNSTILE_SECRET_KEY = os.environ.get('TURNSTILE_SECRET_KEY', '')
+TURNSTILE_ALLOWED_HOSTNAMES = [
+    host.strip()
+    for host in os.environ.get('TURNSTILE_ALLOWED_HOSTNAMES', '').split(',')
+    if host.strip()
+]
+
+EMAIL_VERIFICATION_TOKEN_TTL_SECONDS = int(os.environ.get('EMAIL_VERIFICATION_TOKEN_TTL_SECONDS', '1800') or '1800')
+EMAIL_VERIFICATION_MAX_ATTEMPTS = int(os.environ.get('EMAIL_VERIFICATION_MAX_ATTEMPTS', '5') or '5')
+EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS = int(os.environ.get('EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS', '60') or '60')
+PENDING_WALLET_SIGNUP_TTL_SECONDS = int(os.environ.get('PENDING_WALLET_SIGNUP_TTL_SECONDS', '1800') or '1800')
+EMAIL_VERIFICATION_HMAC_KEY = os.environ.get('EMAIL_VERIFICATION_HMAC_KEY', SECRET_KEY)
+EMAIL_VERIFICATION_ENCRYPTION_KEY = os.environ.get('EMAIL_VERIFICATION_ENCRYPTION_KEY', '')
 
 
 # CSRF settings

@@ -1,5 +1,5 @@
 <script>
-  import { authState } from '../lib/auth.js';
+  import { authState, startPendingSignupEmail } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { journeyAPI, updateUserProfile } from '../lib/api.js';
   import { push, location } from 'svelte-spa-router';
@@ -13,12 +13,15 @@
     templateRoute,
     trackEvent,
   } from '../lib/analytics.js';
+  import Turnstile from './Turnstile.svelte';
 
   // Form state
   let email = $state('');
   let name = $state('');
   let submittingProfile = $state(false);
   let profileError = $state('');
+  let pendingLinkSent = $state(false);
+  let turnstileToken = $state('');
 
   // Track which fields were pre-filled
   let hasExistingName = $state(false);
@@ -79,6 +82,8 @@
     // Don't show while loading
     if ($authState.loading || $userStore.loading) return false;
 
+    if ($authState.pendingSignup) return true;
+
     // Only show if authenticated
     if (!$authState.isAuthenticated) return false;
 
@@ -88,11 +93,8 @@
 
     // Check if profile is incomplete
     const needsName = !user.name || user.name.trim() === '';
-    const needsEmail = !user.email ||
-                       user.email.trim() === '' ||
-                       user.email.endsWith('@ethereum.address');
 
-    return needsName || needsEmail;
+    return needsName;
   });
 
   // Preselect the role from where the user started auth (captured at sign-in,
@@ -160,16 +162,18 @@
     }));
 
     // Validate inputs
-    if (!email || !name) {
+    if (!name || ($authState.pendingSignup && !email)) {
       trackEvent('profile_completion_error', getAnalyticsContext({
         selected_role: selectedRole,
         error_stage: 'validation',
       }));
-      profileError = 'Please provide both email and display name';
+      profileError = $authState.pendingSignup
+        ? 'Please provide both email and display name'
+        : 'Please provide a display name';
       return;
     }
 
-    if (!isValidEmail(email)) {
+    if ($authState.pendingSignup && !isValidEmail(email)) {
       trackEvent('profile_completion_error', getAnalyticsContext({
         selected_role: selectedRole,
         error_stage: 'validation',
@@ -182,9 +186,28 @@
     profileError = '';
 
     try {
+      if ($authState.pendingSignup) {
+        if (pendingLinkSent) {
+          return;
+        }
+
+        if (!turnstileToken) {
+          profileError = 'Please complete verification first';
+          return;
+        }
+
+        await startPendingSignupEmail({
+          email,
+          name,
+          selected_role: ROLE_VALUES.has(selectedRole) ? selectedRole : roleForCategory(detectCategoryFromRoute($location)),
+          turnstile_token: turnstileToken,
+        });
+        pendingLinkSent = true;
+        profileError = '';
+        return;
+      } else {
       // Prepare update data
       const updateData = {};
-      if (email) updateData.email = email;
       if (name) updateData.name = name;
 
       // Submit to backend
@@ -192,6 +215,7 @@
 
       // Update the user store
       userStore.updateUser(updateData);
+      }
 
       // Start the selected journey immediately, then send first-time users
       // straight to it. If the marker request fails, the route will retry on
@@ -329,12 +353,13 @@
                   bind:value={name}
                   placeholder="Your public name"
                   class="form-input"
-                  disabled={submittingProfile}
+                  disabled={submittingProfile || pendingLinkSent}
                 />
               </div>
               <p>Shown on your profile, submissions, and contribution history.</p>
             </div>
 
+            {#if $authState.pendingSignup}
             <div class="form-group">
               <label for="email" class="form-label">
                 <span>Email</span>
@@ -352,12 +377,36 @@
                   bind:value={email}
                   placeholder="you@example.com"
                   class="form-input"
-                  disabled={submittingProfile}
+                  disabled={submittingProfile || pendingLinkSent}
                 />
               </div>
               <p>Used for important updates about submissions and rewards.</p>
             </div>
+            {/if}
           </div>
+
+          {#if $authState.pendingSignup}
+            <div class="form-group">
+              {#if pendingLinkSent}
+                <div class="form-label">
+                  <span>Verification link</span>
+                  <span class="field-state">Sent</span>
+                </div>
+                <div class="verification-link-status">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 6.5h16v11H4v-11ZM5 8l7 5 7-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  <span>Open the verification link sent to {email.trim()} to finish creating your account.</span>
+                </div>
+              {:else}
+                <Turnstile
+                  disabled={submittingProfile}
+                  onVerify={(token) => (turnstileToken = token)}
+                  onExpire={() => (turnstileToken = '')}
+                />
+              {/if}
+            </div>
+          {/if}
 
           <div class="form-group">
             <span class="form-label role-label">Choose your first journey</span>
@@ -392,14 +441,18 @@
 
           <button
             onclick={handleProfileSubmit}
-            disabled={submittingProfile || !email.trim() || !name.trim()}
+            disabled={submittingProfile || !name.trim() || ($authState.pendingSignup && (pendingLinkSent || !email.trim() || !turnstileToken))}
             class="profile-submit-button"
           >
             {#if submittingProfile}
               <div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Saving...
+              Sending...
             {:else}
-              Continue
+              {#if $authState.pendingSignup}
+                {pendingLinkSent ? 'Verification link sent' : 'Send verification link'}
+              {:else}
+                Continue
+              {/if}
             {/if}
           </button>
         </div>
@@ -674,6 +727,27 @@
     line-height: 1.45;
     margin: 7px 0 0;
     text-wrap: pretty;
+  }
+
+  .verification-link-status {
+    align-items: center;
+    background: #f6fbf8;
+    border: 1px solid #ccebd8;
+    border-radius: 8px;
+    color: #19683a;
+    display: flex;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.45;
+    min-height: 48px;
+    padding: 12px;
+  }
+
+  .verification-link-status svg {
+    flex: 0 0 auto;
+    height: 20px;
+    width: 20px;
   }
 
   .role-options {
