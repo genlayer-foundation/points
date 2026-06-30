@@ -65,8 +65,14 @@ CARDS = [
         "eyebrow": "Overview",
         "title": "Gateway to the Ecosystem",
         "description": "Builders, validators, community, and stewards in one view.",
-        "brand": "GenLayer Portal",
-        "roles": ["genlayer", "builder", "validator", "community", "steward"],
+        "show_brand": False,
+        "title_font": "Switzer-Variable.woff2",
+        "title_max_size": 76,
+        "body_max_width": 600,
+        "eyebrow_y": 96,
+        "title_y": 142,
+        "roles": [],
+        "accent_line": True,
     },
     {
         "file": "builders",
@@ -75,8 +81,16 @@ CARDS = [
         "eyebrow": "Builders",
         "title": "Build Contracts That Can Think",
         "description": "Create Intelligent Contracts that read the web, reason, and resolve outcomes.",
-        "brand": "GenLayer Portal",
-        "roles": ["builder"],
+        "show_brand": False,
+        "title_font": "Switzer-Variable.woff2",
+        "title_max_size": 76,
+        "title_max_width": 590,
+        "body_max_width": 560,
+        "eyebrow_y": 96,
+        "title_y": 142,
+        "roles": [],
+        "role_watermark": "builder",
+        "accent_line": True,
     },
     {
         "file": "validators",
@@ -85,8 +99,16 @@ CARDS = [
         "eyebrow": "Validators",
         "title": "Adjudicate the Agentic Economy",
         "description": "Run AI models, reason through disputes, and earn for judgment.",
-        "brand": "GenLayer Portal",
-        "roles": ["validator"],
+        "show_brand": False,
+        "title_font": "Switzer-Variable.woff2",
+        "title_max_size": 76,
+        "title_max_width": 640,
+        "body_max_width": 560,
+        "eyebrow_y": 96,
+        "title_y": 142,
+        "roles": [],
+        "role_watermark": "validator",
+        "accent_line": True,
     },
     {
         "file": "community",
@@ -95,11 +117,17 @@ CARDS = [
         "eyebrow": "Community",
         "title": "Grow the Adjudication Layer for the Agentic Economy",
         "description": "Test, create, report, and grow the GenLayer network from day one.",
-        "brand": "GenLayer Portal",
+        "show_brand": False,
+        "title_font": "Switzer-Variable.woff2",
         "title_max_lines": 4,
-        "title_max_size": 64,
-        "title_max_width": 620,
-        "roles": ["community"],
+        "title_max_size": 58,
+        "title_max_width": 650,
+        "body_max_width": 560,
+        "eyebrow_y": 96,
+        "title_y": 142,
+        "roles": [],
+        "role_watermark": "community",
+        "accent_line": True,
     },
     {
         "file": "how-it-works",
@@ -360,13 +388,14 @@ def fit_title(
     max_width: int,
     max_lines: int,
     max_size: int = 84,
+    font_path: str = TITLE_FONT_PATH,
 ) -> tuple[ImageFont.FreeTypeFont, list[str]]:
     for size in range(max_size, 55, -2):
-        title_font = font(TITLE_FONT_PATH, size)
+        title_font = font(font_path, size)
         lines = wrap_text(text, draw, title_font, max_width)
         if len(lines) <= max_lines:
             return title_font, lines
-    title_font = font(TITLE_FONT_PATH, 54)
+    title_font = font(font_path, 54)
     return title_font, wrap_text(text, draw, title_font, max_width)
 
 
@@ -399,11 +428,10 @@ def draw_brand(base: Image.Image, theme: str, label: str = "GenLayer") -> None:
     draw.text((x + 54, y + 1), label, font=brand_font, fill=palette["accent"])
 
 
-def draw_role_hexes(base: Image.Image, roles: list[str]) -> None:
+def draw_role_hexes(base: Image.Image, roles: list[str], size: int = 58) -> None:
     if not roles:
         return
 
-    size = 58
     gap = 12
     x = 72
     y = HEIGHT - 110
@@ -424,6 +452,52 @@ def draw_role_hexes(base: Image.Image, roles: list[str]) -> None:
         x += size + gap
 
 
+def with_opacity(image: Image.Image, opacity: float) -> Image.Image:
+    result = image.copy()
+    alpha = result.getchannel("A").point(lambda value: round(value * opacity))
+    result.putalpha(alpha)
+    return result
+
+
+def remove_alpha_haze(image: Image.Image, threshold: int = 8) -> Image.Image:
+    result = image.copy()
+    alpha = result.getchannel("A").point(lambda value: 0 if value < threshold else value)
+    result.putalpha(alpha)
+    return result
+
+
+def draw_role_watermark(base: Image.Image, role: str) -> None:
+    icon_path = ROLE_HEXAGONS.get(role)
+    inner_path = ROLE_INNER_ICONS.get(role)
+    if not icon_path:
+        return
+
+    size = 250
+    icon = remove_alpha_haze(render_svg(icon_path, size), 16)
+    if inner_path:
+        inner = render_svg(inner_path, round(size * 0.5))
+        alpha_composite(icon, inner, ((size - inner.width) // 2, (size - inner.height) // 2))
+
+    x = 862
+    y = 230
+
+    mark = with_opacity(icon.filter(ImageFilter.GaussianBlur(0.25)), 0.2)
+    alpha_composite(base, mark, (x, y))
+
+
+def draw_accent_line(base: Image.Image) -> None:
+    line = Image.new("RGBA", (WIDTH, 8), (0, 0, 0, 0))
+    pix = line.load()
+    for x in range(WIDTH):
+        t = x / max(1, WIDTH - 1)
+        r = round(17 + (188 - 17) * t)
+        g = round(15 + (162 - 15) * t)
+        b = 255
+        for y in range(8):
+            pix[x, y] = (r, g, b, 255 if y >= 4 else 190)
+    alpha_composite(base, line, (0, HEIGHT - 8))
+
+
 def render_card(card: dict[str, object]) -> None:
     theme = str(card["theme"])
     palette = THEMES[theme]
@@ -431,12 +505,20 @@ def render_card(card: dict[str, object]) -> None:
     base = cover(backdrop, (WIDTH, HEIGHT))
     base = base.filter(ImageFilter.UnsharpMask(radius=1, percent=105, threshold=3))
     add_readability_overlay(base, theme)
+    if card.get("accent_line", False):
+        draw_accent_line(base)
+    role_watermark = str(card.get("role_watermark", ""))
+    if role_watermark:
+        draw_role_watermark(base, role_watermark)
 
-    draw_brand(base, theme, str(card.get("brand", "GenLayer")))
+    if card.get("show_brand", True):
+        draw_brand(base, theme, str(card.get("brand", "GenLayer")))
     draw = ImageDraw.Draw(base)
 
     eyebrow_font = font(BODY_FONT_PATH, 24)
-    draw.text((72, 150), str(card["eyebrow"]).upper(), font=eyebrow_font, fill=palette["muted"])
+    eyebrow_y = int(card.get("eyebrow_y", 150))
+    title_y = int(card.get("title_y", 190))
+    draw.text((72, eyebrow_y), str(card["eyebrow"]).upper(), font=eyebrow_font, fill=palette["muted"])
 
     title_font, title_lines = fit_title(
         draw,
@@ -444,14 +526,15 @@ def render_card(card: dict[str, object]) -> None:
         int(card.get("title_max_width", 690)),
         int(card.get("title_max_lines", 3)),
         int(card.get("title_max_size", 84)),
+        str(card.get("title_font", TITLE_FONT_PATH)),
     )
-    title_bottom = draw_multiline(draw, (72, 190), title_lines, title_font, palette["title"], 6)
+    title_bottom = draw_multiline(draw, (72, title_y), title_lines, title_font, palette["title"], 6)
 
     body_font = font(BODY_FONT_PATH, 27)
-    body_lines = wrap_text(str(card["description"]), draw, body_font, 690)
+    body_lines = wrap_text(str(card["description"]), draw, body_font, int(card.get("body_max_width", 690)))
     draw_multiline(draw, (72, title_bottom + 18), body_lines[:3], body_font, palette["body"], 8)
 
-    draw_role_hexes(base, list(card.get("roles", [])))
+    draw_role_hexes(base, list(card.get("roles", [])), int(card.get("role_size", 58)))
 
     output = OG_DIR / f"{card['file']}.png"
     output.parent.mkdir(parents=True, exist_ok=True)

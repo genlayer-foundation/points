@@ -40,7 +40,7 @@ export const OG_IMAGES = {
 export const DEFAULT_META = {
   title: 'GenLayer Portal',
   description:
-    'The front page of network progress across builders, validators, community, and stewards.',
+    'Gateway to builders, validators, community, and stewards across the GenLayer ecosystem.',
   image: OG_IMAGES.portal.src,
   imageWidth: OG_IMAGES.portal.width,
   imageHeight: OG_IMAGES.portal.height,
