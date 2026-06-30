@@ -16,6 +16,7 @@ from django.utils import timezone
 from django.core.cache import cache
 from .models import SyncLock, Validator, ValidatorWallet
 from .serializers import (
+    GrafanaValidatorSerializer,
     ValidatorWalletSerializer,
     WallOfShameSerializer,
 )
@@ -954,6 +955,44 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
                 group['operator_address'] or '',
             )
         )
+
+    @action(detail=False, methods=['get'], url_path='grafana')
+    def grafana(self, request):
+        """
+        Minimal validator roster for Grafana (Infinity datasource).
+
+        Flat array, one row per validator wallet across ALL statuses, carrying
+        the Grafana `network` label and the on-chain `node` address so a
+        dashboard can join straight onto `genlayer_node_info`. Deliberately
+        excludes the observability / Wall-of-Shame fields (metrics/logs status,
+        shame timestamps) — those live on `wall-of-shame` and change often;
+        this endpoint is meant to stay small and stable.
+
+        Optional ?network=asimov|bradbury filter. Cached 60s. Public.
+        """
+        network = request.query_params.get('network', '').strip().lower() or None
+        if network and network not in settings.TESTNET_NETWORKS:
+            return Response(
+                {'error': f"Unknown network '{network}'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cache_key = f'grafana_validators:{network or "all"}'
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
+        queryset = (
+            ValidatorWallet.objects
+            .select_related('operator', 'operator__user')
+        )
+        if network:
+            queryset = queryset.filter(network=network)
+        queryset = queryset.order_by('network', 'moniker', 'address')
+
+        data = GrafanaValidatorSerializer(queryset, many=True).data
+        cache.set(cache_key, data, 60)
+        return Response(data)
 
     @action(detail=False, methods=['get'], url_path='wall-of-shame')
     def wall_of_shame(self, request):
