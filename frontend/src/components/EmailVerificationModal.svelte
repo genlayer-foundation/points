@@ -1,7 +1,18 @@
 <script>
+  import { onMount } from 'svelte';
   import Turnstile from './Turnstile.svelte';
   import { confirmEmailVerification, startEmailVerification } from '../lib/auth';
+  import { showError } from '../lib/toastStore';
   import { userStore } from '../lib/userStore';
+
+  const FOCUSABLE_SELECTOR = [
+    'a[href]',
+    'button:not([disabled])',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])',
+  ].join(', ');
 
   let {
     initialEmail = '',
@@ -18,11 +29,31 @@
   let verifying = $state(false);
   let turnstileToken = $state('');
   let turnstileWidget = $state(null);
+  let modalElement = $state(null);
+  let emailInput = $state(null);
+  let codeInput = $state(null);
+  let doneButton = $state(null);
 
   $effect(() => {
     if (!codeSent && !verified) {
       email = cleanEmail(initialEmail);
     }
+  });
+
+  $effect(() => {
+    codeSent;
+    verified;
+    focusInitialControl();
+  });
+
+  onMount(() => {
+    const previousActiveElement = document.activeElement;
+    focusInitialControl();
+    return () => {
+      if (previousActiveElement && typeof previousActiveElement.focus === 'function') {
+        previousActiveElement.focus();
+      }
+    };
   });
 
   function cleanEmail(value) {
@@ -47,6 +78,51 @@
     return data?.email || data?.code || data?.token || data?.detail || data?.turnstile_token || fallback;
   }
 
+  function focusInitialControl() {
+    if (typeof window === 'undefined') return;
+    window.setTimeout(() => {
+      if (verified) {
+        doneButton?.focus?.();
+      } else if (codeSent) {
+        codeInput?.focus?.();
+      } else {
+        emailInput?.focus?.();
+      }
+    }, 0);
+  }
+
+  function getFocusableElements() {
+    if (!modalElement) return [];
+    return Array.from(modalElement.querySelectorAll(FOCUSABLE_SELECTOR))
+      .filter((element) => element.offsetParent !== null || element === document.activeElement);
+  }
+
+  function handleModalKeydown(event) {
+    if (event.key === 'Escape' && !sending && !verifying) {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const focusable = getFocusableElements();
+    if (focusable.length === 0) {
+      event.preventDefault();
+      modalElement?.focus?.();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   async function sendCode() {
     if (!isValidEmail(email)) {
       error = 'Enter a valid email address';
@@ -68,6 +144,7 @@
       code = '';
     } catch (err) {
       error = extractError(err, 'Failed to send verification code');
+      showError(error);
       turnstileToken = '';
       turnstileWidget?.reset?.();
     } finally {
@@ -100,6 +177,7 @@
       }
     } catch (err) {
       error = extractError(err, 'Invalid or expired verification code');
+      showError(error);
     } finally {
       verifying = false;
     }
@@ -116,10 +194,13 @@
 
 <div class="email-modal-backdrop" role="presentation">
   <div
+    bind:this={modalElement}
     class="email-modal"
     role="dialog"
     aria-modal="true"
     aria-labelledby="email-verification-title"
+    tabindex="-1"
+    onkeydown={handleModalKeydown}
   >
     <div class="email-modal-hero">
       <div class="hero-topline">
@@ -167,7 +248,7 @@
             <path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </div>
-        <button type="button" class="primary-action" onclick={onClose}>Done</button>
+        <button bind:this={doneButton} type="button" class="primary-action" onclick={onClose}>Done</button>
       {:else if codeSent}
         <div class="code-sent">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -179,6 +260,7 @@
         <label for="email-verification-code">Verification code</label>
         <input
           id="email-verification-code"
+          bind:this={codeInput}
           class="code-input"
           type="text"
           inputmode="numeric"
@@ -205,6 +287,7 @@
         <label for="email-verification-email">Email address</label>
         <input
           id="email-verification-email"
+          bind:this={emailInput}
           class="email-input"
           type="email"
           bind:value={email}

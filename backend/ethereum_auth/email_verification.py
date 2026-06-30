@@ -143,7 +143,7 @@ def decrypt_email(encrypted_email):
     return _fernet().decrypt(encrypted_email.encode()).decode()
 
 
-def _generate_verification_code():
+def _generate_verification_code() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
 
 
@@ -186,12 +186,17 @@ class EmailVerificationService:
             user=user,
         )
 
-    def confirm_pending_signup(self, pending_signup, raw_code):
+    def confirm_pending_signup(self, pending_signup: PendingWalletSignup, raw_code: str) -> User:
         self._ensure_pending_signup_active(pending_signup)
         user, _ = self._confirm_pending_signup_token(raw_code, pending_signup=pending_signup)
         return user
 
-    def _confirm_pending_signup_token(self, raw_code, *, pending_signup):
+    def _confirm_pending_signup_token(
+        self,
+        raw_code: str,
+        *,
+        pending_signup: PendingWalletSignup,
+    ) -> tuple[User, PendingWalletSignup]:
         token_error = None
         with transaction.atomic():
             token = self._get_locked_pending_token(raw_code, pending_signup=pending_signup)
@@ -211,8 +216,9 @@ class EmailVerificationService:
                 return user, token_pending_signup
         if token_error is not None:
             raise token_error
+        raise serializers.ValidationError({'code': 'Invalid or expired verification code.'})
 
-    def confirm_existing_user(self, user, raw_code):
+    def confirm_existing_user(self, user: User, raw_code: str) -> User:
         token_error = None
         with transaction.atomic():
             token = self._get_locked_token(
@@ -233,6 +239,7 @@ class EmailVerificationService:
                 return user
         if token_error is not None:
             raise token_error
+        raise serializers.ValidationError({'code': 'Invalid or expired verification code.'})
 
     def _create_or_resend_token(self, *, purpose, email_result, user=None, pending_signup=None):
         owner_filter = {'purpose': purpose}
@@ -291,7 +298,7 @@ class EmailVerificationService:
             return str((pending_signup.profile_data or {}).get('name', '')).strip()
         return ''
 
-    def _send_code(self, email, code, *, display_name=''):
+    def _send_code(self, email: str, code: str, *, display_name: str = '') -> None:
         greeting = f"Hi {display_name}," if display_name else "Hi,"
         ttl_minutes = max(1, settings.EMAIL_VERIFICATION_TOKEN_TTL_SECONDS // 60)
         message = (
@@ -313,7 +320,7 @@ class EmailVerificationService:
         )
         email_message.send(fail_silently=False)
 
-    def _render_verification_email_html(self, code, *, display_name='', ttl_minutes=30):
+    def _render_verification_email_html(self, code: str, *, display_name: str = '', ttl_minutes: int = 30) -> str:
         safe_code = escape(code)
         safe_name = escape(display_name)
         greeting = f"Hi {safe_name}," if safe_name else "Hi,"
@@ -368,7 +375,12 @@ class EmailVerificationService:
             raise serializers.ValidationError({'code': 'Invalid or expired verification code.'})
         return token
 
-    def _get_locked_pending_token(self, raw_code, *, pending_signup):
+    def _get_locked_pending_token(
+        self,
+        raw_code: str,
+        *,
+        pending_signup: PendingWalletSignup,
+    ) -> EmailVerificationToken:
         token = (
             EmailVerificationToken.objects
             .select_for_update()
@@ -387,7 +399,7 @@ class EmailVerificationService:
             pending_signup=pending_signup,
         )
 
-    def _consume_token(self, token, raw_code):
+    def _consume_token(self, token: EmailVerificationToken, raw_code: str) -> str:
         now = timezone.now()
         if token.expires_at <= now:
             raise serializers.ValidationError({'code': 'Invalid or expired verification code.'})

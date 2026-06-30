@@ -1,3 +1,4 @@
+import re
 import secrets
 import string
 from datetime import timedelta
@@ -7,7 +8,7 @@ from django.contrib.auth import login as django_login
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
@@ -60,6 +61,28 @@ def get_client_ip(request):
 def validation_error_response(exc):
     detail = getattr(exc, 'detail', {'detail': 'Invalid request.'})
     return Response(detail, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _verification_credential_from_request(request) -> str:
+    code = request.data.get('code')
+    token = request.data.get('token')
+    if code not in (None, ''):
+        if not isinstance(code, str):
+            raise serializers.ValidationError({'code': 'Enter the 6-digit verification code.'})
+        code = code.strip()
+        if not re.fullmatch(r'\d{6}', code):
+            raise serializers.ValidationError({'code': 'Enter the 6-digit verification code.'})
+        return code
+
+    if token not in (None, ''):
+        if not isinstance(token, str):
+            raise serializers.ValidationError({'token': 'Invalid verification token.'})
+        token = token.strip()
+        if not token or len(token) > 256:
+            raise serializers.ValidationError({'token': 'Invalid verification token.'})
+        return token
+
+    raise serializers.ValidationError({'code': 'Verification code is required.'})
 
 
 def get_pending_signup_profile_data(data):
@@ -355,9 +378,10 @@ def signup_email_confirm(request):
     if not pending:
         return Response({'detail': 'Pending signup is required.'}, status=status.HTTP_400_BAD_REQUEST)
     try:
+        credential = _verification_credential_from_request(request)
         user = email_verification_service.confirm_pending_signup(
             pending,
-            request.data.get('code') or request.data.get('token'),
+            credential,
         )
         confirmed_pending = pending
     except Exception as exc:
@@ -412,9 +436,10 @@ def email_resend(request):
 @throttle_classes([ExistingEmailConfirmRateThrottle])
 def email_confirm(request):
     try:
+        credential = _verification_credential_from_request(request)
         user = email_verification_service.confirm_existing_user(
             request.user,
-            request.data.get('code') or request.data.get('token'),
+            credential,
         )
     except Exception as exc:
         if hasattr(exc, 'detail'):

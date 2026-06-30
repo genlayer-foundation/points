@@ -171,6 +171,14 @@
     verificationCode = normalizeVerificationCode(event.target.value);
   }
 
+  function resetPendingEmailFlow() {
+    pendingCodeSent = false;
+    verificationCode = '';
+    profileError = '';
+    turnstileToken = '';
+    turnstileWidget?.reset?.();
+  }
+
   async function finishProfileCompletion(targetRole) {
     // Start the selected journey immediately, then send first-time users
     // straight to it. If the marker request fails, the route will retry on
@@ -442,6 +450,14 @@
                   class="verification-code-input"
                   disabled={submittingProfile}
                 />
+                <button
+                  type="button"
+                  class="profile-secondary-button"
+                  onclick={resetPendingEmailFlow}
+                  disabled={submittingProfile}
+                >
+                  Change details or resend code
+                </button>
               {:else}
                 <Turnstile
                   bind:this={turnstileWidget}
@@ -1006,6 +1022,41 @@
     opacity: 0.6;
     cursor: default;
     transform: none;
+  }
+
+  .profile-secondary-button {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #dedee3;
+    border-radius: 999px;
+    color: #4b4c55;
+    cursor: pointer;
+    display: flex;
+    font-size: 13px;
+    font-weight: 750;
+    justify-content: center;
+    margin-top: 10px;
+    min-height: 40px;
+    padding: 0 14px;
+    transition-duration: 160ms;
+    transition-property: background-color, border-color, color, transform;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    width: 100%;
+  }
+
+  .profile-secondary-button:hover:not(:disabled) {
+    background: #f8f8f9;
+    border-color: #c9c9d1;
+    color: #131214;
+  }
+
+  .profile-secondary-button:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .profile-secondary-button:disabled {
+    cursor: default;
+    opacity: 0.6;
   }
 
   /* Responsive design */

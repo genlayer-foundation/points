@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 from cryptography.fernet import Fernet
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import make_password
 from django.core import mail
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -13,6 +14,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .email_verification import email_fingerprint, encrypt_email, token_lookup_hash
 from .models import EmailVerificationToken, Nonce, PendingWalletSignup
 
 
@@ -249,7 +251,14 @@ class EmailVerificationPipelineTests(TestCase):
         refresh = RefreshToken.for_user(user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
 
-    def _start_pending_email(self, pending, *, email='new@example.com', code='123456', name='New User'):
+    def _start_pending_email(
+        self,
+        pending,
+        *,
+        email='new@example.com',
+        code='123456',
+        name='New User',
+    ) -> EmailVerificationToken:
         with (
             patch('ethereum_auth.email_verification._generate_verification_code', return_value=code),
             patch('ethereum_auth.email_verification.validate_email') as mock_validate_email,
@@ -287,7 +296,7 @@ class EmailVerificationPipelineTests(TestCase):
         self,
         mock_post,
         mock_validate_email,
-        mock_generate_verification_code,
+        _mock_generate_verification_code,
     ):
         pending = self._pending_signup()
         mock_post.return_value = Mock(json=lambda: {'success': True, 'hostname': 'localhost'})
@@ -329,7 +338,7 @@ class EmailVerificationPipelineTests(TestCase):
         self,
         mock_post,
         mock_validate_email,
-        mock_generate_verification_code,
+        _mock_generate_verification_code,
     ):
         pending = self._pending_signup()
         mock_post.return_value = Mock(json=lambda: {'success': True, 'hostname': 'localhost'})
@@ -429,8 +438,8 @@ class EmailVerificationPipelineTests(TestCase):
         self,
         mock_post,
         mock_validate_email,
-        mock_send_mail,
-        mock_generate_verification_code,
+        _mock_send_mail,
+        _mock_generate_verification_code,
     ):
         pending = self._pending_signup()
         mock_post.return_value = Mock(json=lambda: {'success': True, 'hostname': 'localhost'})
@@ -475,7 +484,7 @@ class EmailVerificationPipelineTests(TestCase):
         self,
         mock_post,
         mock_validate_email,
-        mock_generate_verification_code,
+        _mock_generate_verification_code,
     ):
         user = User.objects.create_user(
             email='old@example.com',
@@ -510,6 +519,40 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertTrue(user.is_email_verified)
         self.assertIsNotNone(user.email_verified_at)
 
+    @patch('ethereum_auth.email_verification.validate_email')
+    def test_existing_user_email_confirm_accepts_legacy_token_payload(
+        self,
+        mock_validate_email,
+    ):
+        user = User.objects.create_user(
+            email='old-token@example.com',
+            password='testpass123',
+            address='0x3333333333333333333333333333333333333333',
+            is_email_verified=False,
+        )
+        self._authenticate(user)
+        legacy_token = 'legacy-token-with-url-safe-length-1234567890'
+        email = 'changed-token@example.com'
+        mock_validate_email.return_value = self._valid_email_result(email)
+        EmailVerificationToken.objects.create(
+            purpose=EmailVerificationToken.PURPOSE_EXISTING_USER,
+            user=user,
+            encrypted_email=encrypt_email(email),
+            email_fingerprint=email_fingerprint(email),
+            token_lookup_hash=token_lookup_hash(legacy_token),
+            token_hash=make_password(legacy_token),
+            expires_at=timezone.now() + timezone.timedelta(minutes=30),
+        )
+
+        response = self.client.post('/api/auth/email/confirm/', {
+            'token': legacy_token,
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        self.assertEqual(user.email, 'changed-token@example.com')
+        self.assertTrue(user.is_email_verified)
+
     @patch('ethereum_auth.email_verification._generate_verification_code', return_value='890123')
     @patch('ethereum_auth.email_verification.validate_email')
     @patch('ethereum_auth.email_verification.requests.post')
@@ -517,7 +560,7 @@ class EmailVerificationPipelineTests(TestCase):
         self,
         mock_post,
         mock_validate_email,
-        mock_generate_verification_code,
+        _mock_generate_verification_code,
     ):
         user = User.objects.create_user(
             email='old-reuse@example.com',
