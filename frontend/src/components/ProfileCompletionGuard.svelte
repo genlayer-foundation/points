@@ -221,6 +221,7 @@
         surface: 'profile_completion',
         error_stage: startErr.response?.status ? 'backend' : 'network',
       }));
+      showError('Could not start your journey yet. We will retry on the journey page.');
       // Best-effort; each journey route also marks itself started.
     }
 
@@ -434,7 +435,7 @@
                   <span>Verification code</span>
                   <span class="field-state">Sent</span>
                 </label>
-                <div class="verification-code-status flex min-h-12 items-center gap-2.5 rounded-[8px] border border-[#ccebd8] bg-[#f6fbf8] p-3 text-[13px] font-semibold leading-[1.45] text-[#19683a]">
+                <div class="verification-code-status flex min-h-12 items-center gap-2.5 rounded-lg border border-green-200 bg-green-50 p-3 text-sm font-semibold leading-snug text-green-800">
                   <svg class="h-5 w-5 flex-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M4 6.5h16v11H4v-11ZM5 8l7 5 7-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
@@ -449,12 +450,12 @@
                   value={verificationCode}
                   oninput={handleVerificationCodeInput}
                   placeholder="000000"
-                  class="verification-code-input mt-2.5 h-[52px] w-full rounded-[8px] border border-[#d9d9dd] bg-white px-[15px] pl-[22px] text-center font-mono text-2xl font-extrabold tracking-[10px] text-[#131214] transition-colors duration-150 [font-variant-numeric:tabular-nums] placeholder:text-[#c7c7cc] focus:border-[#131214] focus:bg-white focus:outline-none focus:ring-[3px] focus:ring-black/10"
+                  class="verification-code-input mt-2.5 h-14 w-full rounded-lg border border-gray-300 bg-white px-4 pl-5 text-center font-mono text-2xl font-extrabold tracking-widest text-gray-950 tabular-nums transition-colors duration-150 placeholder:text-gray-300 focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-gray-200"
                   disabled={submittingProfile}
                 />
                 <button
                   type="button"
-                  class="profile-secondary-button"
+                  class="mt-2.5 flex min-h-10 w-full items-center justify-center rounded-full border border-gray-300 bg-white px-4 text-sm font-bold text-gray-600 transition-colors duration-150 hover:border-gray-400 hover:bg-gray-50 hover:text-gray-900 active:scale-95 disabled:cursor-default disabled:opacity-60"
                   onclick={resetPendingEmailFlow}
                   disabled={submittingProfile}
                 >
@@ -972,41 +973,6 @@
     opacity: 0.6;
     cursor: default;
     transform: none;
-  }
-
-  .profile-secondary-button {
-    align-items: center;
-    background: #fff;
-    border: 1px solid #dedee3;
-    border-radius: 999px;
-    color: #4b4c55;
-    cursor: pointer;
-    display: flex;
-    font-size: 13px;
-    font-weight: 750;
-    justify-content: center;
-    margin-top: 10px;
-    min-height: 40px;
-    padding: 0 14px;
-    transition-duration: 160ms;
-    transition-property: background-color, border-color, color, transform;
-    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
-    width: 100%;
-  }
-
-  .profile-secondary-button:hover:not(:disabled) {
-    background: #f8f8f9;
-    border-color: #c9c9d1;
-    color: #131214;
-  }
-
-  .profile-secondary-button:active:not(:disabled) {
-    transform: scale(0.98);
-  }
-
-  .profile-secondary-button:disabled {
-    cursor: default;
-    opacity: 0.6;
   }
 
   /* Responsive design */
