@@ -80,6 +80,7 @@
   import EditSubmission from './routes/EditSubmission.svelte';
   import Metrics from './routes/Metrics.svelte';
   import ProfileEdit from './routes/ProfileEdit.svelte';
+  import VerifyEmail from './routes/VerifyEmail.svelte';
   import NotFound from './routes/NotFound.svelte';
   import StewardDashboard from './routes/StewardDashboard.svelte';
   import StewardSubmissions from './routes/StewardSubmissions.svelte';
@@ -284,6 +285,7 @@
     '/contributions/:id': protectedRoute(EditSubmission),
     '/metrics': Metrics,
     '/profile': protectedRoute(ProfileEdit),
+    '/verify-email': VerifyEmail,
     '/notifications': protectedRoute(Notifications),  // Full notification feed (authenticated only)
 
     // Steward routes

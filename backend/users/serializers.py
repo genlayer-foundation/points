@@ -1,5 +1,4 @@
 from rest_framework import serializers
-from disposable_email_domains import blocklist
 from .models import BanAppeal, User
 from validators.models import Validator, ValidatorWallet
 from builders.models import Builder
@@ -223,12 +222,12 @@ class ValidatorSerializer(serializers.ModelSerializer):
     def get_target_created_at_bradbury(self, obj):
         target = self._get_target('bradbury')
         return target.created_at if target else None
-    
+
     def get_total_points(self, obj):
         """Get total points for validator leaderboard."""
         leaderboard = LeaderboardEntry.objects.filter(user=obj.user, type='validator').first()
         return leaderboard.total_points if leaderboard else 0
-    
+
     def get_rank(self, obj):
         """Get rank in validator leaderboard."""
         leaderboard = LeaderboardEntry.objects.filter(user=obj.user, type='validator').first()
@@ -314,58 +313,17 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     node_version_bradbury = serializers.CharField(
         required=False, allow_blank=True, allow_null=True, source='validator.node_version_bradbury'
     )
-    email = serializers.EmailField(required=False, allow_blank=True)
     website = serializers.CharField(required=False, allow_blank=True, max_length=200)
 
     class Meta:
         model = User
-        fields = ['name', 'node_version_asimov', 'node_version_bradbury', 'email', 'description', 'website',
+        fields = ['name', 'node_version_asimov', 'node_version_bradbury', 'description', 'website',
                   'telegram_handle', 'linkedin_handle']
-    
-    def validate_email(self, value):
-        """Validate email with DNS checks and block disposable providers"""
-        if not value:
-            return value
 
-        from email_validator import validate_email, EmailNotValidError
-
-        try:
-            # Validate email with DNS deliverability check
-            valid = validate_email(
-                value,
-                check_deliverability=True,      # Check DNS MX records
-                test_environment=False,         # Block test@test.com patterns
-                globally_deliverable=True,      # Reject localhost, private IPs, .local domains
-                allow_domain_literal=False,     # Block IP-based emails like user@[192.168.1.1]
-                timeout=10                      # DNS timeout in seconds (prevent hanging)
-            )
-
-            # Get normalized email (lowercase domain, etc.)
-            normalized_email = valid.normalized
-
-            # Check if domain is in disposable email blocklist
-            if valid.domain.lower() in blocklist:
-                raise serializers.ValidationError(
-                    "Temporary or disposable email addresses are not allowed. Please use a permanent email address."
-                )
-
-            return normalized_email
-
-        except EmailNotValidError as e:
-            # Convert email-validator errors to DRF validation errors
-            error_message = str(e)
-
-            # Provide user-friendly messages for common errors
-            if "does not exist" in error_message.lower():
-                raise serializers.ValidationError(
-                    "This email domain does not exist. Please check for typos."
-                )
-            elif "does not accept email" in error_message.lower():
-                raise serializers.ValidationError(
-                    "This email domain cannot receive emails. Please use a different email address."
-                )
-            else:
-                raise serializers.ValidationError(error_message)
+    def to_internal_value(self, data):
+        if 'email' in data:
+            raise serializers.ValidationError({'email': 'Use email verification to change email.'})
+        return super().to_internal_value(data)
 
     def validate_description(self, value):
         """Validate description length"""
@@ -414,20 +372,6 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
         # Handle validator data if present
         validator_data = validated_data.pop('validator', {})
 
-        # Handle email update
-        if 'email' in validated_data:
-            new_email = validated_data.pop('email')
-            if new_email and new_email != instance.email:
-                # Normalize the email (lowercase domain, etc.)
-                from django.contrib.auth.models import UserManager
-                new_email = UserManager.normalize_email(new_email)
-
-                # Check if email is already taken (case-insensitive)
-                if User.objects.filter(email__iexact=new_email).exclude(id=instance.id).exists():
-                    raise serializers.ValidationError({'email': 'This email is already in use.'})
-                instance.email = new_email
-                instance.is_email_verified = True  # Mark as verified when user provides it
-        
         # Update other user fields
         for field, value in validated_data.items():
             setattr(instance, field, value)
@@ -592,6 +536,7 @@ class UserSerializer(serializers.ModelSerializer):
     github_username = serializers.SerializerMethodField()
     github_linked_at = serializers.SerializerMethodField()
     is_email_verified = serializers.SerializerMethodField()
+    email_verified_at = serializers.SerializerMethodField()
     is_banned = serializers.SerializerMethodField()
     ban_reason = serializers.SerializerMethodField()
 
@@ -606,7 +551,7 @@ class UserSerializer(serializers.ModelSerializer):
                   'description', 'banner_image_url', 'profile_image_url', 'website',
                   'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle',
                   'github_username', 'github_linked_at',
-                  'email', 'is_email_verified',
+                  'email', 'is_email_verified', 'email_verified_at',
                   # Ban status
                   'is_banned', 'ban_reason',
                   # Social connections
@@ -739,15 +684,17 @@ class UserSerializer(serializers.ModelSerializer):
         Public portal responses intentionally keep this field blank so verified
         emails cannot be scraped from profile, leaderboard, or contribution JSON.
         """
-        if self._can_view_private_email(obj) and obj.is_email_verified:
+        if self._can_view_private_email(obj) and not obj.email.lower().endswith('@ethereum.address'):
             return obj.email
         return ''
 
     def get_is_email_verified(self, obj):
-        """Expose email verification state only to the account owner."""
+        return obj.is_email_verified
+
+    def get_email_verified_at(self, obj):
         if self._can_view_private_email(obj):
-            return obj.is_email_verified
-        return False
+            return obj.email_verified_at
+        return None
 
     def get_is_banned(self, obj):
         """Expose moderation status only to the account owner or staff."""
@@ -874,7 +821,7 @@ class UserSerializer(serializers.ModelSerializer):
                 'id',
                 'visible',
                 'email',
-                'is_email_verified',
+                'email_verified_at',
                 'is_banned',
                 'ban_reason',
                 'github_linked_at',
@@ -887,6 +834,8 @@ class UserSerializer(serializers.ModelSerializer):
 
         if self.context.get('public_profile', False):
             for field in [
+                'email',
+                'email_verified_at',
                 'referral_code',
                 'referred_by_info',
                 'total_referrals',

@@ -81,6 +81,8 @@ class User(AbstractUser, BaseModel):
     # Email verification
     is_email_verified = models.BooleanField(default=False,
                                            help_text="Whether the email is user-provided (True) or auto-generated (False)")
+    email_verified_at = models.DateTimeField(null=True, blank=True,
+                                             help_text="When the current email address was verified")
     
     # Cloudinary metadata (for deletion/management)
     profile_image_public_id = models.CharField(max_length=255, blank=True,

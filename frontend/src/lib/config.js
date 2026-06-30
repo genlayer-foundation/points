@@ -9,5 +9,7 @@ export const API_BASE_URL =
     ? ''
     : configuredApiUrl || 'http://localhost:8000';
 
+export const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
+
 // External Links Configuration
 export const FAUCET_URL = 'https://testnet-faucet.genlayer.foundation/';

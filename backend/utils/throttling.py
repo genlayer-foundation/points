@@ -16,3 +16,27 @@ class WalletLinkRateThrottle(UserRateThrottle):
     action, so a tight rate bounds mass-claiming of operator addresses.
     """
     scope = 'wallet_link'
+
+
+class PendingEmailStartRateThrottle(AnonRateThrottle):
+    scope = 'pending_email_start'
+
+
+class PendingEmailResendRateThrottle(AnonRateThrottle):
+    scope = 'pending_email_resend'
+
+
+class PendingEmailConfirmRateThrottle(AnonRateThrottle):
+    scope = 'pending_email_confirm'
+
+
+class ExistingEmailStartRateThrottle(UserRateThrottle):
+    scope = 'existing_email_start'
+
+
+class ExistingEmailResendRateThrottle(UserRateThrottle):
+    scope = 'existing_email_resend'
+
+
+class ExistingEmailConfirmRateThrottle(UserRateThrottle):
+    scope = 'existing_email_confirm'

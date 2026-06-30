@@ -8,6 +8,7 @@ applications:
             - npm ci
         build:
           commands:
+            - test -n "$VITE_TURNSTILE_SITE_KEY" || (echo "VITE_TURNSTILE_SITE_KEY is required" && exit 1)
             - npm run build
       artifacts:
         baseDirectory: dist
