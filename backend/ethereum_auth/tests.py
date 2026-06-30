@@ -249,9 +249,9 @@ class EmailVerificationPipelineTests(TestCase):
         refresh = RefreshToken.for_user(user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
 
-    def _start_pending_email(self, pending, *, email='new@example.com', token='signup-token', name='New User'):
+    def _start_pending_email(self, pending, *, email='new@example.com', code='123456', name='New User'):
         with (
-            patch('ethereum_auth.email_verification._generate_raw_token', return_value=token),
+            patch('ethereum_auth.email_verification._generate_verification_code', return_value=code),
             patch('ethereum_auth.email_verification.validate_email') as mock_validate_email,
             patch('ethereum_auth.email_verification.requests.post') as mock_post,
         ):
@@ -280,14 +280,14 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertEqual(len(mail.outbox), 0)
         self.assertEqual(EmailVerificationToken.objects.count(), 0)
 
-    @patch('ethereum_auth.email_verification._generate_raw_token', return_value='signup-token')
+    @patch('ethereum_auth.email_verification._generate_verification_code', return_value='123456')
     @patch('ethereum_auth.email_verification.validate_email')
     @patch('ethereum_auth.email_verification.requests.post')
     def test_pending_signup_email_confirm_creates_user_after_valid_token(
         self,
         mock_post,
         mock_validate_email,
-        mock_generate_raw_token,
+        mock_generate_verification_code,
     ):
         pending = self._pending_signup()
         mock_post.return_value = Mock(json=lambda: {'success': True, 'hostname': 'localhost'})
@@ -302,14 +302,16 @@ class EmailVerificationPipelineTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(mail.outbox), 1)
-        self.assertIn('/verify-email?token=signup-token', mail.outbox[0].body)
+        self.assertIn('123456', mail.outbox[0].body)
+        self.assertNotIn('/verify-email?token=', mail.outbox[0].body)
         self.assertEqual(mail.outbox[0].alternatives[0][1], 'text/html')
-        self.assertIn('Verify email', mail.outbox[0].alternatives[0][0])
+        self.assertIn('One-time code', mail.outbox[0].alternatives[0][0])
+        self.assertIn('123456', mail.outbox[0].alternatives[0][0])
         self.assertIn('GenLayer Portal', mail.outbox[0].alternatives[0][0])
         self.assertFalse(User.objects.filter(address__iexact=pending.address).exists())
 
         response = self.client.post('/api/auth/signup/email/confirm/', {
-            'token': 'signup-token',
+            'code': '123456',
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -320,14 +322,14 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertTrue(user.is_email_verified)
         self.assertIsNotNone(user.email_verified_at)
 
-    @patch('ethereum_auth.email_verification._generate_raw_token', return_value='cross-session-token')
+    @patch('ethereum_auth.email_verification._generate_verification_code', return_value='234567')
     @patch('ethereum_auth.email_verification.validate_email')
     @patch('ethereum_auth.email_verification.requests.post')
-    def test_pending_signup_email_confirm_from_new_session_creates_user_without_login(
+    def test_pending_signup_email_confirm_requires_same_pending_session(
         self,
         mock_post,
         mock_validate_email,
-        mock_generate_raw_token,
+        mock_generate_verification_code,
     ):
         pending = self._pending_signup()
         mock_post.return_value = Mock(json=lambda: {'success': True, 'hostname': 'localhost'})
@@ -344,24 +346,30 @@ class EmailVerificationPipelineTests(TestCase):
 
         other_client = APIClient()
         response = other_client.post('/api/auth/signup/email/confirm/', {
-            'token': 'cross-session-token',
+            'code': '234567',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], 'Pending signup is required.')
+        self.assertFalse(User.objects.filter(address__iexact=pending.address).exists())
+
+        response = self.client.post('/api/auth/signup/email/confirm/', {
+            'code': '234567',
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data['authenticated'])
-        self.assertTrue(response.data['requires_wallet_login'])
+        self.assertTrue(response.data['authenticated'])
+        self.assertFalse(response.data['requires_wallet_login'])
         self.assertEqual(response.data['selected_role'], 'validator')
         user = User.objects.get(address__iexact=pending.address)
         self.assertEqual(user.email, 'new-session@example.com')
-        verify_response = other_client.get('/api/auth/verify/')
-        self.assertFalse(verify_response.data['authenticated'])
 
     def test_pending_signup_wrong_token_fails_without_creating_user(self):
         pending = self._pending_signup()
-        token = self._start_pending_email(pending, token='right-token')
+        token = self._start_pending_email(pending, code='345678')
 
         response = self.client.post('/api/auth/signup/email/confirm/', {
-            'token': 'wrong-token',
+            'code': '111111',
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -372,12 +380,12 @@ class EmailVerificationPipelineTests(TestCase):
 
     def test_pending_signup_expired_token_fails_without_creating_user(self):
         pending = self._pending_signup()
-        token = self._start_pending_email(pending, token='expired-token')
+        token = self._start_pending_email(pending, code='456789')
         token.expires_at = timezone.now() - timezone.timedelta(seconds=1)
         token.save(update_fields=['expires_at'])
 
         response = self.client.post('/api/auth/signup/email/confirm/', {
-            'token': 'expired-token',
+            'code': '456789',
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -385,12 +393,12 @@ class EmailVerificationPipelineTests(TestCase):
 
     def test_pending_signup_over_attempt_limit_fails_without_creating_user(self):
         pending = self._pending_signup()
-        token = self._start_pending_email(pending, token='limited-token')
+        token = self._start_pending_email(pending, code='567890')
         token.attempts = settings.EMAIL_VERIFICATION_MAX_ATTEMPTS
         token.save(update_fields=['attempts'])
 
         response = self.client.post('/api/auth/signup/email/confirm/', {
-            'token': 'limited-token',
+            'code': '567890',
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -413,7 +421,7 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertEqual(len(mail.outbox), 0)
         self.assertEqual(EmailVerificationToken.objects.count(), 0)
 
-    @patch('ethereum_auth.email_verification._generate_raw_token', return_value='unsent-token')
+    @patch('ethereum_auth.email_verification._generate_verification_code', return_value='678901')
     @patch('ethereum_auth.email_verification.EmailMultiAlternatives.send', side_effect=Exception('SMTP down'))
     @patch('ethereum_auth.email_verification.validate_email')
     @patch('ethereum_auth.email_verification.requests.post')
@@ -422,7 +430,7 @@ class EmailVerificationPipelineTests(TestCase):
         mock_post,
         mock_validate_email,
         mock_send_mail,
-        mock_generate_raw_token,
+        mock_generate_verification_code,
     ):
         pending = self._pending_signup()
         mock_post.return_value = Mock(json=lambda: {'success': True, 'hostname': 'localhost'})
@@ -460,14 +468,14 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertEqual(len(mail.outbox), 0)
         self.assertEqual(EmailVerificationToken.objects.count(), 0)
 
-    @patch('ethereum_auth.email_verification._generate_raw_token', return_value='existing-token')
+    @patch('ethereum_auth.email_verification._generate_verification_code', return_value='789012')
     @patch('ethereum_auth.email_verification.validate_email')
     @patch('ethereum_auth.email_verification.requests.post')
     def test_existing_user_email_confirm_updates_email(
         self,
         mock_post,
         mock_validate_email,
-        mock_generate_raw_token,
+        mock_generate_verification_code,
     ):
         user = User.objects.create_user(
             email='old@example.com',
@@ -485,14 +493,15 @@ class EmailVerificationPipelineTests(TestCase):
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('/verify-email?token=existing-token', mail.outbox[0].body)
+        self.assertIn('789012', mail.outbox[0].body)
+        self.assertNotIn('/verify-email?token=', mail.outbox[0].body)
         self.assertEqual(mail.outbox[0].alternatives[0][1], 'text/html')
         user.refresh_from_db()
         self.assertEqual(user.email, 'old@example.com')
         self.assertFalse(user.is_email_verified)
 
         response = self.client.post('/api/auth/email/confirm/', {
-            'token': 'existing-token',
+            'code': '789012',
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -501,14 +510,14 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertTrue(user.is_email_verified)
         self.assertIsNotNone(user.email_verified_at)
 
-    @patch('ethereum_auth.email_verification._generate_raw_token', return_value='reuse-token')
+    @patch('ethereum_auth.email_verification._generate_verification_code', return_value='890123')
     @patch('ethereum_auth.email_verification.validate_email')
     @patch('ethereum_auth.email_verification.requests.post')
     def test_existing_user_reused_token_fails(
         self,
         mock_post,
         mock_validate_email,
-        mock_generate_raw_token,
+        mock_generate_verification_code,
     ):
         user = User.objects.create_user(
             email='old-reuse@example.com',
@@ -527,11 +536,11 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         response = self.client.post('/api/auth/email/confirm/', {
-            'token': 'reuse-token',
+            'code': '890123',
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         response = self.client.post('/api/auth/email/confirm/', {
-            'token': 'reuse-token',
+            'code': '890123',
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

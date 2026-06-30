@@ -2,6 +2,7 @@
   import { push } from "svelte-spa-router";
   import { showSuccess } from "../../lib/toastStore";
   import Avatar from "../Avatar.svelte";
+  import EmailVerificationModal from "../EmailVerificationModal.svelte";
   import CategoryIcon from "../portal/CategoryIcon.svelte";
   import SocialLink from "../SocialLink.svelte";
   import { hasStartedJourney } from "../../lib/roleState.js";
@@ -74,6 +75,17 @@
 
   // UI state for copy-to-clipboard feedback
   let copiedAddress = $state(false);
+  let showEmailVerificationModal = $state(false);
+
+  function openEmailVerification() {
+    if (isOwnProfile && !participant?.is_email_verified) {
+      showEmailVerificationModal = true;
+    }
+  }
+
+  function handleEmailVerified(updatedUser) {
+    onParticipantUpdated(updatedUser);
+  }
 </script>
 
 <div
@@ -231,21 +243,20 @@
                 {/if}
               </button>
             {/if}
-            <button
-              type="button"
-              class="email-verification-badge {participant?.is_email_verified ? 'is-verified' : 'is-unverified'}"
-              title={participant?.is_email_verified ? 'Email verified' : 'Email has not been verified'}
-              onclick={() => {
-                if (isOwnProfile && !participant?.is_email_verified) push('/profile');
-              }}
-              disabled={!isOwnProfile || participant?.is_email_verified}
-            >
-              {#if participant?.is_email_verified}
-                Email verified
-              {:else}
-                Email not verified
-              {/if}
-            </button>
+            {#if isOwnProfile}
+              <button
+                type="button"
+                class="email-verification-check {participant?.is_email_verified ? 'is-verified' : 'is-unverified'}"
+                title={participant?.is_email_verified ? 'Email verified' : 'Verify email'}
+                aria-label={participant?.is_email_verified ? 'Email verified' : 'Verify email'}
+                onclick={openEmailVerification}
+                disabled={participant?.is_email_verified}
+              >
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+            {/if}
           </div>
         </div>
       </div>
@@ -370,31 +381,61 @@
   </div>
 </div>
 
+{#if showEmailVerificationModal}
+  <EmailVerificationModal
+    initialEmail={participant?.email || ''}
+    onClose={() => (showEmailVerificationModal = false)}
+    onVerified={handleEmailVerified}
+  />
+{/if}
+
 <style>
-  .email-verification-badge {
-    border: 1px solid transparent;
+  .email-verification-check {
+    align-items: center;
+    border: 1px solid;
     border-radius: 999px;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1;
-    padding: 6px 9px;
-    white-space: nowrap;
+    display: inline-flex;
+    flex: none;
+    height: 30px;
+    justify-content: center;
+    transition-duration: 160ms;
+    transition-property: background-color, border-color, box-shadow, color, transform;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    width: 30px;
   }
 
-  .email-verification-badge.is-verified {
-    background: #eefaf2;
+  .email-verification-check svg {
+    height: 17px;
+    width: 17px;
+  }
+
+  .email-verification-check.is-verified {
+    background: #edf9f1;
     border-color: #cbeed6;
-    color: #1f7a43;
+    color: #17743d;
   }
 
-  .email-verification-badge.is-unverified {
-    background: #fff7ed;
-    border-color: #fed7aa;
-    color: #b45309;
-  }
-
-  .email-verification-badge:not(:disabled) {
+  .email-verification-check.is-unverified {
+    background: #f4f4f5;
+    border-color: #dedee3;
+    color: #8b8d96;
     cursor: pointer;
+  }
+
+  .email-verification-check.is-unverified:hover {
+    background: #fff;
+    border-color: #c9c9d1;
+    box-shadow: 0 8px 18px rgba(19, 18, 20, 0.1);
+    color: #131214;
+    transform: translateY(-1px);
+  }
+
+  .email-verification-check.is-unverified:active {
+    transform: scale(0.96);
+  }
+
+  .email-verification-check:disabled {
+    cursor: default;
   }
   .badge-tooltip-wrap .badge-tooltip {
     display: none;

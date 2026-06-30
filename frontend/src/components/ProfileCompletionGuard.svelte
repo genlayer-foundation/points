@@ -1,5 +1,5 @@
 <script>
-  import { authState, startPendingSignupEmail } from '../lib/auth.js';
+  import { authState, confirmPendingSignupEmail, startPendingSignupEmail } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { journeyAPI, updateUserProfile } from '../lib/api.js';
   import { push, location } from 'svelte-spa-router';
@@ -20,7 +20,8 @@
   let name = $state('');
   let submittingProfile = $state(false);
   let profileError = $state('');
-  let pendingLinkSent = $state(false);
+  let pendingCodeSent = $state(false);
+  let verificationCode = $state('');
   let turnstileToken = $state('');
   let turnstileWidget = $state(null);
 
@@ -156,6 +157,71 @@
     }
   });
 
+  function selectedTargetRole() {
+    return ROLE_VALUES.has(selectedRole)
+      ? selectedRole
+      : roleForCategory(detectCategoryFromRoute($location));
+  }
+
+  function normalizeVerificationCode(value) {
+    return String(value || '').replace(/\D/g, '').slice(0, 6);
+  }
+
+  function handleVerificationCodeInput(event) {
+    verificationCode = normalizeVerificationCode(event.target.value);
+  }
+
+  async function finishProfileCompletion(targetRole) {
+    // Start the selected journey immediately, then send first-time users
+    // straight to it. If the marker request fails, the route will retry on
+    // mount so a transient error does not strand the user after saving.
+    markFunnelTime('profile_completion');
+    markLifecycleTime('first_profile_completion');
+    trackEvent('profile_completion_success', getAnalyticsContext({
+      selected_role: targetRole,
+      preselected_role: preselectedRole,
+      time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+      time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
+    }));
+
+    trackEvent('journey_start_attempt', getAnalyticsContext({
+      role_context: targetRole,
+      selected_role: targetRole,
+      surface: 'profile_completion',
+    }));
+    try {
+      const startRes = targetRole === 'builder'
+        ? await journeyAPI.startBuilderJourney()
+        : await journeyAPI.startRoleJourney(targetRole);
+      if (startRes.data?.user) userStore.updateUser(startRes.data.user);
+      markFunnelTime(`journey_start:${targetRole}`);
+      markLifecycleTime(`first_journey_start:${targetRole}`);
+      trackEvent('journey_started', getAnalyticsContext({
+        role_context: targetRole,
+        selected_role: targetRole,
+        surface: 'profile_completion',
+        journey_state: 'started',
+        time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+        time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
+        time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
+      }));
+    } catch (startErr) {
+      trackEvent('journey_start_error', getAnalyticsContext({
+        role_context: targetRole,
+        selected_role: targetRole,
+        surface: 'profile_completion',
+        error_stage: startErr.response?.status ? 'backend' : 'network',
+      }));
+      // Best-effort; each journey route also marks itself started.
+    }
+
+    // Reload user data to ensure we have the latest.
+    await userStore.loadUser();
+
+    try { sessionStorage.removeItem('onboardingRole'); } catch {}
+    push(journeyPath(targetRole));
+  }
+
   async function handleProfileSubmit() {
     trackEvent('profile_completion_submit', getAnalyticsContext({
       selected_role: selectedRole,
@@ -187,8 +253,16 @@
     profileError = '';
 
     try {
+      const targetRole = selectedTargetRole();
       if ($authState.pendingSignup) {
-        if (pendingLinkSent) {
+        if (pendingCodeSent) {
+          const code = normalizeVerificationCode(verificationCode);
+          if (code.length !== 6) {
+            profileError = 'Enter the 6-digit code from your email';
+            return;
+          }
+          const response = await confirmPendingSignupEmail(code);
+          await finishProfileCompletion(response.data?.selected_role || targetRole);
           return;
         }
 
@@ -200,10 +274,11 @@
         await startPendingSignupEmail({
           email,
           name,
-          selected_role: ROLE_VALUES.has(selectedRole) ? selectedRole : roleForCategory(detectCategoryFromRoute($location)),
+          selected_role: targetRole,
           turnstile_token: turnstileToken,
         });
-        pendingLinkSent = true;
+        pendingCodeSent = true;
+        verificationCode = '';
         profileError = '';
         return;
       } else {
@@ -218,57 +293,7 @@
       userStore.updateUser(updateData);
       }
 
-      // Start the selected journey immediately, then send first-time users
-      // straight to it. If the marker request fails, the route will retry on
-      // mount so a transient error does not strand the user after saving.
-      const targetRole = ROLE_VALUES.has(selectedRole)
-        ? selectedRole
-        : roleForCategory(detectCategoryFromRoute($location));
-      markFunnelTime('profile_completion');
-      markLifecycleTime('first_profile_completion');
-      trackEvent('profile_completion_success', getAnalyticsContext({
-        selected_role: targetRole,
-        preselected_role: preselectedRole,
-        time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
-        time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
-      }));
-
-      trackEvent('journey_start_attempt', getAnalyticsContext({
-        role_context: targetRole,
-        selected_role: targetRole,
-        surface: 'profile_completion',
-      }));
-      try {
-        const startRes = targetRole === 'builder'
-          ? await journeyAPI.startBuilderJourney()
-          : await journeyAPI.startRoleJourney(targetRole);
-        if (startRes.data?.user) userStore.updateUser(startRes.data.user);
-        markFunnelTime(`journey_start:${targetRole}`);
-        markLifecycleTime(`first_journey_start:${targetRole}`);
-        trackEvent('journey_started', getAnalyticsContext({
-          role_context: targetRole,
-          selected_role: targetRole,
-          surface: 'profile_completion',
-          journey_state: 'started',
-          time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
-          time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
-          time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
-        }));
-      } catch (startErr) {
-        trackEvent('journey_start_error', getAnalyticsContext({
-          role_context: targetRole,
-          selected_role: targetRole,
-          surface: 'profile_completion',
-          error_stage: startErr.response?.status ? 'backend' : 'network',
-        }));
-        // Best-effort; each journey route also marks itself started.
-      }
-
-      // Reload user data to ensure we have the latest.
-      await userStore.loadUser();
-
-      try { sessionStorage.removeItem('onboardingRole'); } catch {}
-      push(journeyPath(targetRole));
+      await finishProfileCompletion(targetRole);
     } catch (err) {
       trackEvent('profile_completion_error', getAnalyticsContext({
         selected_role: selectedRole,
@@ -281,6 +306,8 @@
           profileError = data.email;
         } else if (data.name) {
           profileError = data.name;
+        } else if (data.code || data.token) {
+          profileError = data.code || data.token;
         } else if (data.error) {
           profileError = data.error;
         } else {
@@ -289,7 +316,7 @@
       } else {
         profileError = err.message || 'Failed to update profile';
       }
-      if ($authState.pendingSignup) {
+      if ($authState.pendingSignup && !pendingCodeSent) {
         turnstileToken = '';
         turnstileWidget?.reset?.();
       }
@@ -358,7 +385,7 @@
                   bind:value={name}
                   placeholder="Your public name"
                   class="form-input"
-                  disabled={submittingProfile || pendingLinkSent}
+                  disabled={submittingProfile || pendingCodeSent}
                 />
               </div>
               <p>Shown on your profile, submissions, and contribution history.</p>
@@ -382,7 +409,7 @@
                   bind:value={email}
                   placeholder="you@example.com"
                   class="form-input"
-                  disabled={submittingProfile || pendingLinkSent}
+                  disabled={submittingProfile || pendingCodeSent}
                 />
               </div>
               <p>Used for important updates about submissions and rewards.</p>
@@ -392,17 +419,29 @@
 
           {#if $authState.pendingSignup}
             <div class="form-group">
-              {#if pendingLinkSent}
-                <div class="form-label">
-                  <span>Verification link</span>
+              {#if pendingCodeSent}
+                <label for="signup-verification-code" class="form-label">
+                  <span>Verification code</span>
                   <span class="field-state">Sent</span>
-                </div>
-                <div class="verification-link-status">
+                </label>
+                <div class="verification-code-status">
                   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M4 6.5h16v11H4v-11ZM5 8l7 5 7-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
-                  <span>Open the verification link sent to {email.trim()} to finish creating your account.</span>
+                  <span>Code sent to {email.trim()}.</span>
                 </div>
+                <input
+                  id="signup-verification-code"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  maxlength="6"
+                  value={verificationCode}
+                  oninput={handleVerificationCodeInput}
+                  placeholder="000000"
+                  class="verification-code-input"
+                  disabled={submittingProfile}
+                />
               {:else}
                 <Turnstile
                   bind:this={turnstileWidget}
@@ -423,7 +462,7 @@
                   class="role-option {selectedRole === option.value ? 'role-option-selected' : ''}"
                   style={`--role-accent: ${option.accent}; --role-accent-rgb: ${option.accentRgb};`}
                   onclick={() => selectRole(option.value)}
-                  disabled={submittingProfile}
+                  disabled={submittingProfile || pendingCodeSent}
                   aria-pressed={selectedRole === option.value}
                 >
                   <span class="role-card-bg" aria-hidden="true"></span>
@@ -447,15 +486,15 @@
 
           <button
             onclick={handleProfileSubmit}
-            disabled={submittingProfile || !name.trim() || ($authState.pendingSignup && (pendingLinkSent || !email.trim() || !turnstileToken))}
+            disabled={submittingProfile || !name.trim() || ($authState.pendingSignup && (pendingCodeSent ? verificationCode.length !== 6 : (!email.trim() || !turnstileToken)))}
             class="profile-submit-button"
           >
             {#if submittingProfile}
               <div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Sending...
+              {pendingCodeSent ? 'Verifying...' : 'Sending...'}
             {:else}
               {#if $authState.pendingSignup}
-                {pendingLinkSent ? 'Verification link sent' : 'Send verification link'}
+                {pendingCodeSent ? 'Verify code and continue' : 'Send verification code'}
               {:else}
                 Continue
               {/if}
@@ -735,7 +774,7 @@
     text-wrap: pretty;
   }
 
-  .verification-link-status {
+  .verification-code-status {
     align-items: center;
     background: #f6fbf8;
     border: 1px solid #ccebd8;
@@ -750,10 +789,41 @@
     padding: 12px;
   }
 
-  .verification-link-status svg {
+  .verification-code-status svg {
     flex: 0 0 auto;
     height: 20px;
     width: 20px;
+  }
+
+  .verification-code-input {
+    background: #fff;
+    border: 1px solid #d9d9dd;
+    border-radius: 8px;
+    color: #131214;
+    font-family: var(--font-mono);
+    font-size: 24px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    height: 52px;
+    letter-spacing: 10px;
+    margin-top: 10px;
+    padding: 0 15px 0 22px;
+    text-align: center;
+    transition-duration: 160ms;
+    transition-property: border-color, box-shadow, background-color;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    width: 100%;
+  }
+
+  .verification-code-input:focus {
+    background: #fff;
+    border-color: #131214;
+    box-shadow: 0 0 0 3px rgba(19, 18, 20, 0.08);
+    outline: none;
+  }
+
+  .verification-code-input::placeholder {
+    color: #c7c7cc;
   }
 
   .role-options {

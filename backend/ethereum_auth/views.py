@@ -352,30 +352,29 @@ def signup_email_resend(request):
 @throttle_classes([PendingEmailConfirmRateThrottle])
 def signup_email_confirm(request):
     pending = get_pending_signup_from_session(request)
+    if not pending:
+        return Response({'detail': 'Pending signup is required.'}, status=status.HTTP_400_BAD_REQUEST)
     try:
-        if pending:
-            user = email_verification_service.confirm_pending_signup(pending, request.data.get('token'))
-            confirmed_pending = pending
-            authenticated = True
-        else:
-            user, confirmed_pending = email_verification_service.confirm_pending_signup_by_token(request.data.get('token'))
-            authenticated = False
+        user = email_verification_service.confirm_pending_signup(
+            pending,
+            request.data.get('code') or request.data.get('token'),
+        )
+        confirmed_pending = pending
     except Exception as exc:
         if hasattr(exc, 'detail'):
             return validation_error_response(exc)
-        logger.exception("Failed to confirm pending signup email verification")
-        return Response({'detail': 'Could not confirm verification link.'}, status=status.HTTP_400_BAD_REQUEST)
+        logger.exception("Failed to confirm pending signup email code")
+        return Response({'detail': 'Could not confirm verification code.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if authenticated:
-        django_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-        request.session['ethereum_address'] = user.address
-        request.session['authenticated'] = True
+    django_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+    request.session['ethereum_address'] = user.address
+    request.session['authenticated'] = True
     request.session.pop('pending_wallet_signup_id', None)
     request.session.pop('pending_wallet_address', None)
     request.session.save()
     return Response({
-        'authenticated': authenticated,
-        'requires_wallet_login': not authenticated,
+        'authenticated': True,
+        'requires_wallet_login': False,
         'address': user.address,
         'user_id': user.id,
         'created': True,
@@ -413,12 +412,15 @@ def email_resend(request):
 @throttle_classes([ExistingEmailConfirmRateThrottle])
 def email_confirm(request):
     try:
-        user = email_verification_service.confirm_existing_user(request.user, request.data.get('token'))
+        user = email_verification_service.confirm_existing_user(
+            request.user,
+            request.data.get('code') or request.data.get('token'),
+        )
     except Exception as exc:
         if hasattr(exc, 'detail'):
             return validation_error_response(exc)
-        logger.exception("Failed to confirm email verification")
-        return Response({'detail': 'Could not confirm verification link.'}, status=status.HTTP_400_BAD_REQUEST)
+        logger.exception("Failed to confirm email verification code")
+        return Response({'detail': 'Could not confirm verification code.'}, status=status.HTTP_400_BAD_REQUEST)
     return Response({
         'verified': True,
         'email': user.email,

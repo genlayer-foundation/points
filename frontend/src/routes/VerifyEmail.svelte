@@ -10,6 +10,7 @@
   import { journeyAPI } from '../lib/api.js';
   import { journeyPath } from '../lib/roleState.js';
   import { userStore } from '../lib/userStore.js';
+  import EmailVerificationModal from '../components/EmailVerificationModal.svelte';
 
   const ROLE_VALUES = new Set(['builder', 'validator', 'community']);
 
@@ -20,10 +21,13 @@
   let pendingFlow = $state(false);
   let recoveryLabel = $state('Go to profile');
   let recoveryPath = $state('/profile');
+  let showEmailModal = $state(false);
+  let modalEmail = $state('');
+  let modalDestination = $state('/');
 
   function extractError(err) {
     const data = err?.response?.data;
-    return data?.token || data?.detail || data?.email || 'This verification link is invalid or has expired.';
+    return data?.code || data?.token || data?.detail || data?.email || 'This verification link is invalid or has expired.';
   }
 
   function consumeAuthenticatedDestination(address) {
@@ -56,6 +60,19 @@
     push(recoveryPath);
   }
 
+  function completeModalVerification(updatedUser) {
+    userStore.updateUser(updatedUser);
+    status = 'success';
+    title = 'Email verified';
+    message = 'Your Portal account now has a verified email.';
+    destination = modalDestination;
+  }
+
+  function closeModalVerification() {
+    showEmailModal = false;
+    push(modalDestination);
+  }
+
   async function startSelectedJourney(role) {
     if (!ROLE_VALUES.has(role)) return false;
     try {
@@ -72,19 +89,40 @@
 
   onMount(async () => {
     const token = new URLSearchParams(window.location.search).get('token');
+    await verifyAuth();
+    const state = authState.get();
+
     if (!token) {
-      status = 'error';
-      title = 'Verification link missing';
-      message = 'Open the full verification link from your email.';
-      recoveryLabel = 'Go home';
-      recoveryPath = '/';
+      if (!state.isAuthenticated) {
+        status = 'error';
+        title = 'Sign in required';
+        message = 'Sign in with your wallet, then verify your email from the Portal.';
+        recoveryLabel = 'Go home';
+        recoveryPath = '/';
+        return;
+      }
+
+      let currentUser = userStore.getUser();
+      try {
+        currentUser = currentUser || await userStore.loadUser();
+      } catch {}
+      modalEmail = currentUser?.email || '';
+      modalDestination = state.address ? `/participant/${state.address}` : '/';
+      if (currentUser?.is_email_verified) {
+        status = 'success';
+        title = 'Email already verified';
+        message = 'Your Portal account already has a verified email.';
+        destination = modalDestination;
+      } else {
+        showEmailModal = true;
+        status = 'modal';
+        title = 'Verify your email';
+        message = 'Complete verification with a one-time code.';
+      }
       return;
     }
 
     try {
-      await verifyAuth();
-      const state = authState.get();
-
       if (state.pendingSignup || !state.isAuthenticated) {
         pendingFlow = true;
         const response = await confirmPendingSignupEmail(token);
@@ -149,6 +187,10 @@
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
+        {:else if status === 'modal'}
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 6.5h16v11H4v-11ZM5 8l7 5 7-5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         {:else}
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M12 7v6M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
@@ -169,6 +211,14 @@
     {/if}
   </div>
 </section>
+
+{#if showEmailModal}
+  <EmailVerificationModal
+    initialEmail={modalEmail}
+    onClose={closeModalVerification}
+    onVerified={completeModalVerification}
+  />
+{/if}
 
 <style>
   .verify-email-page {
@@ -265,6 +315,11 @@
   .status-mark.success {
     background: #edf9f1;
     color: #17743d;
+  }
+
+  .status-mark.modal {
+    background: #f4f4f5;
+    color: #4f5057;
   }
 
   .status-mark.error {

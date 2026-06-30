@@ -2,12 +2,11 @@
   import { onDestroy, onMount } from "svelte";
   import { push } from "svelte-spa-router";
   import { getCurrentUser, updateUserProfile, imageAPI, socialAPI, validatorsAPI } from "../lib/api";
-  import { authState, startEmailVerification } from "../lib/auth";
+  import { authState } from "../lib/auth";
   import ImageCropper from "../components/ImageCropper.svelte";
   import { userStore } from "../lib/userStore";
   import { showSuccess, showError } from "../lib/toastStore";
   import SocialLink from "../components/SocialLink.svelte";
-  import Turnstile from "../components/Turnstile.svelte";
 
   // State management
   let user = $state(null);
@@ -15,7 +14,6 @@
   let loading = $state(true);
   let error = $state("");
   let isSaving = $state(false);
-  let isSendingEmailLink = $state(false);
 
   // Form fields
   let name = $state("");
@@ -66,10 +64,6 @@
 
   // Validation state
   let nameError = $state("");
-  let emailError = $state("");
-  let emailLinkSent = $state(false);
-  let emailTurnstileToken = $state("");
-  let emailTurnstileWidget = $state(null);
 
   // Track if any field has changed
   let hasChanges = $derived(
@@ -170,22 +164,6 @@
     return true;
   }
 
-  function validateEmail() {
-    const trimmedEmail = email.trim();
-    if (trimmedEmail === "") {
-      emailError = "Email is required";
-      return false;
-    }
-    // Basic email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      emailError = "Please enter a valid email";
-      return false;
-    }
-    emailError = "";
-    return true;
-  }
-
   async function handleSave() {
     if (!hasChanges) return;
 
@@ -245,32 +223,6 @@
       }
 
       isSaving = false;
-    }
-  }
-
-  async function handleSendEmailLink() {
-    if (!validateEmail()) return;
-    if (!emailTurnstileToken) {
-      emailError = "Complete verification first";
-      return;
-    }
-
-    isSendingEmailLink = true;
-    emailError = "";
-    try {
-      await startEmailVerification({
-        email: email.trim(),
-        turnstile_token: emailTurnstileToken,
-      });
-      emailLinkSent = true;
-      showSuccess("Verification link sent");
-    } catch (err) {
-      const data = err.response?.data;
-      emailError = data?.email || data?.detail || data?.turnstile_token || "Failed to send verification email";
-      emailTurnstileToken = "";
-      emailTurnstileWidget?.reset?.();
-    } finally {
-      isSendingEmailLink = false;
     }
   }
 
@@ -626,42 +578,14 @@
                     id="email"
                     type="email"
                     bind:value={email}
-                    oninput={validateEmail}
-                    class="w-full px-4 py-3 bg-[#FCFCFC] border {emailError
-                      ? 'border-red-300 focus:ring-red-500 rounded-[8px]'
-                      : 'border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black'} transition-colors"
+                    class="w-full px-4 py-3 bg-[#F5F5F5] border border-[#EAEAEA] rounded-[8px] text-gray-600"
                     placeholder="Enter your email"
-                    disabled={isSaving || isSendingEmailLink || emailLinkSent}
+                    disabled
                   />
-                  {#if emailError}
-                    <p class="mt-1 text-sm text-red-600">{emailError}</p>
-                  {:else if user.is_email_verified}
+                  {#if user.is_email_verified}
                     <p class="mt-1 text-xs text-green-600">Email verified</p>
                   {:else}
-                    <p class="mt-1 text-xs text-orange-500">Email not verified</p>
-                  {/if}
-
-                  {#if !emailLinkSent}
-                    <div class="mt-3">
-                      <Turnstile
-                        bind:this={emailTurnstileWidget}
-                        disabled={isSendingEmailLink}
-                        onVerify={(token) => (emailTurnstileToken = token)}
-                        onExpire={() => (emailTurnstileToken = "")}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onclick={handleSendEmailLink}
-                      disabled={isSendingEmailLink || !email.trim() || !emailTurnstileToken}
-                      class="mt-3 px-4 py-2 bg-black text-white rounded-[8px] hover:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed text-sm font-medium transition-colors"
-                    >
-                      {isSendingEmailLink ? "Sending..." : user.is_email_verified ? "Change email" : "Verify email"}
-                    </button>
-                  {:else}
-                    <div class="mt-3 rounded-[8px] border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
-                      Verification link sent. Open it to update your email.
-                    </div>
+                    <p class="mt-1 text-xs text-orange-500">Email not verified. Use the check on your public profile header to verify it.</p>
                   {/if}
                 </div>
 
