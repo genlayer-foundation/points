@@ -86,6 +86,11 @@ def get_pending_signup_from_session(request):
     return None
 
 
+def normalize_pending_referral_code(value):
+    code = str(value or '').strip().upper()
+    return code if len(code) <= 8 else ''
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 @throttle_classes([SiweAuthRateThrottle])
@@ -199,7 +204,7 @@ def login(request):
                 address=ethereum_address,
                 defaults={
                     'session_key': request.session.session_key,
-                    'referral_code': (referral_code or '').upper(),
+                    'referral_code': normalize_pending_referral_code(referral_code),
                     'status': PendingWalletSignup.STATUS_PENDING,
                     'expires_at': expires_at,
                 },

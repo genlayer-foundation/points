@@ -138,6 +138,26 @@ class EthereumAuthNoncePurposeTests(TestCase):
         self.assertTrue(response.data['pending_signup'])
         self.assertFalse(User.objects.filter(address__iexact=account.address).exists())
 
+    def test_login_ignores_oversized_referral_code_for_pending_signup(self):
+        account = Account.create()
+        nonce = Nonce.objects.create(
+            value='oversizedReferralNonce1',
+            purpose=Nonce.PURPOSE_LOGIN,
+            expires_at=timezone.now() + timezone.timedelta(minutes=5),
+        )
+        message = self._login_message(account, nonce.value)
+
+        response = self.client.post('/api/auth/login/', {
+            'message': message,
+            'signature': self._sign(account, message),
+            'referral_code': 'ABCDEFGHIJK',
+        }, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['pending_signup'])
+        pending = PendingWalletSignup.objects.get(address=account.address.lower())
+        self.assertEqual(pending.referral_code, '')
+
     def test_known_wallet_logs_in_normally(self):
         account = Account.create()
         user = User.objects.create_user(
