@@ -69,6 +69,7 @@
   let emailError = $state("");
   let emailLinkSent = $state(false);
   let emailTurnstileToken = $state("");
+  let emailTurnstileWidget = $state(null);
 
   // Track if any field has changed
   let hasChanges = $derived(
@@ -266,6 +267,8 @@
     } catch (err) {
       const data = err.response?.data;
       emailError = data?.email || data?.detail || data?.turnstile_token || "Failed to send verification email";
+      emailTurnstileToken = "";
+      emailTurnstileWidget?.reset?.();
     } finally {
       isSendingEmailLink = false;
     }
@@ -641,6 +644,7 @@
                   {#if !emailLinkSent}
                     <div class="mt-3">
                       <Turnstile
+                        bind:this={emailTurnstileWidget}
                         disabled={isSendingEmailLink}
                         onVerify={(token) => (emailTurnstileToken = token)}
                         onExpire={() => (emailTurnstileToken = "")}

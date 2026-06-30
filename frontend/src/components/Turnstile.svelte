@@ -15,6 +15,17 @@
     onVerify('debug-pass');
   }
 
+  export function reset() {
+    onExpire();
+    if (!TURNSTILE_SITE_KEY) {
+      emitDebugToken();
+      return;
+    }
+    if (widgetId !== null && window.turnstile) {
+      window.turnstile.reset(widgetId);
+    }
+  }
+
   function renderWidget() {
     if (!container || disabled || !TURNSTILE_SITE_KEY) return;
     if (!window.turnstile) return;

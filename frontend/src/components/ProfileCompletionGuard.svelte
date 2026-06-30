@@ -22,6 +22,7 @@
   let profileError = $state('');
   let pendingLinkSent = $state(false);
   let turnstileToken = $state('');
+  let turnstileWidget = $state(null);
 
   // Track which fields were pre-filled
   let hasExistingName = $state(false);
@@ -288,6 +289,10 @@
       } else {
         profileError = err.message || 'Failed to update profile';
       }
+      if ($authState.pendingSignup) {
+        turnstileToken = '';
+        turnstileWidget?.reset?.();
+      }
     } finally {
       submittingProfile = false;
     }
@@ -400,6 +405,7 @@
                 </div>
               {:else}
                 <Turnstile
+                  bind:this={turnstileWidget}
                   disabled={submittingProfile}
                   onVerify={(token) => (turnstileToken = token)}
                   onExpire={() => (turnstileToken = '')}
