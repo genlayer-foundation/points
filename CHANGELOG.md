@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Grafana dashboards can now read a dedicated minimal validator roster endpoint that lists every validator wallet with its network, on-chain node address, display name, status, operator address, and (for visible operators) linked account, kept intentionally small and separate from the Wall of Shame so monitoring can join validator identity onto live node metrics (2aaf68f)
+
 - Contribution types can now require evidence URLs in groups, so a single submission can be made to provide both a contract code link (GenLayer Studio import or GitHub repository) and a deployed-contract explorer link (Asimov, Bradbury, or Studio explorer) together; GenLayer explorer contract addresses are now recognized as their own evidence type (25f90869)
 - Builders, validators, and community members now have a dedicated onboarding funnel. Each role's landing page adapts to whether you are signed in and shows a step-by-step journey to unlock that role: builders connect GitHub and star the boilerplate repo, community members link X and Discord, follow and join, and share a verified post on X, and validators complete the waitlist form. Completing a journey grants the role itself (points come only from verifiable tasks), sections stay locked until the relevant journey is finished, and your profile shows in-progress roles privately until earned (66677ffe)
 - The portal now uses clean URLs (e.g. `/hackathon` instead of `/#/hackathon`), so links you copy and share show the correct page preview on Discord, Slack, X, and other platforms; previously every shared link previewed as the generic homepage. Already-shared `/#/` links still work (84dbe5d4)
