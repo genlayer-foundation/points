@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import logging
 import secrets
 from urllib.parse import urlencode
 from dataclasses import dataclass
@@ -21,6 +22,7 @@ from rest_framework import serializers
 from .models import EmailVerificationToken, PendingWalletSignup
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 GENERIC_EMAIL_ERROR = 'Enter a valid email address that can receive mail.'
 PLACEHOLDER_DOMAIN = 'ethereum.address'
 
@@ -55,15 +57,22 @@ class TurnstileVerifier:
                 timeout=5,
             )
             payload = response.json()
-        except Exception:
+        except Exception as exc:
+            logger.warning("Turnstile siteverify request failed: %s", exc)
             raise serializers.ValidationError({'turnstile_token': 'Verification failed.'})
 
         if not payload.get('success'):
+            logger.warning(
+                "Turnstile rejected token: errors=%s hostname=%s",
+                payload.get('error-codes', []),
+                payload.get('hostname', ''),
+            )
             raise serializers.ValidationError({'turnstile_token': 'Verification failed.'})
 
         allowed = getattr(settings, 'TURNSTILE_ALLOWED_HOSTNAMES', [])
         hostname = payload.get('hostname')
         if allowed and hostname not in allowed:
+            logger.warning("Turnstile hostname rejected: hostname=%s allowed=%s", hostname, allowed)
             raise serializers.ValidationError({'turnstile_token': 'Verification failed.'})
         return True
 
