@@ -214,6 +214,8 @@
         </div>
       </button>
     </div>
+
+    <SearchBar floating />
   </div>
 </header>
 
@@ -283,11 +285,13 @@
 
     .navbar-mobile-actions {
       flex: 0 0 auto;
-      gap: 0.375rem;
+      gap: 0.25rem;
+      min-width: 0;
     }
 
     .mobile-menu-button {
       padding: 0.375rem;
+      flex: 0 0 auto;
     }
 
     .mobile-menu-icon {
@@ -297,6 +301,12 @@
 
     .mobile-menu-line {
       width: 1.25rem;
+    }
+  }
+
+  @media (min-width: 768px) {
+    :global(.search-container.floating) {
+      display: none;
     }
   }
 </style>

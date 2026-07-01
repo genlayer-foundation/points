@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { validatorsAPI } from '../../lib/api.js';
   import CategoryIcon from '../portal/CategoryIcon.svelte';
+  import RoleLandingVideo from './RoleLandingVideo.svelte';
 
   let { state: roleState = 'unauthenticated', starting = false, onStart = () => {} } = $props();
 
@@ -114,7 +115,12 @@
       </div>
     </div>
 
-    <div class="hero-media" aria-hidden="true"></div>
+    <RoleLandingVideo
+      variant="validator"
+      eyebrow="Validator Preview"
+      title="Adjudication in motion"
+      description="Watch the flow for reasoning, verification, and finality before joining the validator path."
+    />
   </section>
 
   <section class="comparison-section" aria-labelledby="validator-comparison-title">
@@ -411,13 +417,6 @@
     background: rgba(var(--role-accent-rgb), 0.1);
     border: 1px solid rgba(var(--role-accent-rgb), 0.24);
     color: var(--role-accent);
-  }
-
-  .hero-media {
-    aspect-ratio: 16 / 9;
-    background: #cbcbcb;
-    border-radius: 8px;
-    width: 100%;
   }
 
   .comparison-section,
@@ -796,6 +795,18 @@
     .button-row {
       align-items: center;
       justify-content: center;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .role-landing {
+      margin: 0;
+      padding: 0 12px 0;
+      width: 100%;
+    }
+
+    .role-hero {
+      padding: 20px 0 56px;
     }
   }
 

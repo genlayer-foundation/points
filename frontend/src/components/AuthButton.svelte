@@ -197,7 +197,7 @@
 
 <div class="auth-dropdown-container">
   <button 
-    class="auth-button {isAuthenticated ? 'connected' : '!min-w-[168px] !h-11 !px-5 !py-2.5 !text-[15px]'}"
+    class="auth-button {isAuthenticated ? 'connected' : 'disconnected'}"
     on:click={handleAuth}
     disabled={loading || storeLoading}
     data-auth-button
@@ -210,7 +210,8 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
       </svg>
     {:else}
-      <span>Connect Wallet</span>
+      <span class="auth-label-full">Connect Wallet</span>
+      <span class="auth-label-mobile">Connect</span>
     {/if}
   </button>
   
@@ -286,6 +287,17 @@
   .auth-button.connected:hover {
     background-color: #1a1a24;
   }
+
+  .auth-button.disconnected {
+    height: 2.75rem;
+    min-width: 10.5rem;
+    padding: 0.625rem 1.25rem;
+    font-size: 0.9375rem;
+  }
+
+  .auth-label-mobile {
+    display: none;
+  }
   
   .loading-spinner {
     display: inline-block;
@@ -352,12 +364,14 @@
 
   @media (max-width: 767px) {
     .auth-dropdown-container {
-      max-width: min(40vw, 7.75rem);
+      flex: 0 1 auto;
+      max-width: min(32vw, 6rem);
+      min-width: 0;
     }
 
     .auth-button {
-      min-width: 6.75rem;
-      max-width: min(40vw, 7.75rem);
+      min-width: 0;
+      max-width: 100%;
       height: 2.125rem;
       padding: 0.375rem 0.625rem;
       border-radius: 1.0625rem;
@@ -381,6 +395,30 @@
     .auth-dropdown {
       min-width: min(15rem, calc(100vw - 1rem));
       max-width: calc(100vw - 1rem);
+    }
+
+    .auth-button.disconnected {
+      min-width: 4.75rem;
+      padding-inline: 0.65rem;
+    }
+
+    .auth-label-full {
+      display: none;
+    }
+
+    .auth-label-mobile {
+      display: inline;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .auth-dropdown-container {
+      max-width: 4.25rem;
+    }
+
+    .auth-button.disconnected {
+      min-width: 4.25rem;
+      padding-inline: 0.5rem;
     }
   }
 </style>
