@@ -453,22 +453,22 @@
         $authState.address?.toLowerCase() === participant.address.toLowerCase();
       if (isOwn) {
         if (!participant.referral_code) {
-          usersAPI
-            .getCurrentUser()
-            .then((res) => {
-              const currentUser = res.data;
-              if (
-                currentUser?.referral_code &&
-                participant?.address?.toLowerCase() === currentUser.address?.toLowerCase()
-              ) {
-                participant = {
-                  ...participant,
-                  referral_code: currentUser.referral_code,
-                };
-                userStore.setUser(currentUser);
-              }
-            })
-            .catch(() => {});
+          try {
+            const res = await usersAPI.getCurrentUser();
+            const currentUser = res.data;
+            if (
+              currentUser?.referral_code &&
+              participant?.address?.toLowerCase() === currentUser.address?.toLowerCase()
+            ) {
+              participant = {
+                ...participant,
+                referral_code: currentUser.referral_code,
+              };
+              userStore.setUser(currentUser);
+            }
+          } catch {
+            showWarning("Couldn't load your referral link right now. Try refreshing.");
+          }
         }
 
         usersAPI

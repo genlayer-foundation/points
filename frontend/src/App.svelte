@@ -368,9 +368,12 @@
   function captureReferralCode() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const referralCode = normalizeReferralCode(urlParams.get('ref'));
+      const rawReferralCode = urlParams.get('ref');
+      const referralCode = normalizeReferralCode(rawReferralCode);
       
-      if (referralCode) {
+      if (rawReferralCode !== null && !referralCode) {
+        localStorage.removeItem('referral_code');
+      } else if (referralCode) {
         // Store referral code in localStorage for later use during login
         localStorage.setItem('referral_code', referralCode);
 

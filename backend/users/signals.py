@@ -15,6 +15,6 @@ def create_referral_code(sender, instance, created, **kwargs):
     if created or not instance.referral_code:
         try:
             instance.ensure_referral_code()
-        except Exception as e:
+        except Exception:
             # Log the error but don't fail user creation
-            logger.error(f"Failed to generate referral code: {str(e)}")
+            logger.exception("Failed to generate referral code for user %s", instance.pk)

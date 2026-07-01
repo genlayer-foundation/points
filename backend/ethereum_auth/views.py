@@ -114,6 +114,15 @@ def normalize_pending_referral_code(value):
     return code if len(code) <= 8 else ''
 
 
+def auth_response_referral_code(user):
+    """Return a referral code for auth payloads without failing authentication."""
+    try:
+        return user.ensure_referral_code()
+    except Exception:
+        logger.exception("Failed to ensure referral code for user %s", user.pk)
+        return user.referral_code or ''
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 @throttle_classes([SiweAuthRateThrottle])
@@ -250,7 +259,7 @@ def login(request):
         request.session.save()  # Explicitly save the session
 
         logger.debug("Login successful, session created")
-        referral_code = user.ensure_referral_code()
+        referral_code = auth_response_referral_code(user)
 
         # Return the authenticated user with referral data
         return Response({
@@ -403,7 +412,7 @@ def signup_email_confirm(request):
         'address': user.address,
         'user_id': user.id,
         'created': True,
-        'referral_code': user.ensure_referral_code(),
+        'referral_code': auth_response_referral_code(user),
         'selected_role': (confirmed_pending.profile_data or {}).get('selected_role', ''),
     })
 
