@@ -165,7 +165,7 @@
   // Determine which top-level section is active
   function getActiveSection() {
     const path = $location;
-    if (path === '/' || path === '/testnets' || path === '/metrics' || path === '/leaderboard') return 'global';
+    if (path === '/' || path === '/testnets' || path === '/metrics') return 'global';
     if (path.startsWith('/builders')) return 'builder';
     if (path.startsWith('/validators')) return 'validator';
     if (path.startsWith('/community')) return 'community';
@@ -263,15 +263,6 @@
               }"
             >
               Metrics
-            </a>
-            <a
-              href="/leaderboard"
-              onclick={(e) => { e.preventDefault(); navigate('/leaderboard'); }}
-              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-                isActive('/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
-              }"
-            >
-              Leaderboards
             </a>
           </div>
         {/if}
@@ -747,15 +738,6 @@
             }"
           >
             Metrics
-          </a>
-          <a
-            href="/leaderboard"
-            onclick={(e) => { e.preventDefault(); navigate('/leaderboard'); }}
-            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
-              isActive('/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
-            }"
-          >
-            Leaderboards
           </a>
         </div>
       {/if}

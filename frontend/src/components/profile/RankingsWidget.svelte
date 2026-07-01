@@ -135,6 +135,12 @@
         return "builder";
     }
 
+    function getLeaderboardPath(tab: string | null) {
+        if (tab === "Validators") return "/validators/leaderboard";
+        if (tab === "Community") return "/community/leaderboard";
+        return "/builders/leaderboard";
+    }
+
     function isContributionRankTab(tab: string | null) {
         return tab === "Builders" || tab === "Community";
     }
@@ -507,7 +513,7 @@
                 Ranking
             </h2>
             <button
-                onclick={() => push("/leaderboard")}
+                onclick={() => push(getLeaderboardPath(activeTab))}
                 class="flex items-center gap-[4px] text-[14px] text-[#6b6b6b] hover:text-black transition-colors"
                 style="letter-spacing: 0.28px;"
             >

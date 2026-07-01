@@ -223,7 +223,7 @@
     const nextCategory = normalizeCategory(category);
     if (nextCategory === selectedCategory) return;
     currentCategory.set(nextCategory);
-    push(categoryLeaderboardPath[nextCategory] || `/leaderboard?type=${nextCategory}`);
+    push(categoryLeaderboardPath[nextCategory]);
   }
 
   $effect(() => {
