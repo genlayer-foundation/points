@@ -96,7 +96,7 @@ class EmailPreflightValidator:
         if domain == PLACEHOLDER_DOMAIN or domain in blocklist:
             raise serializers.ValidationError({'email': GENERIC_EMAIL_ERROR})
 
-        queryset = User.objects.filter(email__iexact=normalized)
+        queryset = User.objects.filter(email__iexact=normalized, is_email_verified=True)
         if user is not None:
             queryset = queryset.exclude(pk=user.pk)
         if queryset.exists():
@@ -220,6 +220,7 @@ class EmailVerificationService:
                 email = None
             if token_error is None:
                 self.preflight.validate(email, pending_signup=token_pending_signup)
+                self._release_unverified_email_claims(email)
                 user = self._create_user_from_pending_signup(token_pending_signup, email)
                 token.user = user
                 token.save(update_fields=['user', 'updated_at'])
@@ -243,6 +244,7 @@ class EmailVerificationService:
                 email = None
             if token_error is None:
                 self.preflight.validate(email, user=user)
+                self._release_unverified_email_claims(email, except_user=user)
                 user.email = email
                 user.is_email_verified = True
                 user.email_verified_at = timezone.now()
@@ -442,6 +444,33 @@ class EmailVerificationService:
         elapsed = (timezone.now() - pending_signup.last_email_sent_at).total_seconds()
         if elapsed < settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS:
             raise cooldown_validation_error(elapsed)
+
+    def _release_unverified_email_claims(self, email, *, except_user=None):
+        queryset = User.objects.select_for_update().filter(
+            email__iexact=email,
+            is_email_verified=False,
+        )
+        if except_user is not None:
+            queryset = queryset.exclude(pk=except_user.pk)
+
+        for stale_user in queryset:
+            stale_user.email = self._placeholder_email_for_user(stale_user)
+            stale_user.is_email_verified = False
+            stale_user.email_verified_at = None
+            stale_user.save(update_fields=['email', 'is_email_verified', 'email_verified_at'])
+
+    def _placeholder_email_for_user(self, user):
+        base = (user.address or '').strip().lower() or f'user-{user.pk}'
+        candidate = f'{base}@{PLACEHOLDER_DOMAIN}'
+        if not User.objects.filter(email__iexact=candidate).exclude(pk=user.pk).exists():
+            return candidate
+
+        for suffix in range(1, 100):
+            candidate = f'{base}-{suffix}@{PLACEHOLDER_DOMAIN}'
+            if not User.objects.filter(email__iexact=candidate).exclude(pk=user.pk).exists():
+                return candidate
+
+        return f'{base}-{secrets.token_hex(4)}@{PLACEHOLDER_DOMAIN}'
 
     def _create_user_from_pending_signup(self, pending_signup, email):
         profile = pending_signup.profile_data or {}

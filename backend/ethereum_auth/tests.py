@@ -5,6 +5,7 @@ from cryptography.fernet import Fernet
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
+from django.core.cache import cache
 from django.core import mail
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -260,6 +261,7 @@ class EthereumAuthNoncePurposeTests(TestCase):
 )
 class EmailVerificationPipelineTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.client = APIClient()
 
     def _valid_email_result(self, email):
@@ -573,6 +575,52 @@ class EmailVerificationPipelineTests(TestCase):
 
     @patch(
         'ethereum_auth.email_verification._generate_verification_code',
+        new=Mock(return_value='345678'),
+    )
+    @patch('ethereum_auth.email_verification.validate_email')
+    @patch('ethereum_auth.email_verification.requests.post')
+    def test_pending_signup_can_claim_email_from_unverified_user(
+        self,
+        mock_post,
+        mock_validate_email,
+    ):
+        stale_user = User.objects.create_user(
+            email='claimable@example.com',
+            password='testpass123',
+            address='0x1111111111111111111111111111111111111111',
+            is_email_verified=False,
+            email_verified_at=timezone.now(),
+        )
+        pending = self._pending_signup(address='0x2222222222222222222222222222222222222222')
+        mock_post.return_value = Mock(json=lambda: {'success': True, 'hostname': 'localhost'})
+        mock_validate_email.return_value = self._valid_email_result('claimable@example.com')
+
+        response = self.client.post('/api/auth/signup/email/start/', {
+            'email': 'claimable@example.com',
+            'name': 'New Owner',
+            'turnstile_token': 'ok-token',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        stale_user.refresh_from_db()
+        self.assertEqual(stale_user.email, 'claimable@example.com')
+        self.assertFalse(stale_user.is_email_verified)
+
+        response = self.client.post('/api/auth/signup/email/confirm/', {
+            'code': '345678',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        new_user = User.objects.get(address__iexact=pending.address)
+        stale_user.refresh_from_db()
+        self.assertEqual(new_user.email, 'claimable@example.com')
+        self.assertTrue(new_user.is_email_verified)
+        self.assertEqual(stale_user.email, '0x1111111111111111111111111111111111111111@ethereum.address')
+        self.assertFalse(stale_user.is_email_verified)
+        self.assertIsNone(stale_user.email_verified_at)
+
+    @patch(
+        'ethereum_auth.email_verification._generate_verification_code',
         new=Mock(return_value='789012'),
     )
     @patch('ethereum_auth.email_verification.validate_email')
@@ -614,6 +662,57 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertEqual(user.email, 'changed@example.com')
         self.assertTrue(user.is_email_verified)
         self.assertIsNotNone(user.email_verified_at)
+
+    @patch(
+        'ethereum_auth.email_verification._generate_verification_code',
+        new=Mock(return_value='456789'),
+    )
+    @patch('ethereum_auth.email_verification.validate_email')
+    @patch('ethereum_auth.email_verification.requests.post')
+    def test_existing_user_can_claim_email_from_unverified_user(
+        self,
+        mock_post,
+        mock_validate_email,
+    ):
+        stale_user = User.objects.create_user(
+            email='claim-existing@example.com',
+            password='testpass123',
+            address='0x5555555555555555555555555555555555555555',
+            is_email_verified=False,
+            email_verified_at=timezone.now(),
+        )
+        user = User.objects.create_user(
+            email='0x6666666666666666666666666666666666666666@ethereum.address',
+            password='testpass123',
+            address='0x6666666666666666666666666666666666666666',
+            is_email_verified=False,
+        )
+        self._authenticate(user)
+        mock_post.return_value = Mock(json=lambda: {'success': True, 'hostname': 'localhost'})
+        mock_validate_email.return_value = self._valid_email_result('claim-existing@example.com')
+
+        response = self.client.post('/api/auth/email/start/', {
+            'email': 'claim-existing@example.com',
+            'turnstile_token': 'ok-token',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        stale_user.refresh_from_db()
+        self.assertEqual(stale_user.email, 'claim-existing@example.com')
+        self.assertFalse(stale_user.is_email_verified)
+
+        response = self.client.post('/api/auth/email/confirm/', {
+            'code': '456789',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        stale_user.refresh_from_db()
+        self.assertEqual(user.email, 'claim-existing@example.com')
+        self.assertTrue(user.is_email_verified)
+        self.assertEqual(stale_user.email, '0x5555555555555555555555555555555555555555@ethereum.address')
+        self.assertFalse(stale_user.is_email_verified)
+        self.assertIsNone(stale_user.email_verified_at)
 
     @patch('ethereum_auth.email_verification.validate_email')
     def test_existing_user_email_confirm_accepts_legacy_token_payload(
