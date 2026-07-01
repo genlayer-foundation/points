@@ -33,6 +33,8 @@
   let emailInput = $state(null);
   let codeInput = $state(null);
   let doneButton = $state(null);
+  let cooldownEndsAt = $state(0);
+  let cooldownRemaining = $state(0);
 
   $effect(() => {
     if (!codeSent && !verified) {
@@ -48,8 +50,10 @@
 
   onMount(() => {
     const previousActiveElement = document.activeElement;
+    const cooldownTimer = window.setInterval(updateCooldown, 1000);
     focusInitialControl();
     return () => {
+      window.clearInterval(cooldownTimer);
       if (previousActiveElement && typeof previousActiveElement.focus === 'function') {
         previousActiveElement.focus();
       }
@@ -76,6 +80,33 @@
   function extractError(err, fallback) {
     const data = err?.response?.data;
     return data?.email || data?.code || data?.token || data?.detail || data?.turnstile_token || fallback;
+  }
+
+  function startCooldown(seconds) {
+    const duration = Number(seconds) || 0;
+    cooldownEndsAt = duration > 0 ? Date.now() + duration * 1000 : 0;
+    updateCooldown();
+  }
+
+  function startCooldownFromData(data) {
+    if (Number(data?.cooldown_seconds) > 0) {
+      startCooldown(data.cooldown_seconds);
+    }
+  }
+
+  function updateCooldown() {
+    if (!cooldownEndsAt) {
+      cooldownRemaining = 0;
+      return;
+    }
+    cooldownRemaining = Math.max(0, Math.ceil((cooldownEndsAt - Date.now()) / 1000));
+    if (cooldownRemaining === 0) cooldownEndsAt = 0;
+  }
+
+  function formatCooldown(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
   }
 
   function focusInitialControl() {
@@ -136,13 +167,15 @@
     sending = true;
     error = '';
     try {
-      await startEmailVerification({
+      const response = await startEmailVerification({
         email: email.trim(),
         turnstile_token: turnstileToken,
       });
+      startCooldownFromData(response.data);
       codeSent = true;
       code = '';
     } catch (err) {
+      startCooldownFromData(err.response?.data);
       error = extractError(err, 'Failed to send verification code');
       showError(error);
       turnstileToken = '';
@@ -256,6 +289,9 @@
           </svg>
           <span>Code sent to {email.trim()}.</span>
         </div>
+        {#if cooldownRemaining > 0}
+          <p class="cooldown-copy">You can request another code in {formatCooldown(cooldownRemaining)}.</p>
+        {/if}
 
         <label for="email-verification-code">Verification code</label>
         <input
@@ -281,7 +317,7 @@
           {verifying ? 'Verifying...' : 'Verify code'}
         </button>
         <button type="button" class="secondary-action" onclick={useDifferentEmail} disabled={verifying}>
-          Use a different email
+          Change email or resend code
         </button>
       {:else}
         <label for="email-verification-email">Email address</label>
@@ -308,10 +344,19 @@
           type="button"
           class="primary-action"
           onclick={sendCode}
-          disabled={sending || !email.trim() || !turnstileToken}
+          disabled={sending || cooldownRemaining > 0 || !email.trim() || !turnstileToken}
         >
-          {sending ? 'Sending...' : 'Send verification code'}
+          {#if sending}
+            Sending...
+          {:else if cooldownRemaining > 0}
+            Send in {formatCooldown(cooldownRemaining)}
+          {:else}
+            Send verification code
+          {/if}
         </button>
+        {#if cooldownRemaining > 0}
+          <p class="cooldown-copy">You can request another code in {formatCooldown(cooldownRemaining)}.</p>
+        {/if}
       {/if}
     </div>
   </div>
@@ -600,6 +645,14 @@
     flex: none;
     height: 20px;
     width: 20px;
+  }
+
+  .cooldown-copy {
+    color: #696970;
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.45;
+    margin: -6px 0 16px;
   }
 
   .success-mark {

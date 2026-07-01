@@ -430,9 +430,42 @@ class EmailVerificationPipelineTests(TestCase):
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(int(response.data['cooldown_seconds']), 60)
         mock_post.assert_not_called()
         self.assertEqual(len(mail.outbox), 0)
         self.assertEqual(EmailVerificationToken.objects.count(), 0)
+
+    @override_settings(EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS=60)
+    @patch('ethereum_auth.email_verification.requests.post')
+    def test_existing_user_cooldown_blocks_before_turnstile(self, mock_post):
+        user = User.objects.create_user(
+            email='old-cooldown@example.com',
+            password='testpass123',
+            address='0x4444444444444444444444444444444444444444',
+            is_email_verified=False,
+        )
+        self._authenticate(user)
+        EmailVerificationToken.objects.create(
+            purpose=EmailVerificationToken.PURPOSE_EXISTING_USER,
+            user=user,
+            encrypted_email=encrypt_email('changed-cooldown@example.com'),
+            email_fingerprint=email_fingerprint('changed-cooldown@example.com'),
+            token_lookup_hash=token_lookup_hash('123456'),
+            token_hash=make_password('123456'),
+            last_sent_at=timezone.now(),
+            expires_at=timezone.now() + timezone.timedelta(minutes=30),
+        )
+
+        response = self.client.post('/api/auth/email/start/', {
+            'email': 'changed-cooldown@example.com',
+            'turnstile_token': 'ok-token',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(int(response.data['cooldown_seconds']), 60)
+        mock_post.assert_not_called()
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(EmailVerificationToken.objects.count(), 1)
 
     @patch(
         'ethereum_auth.email_verification._generate_verification_code',

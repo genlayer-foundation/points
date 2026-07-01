@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import logging
+import math
 import secrets
 from dataclasses import dataclass
 
@@ -147,6 +148,14 @@ def _generate_verification_code() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
 
 
+def cooldown_validation_error(elapsed_seconds):
+    remaining = max(1, math.ceil(settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS - elapsed_seconds))
+    return serializers.ValidationError({
+        'detail': 'Please wait before requesting another verification email.',
+        'cooldown_seconds': remaining,
+    })
+
+
 class EmailVerificationService:
     preflight = EmailPreflightValidator()
 
@@ -162,8 +171,10 @@ class EmailVerificationService:
             expires_at__gt=timezone.now(),
         ).order_by('-last_sent_at').first()
         now = timezone.now()
-        if existing and (now - existing.last_sent_at).total_seconds() < settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS:
-            raise serializers.ValidationError({'detail': 'Please wait before requesting another verification email.'})
+        if existing:
+            elapsed = (now - existing.last_sent_at).total_seconds()
+            if elapsed < settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS:
+                raise cooldown_validation_error(elapsed)
 
     def start_for_pending_signup(self, pending_signup, email, *, profile_data=None):
         self._ensure_pending_signup_active(pending_signup)
@@ -254,8 +265,10 @@ class EmailVerificationService:
             expires_at__gt=timezone.now(),
         ).first()
         now = timezone.now()
-        if existing and (now - existing.last_sent_at).total_seconds() < settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS:
-            raise serializers.ValidationError({'detail': 'Please wait before requesting another verification email.'})
+        if existing:
+            elapsed = (now - existing.last_sent_at).total_seconds()
+            if elapsed < settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS:
+                raise cooldown_validation_error(elapsed)
 
         raw_code = _generate_verification_code()
         expires_at = now + timezone.timedelta(seconds=settings.EMAIL_VERIFICATION_TOKEN_TTL_SECONDS)
@@ -423,7 +436,7 @@ class EmailVerificationService:
             return
         elapsed = (timezone.now() - pending_signup.last_email_sent_at).total_seconds()
         if elapsed < settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS:
-            raise serializers.ValidationError({'detail': 'Please wait before requesting another verification email.'})
+            raise cooldown_validation_error(elapsed)
 
     def _create_user_from_pending_signup(self, pending_signup, email):
         profile = pending_signup.profile_data or {}
