@@ -1,4 +1,5 @@
 <script>
+  import { onMount } from 'svelte';
   import { authState, confirmPendingSignupEmail, startPendingSignupEmail } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { journeyAPI, updateUserProfile } from '../lib/api.js';
@@ -25,6 +26,8 @@
   let verificationCode = $state('');
   let turnstileToken = $state('');
   let turnstileWidget = $state(null);
+  let emailCooldownEndsAt = $state(0);
+  let emailCooldownRemaining = $state(0);
 
   // Track which fields were pre-filled
   let hasExistingName = $state(false);
@@ -68,6 +71,11 @@
   let preselectedRole = $state('community');
   let preselectedSource = $state('route');
   let lastProfileViewKey = $state('');
+
+  onMount(() => {
+    const cooldownTimer = window.setInterval(updateEmailCooldown, 1000);
+    return () => window.clearInterval(cooldownTimer);
+  });
 
   function selectRole(value) {
     trackEvent('onboarding_role_selected', getAnalyticsContext({
@@ -170,6 +178,33 @@
 
   function handleVerificationCodeInput(event) {
     verificationCode = normalizeVerificationCode(event.target.value);
+  }
+
+  function startEmailCooldown(seconds) {
+    const duration = Number(seconds) || 0;
+    emailCooldownEndsAt = duration > 0 ? Date.now() + duration * 1000 : 0;
+    updateEmailCooldown();
+  }
+
+  function startEmailCooldownFromData(data) {
+    if (Number(data?.cooldown_seconds) > 0) {
+      startEmailCooldown(data.cooldown_seconds);
+    }
+  }
+
+  function updateEmailCooldown() {
+    if (!emailCooldownEndsAt) {
+      emailCooldownRemaining = 0;
+      return;
+    }
+    emailCooldownRemaining = Math.max(0, Math.ceil((emailCooldownEndsAt - Date.now()) / 1000));
+    if (emailCooldownRemaining === 0) emailCooldownEndsAt = 0;
+  }
+
+  function formatCooldown(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
   }
 
   function resetPendingEmailFlow() {
@@ -281,12 +316,13 @@
           return;
         }
 
-        await startPendingSignupEmail({
+        const response = await startPendingSignupEmail({
           email,
           name,
           selected_role: targetRole,
           turnstile_token: turnstileToken,
         });
+        startEmailCooldownFromData(response.data);
         pendingCodeSent = true;
         verificationCode = '';
         profileError = '';
@@ -305,6 +341,9 @@
 
       await finishProfileCompletion(targetRole);
     } catch (err) {
+      if ($authState.pendingSignup && !pendingCodeSent) {
+        startEmailCooldownFromData(err.response?.data);
+      }
       trackEvent('profile_completion_error', getAnalyticsContext({
         selected_role: selectedRole,
         error_stage: err.response?.status ? 'backend' : 'network',
@@ -441,6 +480,9 @@
                   </svg>
                   <span>Code sent to {email.trim()}.</span>
                 </div>
+                {#if emailCooldownRemaining > 0}
+                  <p>You can request another code in {formatCooldown(emailCooldownRemaining)}.</p>
+                {/if}
                 <input
                   id="signup-verification-code"
                   type="text"
@@ -505,7 +547,7 @@
 
           <button
             onclick={handleProfileSubmit}
-            disabled={submittingProfile || !name.trim() || ($authState.pendingSignup && (pendingCodeSent ? verificationCode.length !== 6 : (!email.trim() || !turnstileToken)))}
+            disabled={submittingProfile || !name.trim() || ($authState.pendingSignup && (pendingCodeSent ? verificationCode.length !== 6 : (!email.trim() || !turnstileToken || emailCooldownRemaining > 0)))}
             class="profile-submit-button"
           >
             {#if submittingProfile}
@@ -513,7 +555,13 @@
               {pendingCodeSent ? 'Verifying...' : 'Sending...'}
             {:else}
               {#if $authState.pendingSignup}
-                {pendingCodeSent ? 'Verify code and continue' : 'Send verification code'}
+                {#if pendingCodeSent}
+                  Verify code and continue
+                {:else if emailCooldownRemaining > 0}
+                  Send in {formatCooldown(emailCooldownRemaining)}
+                {:else}
+                  Send verification code
+                {/if}
               {:else}
                 Continue
               {/if}
