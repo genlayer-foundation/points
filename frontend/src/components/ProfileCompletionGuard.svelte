@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { authState, confirmPendingSignupEmail, startPendingSignupEmail } from '../lib/auth.js';
+  import { authState, confirmPendingSignupEmail, logout, startPendingSignupEmail } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { journeyAPI, updateUserProfile } from '../lib/api.js';
   import { push, location } from 'svelte-spa-router';
@@ -215,6 +215,20 @@
     turnstileWidget?.reset?.();
   }
 
+  async function closeProfileCompletion() {
+    if (submittingProfile) return;
+    trackEvent('profile_completion_dismissed', getAnalyticsContext({
+      selected_role: selectedRole,
+      preselected_role: preselectedRole,
+      source_route: templateRoute($location),
+    }));
+    try {
+      sessionStorage.removeItem('onboardingRole');
+    } catch {}
+    await logout();
+    push('/');
+  }
+
   async function finishProfileCompletion(targetRole) {
     // Start the selected journey immediately, then send first-time users
     // straight to it. If the marker request fails, the route will retry on
@@ -402,6 +416,17 @@
           </span>
           <span>GenLayer Portal</span>
         </div>
+        <button
+          type="button"
+          class="profile-guard-close"
+          aria-label="Disconnect wallet and close"
+          onclick={closeProfileCompletion}
+          disabled={submittingProfile}
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
         <h2 id="profile-guard-title" class="profile-guard-title">Set up your Portal identity</h2>
         <p>Choose how creators, builders, and validators will recognize you across the Portal.</p>
       </div>
@@ -481,7 +506,12 @@
                   <span>Code sent to {email.trim()}.</span>
                 </div>
                 {#if emailCooldownRemaining > 0}
-                  <p>You can request another code in {formatCooldown(emailCooldownRemaining)}.</p>
+                  <div class="cooldown-notice" role="status" aria-live="polite">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <span>You can request another code in {formatCooldown(emailCooldownRemaining)}.</span>
+                  </div>
                 {/if}
                 <input
                   id="signup-verification-code"
@@ -510,6 +540,14 @@
                   onVerify={(token) => (turnstileToken = token)}
                   onExpire={() => (turnstileToken = '')}
                 />
+                {#if emailCooldownRemaining > 0}
+                  <div class="cooldown-notice" role="status" aria-live="polite">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <span>You can request another code in {formatCooldown(emailCooldownRemaining)}.</span>
+                  </div>
+                {/if}
               {/if}
             </div>
           {/if}
@@ -631,6 +669,47 @@
     padding: 24px;
     position: relative;
     overflow: hidden;
+  }
+
+  .profile-guard-close {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(19, 18, 20, 0.08);
+    border-radius: 999px;
+    color: #5f6068;
+    cursor: pointer;
+    display: flex;
+    height: 40px;
+    justify-content: center;
+    position: absolute;
+    right: 18px;
+    top: 18px;
+    transition-duration: 160ms;
+    transition-property: background-color, color, transform, box-shadow;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    width: 40px;
+    z-index: 2;
+  }
+
+  .profile-guard-close svg {
+    height: 20px;
+    width: 20px;
+  }
+
+  .profile-guard-close:hover:not(:disabled) {
+    background: #fff;
+    box-shadow: 0 10px 22px rgba(19, 18, 20, 0.14);
+    color: #131214;
+  }
+
+  .profile-guard-close:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  .profile-guard-close:disabled {
+    cursor: default;
+    opacity: 0.55;
+    transform: none;
   }
 
   .profile-guard-hero::before {
@@ -839,6 +918,28 @@
     line-height: 1.45;
     margin: 7px 0 0;
     text-wrap: pretty;
+  }
+
+  .cooldown-notice {
+    align-items: center;
+    background: #fff8ed;
+    border: 1px solid #f6d8ad;
+    border-radius: 8px;
+    color: #8a4d06;
+    display: flex;
+    font-size: 13px;
+    font-weight: 750;
+    gap: 9px;
+    line-height: 1.35;
+    margin-top: 10px;
+    min-height: 42px;
+    padding: 10px 12px;
+  }
+
+  .cooldown-notice svg {
+    flex: 0 0 auto;
+    height: 18px;
+    width: 18px;
   }
 
   .role-options {
