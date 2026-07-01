@@ -21,7 +21,6 @@
   let email = $state('');
   let name = $state('');
   let submittingProfile = $state(false);
-  let profileError = $state('');
   let pendingCodeSent = $state(false);
   let verificationCode = $state('');
   let turnstileToken = $state('');
@@ -265,12 +264,10 @@
     if (emailCooldownRemaining > 0 || resendingCode || submittingProfile) return;
     if (!token) {
       resendRequested = true;
-      profileError = '';
       return;
     }
 
     resendingCode = true;
-    profileError = '';
     try {
       const response = await resendPendingSignupEmail(pendingSignupPayload(token));
       startEmailCooldownFromData(response.data);
@@ -281,7 +278,6 @@
     } catch (err) {
       startEmailCooldownFromData(err.response?.data);
       const nextError = extractProfileError(err, 'Could not resend verification code');
-      profileError = nextError;
       showError(nextError);
       turnstileToken = '';
       turnstileWidget?.reset?.();
@@ -293,7 +289,6 @@
   function requestResendCode() {
     if (emailCooldownRemaining > 0 || resendingCode || submittingProfile) return;
     resendRequested = true;
-    profileError = '';
     turnstileToken = '';
   }
 
@@ -368,9 +363,9 @@
         selected_role: selectedRole,
         error_stage: 'validation',
       }));
-      profileError = $authState.pendingSignup
+      showError($authState.pendingSignup
         ? 'Please provide both email and display name'
-        : 'Please provide a display name';
+        : 'Please provide a display name');
       return;
     }
 
@@ -379,12 +374,11 @@
         selected_role: selectedRole,
         error_stage: 'validation',
       }));
-      profileError = 'Please enter a valid email address';
+      showError('Please enter a valid email address');
       return;
     }
 
     submittingProfile = true;
-    profileError = '';
 
     try {
       const targetRole = selectedTargetRole();
@@ -392,7 +386,7 @@
         if (pendingCodeSent) {
           const code = normalizeVerificationCode(verificationCode);
           if (code.length !== 6) {
-            profileError = 'Enter the 6-digit code from your email';
+            showError('Enter the 6-digit code from your email');
             return;
           }
           const response = await confirmPendingSignupEmail(code);
@@ -401,7 +395,7 @@
         }
 
         if (!turnstileToken) {
-          profileError = 'Please complete verification first';
+          showError('Please complete verification first');
           return;
         }
 
@@ -409,7 +403,6 @@
         startEmailCooldownFromData(response.data);
         pendingCodeSent = true;
         verificationCode = '';
-        profileError = '';
         turnstileToken = '';
         turnstileWidget?.reset?.();
         return;
@@ -434,8 +427,7 @@
         selected_role: selectedRole,
         error_stage: err.response?.status ? 'backend' : 'network',
       }));
-      profileError = extractProfileError(err);
-      showError(profileError);
+      showError(extractProfileError(err));
       if ($authState.pendingSignup && !pendingCodeSent) {
         turnstileToken = '';
         turnstileWidget?.reset?.();
@@ -472,15 +464,6 @@
 
       <div class="profile-guard-body">
         <div class="profile-completion-form">
-          {#if profileError}
-            <div class="profile-error">
-              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <path d="M10 6v5M10 14.5h.01M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-              </svg>
-              {profileError}
-            </div>
-          {/if}
-
           <div class="identity-grid">
             <div class="form-group">
               <label for="name" class="form-label">
@@ -792,27 +775,6 @@
 
   .profile-guard-body {
     padding: 24px;
-  }
-
-  .profile-error {
-    align-items: flex-start;
-    background-color: #fff1f1;
-    border: 1px solid #ffc9c9;
-    color: #9f1d1d;
-    display: flex;
-    gap: 10px;
-    padding: 12px 14px;
-    border-radius: 8px;
-    font-size: 14px;
-    line-height: 1.45;
-    margin-bottom: 18px;
-  }
-
-  .profile-error svg {
-    flex: 0 0 auto;
-    height: 18px;
-    margin-top: 1px;
-    width: 18px;
   }
 
   .identity-grid {
