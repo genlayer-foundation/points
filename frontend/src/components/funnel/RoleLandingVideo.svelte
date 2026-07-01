@@ -372,6 +372,7 @@
 
   .landing-video.controls-hidden .landing-video-copy {
     opacity: 0;
+    pointer-events: none;
     transform: translateY(12px);
   }
 
