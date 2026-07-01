@@ -4,18 +4,15 @@
 2. Link Discord      -> `community-link-discord` contribution (existing reward)
 3. Follow GenLayer   -> `follow-genlayer-x` social task completion
 4. Join Discord      -> `join-genlayer-discord` social task completion
-5. X post with code  -> a CommunityPostProof, verified via Sorsa /tweet-info
+5. X post with referral code -> a CommunityPostProof, verified via Sorsa /tweet-info
 
 Completing all 5 grants the Creator role (point-free); steps 1-4 keep their own
-existing points. The X-post step uses a deterministic per-user code (no storage
-of the code needed) and the post must @mention GenLayer and come from the user's
-linked X account.
+existing points. The X-post step uses the user's referral code and the post must
+@mention GenLayer and come from the user's linked X account.
 """
 
-import hashlib
-import hmac
 import re
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urlparse
 
 from django.conf import settings
 
@@ -24,8 +21,7 @@ LINK_DISCORD_SLUG = 'community-link-discord'
 FOLLOW_TASK_SLUG = 'follow-genlayer-x'
 JOIN_DISCORD_TASK_SLUG = 'join-genlayer-discord'
 WELCOME_SLUG = 'community-welcome'
-
-CODE_PREFIX = 'GL-'
+PORTAL_REFERRAL_BASE_URL = 'https://portal.genlayer.foundation'
 
 # A well-formed X / Twitter post URL: https://x.com/<handle>/status/<id>
 X_POST_RE = re.compile(
@@ -33,33 +29,95 @@ X_POST_RE = re.compile(
     r'(?P<handle>[A-Za-z0-9_]{1,15})/status(?:es)?/(?P<id>\d+)',
     re.IGNORECASE,
 )
+URL_RE = re.compile(r'https?://[^\s<>"\']+', re.IGNORECASE)
+TRAILING_URL_PUNCTUATION = '.,!?:;)]}'
 
 
 def genlayer_handle() -> str:
     return getattr(settings, 'GENLAYER_X_HANDLE', 'genlayer').lstrip('@').lower()
 
 
+def genlayer_mention() -> str:
+    handle = getattr(settings, 'GENLAYER_X_HANDLE', 'GenLayer').lstrip('@')
+    return 'GenLayer' if handle.lower() == 'genlayer' else handle
+
+
+def _ensure_referral_code(user) -> str:
+    """Return a persisted referral code, creating one for stale legacy records."""
+    code = (getattr(user, 'referral_code', None) or '').strip().upper()
+    if code:
+        return code
+
+    user.refresh_from_db(fields=['referral_code'])
+    code = (getattr(user, 'referral_code', None) or '').strip().upper()
+    if code:
+        return code
+
+    from users.signals import generate_unique_referral_code
+
+    code = generate_unique_referral_code()
+    user.referral_code = code
+    user.save(update_fields=['referral_code'])
+    return code
+
+
 def verification_code(user) -> str:
-    """Deterministic per-user code embedded in the X post. Recomputed at verify
-    time, so nothing is stored. Tied to SECRET_KEY so it cannot be guessed."""
-    digest = hmac.new(
-        settings.SECRET_KEY.encode(),
-        f'community-x-post:{user.pk}'.encode(),
-        hashlib.sha256,
-    ).hexdigest()[:8].upper()
-    return f'{CODE_PREFIX}{digest}'
+    """Per-user token embedded in the X post. This now reuses the referral code."""
+    return _ensure_referral_code(user)
+
+
+def portal_referral_base_url() -> str:
+    base_url = getattr(settings, 'PORTAL_REFERRAL_BASE_URL', PORTAL_REFERRAL_BASE_URL).strip().rstrip('/')
+    if not base_url:
+        base_url = PORTAL_REFERRAL_BASE_URL
+    return base_url
+
+
+def portal_referral_url(code: str) -> str:
+    base_url = portal_referral_base_url()
+    return f'{base_url}/?ref={quote(code)}'
+
+
+def post_has_referral_url(full_text: str, user) -> bool:
+    expected_code = verification_code(user).lower()
+    expected_host = urlparse(portal_referral_base_url()).netloc.lower()
+
+    for raw_url in URL_RE.findall(full_text or ''):
+        candidate = raw_url.rstrip(TRAILING_URL_PUNCTUATION)
+        parsed = urlparse(candidate)
+        if parsed.netloc.lower() != expected_host:
+            continue
+        ref_values = parse_qs(parsed.query).get('ref', [])
+        if any(value.strip().lower() == expected_code for value in ref_values):
+            return True
+    return False
+
+
+def post_text_options(user) -> list[dict]:
+    code = verification_code(user)
+    mention = f'@{genlayer_mention()}'
+    referral_url = portal_referral_url(code)
+    templates = [
+        f'Becoming part of the {mention} community of builders, validators, and creators. {referral_url}',
+        f'Officially part of the {mention} community builders, validators, and creators. {referral_url}',
+        f"Convincing {mention} I'm not a bot to join their community of builders, validators, and creators. {referral_url}",
+    ]
+    return [
+        {
+            'id': f'community-post-{index}',
+            'text': text,
+            'intent_url': f'https://x.com/intent/post?text={quote(text)}',
+        }
+        for index, text in enumerate(templates, start=1)
+    ]
 
 
 def share_text(user) -> str:
-    return (
-        f"I'm setting up my GenLayer Portal profile and joining the "
-        f"@{genlayer_handle()} community of builders, validators, and creators. "
-        f"{verification_code(user)}"
-    )
+    return post_text_options(user)[0]['text']
 
 
 def intent_url(user) -> str:
-    return f'https://x.com/intent/post?text={quote(share_text(user))}'
+    return post_text_options(user)[0]['intent_url']
 
 
 def parse_x_post(url: str):
@@ -71,10 +129,10 @@ def parse_x_post(url: str):
 
 
 def post_matches(full_text: str, user):
-    """Whether the tweet text contains the user's code and @mentions GenLayer.
+    """Whether the tweet text contains the user's referral URL and @mentions GenLayer.
     Returns (ok, error_code)."""
     text = (full_text or '').lower()
-    if verification_code(user).lower() not in text:
+    if not post_has_referral_url(full_text, user):
         return False, 'code_missing'
     handle_re = re.compile(rf'(^|[^a-z0-9_])@{re.escape(genlayer_handle())}(?![a-z0-9_])')
     if not handle_re.search(text):
@@ -178,6 +236,7 @@ def journey_status(user) -> dict:
                 'verification_code': verification_code(user),
                 'share_text': share_text(user),
                 'intent_url': intent_url(user),
+                'post_options': post_text_options(user),
                 'post_url': proof.post_url if proof else None,
             },
         },
