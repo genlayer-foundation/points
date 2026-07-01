@@ -5,7 +5,7 @@
 
 <!-- Toast container - fixed position below header at top-right -->
 <div
-  class="fixed top-20 right-4 z-40 pointer-events-none"
+  class="fixed top-20 right-4 z-[11000] pointer-events-none"
   aria-live="polite"
   aria-atomic="true"
 >
