@@ -16,14 +16,19 @@
     validator: { accent: '#3a7ce7', rgb: '58, 124, 231' },
     genlayer: { accent: '#111827', rgb: '17, 24, 39' },
   };
+  const CONTROL_HIDE_DELAY = 2200;
 
   let frameEl = $state(null);
   let videoEl = $state(null);
   let isPlaying = $state(false);
   let isMuted = $state(true);
   let isFullscreen = $state(false);
+  let controlsVisible = $state(true);
+  let hasControlFocus = $state(false);
+  let isScrubbing = $state(false);
   let duration = $state(0);
   let currentTime = $state(0);
+  let controlsHideTimer;
 
   const palette = $derived(PALETTES[variant] || PALETTES.genlayer);
   const progress = $derived(duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0);
@@ -48,9 +53,34 @@
     }
 
     return () => {
+      clearControlsHideTimer();
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
   });
+
+  function clearControlsHideTimer() {
+    if (!controlsHideTimer) return;
+    clearTimeout(controlsHideTimer);
+    controlsHideTimer = undefined;
+  }
+
+  function scheduleControlsHide() {
+    clearControlsHideTimer();
+
+    if (!isPlaying || hasControlFocus || isScrubbing) {
+      controlsVisible = true;
+      return;
+    }
+
+    controlsHideTimer = window.setTimeout(() => {
+      controlsVisible = false;
+    }, CONTROL_HIDE_DELAY);
+  }
+
+  function revealControls() {
+    controlsVisible = true;
+    scheduleControlsHide();
+  }
 
   function syncMetadata() {
     if (!videoEl) return;
@@ -58,11 +88,23 @@
     currentTime = videoEl.currentTime || 0;
     isMuted = videoEl.muted;
     isPlaying = !videoEl.paused;
+    scheduleControlsHide();
   }
 
   function syncTime() {
     if (!videoEl) return;
     currentTime = videoEl.currentTime || 0;
+  }
+
+  function handlePlay() {
+    isPlaying = true;
+    revealControls();
+  }
+
+  function handlePause() {
+    isPlaying = false;
+    controlsVisible = true;
+    clearControlsHideTimer();
   }
 
   async function togglePlayback() {
@@ -86,6 +128,18 @@
     const next = Number(event.currentTarget.value);
     videoEl.currentTime = (next / 100) * duration;
     currentTime = videoEl.currentTime;
+    revealControls();
+  }
+
+  function beginScrubbing() {
+    isScrubbing = true;
+    controlsVisible = true;
+    clearControlsHideTimer();
+  }
+
+  function endScrubbing() {
+    isScrubbing = false;
+    scheduleControlsHide();
   }
 
   async function toggleFullscreen() {
@@ -109,9 +163,15 @@
 <div
   class="landing-video"
   class:is-paused={!isPlaying}
+  class:controls-hidden={!controlsVisible && isPlaying}
   bind:this={frameEl}
   style={rootStyle}
+  role="group"
   aria-labelledby={`landing-video-title-${variant}`}
+  onpointerenter={revealControls}
+  onpointermove={revealControls}
+  onpointerleave={scheduleControlsHide}
+  ontouchstart={revealControls}
 >
   <video
     bind:this={videoEl}
@@ -126,8 +186,8 @@
     controlsList="nodownload"
     onloadedmetadata={syncMetadata}
     ontimeupdate={syncTime}
-    onplay={() => (isPlaying = true)}
-    onpause={() => (isPlaying = false)}
+    onplay={handlePlay}
+    onpause={handlePause}
     onclick={togglePlayback}
   ></video>
 
@@ -159,7 +219,21 @@
     {/if}
   </button>
 
-  <div class="landing-video-controls">
+  <div
+    class="landing-video-controls"
+    role="group"
+    aria-label="Video controls"
+    onfocusin={() => {
+      hasControlFocus = true;
+      controlsVisible = true;
+      clearControlsHideTimer();
+    }}
+    onfocusout={() => {
+      hasControlFocus = false;
+      scheduleControlsHide();
+    }}
+    onpointerenter={revealControls}
+  >
     <button
       type="button"
       class="control-button"
@@ -193,6 +267,10 @@
       value={progress}
       aria-label="Seek video"
       oninput={seek}
+      onpointerdown={beginScrubbing}
+      onpointerup={endScrubbing}
+      onpointercancel={endScrubbing}
+      onkeydown={revealControls}
     />
 
     <button
@@ -365,9 +443,19 @@
     padding: 8px;
     position: absolute;
     right: 16px;
+    transform: translateY(0);
+    transition:
+      opacity 190ms cubic-bezier(0.2, 0, 0, 1),
+      transform 190ms cubic-bezier(0.2, 0, 0, 1);
     z-index: 4;
     -webkit-backdrop-filter: blur(18px);
     backdrop-filter: blur(18px);
+  }
+
+  .landing-video.controls-hidden .landing-video-controls {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(12px);
   }
 
   .control-button {
