@@ -30,6 +30,7 @@
   let emailCooldownRemaining = $state(0);
   let resendRequested = $state(false);
   let resendingCode = $state(false);
+  let dismissingProfile = $state(false);
 
   // Track which fields were pre-filled
   let hasExistingName = $state(false);
@@ -210,7 +211,8 @@
   }
 
   async function closeProfileCompletion() {
-    if (submittingProfile || resendingCode) return;
+    if (submittingProfile || resendingCode || dismissingProfile) return;
+    dismissingProfile = true;
     trackEvent('profile_completion_dismissed', getAnalyticsContext({
       selected_role: selectedRole,
       preselected_role: preselectedRole,
@@ -219,8 +221,14 @@
     try {
       sessionStorage.removeItem('onboardingRole');
     } catch {}
-    await logout();
-    push('/');
+    try {
+      await logout();
+      push('/');
+    } catch {
+      showError('Could not disconnect. Please try again.');
+    } finally {
+      dismissingProfile = false;
+    }
   }
 
   function pendingSignupPayload(token = turnstileToken) {
@@ -452,7 +460,7 @@
           class="profile-guard-close"
           aria-label="Disconnect wallet and close"
           onclick={closeProfileCompletion}
-          disabled={submittingProfile || resendingCode}
+          disabled={submittingProfile || resendingCode || dismissingProfile}
         >
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
