@@ -82,6 +82,23 @@
     scheduleControlsHide();
   }
 
+  function handleFocusIn() {
+    hasControlFocus = true;
+    controlsVisible = true;
+    clearControlsHideTimer();
+  }
+
+  function handleFocusOut(event) {
+    const nextTarget = event.relatedTarget;
+
+    if (nextTarget && frameEl?.contains(nextTarget)) {
+      return;
+    }
+
+    hasControlFocus = false;
+    scheduleControlsHide();
+  }
+
   function syncMetadata() {
     if (!videoEl) return;
     duration = Number.isFinite(videoEl.duration) ? videoEl.duration : 0;
@@ -172,6 +189,8 @@
   onpointermove={revealControls}
   onpointerleave={scheduleControlsHide}
   ontouchstart={revealControls}
+  onfocusin={handleFocusIn}
+  onfocusout={handleFocusOut}
 >
   <video
     bind:this={videoEl}
@@ -223,15 +242,6 @@
     class="landing-video-controls"
     role="group"
     aria-label="Video controls"
-    onfocusin={() => {
-      hasControlFocus = true;
-      controlsVisible = true;
-      clearControlsHideTimer();
-    }}
-    onfocusout={() => {
-      hasControlFocus = false;
-      scheduleControlsHide();
-    }}
     onpointerenter={revealControls}
   >
     <button
@@ -353,7 +363,16 @@
     left: 22px;
     max-width: min(420px, calc(100% - 44px));
     position: absolute;
+    transform: translateY(0);
+    transition:
+      opacity 190ms cubic-bezier(0.2, 0, 0, 1),
+      transform 190ms cubic-bezier(0.2, 0, 0, 1);
     z-index: 2;
+  }
+
+  .landing-video.controls-hidden .landing-video-copy {
+    opacity: 0;
+    transform: translateY(12px);
   }
 
   .landing-video-kicker {
