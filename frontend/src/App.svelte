@@ -14,6 +14,7 @@
   import { setRouteMeta } from './lib/meta.js';
   import { authState, verifyAuth } from './lib/auth.js';
   import { userStore } from './lib/userStore.js';
+  import { normalizeReferralCode } from './lib/referrals.js';
   import { hasEarnedRole, journeyPath, rolePath } from './lib/roleState.js';
   import { installLinkInterceptor } from './lib/router.js';
   import { analyticsConsent, getAnalyticsContext, setConnectWalletIntent, templateRoute, trackEvent, trackPageView } from './lib/analytics.js';
@@ -367,11 +368,11 @@
   function captureReferralCode() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const referralCode = urlParams.get('ref');
+      const referralCode = normalizeReferralCode(urlParams.get('ref'));
       
-      if (referralCode && referralCode.length === 8) {
+      if (referralCode) {
         // Store referral code in localStorage for later use during login
-        localStorage.setItem('referral_code', referralCode.toUpperCase());
+        localStorage.setItem('referral_code', referralCode);
 
         // Clean URL without page reload to remove the ref parameter
         const cleanUrl = window.location.pathname + window.location.hash;

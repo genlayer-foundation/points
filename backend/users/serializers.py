@@ -711,7 +711,7 @@ class UserSerializer(serializers.ModelSerializer):
     def get_referral_code(self, obj):
         """Expose referral code only to the account owner or staff."""
         if self._can_view_private_user_data(obj):
-            return obj.referral_code
+            return obj.referral_code or ''
         return ''
     
     def get_referred_by_info(self, obj):

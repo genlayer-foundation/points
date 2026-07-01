@@ -250,6 +250,7 @@ def login(request):
         request.session.save()  # Explicitly save the session
 
         logger.debug("Login successful, session created")
+        referral_code = user.ensure_referral_code()
 
         # Return the authenticated user with referral data
         return Response({
@@ -257,7 +258,7 @@ def login(request):
             'address': ethereum_address,
             'user_id': user.id,
             'created': False,
-            'referral_code': user.referral_code,
+            'referral_code': referral_code,
             'referred_by': {
                 'id': user.referred_by.id,
                 'name': user.referred_by.name or 'Anonymous',
@@ -402,7 +403,7 @@ def signup_email_confirm(request):
         'address': user.address,
         'user_id': user.id,
         'created': True,
-        'referral_code': user.referral_code,
+        'referral_code': user.ensure_referral_code(),
         'selected_role': (confirmed_pending.profile_data or {}).get('selected_role', ''),
     })
 

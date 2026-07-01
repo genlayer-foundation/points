@@ -10,6 +10,7 @@
     poapsAPI,
   } from "../lib/api";
   import { authState } from "../lib/auth";
+  import { userStore } from "../lib/userStore.js";
   import { getValidatorBalance } from "../lib/blockchain";
   import { showSuccess, showWarning } from "../lib/toastStore";
   import { parseMarkdown } from "../lib/markdownLoader.js";
@@ -451,6 +452,25 @@
         participant?.address &&
         $authState.address?.toLowerCase() === participant.address.toLowerCase();
       if (isOwn) {
+        if (!participant.referral_code) {
+          usersAPI
+            .getCurrentUser()
+            .then((res) => {
+              const currentUser = res.data;
+              if (
+                currentUser?.referral_code &&
+                participant?.address?.toLowerCase() === currentUser.address?.toLowerCase()
+              ) {
+                participant = {
+                  ...participant,
+                  referral_code: currentUser.referral_code,
+                };
+                userStore.setUser(currentUser);
+              }
+            })
+            .catch(() => {});
+        }
+
         usersAPI
           .getReferralPoints()
           .then((res) => {
