@@ -170,9 +170,32 @@ export const statsAPI = {
   }
 };
 
+let overviewMetricsResponse = null;
+let overviewMetricsFetchedAt = 0;
+let overviewMetricsRequest = null;
+const OVERVIEW_METRICS_CACHE_MS = 30000;
+
 // Metrics API
 export const metricsAPI = {
-  getOverview: () => api.get('/metrics/overview/'),
+  getOverview: () => {
+    const now = Date.now();
+    if (overviewMetricsResponse && now - overviewMetricsFetchedAt < OVERVIEW_METRICS_CACHE_MS) {
+      return Promise.resolve(overviewMetricsResponse);
+    }
+    if (overviewMetricsRequest) return overviewMetricsRequest;
+
+    overviewMetricsRequest = api.get('/metrics/overview/')
+      .then((response) => {
+        overviewMetricsResponse = response;
+        overviewMetricsFetchedAt = Date.now();
+        return response;
+      })
+      .finally(() => {
+        overviewMetricsRequest = null;
+      });
+
+    return overviewMetricsRequest;
+  },
   getNetworkActivity: () => api.get('/metrics/overview/network-activity/'),
 };
 

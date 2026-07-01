@@ -244,18 +244,20 @@
 
         try {
             const apiType = getApiTypeForTab(requestedTab);
-            const topRes = await leaderboardAPI.getLeaderboard({
-                type: apiType,
-                limit: 4,
-            });
-            if (!isCurrentRequest()) return;
+            async function fetchTop4() {
+                const topRes = await leaderboardAPI.getLeaderboard({
+                    type: apiType,
+                    limit: 4,
+                });
+                if (!isCurrentRequest()) return null;
 
-            const top4 = (topRes.data?.results || topRes.data || []).map(
-                (u: any, i: number) => ({
-                    ...u,
-                    _displayRank: getEntryRank(u, i + 1),
-                }),
-            );
+                return (topRes.data?.results || topRes.data || []).map(
+                    (u: any, i: number) => ({
+                        ...u,
+                        _displayRank: getEntryRank(u, i + 1),
+                    }),
+                );
+            }
 
             if (apiType === "community" && requestedAddress) {
                 const communityContext = await fetchCommunityProfileContext(
@@ -269,11 +271,16 @@
                     setTabRankStatus(requestedTab, "ranked");
                     activeList = buildCommunityProfileList(communityContext);
                 } else {
+                    const top4 = await fetchTop4();
+                    if (!top4) return;
                     setTabRankStatus(requestedTab, "unranked");
                     activeList = top4;
                 }
                 return;
             }
+
+            const top4 = await fetchTop4();
+            if (!top4) return;
 
             const userInTop4 = top4.some(
                 (u: any) =>
@@ -294,30 +301,35 @@
             } else {
                 let userRank = null;
                 let userLookupSucceeded = false;
-                try {
-                    const userEntryRes = await leaderboardAPI.getLeaderboard({
-                        type: apiType,
-                        user_address: participant.address,
-                    });
-                    if (!isCurrentRequest()) return;
+                const cachedEntry = participant?.leaderboard_entries?.find(
+                    (entry: any) => entry.type === apiType && entry.rank,
+                );
+
+                if (cachedEntry) {
                     userLookupSucceeded = true;
+                    userRank = cachedEntry.rank;
+                } else {
+                    try {
+                        const userEntryRes = await leaderboardAPI.getLeaderboard({
+                            type: apiType,
+                            user_address: participant.address,
+                        });
+                        if (!isCurrentRequest()) return;
+                        userLookupSucceeded = true;
 
-                    if (apiType === "community") {
-                        userRank = userEntryRes.data?.user_rank || null;
+                        const userEntries = Array.isArray(userEntryRes.data)
+                            ? userEntryRes.data
+                            : userEntryRes.data?.results || [];
+                        if (userEntries.length > 0) {
+                            userRank = userEntries[0].rank;
+                        }
+                    } catch (err) {
+                        if (!isCurrentRequest()) return;
+                        console.error(err);
+                        showWarning(
+                            "Could not load this ranking; showing the top leaderboard.",
+                        );
                     }
-
-                    const userEntries = Array.isArray(userEntryRes.data)
-                        ? userEntryRes.data
-                        : userEntryRes.data?.results || [];
-                    if (!userRank && userEntries.length > 0) {
-                        userRank = userEntries[0].rank;
-                    }
-                } catch (err) {
-                    if (!isCurrentRequest()) return;
-                    console.error(err);
-                    showWarning(
-                        "Could not load this ranking; showing the top leaderboard.",
-                    );
                 }
 
                 if (!isCurrentRequest()) return;

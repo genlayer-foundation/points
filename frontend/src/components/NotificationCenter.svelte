@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { push } from 'svelte-spa-router';
+  import { push, location } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { notificationStore } from '../lib/notificationStore.js';
   import { followNotificationLink } from '../lib/notificationUtils.js';
@@ -51,7 +51,11 @@
 
   $effect(() => {
     if ($authState.isAuthenticated) {
-      notificationStore.loadLatest();
+      if ($location === '/notifications') {
+        notificationStore.loadUnreadCount();
+      } else {
+        notificationStore.loadLatest();
+      }
     } else {
       notificationStore.reset();
       closePanel();
