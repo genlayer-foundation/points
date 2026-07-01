@@ -22,7 +22,6 @@
 
   let email = $state('');
   let code = $state('');
-  let error = $state('');
   let codeSent = $state(false);
   let verified = $state(false);
   let sending = $state(false);
@@ -156,16 +155,15 @@
 
   async function sendCode() {
     if (!isValidEmail(email)) {
-      error = 'Enter a valid email address';
+      showError('Enter a valid email address');
       return;
     }
     if (!turnstileToken) {
-      error = 'Complete verification first';
+      showError('Complete verification first');
       return;
     }
 
     sending = true;
-    error = '';
     try {
       const response = await startEmailVerification({
         email: email.trim(),
@@ -176,8 +174,7 @@
       code = '';
     } catch (err) {
       startCooldownFromData(err.response?.data);
-      error = extractError(err, 'Failed to send verification code');
-      showError(error);
+      showError(extractError(err, 'Failed to send verification code'));
       turnstileToken = '';
       turnstileWidget?.reset?.();
     } finally {
@@ -188,12 +185,11 @@
   async function verifyCode() {
     const normalized = normalizeCode(code);
     if (normalized.length !== 6) {
-      error = 'Enter the 6-digit code from your email';
+      showError('Enter the 6-digit code from your email');
       return;
     }
 
     verifying = true;
-    error = '';
     try {
       const response = await confirmEmailVerification(normalized);
       const updated = {
@@ -209,8 +205,7 @@
         onVerified(updated);
       }
     } catch (err) {
-      error = extractError(err, 'Invalid or expired verification code');
-      showError(error);
+      showError(extractError(err, 'Invalid or expired verification code'));
     } finally {
       verifying = false;
     }
@@ -219,7 +214,6 @@
   function useDifferentEmail() {
     codeSent = false;
     code = '';
-    error = '';
     turnstileToken = '';
     turnstileWidget?.reset?.();
   }
@@ -266,15 +260,6 @@
     </div>
 
     <div class="email-modal-body">
-      {#if error}
-        <div class="modal-error">
-          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <path d="M10 6v5M10 14.5h.01M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-          </svg>
-          <span>{error}</span>
-        </div>
-      {/if}
-
       {#if verified}
         <div class="success-mark" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none">
@@ -602,27 +587,6 @@
   .secondary-action:hover:not(:disabled) {
     background: #ededee;
     color: #131214;
-  }
-
-  .modal-error {
-    align-items: flex-start;
-    background: #fff1f1;
-    border: 1px solid #ffc9c9;
-    border-radius: 8px;
-    color: #9f1d1d;
-    display: flex;
-    font-size: 14px;
-    gap: 10px;
-    line-height: 1.45;
-    margin-bottom: 16px;
-    padding: 12px 14px;
-  }
-
-  .modal-error svg {
-    flex: none;
-    height: 18px;
-    margin-top: 1px;
-    width: 18px;
   }
 
   .code-sent {

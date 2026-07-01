@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { authState, confirmPendingSignupEmail, startPendingSignupEmail } from '../lib/auth.js';
+  import { authState, confirmPendingSignupEmail, logout, resendPendingSignupEmail, startPendingSignupEmail } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { journeyAPI, updateUserProfile } from '../lib/api.js';
   import { push, location } from 'svelte-spa-router';
@@ -28,6 +28,9 @@
   let turnstileWidget = $state(null);
   let emailCooldownEndsAt = $state(0);
   let emailCooldownRemaining = $state(0);
+  let resendRequested = $state(false);
+  let resendingCode = $state(false);
+  let dismissingProfile = $state(false);
 
   // Track which fields were pre-filled
   let hasExistingName = $state(false);
@@ -207,12 +210,98 @@
     return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
   }
 
-  function resetPendingEmailFlow() {
-    pendingCodeSent = false;
-    verificationCode = '';
+  async function closeProfileCompletion() {
+    if (submittingProfile || resendingCode || dismissingProfile) return;
+    dismissingProfile = true;
+    trackEvent('profile_completion_dismissed', getAnalyticsContext({
+      selected_role: selectedRole,
+      preselected_role: preselectedRole,
+      source_route: templateRoute($location),
+    }));
+    try {
+      sessionStorage.removeItem('onboardingRole');
+    } catch {}
+    try {
+      await logout();
+      push('/');
+    } catch {
+      showError('Could not disconnect. Please try again.');
+    } finally {
+      dismissingProfile = false;
+    }
+  }
+
+  function pendingSignupPayload(token = turnstileToken) {
+    return {
+      email,
+      name,
+      selected_role: selectedTargetRole(),
+      turnstile_token: token,
+    };
+  }
+
+  function extractProfileError(err, fallback = 'Failed to update profile') {
+    let nextError = err.message || fallback;
+    if (err.response?.data) {
+      const data = err.response.data;
+      if (data.email) {
+        nextError = data.email;
+      } else if (data.name) {
+        nextError = data.name;
+      } else if (data.code || data.token) {
+        nextError = data.code || data.token;
+      } else if (data.turnstile_token) {
+        nextError = data.turnstile_token;
+      } else if (data.detail) {
+        nextError = data.detail;
+      } else if (data.error) {
+        nextError = data.error;
+      }
+    }
+    return Array.isArray(nextError) ? nextError.join(' ') : String(nextError);
+  }
+
+  async function resendVerificationCode(token = turnstileToken) {
+    if (emailCooldownRemaining > 0 || resendingCode || submittingProfile) return;
+    if (!token) {
+      resendRequested = true;
+      profileError = '';
+      return;
+    }
+
+    resendingCode = true;
+    profileError = '';
+    try {
+      const response = await resendPendingSignupEmail(pendingSignupPayload(token));
+      startEmailCooldownFromData(response.data);
+      verificationCode = '';
+      resendRequested = false;
+      turnstileToken = '';
+      turnstileWidget?.reset?.();
+    } catch (err) {
+      startEmailCooldownFromData(err.response?.data);
+      const nextError = extractProfileError(err, 'Could not resend verification code');
+      profileError = nextError;
+      showError(nextError);
+      turnstileToken = '';
+      turnstileWidget?.reset?.();
+    } finally {
+      resendingCode = false;
+    }
+  }
+
+  function requestResendCode() {
+    if (emailCooldownRemaining > 0 || resendingCode || submittingProfile) return;
+    resendRequested = true;
     profileError = '';
     turnstileToken = '';
-    turnstileWidget?.reset?.();
+  }
+
+  function handleResendTurnstile(token) {
+    turnstileToken = token;
+    if (resendRequested) {
+      resendVerificationCode(token);
+    }
   }
 
   async function finishProfileCompletion(targetRole) {
@@ -316,16 +405,13 @@
           return;
         }
 
-        const response = await startPendingSignupEmail({
-          email,
-          name,
-          selected_role: targetRole,
-          turnstile_token: turnstileToken,
-        });
+        const response = await startPendingSignupEmail(pendingSignupPayload());
         startEmailCooldownFromData(response.data);
         pendingCodeSent = true;
         verificationCode = '';
         profileError = '';
+        turnstileToken = '';
+        turnstileWidget?.reset?.();
         return;
       } else {
       // Prepare update data
@@ -348,23 +434,7 @@
         selected_role: selectedRole,
         error_stage: err.response?.status ? 'backend' : 'network',
       }));
-      // Handle field-specific errors from Django REST Framework
-      let nextError = err.message || 'Failed to update profile';
-      if (err.response?.data) {
-        const data = err.response.data;
-        if (data.email) {
-          nextError = data.email;
-        } else if (data.name) {
-          nextError = data.name;
-        } else if (data.code || data.token) {
-          nextError = data.code || data.token;
-        } else if (data.detail) {
-          nextError = data.detail;
-        } else if (data.error) {
-          nextError = data.error;
-        }
-      }
-      profileError = Array.isArray(nextError) ? nextError.join(' ') : String(nextError);
+      profileError = extractProfileError(err);
       showError(profileError);
       if ($authState.pendingSignup && !pendingCodeSent) {
         turnstileToken = '';
@@ -381,27 +451,21 @@
   }
 </script>
 
-{#snippet genlayerHexMark()}
-  <svg class="genlayer-hex-mark" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-    <path d="M21.75 2.304c1.393-.804 3.107-.804 4.5 0l15.535 8.968c1.393.804 2.25 2.29 2.25 3.897v17.937c0 1.607-.857 3.092-2.25 3.897L26.25 45.971c-1.393.804-3.107.804-4.5 0L6.215 37.003c-1.393-.805-2.25-2.29-2.25-3.897V15.169c0-1.607.857-3.093 2.25-3.897L21.75 2.304Z" fill="#131214" />
-    <g transform="translate(10.75 8.5) scale(0.78)" fill="#fff">
-      <path d="M15.4065 11.2607L9.64908 23.3639L15.0689 26.072L0 32L15.4065 0V11.2607Z" />
-      <path d="M18.6229 11.2607L24.3803 23.3639L18.9605 26.072L34.0294 32L18.6229 0V11.2607Z" />
-      <path d="M16.9311 15.2394L20.3041 21.9088L16.9311 23.5623L13.7392 21.9019L16.9311 15.2394Z" />
-    </g>
-  </svg>
-{/snippet}
-
 {#if showGuard}
   <div class="profile-guard-backdrop">
     <div class="profile-guard-modal" role="dialog" aria-modal="true" aria-labelledby="profile-guard-title">
       <div class="profile-guard-hero">
-        <div class="hero-topline">
-          <span class="hero-badge" aria-hidden="true">
-            {@render genlayerHexMark()}
-          </span>
-          <span>GenLayer Portal</span>
-        </div>
+        <button
+          type="button"
+          class="profile-guard-close"
+          aria-label="Disconnect wallet and close"
+          onclick={closeProfileCompletion}
+          disabled={submittingProfile || resendingCode || dismissingProfile}
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
         <h2 id="profile-guard-title" class="profile-guard-title">Set up your Portal identity</h2>
         <p>Choose how creators, builders, and validators will recognize you across the Portal.</p>
       </div>
@@ -472,17 +536,8 @@
               {#if pendingCodeSent}
                 <label for="signup-verification-code" class="form-label">
                   <span>Verification code</span>
-                  <span class="field-state">Sent</span>
+                  <span class="field-state sent-to">Sent to {email.trim()}</span>
                 </label>
-                <div class="verification-code-status flex min-h-12 items-center gap-2.5 rounded-lg border border-green-200 bg-green-50 p-3 text-sm font-semibold leading-snug text-green-800">
-                  <svg class="h-5 w-5 flex-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M4 6.5h16v11H4v-11ZM5 8l7 5 7-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                  <span>Code sent to {email.trim()}.</span>
-                </div>
-                {#if emailCooldownRemaining > 0}
-                  <p>You can request another code in {formatCooldown(emailCooldownRemaining)}.</p>
-                {/if}
                 <input
                   id="signup-verification-code"
                   type="text"
@@ -493,16 +548,37 @@
                   oninput={handleVerificationCodeInput}
                   placeholder="000000"
                   class="verification-code-input mt-2.5 h-14 w-full rounded-lg border border-gray-300 bg-white px-4 pl-5 text-center font-mono text-2xl font-extrabold tracking-widest text-gray-950 tabular-nums transition-colors duration-150 placeholder:text-gray-300 focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-gray-200"
-                  disabled={submittingProfile}
+                  disabled={submittingProfile || resendingCode}
                 />
-                <button
-                  type="button"
-                  class="mt-2.5 flex min-h-10 w-full items-center justify-center rounded-full border border-gray-300 bg-white px-4 text-sm font-bold text-gray-600 transition-colors duration-150 hover:border-gray-400 hover:bg-gray-50 hover:text-gray-900 active:scale-95 disabled:cursor-default disabled:opacity-60"
-                  onclick={resetPendingEmailFlow}
-                  disabled={submittingProfile}
-                >
-                  Change details or resend code
-                </button>
+                <div class="resend-row" role="status" aria-live="polite">
+                  <span class="resend-hint">
+                    {#if emailCooldownRemaining > 0}
+                      New code available in <strong>{formatCooldown(emailCooldownRemaining)}</strong>
+                    {:else if resendRequested && !resendingCode}
+                      Complete verification below to resend.
+                    {:else}
+                      Didn't get the email?
+                    {/if}
+                  </span>
+                  <button
+                    type="button"
+                    class="resend-button"
+                    onclick={requestResendCode}
+                    disabled={submittingProfile || resendingCode || emailCooldownRemaining > 0 || resendRequested}
+                  >
+                    {resendingCode ? 'Sending...' : 'Resend code'}
+                  </button>
+                </div>
+                {#if resendRequested}
+                  <div class="resend-turnstile">
+                    <Turnstile
+                      bind:this={turnstileWidget}
+                      disabled={resendingCode}
+                      onVerify={handleResendTurnstile}
+                      onExpire={() => (turnstileToken = '')}
+                    />
+                  </div>
+                {/if}
               {:else}
                 <Turnstile
                   bind:this={turnstileWidget}
@@ -510,6 +586,14 @@
                   onVerify={(token) => (turnstileToken = token)}
                   onExpire={() => (turnstileToken = '')}
                 />
+                {#if emailCooldownRemaining > 0}
+                  <div class="cooldown-notice" role="status" aria-live="polite">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <span>You can request another code in {formatCooldown(emailCooldownRemaining)}.</span>
+                  </div>
+                {/if}
               {/if}
             </div>
           {/if}
@@ -547,7 +631,7 @@
 
           <button
             onclick={handleProfileSubmit}
-            disabled={submittingProfile || !name.trim() || ($authState.pendingSignup && (pendingCodeSent ? verificationCode.length !== 6 : (!email.trim() || !turnstileToken || emailCooldownRemaining > 0)))}
+            disabled={submittingProfile || resendingCode || !name.trim() || ($authState.pendingSignup && (pendingCodeSent ? verificationCode.length !== 6 : (!email.trim() || !turnstileToken || emailCooldownRemaining > 0)))}
             class="profile-submit-button"
           >
             {#if submittingProfile}
@@ -628,74 +712,50 @@
   .profile-guard-hero {
     background: #ffffff;
     color: #131214;
-    padding: 24px;
+    padding: 28px 72px 22px 24px;
     position: relative;
     overflow: hidden;
   }
 
-  .profile-guard-hero::before {
-    background:
-      linear-gradient(90deg,
-        rgba(238, 133, 33, 0.34) 0%,
-        rgba(255, 230, 132, 0.28) 18%,
-        rgba(95, 213, 165, 0.3) 38%,
-        rgba(91, 190, 238, 0.3) 58%,
-        rgba(151, 132, 238, 0.28) 78%,
-        rgba(245, 151, 194, 0.3) 100%
-      );
-    content: '';
-    filter: blur(18px);
-    height: 122px;
-    left: -20px;
-    opacity: 0.95;
-    position: absolute;
-    right: -20px;
-    top: 46%;
-    transform: translateY(-50%);
-  }
-
-  .profile-guard-hero::after {
-    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.36));
-    bottom: 0;
-    content: '';
-    height: 46px;
-    left: 0;
-    pointer-events: none;
-    position: absolute;
-    right: 0;
-  }
-
-  .hero-topline {
-    position: relative;
-    z-index: 1;
+  .profile-guard-close {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(19, 18, 20, 0.08);
+    border-radius: 999px;
+    color: #5f6068;
+    cursor: pointer;
     display: flex;
-    align-items: center;
-    gap: 10px;
-    color: #5d5d64;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0;
-    text-transform: uppercase;
-    margin-bottom: 16px;
-  }
-
-  .hero-badge {
-    width: 42px;
-    height: 42px;
-    display: inline-flex;
-    align-items: center;
+    height: 40px;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.74);
-    border: 1px solid rgba(255, 255, 255, 0.92);
-    border-radius: 14px;
-    box-shadow: 0 12px 26px rgba(19, 18, 20, 0.1);
+    position: absolute;
+    right: 18px;
+    top: 18px;
+    transition-duration: 160ms;
+    transition-property: background-color, color, transform, box-shadow;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    width: 40px;
+    z-index: 2;
   }
 
-  .genlayer-hex-mark {
-    display: block;
-    width: 34px;
-    height: 34px;
+  .profile-guard-close svg {
+    height: 20px;
+    width: 20px;
+  }
+
+  .profile-guard-close:hover:not(:disabled) {
+    background: #fff;
+    box-shadow: 0 10px 22px rgba(19, 18, 20, 0.14);
+    color: #131214;
+  }
+
+  .profile-guard-close:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  .profile-guard-close:disabled {
+    cursor: default;
+    opacity: 0.55;
+    transform: none;
   }
 
   .profile-guard-title {
@@ -709,6 +769,14 @@
     text-wrap: balance;
     position: relative;
     z-index: 1;
+  }
+
+  .sent-to {
+    color: #5d636f;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .profile-guard-hero p {
@@ -839,6 +907,90 @@
     line-height: 1.45;
     margin: 7px 0 0;
     text-wrap: pretty;
+  }
+
+  .cooldown-notice {
+    align-items: center;
+    background: #fff8ed;
+    border: 1px solid #f6d8ad;
+    border-radius: 8px;
+    color: #8a4d06;
+    display: flex;
+    font-size: 13px;
+    font-weight: 750;
+    gap: 9px;
+    line-height: 1.35;
+    margin-top: 10px;
+    min-height: 42px;
+    padding: 10px 12px;
+  }
+
+  .cooldown-notice svg {
+    flex: 0 0 auto;
+    height: 18px;
+    width: 18px;
+  }
+
+  .resend-row {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    margin-top: 10px;
+  }
+
+  .resend-hint {
+    color: #737378;
+    flex: 1 1 auto;
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.35;
+    min-width: 0;
+  }
+
+  .resend-hint strong {
+    color: #131214;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+  }
+
+  .resend-button {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #d8dbe2;
+    border-radius: 999px;
+    color: #363940;
+    cursor: pointer;
+    display: inline-flex;
+    flex: 0 0 auto;
+    font-size: 13px;
+    font-weight: 800;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 14px;
+    transition-duration: 160ms;
+    transition-property: background-color, border-color, color, transform;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .resend-button:hover:not(:disabled) {
+    background: #f7f7f8;
+    border-color: #b8bdc8;
+    color: #131214;
+  }
+
+  .resend-button:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  .resend-button:disabled {
+    cursor: default;
+    opacity: 0.55;
+    transform: none;
+  }
+
+  .resend-turnstile {
+    margin-top: 10px;
   }
 
   .role-options {
@@ -1031,7 +1183,7 @@
     }
 
     .profile-guard-hero {
-      padding: 20px;
+      padding: 22px 64px 20px 20px;
     }
 
     .profile-guard-body {
