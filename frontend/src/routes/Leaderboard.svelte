@@ -165,7 +165,7 @@
         const podiumCount = responseCount >= PODIUM_SIZE ? PODIUM_SIZE : 0;
         const computedTablePages = Math.max(1, Math.ceil(Math.max(responseCount - podiumCount, 0) / PAGE_SIZE));
 
-        podiumEntries = entries.slice(0, PODIUM_SIZE);
+        podiumEntries = entries.slice(0, podiumCount);
         leaderboard = entries.slice(podiumCount, podiumCount + PAGE_SIZE);
         totalCount = responseCount;
         currentPage = Math.min(page, computedTablePages);

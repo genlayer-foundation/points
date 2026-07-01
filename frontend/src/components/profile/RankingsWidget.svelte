@@ -325,7 +325,7 @@
                         }
                     } catch (err) {
                         if (!isCurrentRequest()) return;
-                        console.error(err);
+                        console.warn("Could not load ranking context");
                         showWarning(
                             "Could not load this ranking; showing the top leaderboard.",
                         );
@@ -379,7 +379,7 @@
             }
         } catch (err) {
             if (!isCurrentRequest()) return;
-            console.error(err);
+            console.warn("Failed to load leaderboard context");
             showError("Failed to load leaderboard context");
             setTabRankStatus(requestedTab, "unknown");
             error = "Failed to load leaderboard context";

@@ -228,7 +228,7 @@
     '/contributions': protectedRoute(Contributions),
     '/all-contributions': protectedRoute(AllContributions),
     '/leaderboard': protectedRoute(Leaderboard),
-    '/participants': Validators,
+    '/participants': protectedRoute(Validators),
     '/referrals': protectedRoute(Referrals),
     '/community': RoleFunnel,
     '/community/journey': protectedRoute(CommunityJourney),

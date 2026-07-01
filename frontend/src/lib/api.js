@@ -184,15 +184,16 @@ export const metricsAPI = {
     }
     if (overviewMetricsRequest) return overviewMetricsRequest;
 
-    overviewMetricsRequest = api.get('/metrics/overview/')
-      .then((response) => {
+    overviewMetricsRequest = (async () => {
+      try {
+        const response = await api.get('/metrics/overview/');
         overviewMetricsResponse = response;
         overviewMetricsFetchedAt = Date.now();
         return response;
-      })
-      .finally(() => {
+      } finally {
         overviewMetricsRequest = null;
-      });
+      }
+    })();
 
     return overviewMetricsRequest;
   },

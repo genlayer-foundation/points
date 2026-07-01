@@ -323,7 +323,7 @@
             </a>
             <a
               href="/builders/leaderboard"
-              onclick={(e) => { e.preventDefault(); navigate('/builders/leaderboard', false, { roleContext: 'builder' }); }}
+              onclick={() => trackSidebarNav('/builders/leaderboard', { roleContext: 'builder' })}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/builders/leaderboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
               }"
@@ -332,7 +332,7 @@
             </a>
             <a
               href="/builders/resources"
-              onclick={(e) => { e.preventDefault(); navigate('/builders/resources', false, { roleContext: 'builder' }); }}
+              onclick={() => trackSidebarNav('/builders/resources', { roleContext: 'builder' })}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
               }"
@@ -380,7 +380,7 @@
             </a>
             <a
               href="/validators/leaderboard"
-              onclick={(e) => { e.preventDefault(); navigate('/validators/leaderboard', false, { roleContext: 'validator' }); }}
+              onclick={() => trackSidebarNav('/validators/leaderboard', { roleContext: 'validator' })}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/validators/leaderboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
               }"
@@ -389,7 +389,7 @@
             </a>
             <a
               href="/validators/participants"
-              onclick={(e) => { e.preventDefault(); navigate('/validators/participants', false, { roleContext: 'validator' }); }}
+              onclick={() => trackSidebarNav('/validators/participants', { roleContext: 'validator' })}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/validators/participants') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
               }"
@@ -450,7 +450,7 @@
             </a>
             <a
               href="/community/leaderboard"
-              onclick={(e) => { e.preventDefault(); navigate('/community/leaderboard', false, { roleContext: 'community' }); }}
+              onclick={() => trackSidebarNav('/community/leaderboard', { roleContext: 'community' })}
               class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
                 isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               }"
@@ -796,7 +796,7 @@
           </a>
           <a
             href="/builders/leaderboard"
-            onclick={(e) => { e.preventDefault(); navigate('/builders/leaderboard', false, { roleContext: 'builder' }); }}
+            onclick={() => trackSidebarNav('/builders/leaderboard', { roleContext: 'builder' })}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/builders/leaderboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
             }"
@@ -805,7 +805,7 @@
           </a>
           <a
             href="/builders/resources"
-            onclick={(e) => { e.preventDefault(); navigate('/builders/resources', false, { roleContext: 'builder' }); }}
+            onclick={() => trackSidebarNav('/builders/resources', { roleContext: 'builder' })}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
             }"
@@ -846,7 +846,7 @@
           </a>
           <a
             href="/validators/leaderboard"
-            onclick={(e) => { e.preventDefault(); navigate('/validators/leaderboard', false, { roleContext: 'validator' }); }}
+            onclick={() => trackSidebarNav('/validators/leaderboard', { roleContext: 'validator' })}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/validators/leaderboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
             }"
@@ -855,7 +855,7 @@
           </a>
           <a
             href="/validators/participants"
-            onclick={(e) => { e.preventDefault(); navigate('/validators/participants', false, { roleContext: 'validator' }); }}
+            onclick={() => trackSidebarNav('/validators/participants', { roleContext: 'validator' })}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/validators/participants') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
             }"
@@ -909,7 +909,7 @@
           </a>
           <a
             href="/community/leaderboard"
-            onclick={(e) => { e.preventDefault(); navigate('/community/leaderboard', false, { roleContext: 'community' }); }}
+            onclick={() => trackSidebarNav('/community/leaderboard', { roleContext: 'community' })}
             class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
               isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             }"
