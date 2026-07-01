@@ -3,7 +3,6 @@ import hashlib
 import hmac
 import logging
 import secrets
-from urllib.parse import urlencode
 from dataclasses import dataclass
 
 import requests
@@ -144,8 +143,8 @@ def decrypt_email(encrypted_email):
     return _fernet().decrypt(encrypted_email.encode()).decode()
 
 
-def _generate_raw_token():
-    return secrets.token_urlsafe(32)
+def _generate_verification_code() -> str:
+    return f"{secrets.randbelow(1_000_000):06d}"
 
 
 class EmailVerificationService:
@@ -187,22 +186,24 @@ class EmailVerificationService:
             user=user,
         )
 
-    def confirm_pending_signup(self, pending_signup, raw_token):
+    def confirm_pending_signup(self, pending_signup: PendingWalletSignup, raw_code: str) -> User:
         self._ensure_pending_signup_active(pending_signup)
-        user, _ = self._confirm_pending_signup_token(raw_token, pending_signup=pending_signup)
+        user, _ = self._confirm_pending_signup_token(raw_code, pending_signup=pending_signup)
         return user
 
-    def confirm_pending_signup_by_token(self, raw_token):
-        return self._confirm_pending_signup_token(raw_token, pending_signup=None)
-
-    def _confirm_pending_signup_token(self, raw_token, *, pending_signup=None):
+    def _confirm_pending_signup_token(
+        self,
+        raw_code: str,
+        *,
+        pending_signup: PendingWalletSignup,
+    ) -> tuple[User, PendingWalletSignup]:
         token_error = None
         with transaction.atomic():
-            token = self._get_locked_pending_token(raw_token, pending_signup=pending_signup)
+            token = self._get_locked_pending_token(raw_code, pending_signup=pending_signup)
             token_pending_signup = token.pending_signup
             self._ensure_pending_signup_active(token_pending_signup)
             try:
-                email = self._consume_token(token, raw_token)
+                email = self._consume_token(token, raw_code)
             except serializers.ValidationError as exc:
                 token_error = exc
                 email = None
@@ -215,8 +216,9 @@ class EmailVerificationService:
                 return user, token_pending_signup
         if token_error is not None:
             raise token_error
+        raise serializers.ValidationError({'code': 'Invalid or expired verification code.'})
 
-    def confirm_existing_user(self, user, raw_token):
+    def confirm_existing_user(self, user: User, raw_code: str) -> User:
         token_error = None
         with transaction.atomic():
             token = self._get_locked_token(
@@ -224,7 +226,7 @@ class EmailVerificationService:
                 user=user,
             )
             try:
-                email = self._consume_token(token, raw_token)
+                email = self._consume_token(token, raw_code)
             except serializers.ValidationError as exc:
                 token_error = exc
                 email = None
@@ -237,6 +239,7 @@ class EmailVerificationService:
                 return user
         if token_error is not None:
             raise token_error
+        raise serializers.ValidationError({'code': 'Invalid or expired verification code.'})
 
     def _create_or_resend_token(self, *, purpose, email_result, user=None, pending_signup=None):
         owner_filter = {'purpose': purpose}
@@ -254,14 +257,14 @@ class EmailVerificationService:
         if existing and (now - existing.last_sent_at).total_seconds() < settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS:
             raise serializers.ValidationError({'detail': 'Please wait before requesting another verification email.'})
 
-        raw_token = _generate_raw_token()
+        raw_code = _generate_verification_code()
         expires_at = now + timezone.timedelta(seconds=settings.EMAIL_VERIFICATION_TOKEN_TTL_SECONDS)
         with transaction.atomic():
             if existing:
                 existing.encrypted_email = encrypt_email(email_result.email)
                 existing.email_fingerprint = email_result.fingerprint
-                existing.token_lookup_hash = token_lookup_hash(raw_token)
-                existing.token_hash = make_password(raw_token)
+                existing.token_lookup_hash = token_lookup_hash(raw_code)
+                existing.token_hash = make_password(raw_code)
                 existing.attempts = 0
                 existing.send_count += 1
                 existing.last_sent_at = now
@@ -275,8 +278,8 @@ class EmailVerificationService:
                     pending_signup=pending_signup,
                     encrypted_email=encrypt_email(email_result.email),
                     email_fingerprint=email_result.fingerprint,
-                    token_lookup_hash=token_lookup_hash(raw_token),
-                    token_hash=make_password(raw_token),
+                    token_lookup_hash=token_lookup_hash(raw_code),
+                    token_hash=make_password(raw_code),
                     last_sent_at=now,
                     expires_at=expires_at,
                 )
@@ -285,7 +288,7 @@ class EmailVerificationService:
                 pending_signup.last_email_sent_at = now
                 pending_signup.save(update_fields=['last_email_sent_at', 'updated_at'])
 
-            self._send_link(email_result.email, raw_token, display_name=self._display_name(user, pending_signup))
+            self._send_code(email_result.email, raw_code, display_name=self._display_name(user, pending_signup))
             return token
 
     def _display_name(self, user=None, pending_signup=None):
@@ -295,14 +298,15 @@ class EmailVerificationService:
             return str((pending_signup.profile_data or {}).get('name', '')).strip()
         return ''
 
-    def _send_link(self, email, raw_token, *, display_name=''):
-        verify_url = f"{settings.FRONTEND_URL}/verify-email?{urlencode({'token': raw_token})}"
+    def _send_code(self, email: str, code: str, *, display_name: str = '') -> None:
         greeting = f"Hi {display_name}," if display_name else "Hi,"
+        ttl_minutes = max(1, settings.EMAIL_VERIFICATION_TOKEN_TTL_SECONDS // 60)
         message = (
             f'{greeting}\n\n'
-            'Verify your GenLayer Portal email by opening this link:\n\n'
-            f'{verify_url}\n\n'
-            'This link expires in 30 minutes. If you did not request this, you can ignore this email.'
+            'Use this GenLayer Portal verification code:\n\n'
+            f'{code}\n\n'
+            f'Enter it in the Portal to finish verifying your email. This code expires in {ttl_minutes} minutes.\n\n'
+            'If you did not request this, you can ignore this email.'
         )
         email_message = EmailMultiAlternatives(
             subject='Verify your GenLayer Portal email',
@@ -311,39 +315,44 @@ class EmailVerificationService:
             to=[email],
         )
         email_message.attach_alternative(
-            self._render_verification_email_html(verify_url, display_name=display_name),
+            self._render_verification_email_html(code, display_name=display_name, ttl_minutes=ttl_minutes),
             'text/html',
         )
         email_message.send(fail_silently=False)
 
-    def _render_verification_email_html(self, verify_url, *, display_name=''):
-        safe_url = escape(verify_url)
+    def _render_verification_email_html(self, code: str, *, display_name: str = '', ttl_minutes: int = 30) -> str:
+        safe_code = escape(code)
         safe_name = escape(display_name)
         greeting = f"Hi {safe_name}," if safe_name else "Hi,"
         return f"""<!doctype html>
 <html>
-  <body style="margin:0;background:#f4f4f2;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#131214;">
+  <body style="margin:0;background:#f3f2ef;padding:34px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#131214;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;max-width:560px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 24px 70px rgba(19,18,20,0.12);">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;max-width:580px;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 28px 80px rgba(19,18,20,0.14);">
             <tr>
-              <td style="padding:28px 30px 18px;background:linear-gradient(135deg,#fff7ee 0%,#eef6ff 48%,#f4efff 100%);">
-                <div style="display:inline-flex;align-items:center;gap:10px;color:#5d5d64;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">
-                  <span style="display:inline-block;width:34px;height:34px;border-radius:12px;background:#131214;color:#fff;text-align:center;line-height:34px;font-weight:800;">G</span>
+              <td style="padding:30px 32px 24px;background:linear-gradient(90deg,rgba(238,133,33,0.24) 0%,rgba(255,230,132,0.2) 18%,rgba(95,213,165,0.22) 38%,rgba(91,190,238,0.22) 58%,rgba(151,132,238,0.2) 78%,rgba(245,151,194,0.22) 100%),#ffffff;">
+                <div style="color:#5d5d64;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">
+                  <span style="display:inline-block;width:38px;height:38px;border-radius:14px;background:#131214;color:#fff;text-align:center;line-height:38px;font-weight:900;margin-right:10px;vertical-align:middle;">G</span>
                   GenLayer Portal
                 </div>
-                <h1 style="margin:18px 0 0;color:#131214;font-size:28px;line-height:1.15;font-weight:800;letter-spacing:0;">Verify your email</h1>
-                <p style="margin:10px 0 0;color:#5f6067;font-size:15px;line-height:1.55;">{greeting} confirm this email address to finish setting up your Portal identity.</p>
+                <h1 style="margin:22px 0 0;color:#131214;font-size:30px;line-height:1.12;font-weight:850;letter-spacing:0;">Your verification code</h1>
+                <p style="margin:10px 0 0;color:#56575f;font-size:15px;line-height:1.55;">{greeting} enter this code in the Portal to finish verifying your email.</p>
               </td>
             </tr>
             <tr>
-              <td style="padding:28px 30px 30px;">
-                <a href="{safe_url}" style="display:inline-block;background:#131214;color:#ffffff;text-decoration:none;border-radius:999px;padding:14px 22px;font-size:15px;font-weight:800;box-shadow:0 14px 28px rgba(19,18,20,0.18);">Verify email</a>
-                <p style="margin:22px 0 0;color:#6f7077;font-size:13px;line-height:1.55;">This link expires in 30 minutes. If the button does not work, copy and paste this URL into your browser:</p>
-                <p style="margin:10px 0 0;word-break:break-all;color:#2f5fbb;font-size:13px;line-height:1.5;"><a href="{safe_url}" style="color:#2f5fbb;">{safe_url}</a></p>
-                <div style="margin-top:24px;padding:14px 16px;border-radius:12px;background:#f7f7f5;color:#696970;font-size:12px;line-height:1.5;">
-                  If you did not request this email, you can ignore it. The link only verifies this email address and cannot sign a new browser into your wallet account.
+              <td style="padding:30px 32px 32px;">
+                <div style="border:1px solid #e9e9ea;border-radius:18px;background:#fafafa;padding:22px;text-align:center;">
+                  <div style="color:#77787f;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">One-time code</div>
+                  <div style="margin-top:10px;color:#131214;font-family:'SFMono-Regular','Roboto Mono',Consolas,monospace;font-size:42px;line-height:1;font-weight:800;letter-spacing:9px;">{safe_code}</div>
+                </div>
+                <div style="margin-top:22px;padding:14px 16px;border-radius:999px;background:#131214;color:#ffffff;text-align:center;font-size:14px;font-weight:800;">
+                  Enter this code in the Portal
+                </div>
+                <p style="margin:20px 0 0;color:#6f7077;font-size:13px;line-height:1.55;">This code expires in {ttl_minutes} minutes and can be used once.</p>
+                <div style="margin-top:18px;padding:14px 16px;border-radius:14px;background:#f7f7f5;color:#696970;font-size:12px;line-height:1.5;">
+                  For your safety, this email does not contain a verification link. If you did not request this code, you can ignore this email.
                 </div>
               </td>
             </tr>
@@ -363,41 +372,43 @@ class EmailVerificationService:
             .first()
         )
         if not token:
-            raise serializers.ValidationError({'token': 'Invalid or expired verification link.'})
+            raise serializers.ValidationError({'code': 'Invalid or expired verification code.'})
         return token
 
-    def _get_locked_pending_token(self, raw_token, *, pending_signup=None):
+    def _get_locked_pending_token(
+        self,
+        raw_code: str,
+        *,
+        pending_signup: PendingWalletSignup,
+    ) -> EmailVerificationToken:
         token = (
             EmailVerificationToken.objects
             .select_for_update()
             .filter(
                 purpose=EmailVerificationToken.PURPOSE_PENDING_SIGNUP,
-                token_lookup_hash=token_lookup_hash(raw_token),
+                token_lookup_hash=token_lookup_hash(raw_code),
                 consumed_at__isnull=True,
             )
         )
-        if pending_signup is not None:
-            token = token.filter(pending_signup=pending_signup)
+        token = token.filter(pending_signup=pending_signup)
         token = token.order_by('-created_at').first()
         if token:
             return token
-        if pending_signup is not None:
-            return self._get_locked_token(
-                purpose=EmailVerificationToken.PURPOSE_PENDING_SIGNUP,
-                pending_signup=pending_signup,
-            )
-        raise serializers.ValidationError({'token': 'Invalid or expired verification link.'})
+        return self._get_locked_token(
+            purpose=EmailVerificationToken.PURPOSE_PENDING_SIGNUP,
+            pending_signup=pending_signup,
+        )
 
-    def _consume_token(self, token, raw_token):
+    def _consume_token(self, token: EmailVerificationToken, raw_code: str) -> str:
         now = timezone.now()
         if token.expires_at <= now:
-            raise serializers.ValidationError({'token': 'Invalid or expired verification link.'})
+            raise serializers.ValidationError({'code': 'Invalid or expired verification code.'})
         if token.attempts >= settings.EMAIL_VERIFICATION_MAX_ATTEMPTS:
-            raise serializers.ValidationError({'token': 'Invalid or expired verification link.'})
-        if not check_password(raw_token or '', token.token_hash):
+            raise serializers.ValidationError({'code': 'Invalid or expired verification code.'})
+        if not check_password(raw_code or '', token.token_hash):
             token.attempts += 1
             token.save(update_fields=['attempts', 'updated_at'])
-            raise serializers.ValidationError({'token': 'Invalid or expired verification link.'})
+            raise serializers.ValidationError({'code': 'Invalid or expired verification code.'})
 
         token.consumed_at = now
         token.save(update_fields=['consumed_at', 'updated_at'])

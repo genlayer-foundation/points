@@ -516,8 +516,13 @@ export async function resendPendingSignupEmail(data) {
   return authAxios.post(API_ENDPOINTS.SIGNUP_EMAIL_RESEND, data);
 }
 
-export async function confirmPendingSignupEmail(token) {
-  const response = await authAxios.post(API_ENDPOINTS.SIGNUP_EMAIL_CONFIRM, { token });
+function verificationPayload(credential) {
+  const value = String(credential || '').trim();
+  return /^\d{6}$/.test(value) ? { code: value } : { token: value };
+}
+
+export async function confirmPendingSignupEmail(credential) {
+  const response = await authAxios.post(API_ENDPOINTS.SIGNUP_EMAIL_CONFIRM, verificationPayload(credential));
   if (response.data?.authenticated) {
     authState.setAuthenticated(true, response.data.address);
     try {
@@ -537,8 +542,8 @@ export async function resendEmailVerification(data) {
   return authAxios.post(API_ENDPOINTS.EMAIL_RESEND, data);
 }
 
-export async function confirmEmailVerification(token) {
-  return authAxios.post(API_ENDPOINTS.EMAIL_CONFIRM, { token });
+export async function confirmEmailVerification(credential) {
+  return authAxios.post(API_ENDPOINTS.EMAIL_CONFIRM, verificationPayload(credential));
 }
 
 // Store listener functions for cleanup

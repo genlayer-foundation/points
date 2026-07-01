@@ -1,3 +1,4 @@
+import re
 import secrets
 import string
 from datetime import timedelta
@@ -7,7 +8,7 @@ from django.contrib.auth import login as django_login
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
@@ -60,6 +61,28 @@ def get_client_ip(request):
 def validation_error_response(exc):
     detail = getattr(exc, 'detail', {'detail': 'Invalid request.'})
     return Response(detail, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _verification_credential_from_request(request) -> str:
+    code = request.data.get('code')
+    token = request.data.get('token')
+    if code not in (None, ''):
+        if not isinstance(code, str):
+            raise serializers.ValidationError({'code': 'Enter the 6-digit verification code.'})
+        code = code.strip()
+        if not re.fullmatch(r'\d{6}', code):
+            raise serializers.ValidationError({'code': 'Enter the 6-digit verification code.'})
+        return code
+
+    if token not in (None, ''):
+        if not isinstance(token, str):
+            raise serializers.ValidationError({'token': 'Invalid verification token.'})
+        token = token.strip()
+        if not token or len(token) > 256:
+            raise serializers.ValidationError({'token': 'Invalid verification token.'})
+        return token
+
+    raise serializers.ValidationError({'code': 'Verification code is required.'})
 
 
 def get_pending_signup_profile_data(data):
@@ -352,30 +375,30 @@ def signup_email_resend(request):
 @throttle_classes([PendingEmailConfirmRateThrottle])
 def signup_email_confirm(request):
     pending = get_pending_signup_from_session(request)
+    if not pending:
+        return Response({'detail': 'Pending signup is required.'}, status=status.HTTP_400_BAD_REQUEST)
     try:
-        if pending:
-            user = email_verification_service.confirm_pending_signup(pending, request.data.get('token'))
-            confirmed_pending = pending
-            authenticated = True
-        else:
-            user, confirmed_pending = email_verification_service.confirm_pending_signup_by_token(request.data.get('token'))
-            authenticated = False
+        credential = _verification_credential_from_request(request)
+        user = email_verification_service.confirm_pending_signup(
+            pending,
+            credential,
+        )
+        confirmed_pending = pending
     except Exception as exc:
         if hasattr(exc, 'detail'):
             return validation_error_response(exc)
-        logger.exception("Failed to confirm pending signup email verification")
-        return Response({'detail': 'Could not confirm verification link.'}, status=status.HTTP_400_BAD_REQUEST)
+        logger.exception("Failed to confirm pending signup email code")
+        return Response({'detail': 'Could not confirm verification code.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if authenticated:
-        django_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-        request.session['ethereum_address'] = user.address
-        request.session['authenticated'] = True
+    django_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+    request.session['ethereum_address'] = user.address
+    request.session['authenticated'] = True
     request.session.pop('pending_wallet_signup_id', None)
     request.session.pop('pending_wallet_address', None)
     request.session.save()
     return Response({
-        'authenticated': authenticated,
-        'requires_wallet_login': not authenticated,
+        'authenticated': True,
+        'requires_wallet_login': False,
         'address': user.address,
         'user_id': user.id,
         'created': True,
@@ -413,12 +436,16 @@ def email_resend(request):
 @throttle_classes([ExistingEmailConfirmRateThrottle])
 def email_confirm(request):
     try:
-        user = email_verification_service.confirm_existing_user(request.user, request.data.get('token'))
+        credential = _verification_credential_from_request(request)
+        user = email_verification_service.confirm_existing_user(
+            request.user,
+            credential,
+        )
     except Exception as exc:
         if hasattr(exc, 'detail'):
             return validation_error_response(exc)
-        logger.exception("Failed to confirm email verification")
-        return Response({'detail': 'Could not confirm verification link.'}, status=status.HTTP_400_BAD_REQUEST)
+        logger.exception("Failed to confirm email verification code")
+        return Response({'detail': 'Could not confirm verification code.'}, status=status.HTTP_400_BAD_REQUEST)
     return Response({
         'verified': True,
         'email': user.email,
