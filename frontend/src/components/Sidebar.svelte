@@ -322,17 +322,22 @@
               {/if}
             </a>
             <a
-              href="/builders/resources"
-              onclick={(e) => { e.preventDefault(); openRoleSection('/builders/resources', 'builder'); }}
-              class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
-                isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
-              } {isRoleLocked('builder') ? 'text-gray-400' : 'text-black'}"
-              title={isRoleLocked('builder') ? 'Become a builder to unlock' : ''}
+              href="/builders/leaderboard"
+              onclick={() => trackSidebarNav('/builders/leaderboard', { roleContext: 'builder' })}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/builders/leaderboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
+              }"
             >
-              <span>Resources</span>
-              {#if isRoleLocked('builder')}
-                <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              {/if}
+              Leaderboard
+            </a>
+            <a
+              href="/builders/resources"
+              onclick={() => trackSidebarNav('/builders/resources', { roleContext: 'builder' })}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Resources
             </a>
           </div>
         {/if}
@@ -374,17 +379,22 @@
               {/if}
             </a>
             <a
-              href="/validators/participants"
-              onclick={(e) => { e.preventDefault(); openRoleSection('/validators/participants', 'validator'); }}
-              class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
-                isActive('/validators/participants') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
-              } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
-              title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
+              href="/validators/leaderboard"
+              onclick={() => trackSidebarNav('/validators/leaderboard', { roleContext: 'validator' })}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/validators/leaderboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+              }"
             >
-              <span>Participants</span>
-              {#if isRoleLocked('validator')}
-                <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              {/if}
+              Leaderboard
+            </a>
+            <a
+              href="/validators/participants"
+              onclick={() => trackSidebarNav('/validators/participants', { roleContext: 'validator' })}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/validators/participants') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Participants
             </a>
             <a
               href="/validators/wall-of-shame"
@@ -437,6 +447,15 @@
               {#if isRoleLocked('community')}
                 <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               {/if}
+            </a>
+            <a
+              href="/community/leaderboard"
+              onclick={() => trackSidebarNav('/community/leaderboard', { roleContext: 'community' })}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Leaderboard
             </a>
             <a
               href="/community/poaps"
@@ -776,17 +795,22 @@
             {/if}
           </a>
           <a
-            href="/builders/resources"
-            onclick={(e) => { e.preventDefault(); openRoleSection('/builders/resources', 'builder'); }}
-            class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
-              isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
-            } {isRoleLocked('builder') ? 'text-gray-400' : 'text-black'}"
-            title={isRoleLocked('builder') ? 'Become a builder to unlock' : ''}
+            href="/builders/leaderboard"
+            onclick={() => trackSidebarNav('/builders/leaderboard', { roleContext: 'builder' })}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              isActive('/builders/leaderboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
+            }"
           >
-            <span>Resources</span>
-            {#if isRoleLocked('builder')}
-              <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            {/if}
+            Leaderboard
+          </a>
+          <a
+            href="/builders/resources"
+            onclick={() => trackSidebarNav('/builders/resources', { roleContext: 'builder' })}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
+            }"
+          >
+            Resources
           </a>
         </div>
       {/if}
@@ -821,17 +845,22 @@
             {/if}
           </a>
           <a
-            href="/validators/participants"
-            onclick={(e) => { e.preventDefault(); openRoleSection('/validators/participants', 'validator'); }}
-            class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
-              isActive('/validators/participants') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
-            } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
-            title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
+            href="/validators/leaderboard"
+            onclick={() => trackSidebarNav('/validators/leaderboard', { roleContext: 'validator' })}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              isActive('/validators/leaderboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+            }"
           >
-            <span>Participants</span>
-            {#if isRoleLocked('validator')}
-              <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            {/if}
+            Leaderboard
+          </a>
+          <a
+            href="/validators/participants"
+            onclick={() => trackSidebarNav('/validators/participants', { roleContext: 'validator' })}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              isActive('/validators/participants') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+            }"
+          >
+            Participants
           </a>
           <a
             href="/validators/wall-of-shame"
@@ -877,6 +906,15 @@
             {#if isRoleLocked('community')}
               <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             {/if}
+          </a>
+          <a
+            href="/community/leaderboard"
+            onclick={() => trackSidebarNav('/community/leaderboard', { roleContext: 'community' })}
+            class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+              isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+            }"
+          >
+            Leaderboard
           </a>
           <a
             href="/community/poaps"

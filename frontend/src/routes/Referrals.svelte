@@ -10,6 +10,7 @@
   const PAGE_SIZE = 10;
   const PODIUM_SIZE = 3;
   const REQUEST_SIZE = PAGE_SIZE + 1;
+  const INITIAL_REQUEST_SIZE = PODIUM_SIZE + REQUEST_SIZE;
   const SEARCH_LIMIT = 100;
 
   let podiumEntries = $state([]);
@@ -124,25 +125,31 @@
         return;
       }
 
-      const podiumResponse = await leaderboardAPI.getReferrals({ limit: PODIUM_SIZE, offset: 0 });
-      if (requestId !== requestSequence) return;
-
-      const topEntries = (podiumResponse.data?.results || []).map((member, index) => normalizeReferral(member, index + 1));
-      const count = podiumResponse.data?.count ?? topEntries.length;
-      const tableOffset = count >= PODIUM_SIZE
+      const tableOffset = totalCount >= PODIUM_SIZE
         ? PODIUM_SIZE + ((page - 1) * PAGE_SIZE)
         : ((page - 1) * PAGE_SIZE);
-
-      const tableResponse = await leaderboardAPI.getReferrals({ limit: REQUEST_SIZE, offset: tableOffset });
+      const response = page === 1
+        ? await leaderboardAPI.getReferrals({ limit: INITIAL_REQUEST_SIZE, offset: 0 })
+        : await leaderboardAPI.getReferrals({ limit: REQUEST_SIZE, offset: tableOffset });
       if (requestId !== requestSequence) return;
 
-      const tableData = (tableResponse.data?.results || []).map((member, index) => normalizeReferral(member, tableOffset + index + 1));
+      const responseData = response.data?.results || [];
+      const responseCount = response.data?.count ?? responseData.length;
+      const podiumCount = responseCount >= PODIUM_SIZE ? PODIUM_SIZE : 0;
+      const topEntries = page === 1
+        ? responseData.slice(0, PODIUM_SIZE).map((member, index) => normalizeReferral(member, index + 1))
+        : podiumEntries;
+      const tableRankOffset = page === 1 ? podiumCount : tableOffset;
+      const tableData = (page === 1
+        ? responseData.slice(podiumCount)
+        : responseData
+      ).map((member, index) => normalizeReferral(member, tableRankOffset + index + 1));
 
       podiumEntries = topEntries;
       referrals = tableData.slice(0, PAGE_SIZE);
-      totalCount = tableResponse.data?.count ?? count;
+      totalCount = responseCount;
       currentPage = page;
-      hasNextPage = tableOffset + tableData.length < totalCount;
+      hasNextPage = tableRankOffset + tableData.length < responseCount;
     } catch (err) {
       if (requestId !== requestSequence) return;
       error = err.message || 'Failed to load referral leaderboard';

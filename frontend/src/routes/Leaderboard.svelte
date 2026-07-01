@@ -5,11 +5,12 @@
   import { leaderboardAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
   import { getCategoryGradientStyle } from '../lib/categoryPresentation.js';
-  import { push, querystring } from 'svelte-spa-router';
+  import { push, querystring, location } from 'svelte-spa-router';
   
   const PAGE_SIZE = 10;
   const PODIUM_SIZE = 3;
   const REQUEST_SIZE = PAGE_SIZE + 1;
+  const INITIAL_REQUEST_SIZE = PODIUM_SIZE + REQUEST_SIZE;
 
   // State management
   let leaderboard = $state([]);
@@ -66,12 +67,27 @@
     { id: 'community', label: 'Community' },
   ];
 
+  const categoryLeaderboardPath = {
+    builder: '/builders/leaderboard',
+    validator: '/validators/leaderboard',
+    community: '/community/leaderboard',
+  };
+
   function normalizeCategory(category) {
     return categoryConfig[category] ? category : 'builder';
   }
 
+  function categoryFromPath(path) {
+    if (path?.startsWith('/builders/leaderboard')) return 'builder';
+    if (path?.startsWith('/validators/leaderboard')) return 'validator';
+    if (path?.startsWith('/community/leaderboard')) return 'community';
+    return null;
+  }
+
+  let routeCategory = $derived(categoryFromPath($location));
+
   let selectedCategory = $derived(
-    normalizeCategory(new URLSearchParams($querystring || '').get('type') || $currentCategory)
+    normalizeCategory(routeCategory || new URLSearchParams($querystring || '').get('type') || $currentCategory)
   );
   let pageConfig = $derived(categoryConfig[selectedCategory]);
   let gradientStyle = $derived(getCategoryGradientStyle(selectedCategory, pageConfig.accentColor));
@@ -112,34 +128,61 @@
     const category = selectedCategory;
     const shouldShowFullLoader = reset || (podiumEntries.length === 0 && leaderboard.length === 0);
     const requestId = ++requestSequence;
+    const searching = activeSearch.length > 0;
 
     try {
       loading = shouldShowFullLoader;
       pageLoading = !shouldShowFullLoader;
       error = null;
 
-      const podiumResponse = await fetchEntries(category, { limit: PODIUM_SIZE, offset: 0, include_count: true });
+      if (searching) {
+        const offset = (page - 1) * PAGE_SIZE;
+        const response = await fetchEntries(category, { limit: REQUEST_SIZE, offset, include_count: true });
+
+        if (requestId !== requestSequence) return;
+        if (category !== selectedCategory) return;
+
+        const tableData = extractEntries(response.data);
+        const responseCount = extractCount(response.data, tableData.length);
+        const computedTablePages = Math.max(1, Math.ceil(responseCount / PAGE_SIZE));
+
+        podiumEntries = [];
+        leaderboard = tableData.slice(0, PAGE_SIZE);
+        totalCount = responseCount;
+        currentPage = Math.min(page, computedTablePages);
+        hasNextPage = currentPage < computedTablePages;
+        return;
+      }
+
+      if (page === 1) {
+        const response = await fetchEntries(category, { limit: INITIAL_REQUEST_SIZE, offset: 0, include_count: true });
+
+        if (requestId !== requestSequence) return;
+        if (category !== selectedCategory) return;
+
+        const entries = extractEntries(response.data);
+        const responseCount = extractCount(response.data, entries.length);
+        const podiumCount = responseCount >= PODIUM_SIZE ? PODIUM_SIZE : 0;
+        const computedTablePages = Math.max(1, Math.ceil(Math.max(responseCount - podiumCount, 0) / PAGE_SIZE));
+
+        podiumEntries = entries.slice(0, podiumCount);
+        leaderboard = entries.slice(podiumCount, podiumCount + PAGE_SIZE);
+        totalCount = responseCount;
+        currentPage = Math.min(page, computedTablePages);
+        hasNextPage = currentPage < computedTablePages;
+        return;
+      }
+
+      const tableOffset = PODIUM_SIZE + ((page - 1) * PAGE_SIZE);
+      const response = await fetchEntries(category, { limit: REQUEST_SIZE, offset: tableOffset, include_count: true });
 
       if (requestId !== requestSequence) return;
       if (category !== selectedCategory) return;
 
-      const podiumData = extractEntries(podiumResponse.data);
-      const availableForPodium = extractCount(podiumResponse.data, podiumData.length);
-      const tableOffset = activeSearch || availableForPodium < PODIUM_SIZE
-        ? ((page - 1) * PAGE_SIZE)
-        : PODIUM_SIZE + ((page - 1) * PAGE_SIZE);
+      const tableData = extractEntries(response.data);
+      const responseCount = extractCount(response.data, totalCount || tableData.length);
+      const computedTablePages = Math.max(1, Math.ceil(Math.max(responseCount - PODIUM_SIZE, 0) / PAGE_SIZE));
 
-      const tableResponse = await fetchEntries(category, { limit: REQUEST_SIZE, offset: tableOffset, include_count: true });
-
-      if (requestId !== requestSequence) return;
-      if (category !== selectedCategory) return;
-
-      const tableData = extractEntries(tableResponse.data);
-      const responseCount = extractCount(tableResponse.data, availableForPodium);
-      const podiumCount = !activeSearch && responseCount >= PODIUM_SIZE ? PODIUM_SIZE : 0;
-      const computedTablePages = Math.max(1, Math.ceil(Math.max(responseCount - podiumCount, 0) / PAGE_SIZE));
-
-      podiumEntries = podiumData;
       leaderboard = tableData.slice(0, PAGE_SIZE);
       totalCount = responseCount;
       currentPage = Math.min(page, computedTablePages);
@@ -180,7 +223,7 @@
     const nextCategory = normalizeCategory(category);
     if (nextCategory === selectedCategory) return;
     currentCategory.set(nextCategory);
-    push(`/leaderboard?type=${nextCategory}`);
+    push(categoryLeaderboardPath[nextCategory] || `/leaderboard?type=${nextCategory}`);
   }
 
   $effect(() => {
