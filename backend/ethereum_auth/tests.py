@@ -183,7 +183,36 @@ class EthereumAuthNoncePurposeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data['authenticated'])
         self.assertEqual(response.data['user_id'], user.id)
+        self.assertEqual(response.data['referral_code'], user.referral_code)
         self.assertFalse(response.data.get('pending_signup', False))
+
+    def test_known_wallet_login_survives_referral_code_generation_failure(self):
+        account = Account.create()
+        user = User.objects.create_user(
+            email='known-no-referral@example.com',
+            password='testpass123',
+            address=account.address.lower(),
+            is_email_verified=True,
+        )
+        User.objects.filter(pk=user.pk).update(referral_code='')
+        user.refresh_from_db()
+        nonce = Nonce.objects.create(
+            value='knownWalletNoReferral1',
+            purpose=Nonce.PURPOSE_LOGIN,
+            expires_at=timezone.now() + timezone.timedelta(minutes=5),
+        )
+        message = self._login_message(account, nonce.value)
+
+        with patch.object(User, 'ensure_referral_code', side_effect=Exception('referral unavailable')):
+            response = self.client.post('/api/auth/login/', {
+                'message': message,
+                'signature': self._sign(account, message),
+            }, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['authenticated'])
+        self.assertEqual(response.data['user_id'], user.id)
+        self.assertEqual(response.data['referral_code'], '')
 
     def test_login_rejects_recovery_purpose_nonce(self):
         account = Account.create()
@@ -332,6 +361,7 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertEqual(user.name, 'New User')
         self.assertTrue(user.is_email_verified)
         self.assertIsNotNone(user.email_verified_at)
+        self.assertEqual(response.data['referral_code'], user.referral_code)
 
     @patch(
         'ethereum_auth.email_verification._generate_verification_code',
@@ -376,6 +406,29 @@ class EmailVerificationPipelineTests(TestCase):
         self.assertEqual(response.data['selected_role'], 'validator')
         user = User.objects.get(address__iexact=pending.address)
         self.assertEqual(user.email, 'new-session@example.com')
+        self.assertEqual(response.data['referral_code'], user.referral_code)
+
+    def test_pending_signup_email_confirm_survives_referral_code_generation_failure(self):
+        pending = self._pending_signup(address='0x2222222222222222222222222222222222222222')
+        self._start_pending_email(
+            pending,
+            email='no-referral@example.com',
+            code='654321',
+            name='No Referral User',
+        )
+
+        with (
+            patch('ethereum_auth.email_verification.validate_email') as mock_validate_email,
+            patch.object(User, 'ensure_referral_code', side_effect=Exception('referral unavailable')),
+        ):
+            mock_validate_email.return_value = self._valid_email_result('no-referral@example.com')
+            response = self.client.post('/api/auth/signup/email/confirm/', {
+                'code': '654321',
+            }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['authenticated'])
+        self.assertEqual(response.data['referral_code'], '')
 
     def test_pending_signup_wrong_token_fails_without_creating_user(self):
         pending = self._pending_signup()
