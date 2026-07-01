@@ -347,6 +347,12 @@
     normalizedLocation.startsWith('/foundations') ||
     normalizedLocation === '/manifesto'
   );
+
+  let isRoleLandingPage = $derived(
+    normalizedLocation === '/builders' ||
+    normalizedLocation === '/community' ||
+    normalizedLocation === '/validators'
+  );
   
   // Function to hide tooltips - used for route changes
   function hideTooltips() {
@@ -525,7 +531,7 @@
   <Navbar {toggleSidebar} {sidebarOpen} />
   <div class="flex-1 min-h-0 flex overflow-hidden">
     <Sidebar bind:isOpen={sidebarOpen} bind:collapsed={sidebarCollapsed} />
-    <main class="flex-1 min-h-0 min-w-0 overflow-y-auto {isFullBleedPage ? '' : 'px-3 py-3'}">
+    <main class="flex-1 min-h-0 min-w-0 overflow-y-auto {isFullBleedPage ? '' : 'px-3 py-3'} {isRoleLandingPage ? 'role-landing-main' : ''}">
       <SystemAlerts />
       <Router
         {routes}
@@ -542,3 +548,11 @@
 <ProfileCompletionGuard />
 <WhatsNewDialog />
 <AnalyticsConsentBanner />
+
+<style>
+  @media (max-width: 767px) {
+    .role-landing-main {
+      padding: 0;
+    }
+  }
+</style>

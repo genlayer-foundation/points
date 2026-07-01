@@ -1,5 +1,6 @@
 <script>
   import CategoryIcon from '../portal/CategoryIcon.svelte';
+  import RoleLandingVideo from './RoleLandingVideo.svelte';
 
   let { state: roleState = 'unauthenticated', starting = false, onStart = () => {} } = $props();
 
@@ -89,7 +90,12 @@
       </div>
     </div>
 
-    <div class="hero-media" aria-hidden="true"></div>
+    <RoleLandingVideo
+      variant="community"
+      eyebrow="Creator Preview"
+      title="Contribution becomes reputation"
+      description="See how community actions, tasks, and verified work show up inside the Portal."
+    />
   </section>
 
   <section class="feature-section" aria-labelledby="community-contribution-title">
@@ -360,13 +366,6 @@
 
   .landing-button:active:not(:disabled) {
     transform: scale(0.96);
-  }
-
-  .hero-media {
-    aspect-ratio: 16 / 9;
-    background: #cbcbcb;
-    border-radius: 8px;
-    width: 100%;
   }
 
   .feature-section,
@@ -654,6 +653,18 @@
     .button-row {
       align-items: center;
       justify-content: center;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .role-landing {
+      margin: 0;
+      padding: 0 12px 0;
+      width: 100%;
+    }
+
+    .role-hero {
+      padding: 20px 0 56px;
     }
   }
 
