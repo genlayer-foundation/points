@@ -94,9 +94,10 @@
   }
 
   function getTabViewPath(tab) {
-    if (tab === 'builders') return '/builders';
-    if (tab === 'validators') return '/validators';
-    return '/leaderboard';
+    if (tab === 'builders') return '/builders/leaderboard';
+    if (tab === 'validators') return '/validators/leaderboard';
+    if (tab === 'community') return '/community/leaderboard';
+    return '/participants';
   }
 
   // Priority: steward > validator > builder > community

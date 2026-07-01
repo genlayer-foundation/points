@@ -1,5 +1,6 @@
 <script>
   import LeaderboardTable from './LeaderboardTable.svelte';
+  import { push } from 'svelte-spa-router';
   import { leaderboardAPI } from '../lib/api';
   import { currentCategory } from '../stores/category.js';
 
@@ -7,7 +8,7 @@
     title = 'Top Validators',
     limit = 5,
     showViewAll = true,
-    viewAllPath = '/leaderboard',
+    viewAllPath = '',
     viewAllText = 'View All →',
     compact = false,
     hideAddress = true,
@@ -57,6 +58,15 @@
     return Array.isArray(data) ? data : (data?.results ?? []);
   }
 
+  function getViewAllPath() {
+    if (viewAllPath) return viewAllPath;
+    const categoryToUse = category || $currentCategory;
+    if (categoryToUse === 'builder') return '/builders/leaderboard';
+    if (categoryToUse === 'validator') return '/validators/leaderboard';
+    if (categoryToUse === 'community') return '/community/leaderboard';
+    return '/validators/leaderboard';
+  }
+
   // If entries are provided as prop, use them instead of fetching
   $effect(() => {
     if (entries !== null) {
@@ -88,7 +98,7 @@
       <h2 class="text-lg font-semibold text-gray-900">{title}</h2>
       {#if showViewAll}
         <button
-          onclick={() => push(viewAllPath)}
+          onclick={() => push(getViewAllPath())}
           class="text-sm text-primary-600 hover:text-primary-700 font-medium"
         >
           {viewAllText}

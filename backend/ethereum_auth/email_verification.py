@@ -336,37 +336,42 @@ class EmailVerificationService:
     def _render_verification_email_html(self, code: str, *, display_name: str = '', ttl_minutes: int = 30) -> str:
         safe_code = escape(code)
         safe_name = escape(display_name)
+        logo_url = escape(f"{settings.FRONTEND_URL}/assets/gl-logo-black.svg")
         greeting = f"Hi {safe_name}," if safe_name else "Hi,"
         return f"""<!doctype html>
 <html>
-  <body style="margin:0;background:#f3f2ef;padding:34px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#131214;">
+  <body style="margin:0;background:#f6f6f4;padding:40px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#131214;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;max-width:580px;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 28px 80px rgba(19,18,20,0.14);">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;max-width:520px;background:#ffffff;border:1px solid #ececea;border-radius:16px;box-shadow:0 18px 44px rgba(19,18,20,0.08);">
             <tr>
-              <td style="padding:30px 32px 24px;background:linear-gradient(90deg,rgba(238,133,33,0.24) 0%,rgba(255,230,132,0.2) 18%,rgba(95,213,165,0.22) 38%,rgba(91,190,238,0.22) 58%,rgba(151,132,238,0.2) 78%,rgba(245,151,194,0.22) 100%),#ffffff;">
-                <div style="color:#5d5d64;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">
-                  <span style="display:inline-block;width:38px;height:38px;border-radius:14px;background:#131214;color:#fff;text-align:center;line-height:38px;font-weight:900;margin-right:10px;vertical-align:middle;">G</span>
-                  GenLayer Portal
-                </div>
-                <h1 style="margin:22px 0 0;color:#131214;font-size:30px;line-height:1.12;font-weight:850;letter-spacing:0;">Your verification code</h1>
-                <p style="margin:10px 0 0;color:#56575f;font-size:15px;line-height:1.55;">{greeting} enter this code in the Portal to finish verifying your email.</p>
+              <td align="center" style="padding:40px 34px 0;">
+                <img src="{logo_url}" width="134" height="32" alt="GenLayer" style="display:block;border:0;outline:none;text-decoration:none;width:134px;height:auto;">
               </td>
             </tr>
             <tr>
-              <td style="padding:30px 32px 32px;">
-                <div style="border:1px solid #e9e9ea;border-radius:18px;background:#fafafa;padding:22px;text-align:center;">
-                  <div style="color:#77787f;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">One-time code</div>
-                  <div style="margin-top:10px;color:#131214;font-family:'SFMono-Regular','Roboto Mono',Consolas,monospace;font-size:42px;line-height:1;font-weight:800;letter-spacing:9px;">{safe_code}</div>
+              <td align="center" style="padding:30px 34px 14px;">
+                <h1 style="margin:0;color:#2f2f32;font-size:26px;line-height:1.2;font-weight:700;letter-spacing:0;">Your verification code</h1>
+                <p style="margin:12px 0 0;color:#62636a;font-size:15px;line-height:1.55;">{greeting} enter this code in GenLayer Portal to finish verifying your email.</p>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:10px 34px 8px;">
+                <div style="display:inline-block;border:1px solid #e6e6e4;border-radius:12px;background:#fbfbfa;padding:13px 18px;color:#252529;font-size:30px;line-height:1;font-weight:650;letter-spacing:10px;text-align:center;">{safe_code}</div>
+                <div style="margin-top:12px;color:#77787f;font-size:12px;line-height:1.5;">One-time code. Do not share it with anyone.</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 34px 34px;">
+                <div style="border-top:1px solid #eeeeec;padding-top:18px;text-align:center;color:#77787f;font-size:12px;line-height:1.6;">
+                  This code expires in {ttl_minutes} minutes and can be used once. If you did not request this code, you can ignore this email.
                 </div>
-                <div style="margin-top:22px;padding:14px 16px;border-radius:999px;background:#131214;color:#ffffff;text-align:center;font-size:14px;font-weight:800;">
-                  Enter this code in the Portal
-                </div>
-                <p style="margin:20px 0 0;color:#6f7077;font-size:13px;line-height:1.55;">This code expires in {ttl_minutes} minutes and can be used once.</p>
-                <div style="margin-top:18px;padding:14px 16px;border-radius:14px;background:#f7f7f5;color:#696970;font-size:12px;line-height:1.5;">
-                  For your safety, this email does not contain a verification link. If you did not request this code, you can ignore this email.
-                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 34px 34px;text-align:center;color:#9a9aa0;font-size:12px;line-height:1.5;">
+                This is an automated message. Please do not reply.
               </td>
             </tr>
           </table>

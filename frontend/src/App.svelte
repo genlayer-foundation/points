@@ -228,7 +228,6 @@
     '/how-it-works': HowItWorks,
     '/contributions': protectedRoute(Contributions),
     '/all-contributions': protectedRoute(AllContributions),
-    '/leaderboard': protectedRoute(Leaderboard),
     '/participants': protectedRoute(Validators),
     '/referrals': protectedRoute(Referrals),
     '/community': RoleFunnel,
