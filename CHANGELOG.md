@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- The portal now keeps a daily history of each validator's observability: every Grafana sync records whether each node was reporting metrics, reporting logs, and running an up-to-date version, and rolls it up per day (a day counts as shamed if the node was shamed at any point that day). This history is the foundation for upcoming uptime-streak and days-in-shame reporting; it starts accumulating from deploy since past days were never recorded
+
 - The grace period before a validator running an outdated node version is flagged on the Wall of Shame is now configurable via a setting (default three days), instead of a fixed three-day window baked into the code
 
 - Grafana dashboards can now read a dedicated minimal validator roster endpoint that lists every validator wallet with its network, on-chain node address, display name, status, operator address, and (for visible operators) linked account, kept intentionally small and separate from the Wall of Shame so monitoring can join validator identity onto live node metrics (2aaf68f)
