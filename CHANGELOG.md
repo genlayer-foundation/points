@@ -10,7 +10,7 @@ All notable user-facing changes to this project will be documented in this file.
 
 - The Wall of Shame now shows how many consecutive days each validator has gone without being shamed — a clean-uptime streak per node and per network (Asimov and Bradbury), alongside the reasons a streak was broken. An operator's network streak stays alive as long as at least one of their nodes was healthy that day, days spent quarantined or inactive break it, and days where the monitoring itself had no data are simply skipped so an outage on our side never resets anyone's streak
 
-- The portal now keeps a daily history of each validator's observability: every Grafana sync records whether each node was reporting metrics, reporting logs, and running an up-to-date version, and rolls it up per day (a day counts as shamed if the node was shamed at any point that day). This history is the foundation for upcoming uptime-streak and days-in-shame reporting; it starts accumulating from deploy since past days were never recorded
+- The portal now keeps a daily history of each validator's observability: every Grafana sync records whether each node was reporting metrics, reporting logs, and running an up-to-date version, and rolls it up per day (a day counts as shamed if the node was shamed at any point that day). This history powers the uptime streaks above and is the foundation for future days-in-shame reporting; it starts accumulating from deploy since past days were never recorded
 
 - The grace period before a validator running an outdated node version is flagged on the Wall of Shame is now configurable via a setting (default three days), instead of a fixed three-day window baked into the code
 
