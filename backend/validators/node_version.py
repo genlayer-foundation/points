@@ -2,7 +2,6 @@
 Node version tracking and points calculation for validators.
 """
 from django.db import models
-from django.utils import timezone
 from django.core.exceptions import ValidationError
 from packaging import version
 import re
@@ -88,84 +87,6 @@ class NodeVersionMixin(models.Model):
         """
         nv = node_version if node_version is not None else self.node_version_asimov
         return self._compare_versions(nv, target_version)
-
-    def save(self, *args, **kwargs):
-        """
-        Override save to create SubmittedContribution with calculated points based on early upgrade bonus.
-        Checks each network independently.
-        """
-        # Store old versions before saving
-        old_version_asimov = None
-        old_version_bradbury = None
-        is_new = not self.pk
-        if self.pk:
-            try:
-                old_obj = self.__class__.objects.get(pk=self.pk)
-                old_version_asimov = old_obj.node_version_asimov
-                old_version_bradbury = old_obj.node_version_bradbury
-            except self.__class__.DoesNotExist:
-                pass
-
-        # Save the object first
-        super().save(*args, **kwargs)
-
-        # Only create submissions if user is visible
-        if not self.user.visible:
-            return
-
-        # Check each network for version changes
-        networks = [
-            ('asimov', self.node_version_asimov, old_version_asimov),
-            ('bradbury', self.node_version_bradbury, old_version_bradbury),
-        ]
-
-        for network, new_version, old_version in networks:
-            version_changed = (is_new and new_version) or (old_version != new_version and new_version)
-            if not version_changed:
-                continue
-
-            self._create_upgrade_submission(network, new_version)
-
-    def _create_upgrade_submission(self, network, new_version):
-        """Create a SubmittedContribution for a node upgrade on a given network."""
-        from contributions.node_upgrade.models import TargetNodeVersion
-        from contributions.models import SubmittedContribution, ContributionType, Contribution
-
-        target = TargetNodeVersion.get_active(network=network)
-        if not target or not self._compare_versions(new_version, target.version):
-            return
-
-        contribution_type = ContributionType.objects.filter(slug='node-upgrade').first()
-        if not contribution_type:
-            return
-
-        # Include network in dedup key to allow separate submissions per network
-        dedup_key = f"version {target.version} [{network}]"
-
-        existing_contribution = Contribution.objects.filter(
-            user=self.user,
-            contribution_type=contribution_type,
-            notes__contains=dedup_key
-        ).exists()
-
-        existing_submission = SubmittedContribution.objects.filter(
-            user=self.user,
-            contribution_type=contribution_type,
-            state__in=['pending', 'accepted'],
-            notes__contains=dedup_key
-        ).exists()
-
-        if not existing_contribution and not existing_submission:
-            points = calculate_early_upgrade_bonus(target.target_date, timezone.now())
-
-            SubmittedContribution.objects.create(
-                user=self.user,
-                contribution_type=contribution_type,
-                proposed_points=points,
-                contribution_date=timezone.now(),
-                notes=f"Automatic submission for node upgrade to version {target.version} [{network}]",
-                state='pending'
-            )
 
 
 def calculate_early_upgrade_bonus(target_availability_date, upgrade_date):

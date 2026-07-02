@@ -455,6 +455,11 @@ TESTNET_NETWORKS = {
 # Uptime lookback window (days) - how many days back to check for active status
 UPTIME_LOOKBACK_DAYS = int(os.environ.get('UPTIME_LOOKBACK_DAYS', '7') or '7')
 
+# Grace period (days) after a target's target_date before a node still running an
+# older version is marked as version "shame". Applied globally at evaluation time
+# (validators/version_status.py); changing it affects all targets, past and future.
+NODE_VERSION_SHAME_GRACE_DAYS = int(os.environ.get('NODE_VERSION_SHAME_GRACE_DAYS', '3') or '3')
+
 # AWS Health Check IPs - Allow these IPs to bypass ALLOWED_HOSTS
 # Required environment variable with AWS internal/metadata service IPs
 ALLOWED_CIDR_NETS = get_required_env('ALLOWED_CIDR_NETS').split(',')

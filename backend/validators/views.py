@@ -1,7 +1,6 @@
 import logging
 import re
 import uuid
-from datetime import timedelta
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -23,6 +22,8 @@ from .serializers import (
 from .permissions import IsCronToken
 from .genlayer_validators_service import GenLayerValidatorsService
 from .grafana_service import GrafanaValidatorStatusService
+from .version_status import compute_version_status
+from . import streaks as streaks_lib
 from users.models import User
 from users.serializers import ValidatorSerializer, UserSerializer
 from contributions.models import Contribution, ContributionType
@@ -84,45 +85,23 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         return [IsAuthenticated()]
     
-    @action(detail=False, methods=['get', 'patch'], url_path='me')
+    @action(detail=False, methods=['get'], url_path='me')
     def my_profile(self, request):
         """
-        Get or update current user's validator profile.
-        """
-        if request.method == 'GET':
-            try:
-                validator = Validator.objects.get(user=request.user)
-                serializer = self.get_serializer(validator)
-                return Response(serializer.data)
-            except Validator.DoesNotExist:
-                return Response(
-                    {'detail': 'Validator profile not found for current user.'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-        
-        elif request.method == 'PATCH':
-            unsupported_fields = set(request.data) - {
-                'node_version_asimov',
-                'node_version_bradbury',
-            }
-            if unsupported_fields:
-                return Response(
-                    {'detail': 'Only node version fields can be updated here.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+        Get current user's validator profile.
 
-            try:
-                validator = Validator.objects.get(user=request.user)
-            except Validator.DoesNotExist:
-                return Response(
-                    {'detail': 'Validator profile not found for current user.'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            serializer = self.get_serializer(validator, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        Read-only: node versions are sourced from Grafana (see
+        validators/grafana_service.py) and are not editable from the portal.
+        """
+        try:
+            validator = Validator.objects.get(user=request.user)
+            serializer = self.get_serializer(validator)
+            return Response(serializer.data)
+        except Validator.DoesNotExist:
+            return Response(
+                {'detail': 'Validator profile not found for current user.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     @action(detail=False, methods=['get'], url_path='all')
     def all_validators(self, request):
@@ -325,7 +304,6 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
     SYNC_LOCK_STALE_AFTER_SECONDS = 1800
     SYNC_LOCK_HEARTBEAT_INTERVAL_SECONDS = 60
     WALL_OF_SHAME_CACHE_TTL_SECONDS = 60
-    VERSION_SHAME_GRACE_DAYS = 3
 
     def get_queryset(self):
         """
@@ -719,45 +697,8 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
 
     @classmethod
     def _version_context(cls, wallet, target, now):
-        field_name = f'node_version_{wallet.network}'
-        node_version = getattr(wallet.operator, field_name, None) if wallet.operator else None
-        target_version = target.version if target else None
-        target_date = target.target_date if target else None
-
-        context = {
-            'status': 'unknown' if not target else 'on',
-            'node_version': node_version,
-            'target_version': target_version,
-            'target_date': target_date,
-            'target_elapsed_days': None,
-            'grace_days': cls.VERSION_SHAME_GRACE_DAYS,
-            'grace_days_remaining': None,
-            'shame_started_at': None,
-        }
-        if not target or not target_date or target_date > now:
-            return context
-
-        context['target_elapsed_days'] = max(0, (now - target_date).days)
-        matches_target = bool(
-            wallet.operator
-            and node_version
-            and wallet.operator.version_matches_or_higher(target.version, node_version=node_version)
-        )
-        if matches_target:
-            context['status'] = 'on'
-            return context
-
-        if context['target_elapsed_days'] <= cls.VERSION_SHAME_GRACE_DAYS:
-            context['status'] = 'warning'
-            context['grace_days_remaining'] = max(
-                0,
-                cls.VERSION_SHAME_GRACE_DAYS - context['target_elapsed_days'],
-            )
-            return context
-
-        context['status'] = 'shame'
-        context['shame_started_at'] = target_date + timedelta(days=cls.VERSION_SHAME_GRACE_DAYS)
-        return context
+        # Grace-aware version verdict; shared with the Grafana sync.
+        return compute_version_status(wallet, target, now)
 
     @classmethod
     def _sync_shame_started_at(cls, wallets, targets, now):
@@ -861,8 +802,13 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         return reasons
 
     @classmethod
-    def _build_validator_groups(cls, wallets, targets, now):
+    def _build_validator_groups(cls, wallets, targets, now, snapshot_index=None,
+                                streaks_by_wallet_id=None):
         groups = {}
+        snapshot_index = snapshot_index or {}
+        streaks_by_wallet_id = streaks_by_wallet_id or {}
+        # Collect each operator+network's wallet ids for the any-node-clean roll-up.
+        operator_network_wallet_ids = {}
 
         for wallet in wallets:
             operator_key = (
@@ -908,6 +854,11 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
                     **reason,
                 })
 
+            node_streak = streaks_by_wallet_id.get(wallet.id) or {}
+            operator_network_wallet_ids.setdefault(
+                (operator_key, wallet.network), []
+            ).append(wallet.id)
+
             group['networks'].append({
                 'network': wallet.network,
                 'wallet_id': wallet.id,
@@ -921,6 +872,8 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
                 'target_version': version_context['target_version'],
                 'status': network_status,
                 'reasons': reasons,
+                'clean_streak_days': node_streak.get('days'),
+                'clean_streak_broken_by': node_streak.get('broken_by', []),
             })
 
         priority = {'shame': 0, 'warning': 1, 'unknown': 2, 'on': 3}
@@ -939,6 +892,28 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
             else:
                 group['status'] = 'on'
             group['networks'].sort(key=lambda item: network_order.get(item['network'], 99))
+
+            # Per-network operator streak, any-node-clean across the operator's
+            # wallets on that network (a network-day is clean if ≥1 node was clean).
+            network_streaks = {}
+            for (op_key, net), wallet_ids in operator_network_wallet_ids.items():
+                if op_key != group['id']:
+                    continue
+                network_streaks[net] = streaks_lib.clean_streak(
+                    wallet_ids, now, snapshot_index
+                )
+            group['network_streaks'] = {
+                net: {
+                    'network': net,
+                    'clean_streak_days': streak['days'],
+                    'clean_streak_broken_by': streak['broken_by'],
+                    'since': streak['since'],
+                }
+                for net, streak in sorted(
+                    network_streaks.items(),
+                    key=lambda kv: network_order.get(kv[0], 99),
+                )
+            }
             group['shame_reasons'].sort(
                 key=lambda item: (
                     network_order.get(item['network'], 99),
@@ -1054,8 +1029,21 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
             default=None,
         )
 
-        serializer = WallOfShameSerializer(wallets, many=True)
-        validators = self._build_validator_groups(wallets, targets, now)
+        # Consecutive "not shamed" uptime streaks, from the stored daily rollup.
+        # One snapshot query for every wallet on the page, then compute in memory.
+        snapshot_index = streaks_lib.load_snapshot_index([w.id for w in wallets], now)
+        streaks_by_wallet_id = {
+            w.id: streaks_lib.clean_streak([w.id], now, snapshot_index)
+            for w in wallets
+        }
+
+        serializer = WallOfShameSerializer(
+            wallets, many=True,
+            context={'streaks_by_wallet_id': streaks_by_wallet_id},
+        )
+        validators = self._build_validator_groups(
+            wallets, targets, now, snapshot_index, streaks_by_wallet_id,
+        )
         on_count = sum(1 for validator in validators if validator['status'] == 'on')
         shame_count = sum(1 for validator in validators if validator['status'] == 'shame')
         warning_count = sum(1 for validator in validators if validator['status'] == 'warning')

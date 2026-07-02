@@ -17,8 +17,6 @@
 
   // Form fields
   let name = $state("");
-  let nodeVersionAsimov = $state("");
-  let nodeVersionBradbury = $state("");
 
   // New profile fields
   let email = $state("");
@@ -69,8 +67,6 @@
   let hasChanges = $derived(
     user &&
       (name !== (user.name || "") ||
-        (user.validator && nodeVersionAsimov !== (user.validator?.node_version_asimov || "")) ||
-        (user.validator && nodeVersionBradbury !== (user.validator?.node_version_bradbury || "")) ||
         description !== (user.description || "") ||
         website !== (user.website || "") ||
         telegramHandle !== (user.telegram_handle || "") ||
@@ -98,8 +94,6 @@
       const userData = await getCurrentUser();
       user = userData;
       name = userData.name || "";
-      nodeVersionAsimov = userData.validator?.node_version_asimov || "";
-      nodeVersionBradbury = userData.validator?.node_version_bradbury || "";
 
       // Load profile fields
       // Always show the email if it exists, regardless of verification status
@@ -185,14 +179,6 @@
         telegram_handle: telegramHandle.trim(),
         linkedin_handle: linkedinHandle.trim(),
       };
-
-      // Only include node versions if they have changed
-      if (nodeVersionAsimov !== (user.validator?.node_version_asimov || "")) {
-        updateData.node_version_asimov = nodeVersionAsimov;
-      }
-      if (nodeVersionBradbury !== (user.validator?.node_version_bradbury || "")) {
-        updateData.node_version_bradbury = nodeVersionBradbury;
-      }
 
       const updatedUser = await updateUserProfile(updateData);
       // Update the user store with new data
@@ -855,20 +841,11 @@
                     {/if}
 
                     <div>
-                      <label
-                        for="nodeVersionAsimov"
-                        class="block text-sm font-medium text-gray-600 mb-1.5"
-                        >Node Version</label
-                      >
-                      <input
-                        id="nodeVersionAsimov"
-                        type="text"
-                        bind:value={nodeVersionAsimov}
-                        class="w-full px-4 py-3 bg-[#FCFCFC] border border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors"
-                        placeholder="e.g., 0.3.9"
-                        disabled={isSaving}
-                      />
-                      <p class="mt-1 text-xs text-gray-400">Your Asimov network node version</p>
+                      <span class="block text-sm font-medium text-gray-600 mb-1.5">Node Version</span>
+                      <div class="w-full px-4 py-3 bg-[#f7f8f9] border border-[#EAEAEA] rounded-[8px] font-mono text-sm text-gray-700">
+                        {user.validator?.node_version_asimov || "Not detected yet"}
+                      </div>
+                      <p class="mt-1 text-xs text-gray-400">Detected automatically from your node's metrics</p>
                     </div>
 
                     {#if asimovWallets.length > 0}
@@ -918,20 +895,11 @@
                     {/if}
 
                     <div>
-                      <label
-                        for="nodeVersionBradbury"
-                        class="block text-sm font-medium text-gray-600 mb-1.5"
-                        >Node Version</label
-                      >
-                      <input
-                        id="nodeVersionBradbury"
-                        type="text"
-                        bind:value={nodeVersionBradbury}
-                        class="w-full px-4 py-3 bg-[#FCFCFC] border border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors"
-                        placeholder="e.g., 0.1.0"
-                        disabled={isSaving}
-                      />
-                      <p class="mt-1 text-xs text-gray-400">Your Bradbury network node version</p>
+                      <span class="block text-sm font-medium text-gray-600 mb-1.5">Node Version</span>
+                      <div class="w-full px-4 py-3 bg-[#f7f8f9] border border-[#EAEAEA] rounded-[8px] font-mono text-sm text-gray-700">
+                        {user.validator?.node_version_bradbury || "Not detected yet"}
+                      </div>
+                      <p class="mt-1 text-xs text-gray-400">Detected automatically from your node's metrics</p>
                     </div>
 
                     {#if bradburyWallets.length > 0}

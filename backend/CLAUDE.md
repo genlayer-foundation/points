@@ -45,13 +45,13 @@ backend/
   - Validator model with node_version field (OneToOne with User)
   - Custom UserManager for email-based auth
 - **Views**: `users/views.py`
-  - `/api/v1/users/me/` - GET/PATCH current user profile (name and node_version editable)
+  - `/api/v1/users/me/` - GET/PATCH current user profile (name/description/website/socials editable; node_version is NOT editable — Grafana-sourced, display only)
   - `/api/v1/users/by-address/{address}/` - Get user by wallet address
   - `/api/v1/users/validators/` - Get validator list from blockchain
 - **Serializers**: `users/serializers.py`
   - UserSerializer - Full user data including validator info
   - ValidatorSerializer - Validator node version and target matching
-  - UserProfileUpdateSerializer - Allows name and node_version updates
+  - UserProfileUpdateSerializer - Allows name/description/website/socials updates (node_version removed — Grafana is source of truth)
   - UserCreateSerializer - Registration
 
 ### Authentication
@@ -101,7 +101,21 @@ backend/
 
 ### Node Upgrade (Sub-app)
 - **Models**: `contributions/node_upgrade/models.py`
-  - TargetNodeVersion - Active target version for node upgrades
+  - TargetNodeVersion - Active target version for node upgrades. Per-network, single
+    `is_active` per network. The version-shame grace period — how many days after
+    `target_date` a node still behind is marked version "shame" — is the global
+    `settings.NODE_VERSION_SHAME_GRACE_DAYS` (default 3, env-overridable), not a per-target field.
+- **Version verdict**: `validators/version_status.py::compute_version_status(wallet, target, now, node_version=...)`
+  is the shared helper (used by the Wall of Shame view and the Grafana sync) that returns
+  `on`/`warning`/`shame`/`unknown` using the `NODE_VERSION_SHAME_GRACE_DAYS` setting. The viewset's
+  `ValidatorWalletViewSet._version_context` delegates to it; the Grafana sync passes the
+  Prometheus-observed version explicitly.
+- **Node versions are Grafana-sourced.** Target creation and the `node-upgrade` award are
+  driven automatically by the Grafana sync (`GrafanaValidatorStatusService._sync_node_versions`
+  / `_award_node_upgrade`); the portal no longer lets users edit their node version. The old
+  `NodeVersionMixin.save()` auto-submission path has been removed — `NodeVersionMixin` now only
+  holds the version fields + validation + comparison helpers, and `calculate_early_upgrade_bonus`
+  (reused by the Grafana award). Dedup on the `version {v} [{network}]` notes key is preserved.
 - **Admin**: `contributions/node_upgrade/admin.py`
   - TargetNodeVersion admin interface
 - **Views**: `contributions/views.py`
@@ -227,17 +241,20 @@ backend/
 ### Validators
 - **Models**: `validators/models.py`
   - ValidatorWallet - Synced validator wallet metadata per network. Now also stores Wall of Shame observability state: `metrics_status`, `logs_status` (both `on` / `shame` / `unknown`), and `last_grafana_check_at`.
-  - ValidatorWalletStatusSnapshot - Daily wallet status snapshots for uptime lookback
+  - ValidatorWalletStatusSnapshot - Daily wallet rollup. On-chain `status` (owned by the on-chain sync, for uptime lookback) PLUS the latched observability verdict written by the Grafana sync: `metrics_status` / `logs_status` / `version_status`, `metrics_samples` / `logs_samples` counters, and `node_version`. **Metrics and logs latch pessimistically** (worst-of-day: shame at ANY observation → the day is shame). **Version latches optimistically** (best-of-day: a single up-to-date observation → the day is OK, since once a node upgrades that day an earlier stale reading must not shame it; `on` > `warning` > `shame`). A day is "clean" only if `status=='active'` and both sample counters are ≥1 and neither metrics nor logs is `shame` and version is not `shame`. The two syncs write disjoint columns (bulk_create update_conflicts on `(wallet, date)`), so neither clobbers the other.
+  - ValidatorWalletObservation - Append-only raw log; one row per active wallet per Grafana sync run (`observed_at`, `onchain_status`, `metrics_status`, `logs_status`, `version_status`, `node_version`). Source of truth the daily rollup is materialised from and rebuildable via `rebuild_daily_snapshots`.
   - SyncLock - Database-backed sync coordination row with owner token for cross-worker locking
 - **Services**: `validators/grafana_service.py`
-  - GrafanaValidatorStatusService - Polls Grafana Cloud (`/api/ds/query`) Prometheus + Loki datasources and updates `ValidatorWallet.metrics_status` / `logs_status` for `status='active'` wallets, per network. Used by the Wall of Shame cron.
+  - GrafanaValidatorStatusService - Polls Grafana Cloud (`/api/ds/query`) Prometheus + Loki datasources and updates `ValidatorWallet.metrics_status` / `logs_status` for `status='active'` wallets, per network. The Prometheus query also reads the `version` label from `genlayer_node_info` — **normalised at ingest** in `parse_response` ('v' prefix stripped, capped to the 50-char column; when a node briefly reports two version series right after an upgrade, the higher parseable one wins). Each run writes a `ValidatorWalletObservation` and latches today's `ValidatorWalletStatusSnapshot` rollup (`_record_history`, best-effort — never breaks the live status sync). Observations are retained forever by explicit decision — no pruning in points. Used by the Wall of Shame cron.
+  - GrafanaValidatorStatusService is also the **source of truth for node versions** (`_sync_node_versions`, best-effort): version detection covers **every reporting node on the network regardless of on-chain status** (a quarantined node can still record its upgrade); only versions that are both semver-valid AND PEP 440-parseable drive comparisons (e.g. `0.6.0-genlayer.1` is excluded — `packaging` can't parse it); it auto-creates a `TargetNodeVersion` when the fleet's highest STABLE release (bare `x.y.z`, no pre-release/build) exceeds the active target (`target_date=now`; an unparseable active target is never blindly superseded), writes each linked operator's `node_version_<network>` to their highest observed version via a direct `.update()` (bypassing `NodeVersionMixin.save()`'s path), and directly awards an already-approved `node-upgrade` Contribution (`_award_node_upgrade`, early-bonus 4/3/2/1) when a visible operator first reaches the active target. The per-operator loop is individually fault-isolated — one operator's failure never blocks the rest. Dedup shares the exact `version {v} [{network}]` notes key with the old manual flow so nothing double-awards.
+- **Commands**: `validators/management/commands/rebuild_daily_snapshots.py` (`--days N`) re-materialises the daily rollup's observability columns from the raw observation log (preserves the on-chain `status`).
 - **Views**: `validators/views.py`
   - `/api/v1/validators/` - Validator profile CRUD for authenticated users
-  - `/api/v1/validators/me/` - GET/PATCH current validator profile
+  - `/api/v1/validators/me/` - GET current validator profile (read-only; PATCH removed — node versions are Grafana-sourced, not portal-editable)
   - `/api/v1/validators/wallets/` - Read-only validator wallet listing
   - `/api/v1/validators/wallets/sync/` - POST cron-protected background sync trigger with DB-backed lock (on-chain validator sync)
   - `/api/v1/validators/wallets/sync-grafana/` - POST cron-protected background sync trigger for Grafana observability cross-check (separate SyncLock row `grafana_status_sync` so it can run alongside the on-chain sync)
-  - `/api/v1/validators/wallets/wall-of-shame/` - Public read-only endpoint listing active validator wallets with `metrics_status` / `logs_status`. SHAME rows sort first. Cached 60s. Optional `?network=asimov|bradbury` filter.
+  - `/api/v1/validators/wallets/wall-of-shame/` - Public read-only endpoint listing active validator wallets with `metrics_status` / `logs_status`. SHAME rows sort first. Cached 60s. Optional `?network=asimov|bradbury` filter. Each wallet also carries `clean_streak_days` + `clean_streak_broken_by` (consecutive not-shamed days for that node, from `validators/streaks.py` over the daily rollup). The grouped `validators` output adds `network_streaks` — per-operator-per-network any-node-clean streaks (a network-day is clean if ≥1 of the operator's nodes was clean) — plus per-node `clean_streak_days` on each `networks` entry. Streaks start accumulating at deploy (history wasn't recorded before).
   - `/api/v1/validators/wallets/grafana/` - Public minimal roster for the Grafana Infinity datasource (`GrafanaValidatorSerializer`). Flat array, one row per wallet across ALL statuses; fields: `network` (Grafana label value e.g. `asimov-phase5`), `node` (on-chain validator address == Prometheus `genlayer_node_info` `node` label, lowercased), `name`, `status`, `operator`, `account`/`account_name` (only for visible operators), `explorer_url`. Excludes observability/shame fields by design. Cached 60s. Optional `?network=asimov|bradbury` filter.
 
 ### Partners (Ecosystem Partners)
@@ -366,7 +383,7 @@ POST   /api/auth/logout/
 # Users
 GET    /api/v1/users/           (requires auth)
 GET    /api/v1/users/me/           (requires auth)
-PATCH  /api/v1/users/me/           (requires auth, only name)
+PATCH  /api/v1/users/me/           (requires auth; name/description/website/socials — node_version NOT editable, Grafana-sourced)
 GET    /api/v1/users/{address}/    (requires auth)
 GET    /api/v1/users/by-address/{address}/ (requires auth)
 GET    /api/v1/users/validators/   (requires auth)
@@ -484,6 +501,7 @@ Located in `.env` file:
 - `GRAFANA_PROM_DS_UID` - Prometheus datasource UID (default `grafanacloud-prom`)
 - `GRAFANA_LOKI_DS_UID` - Loki datasource UID (default `grafanacloud-logs`)
 - `GRAFANA_ASIMOV_LABEL` / `GRAFANA_BRADBURY_LABEL` - Override the `network` label values Grafana queries use per testnet (defaults: `asimov-phase5`, `bradbury-phase1`)
+- `NODE_VERSION_SHAME_GRACE_DAYS` - Grace period (days) after a target's `target_date` before a node still behind it is version-shamed, applied globally (default `3`)
 - `SORSA_API_BASE_URL` - Sorsa API base URL (default `https://api.sorsa.io/v3`); used for Twitter follow verification in social_tasks and X follower counts in overview metrics.
 - `SORSA_API_KEY` - Sorsa API key sent in the `ApiKey` header (secret, required). Store in AWS SSM (`/tally/{env}/sorsa_api_key`) for production.
 - Note: the Sorsa request timeout and follow endpoint path are intentionally code constants in `social_tasks/sorsa_client.py`, not env vars. Changing the endpoint requires a code deploy anyway because the response parser lives in the same file.

@@ -305,19 +305,15 @@ class ValidatorSerializer(serializers.ModelSerializer):
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     """
     Serializer for updating user profile.
-    Allows updating name, profile fields, and validator node versions per network.
+    Allows updating name and profile fields. Node versions are NOT editable here:
+    they are sourced from Grafana (see validators/grafana_service.py) and only
+    displayed on the profile, never written from the portal.
     """
-    node_version_asimov = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True, source='validator.node_version_asimov'
-    )
-    node_version_bradbury = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True, source='validator.node_version_bradbury'
-    )
     website = serializers.CharField(required=False, allow_blank=True, max_length=200)
 
     class Meta:
         model = User
-        fields = ['name', 'node_version_asimov', 'node_version_bradbury', 'description', 'website',
+        fields = ['name', 'description', 'website',
                   'telegram_handle', 'linkedin_handle']
 
     def to_internal_value(self, data):
@@ -368,28 +364,6 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
             value = value.split('?')[0]
         return value
     
-    def update(self, instance, validated_data):
-        # Handle validator data if present
-        validator_data = validated_data.pop('validator', {})
-
-        # Update other user fields
-        for field, value in validated_data.items():
-            setattr(instance, field, value)
-        
-        instance.save()
-        
-        # Update or create validator if any node_version field is provided
-        if 'node_version_asimov' in validator_data or 'node_version_bradbury' in validator_data:
-            validator, created = Validator.objects.get_or_create(user=instance)
-            if 'node_version_asimov' in validator_data:
-                validator.node_version_asimov = validator_data['node_version_asimov']
-            if 'node_version_bradbury' in validator_data:
-                validator.node_version_bradbury = validator_data['node_version_bradbury']
-            validator.save()
-
-        return instance
-        
-
 class BuilderSerializer(serializers.ModelSerializer):
     """
     Serializer for Builder profile.

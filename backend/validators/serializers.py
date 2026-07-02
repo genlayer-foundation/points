@@ -123,6 +123,8 @@ class WallOfShameSerializer(serializers.ModelSerializer):
     """
     operator_user = serializers.SerializerMethodField()
     explorer_url = serializers.SerializerMethodField()
+    clean_streak_days = serializers.SerializerMethodField()
+    clean_streak_broken_by = serializers.SerializerMethodField()
 
     class Meta:
         model = ValidatorWallet
@@ -142,8 +144,22 @@ class WallOfShameSerializer(serializers.ModelSerializer):
             'metrics_shame_started_at',
             'logs_shame_started_at',
             'version_shame_started_at',
+            'clean_streak_days',
+            'clean_streak_broken_by',
         ]
         read_only_fields = fields
+
+    def _streak(self, obj):
+        # Per-node streak, injected by the view via context to avoid N+1 queries.
+        return (self.context.get('streaks_by_wallet_id') or {}).get(obj.id)
+
+    def get_clean_streak_days(self, obj):
+        streak = self._streak(obj)
+        return streak['days'] if streak else None
+
+    def get_clean_streak_broken_by(self, obj):
+        streak = self._streak(obj)
+        return streak['broken_by'] if streak else []
 
     def get_operator_user(self, obj):
         if obj.operator and obj.operator.user and obj.operator.user.visible:
