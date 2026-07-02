@@ -32,8 +32,13 @@ class NodeVersionSyncTests(TestCase):
             valid_from=self.now - timedelta(days=30),
         )
 
-    def _operator(self, email, address, visible=True):
-        user = User.objects.create(email=email, address=address, visible=visible)
+    def _operator(self, email, address, visible=True, is_banned=False):
+        user = User.objects.create(
+            email=email,
+            address=address,
+            visible=visible,
+            is_banned=is_banned,
+        )
         return Validator.objects.create(user=user)
 
     def _wallet(self, address, operator, network='asimov', status='active'):
@@ -166,6 +171,28 @@ class NodeVersionSyncTests(TestCase):
         )
         op = self._operator('ban@x.com', '0x' + 'c' * 39 + '2')
         w = self._wallet('0x' + 'c' * 39 + '3', op, status='banned')
+        self._sync('asimov', {w: 'v0.6.0'})
+
+        op.refresh_from_db()
+        self.assertIsNone(op.node_version_asimov)
+        self.assertFalse(
+            Contribution.objects.filter(user=op.user, contribution_type=self.ctype).exists()
+        )
+
+    @override_settings(NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET=1)
+    def test_banned_operator_user_gets_no_target_version_or_award(self):
+        op = self._operator('suspended@x.com', '0x' + 'c' * 39 + '4', is_banned=True)
+        w = self._wallet('0x' + 'c' * 39 + '5', op)
+
+        self._sync('asimov', {w: 'v0.6.0'})
+
+        self.assertIsNone(TargetNodeVersion.get_active(network='asimov'))
+        op.refresh_from_db()
+        self.assertIsNone(op.node_version_asimov)
+
+        TargetNodeVersion.objects.create(
+            version='0.6.0', network='asimov', target_date=self.now, is_active=True,
+        )
         self._sync('asimov', {w: 'v0.6.0'})
 
         op.refresh_from_db()

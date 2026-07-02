@@ -448,10 +448,11 @@ class GrafanaValidatorStatusService:
 
         Trust boundary: the `version` label is self-reported by the node being
         judged and rewarded. Only versions observed on wallets known to this DB and
-        linked to an operator count for anything, banned wallets count for nothing,
-        and no single operator can move the fleet-wide target on their own.
+        linked to an operator count for anything, banned wallets and wallets of
+        banned users count for nothing, and no single operator can move the
+        fleet-wide target on their own.
 
-        Any non-banned wallet qualifies for (2)/(3) — a quarantined/inactive node
+        Any other wallet qualifies for (2)/(3) — a quarantined/inactive node
         that still reports can record its upgrade and earn the award.
 
         Best-effort at two levels: the whole step never raises, and one operator's
@@ -471,11 +472,16 @@ class GrafanaValidatorStatusService:
                 return
 
             # Versions only count when observed on a known, operator-linked,
-            # non-banned wallet: an unknown Prometheus series (test rig, stale or
-            # spoofed node) must not be able to move targets or earn points.
+            # non-banned wallet owned by a non-banned user: an unknown Prometheus
+            # series (test rig, stale/spoofed node) or a suspended account must
+            # not be able to move targets or earn points.
             wallets = (
                 ValidatorWallet.objects
-                .filter(network=network, operator__isnull=False)
+                .filter(
+                    network=network,
+                    operator__isnull=False,
+                    operator__user__is_banned=False,
+                )
                 .exclude(status='banned')
                 .select_related('operator', 'operator__user')
             )
@@ -545,6 +551,7 @@ class GrafanaValidatorStatusService:
                         and active_parsed is not None
                         and operator.user_id
                         and getattr(operator.user, 'visible', False)
+                        and not getattr(operator.user, 'is_banned', False)
                         and parse_version(highest) >= active_parsed
                     ):
                         cls._award_node_upgrade(operator, network, active, now)
