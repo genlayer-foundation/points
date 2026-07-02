@@ -35,6 +35,7 @@ _EVENT_TYPES = [
     EventType('contribution.highlighted', category='contribution'),
     EventType('referral.joined', category='community'),
     EventType('validator.graduated', category='validator', priority=Notification.PRIORITY_HIGH),
+    EventType('email.verify_reminder', category='system', priority=Notification.PRIORITY_HIGH),
 
     # --- Broadcast, admin-explicit ---
     EventType('featured.published', category='content'),
