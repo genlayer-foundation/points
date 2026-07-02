@@ -50,14 +50,41 @@ class NodeVersionSyncTests(TestCase):
             self.now,
         )
 
-    def test_first_stable_release_creates_active_target(self):
-        op = self._operator('a@x.com', '0x' + 'a' * 40)
-        w = self._wallet('0x' + '1' * 40, op)
-        self._sync('asimov', {w: 'v0.6.0'})
+    def test_corroborated_stable_release_creates_active_target(self):
+        """A stable release reported by two distinct operators becomes the target."""
+        op1 = self._operator('a@x.com', '0x' + 'a' * 40)
+        w1 = self._wallet('0x' + '1' * 40, op1)
+        op2 = self._operator('a2@x.com', '0x' + 'e' * 39 + '1')
+        w2 = self._wallet('0x' + 'f' * 39 + '1', op2)
+        self._sync('asimov', {w1: 'v0.6.0', w2: 'v0.6.0'})
 
         target = TargetNodeVersion.get_active(network='asimov')
         self.assertIsNotNone(target)
         self.assertEqual(target.version, '0.6.0')  # 'v' stripped
+
+    def test_single_operator_cannot_create_target(self):
+        """The version label is self-reported by the node being rewarded: one
+        operator alone must not be able to pin a fleet-wide target (and shame
+        everyone else / bank the first-adopter bonus)."""
+        op = self._operator('solo@x.com', '0x' + 'a' * 39 + '2')
+        w1 = self._wallet('0x' + '1' * 39 + '2', op)
+        w2 = self._wallet('0x' + '1' * 39 + '3', op)  # same operator, two nodes
+        self._sync('asimov', {w1: 'v9.9.9', w2: 'v9.9.9'})
+
+        self.assertIsNone(TargetNodeVersion.get_active(network='asimov'))
+        # ...but their own running version is still recorded.
+        op.refresh_from_db()
+        self.assertEqual(op.node_version_asimov, '9.9.9')
+
+    def test_unknown_addresses_cannot_create_target(self):
+        """Prometheus series for addresses we don't know (test rigs, spoofed or
+        stale nodes) must not move targets or earn anything."""
+        GrafanaValidatorStatusService._sync_node_versions(
+            'asimov',
+            {'0x' + 'd' * 39 + '1': '9.9.9', '0x' + 'd' * 39 + '2': '9.9.9'},
+            self.now,
+        )
+        self.assertIsNone(TargetNodeVersion.get_active(network='asimov'))
 
     def test_prerelease_does_not_create_target(self):
         op = self._operator('b@x.com', '0x' + 'b' * 40)
@@ -85,6 +112,9 @@ class NodeVersionSyncTests(TestCase):
         self.assertEqual(op.node_version_asimov, '0.6.0')
 
     def test_reaching_target_awards_direct_contribution_once(self):
+        TargetNodeVersion.objects.create(
+            version='0.6.0', network='asimov', target_date=self.now, is_active=True,
+        )
         op = self._operator('e@x.com', '0x' + 'e' * 40)
         w = self._wallet('0x' + '6' * 40, op)
         self._sync('asimov', {w: 'v0.6.0'})
@@ -100,6 +130,64 @@ class NodeVersionSyncTests(TestCase):
         # Running the sync again must not double-award.
         self._sync('asimov', {w: 'v0.6.0'})
         self.assertEqual(awards.count(), 1)
+
+    def test_award_skipped_when_no_multiplier(self):
+        """Removing the multiplier is the stewards' kill switch for a points
+        program; the auto-award must respect it instead of awarding at 1.0."""
+        GlobalLeaderboardMultiplier.objects.all().delete()
+        TargetNodeVersion.objects.create(
+            version='0.6.0', network='asimov', target_date=self.now, is_active=True,
+        )
+        op = self._operator('nm@x.com', '0x' + 'b' * 39 + '2')
+        w = self._wallet('0x' + 'b' * 39 + '3', op)
+        self._sync('asimov', {w: 'v0.6.0'})
+
+        self.assertFalse(
+            Contribution.objects.filter(user=op.user, contribution_type=self.ctype).exists()
+        )
+        # The version itself is still recorded.
+        op.refresh_from_db()
+        self.assertEqual(op.node_version_asimov, '0.6.0')
+
+    def test_banned_wallet_gets_no_version_or_award(self):
+        TargetNodeVersion.objects.create(
+            version='0.6.0', network='asimov', target_date=self.now, is_active=True,
+        )
+        op = self._operator('ban@x.com', '0x' + 'c' * 39 + '2')
+        w = self._wallet('0x' + 'c' * 39 + '3', op, status='banned')
+        self._sync('asimov', {w: 'v0.6.0'})
+
+        op.refresh_from_db()
+        self.assertIsNone(op.node_version_asimov)
+        self.assertFalse(
+            Contribution.objects.filter(user=op.user, contribution_type=self.ctype).exists()
+        )
+
+    def test_missing_scrape_does_not_downgrade_version(self):
+        """When one of an operator's wallets skips a scrape cycle, the recorded
+        version must not regress to the remaining (lower) wallet's version."""
+        op = self._operator('mono@x.com', '0x' + 'd' * 39 + '3')
+        op.node_version_asimov = '0.6.0'
+        op.save()
+        w_low = self._wallet('0x' + 'd' * 39 + '4', op)
+        # Only the 0.5.0 wallet reports this cycle.
+        self._sync('asimov', {w_low: 'v0.5.0'})
+
+        op.refresh_from_db()
+        self.assertEqual(op.node_version_asimov, '0.6.0')
+
+    def test_auto_created_target_broadcasts_notification(self):
+        from notifications.models import Notification
+
+        op1 = self._operator('n1@x.com', '0x' + 'e' * 39 + '2')
+        w1 = self._wallet('0x' + 'e' * 39 + '3', op1)
+        op2 = self._operator('n2@x.com', '0x' + 'e' * 39 + '4')
+        w2 = self._wallet('0x' + 'e' * 39 + '5', op2)
+        self._sync('asimov', {w1: 'v0.6.0', w2: 'v0.6.0'})
+
+        self.assertTrue(
+            Notification.objects.filter(title__contains='0.6.0').exists()
+        )
 
     def test_invisible_operator_gets_version_but_no_award(self):
         op = self._operator('f@x.com', '0x' + 'f' * 40, visible=False)
@@ -117,9 +205,11 @@ class NodeVersionSyncTests(TestCase):
             version='0.5.0', network='asimov',
             target_date=self.now - timedelta(days=10), is_active=True,
         )
-        op = self._operator('g@x.com', '0x' + '9' * 40)
-        w = self._wallet('0x' + '8' * 40, op)
-        self._sync('asimov', {w: 'v0.6.0'})
+        op1 = self._operator('g@x.com', '0x' + '9' * 40)
+        w1 = self._wallet('0x' + '8' * 40, op1)
+        op2 = self._operator('g2@x.com', '0x' + '9' * 39 + '1')
+        w2 = self._wallet('0x' + '8' * 39 + '1', op2)
+        self._sync('asimov', {w1: 'v0.6.0', w2: 'v0.6.0'})
 
         active = TargetNodeVersion.get_active(network='asimov')
         self.assertEqual(active.version, '0.6.0')
@@ -140,6 +230,9 @@ class NodeVersionSyncTests(TestCase):
     def test_quarantined_wallet_still_gets_version_and_award(self):
         """Version detection covers every reporting node, not just active wallets —
         a quarantined validator that upgrades must still record it and be awarded."""
+        TargetNodeVersion.objects.create(
+            version='0.6.0', network='asimov', target_date=self.now, is_active=True,
+        )
         op = self._operator('q@x.com', '0x' + '1' * 39 + '2')
         w = self._wallet('0x' + '2' * 39 + '3', op, status='quarantined')
         self._sync('asimov', {w: 'v0.6.0'})
@@ -156,6 +249,9 @@ class NodeVersionSyncTests(TestCase):
     def test_pep440_invalid_semver_does_not_abort_other_operators(self):
         """'0.6.0-genlayer.1' is valid semver but packaging.parse raises
         InvalidVersion on it; one such node must not abort the whole network."""
+        TargetNodeVersion.objects.create(
+            version='0.6.0', network='asimov', target_date=self.now, is_active=True,
+        )
         bad_op = self._operator('bad@x.com', '0x' + '3' * 39 + '4')
         bad_w = self._wallet('0x' + '4' * 39 + '5', bad_op)
         good_op = self._operator('good@x.com', '0x' + '5' * 39 + '6')

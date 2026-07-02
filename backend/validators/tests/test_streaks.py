@@ -66,15 +66,39 @@ class CleanStreakTests(TestCase):
         result = self._streak()
         self.assertEqual(result['days'], 2)
 
-    def test_missing_past_day_breaks_streak(self):
+    def test_missing_past_day_is_skipped_not_broken(self):
+        """A day with no data (sync outage on our side) must not reset the fleet's
+        streaks: it is skipped — it neither counts nor breaks."""
         _snap(self.wallet, self.today)
         # gap at today-1 (no snapshot at all)
         _snap(self.wallet, self.today - timedelta(days=2))
         result = self._streak()
+        self.assertEqual(result['days'], 2)
+        self.assertEqual(result['broken_by'], [])
+
+    def test_non_active_day_breaks_streak_with_status(self):
+        """A day spent quarantined breaks the streak even without Grafana data —
+        the on-chain sync owns the status column and its verdict is trusted."""
+        _snap(self.wallet, self.today)
+        _snap(self.wallet, self.today - timedelta(days=1),
+              status='quarantined', metrics='unknown', logs='unknown',
+              version='unknown', m_samples=0, l_samples=0)
+        result = self._streak()
         self.assertEqual(result['days'], 1)
+        self.assertEqual(result['broken_by'], ['status'])
 
     def test_version_shame_breaks_streak(self):
         _snap(self.wallet, self.today, version='shame')
+        result = self._streak()
+        self.assertEqual(result['days'], 0)
+        self.assertIn('version', result['broken_by'])
+
+    def test_version_only_observation_counts_as_observed(self):
+        """A rollup carrying only a version verdict (metrics/logs unknown, zero
+        samples) is still an observed day: it must break the streak, not be
+        skipped as not-yet-synced."""
+        _snap(self.wallet, self.today, metrics='unknown', logs='unknown',
+              version='shame', m_samples=0, l_samples=0)
         result = self._streak()
         self.assertEqual(result['days'], 0)
         self.assertIn('version', result['broken_by'])

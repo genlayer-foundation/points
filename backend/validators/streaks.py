@@ -54,6 +54,7 @@ def _has_observation(snap):
             or snap.logs_samples > 0
             or snap.metrics_status != 'unknown'
             or snap.logs_status != 'unknown'
+            or snap.version_status != 'unknown'
         )
     )
 
@@ -62,21 +63,23 @@ def _shame_dims(snap):
     """
     Dimensions that made a day non-clean, for explaining a broken streak.
 
-    Only attributes a reason when the day was actually observed. A missing day or
-    the edge of recorded history returns [] — we can't claim the node was shamed,
-    we simply have no data there.
+    The on-chain `status` is trusted whenever a snapshot row exists (the on-chain
+    sync owns that column); the observability dimensions are only attributed when
+    the Grafana sync actually observed the day — we can't claim a node was shamed
+    on a day we have no data for.
     """
-    if not _has_observation(snap):
+    if snap is None:
         return []
     dims = []
     if snap.status != 'active':
         dims.append('status')
-    if snap.metrics_status == 'shame' or snap.metrics_samples < 1:
-        dims.append('metrics')
-    if snap.logs_status == 'shame' or snap.logs_samples < 1:
-        dims.append('logs')
-    if snap.version_status == 'shame':
-        dims.append('version')
+    if _has_observation(snap):
+        if snap.metrics_status == 'shame' or snap.metrics_samples < 1:
+            dims.append('metrics')
+        if snap.logs_status == 'shame' or snap.logs_samples < 1:
+            dims.append('logs')
+        if snap.version_status == 'shame':
+            dims.append('version')
     return dims
 
 
@@ -99,44 +102,38 @@ def clean_streak(wallet_ids, now, index, max_days=DEFAULT_MAX_DAYS):
     semantics (one wallet id = per-node; several = per-operator-per-network).
 
     Returns {'days': int, 'broken_by': [dims], 'since': date | None}.
-    A partial (not-yet-synced) today never breaks the streak; an already-shamed
-    today breaks it at 0.
+
+    A day with no Grafana data while the node was active (partial today, a sync
+    outage, or pre-history) is SKIPPED — it neither counts nor breaks, so an infra
+    failure on our side can't reset every validator's streak. A day the node spent
+    non-active (per the on-chain sync) or was observed shamed breaks the streak.
     """
     wallet_ids = list(wallet_ids)
     today = timezone.localdate(now)
 
-    def snaps_on(day):
-        return [index.get((wid, day)) for wid in wallet_ids]
-
-    def clean_on(day):
-        return any(_is_clean(s) for s in snaps_on(day))
-
-    def observed_on(day):
-        return any(_has_observation(s) for s in snaps_on(day))
-
-    def dims_on(day):
+    def dims_on(snaps):
         dims = []
-        for s in snaps_on(day):
+        for s in snaps:
             for d in _shame_dims(s):
                 if d not in dims:
                     dims.append(d)
         return dims
 
-    # Skip an unsynced today so a partial day doesn't reset the streak.
-    start = 0
-    if not clean_on(today) and not observed_on(today):
-        start = 1
-
     days = 0
     since = None
     broken_by = []
-    for offset in range(start, max_days + 1):
+    for offset in range(max_days):
         day = today - timedelta(days=offset)
-        if clean_on(day):
+        snaps = [index.get((wid, day)) for wid in wallet_ids]
+        if any(_is_clean(s) for s in snaps):
             days += 1
             since = day
-        else:
-            broken_by = dims_on(day)
+            continue
+        non_active = any(s is not None and s.status != 'active' for s in snaps)
+        observed = any(_has_observation(s) for s in snaps)
+        if non_active or observed:
+            broken_by = dims_on(snaps)
             break
+        # No data for this day: skip it, don't break.
 
     return {'days': days, 'broken_by': broken_by, 'since': since}

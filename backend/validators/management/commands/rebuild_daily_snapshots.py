@@ -31,7 +31,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         days = options.get('days')
         observations = ValidatorWalletObservation.objects.all()
-        if days:
+        if days is not None:
             # Snap the cutoff to a local-day boundary: a mid-day cutoff would rebuild
             # the oldest day in range from only part of its observations and overwrite
             # that day's correctly-latched rollup with wrong values.
@@ -44,7 +44,9 @@ class Command(BaseCommand):
         observations = observations.order_by('wallet_id', 'observed_at')
 
         acc = {}
+        obs_count = 0
         for obs in observations.iterator():
+            obs_count += 1
             key = (obs.wallet_id, timezone.localdate(obs.observed_at))
             agg = acc.get(key)
             if agg is None:
@@ -96,5 +98,5 @@ class Command(BaseCommand):
             )
 
         self.stdout.write(self.style.SUCCESS(
-            f'Rebuilt {len(rollups)} daily rollup(s) from {observations.count()} observation(s).'
+            f'Rebuilt {len(rollups)} daily rollup(s) from {obs_count} observation(s).'
         ))

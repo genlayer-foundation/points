@@ -627,7 +627,10 @@ class GenLayerValidatorsService:
         """Record status snapshots for all wallets on this network for today."""
         from .models import ValidatorWallet, ValidatorWalletStatusSnapshot
 
-        today = timezone.now().date()
+        # Same day-bucketing as the Grafana rollup (grafana_service._record_history):
+        # both writers must agree on the (wallet, date) key or each day splits into
+        # two rows and the streak logic never sees a complete one.
+        today = timezone.localdate()
         wallets = ValidatorWallet.objects.filter(network=self.network_key)
 
         snapshots = [

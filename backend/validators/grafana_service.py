@@ -44,6 +44,12 @@ _STABLE_RE = re.compile(r'^\d+\.\d+\.\d+$')
 # node_version columns are varchar(50); anything longer is operator-controlled junk.
 _VERSION_MAX_LENGTH = 50
 
+# A stable release only becomes an auto-created target once this many distinct
+# operators report it: the version label is self-reported by the node being judged
+# and rewarded, so a single (malicious or misconfigured) operator must not be able
+# to pin a fleet-wide target and shame everyone else / bank the first-adopter bonus.
+MIN_OPERATORS_FOR_AUTO_TARGET = 2
+
 
 def _latch(prev, cur, severity):
     """Return whichever of prev/cur is worse (higher severity) — worst-of-day."""
@@ -154,10 +160,11 @@ class GrafanaValidatorStatusService:
                         else:
                             prev_parsed = _safe_parse(prev)
                             cur_parsed = _safe_parse(version)
-                            if (
-                                prev_parsed is not None
-                                and cur_parsed is not None
-                                and cur_parsed > prev_parsed
+                            # A parseable version always beats an unparseable one
+                            # (frame order must not pin a garbage label); between
+                            # two parseable ones the higher wins.
+                            if cur_parsed is not None and (
+                                prev_parsed is None or cur_parsed > prev_parsed
                             ):
                                 version_by_address[addr] = version
 
@@ -244,6 +251,14 @@ class GrafanaValidatorStatusService:
 
         prom_addresses, name_by_addr, log_counts, version_by_addr = cls.parse_response(data)
 
+        now = timezone.now()
+
+        # Version detection covers every reporting node on the network (any on-chain
+        # status), not just the active wallets checked for shame below — so it runs
+        # before the no-active-wallets early return. It can auto-create a target, so
+        # it also runs before the shame loop reads the active target.
+        cls._sync_node_versions(network, version_by_addr, now)
+
         wallets = list(
             ValidatorWallet.objects
             .filter(network=network, status='active')
@@ -264,8 +279,8 @@ class GrafanaValidatorStatusService:
 
         from contributions.node_upgrade.models import TargetNodeVersion
         target = TargetNodeVersion.get_active(network=network)
+        target_parseable = target is None or _safe_parse(target.version) is not None
 
-        now = timezone.now()
         on_count = 0
         shame_count = 0
         samples = []
@@ -279,11 +294,15 @@ class GrafanaValidatorStatusService:
 
             metrics_status = 'on' if metrics_ok else 'shame'
             logs_status = 'on' if logs_ok else 'shame'
-            # Only assess version when we actually observed a running version;
-            # a non-reporting node is already metrics/logs shame.
+            # Only assess version when we actually observed a running version AND
+            # both sides are PEP 440-parseable: _compare_versions falls back to a
+            # lexicographic string comparison on unparseable input, which would let
+            # a garbage `version` label read as up-to-date (or shame a valid one).
+            # A non-reporting node is already metrics/logs shame.
             version_status = (
                 compute_version_status(wallet, target, now, node_version=observed_version)['status']
-                if observed_version else 'unknown'
+                if observed_version and target_parseable and _safe_parse(observed_version) is not None
+                else 'unknown'
             )
 
             if metrics_status == 'shame':
@@ -329,10 +348,19 @@ class GrafanaValidatorStatusService:
             ],
         )
 
-        cls._record_history(samples, now)
-        # Version detection covers every reporting node on the network (any on-chain
-        # status), not just the active wallets checked for shame above.
-        cls._sync_node_versions(network, version_by_addr, now)
+        # A blackout of a whole datasource (no Prometheus series at all, or no Loki
+        # log counts at all) is an infra/config failure (rotated datasource UID,
+        # token scope, renamed network label), not the entire fleet failing at once.
+        # The live wallet statuses above self-heal on the next good run, but the
+        # daily rollup latches worst-of-day permanently — so skip the history write
+        # for suspect runs instead of shaming every validator's recorded day.
+        if not prom_addresses or not log_counts:
+            logger.error(
+                "Grafana sync for %s returned no %s data; skipping history latch for this run",
+                network, 'Prometheus' if not prom_addresses else 'Loki',
+            )
+        else:
+            cls._record_history(samples, now)
 
         logger.info(
             "Grafana sync for %s: %d on, %d shame (%d total)",
@@ -411,22 +439,30 @@ class GrafanaValidatorStatusService:
                     'node_version', 'metrics_samples', 'logs_samples',
                 ],
             )
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("Failed to record validator observation history: %s", exc)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("Failed to record validator observation history")
 
     @classmethod
     def _sync_node_versions(cls, network, version_by_address, now):
         """
         Grafana is the source of truth for node versions. From the versions observed
-        this run ({address_lower: version}, every reporting node regardless of
-        on-chain status):
-          1. auto-create a TargetNodeVersion when the fleet's highest STABLE release
-             exceeds the active target (first stable release wins, target_date=now);
-          2. set each linked operator's node_version_<network> to the highest
+        this run ({address_lower: version}):
+          1. auto-create a TargetNodeVersion when a STABLE release higher than the
+             active target is reported by at least MIN_OPERATORS_FOR_AUTO_TARGET
+             distinct linked operators (target_date=now);
+          2. raise each linked operator's node_version_<network> to the highest
              valid version across their nodes (bypassing the profile-save path via
              a direct .update());
           3. directly award the node-upgrade contribution when an operator first
              reaches the active target.
+
+        Trust boundary: the `version` label is self-reported by the node being
+        judged and rewarded. Only versions observed on wallets known to this DB and
+        linked to an operator count for anything, banned wallets count for nothing,
+        and no single operator can move the fleet-wide target on their own.
+
+        Any non-banned wallet qualifies for (2)/(3) — a quarantined/inactive node
+        that still reports can record its upgrade and earn the award.
 
         Best-effort at two levels: the whole step never raises, and one operator's
         failure never blocks version updates or awards for the others.
@@ -444,29 +480,13 @@ class GrafanaValidatorStatusService:
             if not normalized:
                 return
 
-            # (1) Auto-create target from the highest stable release observed. An
-            # active target with an unparseable version is never superseded blindly.
-            stable = [v for v in normalized.values() if _STABLE_RE.match(v)]
-            if stable:
-                highest = max(stable, key=parse_version)
-                active = TargetNodeVersion.get_active(network=network)
-                active_parsed = _safe_parse(active.version) if active else None
-                if not active or (
-                    active_parsed is not None and parse_version(highest) > active_parsed
-                ):
-                    TargetNodeVersion.objects.create(
-                        version=highest, network=network, target_date=now, is_active=True,
-                    )
-
-            active = TargetNodeVersion.get_active(network=network)
-            active_parsed = _safe_parse(active.version) if active else None
-
-            # (2) + (3): per linked operator, using their highest observed version.
-            # Any wallet on the network qualifies — a quarantined/inactive node that
-            # still reports can record its upgrade and earn the award.
+            # Versions only count when observed on a known, operator-linked,
+            # non-banned wallet: an unknown Prometheus series (test rig, stale or
+            # spoofed node) must not be able to move targets or earn points.
             wallets = (
                 ValidatorWallet.objects
                 .filter(network=network, operator__isnull=False)
+                .exclude(status='banned')
                 .select_related('operator', 'operator__user')
             )
             by_operator = {}
@@ -474,14 +494,58 @@ class GrafanaValidatorStatusService:
                 version = normalized.get((wallet.address or '').lower())
                 if version:
                     by_operator.setdefault(wallet.operator, []).append(version)
+            if not by_operator:
+                return
 
+            # (1) Auto-create target from the highest stable release reported by at
+            # least MIN_OPERATORS_FOR_AUTO_TARGET distinct operators, so one
+            # operator's self-reported label can't pin a bogus fleet-wide target
+            # (and farm the first-adopter bonus). An active target with an
+            # unparseable version is never superseded blindly.
+            operators_by_stable = {}
+            for operator, versions in by_operator.items():
+                for v in versions:
+                    if _STABLE_RE.match(v):
+                        operators_by_stable.setdefault(v, set()).add(operator.pk)
+            corroborated = [
+                v for v, ops in operators_by_stable.items()
+                if len(ops) >= MIN_OPERATORS_FOR_AUTO_TARGET
+            ]
+            if corroborated:
+                highest = max(corroborated, key=parse_version)
+                active = TargetNodeVersion.get_active(network=network)
+                active_parsed = _safe_parse(active.version) if active else None
+                if not active or (
+                    active_parsed is not None and parse_version(highest) > active_parsed
+                ):
+                    target = TargetNodeVersion.objects.create(
+                        version=highest, network=network, target_date=now, is_active=True,
+                    )
+                    logger.info(
+                        "Auto-created node version target %s for %s from Grafana",
+                        highest, network,
+                    )
+                    cls._broadcast_auto_target(target)
+
+            active = TargetNodeVersion.get_active(network=network)
+            active_parsed = _safe_parse(active.version) if active else None
+
+            # (2) + (3): per linked operator, using their highest observed version.
             field = f'node_version_{network}'
             for operator, versions in by_operator.items():
                 try:
                     highest = max(versions, key=parse_version)
-                    # (2) Direct update bypasses NodeVersionMixin.save() so we control
-                    # the award path (direct/approved).
-                    if getattr(operator, field, None) != highest:
+                    current = getattr(operator, field, None)
+                    current_parsed = _safe_parse(current) if current else None
+                    # (2) Monotonic write: only raise the stored version. A wallet
+                    # that skips one scrape must not transiently downgrade the
+                    # operator's version (and flip their wall-of-shame verdict).
+                    # Genuine downgrades are not reflected until admin-corrected.
+                    if current != highest and (
+                        current_parsed is None or parse_version(highest) > current_parsed
+                    ):
+                        # Direct update bypasses NodeVersionMixin.save() so we control
+                        # the award path (direct/approved).
                         Validator.objects.filter(pk=operator.pk).update(**{field: highest})
                         setattr(operator, field, highest)
                     # (3) Award once the operator (visible) reaches the active target.
@@ -493,13 +557,33 @@ class GrafanaValidatorStatusService:
                         and parse_version(highest) >= active_parsed
                     ):
                         cls._award_node_upgrade(operator, network, active, now)
-                except Exception as exc:
-                    logger.warning(
-                        "Node version sync failed for operator %s on %s: %s",
-                        operator.pk, network, exc,
+                except Exception:
+                    logger.exception(
+                        "Node version sync failed for operator %s on %s",
+                        operator.pk, network,
                     )
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("Failed to sync node versions for %s: %s", network, exc)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("Failed to sync node versions for %s", network)
+
+    @staticmethod
+    def _broadcast_auto_target(target):
+        """Notify validators of an auto-created target; the grace/bonus clock starts now."""
+        try:
+            from notifications.services import broadcast_target_node_version
+
+            broadcast_target_node_version(
+                target,
+                message=(
+                    f"Target node version for {target.get_network_display()} is now "
+                    f"{target.version} (detected on the network). Upgrade within the "
+                    "grace period to avoid the Wall of Shame; upgrading sooner earns "
+                    "more points."
+                ),
+            )
+        except Exception:
+            logger.exception(
+                "Failed to broadcast auto-created target %s", target.pk,
+            )
 
     @staticmethod
     def _award_node_upgrade(operator, network, target, now):
@@ -508,8 +592,6 @@ class GrafanaValidatorStatusService:
         observed upgrade. Dedup shares the exact key with the manual profile flow
         (`version {v} [{network}]`), so the two paths never double-award.
         """
-        import decimal
-
         from contributions.models import Contribution, ContributionType, SubmittedContribution
         from leaderboard.models import GlobalLeaderboardMultiplier
         from .node_version import calculate_early_upgrade_bonus
@@ -535,12 +617,16 @@ class GrafanaValidatorStatusService:
             _, multiplier_value = GlobalLeaderboardMultiplier.get_active_for_type(
                 contribution_type, at_date=now,
             )
-            allow_missing = False
         except GlobalLeaderboardMultiplier.DoesNotExist:
-            multiplier_value = decimal.Decimal('1.0')
-            allow_missing = True
+            # Removing the multiplier is how stewards pause a points program; the
+            # auto-award must respect that kill switch, not award at 1.0 anyway.
+            logger.warning(
+                "Skipping node-upgrade award for %s on %s: no active multiplier",
+                user.pk, network,
+            )
+            return
 
-        contribution = Contribution(
+        Contribution(
             user=user,
             contribution_type=contribution_type,
             points=points,
@@ -551,10 +637,7 @@ class GrafanaValidatorStatusService:
                 f"Automatic node upgrade to version {target.version} "
                 f"[{network}] (detected via Grafana)"
             ),
-        )
-        if allow_missing:
-            contribution._allow_missing_multiplier = True
-        contribution.save()  # post_save signal updates the leaderboard
+        ).save()  # post_save signal updates the leaderboard
 
     @classmethod
     def sync_all_networks(cls):

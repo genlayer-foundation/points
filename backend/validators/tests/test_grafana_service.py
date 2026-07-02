@@ -28,6 +28,47 @@ from validators.grafana_service import GrafanaValidatorStatusService
 EMPTY_GRAFANA_RESPONSE = {"results": {"prom": {"frames": []}, "loki": {"frames": []}}}
 
 
+# Only bob reporting (metrics + logs); alice absent. A partial-but-plausible run,
+# unlike EMPTY_GRAFANA_RESPONSE which reads as a datasource blackout.
+BOB_ONLY_GRAFANA_RESPONSE = {
+    "results": {
+        "prom": {
+            "frames": [
+                {
+                    "schema": {
+                        "fields": [
+                            {
+                                "name": "Value",
+                                "labels": {
+                                    "validator_name": "bob-validator",
+                                    "node": "0xBBBBbbbbBBBBbbbbBBBBbbbbBBBBbbbbBBBBbbbb",
+                                    "network": "bradbury-phase1",
+                                    "version": "v0.5.11",
+                                },
+                            }
+                        ]
+                    },
+                    "data": {"values": [[1700000000000], [1]]},
+                },
+            ]
+        },
+        "loki": {
+            "frames": [
+                {
+                    "schema": {
+                        "fields": [
+                            {"name": "Time", "labels": None},
+                            {"name": "Value", "labels": {"validator_name": "bob-validator"}},
+                        ]
+                    },
+                    "data": {"values": [[1700000000000], [7]]},
+                }
+            ]
+        },
+    }
+}
+
+
 # Two known validators reporting, one not.
 GRAFANA_RESPONSE_FIXTURE = {
     "results": {
@@ -151,6 +192,29 @@ class GrafanaParseResponseTests(TestCase):
                 version_by_addr['0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
                 '0.6.0',
                 f"order {order} let the stale version win",
+            )
+
+    def test_parseable_version_beats_unparseable_regardless_of_order(self):
+        # '0.6.0-genlayer.1' is valid semver but PEP 440-unparseable; frame order
+        # must not let it pin the address and suppress the comparable version.
+        def frame(version):
+            return {
+                "schema": {"fields": [{"name": "Value", "labels": {
+                    "validator_name": "alice-validator",
+                    "node": "0xAAAAaaaaAAAAaaaaAAAAaaaaAAAAaaaaAAAAaaaa",
+                    "version": version,
+                }}]},
+                "data": {"values": [[1700000000000], [1]]},
+            }
+
+        for order in (["v0.6.0-genlayer.1", "v0.6.5"], ["v0.6.5", "v0.6.0-genlayer.1"]):
+            body = {"results": {"prom": {"frames": [frame(v) for v in order]},
+                                "loki": {"frames": []}}}
+            _, _, _, version_by_addr = GrafanaValidatorStatusService.parse_response(body)
+            self.assertEqual(
+                version_by_addr['0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+                '0.6.5',
+                f"order {order} let the unparseable version win",
             )
 
     def test_overlong_version_label_is_truncated_not_fatal(self):
@@ -386,9 +450,9 @@ class GrafanaHistoryTests(TestCase):
         self.assertEqual(bob_snap.logs_samples, 0)
 
     def test_shame_latches_for_the_whole_day(self):
-        # Run 1: alice healthy. Run 2 (same day): alice reports nothing.
+        # Run 1: alice healthy. Run 2 (same day): others report, alice doesn't.
         self._sync(GRAFANA_RESPONSE_FIXTURE)
-        self._sync(EMPTY_GRAFANA_RESPONSE)
+        self._sync(BOB_ONLY_GRAFANA_RESPONSE)
 
         self.assertEqual(ValidatorWalletObservation.objects.filter(wallet=self.alice).count(), 2)
 
@@ -401,6 +465,81 @@ class GrafanaHistoryTests(TestCase):
         self.assertEqual(alice_snap.logs_samples, 1)
         # Latest observed version is retained even after the node stops reporting.
         self.assertEqual(alice_snap.node_version, '0.5.12')
+
+    def test_datasource_blackout_does_not_latch_history(self):
+        """A run where a whole datasource comes back empty (rotated UID, token
+        scope, renamed label) is an infra failure: the permanent daily rollup must
+        not shame every validator's day, even though live statuses still flip
+        (they self-heal on the next good run)."""
+        self._sync(GRAFANA_RESPONSE_FIXTURE)
+        self._sync(EMPTY_GRAFANA_RESPONSE)
+
+        # The blackout run recorded no observations.
+        self.assertEqual(ValidatorWalletObservation.objects.filter(wallet=self.alice).count(), 1)
+
+        alice_snap = ValidatorWalletStatusSnapshot.objects.get(wallet=self.alice)
+        self.assertEqual(alice_snap.metrics_status, 'on')
+        self.assertEqual(alice_snap.logs_status, 'on')
+
+        # Live status still reflects the (suspect) run — pre-existing behavior.
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.metrics_status, 'shame')
+
+    def test_unparseable_observed_version_records_unknown_status(self):
+        """A garbage `version` label must not string-compare its way into an 'on'
+        verdict (or shame a valid one) — it reads as version-unknown."""
+        TargetNodeVersion.objects.create(
+            version='0.6.0', network='bradbury',
+            target_date=timezone.now() - timedelta(days=30), is_active=True,
+        )
+        fixture = {
+            "results": {
+                "prom": {
+                    "frames": [
+                        {
+                            "schema": {
+                                "fields": [
+                                    {
+                                        "name": "Value",
+                                        "labels": {
+                                            "validator_name": "alice-validator",
+                                            "node": "0xAAAAaaaaAAAAaaaaAAAAaaaaAAAAaaaaAAAAaaaa",
+                                            "network": "bradbury-phase1",
+                                            "version": "zzz-not-a-version",
+                                        },
+                                    }
+                                ]
+                            },
+                            "data": {"values": [[1700000000000], [1]]},
+                        },
+                    ]
+                },
+                "loki": GRAFANA_RESPONSE_FIXTURE["results"]["loki"],
+            }
+        }
+        self._sync(fixture)
+
+        obs = ValidatorWalletObservation.objects.get(wallet=self.alice)
+        self.assertEqual(obs.version_status, 'unknown')
+
+    def test_no_active_wallets_still_syncs_versions(self):
+        """Version detection covers every reporting node regardless of on-chain
+        status — including when a network has zero active wallets."""
+        user = User.objects.create(
+            email='alice@x.com', address='0x9999999999999999999999999999999999999999',
+            visible=True,
+        )
+        operator = Validator.objects.create(user=user)
+        ValidatorWallet.objects.filter(pk=self.alice.pk).update(
+            status='quarantined', operator=operator,
+        )
+        ValidatorWallet.objects.exclude(pk=self.alice.pk).update(status='inactive')
+
+        stats = self._sync(GRAFANA_RESPONSE_FIXTURE)
+
+        self.assertEqual(stats['wallets'], 0)
+        operator.refresh_from_db()
+        self.assertEqual(operator.node_version_bradbury, '0.5.12')
 
     def _obs(self, wallet, *, metrics='on', logs='on', version='on'):
         return {
