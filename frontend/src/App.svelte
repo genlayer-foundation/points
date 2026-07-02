@@ -5,7 +5,6 @@
   import { onMount } from 'svelte';
   import Navbar from './components/Navbar.svelte';
   import Sidebar from './components/Sidebar.svelte';
-  import AnalyticsConsentBanner from './components/AnalyticsConsentBanner.svelte';
   import ToastContainer from './components/ToastContainer.svelte';
   import ProfileCompletionGuard from './components/ProfileCompletionGuard.svelte';
   import WhatsNewDialog from './components/WhatsNewDialog.svelte';
@@ -17,7 +16,7 @@
   import { normalizeReferralCode } from './lib/referrals.js';
   import { hasEarnedRole, journeyPath, rolePath } from './lib/roleState.js';
   import { installLinkInterceptor } from './lib/router.js';
-  import { analyticsConsent, getAnalyticsContext, setConnectWalletIntent, templateRoute, trackEvent, trackPageView } from './lib/analytics.js';
+  import { getAnalyticsContext, initializeAnalytics, setConnectWalletIntent, templateRoute, trackEvent, trackPageView } from './lib/analytics.js';
 
   // Early OAuth result detection — runs before routes mount.
   // Backend redirects here with ?oauth_platform=X&oauth_verified=true/false&oauth_error=...
@@ -326,11 +325,13 @@
     setRouteMeta($location);
   });
 
+  // Start loading gtag immediately; explicit route tracking below sends the
+  // landing page view without waiting for auth verification.
+  initializeAnalytics();
+
   let lastTrackedPageKey = '';
 
   $effect(() => {
-    if (!$authState.hasVerified) return;
-    if ($analyticsConsent !== 'granted') return;
     const pageKey = `${$location || '/'}?${$querystring || ''}`;
     if (pageKey === lastTrackedPageKey) return;
     lastTrackedPageKey = pageKey;
@@ -550,7 +551,6 @@
 <!-- Profile Completion Guard - Shows on all pages until profile is complete -->
 <ProfileCompletionGuard />
 <WhatsNewDialog />
-<AnalyticsConsentBanner />
 
 <style>
   @media (max-width: 767px) {

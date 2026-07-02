@@ -1,16 +1,17 @@
-import { get, writable } from 'svelte/store';
+import { get } from 'svelte/store';
 import { authState } from './auth.js';
 import { userStore } from './userStore.js';
 import { hasEarnedRole, hasStartedJourney, roleFunnelState } from './roleState.js';
 
 const ANALYTICS_SCRIPT_ID = 'google-analytics-gtag';
-const ANALYTICS_CONSENT_KEY = 'ga_analytics_consent';
 const TIMER_PREFIX = 'ga_funnel_timer:';
 const LIFECYCLE_TIME_PREFIX = 'ga_lifecycle_time:';
 const LIFECYCLE_FLAG_PREFIX = 'ga_lifecycle_flag:';
 const CONNECT_WALLET_INTENT_KEY = 'ga_connect_wallet_intent';
+const ATTRIBUTION_STORAGE_KEY = 'ga_landing_attribution';
 const MAX_STRING_LENGTH = 100;
 const MAX_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+const ATTRIBUTION_TTL_MS = 24 * 60 * 60 * 1000;
 
 const ROUTE_PARAM_KEYS = new Set([
   'route',
@@ -66,35 +67,86 @@ function canUseBrowser() {
   return typeof window !== 'undefined' && typeof document !== 'undefined';
 }
 
-function isDoNotTrackEnabled() {
-  if (!canUseBrowser()) return false;
-  return (
-    window.navigator?.doNotTrack === '1' ||
-    window.navigator?.doNotTrack === 'yes' ||
-    window.navigator?.globalPrivacyControl === true
-  );
-}
-
-function storedAnalyticsConsent() {
-  try {
-    if (!canUseBrowser()) return 'unknown';
-    if (isDoNotTrackEnabled()) return 'denied';
-    const value = localStorage.getItem(ANALYTICS_CONSENT_KEY);
-    return value === 'granted' || value === 'denied' ? value : 'unknown';
-  } catch {
-    return 'unknown';
-  }
-}
-
-export const analyticsConsent = writable(storedAnalyticsConsent());
-
-function hasAnalyticsConsent() {
-  return get(analyticsConsent) === 'granted' && !isDoNotTrackEnabled();
-}
+// GA4 derives traffic source (campaign, source, medium) from utm/click-id
+// params in page_location. The SPA drops the query string on navigation and
+// page_location is rebuilt from templated routes, so persist the campaign
+// params from the landing URL and re-attach them to every hit in this tab.
+const ATTRIBUTION_PARAMS = [
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'utm_id',
+  'gclid',
+  'gbraid',
+  'wbraid',
+  'fbclid',
+  'twclid',
+  'msclkid',
+  'ttclid',
+];
 
 function safeNow() {
   return Date.now ? Date.now() : new Date().getTime();
 }
+
+function extractAttributionQuery(search) {
+  try {
+    const params = new URLSearchParams(search || '');
+    const kept = new URLSearchParams();
+    for (const key of ATTRIBUTION_PARAMS) {
+      const value = params.get(key);
+      if (value) kept.set(key, value.slice(0, MAX_STRING_LENGTH));
+    }
+    const query = kept.toString();
+    return query ? `?${query}` : '';
+  } catch {
+    return '';
+  }
+}
+
+function readStoredAttributionQuery() {
+  try {
+    if (!canUseBrowser()) return '';
+    const raw = sessionStorage.getItem(ATTRIBUTION_STORAGE_KEY);
+    if (!raw) return '';
+    const stored = JSON.parse(raw);
+    const query = typeof stored?.query === 'string' ? stored.query : '';
+    const capturedAt = Number(stored?.capturedAt);
+    if (!query || !Number.isFinite(capturedAt) || safeNow() - capturedAt > ATTRIBUTION_TTL_MS) {
+      sessionStorage.removeItem(ATTRIBUTION_STORAGE_KEY);
+      return '';
+    }
+    return query;
+  } catch {
+    return '';
+  }
+}
+
+function writeStoredAttributionQuery(query) {
+  try {
+    if (!canUseBrowser() || !query) return;
+    sessionStorage.setItem(
+      ATTRIBUTION_STORAGE_KEY,
+      JSON.stringify({ query, capturedAt: safeNow() }),
+    );
+  } catch {
+    // Attribution persistence is best-effort only.
+  }
+}
+
+function captureAttributionQuery() {
+  if (!canUseBrowser()) return '';
+  const query = extractAttributionQuery(window.location.search);
+  if (query) {
+    writeStoredAttributionQuery(query);
+    return query;
+  }
+  return readStoredAttributionQuery();
+}
+
+const landingAttribution = captureAttributionQuery();
 
 function safeStorageKey(key) {
   return String(key || '').replace(/[^a-zA-Z0-9:_-]/g, '_').slice(0, 80);
@@ -211,8 +263,8 @@ function shouldDropKey(key) {
 function sanitizeString(key, value) {
   if (key === 'page_location') {
     const route = templateRoute(value);
-    if (canUseBrowser()) return `${window.location.origin}${route}`;
-    return route;
+    if (canUseBrowser()) return `${window.location.origin}${route}${landingAttribution}`;
+    return `${route}${landingAttribution}`;
   }
   if (ROUTE_PARAM_KEYS.has(key)) return templateRoute(value);
   if (ADDRESS_RE.test(value) || EMAIL_RE.test(value)) return undefined;
@@ -252,7 +304,7 @@ export function sanitizeAnalyticsParams(params = {}) {
 export function initializeAnalytics() {
   try {
     const id = trackingId();
-    if (!id || !canUseBrowser() || !hasAnalyticsConsent()) return false;
+    if (!id || !canUseBrowser()) return false;
 
     window.dataLayer = window.dataLayer || [];
     window.gtag = window.gtag || function gtag() {
@@ -283,10 +335,16 @@ export function initializeAnalytics() {
 export function trackEvent(name, params = {}) {
   try {
     if (!name || typeof name !== 'string') return false;
-    if (!hasAnalyticsConsent()) return false;
     if (!initializeAnalytics() || !window.gtag) return false;
     const safeName = name.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 40);
-    window.gtag('event', safeName, sanitizeAnalyticsParams(params));
+    // Always override page_location so gtag's auto-collected document
+    // location (which can contain raw wallet addresses in the path) never
+    // reaches GA — sanitization templates it to the route pattern.
+    const payload = {
+      page_location: canUseBrowser() ? window.location.pathname : '/',
+      ...params,
+    };
+    window.gtag('event', safeName, sanitizeAnalyticsParams(payload));
     return true;
   } catch {
     return false;
@@ -449,26 +507,5 @@ export function getAnalyticsContext(extra = {}) {
     return sanitizeAnalyticsParams(context);
   } catch {
     return sanitizeAnalyticsParams(extra);
-  }
-}
-
-export function setAnalyticsConsent(granted) {
-  try {
-    const status = granted && !isDoNotTrackEnabled() ? 'granted' : 'denied';
-    if (canUseBrowser()) {
-      localStorage.setItem(ANALYTICS_CONSENT_KEY, status);
-      if (window.gtag) {
-        window.gtag('consent', 'update', {
-          analytics_storage: status === 'granted' ? 'granted' : 'denied',
-        });
-      }
-    }
-    analyticsConsent.set(status);
-    if (status === 'granted') initializeAnalytics();
-    return status === 'granted';
-  } catch {
-    analyticsConsent.set(granted ? 'granted' : 'denied');
-    if (granted) initializeAnalytics();
-    return Boolean(granted);
   }
 }
