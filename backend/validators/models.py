@@ -116,7 +116,20 @@ class ValidatorWalletStatusSnapshot(BaseModel):
     Daily snapshot of a validator wallet's status.
     Used for uptime lookback logic to determine if a wallet was active
     within a rolling window of days.
+
+    The observability columns (metrics/logs/version status + sample counters +
+    node_version) are a per-day rollup of ValidatorWalletObservation rows, latched
+    worst-of-day: a dimension is 'shame' if it was shame at ANY observation that day.
+    The on-chain `status` column is owned by the on-chain sync; the Grafana sync only
+    writes the observability columns (so the two syncs never clobber each other).
     """
+    VERSION_STATUS_CHOICES = [
+        ('on', 'On'),
+        ('warning', 'Warning'),
+        ('shame', 'Shame'),
+        ('unknown', 'Unknown'),
+    ]
+
     wallet = models.ForeignKey(
         ValidatorWallet,
         on_delete=models.CASCADE,
@@ -124,6 +137,32 @@ class ValidatorWalletStatusSnapshot(BaseModel):
     )
     date = models.DateField(db_index=True)
     status = models.CharField(max_length=20, choices=ValidatorWallet.STATUS_CHOICES)
+
+    # Latched worst-of-day observability verdict (from ValidatorWalletObservation).
+    metrics_status = models.CharField(
+        max_length=10, choices=ValidatorWallet.GRAFANA_STATUS_CHOICES, default='unknown',
+        help_text="Worst-of-day metrics verdict: shame at any observation shames the day"
+    )
+    logs_status = models.CharField(
+        max_length=10, choices=ValidatorWallet.GRAFANA_STATUS_CHOICES, default='unknown',
+        help_text="Worst-of-day logs verdict: shame at any observation shames the day"
+    )
+    version_status = models.CharField(
+        max_length=10, choices=VERSION_STATUS_CHOICES, default='unknown',
+        help_text="Best-of-day version verdict vs the active target (an upgrade clears the day)"
+    )
+    node_version = models.CharField(
+        max_length=50, blank=True,
+        help_text="Last node version observed by the Grafana sync that day"
+    )
+    metrics_samples = models.PositiveIntegerField(
+        default=0,
+        help_text="Observations that day where the node was reporting metrics"
+    )
+    logs_samples = models.PositiveIntegerField(
+        default=0,
+        help_text="Observations that day where the node was reporting logs"
+    )
 
     class Meta:
         ordering = ['-date']
@@ -133,6 +172,55 @@ class ValidatorWalletStatusSnapshot(BaseModel):
 
     def __str__(self):
         return f"{self.wallet.address[:10]}... {self.date} ({self.status})"
+
+
+class ValidatorWalletObservation(BaseModel):
+    """
+    Append-only log of a single Grafana-sync observation for a validator wallet.
+
+    One row is written per active wallet per Grafana sync run, capturing the
+    point-in-time observability verdict plus the on-chain status and the node
+    version reported to Prometheus. This is the raw source of truth from which the
+    daily ValidatorWalletStatusSnapshot rollup is materialised (and rebuildable).
+    """
+    wallet = models.ForeignKey(
+        ValidatorWallet,
+        on_delete=models.CASCADE,
+        related_name='observations'
+    )
+    observed_at = models.DateTimeField(
+        db_index=True,
+        help_text="When the Grafana sync recorded this observation"
+    )
+    onchain_status = models.CharField(
+        max_length=20, choices=ValidatorWallet.STATUS_CHOICES,
+        help_text="Wallet's on-chain status at observation time"
+    )
+    metrics_status = models.CharField(
+        max_length=10, choices=ValidatorWallet.GRAFANA_STATUS_CHOICES,
+        help_text="Whether the node was reporting metrics at this observation"
+    )
+    logs_status = models.CharField(
+        max_length=10, choices=ValidatorWallet.GRAFANA_STATUS_CHOICES,
+        help_text="Whether the node was reporting logs at this observation"
+    )
+    version_status = models.CharField(
+        max_length=10, choices=ValidatorWalletStatusSnapshot.VERSION_STATUS_CHOICES, default='unknown',
+        help_text="Version verdict vs the active target at this observation"
+    )
+    node_version = models.CharField(
+        max_length=50, blank=True,
+        help_text="Node version reported to Prometheus at this observation"
+    )
+
+    class Meta:
+        ordering = ['-observed_at']
+        indexes = [
+            models.Index(fields=['wallet', 'observed_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.wallet.address[:10]}... @ {self.observed_at:%Y-%m-%d %H:%M} ({self.metrics_status}/{self.logs_status})"
 
 
 class SyncLock(models.Model):

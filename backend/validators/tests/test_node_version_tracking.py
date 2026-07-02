@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError
 from django.forms import modelform_factory
 from validators.models import Validator
 from validators.node_version import calculate_early_upgrade_bonus
-from contributions.models import ContributionType, SubmittedContribution, Category
+from contributions.models import ContributionType, Category
 from contributions.node_upgrade.models import TargetNodeVersion
 from leaderboard.models import GlobalLeaderboardMultiplier
 
@@ -84,71 +84,6 @@ class NodeVersionTrackingTestCase(TestCase):
         self.assertEqual(calculate_early_upgrade_bonus(now, now + timedelta(days=10)), 1)
 
 
-    def test_submission_creation_with_calculated_points(self):
-        """Test that updating node version creates a submission with calculated points."""
-        # Update validator to target version
-        self.validator.node_version_asimov = '2.0.0'
-        self.validator.save()
-
-        # Check that a submission was created
-        submissions = SubmittedContribution.objects.filter(user=self.user)
-        self.assertEqual(submissions.count(), 1)
-
-        submission = submissions.first()
-        self.assertEqual(submission.contribution_type, self.contribution_type)
-        self.assertEqual(submission.state, 'pending')
-
-        # Check suggested points (should be 4 for same-day upgrade)
-        self.assertEqual(submission.proposed_points, 4)
-
-        # Check that no evidence was created for automatic submission
-        self.assertEqual(submission.evidence_items.count(), 0)
-
-    def test_submission_with_delayed_upgrade(self):
-        """Test points calculation with delayed upgrade."""
-        # Update target to have been available 3 days ago
-        self.target.target_date = timezone.now() - timedelta(days=3)
-        self.target.save()
-
-        # Update to target version
-        self.validator.node_version_asimov = '2.0.0'
-        self.validator.save()
-
-        # Check submission
-        submission = SubmittedContribution.objects.filter(user=self.user).first()
-        self.assertIsNotNone(submission)
-
-        # Should have 1 point (minimum for 3+ days delay)
-        self.assertEqual(submission.proposed_points, 1)
-
-    def test_no_duplicate_submissions(self):
-        """Test that duplicate submissions are not created for the same target."""
-        # First upgrade
-        self.validator.node_version_asimov = '2.0.0'
-        self.validator.save()
-
-        # Try to create another submission for the same target
-        self.validator.node_version_asimov = '2.0.1'  # Minor version change
-        self.validator.save()
-
-        # Should still only have one submission
-        submissions = SubmittedContribution.objects.filter(user=self.user)
-        self.assertEqual(submissions.count(), 1)
-
-    def test_invisible_user_no_submission(self):
-        """Test that invisible users don't get submissions."""
-        # Make user invisible
-        self.user.visible = False
-        self.user.save()
-
-        # Update validator version
-        self.validator.node_version_asimov = '2.0.0'
-        self.validator.save()
-
-        # Should not create submission
-        submissions = SubmittedContribution.objects.filter(user=self.user)
-        self.assertEqual(submissions.count(), 0)
-
     def test_per_network_targets(self):
         """Test that targets are per-network and deactivation is scoped."""
         # Create a bradbury target
@@ -168,30 +103,6 @@ class NodeVersionTrackingTestCase(TestCase):
         bradbury_active = TargetNodeVersion.get_active(network='bradbury')
         self.assertEqual(asimov_active.version, '2.0.0')
         self.assertEqual(bradbury_active.version, '3.0.0')
-
-    def test_bradbury_version_creates_submission(self):
-        """Test that updating bradbury version creates a separate submission."""
-        # Create bradbury target
-        bradbury_target = TargetNodeVersion.objects.create(
-            version='3.0.0',
-            network='bradbury',
-            target_date=timezone.now() + timedelta(days=7),
-            is_active=True
-        )
-
-        # Update both versions
-        self.validator.node_version_asimov = '2.0.0'
-        self.validator.node_version_bradbury = '3.0.0'
-        self.validator.save()
-
-        # Should have two submissions (one per network)
-        submissions = SubmittedContribution.objects.filter(user=self.user)
-        self.assertEqual(submissions.count(), 2)
-
-        # Check dedup keys in notes
-        notes = list(submissions.values_list('notes', flat=True))
-        self.assertTrue(any('[asimov]' in n for n in notes))
-        self.assertTrue(any('[bradbury]' in n for n in notes))
 
     def test_deactivate_only_same_network(self):
         """Test that activating a new target only deactivates same network."""

@@ -437,8 +437,8 @@ const routes = {
   - Shows participant stats, contributions, validator status
   - Shows "Edit Profile" button if viewing own profile
 - **`/profile`** - Edit profile page (authenticated users only)
-  - Component: `EditProfile.svelte`
-  - Only allows editing display name and node version
+  - Component: `ProfileEdit.svelte`
+  - Allows editing display name and profile fields; node version is shown read-only (Grafana-sourced, auto-detected from node metrics — not editable)
   - Redirects to public profile after save with success message
 
 ### API Integration (`src/lib/api.js`)
@@ -604,7 +604,7 @@ Investor-oriented home page (`routes/Overview.svelte`), top to bottom: hero → 
   - reCAPTCHA token validated on backend before submission
   - Uses VITE_RECAPTCHA_SITE_KEY from environment (falls back to test key)
 - `EditSubmission.svelte` - Edit submitted contributions (supports URL and description evidence only - no file uploads)
-- `EditProfile.svelte` - User profile editing (name and node version)
+- `ProfileEdit.svelte` - User profile editing (name and profile fields; node version shown read-only, Grafana-sourced)
 - `Profile.svelte` - Public participant profile view
 
 ### Wallet Integration (`src/lib/wallet/`)

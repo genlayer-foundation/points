@@ -4,6 +4,16 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Node version is no longer edited by hand in the portal — it is detected automatically from your running node and shown read-only on your profile, so it always reflects reality instead of whatever was last typed in
+
+- Node upgrades are now detected automatically from live node metrics instead of relying on validators to edit their profile: when the network's first validator is seen running a new stable release, that version becomes the official upgrade target (the number of validators required to confirm a new version is configurable via a setting) and all validators are notified, each validator's running version is kept in sync from what their node actually reports (it can only move forward, so a brief reporting gap never shows a downgrade), and the node-upgrade points (more for upgrading sooner) are awarded automatically once a validator is seen on the target version — no manual submission or steward review needed. Only versions reported by known, non-banned validator nodes count, and stewards can pause the automatic points at any time by removing the node-upgrade multiplier
+
+- The Wall of Shame now shows how many consecutive days each validator has gone without being shamed — a clean-uptime streak per node and per network (Asimov and Bradbury), alongside the reasons a streak was broken. An operator's network streak stays alive as long as at least one of their nodes was healthy that day, days spent quarantined or inactive break it, and days where the monitoring itself had no data are simply skipped so an outage on our side never resets anyone's streak
+
+- The portal now keeps a daily history of each validator's observability: every Grafana sync records whether each node was reporting metrics, reporting logs, and running an up-to-date version, and rolls it up per day (a day counts as shamed if the node was shamed at any point that day). This history powers the uptime streaks above and is the foundation for future days-in-shame reporting; it starts accumulating from deploy since past days were never recorded
+
+- The grace period before a validator running an outdated node version is flagged on the Wall of Shame is now configurable via a setting (default three days), instead of a fixed three-day window baked into the code
+
 - Grafana dashboards can now read a dedicated minimal validator roster endpoint that lists every validator wallet with its network, on-chain node address, display name, status, operator address, and (for visible operators) linked account, kept intentionally small and separate from the Wall of Shame so monitoring can join validator identity onto live node metrics (2aaf68f)
 
 - Contribution types can now require evidence URLs in groups, so a single submission can be made to provide both a contract code link (GenLayer Studio import or GitHub repository) and a deployed-contract explorer link (Asimov, Bradbury, or Studio explorer) together; GenLayer explorer contract addresses are now recognized as their own evidence type (25f90869)

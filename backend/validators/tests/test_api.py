@@ -39,21 +39,12 @@ class ValidatorAPITestCase(APITestCase):
         response = self.client.get('/api/v1/validators/me/')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_patch_validator_profile_does_not_create_missing_profile(self):
-        """PATCH /me must not create a validator profile."""
+    def test_patch_validator_profile_is_not_allowed(self):
+        """/me is read-only: node versions come from Grafana, not the portal."""
         response = self.client.patch('/api/v1/validators/me/', {
             'node_version_asimov': '1.2.3'
         })
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertFalse(Validator.objects.filter(user=self.user).exists())
-
-    def test_patch_validator_profile_rejects_unsupported_keys(self):
-        """PATCH /me rejects arbitrary keys and does not create a profile."""
-        response = self.client.patch('/api/v1/validators/me/', {
-            'unsupported_field': 'x',
-        })
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         self.assertFalse(Validator.objects.filter(user=self.user).exists())
 
     def test_regular_user_cannot_mutate_arbitrary_validator_profile(self):
@@ -81,20 +72,17 @@ class ValidatorAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(Validator.objects.filter(user=self.user).exists())
 
-    def test_update_validator_profile(self):
-        """Test updating existing validator profile"""
-        # Create profile first
+    def test_patch_does_not_change_node_version(self):
+        """A PATCH to /me cannot overwrite the Grafana-sourced node version."""
         Validator.objects.create(user=self.user, node_version_asimov='1.0.0')
 
-        # Update it
         response = self.client.patch('/api/v1/validators/me/', {
             'node_version_asimov': '2.0.0'
         })
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
-        # Verify update
         validator = Validator.objects.get(user=self.user)
-        self.assertEqual(validator.node_version_asimov, '2.0.0')
+        self.assertEqual(validator.node_version_asimov, '1.0.0')
 
     def test_get_validator_profile_exists(self):
         """Test getting existing validator profile"""
@@ -104,19 +92,6 @@ class ValidatorAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('node_version_asimov', response.data)
         self.assertEqual(response.data['node_version_asimov'], '1.2.3')
-
-    def test_update_bradbury_version(self):
-        """Test updating bradbury version"""
-        Validator.objects.create(user=self.user, node_version_asimov='1.0.0')
-
-        response = self.client.patch('/api/v1/validators/me/', {
-            'node_version_bradbury': '2.0.0'
-        })
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        validator = Validator.objects.get(user=self.user)
-        self.assertEqual(validator.node_version_bradbury, '2.0.0')
-        self.assertEqual(validator.node_version_asimov, '1.0.0')
 
 
 @override_settings(CRON_SYNC_TOKEN='test-cron-token')
