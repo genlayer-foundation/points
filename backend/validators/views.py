@@ -23,6 +23,7 @@ from .permissions import IsCronToken
 from .genlayer_validators_service import GenLayerValidatorsService
 from .grafana_service import GrafanaValidatorStatusService
 from .version_status import compute_version_status
+from . import streaks as streaks_lib
 from users.models import User
 from users.serializers import ValidatorSerializer, UserSerializer
 from contributions.models import Contribution, ContributionType
@@ -823,8 +824,13 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         return reasons
 
     @classmethod
-    def _build_validator_groups(cls, wallets, targets, now):
+    def _build_validator_groups(cls, wallets, targets, now, snapshot_index=None,
+                                streaks_by_wallet_id=None):
         groups = {}
+        snapshot_index = snapshot_index or {}
+        streaks_by_wallet_id = streaks_by_wallet_id or {}
+        # Collect each operator+network's wallet ids for the any-node-clean roll-up.
+        operator_network_wallet_ids = {}
 
         for wallet in wallets:
             operator_key = (
@@ -870,6 +876,11 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
                     **reason,
                 })
 
+            node_streak = streaks_by_wallet_id.get(wallet.id) or {}
+            operator_network_wallet_ids.setdefault(
+                (operator_key, wallet.network), []
+            ).append(wallet.id)
+
             group['networks'].append({
                 'network': wallet.network,
                 'wallet_id': wallet.id,
@@ -883,6 +894,8 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
                 'target_version': version_context['target_version'],
                 'status': network_status,
                 'reasons': reasons,
+                'clean_streak_days': node_streak.get('days'),
+                'clean_streak_broken_by': node_streak.get('broken_by', []),
             })
 
         priority = {'shame': 0, 'warning': 1, 'unknown': 2, 'on': 3}
@@ -901,6 +914,28 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
             else:
                 group['status'] = 'on'
             group['networks'].sort(key=lambda item: network_order.get(item['network'], 99))
+
+            # Per-network operator streak, any-node-clean across the operator's
+            # wallets on that network (a network-day is clean if ≥1 node was clean).
+            network_streaks = {}
+            for (op_key, net), wallet_ids in operator_network_wallet_ids.items():
+                if op_key != group['id']:
+                    continue
+                network_streaks[net] = streaks_lib.clean_streak(
+                    wallet_ids, now, snapshot_index
+                )
+            group['network_streaks'] = {
+                net: {
+                    'network': net,
+                    'clean_streak_days': streak['days'],
+                    'clean_streak_broken_by': streak['broken_by'],
+                    'since': streak['since'],
+                }
+                for net, streak in sorted(
+                    network_streaks.items(),
+                    key=lambda kv: network_order.get(kv[0], 99),
+                )
+            }
             group['shame_reasons'].sort(
                 key=lambda item: (
                     network_order.get(item['network'], 99),
@@ -1016,8 +1051,21 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
             default=None,
         )
 
-        serializer = WallOfShameSerializer(wallets, many=True)
-        validators = self._build_validator_groups(wallets, targets, now)
+        # Consecutive "not shamed" uptime streaks, from the stored daily rollup.
+        # One snapshot query for every wallet on the page, then compute in memory.
+        snapshot_index = streaks_lib.load_snapshot_index([w.id for w in wallets], now)
+        streaks_by_wallet_id = {
+            w.id: streaks_lib.clean_streak([w.id], now, snapshot_index)
+            for w in wallets
+        }
+
+        serializer = WallOfShameSerializer(
+            wallets, many=True,
+            context={'streaks_by_wallet_id': streaks_by_wallet_id},
+        )
+        validators = self._build_validator_groups(
+            wallets, targets, now, snapshot_index, streaks_by_wallet_id,
+        )
         on_count = sum(1 for validator in validators if validator['status'] == 'on')
         shame_count = sum(1 for validator in validators if validator['status'] == 'shame')
         warning_count = sum(1 for validator in validators if validator['status'] == 'warning')

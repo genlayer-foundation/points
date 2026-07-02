@@ -551,8 +551,31 @@ class WallOfShameEndpointTests(TestCase):
         first = response.data['wallets'][0]
         for field in ('metrics_status', 'logs_status', 'last_grafana_check_at',
                       'address', 'network', 'operator_address', 'moniker',
-                      'operator_user', 'explorer_url'):
+                      'operator_user', 'explorer_url',
+                      'clean_streak_days', 'clean_streak_broken_by'):
             self.assertIn(field, first)
+
+    def test_clean_streak_days_reflects_history(self):
+        from datetime import timedelta as _td
+        from django.utils import timezone as _tz
+        from validators.models import ValidatorWalletStatusSnapshot
+        today = _tz.localdate(_tz.now())
+        for i in range(3):
+            ValidatorWalletStatusSnapshot.objects.create(
+                wallet=self.ok, date=today - _td(days=i), status='active',
+                metrics_status='on', logs_status='on', version_status='on',
+                metrics_samples=2, logs_samples=2,
+            )
+        response = self.client.get('/api/v1/validators/wallets/wall-of-shame/')
+        ok_row = next(w for w in response.data['wallets'] if w['id'] == self.ok.id)
+        self.assertEqual(ok_row['clean_streak_days'], 3)
+        # Grouped output exposes the per-network operator streak too.
+        group = next(
+            g for g in response.data['validators']
+            if any(n['wallet_id'] == self.ok.id for n in g['networks'])
+        )
+        self.assertIn('network_streaks', group)
+        self.assertEqual(group['network_streaks'][self.ok.network]['clean_streak_days'], 3)
 
     def test_stats_counts(self):
         response = self.client.get('/api/v1/validators/wallets/wall-of-shame/')
