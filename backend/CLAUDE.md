@@ -101,7 +101,15 @@ backend/
 
 ### Node Upgrade (Sub-app)
 - **Models**: `contributions/node_upgrade/models.py`
-  - TargetNodeVersion - Active target version for node upgrades
+  - TargetNodeVersion - Active target version for node upgrades. Per-network, single
+    `is_active` per network. The version-shame grace period — how many days after
+    `target_date` a node still behind is marked version "shame" — is the global
+    `settings.NODE_VERSION_SHAME_GRACE_DAYS` (default 3, env-overridable), not a per-target field.
+- **Version verdict**: `validators/version_status.py::compute_version_status(wallet, target, now, node_version=...)`
+  is the shared helper (used by the Wall of Shame view and the Grafana sync) that returns
+  `on`/`warning`/`shame`/`unknown` using the `NODE_VERSION_SHAME_GRACE_DAYS` setting. The viewset's
+  `ValidatorWalletViewSet._version_context` delegates to it; the Grafana sync passes the
+  Prometheus-observed version explicitly.
 - **Admin**: `contributions/node_upgrade/admin.py`
   - TargetNodeVersion admin interface
 - **Views**: `contributions/views.py`
@@ -484,6 +492,7 @@ Located in `.env` file:
 - `GRAFANA_PROM_DS_UID` - Prometheus datasource UID (default `grafanacloud-prom`)
 - `GRAFANA_LOKI_DS_UID` - Loki datasource UID (default `grafanacloud-logs`)
 - `GRAFANA_ASIMOV_LABEL` / `GRAFANA_BRADBURY_LABEL` - Override the `network` label values Grafana queries use per testnet (defaults: `asimov-phase5`, `bradbury-phase1`)
+- `NODE_VERSION_SHAME_GRACE_DAYS` - Grace period (days) after a target's `target_date` before a node still behind it is version-shamed, applied globally (default `3`)
 - `SORSA_API_BASE_URL` - Sorsa API base URL (default `https://api.sorsa.io/v3`); used for Twitter follow verification in social_tasks and X follower counts in overview metrics.
 - `SORSA_API_KEY` - Sorsa API key sent in the `ApiKey` header (secret, required). Store in AWS SSM (`/tally/{env}/sorsa_api_key`) for production.
 - Note: the Sorsa request timeout and follow endpoint path are intentionally code constants in `social_tasks/sorsa_client.py`, not env vars. Changing the endpoint requires a code deploy anyway because the response parser lives in the same file.

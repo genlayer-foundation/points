@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- The grace period before a validator running an outdated node version is flagged on the Wall of Shame is now configurable via a setting (default three days), instead of a fixed three-day window baked into the code
+
 - Grafana dashboards can now read a dedicated minimal validator roster endpoint that lists every validator wallet with its network, on-chain node address, display name, status, operator address, and (for visible operators) linked account, kept intentionally small and separate from the Wall of Shame so monitoring can join validator identity onto live node metrics (2aaf68f)
 
 - Contribution types can now require evidence URLs in groups, so a single submission can be made to provide both a contract code link (GenLayer Studio import or GitHub repository) and a deployed-contract explorer link (Asimov, Bradbury, or Studio explorer) together; GenLayer explorer contract addresses are now recognized as their own evidence type (25f90869)

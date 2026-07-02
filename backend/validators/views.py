@@ -1,7 +1,6 @@
 import logging
 import re
 import uuid
-from datetime import timedelta
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -23,6 +22,7 @@ from .serializers import (
 from .permissions import IsCronToken
 from .genlayer_validators_service import GenLayerValidatorsService
 from .grafana_service import GrafanaValidatorStatusService
+from .version_status import compute_version_status
 from users.models import User
 from users.serializers import ValidatorSerializer, UserSerializer
 from contributions.models import Contribution, ContributionType
@@ -325,7 +325,6 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
     SYNC_LOCK_STALE_AFTER_SECONDS = 1800
     SYNC_LOCK_HEARTBEAT_INTERVAL_SECONDS = 60
     WALL_OF_SHAME_CACHE_TTL_SECONDS = 60
-    VERSION_SHAME_GRACE_DAYS = 3
 
     def get_queryset(self):
         """
@@ -719,45 +718,8 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
 
     @classmethod
     def _version_context(cls, wallet, target, now):
-        field_name = f'node_version_{wallet.network}'
-        node_version = getattr(wallet.operator, field_name, None) if wallet.operator else None
-        target_version = target.version if target else None
-        target_date = target.target_date if target else None
-
-        context = {
-            'status': 'unknown' if not target else 'on',
-            'node_version': node_version,
-            'target_version': target_version,
-            'target_date': target_date,
-            'target_elapsed_days': None,
-            'grace_days': cls.VERSION_SHAME_GRACE_DAYS,
-            'grace_days_remaining': None,
-            'shame_started_at': None,
-        }
-        if not target or not target_date or target_date > now:
-            return context
-
-        context['target_elapsed_days'] = max(0, (now - target_date).days)
-        matches_target = bool(
-            wallet.operator
-            and node_version
-            and wallet.operator.version_matches_or_higher(target.version, node_version=node_version)
-        )
-        if matches_target:
-            context['status'] = 'on'
-            return context
-
-        if context['target_elapsed_days'] <= cls.VERSION_SHAME_GRACE_DAYS:
-            context['status'] = 'warning'
-            context['grace_days_remaining'] = max(
-                0,
-                cls.VERSION_SHAME_GRACE_DAYS - context['target_elapsed_days'],
-            )
-            return context
-
-        context['status'] = 'shame'
-        context['shame_started_at'] = target_date + timedelta(days=cls.VERSION_SHAME_GRACE_DAYS)
-        return context
+        # Grace-aware version verdict; shared with the Grafana sync.
+        return compute_version_status(wallet, target, now)
 
     @classmethod
     def _sync_shame_started_at(cls, wallets, targets, now):
