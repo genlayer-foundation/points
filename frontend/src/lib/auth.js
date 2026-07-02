@@ -16,6 +16,8 @@ const createAuthStore = () => {
     provider: null,
     loading: false,
     error: null,
+    pendingSignup: false,
+    pendingAddress: null,
     hasVerified: false  // Track if we've verified in this session
   };
 
@@ -49,7 +51,14 @@ const createAuthStore = () => {
       return currentState;
     },
     setAuthenticated: (isAuthenticated, address = null) => {
-      update(state => ({ ...state, isAuthenticated, address, hasVerified: true }));
+      update(state => ({
+        ...state,
+        isAuthenticated,
+        address,
+        pendingSignup: false,
+        pendingAddress: null,
+        hasVerified: true
+      }));
       if (isAuthenticated && address) {
         localStorage.setItem('tally-auth', JSON.stringify({ isAuthenticated, address }));
       } else {
@@ -58,6 +67,17 @@ const createAuthStore = () => {
     },
     resetVerification: () => {
       update(state => ({ ...state, hasVerified: false }));
+    },
+    setPendingSignup: (address) => {
+      update(state => ({
+        ...state,
+        isAuthenticated: false,
+        address,
+        pendingSignup: true,
+        pendingAddress: address,
+        hasVerified: true
+      }));
+      localStorage.removeItem('tally-auth');
     },
     setLoading: (loading) => update(state => ({ ...state, loading })),
     setError: (error) => {
@@ -123,7 +143,13 @@ const API_ENDPOINTS = {
   LOGIN: `${API_BASE_URL}/api/auth/login/`,
   VERIFY: `${API_BASE_URL}/api/auth/verify/`,
   LOGOUT: `${API_BASE_URL}/api/auth/logout/`,
-  REFRESH: `${API_BASE_URL}/api/auth/refresh/`
+  REFRESH: `${API_BASE_URL}/api/auth/refresh/`,
+  SIGNUP_EMAIL_START: `${API_BASE_URL}/api/auth/signup/email/start/`,
+  SIGNUP_EMAIL_RESEND: `${API_BASE_URL}/api/auth/signup/email/resend/`,
+  SIGNUP_EMAIL_CONFIRM: `${API_BASE_URL}/api/auth/signup/email/confirm/`,
+  EMAIL_START: `${API_BASE_URL}/api/auth/email/start/`,
+  EMAIL_RESEND: `${API_BASE_URL}/api/auth/email/resend/`,
+  EMAIL_CONFIRM: `${API_BASE_URL}/api/auth/email/confirm/`
 };
 
 /**
@@ -323,6 +349,16 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet',
       localStorage.removeItem('referral_code');
     }
 
+    if (response.data?.pending_signup) {
+      authState.setPendingSignup(response.data.address || address);
+      setupWalletListeners();
+      return {
+        ...response.data,
+        user: null,
+        address: response.data.address || address
+      };
+    }
+
     // Update auth state
     authState.setAuthenticated(true, address);
 
@@ -412,7 +448,11 @@ async function performVerification() {
     const address = response.data.address || null;
 
     // Update auth state with verification result
-    authState.setAuthenticated(isAuthenticated, address);
+    if (response.data.pending_signup) {
+      authState.setPendingSignup(address);
+    } else {
+      authState.setAuthenticated(isAuthenticated, address);
+    }
 
     // If authenticated, restore provider if missing
     if (isAuthenticated) {
@@ -466,6 +506,44 @@ export async function refreshSession() {
     await verifyAuth();
     return false;
   }
+}
+
+export async function startPendingSignupEmail(data) {
+  return authAxios.post(API_ENDPOINTS.SIGNUP_EMAIL_START, data);
+}
+
+export async function resendPendingSignupEmail(data) {
+  return authAxios.post(API_ENDPOINTS.SIGNUP_EMAIL_RESEND, data);
+}
+
+function verificationPayload(credential) {
+  const value = String(credential || '').trim();
+  return /^\d{6}$/.test(value) ? { code: value } : { token: value };
+}
+
+export async function confirmPendingSignupEmail(credential) {
+  const response = await authAxios.post(API_ENDPOINTS.SIGNUP_EMAIL_CONFIRM, verificationPayload(credential));
+  if (response.data?.authenticated) {
+    authState.setAuthenticated(true, response.data.address);
+    try {
+      await userStore.loadUser();
+    } catch (err) {
+      // Silently handle user data load failure
+    }
+  }
+  return response;
+}
+
+export async function startEmailVerification(data) {
+  return authAxios.post(API_ENDPOINTS.EMAIL_START, data);
+}
+
+export async function resendEmailVerification(data) {
+  return authAxios.post(API_ENDPOINTS.EMAIL_RESEND, data);
+}
+
+export async function confirmEmailVerification(credential) {
+  return authAxios.post(API_ENDPOINTS.EMAIL_CONFIRM, verificationPayload(credential));
 }
 
 // Store listener functions for cleanup

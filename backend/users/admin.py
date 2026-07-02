@@ -59,13 +59,13 @@ class UserAdmin(CloudinaryUploadMixin, BaseUserAdmin):
         },
     }
 
-    list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'is_banned', 'address', 'is_email_verified')
+    list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'is_banned', 'address', 'is_email_verified', 'email_verified_at')
     list_filter = ('is_staff', 'is_active', 'visible', 'is_banned', 'is_email_verified')
     search_fields = ('email', 'name', 'address', 'referral_code', 'twitter_handle', 'discord_handle', 'telegram_handle')
     ordering = ('email',)
     
     fieldsets = (
-        (None, {'fields': ('email', 'password', 'is_email_verified')}),
+        (None, {'fields': ('email', 'password', 'is_email_verified', 'email_verified_at')}),
         (_('Personal info'), {'fields': ('name', 'address', 'description')}),
         (_('Profile Images'), {'fields': ('profile_image_url', 'banner_image_url')}),
         (_('Contact & Social'), {'fields': ('website', 'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle')}),

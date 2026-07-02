@@ -2,6 +2,7 @@
   import { push } from "svelte-spa-router";
   import { showSuccess } from "../../lib/toastStore";
   import Avatar from "../Avatar.svelte";
+  import EmailVerificationModal from "../EmailVerificationModal.svelte";
   import CategoryIcon from "../portal/CategoryIcon.svelte";
   import SocialLink from "../SocialLink.svelte";
   import { hasStartedJourney } from "../../lib/roleState.js";
@@ -74,6 +75,17 @@
 
   // UI state for copy-to-clipboard feedback
   let copiedAddress = $state(false);
+  let showEmailVerificationModal = $state(false);
+
+  function openEmailVerification() {
+    if (isOwnProfile && !participant?.is_email_verified) {
+      showEmailVerificationModal = true;
+    }
+  }
+
+  function handleEmailVerified(updatedUser) {
+    onParticipantUpdated(updatedUser);
+  }
 </script>
 
 <div
@@ -231,6 +243,30 @@
                 {/if}
               </button>
             {/if}
+            {#if isOwnProfile}
+              {#if participant?.is_email_verified}
+                <span
+                  class="email-verification-check is-verified"
+                  title="Email verified"
+                  aria-label="Email verified"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </span>
+              {:else}
+                <button
+                  type="button"
+                  class="email-verify-pill"
+                  onclick={openEmailVerification}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 6.5h16v11H4v-11ZM5 8l7 5 7-5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  Verify email
+                </button>
+              {/if}
+            {/if}
           </div>
         </div>
       </div>
@@ -355,7 +391,72 @@
   </div>
 </div>
 
+{#if showEmailVerificationModal}
+  <EmailVerificationModal
+    initialEmail={participant?.email || ''}
+    onClose={() => (showEmailVerificationModal = false)}
+    onVerified={handleEmailVerified}
+  />
+{/if}
+
 <style>
+  .email-verification-check {
+    align-items: center;
+    border: 1px solid;
+    border-radius: 999px;
+    display: inline-flex;
+    flex: none;
+    height: 30px;
+    justify-content: center;
+    width: 30px;
+  }
+
+  .email-verification-check svg {
+    height: 17px;
+    width: 17px;
+  }
+
+  .email-verification-check.is-verified {
+    background: #edf9f1;
+    border-color: #cbeed6;
+    color: #17743d;
+  }
+
+  .email-verify-pill {
+    align-items: center;
+    background: #fff8ed;
+    border: 1px solid #f6d8ad;
+    border-radius: 999px;
+    color: #8a4d06;
+    cursor: pointer;
+    display: inline-flex;
+    flex: none;
+    font-size: 12px;
+    font-weight: 650;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px;
+    transition-duration: 160ms;
+    transition-property: background-color, border-color, box-shadow, color, transform;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    white-space: nowrap;
+  }
+
+  .email-verify-pill svg {
+    height: 14px;
+    width: 14px;
+  }
+
+  .email-verify-pill:hover {
+    background: #fff;
+    border-color: #eec27f;
+    box-shadow: 0 8px 18px rgba(138, 77, 6, 0.14);
+    transform: translateY(-1px);
+  }
+
+  .email-verify-pill:active {
+    transform: scale(0.96);
+  }
   .badge-tooltip-wrap .badge-tooltip {
     display: none;
     position: absolute;

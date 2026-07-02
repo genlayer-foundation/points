@@ -14,6 +14,7 @@
   import { setRouteMeta } from './lib/meta.js';
   import { authState, verifyAuth } from './lib/auth.js';
   import { userStore } from './lib/userStore.js';
+  import { normalizeReferralCode } from './lib/referrals.js';
   import { hasEarnedRole, journeyPath, rolePath } from './lib/roleState.js';
   import { installLinkInterceptor } from './lib/router.js';
   import { analyticsConsent, getAnalyticsContext, setConnectWalletIntent, templateRoute, trackEvent, trackPageView } from './lib/analytics.js';
@@ -80,6 +81,7 @@
   import EditSubmission from './routes/EditSubmission.svelte';
   import Metrics from './routes/Metrics.svelte';
   import ProfileEdit from './routes/ProfileEdit.svelte';
+  import VerifyEmail from './routes/VerifyEmail.svelte';
   import NotFound from './routes/NotFound.svelte';
   import StewardDashboard from './routes/StewardDashboard.svelte';
   import StewardSubmissions from './routes/StewardSubmissions.svelte';
@@ -226,15 +228,14 @@
     '/how-it-works': HowItWorks,
     '/contributions': protectedRoute(Contributions),
     '/all-contributions': protectedRoute(AllContributions),
-    '/leaderboard': Leaderboard,
-    '/participants': Validators,
+    '/participants': protectedRoute(Validators),
     '/referrals': protectedRoute(Referrals),
     '/community': RoleFunnel,
     '/community/journey': protectedRoute(CommunityJourney),
     '/community/contributions': roleGatedRoute(Contributions, 'community'),
     '/community/all-contributions': roleGatedRoute(AllContributions, 'community'),
     '/community/referrals': LegacyReferralRedirect,
-    '/community/leaderboard': roleGatedRoute(Leaderboard, 'community'),
+    '/community/leaderboard': protectedRoute(Leaderboard),
     '/community/poaps': roleGatedRoute(CommunityPoaps, 'community'),
     '/community/poaps/recover': roleGatedRoute(PoapRecovery, 'community'),
     '/community/poaps/:slug': roleGatedRoute(PoapDetail, 'community'),
@@ -250,9 +251,9 @@
     '/builders/journey': protectedRoute(BuilderJourney),
     '/builders/contributions': roleGatedRoute(Contributions, 'builder'),
     '/builders/all-contributions': roleGatedRoute(AllContributions, 'builder'),
-    '/builders/leaderboard': Leaderboard,
+    '/builders/leaderboard': protectedRoute(Leaderboard),
 
-    '/builders/resources': roleGatedRoute(Resources, 'builder'),
+    '/builders/resources': protectedRoute(Resources),
     '/builders/projects/:slug/edit': protectedRoute(ProjectPageEditor),
     '/builders/projects/:slug': ProjectDetail,
     '/builders/tasks': roleGatedRoute(SocialTasks, 'builder'),
@@ -263,9 +264,9 @@
     '/validators/journey': ValidatorWaitlist,
     '/validators/contributions': roleGatedRoute(Contributions, 'validator'),
     '/validators/all-contributions': roleGatedRoute(AllContributions, 'validator'),
-    '/validators/leaderboard': Leaderboard,
+    '/validators/leaderboard': protectedRoute(Leaderboard),
     '/validators/tasks': roleGatedRoute(SocialTasks, 'validator'),
-    '/validators/participants': roleGatedRoute(Validators, 'validator'),
+    '/validators/participants': protectedRoute(Validators),
     '/validators/wall-of-shame': roleGatedRoute(WallOfShame, 'validator'),
     '/validators/waitlist': protectedRoute(Waitlist),
     '/validators/waitlist/participants': protectedRoute(WaitlistParticipants),
@@ -284,6 +285,7 @@
     '/contributions/:id': protectedRoute(EditSubmission),
     '/metrics': Metrics,
     '/profile': protectedRoute(ProfileEdit),
+    '/verify-email': VerifyEmail,
     '/notifications': protectedRoute(Notifications),  // Full notification feed (authenticated only)
 
     // Steward routes
@@ -345,6 +347,12 @@
     normalizedLocation.startsWith('/foundations') ||
     normalizedLocation === '/manifesto'
   );
+
+  let isRoleLandingPage = $derived(
+    normalizedLocation === '/builders' ||
+    normalizedLocation === '/community' ||
+    normalizedLocation === '/validators'
+  );
   
   // Function to hide tooltips - used for route changes
   function hideTooltips() {
@@ -365,11 +373,14 @@
   function captureReferralCode() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const referralCode = urlParams.get('ref');
+      const rawReferralCode = urlParams.get('ref');
+      const referralCode = normalizeReferralCode(rawReferralCode);
       
-      if (referralCode && referralCode.length === 8) {
+      if (rawReferralCode !== null && !referralCode) {
+        localStorage.removeItem('referral_code');
+      } else if (referralCode) {
         // Store referral code in localStorage for later use during login
-        localStorage.setItem('referral_code', referralCode.toUpperCase());
+        localStorage.setItem('referral_code', referralCode);
 
         // Clean URL without page reload to remove the ref parameter
         const cleanUrl = window.location.pathname + window.location.hash;
@@ -523,7 +534,7 @@
   <Navbar {toggleSidebar} {sidebarOpen} />
   <div class="flex-1 min-h-0 flex overflow-hidden">
     <Sidebar bind:isOpen={sidebarOpen} bind:collapsed={sidebarCollapsed} />
-    <main class="flex-1 min-h-0 min-w-0 overflow-y-auto {isFullBleedPage ? '' : 'px-3 py-3'}">
+    <main class="flex-1 min-h-0 min-w-0 overflow-y-auto {isFullBleedPage ? '' : 'px-3 py-3'} {isRoleLandingPage ? 'role-landing-main' : ''}">
       <SystemAlerts />
       <Router
         {routes}
@@ -540,3 +551,11 @@
 <ProfileCompletionGuard />
 <WhatsNewDialog />
 <AnalyticsConsentBanner />
+
+<style>
+  @media (max-width: 767px) {
+    .role-landing-main {
+      padding: 0;
+    }
+  }
+</style>

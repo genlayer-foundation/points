@@ -135,6 +135,12 @@
         return "builder";
     }
 
+    function getLeaderboardPath(tab: string | null) {
+        if (tab === "Validators") return "/validators/leaderboard";
+        if (tab === "Community") return "/community/leaderboard";
+        return "/builders/leaderboard";
+    }
+
     function isContributionRankTab(tab: string | null) {
         return tab === "Builders" || tab === "Community";
     }
@@ -244,18 +250,20 @@
 
         try {
             const apiType = getApiTypeForTab(requestedTab);
-            const topRes = await leaderboardAPI.getLeaderboard({
-                type: apiType,
-                limit: 4,
-            });
-            if (!isCurrentRequest()) return;
+            async function fetchTop4() {
+                const topRes = await leaderboardAPI.getLeaderboard({
+                    type: apiType,
+                    limit: 4,
+                });
+                if (!isCurrentRequest()) return null;
 
-            const top4 = (topRes.data?.results || topRes.data || []).map(
-                (u: any, i: number) => ({
-                    ...u,
-                    _displayRank: getEntryRank(u, i + 1),
-                }),
-            );
+                return (topRes.data?.results || topRes.data || []).map(
+                    (u: any, i: number) => ({
+                        ...u,
+                        _displayRank: getEntryRank(u, i + 1),
+                    }),
+                );
+            }
 
             if (apiType === "community" && requestedAddress) {
                 const communityContext = await fetchCommunityProfileContext(
@@ -269,11 +277,16 @@
                     setTabRankStatus(requestedTab, "ranked");
                     activeList = buildCommunityProfileList(communityContext);
                 } else {
+                    const top4 = await fetchTop4();
+                    if (!top4) return;
                     setTabRankStatus(requestedTab, "unranked");
                     activeList = top4;
                 }
                 return;
             }
+
+            const top4 = await fetchTop4();
+            if (!top4) return;
 
             const userInTop4 = top4.some(
                 (u: any) =>
@@ -294,30 +307,35 @@
             } else {
                 let userRank = null;
                 let userLookupSucceeded = false;
-                try {
-                    const userEntryRes = await leaderboardAPI.getLeaderboard({
-                        type: apiType,
-                        user_address: participant.address,
-                    });
-                    if (!isCurrentRequest()) return;
+                const cachedEntry = participant?.leaderboard_entries?.find(
+                    (entry: any) => entry.type === apiType && entry.rank,
+                );
+
+                if (cachedEntry) {
                     userLookupSucceeded = true;
+                    userRank = cachedEntry.rank;
+                } else {
+                    try {
+                        const userEntryRes = await leaderboardAPI.getLeaderboard({
+                            type: apiType,
+                            user_address: participant.address,
+                        });
+                        if (!isCurrentRequest()) return;
+                        userLookupSucceeded = true;
 
-                    if (apiType === "community") {
-                        userRank = userEntryRes.data?.user_rank || null;
+                        const userEntries = Array.isArray(userEntryRes.data)
+                            ? userEntryRes.data
+                            : userEntryRes.data?.results || [];
+                        if (userEntries.length > 0) {
+                            userRank = userEntries[0].rank;
+                        }
+                    } catch (err) {
+                        if (!isCurrentRequest()) return;
+                        console.warn("Could not load ranking context");
+                        showWarning(
+                            "Could not load this ranking; showing the top leaderboard.",
+                        );
                     }
-
-                    const userEntries = Array.isArray(userEntryRes.data)
-                        ? userEntryRes.data
-                        : userEntryRes.data?.results || [];
-                    if (!userRank && userEntries.length > 0) {
-                        userRank = userEntries[0].rank;
-                    }
-                } catch (err) {
-                    if (!isCurrentRequest()) return;
-                    console.error(err);
-                    showWarning(
-                        "Could not load this ranking; showing the top leaderboard.",
-                    );
                 }
 
                 if (!isCurrentRequest()) return;
@@ -367,7 +385,7 @@
             }
         } catch (err) {
             if (!isCurrentRequest()) return;
-            console.error(err);
+            console.warn("Failed to load leaderboard context");
             showError("Failed to load leaderboard context");
             setTabRankStatus(requestedTab, "unknown");
             error = "Failed to load leaderboard context";
@@ -495,7 +513,7 @@
                 Ranking
             </h2>
             <button
-                onclick={() => push("/leaderboard")}
+                onclick={() => push(getLeaderboardPath(activeTab))}
                 class="flex items-center gap-[4px] text-[14px] text-[#6b6b6b] hover:text-black transition-colors"
                 style="letter-spacing: 0.28px;"
             >

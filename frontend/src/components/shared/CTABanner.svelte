@@ -1,9 +1,10 @@
 <script lang="ts">
     import { push } from "svelte-spa-router";
-    import { showSuccess } from "../../lib/toastStore";
+    import { showError, showSuccess } from "../../lib/toastStore";
     import { leaderboardAPI } from "../../lib/api";
     import { userStore } from "../../lib/userStore.js";
     import { authState } from "../../lib/auth.js";
+    import { buildReferralLink, referralCodeFromSources } from "../../lib/referrals.js";
     import CategoryIcon from "../portal/CategoryIcon.svelte";
 
     let { variant = "dark", participant = null, referralData = null, topRole = null } = $props();
@@ -31,7 +32,7 @@
             "Builder",
     );
     let referralCode = $derived(
-        participant?.referral_code || storeValue.user?.referral_code || "",
+        referralCodeFromSources(participant, storeValue.user),
     );
 
     // Rank computation state
@@ -175,7 +176,12 @@
     }
 
     function copyReferralLink() {
-        const referralLink = `https://portal.genlayer.foundation/?ref=${referralCode}`;
+        const referralLink = buildReferralLink(referralCode);
+        if (!referralLink) {
+            showError("Referral code is still loading. Try again in a moment.");
+            return;
+        }
+
         navigator.clipboard.writeText(referralLink);
         showSuccess("Referral link copied!");
     }
@@ -261,6 +267,7 @@
                 {#if isLoggedIn}
                     <button
                         onclick={copyReferralLink}
+                        disabled={!referralCode}
                         class="cta-action-button flex items-center gap-[8px] bg-[#935cf1] hover:bg-[#824ce0] text-white px-6 py-[14px] rounded-full text-[15px] font-medium transition-all shadow-[0_0_20px_rgba(147,92,241,0.3)] hover:shadow-[0_0_25px_rgba(147,92,241,0.5)] transform hover:-translate-y-[1px]"
                     >
                         <svg
@@ -391,6 +398,7 @@
                     {#if isLoggedIn}
                         <button
                             onclick={copyReferralLink}
+                            disabled={!referralCode}
                             class="flex gap-[8px] items-center justify-center h-[40px] px-[16px] rounded-[20px] transition-colors hover:opacity-90"
                             style="background-color: #9e4bf6;"
                         >

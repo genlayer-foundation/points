@@ -53,7 +53,7 @@
         ? 'All-time validator contributors'
         : 'Curated builds from the last 30 days'
   );
-  let leaderboardPath = $derived(isBuilder ? '/leaderboard?type=builder' : isCommunity ? '/leaderboard?type=community' : '/leaderboard?type=validator');
+  let leaderboardPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/leaderboard' : '/validators/leaderboard');
   let podiumTitle = $derived(isValidator ? 'All-time Podium' : 'Last 30 Days Podium');
   let podiumSubtitle = $derived(
     isCommunity
@@ -63,7 +63,7 @@
         : "Who's contributing more to GenLayer over the last 30 days?"
   );
   let newestTitle = $derived(isBuilder ? 'Newest Builders' : isCommunity ? 'Newest Community Contributors' : 'Newest Validators');
-  let newestPath = $derived(isBuilder ? '/leaderboard?type=builder' : isCommunity ? '/community/all-contributions' : '/validators/participants');
+  let newestPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/all-contributions' : '/validators/participants');
   let highlightsPath = $derived(
     isBuilder ? '/builders/all-contributions?view=highlights' : isCommunity ? '/community/all-contributions?view=highlights' : '/validators/all-contributions?view=highlights'
   );
@@ -334,7 +334,7 @@
         title="Trending Contributors"
         subtitle="Highest Builder Points Contributions this week"
         linkText="View all"
-        linkPath="/leaderboard?type=builder"
+        linkPath="/builders/leaderboard"
       />
       <UserCardScroller entries={trendingEntries} loading={trendingLoading} showPointIncrease={true} />
     </div>

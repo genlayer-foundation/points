@@ -1268,3 +1268,43 @@ class WhatsNewAnnouncementAPITests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.results(response), [])
+
+
+class EmailVerificationReminderTests(TestCase):
+    def setUp(self):
+        self.unverified = make_user('unverified@test.com', '0x1111111111111111111111111111111111111111')
+        self.verified = make_user('verified@test.com', '0x2222222222222222222222222222222222222222')
+        self.verified.is_email_verified = True
+        self.verified.save(update_fields=['is_email_verified'])
+
+    def run_command(self, *args):
+        from django.core.management import call_command
+        call_command('send_email_verification_reminders', *args)
+
+    def test_command_notifies_only_unverified_users(self):
+        self.run_command()
+
+        self.assertEqual(Notification.objects.filter(recipient=self.verified).count(), 0)
+        notification = Notification.objects.get(recipient=self.unverified)
+        self.assertEqual(notification.event_type, 'email.verify_reminder')
+        self.assertEqual(notification.link_url, '/verify-email')
+
+    def test_command_is_idempotent_and_keeps_read_state(self):
+        self.run_command()
+        Notification.objects.get(recipient=self.unverified).mark_read()
+
+        self.run_command()
+
+        notification = Notification.objects.get(recipient=self.unverified)
+        self.assertIsNotNone(notification.read_at)
+
+    def test_dry_run_sends_nothing(self):
+        self.run_command('--dry-run')
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_clear_removes_reminder_after_verification(self):
+        services.notify_email_verification_reminder(self.unverified)
+
+        services.clear_email_verification_reminder(self.unverified)
+
+        self.assertEqual(Notification.objects.filter(recipient=self.unverified).count(), 0)

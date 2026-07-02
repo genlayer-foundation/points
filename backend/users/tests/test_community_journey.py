@@ -82,8 +82,8 @@ class CommunityJourneyTests(TestCase):
         self.mark_task(self.follow_task)
         self.mark_task(self.join_task)
 
-    def good_tweet(self):
-        return {'full_text': cj.share_text(self.user),
+    def good_tweet(self, option_index=0):
+        return {'full_text': cj.post_text_options(self.user)[option_index]['text'],
                 'username': 'social_user'}
 
     # --- status ---
@@ -94,11 +94,20 @@ class CommunityJourneyTests(TestCase):
         steps = res.data['steps']
         self.assertFalse(any(s['done'] for s in steps.values()))
         self.assertFalse(res.data['complete'])
-        # step 5 ships the code + share/intent affordances
-        self.assertTrue(steps['x_post']['verification_code'].startswith('GL-'))
-        self.assertIn('GenLayer Portal profile', steps['x_post']['share_text'])
-        self.assertIn(f'@{cj.genlayer_handle()}', steps['x_post']['share_text'])
-        self.assertIn(steps['x_post']['verification_code'], steps['x_post']['share_text'])
+        # step 5 ships the referral code + three post/intent affordances
+        self.user.refresh_from_db()
+        code = self.user.referral_code
+        referral_url = f'https://portal.genlayer.foundation/?ref={code}'
+        expected_texts = [
+            f'Becoming part of the @GenLayer community of builders, validators, and creators. {referral_url}',
+            f'Officially part of the @GenLayer community builders, validators, and creators. {referral_url}',
+            f"Convincing @GenLayer I'm not a bot to join their community of builders, validators, and creators. {referral_url}",
+        ]
+        self.assertEqual(steps['x_post']['verification_code'], code)
+        self.assertEqual(steps['x_post']['share_text'], expected_texts[0])
+        self.assertEqual([option['text'] for option in steps['x_post']['post_options']], expected_texts)
+        self.assertTrue(all(option['text'].count(code) == 1 for option in steps['x_post']['post_options']))
+        self.assertTrue(all('intent/post' in option['intent_url'] for option in steps['x_post']['post_options']))
         self.assertIn('intent/post', steps['x_post']['intent_url'])
         self.assertEqual(steps['link_x']['points'], 500)
         self.assertEqual(steps['link_discord']['points'], 500)
@@ -157,6 +166,18 @@ class CommunityJourneyTests(TestCase):
         self.assertTrue(CommunityPostProof.objects.filter(user=self.user).exists())
         self.assertTrue(res.data['journey']['steps']['x_post']['done'])
 
+    @patch('social_tasks.sorsa_client.SorsaClient.get_tweet')
+    def test_verify_post_accepts_each_post_option(self, mock_get_tweet):
+        self.link_x('social_user')
+
+        for option_index in range(3):
+            with self.subTest(option_index=option_index):
+                CommunityPostProof.objects.filter(user=self.user).delete()
+                mock_get_tweet.return_value = self.good_tweet(option_index)
+                res = self.client.post('/api/v1/users/verify_community_post/', {'post_url': POST_URL})
+                self.assertEqual(res.status_code, status.HTTP_200_OK)
+                self.assertTrue(res.data['journey']['steps']['x_post']['done'])
+
     def test_verify_post_requires_linked_x(self):
         res = self.client.post('/api/v1/users/verify_community_post/', {'post_url': POST_URL})
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
@@ -178,7 +199,10 @@ class CommunityJourneyTests(TestCase):
     @patch('social_tasks.sorsa_client.SorsaClient.get_tweet')
     def test_verify_post_code_missing(self, mock_get_tweet):
         self.link_x('social_user')
-        mock_get_tweet.return_value = {'full_text': f'Joining the @{cj.genlayer_handle()} community!', 'username': 'social_user'}
+        mock_get_tweet.return_value = {
+            'full_text': f'Joining the @{cj.genlayer_handle()} community! {cj.verification_code(self.user)}',
+            'username': 'social_user',
+        }
         res = self.client.post('/api/v1/users/verify_community_post/', {'post_url': POST_URL})
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(res.data['error'], 'code_missing')
@@ -186,7 +210,7 @@ class CommunityJourneyTests(TestCase):
     @patch('social_tasks.sorsa_client.SorsaClient.get_tweet')
     def test_verify_post_tag_missing(self, mock_get_tweet):
         self.link_x('social_user')
-        mock_get_tweet.return_value = {'full_text': f'Joining! {cj.verification_code(self.user)}', 'username': 'social_user'}
+        mock_get_tweet.return_value = {'full_text': f'Joining! {cj.portal_referral_url(cj.verification_code(self.user))}', 'username': 'social_user'}
         res = self.client.post('/api/v1/users/verify_community_post/', {'post_url': POST_URL})
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(res.data['error'], 'tag_missing')
@@ -194,7 +218,7 @@ class CommunityJourneyTests(TestCase):
     @patch('social_tasks.sorsa_client.SorsaClient.get_tweet')
     def test_verify_post_author_mismatch(self, mock_get_tweet):
         self.link_x('social_user')
-        mock_get_tweet.return_value = {'full_text': f'@{cj.genlayer_handle()} {cj.verification_code(self.user)}', 'username': 'imposter'}
+        mock_get_tweet.return_value = {'full_text': f'@{cj.genlayer_handle()} {cj.portal_referral_url(cj.verification_code(self.user))}', 'username': 'imposter'}
         res = self.client.post('/api/v1/users/verify_community_post/', {'post_url': POST_URL})
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(res.data['error'], 'account_mismatch')

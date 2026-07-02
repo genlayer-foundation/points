@@ -802,7 +802,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
             message = (
                 f"Your post must @mention @{cj.genlayer_handle()}."
                 if error_code == 'tag_missing'
-                else 'Your post must include your verification code exactly as shown.'
+                else 'Your post must include your Portal referral link exactly as shown.'
             )
             return Response({'error': error_code, 'message': message}, status=status.HTTP_400_BAD_REQUEST)
 

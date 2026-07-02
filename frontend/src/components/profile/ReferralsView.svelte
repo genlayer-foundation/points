@@ -2,7 +2,9 @@
     import { push } from "svelte-spa-router";
     import Avatar from "../Avatar.svelte";
     import CategoryIcon from "../portal/CategoryIcon.svelte";
-    import { showSuccess } from "../../lib/toastStore";
+    import { showError, showSuccess } from "../../lib/toastStore";
+    import { buildReferralLink, referralCodeFromSources } from "../../lib/referrals.js";
+    import { userStore } from "../../lib/userStore.js";
 
     let {
         participant = null,
@@ -12,6 +14,13 @@
         isOwnProfile = false,
     } = $props();
 
+    let storeValue = $state({ user: null });
+
+    userStore.subscribe((value) => {
+        storeValue = value;
+    });
+
+    let referralCode = $derived(referralCodeFromSources(participant, storeValue.user));
     let totalReferrals = $derived(referralData?.total_referrals ?? 0);
     let builderReferralPoints = $derived(referralPoints?.builder_points ?? 0);
     let validatorReferralPoints = $derived(referralPoints?.validator_points ?? 0);
@@ -31,7 +40,12 @@
     let hasReferrals = $derived(totalReferrals > 0);
 
     function copyReferralLink() {
-        const referralLink = `https://portal.genlayer.foundation/?ref=${participant?.referral_code || ""}`;
+        const referralLink = buildReferralLink(referralCode);
+        if (!referralLink) {
+            showError("Referral code is still loading. Try again in a moment.");
+            return;
+        }
+
         navigator.clipboard.writeText(referralLink);
         showSuccess("Referral link copied!");
     }
@@ -122,6 +136,7 @@
                 </div>
                 <button
                     onclick={copyReferralLink}
+                    disabled={!referralCode}
                     class="bg-white flex gap-[8px] h-[40px] items-center justify-center px-[16px] rounded-[20px] hover:bg-[#f0f0f0] transition-colors shrink-0"
                 >
                     <img

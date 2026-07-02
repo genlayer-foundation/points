@@ -159,7 +159,6 @@ function roleContextFromRoute(path) {
     route === '/' ||
     route === '/testnets' ||
     route === '/metrics' ||
-    route === '/leaderboard' ||
     route === '/participants'
   ) {
     return 'overview';

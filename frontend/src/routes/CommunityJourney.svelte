@@ -53,6 +53,7 @@
   let linkingDiscord = $state(false);
   let verifyingPost = $state(false);
   let postUrl = $state('');
+  let selectedPostIndex = $state(0);
   let lastJourneyViewKey = $state('');
   let lastStepViewKey = $state('');
   let lastJourneyExitKey = $state('');
@@ -70,12 +71,20 @@
   let activeStepNumber = $derived(activeStep ? STEP_IDS.indexOf(activeStep) + 1 : TOTAL_STEPS);
   let followTask = $derived(tasks.find((task) => task.slug === FOLLOW_X_TASK_SLUG) || null);
   let discordTask = $derived(tasks.find((task) => task.slug === JOIN_DISCORD_TASK_SLUG) || null);
+  let postOptions = $derived(
+    Array.isArray(xPost.post_options) && xPost.post_options.length
+      ? xPost.post_options
+      : [{ id: 'default', text: xPost.share_text || '', intent_url: xPost.intent_url || '' }]
+  );
+  let selectedPost = $derived(postOptions[Math.min(selectedPostIndex, Math.max(postOptions.length - 1, 0))] || null);
+  let selectedShareText = $derived(selectedPost?.text || xPost.share_text || '');
+  let selectedIntentUrl = $derived(selectedPost?.intent_url || xPost.intent_url || 'https://x.com/intent/post');
   let displayName = $derived(user?.name?.trim() || '');
   let welcomeTitle = $derived(displayName ? `Welcome, ${displayName}` : 'Welcome to your Community journey');
   let welcomeMessage = $derived(
     complete
       ? 'Your community steps are complete. Finish the journey to unlock the Creator role and start submitting community work.'
-      : 'Connect your social accounts, verify the community actions, and post your unique code to unlock the Creator role.'
+      : 'Connect your social accounts, verify the community actions, and post your referral code to unlock the Creator role.'
   );
   let welcomeAlert = $derived(actionError || loadError || '');
   let welcomeChips = $derived([
@@ -173,6 +182,10 @@
     lastStepViewKey = viewKey;
     markFunnelTime(`journey_step_visible:community:${activeStepId}`);
     trackCommunityStepEvent('journey_step_view', activeStepId);
+  });
+
+  $effect(() => {
+    if (selectedPostIndex >= postOptions.length) selectedPostIndex = 0;
   });
 
   function stepDone(id) {
@@ -334,7 +347,7 @@
   }
 
   async function copyShareText() {
-    const text = xPost.share_text || '';
+    const text = selectedShareText || '';
     if (!text) return;
     trackEvent('community_post_copy_click', getAnalyticsContext({
       role_context: 'community',
@@ -342,6 +355,7 @@
       surface: 'journey',
       step_id: 'x_post',
       verification_mode: 'sorsa_tweet_info',
+      post_option: selectedPost?.id || 'default',
     }));
     try {
       await navigator.clipboard.writeText(text);
@@ -662,24 +676,43 @@
       <div class="step-block" data-step-active={isActive('x_post')}>
         <JourneyStepRow
           number={5}
-          title="Post your community code"
+          title="Choose a community post"
           contributionLabel={isActive('x_post') ? 'Up next' : ''}
-          detail={stepDone('x_post') ? 'X post verified' : xPost.verification_code || 'Share your unique verification code'}
+          detail={stepDone('x_post') ? 'X post verified' : xPost.verification_code ? `Referral code ${xPost.verification_code}` : 'Share your referral code'}
           status={statusFor('x_post')}
         />
 
         {#if isActive('x_post') && !stepDone('x_post')}
           <div class="x-post-panel">
             <div class="x-post-copy">
-              <p>Copy the generated post, publish it from your linked X account, then paste the public post URL to verify it.</p>
-              <div class="share-box">
-                <span>{xPost.share_text || 'Loading your verification post...'}</span>
-                <button type="button" onclick={copyShareText} disabled={!xPost.share_text}>Copy</button>
+              <p>Choose one post, publish it from your linked X account, then paste the public post URL to verify it.</p>
+              <div class="post-option-list" role="list" aria-label="Community post options">
+                {#each postOptions as option, index (option.id || option.text || index)}
+                  <button
+                    type="button"
+                    class="post-option"
+                    class:post-option-selected={index === selectedPostIndex}
+                    onclick={() => selectedPostIndex = index}
+                    aria-pressed={index === selectedPostIndex}
+                    disabled={!option.text}
+                  >
+                    <span class="post-option-index">{index + 1}</span>
+                    <span class="post-option-text">{option.text || 'Loading your post option...'}</span>
+                  </button>
+                {/each}
               </div>
               <div class="x-post-actions">
+                <button
+                  type="button"
+                  class="landing-button landing-button-secondary"
+                  onclick={copyShareText}
+                  disabled={!selectedShareText}
+                >
+                  Copy
+                </button>
                 <a
                   class="landing-button landing-button-secondary"
-                  href={xPost.intent_url || 'https://x.com/intent/post'}
+                  href={selectedIntentUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   onclick={() => trackEvent('community_post_intent_click', getAnalyticsContext({
@@ -688,6 +721,7 @@
                     surface: 'journey',
                     step_id: 'x_post',
                     verification_mode: 'sorsa_tweet_info',
+                    post_option: selectedPost?.id || 'default',
                   }))}
                 >
                   Post on X
@@ -841,17 +875,63 @@
     min-width: 0;
   }
 
-  .share-box {
+  .post-option-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .post-option {
+    align-items: flex-start;
     background: #fff;
     border: 1px solid #e8e4fb;
     border-radius: 10px;
+    color: var(--journey-black);
     display: grid;
-    gap: 12px;
-    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    grid-template-columns: 24px minmax(0, 1fr);
+    min-height: 74px;
     padding: 12px;
+    text-align: left;
+    transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    width: 100%;
   }
 
-  .share-box span {
+  .post-option:hover:not(:disabled),
+  .post-option-selected {
+    border-color: var(--role-accent);
+    box-shadow: 0 8px 18px rgba(141, 129, 225, 0.12);
+  }
+
+  .post-option:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .post-option:disabled {
+    cursor: default;
+    opacity: 0.58;
+  }
+
+  .post-option-index {
+    align-items: center;
+    background: var(--journey-active-bg);
+    border-radius: 8px;
+    color: var(--role-accent);
+    display: inline-flex;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    height: 24px;
+    justify-content: center;
+    line-height: 17px;
+    width: 24px;
+  }
+
+  .post-option-selected .post-option-index {
+    background: var(--role-accent);
+    color: #fff;
+  }
+
+  .post-option-text {
     color: var(--journey-black);
     font-family: var(--font-body);
     font-size: 14px;
@@ -859,20 +939,10 @@
     overflow-wrap: anywhere;
   }
 
-  .share-box button {
-    color: var(--role-accent);
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-  }
-
-  .share-box button:disabled {
-    opacity: 0.45;
-  }
-
   .x-post-actions {
     display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
   }
 
   .verify-card {
@@ -1041,10 +1111,6 @@
     .task-panel,
     .x-post-panel {
       padding: 14px;
-    }
-
-    .share-box {
-      grid-template-columns: 1fr;
     }
 
     .section-label {

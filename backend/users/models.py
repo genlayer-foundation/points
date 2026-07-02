@@ -1,4 +1,7 @@
-from django.db import models
+import secrets
+import string
+
+from django.db import IntegrityError, models, transaction
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from utils.models import BaseModel
 
@@ -81,6 +84,8 @@ class User(AbstractUser, BaseModel):
     # Email verification
     is_email_verified = models.BooleanField(default=False,
                                            help_text="Whether the email is user-provided (True) or auto-generated (False)")
+    email_verified_at = models.DateTimeField(null=True, blank=True,
+                                             help_text="When the current email address was verified")
     
     # Cloudinary metadata (for deletion/management)
     profile_image_public_id = models.CharField(max_length=255, blank=True,
@@ -120,6 +125,46 @@ class User(AbstractUser, BaseModel):
     REQUIRED_FIELDS = []  # Email is already required by default
 
     objects = UserManager()
+
+    def ensure_referral_code(self):
+        """
+        Return this user's referral code, creating one if an old account is
+        missing the backfilled value.
+        """
+        if self.referral_code:
+            return self.referral_code
+
+        user_model = type(self)
+        characters = string.ascii_uppercase + string.digits
+        for _ in range(100):
+            code = ''.join(secrets.choice(characters) for _ in range(8))
+            if user_model.objects.filter(referral_code=code).exists():
+                continue
+
+            try:
+                with transaction.atomic():
+                    updated = user_model.objects.filter(
+                        pk=self.pk,
+                        referral_code__isnull=True,
+                    ).update(referral_code=code)
+                    if not updated:
+                        updated = user_model.objects.filter(
+                            pk=self.pk,
+                            referral_code='',
+                        ).update(referral_code=code)
+            except IntegrityError:
+                continue
+
+            if updated:
+                self.referral_code = code
+                return code
+
+            existing_code = user_model.objects.only('referral_code').get(pk=self.pk).referral_code
+            if existing_code:
+                self.referral_code = existing_code
+                return existing_code
+
+        raise ValueError("Unable to generate unique referral code after maximum attempts")
 
     def __str__(self):
         return self.email

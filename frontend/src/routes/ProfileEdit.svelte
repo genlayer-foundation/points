@@ -4,6 +4,7 @@
   import { getCurrentUser, updateUserProfile, imageAPI, socialAPI, validatorsAPI } from "../lib/api";
   import { authState } from "../lib/auth";
   import ImageCropper from "../components/ImageCropper.svelte";
+  import EmailVerificationModal from "../components/EmailVerificationModal.svelte";
   import { userStore } from "../lib/userStore";
   import { showSuccess, showError } from "../lib/toastStore";
   import SocialLink from "../components/SocialLink.svelte";
@@ -28,6 +29,16 @@
   let linkedinHandle = $state("");
   let profileImageUrl = $state("");
   let bannerImageUrl = $state("");
+
+  // Email verification modal state
+  let showEmailModal = $state(false);
+
+  function handleEmailVerified(updatedUser) {
+    if (updatedUser) {
+      user = { ...user, ...updatedUser };
+      email = user.email || "";
+    }
+  }
 
   // Image upload states
   let showImageCropper = $state(false);
@@ -64,7 +75,6 @@
 
   // Validation state
   let nameError = $state("");
-  let emailError = $state("");
 
   // Track if any field has changed
   let hasChanges = $derived(
@@ -72,7 +82,6 @@
       (name !== (user.name || "") ||
         (user.validator && nodeVersionAsimov !== (user.validator?.node_version_asimov || "")) ||
         (user.validator && nodeVersionBradbury !== (user.validator?.node_version_bradbury || "")) ||
-        email !== (user.email || "") ||
         description !== (user.description || "") ||
         website !== (user.website || "") ||
         telegramHandle !== (user.telegram_handle || "") ||
@@ -81,7 +90,7 @@
 
   // Form validation
   let isFormValid = $derived(
-    !nameError && !emailError && name.trim() !== "" && email.trim() !== "",
+    !nameError && name.trim() !== "",
   );
 
   // Set once unmounted, so a delayed loadUserData doesn't redirect after leaving.
@@ -104,8 +113,9 @@
       nodeVersionBradbury = userData.validator?.node_version_bradbury || "";
 
       // Load profile fields
-      // Always show the email if it exists, regardless of verification status
-      email = userData.email || "";
+      // Show the email if it exists, but hide the internal placeholder address
+      const rawEmail = userData.email || "";
+      email = rawEmail.endsWith("@ethereum.address") ? "" : rawEmail;
       description = userData.description || "";
       website = userData.website || "";
       telegramHandle = userData.telegram_handle || "";
@@ -166,30 +176,13 @@
     return true;
   }
 
-  function validateEmail() {
-    const trimmedEmail = email.trim();
-    if (trimmedEmail === "") {
-      emailError = "Email is required";
-      return false;
-    }
-    // Basic email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      emailError = "Please enter a valid email";
-      return false;
-    }
-    emailError = "";
-    return true;
-  }
-
   async function handleSave() {
     if (!hasChanges) return;
 
     // Validate required fields
     const nameValid = validateName();
-    const emailValid = validateEmail();
 
-    if (!nameValid || !emailValid) {
+    if (!nameValid) {
       return; // Don't save if validation fails
     }
 
@@ -204,12 +197,6 @@
         telegram_handle: telegramHandle.trim(),
         linkedin_handle: linkedinHandle.trim(),
       };
-
-      // Only include email if it has changed
-      const trimmedEmail = email.trim();
-      if (trimmedEmail && trimmedEmail !== user.email) {
-        updateData.email = trimmedEmail;
-      }
 
       // Only include node versions if they have changed
       if (nodeVersionAsimov !== (user.validator?.node_version_asimov || "")) {
@@ -236,7 +223,7 @@
 
         // Check for field-specific errors and set appropriate error state
         if (data.email) {
-          emailError = data.email; // Shows under email field with red border
+          error = data.email;
         } else if (data.name) {
           nameError = data.name; // Shows under name field with red border
         } else {
@@ -597,28 +584,37 @@
                   <label
                     for="email"
                     class="block text-sm font-medium text-gray-600 mb-1.5"
-                    >Email *</label
+                    >Email</label
                   >
-                  <input
-                    id="email"
-                    type="email"
-                    bind:value={email}
-                    oninput={validateEmail}
-                    class="w-full px-4 py-3 bg-[#FCFCFC] border {emailError
-                      ? 'border-red-300 focus:ring-red-500 rounded-[8px]'
-                      : 'border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black'} transition-colors"
-                    placeholder="Enter your email"
-                    disabled={isSaving}
-                  />
-                  {#if emailError}
-                    <p class="mt-1 text-sm text-red-600">{emailError}</p>
-                  {:else if user.email && user.email.endsWith("@ethereum.address")}
-                    <p class="mt-1 text-xs text-orange-500">
-                      Your current email is auto-generated. Enter a real email.
+                  <div class="flex gap-3 items-center">
+                    <input
+                      id="email"
+                      type="email"
+                      bind:value={email}
+                      class="flex-1 min-w-0 px-4 py-3 bg-[#F5F5F5] border border-[#EAEAEA] rounded-[8px] text-gray-600"
+                      placeholder="No email added yet"
+                      disabled
+                    />
+                    <button
+                      type="button"
+                      onclick={() => (showEmailModal = true)}
+                      class="px-4 py-3 rounded-[8px] font-medium text-sm whitespace-nowrap transition-colors {user.is_email_verified
+                        ? 'border border-gray-200 text-gray-700 bg-white hover:bg-gray-50'
+                        : 'bg-black text-white hover:bg-gray-800'}"
+                    >
+                      {user.is_email_verified ? "Change" : "Verify email"}
+                    </button>
+                  </div>
+                  {#if user.is_email_verified}
+                    <p class="mt-1.5 text-xs text-green-700 flex items-center gap-1">
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                      Email verified
                     </p>
-                  {:else if !user.is_email_verified}
-                    <p class="mt-1 text-xs text-orange-500">
-                      Email not verified
+                  {:else}
+                    <p class="mt-1.5 text-xs text-[#8a4d06]">
+                      Not verified yet. Verify your email to secure your Portal account.
                     </p>
                   {/if}
                 </div>
@@ -1062,6 +1058,14 @@
     </div>
   {/if}
 </div>
+
+{#if showEmailModal}
+  <EmailVerificationModal
+    initialEmail={email}
+    onClose={() => (showEmailModal = false)}
+    onVerified={handleEmailVerified}
+  />
+{/if}
 
 <!-- Image Cropper Modal -->
 {#if showImageCropper && cropperImage}

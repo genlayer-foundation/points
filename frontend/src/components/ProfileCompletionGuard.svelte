@@ -1,5 +1,6 @@
 <script>
-  import { authState } from '../lib/auth.js';
+  import { onMount } from 'svelte';
+  import { authState, confirmPendingSignupEmail, logout, resendPendingSignupEmail, startPendingSignupEmail } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { journeyAPI, updateUserProfile } from '../lib/api.js';
   import { push, location } from 'svelte-spa-router';
@@ -13,12 +14,22 @@
     templateRoute,
     trackEvent,
   } from '../lib/analytics.js';
+  import { showError } from '../lib/toastStore.js';
+  import Turnstile from './Turnstile.svelte';
 
   // Form state
   let email = $state('');
   let name = $state('');
   let submittingProfile = $state(false);
-  let profileError = $state('');
+  let pendingCodeSent = $state(false);
+  let verificationCode = $state('');
+  let turnstileToken = $state('');
+  let turnstileWidget = $state(null);
+  let emailCooldownEndsAt = $state(0);
+  let emailCooldownRemaining = $state(0);
+  let resendRequested = $state(false);
+  let resendingCode = $state(false);
+  let dismissingProfile = $state(false);
 
   // Track which fields were pre-filled
   let hasExistingName = $state(false);
@@ -63,6 +74,11 @@
   let preselectedSource = $state('route');
   let lastProfileViewKey = $state('');
 
+  onMount(() => {
+    const cooldownTimer = window.setInterval(updateEmailCooldown, 1000);
+    return () => window.clearInterval(cooldownTimer);
+  });
+
   function selectRole(value) {
     trackEvent('onboarding_role_selected', getAnalyticsContext({
       selected_role: value,
@@ -79,6 +95,8 @@
     // Don't show while loading
     if ($authState.loading || $userStore.loading) return false;
 
+    if ($authState.pendingSignup) return true;
+
     // Only show if authenticated
     if (!$authState.isAuthenticated) return false;
 
@@ -88,11 +106,8 @@
 
     // Check if profile is incomplete
     const needsName = !user.name || user.name.trim() === '';
-    const needsEmail = !user.email ||
-                       user.email.trim() === '' ||
-                       user.email.endsWith('@ethereum.address');
 
-    return needsName || needsEmail;
+    return needsName;
   });
 
   // Preselect the role from where the user started auth (captured at sign-in,
@@ -153,6 +168,189 @@
     }
   });
 
+  function selectedTargetRole() {
+    return ROLE_VALUES.has(selectedRole)
+      ? selectedRole
+      : roleForCategory(detectCategoryFromRoute($location));
+  }
+
+  function normalizeVerificationCode(value) {
+    return String(value || '').replace(/\D/g, '').slice(0, 6);
+  }
+
+  function handleVerificationCodeInput(event) {
+    verificationCode = normalizeVerificationCode(event.target.value);
+  }
+
+  function startEmailCooldown(seconds) {
+    const duration = Number(seconds) || 0;
+    emailCooldownEndsAt = duration > 0 ? Date.now() + duration * 1000 : 0;
+    updateEmailCooldown();
+  }
+
+  function startEmailCooldownFromData(data) {
+    if (Number(data?.cooldown_seconds) > 0) {
+      startEmailCooldown(data.cooldown_seconds);
+    }
+  }
+
+  function updateEmailCooldown() {
+    if (!emailCooldownEndsAt) {
+      emailCooldownRemaining = 0;
+      return;
+    }
+    emailCooldownRemaining = Math.max(0, Math.ceil((emailCooldownEndsAt - Date.now()) / 1000));
+    if (emailCooldownRemaining === 0) emailCooldownEndsAt = 0;
+  }
+
+  function formatCooldown(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+  }
+
+  async function closeProfileCompletion() {
+    if (submittingProfile || resendingCode || dismissingProfile) return;
+    dismissingProfile = true;
+    trackEvent('profile_completion_dismissed', getAnalyticsContext({
+      selected_role: selectedRole,
+      preselected_role: preselectedRole,
+      source_route: templateRoute($location),
+    }));
+    try {
+      sessionStorage.removeItem('onboardingRole');
+    } catch {}
+    try {
+      await logout();
+      push('/');
+    } catch {
+      showError('Could not disconnect. Please try again.');
+    } finally {
+      dismissingProfile = false;
+    }
+  }
+
+  function pendingSignupPayload(token = turnstileToken) {
+    return {
+      email,
+      name,
+      selected_role: selectedTargetRole(),
+      turnstile_token: token,
+    };
+  }
+
+  function extractProfileError(err, fallback = 'Failed to update profile') {
+    let nextError = err.message || fallback;
+    if (err.response?.data) {
+      const data = err.response.data;
+      if (data.email) {
+        nextError = data.email;
+      } else if (data.name) {
+        nextError = data.name;
+      } else if (data.code || data.token) {
+        nextError = data.code || data.token;
+      } else if (data.turnstile_token) {
+        nextError = data.turnstile_token;
+      } else if (data.detail) {
+        nextError = data.detail;
+      } else if (data.error) {
+        nextError = data.error;
+      }
+    }
+    return Array.isArray(nextError) ? nextError.join(' ') : String(nextError);
+  }
+
+  async function resendVerificationCode(token = turnstileToken) {
+    if (emailCooldownRemaining > 0 || resendingCode || submittingProfile) return;
+    if (!token) {
+      resendRequested = true;
+      return;
+    }
+
+    resendingCode = true;
+    try {
+      const response = await resendPendingSignupEmail(pendingSignupPayload(token));
+      startEmailCooldownFromData(response.data);
+      verificationCode = '';
+      resendRequested = false;
+      turnstileToken = '';
+      turnstileWidget?.reset?.();
+    } catch (err) {
+      startEmailCooldownFromData(err.response?.data);
+      const nextError = extractProfileError(err, 'Could not resend verification code');
+      showError(nextError);
+      turnstileToken = '';
+      turnstileWidget?.reset?.();
+    } finally {
+      resendingCode = false;
+    }
+  }
+
+  function requestResendCode() {
+    if (emailCooldownRemaining > 0 || resendingCode || submittingProfile) return;
+    resendRequested = true;
+    turnstileToken = '';
+  }
+
+  function handleResendTurnstile(token) {
+    turnstileToken = token;
+    if (resendRequested) {
+      resendVerificationCode(token);
+    }
+  }
+
+  async function finishProfileCompletion(targetRole) {
+    // Start the selected journey immediately, then send first-time users
+    // straight to it. If the marker request fails, the route will retry on
+    // mount so a transient error does not strand the user after saving.
+    markFunnelTime('profile_completion');
+    markLifecycleTime('first_profile_completion');
+    trackEvent('profile_completion_success', getAnalyticsContext({
+      selected_role: targetRole,
+      preselected_role: preselectedRole,
+      time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+      time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
+    }));
+
+    trackEvent('journey_start_attempt', getAnalyticsContext({
+      role_context: targetRole,
+      selected_role: targetRole,
+      surface: 'profile_completion',
+    }));
+    try {
+      const startRes = targetRole === 'builder'
+        ? await journeyAPI.startBuilderJourney()
+        : await journeyAPI.startRoleJourney(targetRole);
+      if (startRes.data?.user) userStore.updateUser(startRes.data.user);
+      markFunnelTime(`journey_start:${targetRole}`);
+      markLifecycleTime(`first_journey_start:${targetRole}`);
+      trackEvent('journey_started', getAnalyticsContext({
+        role_context: targetRole,
+        selected_role: targetRole,
+        surface: 'profile_completion',
+        journey_state: 'started',
+        time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+        time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
+        time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
+      }));
+    } catch (startErr) {
+      trackEvent('journey_start_error', getAnalyticsContext({
+        role_context: targetRole,
+        selected_role: targetRole,
+        surface: 'profile_completion',
+        error_stage: startErr.response?.status ? 'backend' : 'network',
+      }));
+      showError('Could not start your journey yet. We will retry on the journey page.');
+      // Best-effort; each journey route also marks itself started.
+    }
+
+    // Reload user data to ensure we have the latest.
+    await userStore.loadUser();
+
+    try { sessionStorage.removeItem('onboardingRole'); } catch {}
+    push(journeyPath(targetRole));
+  }
+
   async function handleProfileSubmit() {
     trackEvent('profile_completion_submit', getAnalyticsContext({
       selected_role: selectedRole,
@@ -160,31 +358,57 @@
     }));
 
     // Validate inputs
-    if (!email || !name) {
+    if (!name || ($authState.pendingSignup && !email)) {
       trackEvent('profile_completion_error', getAnalyticsContext({
         selected_role: selectedRole,
         error_stage: 'validation',
       }));
-      profileError = 'Please provide both email and display name';
+      showError($authState.pendingSignup
+        ? 'Please provide both email and display name'
+        : 'Please provide a display name');
       return;
     }
 
-    if (!isValidEmail(email)) {
+    if ($authState.pendingSignup && !isValidEmail(email)) {
       trackEvent('profile_completion_error', getAnalyticsContext({
         selected_role: selectedRole,
         error_stage: 'validation',
       }));
-      profileError = 'Please enter a valid email address';
+      showError('Please enter a valid email address');
       return;
     }
 
     submittingProfile = true;
-    profileError = '';
 
     try {
+      const targetRole = selectedTargetRole();
+      if ($authState.pendingSignup) {
+        if (pendingCodeSent) {
+          const code = normalizeVerificationCode(verificationCode);
+          if (code.length !== 6) {
+            showError('Enter the 6-digit code from your email');
+            return;
+          }
+          const response = await confirmPendingSignupEmail(code);
+          await finishProfileCompletion(response.data?.selected_role || targetRole);
+          return;
+        }
+
+        if (!turnstileToken) {
+          showError('Please complete verification first');
+          return;
+        }
+
+        const response = await startPendingSignupEmail(pendingSignupPayload());
+        startEmailCooldownFromData(response.data);
+        pendingCodeSent = true;
+        verificationCode = '';
+        turnstileToken = '';
+        turnstileWidget?.reset?.();
+        return;
+      } else {
       // Prepare update data
       const updateData = {};
-      if (email) updateData.email = email;
       if (name) updateData.name = name;
 
       // Submit to backend
@@ -192,77 +416,21 @@
 
       // Update the user store
       userStore.updateUser(updateData);
-
-      // Start the selected journey immediately, then send first-time users
-      // straight to it. If the marker request fails, the route will retry on
-      // mount so a transient error does not strand the user after saving.
-      const targetRole = ROLE_VALUES.has(selectedRole)
-        ? selectedRole
-        : roleForCategory(detectCategoryFromRoute($location));
-      markFunnelTime('profile_completion');
-      markLifecycleTime('first_profile_completion');
-      trackEvent('profile_completion_success', getAnalyticsContext({
-        selected_role: targetRole,
-        preselected_role: preselectedRole,
-        time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
-        time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
-      }));
-
-      trackEvent('journey_start_attempt', getAnalyticsContext({
-        role_context: targetRole,
-        selected_role: targetRole,
-        surface: 'profile_completion',
-      }));
-      try {
-        const startRes = targetRole === 'builder'
-          ? await journeyAPI.startBuilderJourney()
-          : await journeyAPI.startRoleJourney(targetRole);
-        if (startRes.data?.user) userStore.updateUser(startRes.data.user);
-        markFunnelTime(`journey_start:${targetRole}`);
-        markLifecycleTime(`first_journey_start:${targetRole}`);
-        trackEvent('journey_started', getAnalyticsContext({
-          role_context: targetRole,
-          selected_role: targetRole,
-          surface: 'profile_completion',
-          journey_state: 'started',
-          time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
-          time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
-          time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
-        }));
-      } catch (startErr) {
-        trackEvent('journey_start_error', getAnalyticsContext({
-          role_context: targetRole,
-          selected_role: targetRole,
-          surface: 'profile_completion',
-          error_stage: startErr.response?.status ? 'backend' : 'network',
-        }));
-        // Best-effort; each journey route also marks itself started.
       }
 
-      // Reload user data to ensure we have the latest.
-      await userStore.loadUser();
-
-      try { sessionStorage.removeItem('onboardingRole'); } catch {}
-      push(journeyPath(targetRole));
+      await finishProfileCompletion(targetRole);
     } catch (err) {
+      if ($authState.pendingSignup && !pendingCodeSent) {
+        startEmailCooldownFromData(err.response?.data);
+      }
       trackEvent('profile_completion_error', getAnalyticsContext({
         selected_role: selectedRole,
         error_stage: err.response?.status ? 'backend' : 'network',
       }));
-      // Handle field-specific errors from Django REST Framework
-      if (err.response?.data) {
-        const data = err.response.data;
-        if (data.email) {
-          profileError = data.email;
-        } else if (data.name) {
-          profileError = data.name;
-        } else if (data.error) {
-          profileError = data.error;
-        } else {
-          profileError = err.message || 'Failed to update profile';
-        }
-      } else {
-        profileError = err.message || 'Failed to update profile';
+      showError(extractProfileError(err));
+      if ($authState.pendingSignup && !pendingCodeSent) {
+        turnstileToken = '';
+        turnstileWidget?.reset?.();
       }
     } finally {
       submittingProfile = false;
@@ -275,42 +443,27 @@
   }
 </script>
 
-{#snippet genlayerHexMark()}
-  <svg class="genlayer-hex-mark" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-    <path d="M21.75 2.304c1.393-.804 3.107-.804 4.5 0l15.535 8.968c1.393.804 2.25 2.29 2.25 3.897v17.937c0 1.607-.857 3.092-2.25 3.897L26.25 45.971c-1.393.804-3.107.804-4.5 0L6.215 37.003c-1.393-.805-2.25-2.29-2.25-3.897V15.169c0-1.607.857-3.093 2.25-3.897L21.75 2.304Z" fill="#131214" />
-    <g transform="translate(10.75 8.5) scale(0.78)" fill="#fff">
-      <path d="M15.4065 11.2607L9.64908 23.3639L15.0689 26.072L0 32L15.4065 0V11.2607Z" />
-      <path d="M18.6229 11.2607L24.3803 23.3639L18.9605 26.072L34.0294 32L18.6229 0V11.2607Z" />
-      <path d="M16.9311 15.2394L20.3041 21.9088L16.9311 23.5623L13.7392 21.9019L16.9311 15.2394Z" />
-    </g>
-  </svg>
-{/snippet}
-
 {#if showGuard}
   <div class="profile-guard-backdrop">
     <div class="profile-guard-modal" role="dialog" aria-modal="true" aria-labelledby="profile-guard-title">
       <div class="profile-guard-hero">
-        <div class="hero-topline">
-          <span class="hero-badge" aria-hidden="true">
-            {@render genlayerHexMark()}
-          </span>
-          <span>GenLayer Portal</span>
-        </div>
+        <button
+          type="button"
+          class="profile-guard-close"
+          aria-label="Disconnect wallet and close"
+          onclick={closeProfileCompletion}
+          disabled={submittingProfile || resendingCode || dismissingProfile}
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
         <h2 id="profile-guard-title" class="profile-guard-title">Set up your Portal identity</h2>
         <p>Choose how creators, builders, and validators will recognize you across the Portal.</p>
       </div>
 
       <div class="profile-guard-body">
         <div class="profile-completion-form">
-          {#if profileError}
-            <div class="profile-error">
-              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <path d="M10 6v5M10 14.5h.01M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-              </svg>
-              {profileError}
-            </div>
-          {/if}
-
           <div class="identity-grid">
             <div class="form-group">
               <label for="name" class="form-label">
@@ -329,12 +482,13 @@
                   bind:value={name}
                   placeholder="Your public name"
                   class="form-input"
-                  disabled={submittingProfile}
+                  disabled={submittingProfile || pendingCodeSent}
                 />
               </div>
               <p>Shown on your profile, submissions, and contribution history.</p>
             </div>
 
+            {#if $authState.pendingSignup}
             <div class="form-group">
               <label for="email" class="form-label">
                 <span>Email</span>
@@ -352,12 +506,80 @@
                   bind:value={email}
                   placeholder="you@example.com"
                   class="form-input"
-                  disabled={submittingProfile}
+                  disabled={submittingProfile || pendingCodeSent}
                 />
               </div>
               <p>Used for important updates about submissions and rewards.</p>
             </div>
+            {/if}
           </div>
+
+          {#if $authState.pendingSignup}
+            <div class="form-group">
+              {#if pendingCodeSent}
+                <label for="signup-verification-code" class="form-label">
+                  <span>Verification code</span>
+                  <span class="field-state sent-to">Sent to {email.trim()}</span>
+                </label>
+                <input
+                  id="signup-verification-code"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  maxlength="6"
+                  value={verificationCode}
+                  oninput={handleVerificationCodeInput}
+                  placeholder="000000"
+                  class="verification-code-input mt-2.5 h-14 w-full rounded-lg border border-gray-300 bg-white px-4 pl-5 text-center font-mono text-2xl font-extrabold tracking-widest text-gray-950 tabular-nums transition-colors duration-150 placeholder:text-gray-300 focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-gray-200"
+                  disabled={submittingProfile || resendingCode}
+                />
+                <div class="resend-row" role="status" aria-live="polite">
+                  <span class="resend-hint">
+                    {#if emailCooldownRemaining > 0}
+                      New code available in <strong>{formatCooldown(emailCooldownRemaining)}</strong>
+                    {:else if resendRequested && !resendingCode}
+                      Complete verification below to resend.
+                    {:else}
+                      Didn't get the email?
+                    {/if}
+                  </span>
+                  <button
+                    type="button"
+                    class="resend-button"
+                    onclick={requestResendCode}
+                    disabled={submittingProfile || resendingCode || emailCooldownRemaining > 0 || resendRequested}
+                  >
+                    {resendingCode ? 'Sending...' : 'Resend code'}
+                  </button>
+                </div>
+                {#if resendRequested}
+                  <div class="resend-turnstile">
+                    <Turnstile
+                      bind:this={turnstileWidget}
+                      disabled={resendingCode}
+                      onVerify={handleResendTurnstile}
+                      onExpire={() => (turnstileToken = '')}
+                    />
+                  </div>
+                {/if}
+              {:else}
+                <Turnstile
+                  bind:this={turnstileWidget}
+                  disabled={submittingProfile}
+                  onVerify={(token) => (turnstileToken = token)}
+                  onExpire={() => (turnstileToken = '')}
+                />
+                {#if emailCooldownRemaining > 0}
+                  <div class="cooldown-notice" role="status" aria-live="polite">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <span>You can request another code in {formatCooldown(emailCooldownRemaining)}.</span>
+                  </div>
+                {/if}
+              {/if}
+            </div>
+          {/if}
 
           <div class="form-group">
             <span class="form-label role-label">Choose your first journey</span>
@@ -368,7 +590,7 @@
                   class="role-option {selectedRole === option.value ? 'role-option-selected' : ''}"
                   style={`--role-accent: ${option.accent}; --role-accent-rgb: ${option.accentRgb};`}
                   onclick={() => selectRole(option.value)}
-                  disabled={submittingProfile}
+                  disabled={submittingProfile || pendingCodeSent}
                   aria-pressed={selectedRole === option.value}
                 >
                   <span class="role-card-bg" aria-hidden="true"></span>
@@ -392,14 +614,24 @@
 
           <button
             onclick={handleProfileSubmit}
-            disabled={submittingProfile || !email.trim() || !name.trim()}
+            disabled={submittingProfile || resendingCode || !name.trim() || ($authState.pendingSignup && (pendingCodeSent ? verificationCode.length !== 6 : (!email.trim() || !turnstileToken || emailCooldownRemaining > 0)))}
             class="profile-submit-button"
           >
             {#if submittingProfile}
               <div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Saving...
+              {pendingCodeSent ? 'Verifying...' : 'Sending...'}
             {:else}
-              Continue
+              {#if $authState.pendingSignup}
+                {#if pendingCodeSent}
+                  Verify code and continue
+                {:else if emailCooldownRemaining > 0}
+                  Send in {formatCooldown(emailCooldownRemaining)}
+                {:else}
+                  Send verification code
+                {/if}
+              {:else}
+                Continue
+              {/if}
             {/if}
           </button>
         </div>
@@ -463,74 +695,50 @@
   .profile-guard-hero {
     background: #ffffff;
     color: #131214;
-    padding: 24px;
+    padding: 28px 72px 22px 24px;
     position: relative;
     overflow: hidden;
   }
 
-  .profile-guard-hero::before {
-    background:
-      linear-gradient(90deg,
-        rgba(238, 133, 33, 0.34) 0%,
-        rgba(255, 230, 132, 0.28) 18%,
-        rgba(95, 213, 165, 0.3) 38%,
-        rgba(91, 190, 238, 0.3) 58%,
-        rgba(151, 132, 238, 0.28) 78%,
-        rgba(245, 151, 194, 0.3) 100%
-      );
-    content: '';
-    filter: blur(18px);
-    height: 122px;
-    left: -20px;
-    opacity: 0.95;
-    position: absolute;
-    right: -20px;
-    top: 46%;
-    transform: translateY(-50%);
-  }
-
-  .profile-guard-hero::after {
-    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.36));
-    bottom: 0;
-    content: '';
-    height: 46px;
-    left: 0;
-    pointer-events: none;
-    position: absolute;
-    right: 0;
-  }
-
-  .hero-topline {
-    position: relative;
-    z-index: 1;
+  .profile-guard-close {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(19, 18, 20, 0.08);
+    border-radius: 999px;
+    color: #5f6068;
+    cursor: pointer;
     display: flex;
-    align-items: center;
-    gap: 10px;
-    color: #5d5d64;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0;
-    text-transform: uppercase;
-    margin-bottom: 16px;
-  }
-
-  .hero-badge {
-    width: 42px;
-    height: 42px;
-    display: inline-flex;
-    align-items: center;
+    height: 40px;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.74);
-    border: 1px solid rgba(255, 255, 255, 0.92);
-    border-radius: 14px;
-    box-shadow: 0 12px 26px rgba(19, 18, 20, 0.1);
+    position: absolute;
+    right: 18px;
+    top: 18px;
+    transition-duration: 160ms;
+    transition-property: background-color, color, transform, box-shadow;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    width: 40px;
+    z-index: 2;
   }
 
-  .genlayer-hex-mark {
-    display: block;
-    width: 34px;
-    height: 34px;
+  .profile-guard-close svg {
+    height: 20px;
+    width: 20px;
+  }
+
+  .profile-guard-close:hover:not(:disabled) {
+    background: #fff;
+    box-shadow: 0 10px 22px rgba(19, 18, 20, 0.14);
+    color: #131214;
+  }
+
+  .profile-guard-close:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  .profile-guard-close:disabled {
+    cursor: default;
+    opacity: 0.55;
+    transform: none;
   }
 
   .profile-guard-title {
@@ -546,6 +754,14 @@
     z-index: 1;
   }
 
+  .sent-to {
+    color: #5d636f;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .profile-guard-hero p {
     color: #606068;
     font-size: 14px;
@@ -559,27 +775,6 @@
 
   .profile-guard-body {
     padding: 24px;
-  }
-
-  .profile-error {
-    align-items: flex-start;
-    background-color: #fff1f1;
-    border: 1px solid #ffc9c9;
-    color: #9f1d1d;
-    display: flex;
-    gap: 10px;
-    padding: 12px 14px;
-    border-radius: 8px;
-    font-size: 14px;
-    line-height: 1.45;
-    margin-bottom: 18px;
-  }
-
-  .profile-error svg {
-    flex: 0 0 auto;
-    height: 18px;
-    margin-top: 1px;
-    width: 18px;
   }
 
   .identity-grid {
@@ -674,6 +869,90 @@
     line-height: 1.45;
     margin: 7px 0 0;
     text-wrap: pretty;
+  }
+
+  .cooldown-notice {
+    align-items: center;
+    background: #fff8ed;
+    border: 1px solid #f6d8ad;
+    border-radius: 8px;
+    color: #8a4d06;
+    display: flex;
+    font-size: 13px;
+    font-weight: 750;
+    gap: 9px;
+    line-height: 1.35;
+    margin-top: 10px;
+    min-height: 42px;
+    padding: 10px 12px;
+  }
+
+  .cooldown-notice svg {
+    flex: 0 0 auto;
+    height: 18px;
+    width: 18px;
+  }
+
+  .resend-row {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    margin-top: 10px;
+  }
+
+  .resend-hint {
+    color: #737378;
+    flex: 1 1 auto;
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.35;
+    min-width: 0;
+  }
+
+  .resend-hint strong {
+    color: #131214;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+  }
+
+  .resend-button {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #d8dbe2;
+    border-radius: 999px;
+    color: #363940;
+    cursor: pointer;
+    display: inline-flex;
+    flex: 0 0 auto;
+    font-size: 13px;
+    font-weight: 800;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 14px;
+    transition-duration: 160ms;
+    transition-property: background-color, border-color, color, transform;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .resend-button:hover:not(:disabled) {
+    background: #f7f7f8;
+    border-color: #b8bdc8;
+    color: #131214;
+  }
+
+  .resend-button:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  .resend-button:disabled {
+    cursor: default;
+    opacity: 0.55;
+    transform: none;
+  }
+
+  .resend-turnstile {
+    margin-top: 10px;
   }
 
   .role-options {
@@ -866,7 +1145,7 @@
     }
 
     .profile-guard-hero {
-      padding: 20px;
+      padding: 22px 64px 20px 20px;
     }
 
     .profile-guard-body {

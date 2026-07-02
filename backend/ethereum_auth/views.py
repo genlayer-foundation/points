@@ -1,20 +1,31 @@
+import re
 import secrets
 import string
 from datetime import timedelta
 
 from django.conf import settings
+from django.contrib.auth import login as django_login
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 
-from utils.throttling import SiweAuthRateThrottle
+from utils.throttling import (
+    ExistingEmailConfirmRateThrottle,
+    ExistingEmailResendRateThrottle,
+    ExistingEmailStartRateThrottle,
+    PendingEmailConfirmRateThrottle,
+    PendingEmailResendRateThrottle,
+    PendingEmailStartRateThrottle,
+    SiweAuthRateThrottle,
+)
 from siwe import SiweMessage, VerificationError
 
-from .models import Nonce
+from .email_verification import EmailVerificationService, TurnstileVerifier
+from .models import Nonce, PendingWalletSignup
 from .authentication import CsrfExemptSessionAuthentication
 from .siwe_utils import get_expected_siwe_domain, get_expected_siwe_uri, normalize_origin
 from tally.middleware.logging_utils import get_app_logger
@@ -22,12 +33,94 @@ from tally.middleware.logging_utils import get_app_logger
 User = get_user_model()
 logger = get_app_logger('auth')
 LOGIN_STATEMENT = 'Sign in with Ethereum to GenLayer Testnet Contributions'
+email_verification_service = EmailVerificationService()
+turnstile_verifier = TurnstileVerifier()
+PENDING_SIGNUP_PROFILE_FIELDS = {
+    'name',
+    'description',
+    'website',
+    'telegram_handle',
+    'linkedin_handle',
+    'selected_role',
+}
 
 
 def generate_nonce(length=32):
     """Generate a random nonce string of specified length"""
     characters = string.ascii_letters + string.digits
     return ''.join(secrets.choice(characters) for _ in range(length))
+
+
+def get_client_ip(request):
+    forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if forwarded_for:
+        return forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR')
+
+
+def validation_error_response(exc):
+    detail = getattr(exc, 'detail', {'detail': 'Invalid request.'})
+    return Response(detail, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _verification_credential_from_request(request) -> str:
+    code = request.data.get('code')
+    token = request.data.get('token')
+    if code not in (None, ''):
+        if not isinstance(code, str):
+            raise serializers.ValidationError({'code': 'Enter the 6-digit verification code.'})
+        code = code.strip()
+        if not re.fullmatch(r'\d{6}', code):
+            raise serializers.ValidationError({'code': 'Enter the 6-digit verification code.'})
+        return code
+
+    if token not in (None, ''):
+        if not isinstance(token, str):
+            raise serializers.ValidationError({'token': 'Invalid verification token.'})
+        token = token.strip()
+        if not token or len(token) > 256:
+            raise serializers.ValidationError({'token': 'Invalid verification token.'})
+        return token
+
+    raise serializers.ValidationError({'code': 'Verification code is required.'})
+
+
+def get_pending_signup_profile_data(data):
+    profile_data = {
+        field: data.get(field)
+        for field in PENDING_SIGNUP_PROFILE_FIELDS
+        if field in data
+    }
+    return profile_data or None
+
+
+def get_pending_signup_from_session(request):
+    pending_id = request.session.get('pending_wallet_signup_id')
+    pending_address = request.session.get('pending_wallet_address')
+    queryset = PendingWalletSignup.objects.filter(status=PendingWalletSignup.STATUS_PENDING)
+    if pending_id:
+        pending = queryset.filter(pk=pending_id).first()
+    elif pending_address:
+        pending = queryset.filter(address__iexact=pending_address).first()
+    else:
+        pending = None
+    if pending and pending.is_active():
+        return pending
+    return None
+
+
+def normalize_pending_referral_code(value):
+    code = str(value or '').strip().upper()
+    return code if len(code) <= 8 else ''
+
+
+def auth_response_referral_code(user):
+    """Return a referral code for auth payloads without failing authentication."""
+    try:
+        return user.ensure_referral_code()
+    except Exception:
+        logger.exception("Failed to ensure referral code for user %s", user.pk)
+        return user.referral_code or ''
 
 
 @api_view(['GET'])
@@ -134,55 +227,47 @@ def login(request):
 
         ethereum_address = siwe_message.address.lower()
         
-        # Get or create the user
-        user, created = User.objects.get_or_create(
-            address__iexact=ethereum_address,
-            defaults={
+        user = User.objects.filter(address__iexact=ethereum_address).first()
+        if not user:
+            if not request.session.session_key:
+                request.session.create()
+            expires_at = timezone.now() + timedelta(seconds=settings.PENDING_WALLET_SIGNUP_TTL_SECONDS)
+            pending, _ = PendingWalletSignup.objects.update_or_create(
+                address=ethereum_address,
+                defaults={
+                    'session_key': request.session.session_key,
+                    'referral_code': normalize_pending_referral_code(referral_code),
+                    'status': PendingWalletSignup.STATUS_PENDING,
+                    'expires_at': expires_at,
+                },
+            )
+            request.session['pending_wallet_signup_id'] = pending.id
+            request.session['pending_wallet_address'] = ethereum_address
+            request.session['authenticated'] = False
+            request.session.save()
+            return Response({
+                'authenticated': False,
+                'pending_signup': True,
                 'address': ethereum_address,
-                'username': ethereum_address[:10],  # Use first 10 chars as username
-                'email': f'{ethereum_address[:8]}@ethereum.address',  # Generate a dummy email
-                # No name set by default for wallet-based users
-            }
-        )
-        
-        # Handle referral association for new users
-        if created and referral_code:
-            try:
-                # Find referrer by referral code
-                referrer = User.objects.get(referral_code=referral_code.upper())
-                # Prevent self-referral (though this shouldn't happen with new users)
-                if referrer != user:
-                    user.referred_by = referrer
-                    user.save(update_fields=['referred_by'])
-                    logger.debug("New user referred successfully")
+            })
 
-                    # Notify the referrer; never let this break login.
-                    try:
-                        from notifications.services import notify_referral_joined
-                        notify_referral_joined(user)
-                    except Exception:
-                        logger.exception("Failed to create referral notification")
-            except User.DoesNotExist:
-                # Invalid referral code, but don't fail the login
-                logger.warning("Invalid referral code provided during login")
-        
-        # Refresh user data from database to get referral_code from signal
-        user.refresh_from_db()
-        
-        # Store the ethereum address in the session
+        django_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
         request.session['ethereum_address'] = ethereum_address
         request.session['authenticated'] = True
+        request.session.pop('pending_wallet_signup_id', None)
+        request.session.pop('pending_wallet_address', None)
         request.session.save()  # Explicitly save the session
 
         logger.debug("Login successful, session created")
+        referral_code = auth_response_referral_code(user)
 
         # Return the authenticated user with referral data
         return Response({
             'authenticated': True,
             'address': ethereum_address,
             'user_id': user.id,
-            'created': created,
-            'referral_code': user.referral_code,
+            'created': False,
+            'referral_code': referral_code,
             'referred_by': {
                 'id': user.referred_by.id,
                 'name': user.referred_by.name or 'Anonymous',
@@ -220,10 +305,12 @@ def verify_auth(request):
         except User.DoesNotExist:
             pass
     
+    pending = get_pending_signup_from_session(request)
     return Response({
         'authenticated': False,
-        'address': None,
-        'user_id': None
+        'address': pending.address if pending else None,
+        'user_id': None,
+        'pending_signup': bool(pending),
     })
 
 
@@ -254,3 +341,124 @@ def refresh_session(request):
         {'error': 'Not authenticated.'},
         status=status.HTTP_401_UNAUTHORIZED
     )
+
+
+def send_pending_signup_email(request):
+    pending = get_pending_signup_from_session(request)
+    if not pending:
+        return Response({'detail': 'Pending signup is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        email_verification_service.ensure_pending_signup_can_send(pending)
+        turnstile_verifier.verify(request.data.get('turnstile_token'), get_client_ip(request))
+        email_verification_service.start_for_pending_signup(
+            pending,
+            request.data.get('email'),
+            profile_data=get_pending_signup_profile_data(request.data),
+        )
+    except Exception as exc:
+        if hasattr(exc, 'detail'):
+            return validation_error_response(exc)
+        logger.exception("Failed to start pending signup email verification")
+        return Response({'detail': 'Could not send verification email.'}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({'sent': True, 'cooldown_seconds': settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@authentication_classes([CsrfExemptSessionAuthentication])
+@throttle_classes([PendingEmailStartRateThrottle])
+def signup_email_start(request):
+    return send_pending_signup_email(request)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@authentication_classes([CsrfExemptSessionAuthentication])
+@throttle_classes([PendingEmailResendRateThrottle])
+def signup_email_resend(request):
+    return send_pending_signup_email(request)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@authentication_classes([CsrfExemptSessionAuthentication])
+@throttle_classes([PendingEmailConfirmRateThrottle])
+def signup_email_confirm(request):
+    pending = get_pending_signup_from_session(request)
+    if not pending:
+        return Response({'detail': 'Pending signup is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        credential = _verification_credential_from_request(request)
+        user = email_verification_service.confirm_pending_signup(
+            pending,
+            credential,
+        )
+        confirmed_pending = pending
+    except Exception as exc:
+        if hasattr(exc, 'detail'):
+            return validation_error_response(exc)
+        logger.exception("Failed to confirm pending signup email code")
+        return Response({'detail': 'Could not confirm verification code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    django_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+    request.session['ethereum_address'] = user.address
+    request.session['authenticated'] = True
+    request.session.pop('pending_wallet_signup_id', None)
+    request.session.pop('pending_wallet_address', None)
+    request.session.save()
+    return Response({
+        'authenticated': True,
+        'requires_wallet_login': False,
+        'address': user.address,
+        'user_id': user.id,
+        'created': True,
+        'referral_code': auth_response_referral_code(user),
+        'selected_role': (confirmed_pending.profile_data or {}).get('selected_role', ''),
+    })
+
+
+def send_existing_user_email(request):
+    try:
+        email_verification_service.ensure_existing_user_can_send(request.user)
+        turnstile_verifier.verify(request.data.get('turnstile_token'), get_client_ip(request))
+        email_verification_service.start_for_user(request.user, request.data.get('email'))
+    except Exception as exc:
+        if hasattr(exc, 'detail'):
+            return validation_error_response(exc)
+        logger.exception("Failed to start email verification")
+        return Response({'detail': 'Could not send verification email.'}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({'sent': True, 'cooldown_seconds': settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS})
+
+
+@api_view(['POST'])
+@throttle_classes([ExistingEmailStartRateThrottle])
+def email_start(request):
+    return send_existing_user_email(request)
+
+
+@api_view(['POST'])
+@throttle_classes([ExistingEmailResendRateThrottle])
+def email_resend(request):
+    return send_existing_user_email(request)
+
+
+@api_view(['POST'])
+@throttle_classes([ExistingEmailConfirmRateThrottle])
+def email_confirm(request):
+    try:
+        credential = _verification_credential_from_request(request)
+        user = email_verification_service.confirm_existing_user(
+            request.user,
+            credential,
+        )
+    except Exception as exc:
+        if hasattr(exc, 'detail'):
+            return validation_error_response(exc)
+        logger.exception("Failed to confirm email verification code")
+        return Response({'detail': 'Could not confirm verification code.'}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({
+        'verified': True,
+        'email': user.email,
+        'is_email_verified': user.is_email_verified,
+        'email_verified_at': user.email_verified_at,
+    })

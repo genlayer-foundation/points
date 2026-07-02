@@ -3,6 +3,7 @@
   import { projectsAPI } from '../../lib/api.js';
   import { resolvePortalLink } from '../../lib/links.js';
   import CategoryIcon from '../portal/CategoryIcon.svelte';
+  import RoleLandingVideo from './RoleLandingVideo.svelte';
 
   let { state: roleState = 'unauthenticated', starting = false, onStart = () => {} } = $props();
 
@@ -147,7 +148,12 @@
         <p class="cta-hint">{ctaHint}</p>
       </div>
     </div>
-    <div class="hero-media" aria-hidden="true"></div>
+    <RoleLandingVideo
+      variant="builder"
+      eyebrow="Builder Preview"
+      title="Contracts that reason"
+      description="A short look at the portal path from first action to intelligent contract launch."
+    />
   </section>
 
   <section class="capability-section" aria-labelledby="builder-capabilities-title">
@@ -474,13 +480,6 @@
 
   .landing-button-secondary:hover {
     background: #f5f5f5;
-  }
-
-  .hero-media {
-    aspect-ratio: 16 / 9;
-    background: #cbcbcb;
-    border-radius: 8px;
-    width: 100%;
   }
 
   .capability-section,
@@ -878,6 +877,18 @@
 
     .stack-grid {
       grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .builder-landing {
+      margin: 0;
+      padding: 0 12px 0;
+      width: 100%;
+    }
+
+    .builder-hero {
+      padding: 20px 0 56px;
     }
   }
 

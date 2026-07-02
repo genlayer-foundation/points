@@ -1,8 +1,4 @@
-"""
-Tests for user profile update functionality, especially email updates.
-"""
-from types import SimpleNamespace
-from unittest.mock import patch
+"""Tests for user profile update functionality."""
 
 from django.test import TestCase
 from django.contrib.auth import get_user_model
@@ -43,86 +39,61 @@ class UserProfileUpdateTests(TestCase):
         refresh = RefreshToken.for_user(user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
 
-    @staticmethod
-    def valid_email_result(email):
-        domain = email.split('@', 1)[1]
-        return SimpleNamespace(normalized=email, domain=domain)
-
-    @patch('email_validator.validate_email')
-    def test_unverified_user_can_set_email(self, mock_validate_email):
-        """Test that unverified users can set their email for the first time."""
+    def test_unverified_user_cannot_set_email_from_profile_patch(self):
+        """Email changes must go through the verification-code flow."""
         self.authenticate(self.unverified_user)
-        mock_validate_email.return_value = self.valid_email_result('newemail@example.com')
-        
-        # Update profile with new email
+
         response = self.client.patch('/api/v1/users/me/', {
             'email': 'newemail@example.com',
             'name': 'Updated Name'
         })
-        
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        # Refresh user from database
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(str(response.data['email']), 'Use email verification to change email.')
         self.unverified_user.refresh_from_db()
-        
-        # Check that email was updated and marked as verified
-        self.assertEqual(self.unverified_user.email, 'newemail@example.com')
-        self.assertTrue(self.unverified_user.is_email_verified)
-        self.assertEqual(self.unverified_user.name, 'Updated Name')
-    
-    @patch('email_validator.validate_email')
-    def test_verified_user_can_change_email(self, mock_validate_email):
-        """Test that verified users can change their email."""
+        self.assertEqual(self.unverified_user.email, '0x123@ethereum.address')
+        self.assertFalse(self.unverified_user.is_email_verified)
+        self.assertEqual(self.unverified_user.name, 'Unverified User')
+
+    def test_verified_user_cannot_change_email_from_profile_patch(self):
+        """Verified users also need to confirm email changes by code."""
         self.authenticate(self.verified_user)
-        mock_validate_email.return_value = self.valid_email_result('changedemail@example.com')
-        
-        # Update profile with new email
+
         response = self.client.patch('/api/v1/users/me/', {
             'email': 'changedemail@example.com'
         })
-        
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        # Refresh user from database
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.verified_user.refresh_from_db()
-        
-        # Check that email was updated and still marked as verified
-        self.assertEqual(self.verified_user.email, 'changedemail@example.com')
+        self.assertEqual(self.verified_user.email, 'verified@example.com')
         self.assertTrue(self.verified_user.is_email_verified)
-    
-    @patch('email_validator.validate_email')
-    def test_email_uniqueness_validation(self, mock_validate_email):
-        """Test that email must be unique."""
+
+    def test_profile_patch_rejects_email_before_uniqueness_validation(self):
+        """Profile save never handles email uniqueness; verification endpoints do."""
         self.authenticate(self.unverified_user)
-        mock_validate_email.return_value = self.valid_email_result('verified@example.com')
-        
-        # Try to use an email that's already taken
+
         response = self.client.patch('/api/v1/users/me/', {
-            'email': 'verified@example.com'  # Already used by verified_user
+            'email': 'verified@example.com'
         })
-        
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('email', response.data)
-        
-        # Check that email was not changed
         self.unverified_user.refresh_from_db()
         self.assertEqual(self.unverified_user.email, '0x123@ethereum.address')
     
-    def test_empty_email_not_saved(self):
-        """Test that empty email is not saved."""
+    def test_empty_email_rejected_and_profile_not_saved(self):
+        """Even an empty email key must use the verification flow."""
         self.authenticate(self.verified_user)
-        
-        # Try to set empty email
+
         response = self.client.patch('/api/v1/users/me/', {
             'email': '',
             'name': 'New Name'
         })
-        
-        # Name should update but email should not change
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.verified_user.refresh_from_db()
         self.assertEqual(self.verified_user.email, 'verified@example.com')
-        self.assertEqual(self.verified_user.name, 'New Name')
+        self.assertEqual(self.verified_user.name, 'Verified User')
     
     def test_profile_fields_update(self):
         """Test updating various profile fields."""
