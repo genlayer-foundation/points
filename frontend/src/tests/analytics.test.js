@@ -81,28 +81,15 @@ describe('analytics helper', () => {
   it('no-ops when GA is not configured', async () => {
     const analytics = await loadAnalytics();
 
-    analytics.setAnalyticsConsent(true);
     expect(analytics.initializeAnalytics()).toBe(false);
     expect(analytics.trackEvent('role_landing_view')).toBe(false);
     expect(document.querySelectorAll('script[src*="googletagmanager"]').length).toBe(0);
-  });
-
-  it('does not load or send analytics before consent', async () => {
-    vi.stubEnv('VITE_GOOGLE_ANALYTICS_ID', 'G-TEST123');
-    const analytics = await loadAnalytics();
-
-    expect(analytics.initializeAnalytics()).toBe(false);
-    expect(analytics.trackEvent('role_landing_view')).toBe(false);
-    expect(document.querySelectorAll('#google-analytics-gtag').length).toBe(0);
-    expect(dataLayerCalls()).toEqual([]);
   });
 
   it('initializes once and disables automatic config page views', async () => {
     vi.stubEnv('VITE_GOOGLE_ANALYTICS_ID', 'G-TEST123');
     const analytics = await loadAnalytics();
 
-    expect(analytics.initializeAnalytics()).toBe(false);
-    expect(analytics.setAnalyticsConsent(true)).toBe(true);
     expect(analytics.initializeAnalytics()).toBe(true);
     expect(analytics.initializeAnalytics()).toBe(true);
 
@@ -117,12 +104,85 @@ describe('analytics helper', () => {
     vi.stubEnv('VITE_GOOGLE_ANALYTICS_ID', 'G-TEST123');
     const analytics = await loadAnalytics();
 
-    analytics.setAnalyticsConsent(true);
     analytics.trackPageView('/participant/0x1234567890abcdef1234567890abcdef12345678?ref=ABC');
 
     const eventCall = dataLayerCalls().find((call) => call[0] === 'event' && call[1] === 'page_view');
     expect(eventCall[2].route).toBe('/participant/:address');
     expect(eventCall[2].page_path).toBe('/participant/:address');
+    expect(eventCall[2].page_location).toBe(`${window.location.origin}/participant/:address`);
+  });
+
+  it('preserves campaign params from the landing URL across SPA navigations', async () => {
+    vi.stubEnv('VITE_GOOGLE_ANALYTICS_ID', 'G-TEST123');
+    window.history.pushState({}, '', '/?utm_source=twitter&utm_medium=social&gclid=abc123&ref=SECRET');
+    const analytics = await loadAnalytics();
+
+    analytics.trackPageView('/');
+    window.history.pushState({}, '', '/builders');
+    analytics.trackPageView('/builders');
+
+    const pageViews = dataLayerCalls().filter((call) => call[0] === 'event' && call[1] === 'page_view');
+    expect(pageViews[0][2].page_location).toBe(
+      `${window.location.origin}/?utm_source=twitter&utm_medium=social&gclid=abc123`
+    );
+    expect(pageViews[1][2].page_location).toBe(
+      `${window.location.origin}/builders?utm_source=twitter&utm_medium=social&gclid=abc123`
+    );
+  });
+
+  it('preserves campaign params across same-tab reloads and redirects', async () => {
+    vi.stubEnv('VITE_GOOGLE_ANALYTICS_ID', 'G-TEST123');
+    window.history.pushState({}, '', '/?utm_source=twitter&utm_medium=social&utm_campaign=launch');
+    let analytics = await loadAnalytics();
+
+    analytics.trackPageView('/');
+
+    document.head.innerHTML = '';
+    window.dataLayer = undefined;
+    window.gtag = undefined;
+    window.history.pushState({}, '', '/verify-email');
+    analytics = await loadAnalytics();
+
+    analytics.trackPageView('/verify-email');
+
+    const pageViews = dataLayerCalls().filter((call) => call[0] === 'event' && call[1] === 'page_view');
+    expect(pageViews[0][2].page_location).toBe(
+      `${window.location.origin}/verify-email?utm_source=twitter&utm_medium=social&utm_campaign=launch`
+    );
+  });
+
+  it('expires persisted campaign params after 24 hours', async () => {
+    vi.stubEnv('VITE_GOOGLE_ANALYTICS_ID', 'G-TEST123');
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    window.history.pushState({}, '', '/?utm_source=twitter&utm_medium=social');
+    let analytics = await loadAnalytics();
+
+    analytics.trackPageView('/');
+
+    vi.setSystemTime(24 * 60 * 60 * 1000 + 2_000);
+    document.head.innerHTML = '';
+    window.dataLayer = undefined;
+    window.gtag = undefined;
+    window.history.pushState({}, '', '/builders');
+    analytics = await loadAnalytics();
+
+    analytics.trackPageView('/builders');
+
+    const pageViews = dataLayerCalls().filter((call) => call[0] === 'event' && call[1] === 'page_view');
+    expect(pageViews[0][2].page_location).toBe(`${window.location.origin}/builders`);
+  });
+
+  it('attaches a templated page_location to non-page_view events', async () => {
+    vi.stubEnv('VITE_GOOGLE_ANALYTICS_ID', 'G-TEST123');
+    window.history.pushState({}, '', '/participant/0x1234567890abcdef1234567890abcdef12345678');
+    const analytics = await loadAnalytics();
+
+    analytics.trackEvent('role_landing_view');
+
+    const eventCall = dataLayerCalls().find(
+      (call) => call[0] === 'event' && call[1] === 'role_landing_view'
+    );
     expect(eventCall[2].page_location).toBe(`${window.location.origin}/participant/:address`);
   });
 
@@ -177,7 +237,6 @@ describe('analytics helper', () => {
     vi.useFakeTimers();
     vi.setSystemTime(10_000);
     const analytics = await loadAnalytics();
-    analytics.setAnalyticsConsent(true);
 
     expect(analytics.markLifecycleTime('first_wallet_auth_success')).toBe(true);
     expect(analytics.markLifecycleTime('first_wallet_auth_success')).toBe(false);
