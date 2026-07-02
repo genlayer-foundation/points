@@ -44,11 +44,15 @@ _STABLE_RE = re.compile(r'^\d+\.\d+\.\d+$')
 # node_version columns are varchar(50); anything longer is operator-controlled junk.
 _VERSION_MAX_LENGTH = 50
 
-# A stable release only becomes an auto-created target once this many distinct
-# operators report it: the version label is self-reported by the node being judged
-# and rewarded, so a single (malicious or misconfigured) operator must not be able
-# to pin a fleet-wide target and shame everyone else / bank the first-adopter bonus.
-MIN_OPERATORS_FOR_AUTO_TARGET = 2
+def min_operators_for_auto_target():
+    """
+    A stable release only becomes an auto-created target once this many distinct
+    operators report it: the version label is self-reported by the node being judged
+    and rewarded, so a single (malicious or misconfigured) operator must not be able
+    to pin a fleet-wide target and shame everyone else / bank the first-adopter bonus.
+    Read at call time (not import) so the setting is tunable without a code deploy.
+    """
+    return getattr(settings, 'NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET', 2)
 
 
 def _latch(prev, cur, severity):
@@ -434,7 +438,7 @@ class GrafanaValidatorStatusService:
         Grafana is the source of truth for node versions. From the versions observed
         this run ({address_lower: version}):
           1. auto-create a TargetNodeVersion when a STABLE release higher than the
-             active target is reported by at least MIN_OPERATORS_FOR_AUTO_TARGET
+             active target is reported by at least min_operators_for_auto_target()
              distinct linked operators (target_date=now);
           2. raise each linked operator's node_version_<network> to the highest
              valid version across their nodes (bypassing the profile-save path via
@@ -483,8 +487,8 @@ class GrafanaValidatorStatusService:
             if not by_operator:
                 return
 
-            # (1) Auto-create target from the highest stable release reported by at
-            # least MIN_OPERATORS_FOR_AUTO_TARGET distinct operators, so one
+            # (1) Auto-create target from the highest stable release reported by
+            # enough distinct operators (min_operators_for_auto_target), so one
             # operator's self-reported label can't pin a bogus fleet-wide target
             # (and farm the first-adopter bonus). An active target with an
             # unparseable version is never superseded blindly.
@@ -493,9 +497,10 @@ class GrafanaValidatorStatusService:
                 for v in versions:
                     if _STABLE_RE.match(v):
                         operators_by_stable.setdefault(v, set()).add(operator.pk)
+            min_operators = min_operators_for_auto_target()
             corroborated = [
                 v for v, ops in operators_by_stable.items()
-                if len(ops) >= MIN_OPERATORS_FOR_AUTO_TARGET
+                if len(ops) >= min_operators
             ]
             if corroborated:
                 highest = max(corroborated, key=parse_version)
@@ -578,6 +583,8 @@ class GrafanaValidatorStatusService:
         observed upgrade. Dedup shares the exact key with the manual profile flow
         (`version {v} [{network}]`), so the two paths never double-award.
         """
+        from django.db import transaction
+
         from contributions.models import Contribution, ContributionType, SubmittedContribution
         from leaderboard.models import GlobalLeaderboardMultiplier
         from .node_version import calculate_early_upgrade_bonus
@@ -588,15 +595,6 @@ class GrafanaValidatorStatusService:
 
         user = operator.user
         dedup_key = f"version {target.version} [{network}]"
-        already_awarded = Contribution.objects.filter(
-            user=user, contribution_type=contribution_type, notes__contains=dedup_key,
-        ).exists()
-        pending = SubmittedContribution.objects.filter(
-            user=user, contribution_type=contribution_type,
-            state__in=['pending', 'accepted'], notes__contains=dedup_key,
-        ).exists()
-        if already_awarded or pending:
-            return
 
         points = calculate_early_upgrade_bonus(target.target_date, now)
         try:
@@ -612,18 +610,34 @@ class GrafanaValidatorStatusService:
             )
             return
 
-        Contribution(
-            user=user,
-            contribution_type=contribution_type,
-            points=points,
-            contribution_date=now,
-            multiplier_at_creation=multiplier_value,
-            frozen_global_points=round(points * float(multiplier_value)),
-            notes=(
-                f"Automatic node upgrade to version {target.version} "
-                f"[{network}] (detected via Grafana)"
-            ),
-        ).save()  # post_save signal updates the leaderboard
+        with transaction.atomic():
+            # The grafana sync lock already serializes runs; locking the user row
+            # here closes the residual stale-lock-takeover window so the dedup
+            # check-then-create below can never double-award (no-op on SQLite).
+            type(user).objects.select_for_update().get(pk=user.pk)
+
+            already_awarded = Contribution.objects.filter(
+                user=user, contribution_type=contribution_type, notes__contains=dedup_key,
+            ).exists()
+            pending = SubmittedContribution.objects.filter(
+                user=user, contribution_type=contribution_type,
+                state__in=['pending', 'accepted'], notes__contains=dedup_key,
+            ).exists()
+            if already_awarded or pending:
+                return
+
+            Contribution(
+                user=user,
+                contribution_type=contribution_type,
+                points=points,
+                contribution_date=now,
+                multiplier_at_creation=multiplier_value,
+                frozen_global_points=round(points * float(multiplier_value)),
+                notes=(
+                    f"Automatic node upgrade to version {target.version} "
+                    f"[{network}] (detected via Grafana)"
+                ),
+            ).save()  # post_save signal updates the leaderboard
 
     @classmethod
     def sync_all_networks(cls):

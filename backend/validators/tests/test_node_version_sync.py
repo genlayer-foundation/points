@@ -5,7 +5,7 @@ node_version write-back, and direct (auto-approved) node-upgrade awards.
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from contributions.models import Category, Contribution, ContributionType
@@ -75,6 +75,17 @@ class NodeVersionSyncTests(TestCase):
         # ...but their own running version is still recorded.
         op.refresh_from_db()
         self.assertEqual(op.node_version_asimov, '9.9.9')
+
+    @override_settings(NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET=1)
+    def test_auto_target_operator_threshold_is_configurable(self):
+        """The anti-collusion threshold is a setting, read at evaluation time."""
+        op = self._operator('cfg@x.com', '0x' + 'f' * 39 + '2')
+        w = self._wallet('0x' + 'f' * 39 + '3', op)
+        self._sync('asimov', {w: 'v0.6.0'})
+
+        target = TargetNodeVersion.get_active(network='asimov')
+        self.assertIsNotNone(target)
+        self.assertEqual(target.version, '0.6.0')
 
     def test_unknown_addresses_cannot_create_target(self):
         """Prometheus series for addresses we don't know (test rigs, spoofed or

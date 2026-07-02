@@ -140,18 +140,29 @@ class ValidatorWalletStatusSnapshot(BaseModel):
 
     # Latched worst-of-day observability verdict (from ValidatorWalletObservation).
     metrics_status = models.CharField(
-        max_length=10, choices=ValidatorWallet.GRAFANA_STATUS_CHOICES, default='unknown'
+        max_length=10, choices=ValidatorWallet.GRAFANA_STATUS_CHOICES, default='unknown',
+        help_text="Worst-of-day metrics verdict: shame at any observation shames the day"
     )
     logs_status = models.CharField(
-        max_length=10, choices=ValidatorWallet.GRAFANA_STATUS_CHOICES, default='unknown'
+        max_length=10, choices=ValidatorWallet.GRAFANA_STATUS_CHOICES, default='unknown',
+        help_text="Worst-of-day logs verdict: shame at any observation shames the day"
     )
     version_status = models.CharField(
-        max_length=10, choices=VERSION_STATUS_CHOICES, default='unknown'
+        max_length=10, choices=VERSION_STATUS_CHOICES, default='unknown',
+        help_text="Best-of-day version verdict vs the active target (an upgrade clears the day)"
     )
-    node_version = models.CharField(max_length=50, blank=True)
-    # Number of observations that day where the node was reporting metrics / logs.
-    metrics_samples = models.PositiveIntegerField(default=0)
-    logs_samples = models.PositiveIntegerField(default=0)
+    node_version = models.CharField(
+        max_length=50, blank=True,
+        help_text="Last node version observed by the Grafana sync that day"
+    )
+    metrics_samples = models.PositiveIntegerField(
+        default=0,
+        help_text="Observations that day where the node was reporting metrics"
+    )
+    logs_samples = models.PositiveIntegerField(
+        default=0,
+        help_text="Observations that day where the node was reporting logs"
+    )
 
     class Meta:
         ordering = ['-date']
@@ -177,14 +188,30 @@ class ValidatorWalletObservation(BaseModel):
         on_delete=models.CASCADE,
         related_name='observations'
     )
-    observed_at = models.DateTimeField(db_index=True)
-    onchain_status = models.CharField(max_length=20, choices=ValidatorWallet.STATUS_CHOICES)
-    metrics_status = models.CharField(max_length=10, choices=ValidatorWallet.GRAFANA_STATUS_CHOICES)
-    logs_status = models.CharField(max_length=10, choices=ValidatorWallet.GRAFANA_STATUS_CHOICES)
-    version_status = models.CharField(
-        max_length=10, choices=ValidatorWalletStatusSnapshot.VERSION_STATUS_CHOICES, default='unknown'
+    observed_at = models.DateTimeField(
+        db_index=True,
+        help_text="When the Grafana sync recorded this observation"
     )
-    node_version = models.CharField(max_length=50, blank=True)
+    onchain_status = models.CharField(
+        max_length=20, choices=ValidatorWallet.STATUS_CHOICES,
+        help_text="Wallet's on-chain status at observation time"
+    )
+    metrics_status = models.CharField(
+        max_length=10, choices=ValidatorWallet.GRAFANA_STATUS_CHOICES,
+        help_text="Whether the node was reporting metrics at this observation"
+    )
+    logs_status = models.CharField(
+        max_length=10, choices=ValidatorWallet.GRAFANA_STATUS_CHOICES,
+        help_text="Whether the node was reporting logs at this observation"
+    )
+    version_status = models.CharField(
+        max_length=10, choices=ValidatorWalletStatusSnapshot.VERSION_STATUS_CHOICES, default='unknown',
+        help_text="Version verdict vs the active target at this observation"
+    )
+    node_version = models.CharField(
+        max_length=50, blank=True,
+        help_text="Node version reported to Prometheus at this observation"
+    )
 
     class Meta:
         ordering = ['-observed_at']

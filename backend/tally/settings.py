@@ -460,6 +460,15 @@ UPTIME_LOOKBACK_DAYS = int(os.environ.get('UPTIME_LOOKBACK_DAYS', '7') or '7')
 # (validators/version_status.py); changing it affects all targets, past and future.
 NODE_VERSION_SHAME_GRACE_DAYS = int(os.environ.get('NODE_VERSION_SHAME_GRACE_DAYS', '3') or '3')
 
+# Minimum distinct operators that must be observed running a new stable node
+# version before the Grafana sync auto-creates it as the fleet-wide upgrade
+# target. The version label is self-reported by the nodes being judged and
+# rewarded, so this is the anti-spoof/anti-collusion threshold
+# (validators/grafana_service.py).
+NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET = int(
+    os.environ.get('NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET', '2') or '2'
+)
+
 # AWS Health Check IPs - Allow these IPs to bypass ALLOWED_HOSTS
 # Required environment variable with AWS internal/metadata service IPs
 ALLOWED_CIDR_NETS = get_required_env('ALLOWED_CIDR_NETS').split(',')
