@@ -249,6 +249,8 @@ class EmailVerificationService:
                 user.is_email_verified = True
                 user.email_verified_at = timezone.now()
                 user.save(update_fields=['email', 'is_email_verified', 'email_verified_at'])
+                from notifications.services import clear_email_verification_reminder
+                clear_email_verification_reminder(user)
                 return user
         if token_error is not None:
             raise token_error

@@ -4,6 +4,7 @@
   import { getCurrentUser, updateUserProfile, imageAPI, socialAPI, validatorsAPI } from "../lib/api";
   import { authState } from "../lib/auth";
   import ImageCropper from "../components/ImageCropper.svelte";
+  import EmailVerificationModal from "../components/EmailVerificationModal.svelte";
   import { userStore } from "../lib/userStore";
   import { showSuccess, showError } from "../lib/toastStore";
   import SocialLink from "../components/SocialLink.svelte";
@@ -28,6 +29,16 @@
   let linkedinHandle = $state("");
   let profileImageUrl = $state("");
   let bannerImageUrl = $state("");
+
+  // Email verification modal state
+  let showEmailModal = $state(false);
+
+  function handleEmailVerified(updatedUser) {
+    if (updatedUser) {
+      user = { ...user, ...updatedUser };
+      email = user.email || "";
+    }
+  }
 
   // Image upload states
   let showImageCropper = $state(false);
@@ -102,8 +113,9 @@
       nodeVersionBradbury = userData.validator?.node_version_bradbury || "";
 
       // Load profile fields
-      // Always show the email if it exists, regardless of verification status
-      email = userData.email || "";
+      // Show the email if it exists, but hide the internal placeholder address
+      const rawEmail = userData.email || "";
+      email = rawEmail.endsWith("@ethereum.address") ? "" : rawEmail;
       description = userData.description || "";
       website = userData.website || "";
       telegramHandle = userData.telegram_handle || "";
@@ -572,20 +584,38 @@
                   <label
                     for="email"
                     class="block text-sm font-medium text-gray-600 mb-1.5"
-                    >Email *</label
+                    >Email</label
                   >
-                  <input
-                    id="email"
-                    type="email"
-                    bind:value={email}
-                    class="w-full px-4 py-3 bg-[#F5F5F5] border border-[#EAEAEA] rounded-[8px] text-gray-600"
-                    placeholder="Enter your email"
-                    disabled
-                  />
+                  <div class="flex gap-3 items-center">
+                    <input
+                      id="email"
+                      type="email"
+                      bind:value={email}
+                      class="flex-1 min-w-0 px-4 py-3 bg-[#F5F5F5] border border-[#EAEAEA] rounded-[8px] text-gray-600"
+                      placeholder="No email added yet"
+                      disabled
+                    />
+                    <button
+                      type="button"
+                      onclick={() => (showEmailModal = true)}
+                      class="px-4 py-3 rounded-[8px] font-medium text-sm whitespace-nowrap transition-colors {user.is_email_verified
+                        ? 'border border-gray-200 text-gray-700 bg-white hover:bg-gray-50'
+                        : 'bg-black text-white hover:bg-gray-800'}"
+                    >
+                      {user.is_email_verified ? "Change" : "Verify email"}
+                    </button>
+                  </div>
                   {#if user.is_email_verified}
-                    <p class="mt-1 text-xs text-green-600">Email verified</p>
+                    <p class="mt-1.5 text-xs text-green-700 flex items-center gap-1">
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                      Email verified
+                    </p>
                   {:else}
-                    <p class="mt-1 text-xs text-orange-500">Email not verified. Use the check on your public profile header to verify it.</p>
+                    <p class="mt-1.5 text-xs text-[#8a4d06]">
+                      Not verified yet. Verify your email to secure your Portal account.
+                    </p>
                   {/if}
                 </div>
 
@@ -1028,6 +1058,14 @@
     </div>
   {/if}
 </div>
+
+{#if showEmailModal}
+  <EmailVerificationModal
+    initialEmail={email}
+    onClose={() => (showEmailModal = false)}
+    onVerified={handleEmailVerified}
+  />
+{/if}
 
 <!-- Image Cropper Modal -->
 {#if showImageCropper && cropperImage}

@@ -527,6 +527,32 @@ def notify_referral_joined(new_user):
     )
 
 
+def notify_email_verification_reminder(user):
+    """Nudge a user without a verified email to verify it from the portal."""
+    return notify(
+        'email.verify_reminder',
+        recipient=user,
+        title='Verify your email',
+        body=(
+            'Your Portal account does not have a verified email yet. '
+            'Verify it to secure your identity and stay reachable for important updates.'
+        ),
+        link_url=internal_route('/verify-email'),
+        link_label='Verify email',
+        payload={'user_id': user.id},
+        source=user,
+        dedupe_key=f"email.verify_reminder:{user.pk}",
+    )
+
+
+def clear_email_verification_reminder(user):
+    """Remove the pending reminder once the user's email is verified."""
+    return Notification.objects.filter(
+        recipient=user,
+        event_type='email.verify_reminder',
+    ).delete()[0]
+
+
 def notify_validator_graduated(user, actor=None):
     return notify(
         'validator.graduated',
