@@ -15,7 +15,7 @@ import re
 import requests
 from django.conf import settings
 from django.utils import timezone
-from packaging.version import InvalidVersion, parse as parse_version
+from packaging.version import parse as parse_version
 
 from .models import (
     Validator,
@@ -23,7 +23,7 @@ from .models import (
     ValidatorWalletObservation,
     ValidatorWalletStatusSnapshot,
 )
-from .version_status import compute_version_status
+from .version_status import compute_version_status, safe_parse_version as _safe_parse
 
 logger = logging.getLogger(__name__)
 
@@ -69,19 +69,6 @@ def _normalize_version(raw):
     if v[:1] in ('v', 'V'):
         v = v[1:]
     return v
-
-
-def _safe_parse(v):
-    """
-    packaging Version, or None when the string is not PEP 440-parseable.
-
-    Semver strings like '0.6.0-genlayer.1' are valid semver but invalid PEP 440;
-    parse_version() raising on one node's label must never abort a whole sync.
-    """
-    try:
-        return parse_version(v)
-    except InvalidVersion:
-        return None
 
 
 class GrafanaValidatorStatusService:
@@ -132,8 +119,10 @@ class GrafanaValidatorStatusService:
           - version_by_address: {address_lower: node_version} (from the `version`
             label, normalised — 'v' prefix stripped, capped to the column length).
             Right after an upgrade Prometheus can return BOTH the old and new
-            version series for ~5 minutes; the higher parseable version wins so a
-            stale frame can't transiently downgrade a freshly-upgraded node.
+            version series for ~5 minutes; the higher parseable version wins (and
+            a parseable one always beats an unparseable one) so frame order can
+            neither transiently downgrade a freshly-upgraded node nor pin a
+            garbage label.
         """
         results = (body or {}).get('results') or {}
         prom_frames = ((results.get('prom') or {}).get('frames')) or []
@@ -279,7 +268,6 @@ class GrafanaValidatorStatusService:
 
         from contributions.node_upgrade.models import TargetNodeVersion
         target = TargetNodeVersion.get_active(network=network)
-        target_parseable = target is None or _safe_parse(target.version) is not None
 
         on_count = 0
         shame_count = 0
@@ -294,15 +282,13 @@ class GrafanaValidatorStatusService:
 
             metrics_status = 'on' if metrics_ok else 'shame'
             logs_status = 'on' if logs_ok else 'shame'
-            # Only assess version when we actually observed a running version AND
-            # both sides are PEP 440-parseable: _compare_versions falls back to a
-            # lexicographic string comparison on unparseable input, which would let
-            # a garbage `version` label read as up-to-date (or shame a valid one).
-            # A non-reporting node is already metrics/logs shame.
+            # Only assess version when we actually observed a running version;
+            # a non-reporting node is already metrics/logs shame. Unparseable
+            # versions read as 'unknown' inside compute_version_status (exact
+            # target match excepted) — never a lexicographic verdict.
             version_status = (
                 compute_version_status(wallet, target, now, node_version=observed_version)['status']
-                if observed_version and target_parseable and _safe_parse(observed_version) is not None
-                else 'unknown'
+                if observed_version else 'unknown'
             )
 
             if metrics_status == 'shame':

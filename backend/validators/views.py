@@ -876,6 +876,12 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
                 'clean_streak_broken_by': node_streak.get('broken_by', []),
             })
 
+        # One pass: (operator, network) pairs → {op_key: {net: [wallet_ids]}} so the
+        # per-group rollup below doesn't rescan every pair for every group.
+        wallet_ids_by_operator = {}
+        for (op_key, net), ids in operator_network_wallet_ids.items():
+            wallet_ids_by_operator.setdefault(op_key, {})[net] = ids
+
         priority = {'shame': 0, 'warning': 1, 'unknown': 2, 'on': 3}
         network_order = {
             network: index for index, network in enumerate(settings.TESTNET_NETWORKS.keys())
@@ -895,13 +901,10 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
 
             # Per-network operator streak, any-node-clean across the operator's
             # wallets on that network (a network-day is clean if ≥1 node was clean).
-            network_streaks = {}
-            for (op_key, net), wallet_ids in operator_network_wallet_ids.items():
-                if op_key != group['id']:
-                    continue
-                network_streaks[net] = streaks_lib.clean_streak(
-                    wallet_ids, now, snapshot_index
-                )
+            network_streaks = {
+                net: streaks_lib.clean_streak(wallet_ids, now, snapshot_index)
+                for net, wallet_ids in wallet_ids_by_operator.get(group['id'], {}).items()
+            }
             group['network_streaks'] = {
                 net: {
                     'network': net,

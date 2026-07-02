@@ -64,6 +64,28 @@ class ComputeVersionStatusTests(TestCase):
             (target.target_date + timedelta(days=3)).replace(microsecond=0),
         )
 
+    def test_unparseable_version_is_unknown_not_string_compared(self):
+        """Legacy/vendor version strings packaging can't parse must never get a
+        lexicographic verdict ('zzz' >= '1.0.0' is True; '0.10.0' < '0.9.0')."""
+        now = timezone.now()
+        target = TargetNodeVersion.objects.create(
+            version='1.0.0', network='asimov',
+            target_date=now - timedelta(days=10), is_active=True,
+        )
+        ctx = compute_version_status(self._wallet('zzz-not-a-version'), target, now)
+        self.assertEqual(ctx['status'], 'unknown')
+
+    def test_unparseable_version_matching_target_exactly_is_on(self):
+        """Vendor-format fleets ('0.6.0-genlayer.1') where the steward-set target
+        uses the same format still verdict 'on' on exact equality."""
+        now = timezone.now()
+        target = TargetNodeVersion.objects.create(
+            version='0.6.0-genlayer.1', network='asimov',
+            target_date=now - timedelta(days=10), is_active=True,
+        )
+        ctx = compute_version_status(self._wallet('0.6.0-genlayer.1'), target, now)
+        self.assertEqual(ctx['status'], 'on')
+
     @override_settings(NODE_VERSION_SHAME_GRACE_DAYS=7)
     def test_grace_period_is_configurable_via_setting(self):
         now = timezone.now()
