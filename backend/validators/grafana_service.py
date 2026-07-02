@@ -10,6 +10,7 @@ points DB without round-tripping to Grafana per request.
 """
 
 import logging
+import re
 
 import requests
 from django.conf import settings
@@ -17,6 +18,7 @@ from django.utils import timezone
 from packaging.version import InvalidVersion, parse as parse_version
 
 from .models import (
+    Validator,
     ValidatorWallet,
     ValidatorWalletObservation,
     ValidatorWalletStatusSnapshot,
@@ -33,6 +35,11 @@ _METRICS_SEVERITY = {'unknown': 0, 'on': 1, 'shame': 2}
 # the day OK — once a node has upgraded that day, an earlier stale reading must
 # not shame it. Higher number = better; _latch_version keeps the better of prev/cur.
 _VERSION_GOODNESS = {'unknown': 0, 'shame': 1, 'warning': 2, 'on': 3}
+
+# Node versions from Prometheus arrive as e.g. "v0.5.12"; the profile field forbids
+# the leading "v". A stable release is a bare x.y.z (no -prerelease / +build).
+_SEMVER_RE = re.compile(r'^\d+\.\d+\.\d+(-[a-zA-Z0-9\-.]+)?(\+[a-zA-Z0-9\-.]+)?$')
+_STABLE_RE = re.compile(r'^\d+\.\d+\.\d+$')
 
 # node_version columns are varchar(50); anything longer is operator-controlled junk.
 _VERSION_MAX_LENGTH = 50
@@ -323,6 +330,9 @@ class GrafanaValidatorStatusService:
         )
 
         cls._record_history(samples, now)
+        # Version detection covers every reporting node on the network (any on-chain
+        # status), not just the active wallets checked for shame above.
+        cls._sync_node_versions(network, version_by_addr, now)
 
         logger.info(
             "Grafana sync for %s: %d on, %d shame (%d total)",
@@ -403,6 +413,148 @@ class GrafanaValidatorStatusService:
             )
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("Failed to record validator observation history: %s", exc)
+
+    @classmethod
+    def _sync_node_versions(cls, network, version_by_address, now):
+        """
+        Grafana is the source of truth for node versions. From the versions observed
+        this run ({address_lower: version}, every reporting node regardless of
+        on-chain status):
+          1. auto-create a TargetNodeVersion when the fleet's highest STABLE release
+             exceeds the active target (first stable release wins, target_date=now);
+          2. set each linked operator's node_version_<network> to the highest
+             valid version across their nodes (bypassing the profile-save path via
+             a direct .update());
+          3. directly award the node-upgrade contribution when an operator first
+             reaches the active target.
+
+        Best-effort at two levels: the whole step never raises, and one operator's
+        failure never blocks version updates or awards for the others.
+        """
+        try:
+            from contributions.node_upgrade.models import TargetNodeVersion
+
+            # Normalise + keep only field-valid, PEP 440-parseable semvers — anything
+            # unparseable can't be compared, so it can't drive targets or awards.
+            normalized = {}
+            for addr, raw in version_by_address.items():
+                v = _normalize_version(raw)
+                if v and _SEMVER_RE.match(v) and _safe_parse(v) is not None:
+                    normalized[addr.lower()] = v
+            if not normalized:
+                return
+
+            # (1) Auto-create target from the highest stable release observed. An
+            # active target with an unparseable version is never superseded blindly.
+            stable = [v for v in normalized.values() if _STABLE_RE.match(v)]
+            if stable:
+                highest = max(stable, key=parse_version)
+                active = TargetNodeVersion.get_active(network=network)
+                active_parsed = _safe_parse(active.version) if active else None
+                if not active or (
+                    active_parsed is not None and parse_version(highest) > active_parsed
+                ):
+                    TargetNodeVersion.objects.create(
+                        version=highest, network=network, target_date=now, is_active=True,
+                    )
+
+            active = TargetNodeVersion.get_active(network=network)
+            active_parsed = _safe_parse(active.version) if active else None
+
+            # (2) + (3): per linked operator, using their highest observed version.
+            # Any wallet on the network qualifies — a quarantined/inactive node that
+            # still reports can record its upgrade and earn the award.
+            wallets = (
+                ValidatorWallet.objects
+                .filter(network=network, operator__isnull=False)
+                .select_related('operator', 'operator__user')
+            )
+            by_operator = {}
+            for wallet in wallets:
+                version = normalized.get((wallet.address or '').lower())
+                if version:
+                    by_operator.setdefault(wallet.operator, []).append(version)
+
+            field = f'node_version_{network}'
+            for operator, versions in by_operator.items():
+                try:
+                    highest = max(versions, key=parse_version)
+                    # (2) Direct update bypasses NodeVersionMixin.save() so we control
+                    # the award path (direct/approved).
+                    if getattr(operator, field, None) != highest:
+                        Validator.objects.filter(pk=operator.pk).update(**{field: highest})
+                        setattr(operator, field, highest)
+                    # (3) Award once the operator (visible) reaches the active target.
+                    if (
+                        active
+                        and active_parsed is not None
+                        and operator.user_id
+                        and getattr(operator.user, 'visible', False)
+                        and parse_version(highest) >= active_parsed
+                    ):
+                        cls._award_node_upgrade(operator, network, active, now)
+                except Exception as exc:
+                    logger.warning(
+                        "Node version sync failed for operator %s on %s: %s",
+                        operator.pk, network, exc,
+                    )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Failed to sync node versions for %s: %s", network, exc)
+
+    @staticmethod
+    def _award_node_upgrade(operator, network, target, now):
+        """
+        Create a direct, already-approved node-upgrade Contribution for a Grafana-
+        observed upgrade. Dedup shares the exact key with the manual profile flow
+        (`version {v} [{network}]`), so the two paths never double-award.
+        """
+        import decimal
+
+        from contributions.models import Contribution, ContributionType, SubmittedContribution
+        from leaderboard.models import GlobalLeaderboardMultiplier
+        from .node_version import calculate_early_upgrade_bonus
+
+        contribution_type = ContributionType.objects.filter(slug='node-upgrade').first()
+        if not contribution_type:
+            return
+
+        user = operator.user
+        dedup_key = f"version {target.version} [{network}]"
+        already_awarded = Contribution.objects.filter(
+            user=user, contribution_type=contribution_type, notes__contains=dedup_key,
+        ).exists()
+        pending = SubmittedContribution.objects.filter(
+            user=user, contribution_type=contribution_type,
+            state__in=['pending', 'accepted'], notes__contains=dedup_key,
+        ).exists()
+        if already_awarded or pending:
+            return
+
+        points = calculate_early_upgrade_bonus(target.target_date, now)
+        try:
+            _, multiplier_value = GlobalLeaderboardMultiplier.get_active_for_type(
+                contribution_type, at_date=now,
+            )
+            allow_missing = False
+        except GlobalLeaderboardMultiplier.DoesNotExist:
+            multiplier_value = decimal.Decimal('1.0')
+            allow_missing = True
+
+        contribution = Contribution(
+            user=user,
+            contribution_type=contribution_type,
+            points=points,
+            contribution_date=now,
+            multiplier_at_creation=multiplier_value,
+            frozen_global_points=round(points * float(multiplier_value)),
+            notes=(
+                f"Automatic node upgrade to version {target.version} "
+                f"[{network}] (detected via Grafana)"
+            ),
+        )
+        if allow_missing:
+            contribution._allow_missing_multiplier = True
+        contribution.save()  # post_save signal updates the leaderboard
 
     @classmethod
     def sync_all_networks(cls):

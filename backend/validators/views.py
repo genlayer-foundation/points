@@ -85,45 +85,23 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         return [IsAuthenticated()]
     
-    @action(detail=False, methods=['get', 'patch'], url_path='me')
+    @action(detail=False, methods=['get'], url_path='me')
     def my_profile(self, request):
         """
-        Get or update current user's validator profile.
-        """
-        if request.method == 'GET':
-            try:
-                validator = Validator.objects.get(user=request.user)
-                serializer = self.get_serializer(validator)
-                return Response(serializer.data)
-            except Validator.DoesNotExist:
-                return Response(
-                    {'detail': 'Validator profile not found for current user.'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-        
-        elif request.method == 'PATCH':
-            unsupported_fields = set(request.data) - {
-                'node_version_asimov',
-                'node_version_bradbury',
-            }
-            if unsupported_fields:
-                return Response(
-                    {'detail': 'Only node version fields can be updated here.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+        Get current user's validator profile.
 
-            try:
-                validator = Validator.objects.get(user=request.user)
-            except Validator.DoesNotExist:
-                return Response(
-                    {'detail': 'Validator profile not found for current user.'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            serializer = self.get_serializer(validator, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        Read-only: node versions are sourced from Grafana (see
+        validators/grafana_service.py) and are not editable from the portal.
+        """
+        try:
+            validator = Validator.objects.get(user=request.user)
+            serializer = self.get_serializer(validator)
+            return Response(serializer.data)
+        except Validator.DoesNotExist:
+            return Response(
+                {'detail': 'Validator profile not found for current user.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     @action(detail=False, methods=['get'], url_path='all')
     def all_validators(self, request):
